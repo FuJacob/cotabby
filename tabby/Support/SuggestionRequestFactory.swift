@@ -2,17 +2,16 @@ import Foundation
 
 /// File overview:
 /// Owns the pure rules for deciding whether Tabby should generate and, when it should, how the
-/// request payload and previews are constructed. This keeps prompt policy out of the coordinator.
+/// request payload and prompt preview are constructed. This keeps prompt policy out of the coordinator.
 ///
 /// Architectural role:
 /// `SuggestionCoordinator` decides when a generation attempt should happen. This factory decides
 /// what the request should contain once that decision has already been made.
 struct SuggestionRequestBuildResult: Equatable, Sendable {
-    /// The engine-facing request plus the exact debug strings shown in the menu UI.
+    /// The engine-facing request plus the exact prompt preview shown in the menu UI.
     /// Keeping these together prevents preview text from drifting away from the real request.
     let request: SuggestionRequest
     let promptPreview: String
-    let requestPreview: String
 }
 
 /// Pure prompt-policy surface for the autocomplete pipeline.
@@ -32,14 +31,13 @@ enum SuggestionRequestFactory {
         return CharacterSet.whitespaces.contains(trailingScalar)
     }
 
-    /// Builds the generation request plus the exact previews used by Tabby's diagnostics UI.
+    /// Builds the generation request plus the exact prompt preview used by Tabby's diagnostics UI.
     static func buildRequest(
         context: FocusedInputContext,
         promptMode: SuggestionPromptMode,
         wordCountPreset: SuggestionWordCountPreset,
         configuration: SuggestionConfiguration,
-        injectedContextSummary: String?,
-        visualContextStatus: VisualContextStatus
+        injectedContextSummary: String?
     ) -> SuggestionRequestBuildResult {
         let prompt = buildPrompt(
             from: context,
@@ -47,14 +45,6 @@ enum SuggestionRequestFactory {
             wordCountPreset: wordCountPreset,
             configuration: configuration,
             injectedContextSummary: injectedContextSummary
-        )
-
-        let requestPreview = buildRequestPreview(
-            promptMode: promptMode,
-            wordCountPreset: wordCountPreset,
-            configuration: configuration,
-            visualContextStatus: visualContextStatus,
-            hasInjectedContext: injectedContextSummary != nil
         )
 
         let request = SuggestionRequest(
@@ -82,8 +72,7 @@ enum SuggestionRequestFactory {
 
         return SuggestionRequestBuildResult(
             request: request,
-            promptPreview: prompt,
-            requestPreview: requestPreview
+            promptPreview: prompt
         )
     }
 
@@ -167,38 +156,6 @@ enum SuggestionRequestFactory {
             .joined(separator: " ")
 
         return trailingWords.isEmpty ? characterWindow : trailingWords
-    }
-
-    /// Produces a compact operator-facing summary of the current generation configuration.
-    private static func buildRequestPreview(
-        promptMode: SuggestionPromptMode,
-        wordCountPreset: SuggestionWordCountPreset,
-        configuration: SuggestionConfiguration,
-        visualContextStatus: VisualContextStatus,
-        hasInjectedContext: Bool
-    ) -> String {
-        let screenshotContextSummary: String
-        if promptMode.usesVisualContext {
-            screenshotContextSummary = hasInjectedContext ? "ready" : visualContextStatus.shortLabel.lowercased()
-        } else {
-            screenshotContextSummary = "disabled"
-        }
-
-        return """
-        Backend: llama.swift
-        transport: in-process
-        suggestion_words: \(wordCountPreset.displayLabel)
-        prompt_mode: \(promptMode.displayLabel)
-        n_predict: \(activeMaxPredictionTokens(configuration: configuration, wordCountPreset: wordCountPreset))
-        temperature: \(configuration.temperature)
-        top_k: \(configuration.topK)
-        top_p: \(configuration.topP)
-        min_p: \(configuration.minP)
-        repetition_penalty: \(configuration.repetitionPenalty)
-        prompt_style: \(promptMode == .prefixOnly ? "prefix-only" : "guided")
-        screenshot_context: \(screenshotContextSummary)
-        stop: first line only
-        """
     }
 
     private static func activeCompletionInstruction(

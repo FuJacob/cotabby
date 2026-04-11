@@ -34,8 +34,7 @@ final class LlamaSuggestionEngine {
                 generation: request.generation,
                 rawText: rawSuggestion,
                 text: normalizedSuggestion,
-                latency: Date().timeIntervalSince(startTime),
-                finishReason: "llama.swift"
+                latency: Date().timeIntervalSince(startTime)
             )
         } catch is CancellationError {
             throw SuggestionClientError.cancelled

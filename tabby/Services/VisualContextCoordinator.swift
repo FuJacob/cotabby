@@ -56,7 +56,6 @@ final class VisualContextCoordinator {
         let session = FocusedInputAugmentationSession(
             sessionID: UUID(),
             elementIdentifier: snapshotContext.elementIdentifier,
-            contentSignatureAtStart: snapshotContext.contentSignature,
             status: initialStatus,
             injectedContext: nil
         )

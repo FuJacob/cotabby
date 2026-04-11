@@ -13,7 +13,6 @@ struct SuggestionSessionAdvancement: Equatable, Sendable {
     let actionSummary: String
     let exhaustionStage: String
     let exhaustionMessage: String
-    let consumedText: String
 }
 
 enum SuggestionSessionReconciliation: Equatable, Sendable {
@@ -115,7 +114,6 @@ enum SuggestionSessionReconciler {
         }
 
         let advancedBy = consumedSuffix.count - session.consumedCharacterCount
-        let consumedAdvance = String(reconciledSession.acceptedText.suffix(advancedBy))
         let advancement = SuggestionSessionAdvancement(
             stage: reconciledSession.isExhausted ? "session-exhausted" : "session-reconciled",
             message: reconciledSession.isExhausted
@@ -123,8 +121,7 @@ enum SuggestionSessionReconciler {
                 : "The live field state consumed \(advancedBy) additional suggestion characters.",
             actionSummary: "Suggestion tail advanced from live editor state.",
             exhaustionStage: "session-exhausted",
-            exhaustionMessage: "The live field state fully consumed the active suggestion.",
-            consumedText: consumedAdvance
+            exhaustionMessage: "The live field state fully consumed the active suggestion."
         )
 
         return .valid(

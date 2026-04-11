@@ -194,7 +194,6 @@ struct SuggestionResult: Equatable, Sendable {
     let rawText: String
     let text: String
     let latency: TimeInterval
-    let finishReason: String
 }
 
 /// Represents one active inline-completion session after the model has produced a suggestion.
@@ -208,23 +207,17 @@ struct ActiveSuggestionSession: Equatable, Sendable {
     let fullText: String
     let consumedCharacterCount: Int
     let latency: TimeInterval
-    let rawText: String
-    let finishReason: String
 
     init(
         baseContext: FocusedInputContext,
         fullText: String,
         consumedCharacterCount: Int = 0,
-        latency: TimeInterval,
-        rawText: String,
-        finishReason: String
+        latency: TimeInterval
     ) {
         self.baseContext = baseContext
         self.fullText = fullText
         self.consumedCharacterCount = min(max(consumedCharacterCount, 0), fullText.count)
         self.latency = latency
-        self.rawText = rawText
-        self.finishReason = finishReason
     }
 
     var acceptedText: String {
@@ -256,9 +249,7 @@ struct ActiveSuggestionSession: Equatable, Sendable {
             baseContext: baseContext,
             fullText: fullText,
             consumedCharacterCount: self.consumedCharacterCount + max(consumedCharacters, 0),
-            latency: latency,
-            rawText: rawText,
-            finishReason: finishReason
+            latency: latency
         )
     }
 
@@ -269,9 +260,7 @@ struct ActiveSuggestionSession: Equatable, Sendable {
             baseContext: baseContext,
             fullText: fullText,
             consumedCharacterCount: consumedCharacters,
-            latency: latency,
-            rawText: rawText,
-            finishReason: finishReason
+            latency: latency
         )
     }
 }

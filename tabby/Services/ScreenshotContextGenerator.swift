@@ -142,9 +142,7 @@ final class ScreenshotContextGenerator {
         log("context-summary-ready summary=\(preview(normalizedSummary))")
 
         return InjectedVisualContext(
-            summary: normalizedSummary,
-            sourceDescription: "Frontmost window screenshot via OCR + local LLM",
-            capturedAt: Date()
+            summary: normalizedSummary
         )
     }
 

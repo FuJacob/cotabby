@@ -47,25 +47,6 @@ enum VisualContextStatus: Equatable, Sendable {
     case unavailable(String)
     case failed(String)
 
-    var shortLabel: String {
-        switch self {
-        case .idle:
-            return "Idle"
-        case .capturing:
-            return "Capturing"
-        case .extractingText:
-            return "Extracting"
-        case .generatingSummary:
-            return "Summarizing"
-        case .ready:
-            return "Ready"
-        case .unavailable:
-            return "Unavailable"
-        case .failed:
-            return "Failed"
-        }
-    }
-
     var detail: String {
         switch self {
         case .idle:
@@ -82,23 +63,12 @@ enum VisualContextStatus: Equatable, Sendable {
             return reason
         }
     }
-
-    var isTerminalFailure: Bool {
-        switch self {
-        case .unavailable, .failed:
-            return true
-        case .idle, .capturing, .extractingText, .generatingSummary, .ready:
-            return false
-        }
-    }
 }
 
 /// The normalized context hint eventually injected into the completion prompt.
-/// We keep the source metadata so the UI can explain where the hint came from.
+/// This stays intentionally small because only the summary is consumed downstream today.
 struct InjectedVisualContext: Equatable, Sendable {
     let summary: String
-    let sourceDescription: String
-    let capturedAt: Date
 }
 
 /// Session-scoped state for screenshot-derived context tied to one focused field.
@@ -107,7 +77,6 @@ struct InjectedVisualContext: Equatable, Sendable {
 struct FocusedInputAugmentationSession: Equatable, Sendable {
     let sessionID: UUID
     let elementIdentifier: String
-    let contentSignatureAtStart: String
     var status: VisualContextStatus
     var injectedContext: InjectedVisualContext?
 }

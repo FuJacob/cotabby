@@ -27,7 +27,6 @@ final class SuggestionCoordinator: ObservableObject {
     @Published private(set) var latestLatencyMilliseconds: Int?
     @Published private(set) var latestStageMessage = "Idle"
     @Published private(set) var latestOverlayMessage = "Overlay idle."
-    @Published private(set) var latestRequestPreview: String?
     @Published private(set) var latestPromptPreview: String?
     @Published private(set) var latestRawModelOutput: String?
     @Published private(set) var latestGenerationNumber: UInt64?
@@ -475,11 +474,9 @@ final class SuggestionCoordinator: ObservableObject {
             promptMode: selectedPromptMode,
             wordCountPreset: selectedWordCountPreset,
             configuration: configuration,
-            injectedContextSummary: injectedContextSummary,
-            visualContextStatus: visualContextStatus
+            injectedContextSummary: injectedContextSummary
         )
         latestGenerationNumber = context.generation
-        latestRequestPreview = requestBuildResult.requestPreview
         latestPromptPreview = requestBuildResult.promptPreview
         latestRawModelOutput = nil
         let request = requestBuildResult.request
@@ -490,7 +487,6 @@ final class SuggestionCoordinator: ObservableObject {
             workID: workID,
             generation: context.generation,
             message: "Requesting a completion for \(context.elementIdentifier).",
-            request: requestBuildResult.requestPreview,
             prompt: requestBuildResult.promptPreview
         )
 
@@ -592,9 +588,7 @@ final class SuggestionCoordinator: ObservableObject {
         let session = ActiveSuggestionSession(
             baseContext: liveContext,
             fullText: result.text,
-            latency: result.latency,
-            rawText: result.rawText,
-            finishReason: result.finishReason
+            latency: result.latency
         )
 
         latestLatencyMilliseconds = Int(result.latency * 1000)
@@ -726,7 +720,6 @@ final class SuggestionCoordinator: ObservableObject {
         pendingInsertionConsumedCount = nil
 
         if clearDiagnostics {
-            latestRequestPreview = nil
             latestPromptPreview = nil
             latestRawModelOutput = nil
             latestGenerationNumber = nil
@@ -1015,32 +1008,16 @@ final class SuggestionCoordinator: ObservableObject {
 
         switch previousState {
         case let .visible(previousText, previousCaretRect) where previousText == text && previousCaretRect != caretRect:
-            let message = "Moved ghost text to the latest caret position."
-            latestOverlayMessage = message
-            logOverlay("overlay-moved", message: message, text: text, caretRect: caretRect)
+            latestOverlayMessage = "Moved ghost text to the latest caret position."
 
         default:
-            let message = "Displayed ghost text near the caret."
-            latestOverlayMessage = message
-            logOverlay("overlay-shown", message: message, text: text, caretRect: caretRect)
+            latestOverlayMessage = "Displayed ghost text near the caret."
         }
     }
 
     private func hideOverlay(reason: String) {
-        let previousState = overlayState
         overlayController.hide(reason: reason)
         latestOverlayMessage = reason
-
-        switch previousState {
-        case .visible:
-            logOverlay("overlay-hidden", message: reason)
-
-        case let .hidden(previousReason) where previousReason != reason:
-            logOverlay("overlay-hidden", message: reason)
-
-        default:
-            break
-        }
     }
 
     /// Emits compact console summaries plus full prompt/output blocks for high-signal stages.
@@ -1049,7 +1026,6 @@ final class SuggestionCoordinator: ObservableObject {
         workID: UInt64,
         generation: UInt64? = nil,
         message: String,
-        request: String? = nil,
         prompt: String? = nil,
         rawOutput: String? = nil,
         normalizedOutput: String? = nil
@@ -1104,13 +1080,6 @@ final class SuggestionCoordinator: ObservableObject {
                 text: generationOutput
             )
         }
-    }
-
-    private func logOverlay(_ stage: String, message: String, text: String? = nil, caretRect: CGRect? = nil) {
-        _ = stage
-        _ = message
-        _ = text
-        _ = caretRect
     }
 
     private func logLine(_ line: String) {
