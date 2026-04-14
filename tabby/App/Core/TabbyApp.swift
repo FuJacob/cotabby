@@ -18,6 +18,8 @@ struct TabbyApp: App {
                 runtimeModel: appDelegate.runtimeModel,
                 modelDownloadManager: appDelegate.modelDownloadManager,
                 focusModel: appDelegate.focusModel,
+                suggestionSettings: appDelegate.suggestionSettings,
+                foundationModelAvailabilityService: appDelegate.foundationModelAvailabilityService,
                 suggestionCoordinator: appDelegate.suggestionCoordinator,
                 onOpenSettings: {
                     appDelegate.settingsCoordinator.showSettings()

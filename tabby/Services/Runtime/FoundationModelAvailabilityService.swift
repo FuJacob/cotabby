@@ -37,9 +37,12 @@ final class FoundationModelAvailabilityService: ObservableObject {
 
     let model: SystemLanguageModel
 
-    init(model: SystemLanguageModel = .default) {
-        self.model = model
-        self.state = Self.map(model.availability)
+    init() {
+        self.model = SystemLanguageModel(
+            useCase: .general,
+            guardrails: .permissiveContentTransformations
+        )
+        self.state = Self.map(self.model.availability)
     }
 
     /// Refreshes the cached availability before a generation attempt.

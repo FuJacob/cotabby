@@ -12,6 +12,8 @@ import SwiftUI
 @MainActor
 final class SettingsCoordinator: NSObject, NSWindowDelegate {
     private let appUpdateManager: AppUpdateManager
+    private let suggestionSettings: SuggestionSettingsModel
+    private let foundationModelAvailabilityService: FoundationModelAvailabilityService
     private let runtimeModel: RuntimeBootstrapModel
     private let modelDownloadManager: ModelDownloadManager
 
@@ -19,10 +21,14 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
 
     init(
         appUpdateManager: AppUpdateManager,
+        suggestionSettings: SuggestionSettingsModel,
+        foundationModelAvailabilityService: FoundationModelAvailabilityService,
         runtimeModel: RuntimeBootstrapModel,
         modelDownloadManager: ModelDownloadManager
     ) {
         self.appUpdateManager = appUpdateManager
+        self.suggestionSettings = suggestionSettings
+        self.foundationModelAvailabilityService = foundationModelAvailabilityService
         self.runtimeModel = runtimeModel
         self.modelDownloadManager = modelDownloadManager
     }
@@ -40,6 +46,8 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
         let hostingController = NSHostingController(
             rootView: SettingsView(
                 appUpdateManager: appUpdateManager,
+                suggestionSettings: suggestionSettings,
+                foundationModelAvailabilityService: foundationModelAvailabilityService,
                 runtimeModel: runtimeModel,
                 modelDownloadManager: modelDownloadManager
             )

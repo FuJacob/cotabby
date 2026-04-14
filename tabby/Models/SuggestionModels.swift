@@ -190,6 +190,13 @@ struct FocusedInputContext: Equatable, Sendable {
 /// One generation request sent from the coordinator into the suggestion engine.
 struct SuggestionRequest: Equatable, Sendable {
     let context: FocusedInputContext
+    /// The truncated text immediately before the caret.
+    /// This stays backend-agnostic and gives every engine access to the same local writing context
+    /// even if they render prompts differently.
+    let prefixText: String
+    /// The canonical prompt payload for prompt-oriented backends such as the local llama runtime.
+    /// Engines that prefer a separate instructions channel can derive their own request text from
+    /// `prefixText` and the other shared fields instead of consuming this string directly.
     let prompt: String
     let visualContextText: String?
     let generation: UInt64

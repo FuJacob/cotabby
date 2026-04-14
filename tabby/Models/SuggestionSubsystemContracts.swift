@@ -42,6 +42,12 @@ protocol SuggestionGenerating: AnyObject {
 }
 
 @MainActor
+protocol SuggestionSettingsProviding: AnyObject {
+    var snapshot: SuggestionSettingsSnapshot { get }
+    var snapshotPublisher: AnyPublisher<SuggestionSettingsSnapshot, Never> { get }
+}
+
+@MainActor
 protocol SuggestionInserting: AnyObject {
     var lastErrorMessage: String? { get }
 

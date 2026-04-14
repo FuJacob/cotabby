@@ -35,46 +35,33 @@ extension SuggestionCoordinator {
         latestStageMessage = "Idle: runtime model switching reset active suggestion state."
     }
 
-    // MARK: - User Preferences
+    // MARK: - Settings
 
-    /// Updates the length target used in prompt instructions and persists the user preference.
-    func selectWordCountPreset(_ preset: SuggestionWordCountPreset) {
-        guard selectedWordCountPreset != preset else {
+    /// The coordinator reacts to settings changes instead of owning those preferences directly.
+    /// That separation keeps "user configuration" distinct from "active autocomplete session."
+    func handleSuggestionSettingsChange(_ snapshot: SuggestionSettingsSnapshot) {
+        guard settingsSnapshot != snapshot else {
             return
         }
 
-        selectedWordCountPreset = preset
-        userDefaults.set(preset.rawValue, forKey: Self.selectedWordCountPresetDefaultsKey)
-
+        let previousSnapshot = settingsSnapshot
+        settingsSnapshot = snapshot
         cancelPredictionWork()
         clearSuggestion(clearDiagnostics: true)
-        hideOverlay(reason: "Overlay hidden because suggestion length settings changed.")
+        hideOverlay(reason: "Overlay hidden because autocomplete settings changed.")
         state = .idle
-        latestStageMessage = "Updated suggestion length to \(preset.displayLabel)."
 
-        if permissionManager.inputMonitoringGranted,
-           case .supported = focusModel.snapshot.capability
-        {
-            schedulePrediction()
-        }
-    }
-
-    /// Switches prompt strategy between guided and strict prefix-only generation.
-    func selectPromptMode(_ mode: SuggestionPromptMode) {
-        guard selectedPromptMode != mode else {
-            return
+        if previousSnapshot.selectedEngine != snapshot.selectedEngine {
+            latestStageMessage = "Updated autocomplete engine to \(snapshot.selectedEngine.displayLabel)."
+        } else if previousSnapshot.selectedWordCountPreset != snapshot.selectedWordCountPreset {
+            latestStageMessage = "Updated suggestion length to \(snapshot.selectedWordCountPreset.displayLabel)."
+        } else if previousSnapshot.effectivePromptMode != snapshot.effectivePromptMode {
+            latestStageMessage = "Updated prompt mode to \(snapshot.effectivePromptMode.displayLabel)."
+        } else {
+            latestStageMessage = "Updated autocomplete settings."
         }
 
-        selectedPromptMode = mode
-        userDefaults.set(mode.rawValue, forKey: Self.selectedPromptModeDefaultsKey)
-
-        cancelPredictionWork()
-        clearSuggestion(clearDiagnostics: true)
-        hideOverlay(reason: "Overlay hidden because prompt mode changed.")
-        state = .idle
-        latestStageMessage = "Updated prompt mode to \(mode.displayLabel)."
-
-        if mode.usesVisualContext {
+        if snapshot.effectivePromptMode.usesVisualContext {
             if case .supported = focusModel.snapshot.capability,
                let focusedContext = focusModel.snapshot.context
             {

@@ -19,6 +19,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let focusModel: FocusTrackingModel
     let inputMonitor: InputMonitor
     let appUpdateManager: AppUpdateManager
+    let suggestionSettings: SuggestionSettingsModel
+    let foundationModelAvailabilityService: FoundationModelAvailabilityService
     let suggestionCoordinator: SuggestionCoordinator
     let welcomeCoordinator: WelcomeCoordinator
     let settingsCoordinator: SettingsCoordinator
@@ -37,6 +39,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         focusModel = environment.focusModel
         inputMonitor = environment.inputMonitor
         appUpdateManager = environment.appUpdateManager
+        suggestionSettings = environment.suggestionSettings
+        foundationModelAvailabilityService = environment.foundationModelAvailabilityService
         suggestionCoordinator = environment.suggestionCoordinator
         welcomeCoordinator = environment.welcomeCoordinator
         settingsCoordinator = environment.settingsCoordinator

@@ -9,6 +9,10 @@ import FoundationModels
 /// This engine creates a fresh `LanguageModelSession` per request. That is the right default for
 /// Tabby's autocomplete flow because each suggestion is a single-turn interaction and we do not
 /// want prior model responses to accumulate in the context window.
+///
+/// The important behavioral nuance is that Foundation Models has a dedicated instructions channel.
+/// We use that to tell the system model "this is inline autocomplete, not a chat reply," because a
+/// bare text prefix like "hello" otherwise invites conversational continuations.
 @MainActor
 final class FoundationModelSuggestionEngine {
     private let availabilityService: FoundationModelAvailabilityService
@@ -25,34 +29,13 @@ final class FoundationModelSuggestionEngine {
         }
 
         do {
-            
-            let instructions = """
-            You are a text autocomplete engine.
-
-            Your only job is to continue the user's existing text with the most natural next words.
-
-            Rules:
-            - Output only the continuation text.
-            - Do not repeat or restate the user's existing text.
-            - Do not explain, label, quote, or comment on the text.
-            - Do not start a new sentence unless the user's text clearly calls for it.
-            - Match the user's tone, tense, capitalization, and punctuation style.
-            - Keep the continuation short: prefer 1 to 12 words unless more is clearly needed.
-            - If the text appears complete, unclear, or risky to continue, output an empty response.
-            - Never answer a question about the text; only continue the text itself.
-            """
-            
-            let prompt = """
-            Continue this text by writing only the next few words.
-
-            Existing text:
-            \(request.prompt)
-            """
-            
             let startTime = Date()
-            let session = LanguageModelSession(model: availabilityService.model, instructions: instructions)
+            let session = LanguageModelSession(
+                model: availabilityService.model,
+                instructions: FoundationModelPromptRenderer.sessionInstructions(for: request)
+            )
             let response = try await session.respond(
-                to: prompt,
+                to: FoundationModelPromptRenderer.prompt(for: request),
                 options: generationOptions(for: request)
             )
             try Task.checkCancellation()
@@ -62,8 +45,6 @@ final class FoundationModelSuggestionEngine {
                 rawSuggestion,
                 for: request
             )
-            
-            print(request.generation)
 
             return SuggestionResult(
                 generation: request.generation,
@@ -97,7 +78,7 @@ final class FoundationModelSuggestionEngine {
         return GenerationOptions(
             sampling: sampling,
             temperature: request.temperature,
-            maximumResponseTokens: 9999
+            maximumResponseTokens: max(request.maxPredictionTokens, 1)
         )
     }
 

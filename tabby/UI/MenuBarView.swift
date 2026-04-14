@@ -10,6 +10,8 @@ struct MenuBarView: View {
     @ObservedObject var runtimeModel: RuntimeBootstrapModel
     @ObservedObject var modelDownloadManager: ModelDownloadManager
     @ObservedObject var focusModel: FocusTrackingModel
+    @ObservedObject var suggestionSettings: SuggestionSettingsModel
+    @ObservedObject var foundationModelAvailabilityService: FoundationModelAvailabilityService
     @ObservedObject var suggestionCoordinator: SuggestionCoordinator
     let onOpenSettings: () -> Void
 
@@ -20,21 +22,35 @@ struct MenuBarView: View {
             return "Permissions Required"
         }
 
-        if runtimeModel.availableModels.isEmpty {
-            return "Model Missing"
-        }
+        switch suggestionSettings.selectedEngine {
+        case .appleIntelligence:
+            guard foundationModelAvailabilityService.isAvailable else {
+                return foundationModelAvailabilityService.userVisibleMessage
+            }
 
-        switch runtimeModel.state {
-        case .starting, .loading, .failed:
-            return runtimeModel.state.summary
-        case .ready:
             if case .supported = focusModel.snapshot.capability {
                 return "Ready"
             }
 
             return focusModel.menuBarStatusText
-        case .idle:
-            return focusModel.menuBarStatusText
+
+        case .llamaOpenSource:
+            if runtimeModel.availableModels.isEmpty {
+                return "Model Missing"
+            }
+
+            switch runtimeModel.state {
+            case .starting, .loading, .failed:
+                return runtimeModel.state.summary
+            case .ready:
+                if case .supported = focusModel.snapshot.capability {
+                    return "Ready"
+                }
+
+                return focusModel.menuBarStatusText
+            case .idle:
+                return focusModel.menuBarStatusText
+            }
         }
     }
 
@@ -48,12 +64,13 @@ struct MenuBarView: View {
 
             MenuBarPermissionsSection(permissionManager: permissionManager)
 
-            MenuBarRuntimeSection(
+            MenuBarEngineSection(
+                suggestionSettings: suggestionSettings,
                 runtimeModel: runtimeModel,
                 modelDownloadManager: modelDownloadManager
             )
 
-            MenuBarSuggestionControlsSection(suggestionCoordinator: suggestionCoordinator)
+            MenuBarSuggestionControlsSection(suggestionSettings: suggestionSettings)
 
             Divider()
 
@@ -61,5 +78,19 @@ struct MenuBarView: View {
         }
         .padding(18)
         .frame(width: 396)
+        .onAppear {
+            refreshAppleIntelligenceAvailabilityIfNeeded()
+        }
+        .onChange(of: suggestionSettings.selectedEngine) { _, _ in
+            refreshAppleIntelligenceAvailabilityIfNeeded()
+        }
+    }
+
+    private func refreshAppleIntelligenceAvailabilityIfNeeded() {
+        guard suggestionSettings.selectedEngine == .appleIntelligence else {
+            return
+        }
+
+        foundationModelAvailabilityService.refresh()
     }
 }

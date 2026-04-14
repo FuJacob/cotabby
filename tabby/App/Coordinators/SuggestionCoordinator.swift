@@ -31,8 +31,6 @@ final class SuggestionCoordinator: ObservableObject {
     @Published var visualContextStatus: VisualContextStatus = .idle
     @Published var latestVisualContextText: String?
     @Published var totalTabAcceptedWordCount: Int = 0
-    @Published var selectedWordCountPreset: SuggestionWordCountPreset = .threeToSeven
-    @Published var selectedPromptMode: SuggestionPromptMode = .guided
 
     // Core collaborators. The coordinator depends on capability-shaped protocols here so its
     // orchestration logic stays separated from concrete service implementations.
@@ -42,6 +40,7 @@ final class SuggestionCoordinator: ObservableObject {
     let overlayController: any SuggestionOverlayControlling
     let suggestionInserter: any SuggestionInserting
     let suggestionEngine: any SuggestionGenerating
+    let suggestionSettings: any SuggestionSettingsProviding
     let visualContextCoordinator: any VisualContextCoordinating
     let interactionState: SuggestionInteractionState
     let workController: SuggestionWorkController
@@ -50,13 +49,12 @@ final class SuggestionCoordinator: ObservableObject {
     let overlayPresenter: SuggestionOverlayPresenter
     let logger: SuggestionDebugLogger
 
-    static let selectedWordCountPresetDefaultsKey = "selectedSuggestionWordCountPreset"
-    static let selectedPromptModeDefaultsKey = "selectedSuggestionPromptMode"
     static let totalTabAcceptedWordCountDefaultsKey = "totalTabAcceptedWordCount"
 
     // Combine subscriptions are the coordinator's remaining direct mutable bookkeeping.
     // Async work and active-session storage now live in dedicated collaborators below.
     var cancellables = Set<AnyCancellable>()
+    var settingsSnapshot: SuggestionSettingsSnapshot
 
     init(
         permissionManager: any SuggestionPermissionProviding,
@@ -65,24 +63,13 @@ final class SuggestionCoordinator: ObservableObject {
         overlayController: any SuggestionOverlayControlling,
         suggestionInserter: any SuggestionInserting,
         suggestionEngine: any SuggestionGenerating,
+        suggestionSettings: any SuggestionSettingsProviding,
         visualContextCoordinator: any VisualContextCoordinating,
         interactionState: SuggestionInteractionState,
         workController: SuggestionWorkController,
         configuration: SuggestionConfiguration,
         userDefaults: UserDefaults = .standard
     ) {
-        // Restore persisted user preferences before wiring the coordinator to the rest of the app.
-        // This ensures first-render UI matches the settings the user last chose.
-        let storedWordCountPreset =
-            userDefaults
-            .string(forKey: Self.selectedWordCountPresetDefaultsKey)
-            .flatMap(SuggestionWordCountPreset.init(rawValue:))
-        let resolvedWordCountPreset = storedWordCountPreset ?? configuration.defaultWordCountPreset
-        let storedPromptMode =
-            userDefaults
-            .string(forKey: Self.selectedPromptModeDefaultsKey)
-            .flatMap(SuggestionPromptMode.init(rawValue:))
-        let resolvedPromptMode = storedPromptMode ?? configuration.defaultPromptMode
         let storedTotalTabAcceptedWordCount = userDefaults.integer(
             forKey: Self.totalTabAcceptedWordCountDefaultsKey)
 
@@ -92,30 +79,20 @@ final class SuggestionCoordinator: ObservableObject {
         self.overlayController = overlayController
         self.suggestionInserter = suggestionInserter
         self.suggestionEngine = suggestionEngine
+        self.suggestionSettings = suggestionSettings
         self.visualContextCoordinator = visualContextCoordinator
         self.interactionState = interactionState
         self.workController = workController
         self.configuration = configuration
         self.userDefaults = userDefaults
+        settingsSnapshot = suggestionSettings.snapshot
         // These collaborators isolate "how overlay/logging works" from "when the coordinator
         // wants to show state," which keeps the coordinator closer to orchestration code.
         overlayPresenter = SuggestionOverlayPresenter(overlayController: overlayController)
         logger = SuggestionDebugLogger()
-        selectedWordCountPreset = resolvedWordCountPreset
-        selectedPromptMode = resolvedPromptMode
         totalTabAcceptedWordCount = max(storedTotalTabAcceptedWordCount, 0)
         visualContextStatus = visualContextCoordinator.status
         latestVisualContextText = visualContextCoordinator.latestExcerpt
-
-        if storedWordCountPreset == nil {
-            userDefaults.set(
-                resolvedWordCountPreset.rawValue, forKey: Self.selectedWordCountPresetDefaultsKey)
-        }
-
-        if storedPromptMode == nil {
-            userDefaults.set(
-                resolvedPromptMode.rawValue, forKey: Self.selectedPromptModeDefaultsKey)
-        }
 
         overlayState = overlayController.state
         latestOverlayMessage = overlayController.state.detail
@@ -160,6 +137,13 @@ final class SuggestionCoordinator: ObservableObject {
         visualContextCoordinator.onInjectedContextReady = { [weak self] elementIdentifier in
             self?.schedulePredictionForCurrentFocusIfPossible(matching: elementIdentifier)
         }
+
+        suggestionSettings.snapshotPublisher
+            .dropFirst()
+            .sink { [weak self] snapshot in
+                self?.handleSuggestionSettingsChange(snapshot)
+            }
+            .store(in: &cancellables)
     }
 
     /// Exposes the latest cancellation token for the split extension files.

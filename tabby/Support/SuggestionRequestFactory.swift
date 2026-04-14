@@ -39,16 +39,20 @@ enum SuggestionRequestFactory {
         configuration: SuggestionConfiguration,
         visualContextText: String?
     ) -> SuggestionRequestBuildResult {
+        let prefixText = truncatedPromptPrefix(
+            from: context.precedingText,
+            configuration: configuration
+        )
         let prompt = buildPrompt(
-            from: context,
+            prefixText: prefixText,
             promptMode: promptMode,
             wordCountPreset: wordCountPreset,
-            configuration: configuration,
             visualContextText: visualContextText
         )
 
         let request = SuggestionRequest(
             context: context,
+            prefixText: prefixText,
             prompt: prompt,
             // Preserve the raw OCR excerpt on the engine request so logs and downstream consumers
             // can inspect the exact injected value; prompt rendering applies its own normalization.
@@ -78,21 +82,15 @@ enum SuggestionRequestFactory {
 
     /// Builds the prompt contract that the local model sees for the current focused field.
     private static func buildPrompt(
-        from context: FocusedInputContext,
+        prefixText: String,
         promptMode: SuggestionPromptMode,
         wordCountPreset: SuggestionWordCountPreset,
-        configuration: SuggestionConfiguration,
         visualContextText: String?
     ) -> String {
-        let prefix = truncatedPromptPrefix(
-            from: context.precedingText,
-            configuration: configuration
-        )
-
         if promptMode == .prefixOnly {
             // Prefix-only mode intentionally sends just the user's trailing text context.
             // It is the lowest-latency path and avoids instruction-tuned prompt overhead.
-            return prefix
+            return prefixText
         }
 
         var sections = [
@@ -113,7 +111,7 @@ enum SuggestionRequestFactory {
             sections.append("VisibleContext: \(normalizedVisualContext)")
         }
 
-        sections.append("Prefix: \(prefix)")
+        sections.append("Prefix: \(prefixText)")
         sections.append("Continuation:")
         return sections.joined(separator: "\n")
     }

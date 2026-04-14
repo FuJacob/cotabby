@@ -59,13 +59,13 @@ extension SuggestionCoordinator {
         }
 
         let context = interactionState.materializeContext(from: rawContext)
-        let visualContextText = selectedPromptMode.usesVisualContext
+        let visualContextText = settingsSnapshot.effectivePromptMode.usesVisualContext
             ? visualContextCoordinator.excerpt(for: context)
             : nil
         let requestBuildResult = SuggestionRequestFactory.buildRequest(
             context: context,
-            promptMode: selectedPromptMode,
-            wordCountPreset: selectedWordCountPreset,
+            promptMode: settingsSnapshot.effectivePromptMode,
+            wordCountPreset: settingsSnapshot.selectedWordCountPreset,
             configuration: configuration,
             visualContextText: visualContextText
         )

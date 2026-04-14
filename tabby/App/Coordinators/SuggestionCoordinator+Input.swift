@@ -38,7 +38,7 @@ extension SuggestionCoordinator {
             return
         }
 
-        if selectedPromptMode.usesVisualContext {
+        if settingsSnapshot.effectivePromptMode.usesVisualContext {
             visualContextCoordinator.startSessionIfNeeded(for: focusedContext)
         } else if visualContextStatus != .idle {
             visualContextCoordinator.cancel(resetState: true)

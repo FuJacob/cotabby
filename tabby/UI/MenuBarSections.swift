@@ -55,33 +55,50 @@ struct MenuBarPermissionsSection: View {
     }
 }
 
-struct MenuBarRuntimeSection: View {
+struct MenuBarEngineSection: View {
+    @ObservedObject var suggestionSettings: SuggestionSettingsModel
     @ObservedObject var runtimeModel: RuntimeBootstrapModel
     let modelDownloadManager: ModelDownloadManager
 
     var body: some View {
-        MenuBarLabeledRow(title: "Model") {
-            HStack(alignment: .center, spacing: 8) {
-                modelSelector
-
-                // These stay inline with the picker so the menu exposes the two model-management
-                // actions the user actually needs without reviving the old download/debug section.
-                Button {
-                    modelDownloadManager.openModelsDirectory()
-                } label: {
-                    Image(systemName: "folder")
+        VStack(alignment: .leading, spacing: 8) {
+            MenuBarLabeledRow(title: "Engine") {
+                Picker("Engine", selection: selectedEngineBinding) {
+                    ForEach(SuggestionEngineKind.allCases) { engine in
+                        Text(engine.displayLabel)
+                            .tag(engine)
+                    }
                 }
-                .controlSize(.small)
-                .help("Open Models Folder")
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
 
-                Button {
-                    modelDownloadManager.refreshModelStates()
-                    runtimeModel.refreshAvailableModels()
-                } label: {
-                    Image(systemName: "arrow.clockwise")
+            if suggestionSettings.selectedEngine.supportsLocalModelManagement {
+                MenuBarLabeledRow(title: "Model") {
+                    HStack(alignment: .center, spacing: 8) {
+                        modelSelector
+
+                        // These stay inline with the picker so the menu exposes the two
+                        // local-model management actions the user actually needs.
+                        Button {
+                            modelDownloadManager.openModelsDirectory()
+                        } label: {
+                            Image(systemName: "folder")
+                        }
+                        .controlSize(.small)
+                        .help("Open Models Folder")
+
+                        Button {
+                            modelDownloadManager.refreshModelStates()
+                            runtimeModel.refreshAvailableModels()
+                        } label: {
+                            Image(systemName: "arrow.clockwise")
+                        }
+                        .controlSize(.small)
+                        .help("Refresh Models")
+                    }
                 }
-                .controlSize(.small)
-                .help("Refresh Models")
             }
         }
     }
@@ -130,10 +147,19 @@ struct MenuBarRuntimeSection: View {
             return false
         }
     }
+
+    private var selectedEngineBinding: Binding<SuggestionEngineKind> {
+        Binding(
+            get: { suggestionSettings.selectedEngine },
+            set: { engine in
+                suggestionSettings.selectEngine(engine)
+            }
+        )
+    }
 }
 
 struct MenuBarSuggestionControlsSection: View {
-    @ObservedObject var suggestionCoordinator: SuggestionCoordinator
+    @ObservedObject var suggestionSettings: SuggestionSettingsModel
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -143,28 +169,30 @@ struct MenuBarSuggestionControlsSection: View {
                 options: SuggestionWordCountPreset.allCases
             )
 
-            SuggestionPromptModePickerRow(
-                title: "Prompt",
-                selection: promptModeBinding,
-                options: SuggestionPromptMode.allCases
-            )
+            if suggestionSettings.selectedEngine.supportsPromptModeSelection {
+                SuggestionPromptModePickerRow(
+                    title: "Prompt",
+                    selection: promptModeBinding,
+                    options: suggestionSettings.availablePromptModes
+                )
+            }
         }
     }
 
     private var wordCountPresetBinding: Binding<SuggestionWordCountPreset> {
         Binding(
-            get: { suggestionCoordinator.selectedWordCountPreset },
+            get: { suggestionSettings.selectedWordCountPreset },
             set: { preset in
-                suggestionCoordinator.selectWordCountPreset(preset)
+                suggestionSettings.selectWordCountPreset(preset)
             }
         )
     }
 
     private var promptModeBinding: Binding<SuggestionPromptMode> {
         Binding(
-            get: { suggestionCoordinator.selectedPromptMode },
+            get: { suggestionSettings.selectedLocalPromptMode },
             set: { mode in
-                suggestionCoordinator.selectPromptMode(mode)
+                suggestionSettings.selectLocalPromptMode(mode)
             }
         )
     }

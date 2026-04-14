@@ -15,16 +15,21 @@ final class TabbyAppEnvironment {
     let focusModel: FocusTrackingModel
     let inputMonitor: InputMonitor
     let appUpdateManager: AppUpdateManager
+    let suggestionSettings: SuggestionSettingsModel
+    let foundationModelAvailabilityService: FoundationModelAvailabilityService
     let suggestionCoordinator: SuggestionCoordinator
     let welcomeCoordinator: WelcomeCoordinator
     let settingsCoordinator: SettingsCoordinator
     let activationIndicatorController: ActivationIndicatorController
 
     init() {
+        let configuration = SuggestionConfiguration.standard
         let permissionManager = PermissionManager()
         let runtimeManager = LlamaRuntimeManager()
         let runtimeModel = RuntimeBootstrapModel(runtimeManager: runtimeManager)
         let modelDownloadManager = ModelDownloadManager()
+        let suggestionSettings = SuggestionSettingsModel(configuration: configuration)
+        let foundationModelAvailabilityService = FoundationModelAvailabilityService()
         let suppressionController = InputSuppressionController()
         let inputMonitor = InputMonitor(
             permissionProvider: { permissionManager.inputMonitoringGranted },
@@ -43,6 +48,8 @@ final class TabbyAppEnvironment {
         )
         let settingsCoordinator = SettingsCoordinator(
             appUpdateManager: appUpdateManager,
+            suggestionSettings: suggestionSettings,
+            foundationModelAvailabilityService: foundationModelAvailabilityService,
             runtimeModel: runtimeModel,
             modelDownloadManager: modelDownloadManager
         )
@@ -54,15 +61,13 @@ final class TabbyAppEnvironment {
             screenshotContextGenerator: screenshotContextGenerator,
             screenRecordingPermissionProvider: { permissionManager.screenRecordingGranted }
         )
-        // This is intentionally a hard switch for early backend validation.
-        // Backend choice belongs in the composition root so the coordinator and UI continue to
-        // depend on the `SuggestionGenerating` capability instead of a specific runtime.
-        let foundationModelAvailabilityService = FoundationModelAvailabilityService()
-        let suggestionEngine: any SuggestionGenerating = FoundationModelSuggestionEngine(
-            availabilityService: foundationModelAvailabilityService
+        let suggestionEngine: any SuggestionGenerating = SuggestionEngineRouter(
+            suggestionSettings: suggestionSettings,
+            foundationModelEngine: FoundationModelSuggestionEngine(
+                availabilityService: foundationModelAvailabilityService
+            ),
+            llamaEngine: LlamaSuggestionEngine(runtimeManager: runtimeManager)
         )
-        // Swap to the llama backend by replacing the line above with:
-        // let suggestionEngine: any SuggestionGenerating = LlamaSuggestionEngine(runtimeManager: runtimeManager)
 
         let interactionState = SuggestionInteractionState()
         let workController = SuggestionWorkController()
@@ -73,10 +78,11 @@ final class TabbyAppEnvironment {
             overlayController: overlayController,
             suggestionInserter: suggestionInserter,
             suggestionEngine: suggestionEngine,
+            suggestionSettings: suggestionSettings,
             visualContextCoordinator: visualContextCoordinator,
             interactionState: interactionState,
             workController: workController,
-            configuration: .standard
+            configuration: configuration
         )
 
         self.permissionManager = permissionManager
@@ -85,6 +91,8 @@ final class TabbyAppEnvironment {
         self.focusModel = focusModel
         self.inputMonitor = inputMonitor
         self.appUpdateManager = appUpdateManager
+        self.suggestionSettings = suggestionSettings
+        self.foundationModelAvailabilityService = foundationModelAvailabilityService
         self.suggestionCoordinator = suggestionCoordinator
         self.welcomeCoordinator = welcomeCoordinator
         self.settingsCoordinator = settingsCoordinator

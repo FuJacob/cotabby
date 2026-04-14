@@ -20,6 +20,12 @@ enum SuggestionTextNormalizer {
             normalized.removeFirst(request.prompt.count)
         }
 
+        // Apple Intelligence uses a separate instructions channel and a short task prompt, so the
+        // model may echo only the visible prefix text instead of the full prompt payload.
+        if !request.prefixText.isEmpty, normalized.hasPrefix(request.prefixText) {
+            normalized.removeFirst(request.prefixText.count)
+        }
+
         // Inline autocomplete should only surface the immediate continuation, not a paragraph.
         if
             let firstLine = normalized.split(
@@ -41,10 +47,6 @@ enum SuggestionTextNormalizer {
         {
             return ""
         }
-
-//        if normalized.count > 120 {
-//            normalized = String(normalized.prefix(120))
-//        }
 
         return normalized.trimmingCharacters(in: .newlines)
     }
