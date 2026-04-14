@@ -54,6 +54,16 @@ final class TabbyAppEnvironment {
             screenshotContextGenerator: screenshotContextGenerator,
             screenRecordingPermissionProvider: { permissionManager.screenRecordingGranted }
         )
+        // This is intentionally a hard switch for early backend validation.
+        // Backend choice belongs in the composition root so the coordinator and UI continue to
+        // depend on the `SuggestionGenerating` capability instead of a specific runtime.
+        let foundationModelAvailabilityService = FoundationModelAvailabilityService()
+        let suggestionEngine: any SuggestionGenerating = FoundationModelSuggestionEngine(
+            availabilityService: foundationModelAvailabilityService
+        )
+        // Swap to the llama backend by replacing the line above with:
+        // let suggestionEngine: any SuggestionGenerating = LlamaSuggestionEngine(runtimeManager: runtimeManager)
+
         let interactionState = SuggestionInteractionState()
         let workController = SuggestionWorkController()
         let suggestionCoordinator = SuggestionCoordinator(
@@ -62,7 +72,7 @@ final class TabbyAppEnvironment {
             inputMonitor: inputMonitor,
             overlayController: overlayController,
             suggestionInserter: suggestionInserter,
-            suggestionEngine: LlamaSuggestionEngine(runtimeManager: runtimeManager),
+            suggestionEngine: suggestionEngine,
             visualContextCoordinator: visualContextCoordinator,
             interactionState: interactionState,
             workController: workController,

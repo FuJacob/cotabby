@@ -29,7 +29,7 @@ final class LlamaSuggestionEngine {
             )
             try Task.checkCancellation()
 
-            let normalizedSuggestion = normalizeSuggestion(rawSuggestion, for: request)
+            let normalizedSuggestion = SuggestionTextNormalizer.normalize(rawSuggestion, for: request)
             return SuggestionResult(
                 generation: request.generation,
                 rawText: rawSuggestion,
@@ -45,43 +45,6 @@ final class LlamaSuggestionEngine {
         } catch {
             throw SuggestionClientError.generationFailed(error.localizedDescription)
         }
-    }
-
-    /// Normalizes raw model output into a short inline completion by stripping control noise,
-    /// removing echoes, and limiting the result to the first line.
-    private func normalizeSuggestion(_ rawSuggestion: String, for request: SuggestionRequest) -> String {
-        var normalized = rawSuggestion.replacingOccurrences(of: "\r", with: "")
-
-        if !request.prompt.isEmpty, normalized.hasPrefix(request.prompt) {
-            normalized.removeFirst(request.prompt.count)
-        }
-
-        if let firstLine = normalized.split(separator: "\n", maxSplits: 1, omittingEmptySubsequences: false).first {
-            normalized = String(firstLine)
-        }
-        
-        let structuralTags = [
-            "<|im_end|>", 
-            "<|im_start|>"
-        ]
-        
-        for tag in structuralTags {
-            if let tagRange = normalized.range(of: tag) {
-                normalized = String(normalized[..<tagRange.lowerBound])
-            }
-        }
-
-        normalized = normalized.trimmingCharacters(in: .controlCharacters.union(.newlines))
-
-        if normalized.hasPrefix(request.context.trailingText), !request.context.trailingText.isEmpty {
-            return ""
-        }
-
-        if normalized.count > 120 {
-            normalized = String(normalized.prefix(120))
-        }
-
-        return normalized.trimmingCharacters(in: .newlines)
     }
 }
 

@@ -315,7 +315,7 @@ enum SuggestionDebugState: Equatable {
         case .debouncing:
             return "Waiting for typing to settle."
         case .generating:
-            return "Requesting a completion from the local runtime."
+            return "Requesting a completion from the active suggestion backend."
         case .ready:
             return "Ready means Tabby has buffered a non-empty normalized completion for this field and can render it as ghost text."
         }
