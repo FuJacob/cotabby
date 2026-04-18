@@ -264,10 +264,11 @@ struct AXTextGeometryResolver {
 
             let role = AXHelper.stringValue(for: kAXRoleAttribute as CFString, on: element)
             if role == kAXStaticTextRole as String,
-               let text = AXHelper.stringValue(for: kAXValueAttribute as CFString, on: element),
-               !text.isEmpty,
-               let frame = AXHelper.rectValue(for: "AXFrame" as CFString, on: element),
-               !frame.isEmpty {
+                let text = AXHelper.stringValue(for: kAXValueAttribute as CFString, on: element),
+                !text.isEmpty,
+                let frame = AXHelper.rectValue(for: "AXFrame" as CFString, on: element),
+                !frame.isEmpty
+            {
                 runs.append((text, frame))
             }
 

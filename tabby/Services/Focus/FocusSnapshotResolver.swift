@@ -26,20 +26,25 @@ struct FocusSnapshotResolver {
     ) -> FocusSnapshot {
         let applicationName = application.localizedName ?? "Unknown"
         let bundleIdentifier = application.bundleIdentifier ?? "unknown.bundle"
-        let focusedRole = AXHelper.stringValue(for: kAXRoleAttribute as CFString, on: focusedElement) ?? "Unknown"
-        let focusedSubrole = AXHelper.stringValue(for: kAXSubroleAttribute as CFString, on: focusedElement)
-        let focusedElementIdentifier = AXHelper.elementIdentifier(for: focusedElement, bundleIdentifier: bundleIdentifier)
+        let focusedRole =
+            AXHelper.stringValue(for: kAXRoleAttribute as CFString, on: focusedElement) ?? "Unknown"
+        let focusedSubrole = AXHelper.stringValue(
+            for: kAXSubroleAttribute as CFString, on: focusedElement)
+        let focusedElementIdentifier = AXHelper.elementIdentifier(
+            for: focusedElement, bundleIdentifier: bundleIdentifier)
 
         // Dump once per element change so it doesn't spam on every poll tick.
         if Self.dumpAXTree, Self.lastDumpedElementID != focusedElementIdentifier {
             Self.lastDumpedElementID = focusedElementIdentifier
-            printAXTreeDump(focusedElement: focusedElement, app: applicationName, bundle: bundleIdentifier)
+            printAXTreeDump(
+                focusedElement: focusedElement, app: applicationName, bundle: bundleIdentifier)
         }
 
         let candidates = candidateElements(around: focusedElement).map {
             candidateSnapshot(for: $0, bundleIdentifier: bundleIdentifier)
         }
-        let resolution = FocusCapabilityResolver.resolve(candidates: candidates.map(\.resolverCandidate))
+        let resolution = FocusCapabilityResolver.resolve(
+            candidates: candidates.map(\.resolverCandidate))
         let selectedCandidate = resolution.bestDiagnosticCandidate.flatMap { candidate in
             candidates.first(where: { $0.elementIdentifier == candidate.elementIdentifier })
         }
@@ -50,11 +55,12 @@ struct FocusSnapshotResolver {
             resolvedElementIdentifier: selectedCandidate?.elementIdentifier,
             resolvedRole: selectedCandidate?.role,
             resolvedSubrole: selectedCandidate?.subrole,
-            missingCapabilities: resolution.resolvedCandidate == nil ? resolution.missingCapabilities : []
+            missingCapabilities: resolution.resolvedCandidate == nil
+                ? resolution.missingCapabilities : []
         )
 
         guard let resolvedCandidate = selectedCandidate,
-              resolution.resolvedCandidate != nil
+            resolution.resolvedCandidate != nil
         else {
             return FocusSnapshot(
                 applicationName: applicationName,
@@ -108,7 +114,8 @@ struct FocusSnapshotResolver {
         let caretQuality: CaretGeometryQuality
         let observedCharWidth: CGFloat?
         if let primary = resolvedCandidate.caretRect,
-           resolvedCandidate.caretQuality == .exact || resolvedCandidate.caretQuality == .derived {
+            resolvedCandidate.caretQuality == .exact || resolvedCandidate.caretQuality == .derived
+        {
             caretRect = primary
             caretSource = "\(resolvedCandidate.caretQuality!.label) primary"
             caretQuality = resolvedCandidate.caretQuality!
@@ -208,7 +215,7 @@ struct FocusSnapshotResolver {
 
         var ancestors: [AXUIElement] = []
         var currentElement = focusedElement
-        for _ in 0 ..< 2 {
+        for _ in 0..<2 {
             guard let parent = AXHelper.parentElement(of: currentElement) else {
                 break
             }
@@ -248,7 +255,10 @@ struct FocusSnapshotResolver {
             return result
         }
 
-        guard AXHelper.elementIdentity(for: focusedElement) != AXHelper.elementIdentity(for: resolvedElement) else {
+        guard
+            AXHelper.elementIdentity(for: focusedElement)
+                != AXHelper.elementIdentity(for: resolvedElement)
+        else {
             return nil
         }
 
@@ -288,7 +298,8 @@ struct FocusSnapshotResolver {
             ), range.length == 0 {
                 let paramAttrs = Set(AXHelper.parameterizedAttributeNames(on: element))
                 let attrs = Set(AXHelper.attributeNames(on: element))
-                let textValue = attrs.contains(kAXValueAttribute as String)
+                let textValue =
+                    attrs.contains(kAXValueAttribute as String)
                     ? AXHelper.stringValue(for: kAXValueAttribute as CFString, on: element)
                     : nil
                 let result = geometryResolver.resolveCaretRect(
@@ -337,7 +348,8 @@ struct FocusSnapshotResolver {
             return depth > best.depth
         }
 
-        return deepResultQualityScore(candidate.quality) > deepResultQualityScore(best.result.quality)
+        return deepResultQualityScore(candidate.quality)
+            > deepResultQualityScore(best.result.quality)
     }
 
     private func deepResultQualityScore(_ quality: CaretGeometryQuality) -> Int {
@@ -352,28 +364,36 @@ struct FocusSnapshotResolver {
     }
 
     /// Extracts the AX properties Tabby needs from one candidate element near the current focus.
-    private func candidateSnapshot(for element: AXUIElement, bundleIdentifier: String) -> AXFocusCandidate {
+    private func candidateSnapshot(for element: AXUIElement, bundleIdentifier: String)
+        -> AXFocusCandidate
+    {
         let role = AXHelper.stringValue(for: kAXRoleAttribute as CFString, on: element) ?? "Unknown"
         let subrole = AXHelper.stringValue(for: kAXSubroleAttribute as CFString, on: element)
         let supportedAttributes = Set(AXHelper.attributeNames(on: element))
-        let supportedParameterizedAttributes = Set(AXHelper.parameterizedAttributeNames(on: element))
-        let explicitEditableFlag = supportedAttributes.contains("AXEditable")
+        let supportedParameterizedAttributes = Set(
+            AXHelper.parameterizedAttributeNames(on: element))
+        let explicitEditableFlag =
+            supportedAttributes.contains("AXEditable")
             ? AXHelper.boolValue(for: "AXEditable" as CFString, on: element)
             : nil
-        let textValue = supportedAttributes.contains(kAXValueAttribute as String)
+        let textValue =
+            supportedAttributes.contains(kAXValueAttribute as String)
             ? AXHelper.stringValue(for: kAXValueAttribute as CFString, on: element)
             : nil
-        let selection = supportedAttributes.contains(kAXSelectedTextRangeAttribute as String)
+        let selection =
+            supportedAttributes.contains(kAXSelectedTextRangeAttribute as String)
             ? AXHelper.rangeValue(for: kAXSelectedTextRangeAttribute as CFString, on: element)
             : nil
-        let inputFrameRect = supportedAttributes.contains("AXFrame")
+        let inputFrameRect =
+            supportedAttributes.contains("AXFrame")
             ? geometryResolver.resolveInputFrameRect(for: element)
             : nil
         let caretResult = selection.flatMap {
             geometryResolver.resolveCaretRect(
                 for: element,
                 selection: $0,
-                supportsBoundsForRange: supportedParameterizedAttributes.contains(kAXBoundsForRangeParameterizedAttribute as String),
+                supportsBoundsForRange: supportedParameterizedAttributes.contains(
+                    kAXBoundsForRangeParameterizedAttribute as String),
                 supportsFrame: supportedAttributes.contains("AXFrame"),
                 cocoaAnchorFrame: inputFrameRect,
                 textValue: textValue
@@ -382,13 +402,16 @@ struct FocusSnapshotResolver {
         let caretRect = caretResult?.rect
         let caretQuality = caretResult?.quality
         let isSecure = isSecureElement(element: element, role: role, subrole: subrole)
-        let elementIdentifier = AXHelper.elementIdentifier(for: element, bundleIdentifier: bundleIdentifier)
+        let elementIdentifier = AXHelper.elementIdentifier(
+            for: element, bundleIdentifier: bundleIdentifier)
         let resolverCandidate = FocusCapabilityCandidate(
             elementIdentifier: elementIdentifier,
             role: role,
             subrole: subrole,
-            editableHintScore: AXHelper.editabilityHintScore(role: role, explicitEditableFlag: explicitEditableFlag),
-            hasStrongEditabilitySignal: AXHelper.hasStrongEditabilitySignal(role: role, explicitEditableFlag: explicitEditableFlag),
+            editableHintScore: AXHelper.editabilityHintScore(
+                role: role, explicitEditableFlag: explicitEditableFlag),
+            hasStrongEditabilitySignal: AXHelper.hasStrongEditabilitySignal(
+                role: role, explicitEditableFlag: explicitEditableFlag),
             isKnownReadOnlyRole: AXHelper.isKnownReadOnlyRole(role),
             hasTextValue: textValue != nil,
             hasSelectionRange: selection != nil,
@@ -417,8 +440,10 @@ struct FocusSnapshotResolver {
         let secureMarkers = [
             role.lowercased(),
             subrole?.lowercased() ?? "",
-            AXHelper.stringValue(for: kAXDescriptionAttribute as CFString, on: element)?.lowercased() ?? "",
-            AXHelper.stringValue(for: kAXTitleAttribute as CFString, on: element)?.lowercased() ?? "",
+            AXHelper.stringValue(for: kAXDescriptionAttribute as CFString, on: element)?
+                .lowercased() ?? "",
+            AXHelper.stringValue(for: kAXTitleAttribute as CFString, on: element)?.lowercased()
+                ?? "",
         ]
 
         return secureMarkers.contains { marker in
@@ -485,9 +510,11 @@ struct FocusSnapshotResolver {
         }
 
         if attrs.contains(kAXValueAttribute as String),
-           let text = AXHelper.stringValue(for: kAXValueAttribute as CFString, on: el) {
+            let text = AXHelper.stringValue(for: kAXValueAttribute as CFString, on: el)
+        {
             let t = text.count > 80 ? String(text.prefix(80)) + "…" : text
-            s += "\(indent)  value: \"\(t.replacingOccurrences(of: "\n", with: "\\n"))\" (len=\(text.count))\n"
+            s +=
+                "\(indent)  value: \"\(t.replacingOccurrences(of: "\n", with: "\\n"))\" (len=\(text.count))\n"
         }
 
         if let range = AXHelper.rangeValue(for: kAXSelectedTextRangeAttribute as CFString, on: el) {
