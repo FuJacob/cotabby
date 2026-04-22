@@ -250,6 +250,10 @@ private final class ModelDownloadSessionDelegate: NSObject, URLSessionDownloadDe
     private var downloadedFileURL: URL?
     private var response: URLResponse?
     private var hasCompleted = false
+    // Any error thrown while rescuing the temp file in `didFinishDownloadingTo`.
+    // We can't throw from the delegate callback, so we stash it and re-raise from
+    // `didCompleteWithError`, which is the single funnel that resumes the continuation.
+    private var finishError: Error?
 
     init(progressHandler: @escaping @Sendable (Double?) -> Void) {
         self.progressHandler = progressHandler
@@ -289,7 +293,23 @@ private final class ModelDownloadSessionDelegate: NSObject, URLSessionDownloadDe
         downloadTask: URLSessionDownloadTask,
         didFinishDownloadingTo location: URL
     ) {
-        downloadedFileURL = location
+        // URLSession's contract: the file at `location` is only valid for the duration of this
+        // callback. CFNetwork deletes it as soon as we return. If we just stored the URL and
+        // tried to use it later (from `didCompleteWithError` or the caller's moveItem), the
+        // file would already be gone — which surfaced to users as
+        // "cfnetworkdownload_*.tmp couldn't be moved."
+        //
+        // The fix is a synchronous handoff: move the bytes into a holding URL we own *right
+        // now*, while `location` is still live. The caller then moves that holding file to
+        // its final destination, or we clean it up on failure.
+        let holdingURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("tabby-download-\(UUID().uuidString)", isDirectory: false)
+        do {
+            try FileManager.default.moveItem(at: location, to: holdingURL)
+            downloadedFileURL = holdingURL
+        } catch {
+            finishError = error
+        }
         response = downloadTask.response
     }
 
@@ -305,8 +325,14 @@ private final class ModelDownloadSessionDelegate: NSObject, URLSessionDownloadDe
             session.finishTasksAndInvalidate()
         }
 
-        if let error {
-            continuation?.resume(throwing: error)
+        // Surface transport errors first, then the delegate-side rescue error. Either way we
+        // must clean up any holding file we already claimed so failed downloads don't leak.
+        if let failure = error ?? finishError {
+            if let holdingURL = downloadedFileURL {
+                try? FileManager.default.removeItem(at: holdingURL)
+                downloadedFileURL = nil
+            }
+            continuation?.resume(throwing: failure)
             return
         }
 
