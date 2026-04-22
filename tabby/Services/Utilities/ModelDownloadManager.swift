@@ -293,21 +293,16 @@ private final class ModelDownloadSessionDelegate: NSObject, URLSessionDownloadDe
         downloadTask: URLSessionDownloadTask,
         didFinishDownloadingTo location: URL
     ) {
-        // URLSession's contract: the file at `location` is only valid for the duration of this
-        // callback. CFNetwork deletes it as soon as we return. If we just stored the URL and
-        // tried to use it later (from `didCompleteWithError` or the caller's moveItem), the
-        // file would already be gone — which surfaced to users as
-        // "cfnetworkdownload_*.tmp couldn't be moved."
-        //
-        // The fix is a synchronous handoff: move the bytes into a holding URL we own *right
-        // now*, while `location` is still live. The caller then moves that holding file to
-        // its final destination, or we clean it up on failure.
-        let holdingURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("tabby-download-\(UUID().uuidString)", isDirectory: false)
+        // Synchronous handoff into a URL we own. The rescue logic lives in
+        // `DownloadFileRescuer` so the race-sensitive part can be unit-tested
+        // without standing up a real URLSession — see that type's doc comment
+        // for why the move must happen before this callback returns.
         do {
-            try FileManager.default.moveItem(at: location, to: holdingURL)
-            downloadedFileURL = holdingURL
+            downloadedFileURL = try DownloadFileRescuer.rescue(temporaryFileAt: location)
         } catch {
+            // Can't throw from a delegate callback; stash and re-raise from
+            // `didCompleteWithError`, the single funnel that resumes the
+            // continuation.
             finishError = error
         }
         response = downloadTask.response
@@ -329,7 +324,7 @@ private final class ModelDownloadSessionDelegate: NSObject, URLSessionDownloadDe
         // must clean up any holding file we already claimed so failed downloads don't leak.
         if let failure = error ?? finishError {
             if let holdingURL = downloadedFileURL {
-                try? FileManager.default.removeItem(at: holdingURL)
+                DownloadFileRescuer.cleanup(holdingFileAt: holdingURL)
                 downloadedFileURL = nil
             }
             continuation?.resume(throwing: failure)

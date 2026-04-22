@@ -12,6 +12,7 @@
 		A404828463CADB2ECDAE7AF3 /* LlamaPromptRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F29623C5C0A67B992D383A3C /* LlamaPromptRendererTests.swift */; };
 		ADEFEE12C197DB6C990E3812 /* SuggestionRequestFactoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B1121FFDAD30C7F62E15289 /* SuggestionRequestFactoryTests.swift */; };
 		B053492719F6106E48290C32 /* SuggestionAvailabilityEvaluatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A39EC1A44E9160E13E2AE77 /* SuggestionAvailabilityEvaluatorTests.swift */; };
+		B5788B37B93AFEC10EFD3108 /* DownloadFileRescuerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAAEE25772008D75883F2655 /* DownloadFileRescuerTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -29,6 +30,7 @@
 		3FBFA92FA44AA317135426FB /* tabbyTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = tabbyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		5A39EC1A44E9160E13E2AE77 /* SuggestionAvailabilityEvaluatorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SuggestionAvailabilityEvaluatorTests.swift; sourceTree = "<group>"; };
 		8B1121FFDAD30C7F62E15289 /* SuggestionRequestFactoryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SuggestionRequestFactoryTests.swift; sourceTree = "<group>"; };
+		BAAEE25772008D75883F2655 /* DownloadFileRescuerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DownloadFileRescuerTests.swift; sourceTree = "<group>"; };
 		F29623C5C0A67B992D383A3C /* LlamaPromptRendererTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LlamaPromptRendererTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -67,7 +69,6 @@
 			children = (
 				1937414B2F81DE7000BEC04F /* tabby */,
 				1937414A2F81DE7000BEC04F /* Products */,
-				98425D3A1DB21E10B0F3BFA6 /* Frameworks */,
 				38079AF58386B5C2E9373742 /* tabbyTests */,
 			);
 			sourceTree = "<group>";
@@ -87,16 +88,9 @@
 				F29623C5C0A67B992D383A3C /* LlamaPromptRendererTests.swift */,
 				5A39EC1A44E9160E13E2AE77 /* SuggestionAvailabilityEvaluatorTests.swift */,
 				8B1121FFDAD30C7F62E15289 /* SuggestionRequestFactoryTests.swift */,
+				BAAEE25772008D75883F2655 /* DownloadFileRescuerTests.swift */,
 			);
-			name = tabbyTests;
 			path = tabbyTests;
-			sourceTree = "<group>";
-		};
-		98425D3A1DB21E10B0F3BFA6 /* Frameworks */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -215,6 +209,7 @@
 				A404828463CADB2ECDAE7AF3 /* LlamaPromptRendererTests.swift in Sources */,
 				B053492719F6106E48290C32 /* SuggestionAvailabilityEvaluatorTests.swift in Sources */,
 				ADEFEE12C197DB6C990E3812 /* SuggestionRequestFactoryTests.swift in Sources */,
+				B5788B37B93AFEC10EFD3108 /* DownloadFileRescuerTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
