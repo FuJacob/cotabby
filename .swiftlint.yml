@@ -1,0 +1,68 @@
+# Initial SwiftLint ruleset for Tabby.
+#
+# Deliberately conservative. The goal of the first ruleset is not to enforce
+# a style — it's to catch real footguns (force-unwraps in production code,
+# mis-scoped identifiers, unused declarations) without drowning PRs in
+# unrelated nits while the baseline is being audited.
+#
+# When CI graduates to `--strict` (see .github/workflows/lint.yml), re-audit
+# this file and tighten the opt-in rules; some of the `disabled_rules` below
+# are only disabled because retrofitting them on existing code would touch
+# every file.
+
+included:
+  - tabby
+
+excluded:
+  - .build
+  - DerivedData
+  - tabby.xcodeproj
+  - tabby/Resources
+
+disabled_rules:
+  # Tabby has a handful of legitimately long files (coordinators, prompt
+  # renderers). Enforcing a cap is a fight with the architecture, not a
+  # stylistic win.
+  - file_length
+  - type_body_length
+  - function_body_length
+
+  # `TODO:` markers are useful in this codebase; warning on them just creates
+  # noise without adding value until we have a tracker for each.
+  - todo
+
+# Keep the rule but loosen the caps — our existing lines are comfortably
+# under 140, and URLs / long string literals shouldn't fail the check.
+line_length:
+  warning: 140
+  error: 200
+  ignores_comments: true
+  ignores_urls: true
+
+# Allow short names (`x`, `id`, `i` loop vars). Default cap is 40, which is
+# enough for anything intentional.
+identifier_name:
+  min_length: 2
+
+# Demote the rules that ship at `error` severity by default. The workflow is
+# warnings-only today — anything left at `error` would make `swiftlint` exit
+# non-zero and fail the check regardless of our stated intent. These re-promote
+# to `error` when CI graduates to `--strict` and the baseline is cleaned up.
+force_cast:
+  severity: warning
+force_try:
+  severity: warning
+
+opt_in_rules:
+  - empty_count
+  - empty_string
+  - first_where
+  - last_where
+  - contains_over_filter_count
+  - contains_over_filter_is_empty
+  - contains_over_first_not_nil
+  - redundant_nil_coalescing
+  - closure_spacing
+  - explicit_init
+  - implicit_return
+  - toggle_bool

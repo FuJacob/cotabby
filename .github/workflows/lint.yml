@@ -1,0 +1,46 @@
+# SwiftLint style gate on every PR.
+#
+# Starts in warnings-only mode (no `--strict`). The existing codebase is
+# unaudited, so flipping to strict immediately would block unrelated PRs on
+# style noise the author didn't introduce. Graduation plan: once `main` is
+# warning-free under the ruleset in `.swiftlint.yml`, flip the step below
+# to `--strict` and fail the check on any warning.
+#
+# The output goes through `--reporter github-actions-logging` so warnings
+# land as inline annotations on the PR diff — much easier to read than
+# scrolling the run log.
+
+name: Lint
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: lint-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  swiftlint:
+    name: SwiftLint
+    runs-on: macos-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      # Use the prebuilt SwiftLint on macos-latest. The image ships a recent
+      # version via Homebrew; calling `swiftlint version` in the log captures
+      # which one actually ran, which matters when a rule behavior changes
+      # between versions.
+      - name: Install / verify SwiftLint
+        run: |
+          if ! command -v swiftlint >/dev/null; then
+            brew install swiftlint
+          fi
+          swiftlint version
+
+      - name: Run SwiftLint
+        # Warnings-only today (see file header for graduation plan).
+        run: swiftlint --reporter github-actions-logging
