@@ -1,0 +1,360 @@
+# Tag-driven release pipeline for Tabby.
+#
+# Release ordering matters:
+# 1. build and Developer ID sign the app
+# 2. package and notarize the DMG
+# 3. Sparkle-sign the final bytes
+# 4. create the GitHub Release with the DMG attached
+# 5. publish appcast.xml to Pages last
+#
+# The appcast is the update pointer Sparkle clients poll. Publishing it before
+# the release asset exists would expose users to a broken update.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: "Version without the leading v, for manual validation runs"
+        required: true
+        type: string
+      publish:
+        description: "Create the GitHub Release and publish appcast.xml"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  APP_NAME: tabby
+  DMG_NAME: Tabby.dmg
+  PROJECT_PATH: tabby.xcodeproj
+  SCHEME: tabby
+  CONFIGURATION: Release
+  PAGES_CUSTOM_DOMAIN: tabbyapp.dev
+
+jobs:
+  release:
+    name: Build, notarize, sign, and publish
+    runs-on: macos-26
+    timeout-minutes: 60
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy-pages.outputs.page_url }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Toolchain info
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: Resolve release metadata
+        id: metadata
+        env:
+          INPUT_RELEASE_VERSION: ${{ github.event.inputs.release_version }}
+          INPUT_PUBLISH: ${{ github.event.inputs.publish }}
+        run: |
+          set -euo pipefail
+
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            release_tag="${GITHUB_REF_NAME}"
+            release_version="${release_tag#v}"
+            publish="true"
+          else
+            release_version="${INPUT_RELEASE_VERSION}"
+            release_tag="v${release_version}"
+            publish="${INPUT_PUBLISH:-false}"
+          fi
+
+          if [[ -z "${release_version}" || "${release_version}" == "${release_tag}" ]]; then
+            echo "Release version must not be empty and must not include the leading v." >&2
+            exit 1
+          fi
+
+          build_number="$(xcodebuild \
+            -project "${PROJECT_PATH}" \
+            -scheme "${SCHEME}" \
+            -configuration "${CONFIGURATION}" \
+            -showBuildSettings |
+            awk -F '= ' '/CURRENT_PROJECT_VERSION/ { print $2; exit }')"
+
+          echo "release_tag=${release_tag}" >> "$GITHUB_OUTPUT"
+          echo "release_version=${release_version}" >> "$GITHUB_OUTPUT"
+          echo "build_number=${build_number}" >> "$GITHUB_OUTPUT"
+          echo "publish=${publish}" >> "$GITHUB_OUTPUT"
+
+      - name: Ensure release does not already exist
+        if: steps.metadata.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.metadata.outputs.release_tag }}
+        run: |
+          set -euo pipefail
+
+          if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
+            echo "GitHub Release ${RELEASE_TAG} already exists. Refusing to overwrite release assets." >&2
+            exit 1
+          fi
+
+      - name: Import Developer ID certificate
+        env:
+          DEVELOPER_ID_APPLICATION_CERT: ${{ secrets.DEVELOPER_ID_APPLICATION_CERT }}
+          DEVELOPER_ID_CERT_PASSWORD: ${{ secrets.DEVELOPER_ID_CERT_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          keychain_path="${RUNNER_TEMP}/tabby-release.keychain-db"
+          keychain_password="$(uuidgen)"
+          certificate_path="${RUNNER_TEMP}/developer-id-application.p12"
+
+          printf '%s' "${DEVELOPER_ID_APPLICATION_CERT}" | base64 --decode > "${certificate_path}"
+
+          security create-keychain -p "${keychain_password}" "${keychain_path}"
+          security set-keychain-settings -lut 21600 "${keychain_path}"
+          security unlock-keychain -p "${keychain_password}" "${keychain_path}"
+          security import "${certificate_path}" \
+            -P "${DEVELOPER_ID_CERT_PASSWORD}" \
+            -A \
+            -t cert \
+            -f pkcs12 \
+            -k "${keychain_path}"
+          security list-keychains -d user -s "${keychain_path}" $(security list-keychains -d user | tr -d '"')
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: \
+            -s \
+            -k "${keychain_password}" \
+            "${keychain_path}"
+
+      - name: Configure Apple notarization credentials
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          xcrun notarytool store-credentials "tabby-notarytool-profile" \
+            --apple-id "${APPLE_ID}" \
+            --team-id "${APPLE_TEAM_ID}" \
+            --password "${APPLE_APP_SPECIFIC_PASSWORD}"
+
+      - name: Archive signed app
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+
+          mkdir -p build
+
+          xcodebuild archive \
+            -project "${PROJECT_PATH}" \
+            -scheme "${SCHEME}" \
+            -configuration "${CONFIGURATION}" \
+            -archivePath "build/${APP_NAME}.xcarchive" \
+            -derivedDataPath "build/DerivedData" \
+            -destination 'generic/platform=macOS' \
+            DEVELOPMENT_TEAM="${APPLE_TEAM_ID}" \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Developer ID Application" \
+            OTHER_CODE_SIGN_FLAGS="--timestamp" \
+            archive
+
+      - name: Package DMG
+        run: |
+          set -euo pipefail
+
+          app_path="build/${APP_NAME}.xcarchive/Products/Applications/${APP_NAME}.app"
+          dmg_path="build/${DMG_NAME}"
+
+          if [[ ! -d "${app_path}" ]]; then
+            echo "Archived app not found at ${app_path}" >&2
+            exit 1
+          fi
+
+          codesign --verify --deep --strict --verbose=2 "${app_path}"
+
+          rm -f "${dmg_path}"
+          hdiutil create \
+            -volname "Tabby" \
+            -srcfolder "${app_path}" \
+            -ov \
+            -format UDZO \
+            "${dmg_path}"
+
+      - name: Notarize and staple DMG
+        run: |
+          set -euo pipefail
+
+          dmg_path="build/${DMG_NAME}"
+
+          xcrun notarytool submit "${dmg_path}" \
+            --keychain-profile "tabby-notarytool-profile" \
+            --wait
+          xcrun stapler staple "${dmg_path}"
+          xcrun stapler validate "${dmg_path}"
+
+      - name: Locate Sparkle tools
+        id: sparkle-tools
+        run: |
+          set -euo pipefail
+
+          sign_update="$(find build/DerivedData "$HOME/Library/Developer/Xcode/DerivedData" \
+            -type f \
+            -path '*/Sparkle/bin/sign_update' \
+            -print \
+            2>/dev/null |
+            head -n 1)"
+
+          generate_keys="$(find build/DerivedData "$HOME/Library/Developer/Xcode/DerivedData" \
+            -type f \
+            -path '*/Sparkle/bin/generate_keys' \
+            -print \
+            2>/dev/null |
+            head -n 1)"
+
+          if [[ -z "${sign_update}" || -z "${generate_keys}" ]]; then
+            echo "Could not locate Sparkle sign_update and generate_keys tools." >&2
+            exit 1
+          fi
+
+          echo "sign_update=${sign_update}" >> "$GITHUB_OUTPUT"
+          echo "generate_keys=${generate_keys}" >> "$GITHUB_OUTPUT"
+
+      - name: Write Sparkle private key
+        env:
+          SPARKLE_ED25519_PRIVATE_KEY: ${{ secrets.SPARKLE_ED25519_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${SPARKLE_ED25519_PRIVATE_KEY}" ]]; then
+            echo "SPARKLE_ED25519_PRIVATE_KEY is not configured." >&2
+            exit 1
+          fi
+
+          sparkle_key_file="${RUNNER_TEMP}/sparkle-ed25519-private-key.txt"
+          printf '%s' "${SPARKLE_ED25519_PRIVATE_KEY}" > "${sparkle_key_file}"
+          chmod 600 "${sparkle_key_file}"
+
+          echo "SPARKLE_KEY_FILE=${sparkle_key_file}" >> "$GITHUB_ENV"
+
+      - name: Verify Sparkle key matches Info.plist
+        env:
+          GENERATE_KEYS_TOOL: ${{ steps.sparkle-tools.outputs.generate_keys }}
+        run: |
+          set -euo pipefail
+
+          "${GENERATE_KEYS_TOOL}" -f "${SPARKLE_KEY_FILE}"
+
+          expected_public_key="$(/usr/libexec/PlistBuddy \
+            -c 'Print :SUPublicEDKey' \
+            TabbyInfo.plist)"
+          actual_public_key="$("${GENERATE_KEYS_TOOL}" -p)"
+
+          if [[ "${actual_public_key}" != "${expected_public_key}" ]]; then
+            echo "Sparkle private key does not match SUPublicEDKey in TabbyInfo.plist." >&2
+            exit 1
+          fi
+
+      - name: Generate signed appcast
+        env:
+          SIGN_UPDATE_TOOL: ${{ steps.sparkle-tools.outputs.sign_update }}
+          RELEASE_VERSION: ${{ steps.metadata.outputs.release_version }}
+          BUILD_NUMBER: ${{ steps.metadata.outputs.build_number }}
+        run: |
+          set -euo pipefail
+
+          python3 scripts/generate_appcast.py \
+            --release-version "${RELEASE_VERSION}" \
+            --build-number "${BUILD_NUMBER}" \
+            --archive "build/${DMG_NAME}" \
+            --output "build/appcast.xml" \
+            --sign-update-tool "${SIGN_UPDATE_TOOL}" \
+            --ed-key-file "${SPARKLE_KEY_FILE}"
+
+          grep -q 'sparkle:edSignature="' build/appcast.xml
+          grep -q 'length="' build/appcast.xml
+
+      - name: Verify Sparkle signature against final DMG
+        env:
+          SIGN_UPDATE_TOOL: ${{ steps.sparkle-tools.outputs.sign_update }}
+        run: |
+          set -euo pipefail
+
+          signature="$(python3 -c 'import re; from pathlib import Path; match = re.search(r"sparkle:edSignature=\"([^\"]+)\"", Path("build/appcast.xml").read_text()); print(match.group(1) if match else "")')"
+          if [[ -z "${signature}" ]]; then
+            echo "appcast.xml does not contain sparkle:edSignature." >&2
+            exit 1
+          fi
+
+          "${SIGN_UPDATE_TOOL}" \
+            --verify \
+            --ed-key-file "${SPARKLE_KEY_FILE}" \
+            "build/${DMG_NAME}" \
+            "${signature}"
+
+      - name: Create GitHub Release
+        if: steps.metadata.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.metadata.outputs.release_tag }}
+          RELEASE_VERSION: ${{ steps.metadata.outputs.release_version }}
+        run: |
+          set -euo pipefail
+
+          gh release create "${RELEASE_TAG}" "build/${DMG_NAME}" \
+            --title "Tabby ${RELEASE_VERSION}" \
+            --generate-notes
+
+      - name: Prepare Pages artifact
+        if: steps.metadata.outputs.publish == 'true'
+        run: |
+          set -euo pipefail
+
+          mkdir -p build/pages/tabby
+          cp build/appcast.xml build/pages/appcast.xml
+          cp build/appcast.xml build/pages/tabby/appcast.xml
+          printf '%s\n' "${PAGES_CUSTOM_DOMAIN}" > build/pages/CNAME
+
+      - name: Configure GitHub Pages
+        if: steps.metadata.outputs.publish == 'true'
+        uses: actions/configure-pages@v5
+
+      - name: Upload GitHub Pages artifact
+        if: steps.metadata.outputs.publish == 'true'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/pages
+
+      - name: Deploy GitHub Pages
+        if: steps.metadata.outputs.publish == 'true'
+        id: deploy-pages
+        uses: actions/deploy-pages@v4
+
+      - name: Upload local release artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-artifacts
+          path: |
+            build/${{ env.DMG_NAME }}
+            build/appcast.xml
+          if-no-files-found: ignore
