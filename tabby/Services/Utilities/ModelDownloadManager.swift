@@ -204,11 +204,40 @@ final class ModelDownloadManager: ObservableObject {
             try validate(response: downloadResult.response)
 
             let fileManager = FileManager.default
+
+            // Stage-validate-swap so a corrupt download can't take out a
+            // working previous install. If validation throws, the staged
+            // file is removed and the existing destinationURL (if any)
+            // stays untouched.
+            let stagingURL = runtimeDirectoryURL.appendingPathComponent(
+                "\(model.filename).staging-\(UUID().uuidString)",
+                isDirectory: false
+            )
+            try fileManager.moveItem(at: downloadResult.temporaryURL, to: stagingURL)
+
+            do {
+                try ModelFileValidator.validateSize(
+                    of: stagingURL,
+                    expectedBytes: model.expectedSizeBytes
+                )
+                try ModelFileValidator.validateSHA256(
+                    of: stagingURL,
+                    expectedSHA256: model.sha256
+                )
+            } catch {
+                // Don't leave a partial or corrupt file in the runtime
+                // directory where the locator might pick it up later.
+                try? fileManager.removeItem(at: stagingURL)
+                throw error
+            }
+
+            // Validation passed — atomically swap the new file in. The
+            // existing copy is removed only at this point, so any failure
+            // before here leaves the prior install intact.
             if fileManager.fileExists(atPath: destinationURL.path) {
                 try fileManager.removeItem(at: destinationURL)
             }
-
-            try fileManager.moveItem(at: downloadResult.temporaryURL, to: destinationURL)
+            try fileManager.moveItem(at: stagingURL, to: destinationURL)
 
             modelStates[model.filename] = .downloaded
             onModelDirectoryChanged?()
