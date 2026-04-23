@@ -50,6 +50,14 @@ def parse_args() -> argparse.Namespace:
         help="Explicit path to Sparkle's sign_update tool",
     )
     parser.add_argument(
+        "--ed-key-file",
+        default=None,
+        help=(
+            "Optional path to the Sparkle Ed25519 private key file. "
+            "Useful in CI where the key is supplied from a repository secret."
+        ),
+    )
+    parser.add_argument(
         "--github-owner",
         default=DEFAULT_OWNER,
         help="GitHub owner used to build release and repository URLs",
@@ -114,9 +122,14 @@ def resolve_sign_update_tool(explicit_path: str | None) -> Path:
     )
 
 
-def sign_archive(sign_update_tool: Path, archive: Path) -> tuple[str, str]:
+def sign_archive(sign_update_tool: Path, archive: Path, ed_key_file: Path | None) -> tuple[str, str]:
+    command = [str(sign_update_tool)]
+    if ed_key_file is not None:
+        command.extend(["--ed-key-file", str(ed_key_file)])
+    command.append(str(archive))
+
     process = subprocess.run(
-        [str(sign_update_tool), str(archive)],
+        command,
         check=True,
         capture_output=True,
         text=True,
@@ -175,7 +188,14 @@ def main() -> int:
         raise SystemExit(f"Template does not exist: {template_path}")
 
     sign_update_tool = resolve_sign_update_tool(args.sign_update_tool)
-    ed_signature, archive_length = sign_archive(sign_update_tool, archive)
+
+    ed_key_file = None
+    if args.ed_key_file:
+        ed_key_file = Path(args.ed_key_file).expanduser().resolve()
+        if not ed_key_file.is_file():
+            raise SystemExit(f"Sparkle Ed25519 private key file does not exist: {ed_key_file}")
+
+    ed_signature, archive_length = sign_archive(sign_update_tool, archive, ed_key_file)
 
     repository_url = f"https://github.com/{args.github_owner}/{args.github_repository}"
     release_tag = f"v{args.release_version}"
