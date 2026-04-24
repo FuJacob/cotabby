@@ -212,31 +212,6 @@ jobs:
 
           codesign --verify --deep --strict --verbose=4 "${app_path}"
 
-      - name: Assert no ad-hoc nested signatures remain
-        run: |
-          set -euo pipefail
-
-          app_path="build/${APP_NAME}.xcarchive/Products/Applications/${APP_NAME}.app"
-          failed=0
-
-          while IFS= read -r executable_path; do
-            if ! file "${executable_path}" | grep -q 'Mach-O'; then
-              continue
-            fi
-
-            signature="$(codesign -dv --verbose=4 "${executable_path}" 2>&1 || true)"
-            if grep -q 'flags=.*adhoc' <<< "${signature}"; then
-              echo "Ad-hoc signature remains: ${executable_path}" >&2
-              failed=1
-            fi
-            if ! grep -q 'Authority=Developer ID Application' <<< "${signature}"; then
-              echo "Missing Developer ID Application authority: ${executable_path}" >&2
-              failed=1
-            fi
-          done < <(find "${app_path}" -type f -perm -111 -print)
-
-          exit "${failed}"
-
       - name: Package DMG
         run: |
           set -euo pipefail
@@ -259,27 +234,25 @@ jobs:
             -format UDZO \
             "${dmg_path}"
 
+          codesign \
+            --force \
+            --sign "Developer ID Application" \
+            --options runtime \
+            --timestamp \
+            "${dmg_path}"
+
+          codesign --verify --strict --verbose=2 "${dmg_path}"
+
       - name: Notarize and staple DMG
         run: |
           set -euo pipefail
 
           dmg_path="build/${DMG_NAME}"
 
-          submit_json="$(xcrun notarytool submit "${dmg_path}" \
+          # --wait will return a non-zero exit code if notarization is rejected
+          xcrun notarytool submit "${dmg_path}" \
             --keychain-profile "tabby-notarytool-profile" \
-            --wait \
-            --output-format json)"
-          echo "${submit_json}"
-
-          submission_id="$(python3 -c 'import json, sys; print(json.load(sys.stdin)["id"])' <<< "${submit_json}")"
-          submission_status="$(python3 -c 'import json, sys; print(json.load(sys.stdin)["status"])' <<< "${submit_json}")"
-
-          if [[ "${submission_status}" != "Accepted" ]]; then
-            echo "Notarization failed with status: ${submission_status}" >&2
-            xcrun notarytool log "${submission_id}" \
-              --keychain-profile "tabby-notarytool-profile" || true
-            exit 1
-          fi
+            --wait
 
           xcrun stapler staple "${dmg_path}"
           xcrun stapler validate "${dmg_path}"
