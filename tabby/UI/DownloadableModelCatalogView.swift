@@ -85,6 +85,14 @@ private struct DownloadableModelRow: View {
             if state.isDownloading {
                 downloadProgressBar
             }
+
+            // Failure messages get their own wrapping row. Validation errors
+            // include exact byte counts and partial checksum prefixes, which
+            // would clip the size label or get truncated to one line if we
+            // tried to fit them inline with the metadata.
+            if case .failed(let message) = state {
+                failureMessageRow(message: message)
+            }
         }
         .padding(.vertical, 6)
         .padding(.horizontal, 10)
@@ -92,6 +100,23 @@ private struct DownloadableModelRow: View {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(.quaternary.opacity(0.3))
         )
+    }
+
+    /// Renders the localized error from `.failed(message)` as wrapping red
+    /// text below the row body. Pinned to `fixedSize(vertical:)` so SwiftUI
+    /// allocates enough vertical space for the wrap rather than clipping.
+    @ViewBuilder
+    private func failureMessageRow(message: String) -> some View {
+        HStack(alignment: .top, spacing: 6) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 11))
+                .foregroundStyle(.red)
+            Text(message)
+                .font(.system(size: 11))
+                .foregroundStyle(.red)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 
     @ViewBuilder
@@ -132,9 +157,16 @@ private struct DownloadableModelRow: View {
                 .foregroundStyle(.green)
                 .font(.system(size: 16))
         case .failed:
-            Button("Retry") { onDownload() }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
+            // Refresh symbol gives the button a visual cue that it's not just
+            // any "tap to do something"; pairs with the warning row below to
+            // reinforce "something went wrong, try again."
+            Button {
+                onDownload()
+            } label: {
+                Label("Retry", systemImage: "arrow.counterclockwise")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
         }
     }
 
@@ -148,7 +180,11 @@ private struct DownloadableModelRow: View {
         case .downloaded:
             installationStatus = "Installed"
         case .failed:
-            installationStatus = state.statusText
+            // Terse here; the full message lives in `failureMessageRow` below
+            // where it has room to wrap. Mixing a multi-line error into the
+            // size-label line would either truncate or push the size off
+            // screen on smaller windows.
+            installationStatus = "Download failed"
         }
 
         return "\(installationStatus)  •  \(model.approximateSizeLabel)"
