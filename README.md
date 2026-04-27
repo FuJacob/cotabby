@@ -88,3 +88,7 @@ xcodebuild -project tabby.xcodeproj -scheme tabby -configuration Debug build
 ```
 
 On first launch, complete onboarding, grant permissions, pick an engine, and (if Open Source) download or drop in a GGUF.
+
+## License
+
+Tabby is licensed under the [GNU Affero General Public License v3.0](LICENSE). The AGPL's network-use clause means any modified version made available to users over a network must also be source-available under the same terms.
