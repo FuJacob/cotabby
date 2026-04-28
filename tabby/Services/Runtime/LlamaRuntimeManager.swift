@@ -82,26 +82,32 @@ final class LlamaRuntimeManager: ObservableObject {
     }
 
     /// Forwards one generation request into the serialized runtime actor after ensuring preparation.
+    /// `cachedPrefixBytes` is a caller-provided reuse hint, not a correctness guarantee; the core
+    /// actor still validates the token prefix before trusting any native KV state.
     func generate(
         prompt: String,
+        cachedPrefixBytes: Int? = nil,
         maxPredictionTokens: Int,
         temperature: Double,
         topK: Int,
         topP: Double,
         minP: Double,
-        repetitionPenalty: Double
+        repetitionPenalty: Double,
+        seed: UInt32? = nil
     ) async throws -> String {
         _ = try await preparedRuntime()
 
         do {
             return try await core.generate(
                 prompt: prompt,
+                cachedPrefixBytes: cachedPrefixBytes,
                 maxPredictionTokens: maxPredictionTokens,
                 temperature: temperature,
                 topK: topK,
                 topP: topP,
                 minP: minP,
-                repetitionPenalty: repetitionPenalty
+                repetitionPenalty: repetitionPenalty,
+                seed: seed
             )
         } catch is CancellationError {
             throw LlamaRuntimeError.cancelled
@@ -112,6 +118,15 @@ final class LlamaRuntimeManager: ObservableObject {
             let runtimeError = LlamaRuntimeError.generationFailed(error.localizedDescription)
             diagnostics.lastError = runtimeError.localizedDescription
             throw runtimeError
+        }
+    }
+
+    /// Clears the native prompt KV cache without unloading the model.
+    /// The manager exposes this as a lifecycle command because focus/settings resets originate in
+    /// the app layer, while the actor still owns the raw llama pointers.
+    func resetPromptCache() {
+        Task {
+            await core.resetPromptCache()
         }
     }
 

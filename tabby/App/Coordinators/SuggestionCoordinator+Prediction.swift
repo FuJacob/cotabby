@@ -305,6 +305,7 @@ extension SuggestionCoordinator {
     /// Fully disables prediction, clears cached context, and updates UI messaging with the cause.
     func disablePredictions(reason: String) {
         cancelPredictionWork()
+        suggestionEngine.resetCachedGenerationContext()
         visualContextCoordinator.cancel(resetState: true)
         interactionState.resetAll()
         clearSuggestion(clearDiagnostics: true)

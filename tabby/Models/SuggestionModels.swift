@@ -129,6 +129,10 @@ struct SuggestionConfiguration: Equatable, Sendable {
     let topP: Double
     let minP: Double
     let repetitionPenalty: Double
+    /// Optional fixed seed for deterministic llama sampling.
+    /// Production keeps this nil so suggestions can vary naturally; tests and microbenches can set
+    /// it to prove cached and uncached decoding produce the same output for the same sampler state.
+    let randomSeed: UInt32?
     let maxPrefixWords: Int
     let maxPrefixCharacters: Int
     let maxSuffixCharacters: Int
@@ -153,6 +157,7 @@ struct SuggestionConfiguration: Equatable, Sendable {
         topP: 0.7,
         minP: 0.08,
         repetitionPenalty: 1.05,
+        randomSeed: nil,
         maxPrefixWords: 50,
         // Prompt windows should stay small. Sending an entire editor buffer hurts latency with
         // little quality gain because Tabby is only completing the immediate local continuation.
@@ -238,6 +243,9 @@ struct SuggestionRequest: Equatable, Sendable {
     let topP: Double
     let minP: Double
     let repetitionPenalty: Double
+    /// Optional deterministic sampler seed. `nil` preserves production randomness; tests and
+    /// microbenches can set this so cached and uncached runtime paths are directly comparable.
+    let randomSeed: UInt32?
     let maxSuffixCharacters: Int
     /// Explicit length guidance stays separate from user style preferences so prompt builders can
     /// order and phrase them differently per backend.

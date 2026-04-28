@@ -59,6 +59,7 @@ enum SuggestionRequestFactory {
             topP: configuration.topP,
             minP: configuration.minP,
             repetitionPenalty: configuration.repetitionPenalty,
+            randomSeed: configuration.randomSeed,
             maxSuffixCharacters: configuration.maxSuffixCharacters,
             completionLengthInstruction: completionLengthInstruction,
             customAIInstructions: customAIInstructions

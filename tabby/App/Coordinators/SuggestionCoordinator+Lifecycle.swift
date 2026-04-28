@@ -14,6 +14,7 @@ extension SuggestionCoordinator {
     /// Cancels any pending work and detaches long-lived callbacks during shutdown.
     func stop() {
         cancelPredictionWork()
+        suggestionEngine.resetCachedGenerationContext()
         visualContextCoordinator.cancel(resetState: true)
         hideOverlay(reason: "Overlay hidden because Tabby stopped observing suggestions.")
         inputMonitor.onEvent = nil
@@ -27,6 +28,7 @@ extension SuggestionCoordinator {
     /// This prevents stale completions from the previous model from surviving the switch.
     func prepareForRuntimeModelSwitch() {
         cancelPredictionWork()
+        suggestionEngine.resetCachedGenerationContext()
         interactionState.resetAll()
         visualContextCoordinator.cancel(resetState: true)
         clearSuggestion(clearDiagnostics: true)
@@ -47,6 +49,7 @@ extension SuggestionCoordinator {
         let previousSnapshot = settingsSnapshot
         settingsSnapshot = snapshot
         cancelPredictionWork()
+        suggestionEngine.resetCachedGenerationContext()
         clearSuggestion(clearDiagnostics: true)
         hideOverlay(reason: "Overlay hidden because autocomplete settings changed.")
         state = .idle

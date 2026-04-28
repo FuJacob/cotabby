@@ -39,6 +39,9 @@ protocol SuggestionInputMonitoring: AnyObject {
 @MainActor
 protocol SuggestionGenerating: AnyObject {
     func generateSuggestion(for request: SuggestionRequest) async throws -> SuggestionResult
+    /// Clears backend-local continuation state when the focused editing context is no longer
+    /// continuous. Stateless engines may implement this as a no-op.
+    func resetCachedGenerationContext()
 }
 
 @MainActor
