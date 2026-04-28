@@ -9,11 +9,18 @@ import Foundation
 enum SuggestionAvailabilityEvaluator {
     static func disabledReason(
         globallyEnabled: Bool = true,
+        disabledAppBundleIdentifiers: Set<String> = [],
         inputMonitoringGranted: Bool,
         focusSnapshot: FocusSnapshot
     ) -> String? {
         guard globallyEnabled else {
             return "Tabby is turned off."
+        }
+
+        if let bundleIdentifier = focusSnapshot.bundleIdentifier,
+           disabledAppBundleIdentifiers.contains(bundleIdentifier)
+        {
+            return "Tabby is disabled in \(focusSnapshot.applicationName)."
         }
 
         guard inputMonitoringGranted else {
@@ -30,10 +37,16 @@ enum SuggestionAvailabilityEvaluator {
 
     static func shouldSchedulePrediction(
         globallyEnabled: Bool = true,
+        disabledAppBundleIdentifiers: Set<String> = [],
         inputMonitoringGranted: Bool,
         focusSnapshot: FocusSnapshot
     ) -> Bool {
-        disabledReason(globallyEnabled: globallyEnabled, inputMonitoringGranted: inputMonitoringGranted, focusSnapshot: focusSnapshot) == nil
+        disabledReason(
+            globallyEnabled: globallyEnabled,
+            disabledAppBundleIdentifiers: disabledAppBundleIdentifiers,
+            inputMonitoringGranted: inputMonitoringGranted,
+            focusSnapshot: focusSnapshot
+        ) == nil
     }
 
     static func shouldSchedulePredictionWhenVisualContextBecomesReady(

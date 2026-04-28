@@ -309,6 +309,10 @@ private final class ModelDownloadSessionDelegate: NSObject, URLSessionDownloadDe
     // only flip Task.isCancelled — the URLSession download would keep running
     // until natural completion, wasting bytes and ignoring the user's intent.
     private var activeDownloadTask: URLSessionDownloadTask?
+    // Any error thrown while rescuing the temp file in `didFinishDownloadingTo`.
+    // We can't throw from the delegate callback, so we stash it and re-raise from
+    // `didCompleteWithError`, which is the single funnel that resumes the continuation.
+    private var finishError: Error?
 
     init(progressHandler: @escaping @Sendable (Double?) -> Void) {
         self.progressHandler = progressHandler
@@ -363,7 +367,18 @@ private final class ModelDownloadSessionDelegate: NSObject, URLSessionDownloadDe
         downloadTask: URLSessionDownloadTask,
         didFinishDownloadingTo location: URL
     ) {
-        downloadedFileURL = location
+        // Synchronous handoff into a URL we own. The rescue logic lives in
+        // `DownloadFileRescuer` so the race-sensitive part can be unit-tested
+        // without standing up a real URLSession — see that type's doc comment
+        // for why the move must happen before this callback returns.
+        do {
+            downloadedFileURL = try DownloadFileRescuer.rescue(temporaryFileAt: location)
+        } catch {
+            // Can't throw from a delegate callback; stash and re-raise from
+            // `didCompleteWithError`, the single funnel that resumes the
+            // continuation.
+            finishError = error
+        }
         response = downloadTask.response
     }
 
@@ -379,8 +394,14 @@ private final class ModelDownloadSessionDelegate: NSObject, URLSessionDownloadDe
             session.finishTasksAndInvalidate()
         }
 
-        if let error {
-            continuation?.resume(throwing: error)
+        // Surface transport errors first, then the delegate-side rescue error. Either way we
+        // must clean up any holding file we already claimed so failed downloads don't leak.
+        if let failure = error ?? finishError {
+            if let holdingURL = downloadedFileURL {
+                DownloadFileRescuer.cleanup(holdingFileAt: holdingURL)
+                downloadedFileURL = nil
+            }
+            continuation?.resume(throwing: failure)
             return
         }
 

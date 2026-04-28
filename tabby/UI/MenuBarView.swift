@@ -64,9 +64,15 @@ struct MenuBarView: View {
     @ViewBuilder
     private var controlsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Toggle("Enabled", isOn: globallyEnabledBinding)
+            Toggle("Enable Globally", isOn: globallyEnabledBinding)
                 .toggleStyle(.switch)
                 .controlSize(.small)
+
+            if let application = focusModel.latestExternalApplication {
+                Toggle("Enable in \(application.applicationName)", isOn: appEnabledBinding(for: application))
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+            }
 
             MenuBarPickerRow(title: "Indicator") {
                 Picker("Indicator", selection: selectedIndicatorModeBinding) {
@@ -200,6 +206,23 @@ struct MenuBarView: View {
         Binding(
             get: { suggestionSettings.isGloballyEnabled },
             set: { suggestionSettings.setGloballyEnabled($0) }
+        )
+    }
+
+    private func appEnabledBinding(for application: FocusedApplicationIdentity) -> Binding<Bool> {
+        Binding(
+            get: {
+                !suggestionSettings.isApplicationDisabled(
+                    bundleIdentifier: application.bundleIdentifier
+                )
+            },
+            set: { enabled in
+                suggestionSettings.setApplicationDisabled(
+                    bundleIdentifier: application.bundleIdentifier,
+                    displayName: application.applicationName,
+                    disabled: !enabled
+                )
+            }
         )
     }
 

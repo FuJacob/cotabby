@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// File overview:
 /// Renders Tabby's settings window as the canonical home for durable user preferences.
@@ -29,6 +30,7 @@ struct SettingsView: View {
             settingsHeader
             generalSection
             autocompleteSection
+            disabledAppsSection
             customInstructionsSection
             permissionsSection
             localModelsSection
@@ -109,7 +111,7 @@ struct SettingsView: View {
     @ViewBuilder
     private var autocompleteSection: some View {
         Section("Autocomplete") {
-            Toggle("Enabled", isOn: globallyEnabledBinding)
+            Toggle("Enable Globally", isOn: globallyEnabledBinding)
 
             Picker("Indicator", selection: selectedIndicatorModeBinding) {
                 ForEach(ActivationIndicatorMode.allCases) { mode in
@@ -175,6 +177,21 @@ struct SettingsView: View {
                 Text("Completion Style and custom instructions apply to the Open Source engine.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var disabledAppsSection: some View {
+        Section("Disabled Apps") {
+            if suggestionSettings.disabledAppRules.isEmpty {
+                Text("No apps are disabled. Apps you turn off from the menu bar will appear here.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(suggestionSettings.disabledAppRules) { rule in
+                    disabledAppRuleRow(rule)
+                }
             }
         }
     }
@@ -316,6 +333,50 @@ struct SettingsView: View {
                 .help("Delete \(model.displayName)")
             }
         }
+    }
+
+    @ViewBuilder
+    private func disabledAppRuleRow(_ rule: DisabledApplicationRule) -> some View {
+        HStack(spacing: 12) {
+            Image(nsImage: icon(for: rule))
+                .resizable()
+                .frame(width: 28, height: 28)
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(rule.displayName)
+
+                Text(rule.bundleIdentifier)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+            }
+
+            Spacer(minLength: 0)
+
+            Button {
+                suggestionSettings.removeDisabledApplication(
+                    bundleIdentifier: rule.bundleIdentifier
+                )
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.borderless)
+            .help("Remove \(rule.displayName) from disabled apps")
+        }
+    }
+
+    private func icon(for rule: DisabledApplicationRule) -> NSImage {
+        // Bundle IDs are durable; app paths are not. Resolve the current app URL at render time so
+        // Settings naturally picks up app updates, moves, or reinstalls without persisting UI cache.
+        guard let appURL = NSWorkspace.shared.urlForApplication(
+            withBundleIdentifier: rule.bundleIdentifier
+        ) else {
+            return NSWorkspace.shared.icon(for: .applicationBundle)
+        }
+
+        return NSWorkspace.shared.icon(forFile: appURL.path)
     }
 
     @ViewBuilder
