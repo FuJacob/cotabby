@@ -56,6 +56,104 @@ final class LlamaSuggestionEngine {
         }
     }
 
+    /// Streams stable normalized prefixes from the local llama runtime.
+    ///
+    /// The runtime yields raw accumulated token text. This adapter owns the inline-autocomplete
+    /// policy above that: normalize the accumulated text, expose only stable word/phrase prefixes,
+    /// and emit a final update when generation completes.
+    func streamSuggestion(for request: SuggestionRequest) -> AsyncThrowingStream<SuggestionStreamUpdate, Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task { @MainActor [weak self] in
+                guard let self else {
+                    continuation.finish(throwing: SuggestionClientError.cancelled)
+                    return
+                }
+
+                let startTime = Date()
+                let cachedPrefixBytes = promptCacheHintTracker.cachedPrefixBytes(for: request)
+                var lastRawSuggestion = ""
+                var lastStableSuggestion = ""
+
+                do {
+                    let rawStream = runtimeManager.rawGenerationStream(
+                        prompt: request.prompt,
+                        cachedPrefixBytes: cachedPrefixBytes,
+                        maxPredictionTokens: request.maxPredictionTokens,
+                        temperature: request.temperature,
+                        topK: request.topK,
+                        topP: request.topP,
+                        minP: request.minP,
+                        repetitionPenalty: request.repetitionPenalty,
+                        seed: request.randomSeed
+                    )
+
+                    for try await rawSuggestion in rawStream {
+                        try Task.checkCancellation()
+                        lastRawSuggestion = rawSuggestion
+                        let normalizedSuggestion = SuggestionTextNormalizer.normalize(
+                            rawSuggestion,
+                            for: request
+                        )
+                        let stableSuggestion = SuggestionStreamChunker.stablePrefix(
+                            from: normalizedSuggestion,
+                            isFinal: false
+                        )
+
+                        guard !stableSuggestion.isEmpty,
+                              stableSuggestion != lastStableSuggestion
+                        else {
+                            continue
+                        }
+
+                        lastStableSuggestion = stableSuggestion
+                        continuation.yield(
+                            SuggestionStreamUpdate(
+                                generation: request.generation,
+                                rawText: rawSuggestion,
+                                text: stableSuggestion,
+                                latency: Date().timeIntervalSince(startTime),
+                                isFinal: false
+                            )
+                        )
+                    }
+
+                    try Task.checkCancellation()
+                    promptCacheHintTracker.recordSuccessfulRequest(request)
+                    let finalSuggestion = SuggestionTextNormalizer.normalize(
+                        lastRawSuggestion,
+                        for: request
+                    )
+                    continuation.yield(
+                        SuggestionStreamUpdate(
+                            generation: request.generation,
+                            rawText: lastRawSuggestion,
+                            text: finalSuggestion,
+                            latency: Date().timeIntervalSince(startTime),
+                            isFinal: true
+                        )
+                    )
+                    continuation.finish()
+                } catch is CancellationError {
+                    await resetCachedGenerationContext()
+                    continuation.finish(throwing: SuggestionClientError.cancelled)
+                } catch let error as LlamaRuntimeError {
+                    await resetCachedGenerationContext()
+                    continuation.finish(throwing: SuggestionClientError.unavailable(error.localizedDescription))
+                } catch let error as SuggestionClientError {
+                    await resetCachedGenerationContext()
+                    continuation.finish(throwing: error)
+                } catch {
+                    await resetCachedGenerationContext()
+                    continuation.finish(throwing: SuggestionClientError.generationFailed(error.localizedDescription))
+                }
+            }
+
+            continuation.onTermination = { _ in
+                task.cancel()
+            }
+        }
+    }
+
     /// Clears both the Swift-side hint tracker and the native llama KV cache.
     /// The tracker reset is synchronous because it protects the next request from advertising
     /// stale reuse; awaiting the runtime reset keeps native KV invalidation ordered before the next

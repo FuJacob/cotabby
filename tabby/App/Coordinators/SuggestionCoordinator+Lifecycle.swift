@@ -58,6 +58,10 @@ extension SuggestionCoordinator {
             latestStageMessage = "Updated autocomplete engine to \(snapshot.selectedEngine.displayLabel)."
         } else if previousSnapshot.selectedWordCountPreset != snapshot.selectedWordCountPreset {
             latestStageMessage = "Updated suggestion length to \(snapshot.selectedWordCountPreset.displayLabel)."
+        } else if previousSnapshot.streamingAutocompleteEnabled != snapshot.streamingAutocompleteEnabled {
+            latestStageMessage = snapshot.streamingAutocompleteEnabled
+                ? "Enabled streaming autocomplete."
+                : "Disabled streaming autocomplete."
         } else if previousSnapshot.effectivePromptMode != snapshot.effectivePromptMode {
             latestStageMessage = "Updated prompt mode to \(snapshot.effectivePromptMode.displayLabel)."
         } else {

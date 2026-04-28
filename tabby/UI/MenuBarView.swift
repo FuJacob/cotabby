@@ -74,6 +74,10 @@ struct MenuBarView: View {
                     .controlSize(.small)
             }
 
+            Toggle("Streaming", isOn: streamingAutocompleteBinding)
+                .toggleStyle(.switch)
+                .controlSize(.small)
+
             MenuBarPickerRow(title: "Indicator") {
                 Picker("Indicator", selection: selectedIndicatorModeBinding) {
                     ForEach(ActivationIndicatorMode.allCases) { mode in
@@ -248,6 +252,13 @@ struct MenuBarView: View {
             set: { preset in
                 suggestionSettings.selectWordCountPreset(preset)
             }
+        )
+    }
+
+    private var streamingAutocompleteBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.streamingAutocompleteEnabled },
+            set: { suggestionSettings.setStreamingAutocompleteEnabled($0) }
         )
     }
 
