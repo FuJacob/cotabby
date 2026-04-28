@@ -177,4 +177,33 @@ struct FocusSnapshot: Equatable {
     var capabilitySummary: String {
         capability.summary
     }
+
+    /// Returns the app identity that user-facing controls should target.
+    ///
+    /// Opening Tabby's menu bar window can briefly make Tabby the focused app. Treating Tabby's own
+    /// bundle identifier as ineligible protects the invariant that "Enable in X" continues to refer
+    /// to the user's last real work app, not the helper UI they opened to change the setting.
+    func externalApplicationIdentity(
+        ignoredBundleIdentifier: String?
+    ) -> FocusedApplicationIdentity? {
+        guard let bundleIdentifier,
+              bundleIdentifier != ignoredBundleIdentifier
+        else {
+            return nil
+        }
+
+        return FocusedApplicationIdentity(
+            applicationName: applicationName,
+            bundleIdentifier: bundleIdentifier
+        )
+    }
+}
+
+/// Minimal identity for the last non-Tabby application the user was working in.
+///
+/// The menu bar panel can steal focus when opened, so UI controls that target "the current app"
+/// need a stable application identity that does not immediately collapse to Tabby's own process.
+struct FocusedApplicationIdentity: Equatable {
+    let applicationName: String
+    let bundleIdentifier: String
 }

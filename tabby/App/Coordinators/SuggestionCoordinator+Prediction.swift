@@ -9,6 +9,7 @@ extension SuggestionCoordinator {
     func schedulePrediction() {
         if let disabledReason = SuggestionAvailabilityEvaluator.disabledReason(
             globallyEnabled: settingsSnapshot.isGloballyEnabled,
+            disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
             inputMonitoringGranted: permissionManager.inputMonitoringGranted,
             focusSnapshot: focusModel.snapshot
         ) {
@@ -41,6 +42,7 @@ extension SuggestionCoordinator {
 
         if let disabledReason = SuggestionAvailabilityEvaluator.disabledReason(
             globallyEnabled: settingsSnapshot.isGloballyEnabled,
+            disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
             inputMonitoringGranted: permissionManager.inputMonitoringGranted,
             focusSnapshot: snapshot
         ) {
@@ -117,6 +119,7 @@ extension SuggestionCoordinator {
 
         if let disabledReason = SuggestionAvailabilityEvaluator.disabledReason(
             globallyEnabled: settingsSnapshot.isGloballyEnabled,
+            disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
             inputMonitoringGranted: permissionManager.inputMonitoringGranted,
             focusSnapshot: snapshot
         ) {
@@ -225,6 +228,7 @@ extension SuggestionCoordinator {
     func reconcileWithCurrentEnvironment() {
         let disabledReason = SuggestionAvailabilityEvaluator.disabledReason(
             globallyEnabled: settingsSnapshot.isGloballyEnabled,
+            disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
             inputMonitoringGranted: permissionManager.inputMonitoringGranted,
             focusSnapshot: focusModel.snapshot
         )

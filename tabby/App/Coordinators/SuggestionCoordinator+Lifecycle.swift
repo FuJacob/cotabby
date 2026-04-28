@@ -66,8 +66,12 @@ extension SuggestionCoordinator {
             visualContextCoordinator.cancel(resetState: true)
         }
 
-        if permissionManager.inputMonitoringGranted,
-           case .supported = focusModel.snapshot.capability
+        if SuggestionAvailabilityEvaluator.shouldSchedulePrediction(
+            globallyEnabled: settingsSnapshot.isGloballyEnabled,
+            disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
+            inputMonitoringGranted: permissionManager.inputMonitoringGranted,
+            focusSnapshot: focusModel.snapshot
+        )
         {
             schedulePrediction()
         }

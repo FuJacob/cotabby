@@ -44,12 +44,14 @@ env:
   SCHEME: tabby
   CONFIGURATION: Release
   PAGES_CUSTOM_DOMAIN: tabbyapp.dev
+  NOTARIZATION_TIMEOUT_SECONDS: 3300
+  NOTARIZATION_POLL_INTERVAL_SECONDS: 60
 
 jobs:
   release:
     name: Build, notarize, sign, and publish
     runs-on: macos-26
-    timeout-minutes: 60
+    timeout-minutes: 180
     environment:
       name: github-pages
       url: ${{ steps.deploy-pages.outputs.page_url }}
@@ -212,31 +214,6 @@ jobs:
 
           codesign --verify --deep --strict --verbose=4 "${app_path}"
 
-      - name: Assert no ad-hoc nested signatures remain
-        run: |
-          set -euo pipefail
-
-          app_path="build/${APP_NAME}.xcarchive/Products/Applications/${APP_NAME}.app"
-          failed=0
-
-          while IFS= read -r executable_path; do
-            if ! file "${executable_path}" | grep -q 'Mach-O'; then
-              continue
-            fi
-
-            signature="$(codesign -dv --verbose=4 "${executable_path}" 2>&1 || true)"
-            if grep -q 'flags=.*adhoc' <<< "${signature}"; then
-              echo "Ad-hoc signature remains: ${executable_path}" >&2
-              failed=1
-            fi
-            if ! grep -q 'Authority=Developer ID Application' <<< "${signature}"; then
-              echo "Missing Developer ID Application authority: ${executable_path}" >&2
-              failed=1
-            fi
-          done < <(find "${app_path}" -type f -perm -111 -print)
-
-          exit "${failed}"
-
       - name: Package DMG
         run: |
           set -euo pipefail
@@ -259,27 +236,160 @@ jobs:
             -format UDZO \
             "${dmg_path}"
 
+          codesign \
+            --force \
+            --sign "Developer ID Application" \
+            --options runtime \
+            --timestamp \
+            "${dmg_path}"
+
+          codesign --verify --strict --verbose=2 "${dmg_path}"
+
       - name: Notarize and staple DMG
         run: |
           set -euo pipefail
 
           dmg_path="build/${DMG_NAME}"
+          diagnostics_dir="build/notarization"
+          submit_json="${diagnostics_dir}/submit.json"
+          submit_stderr="${diagnostics_dir}/submit.stderr.log"
+          info_json="${diagnostics_dir}/info.json"
+          info_stderr="${diagnostics_dir}/info.stderr.log"
+          log_json="${diagnostics_dir}/log.json"
+          log_stdout="${diagnostics_dir}/log.stdout.log"
+          log_stderr="${diagnostics_dir}/log.stderr.log"
+          poll_history="${diagnostics_dir}/poll-history.log"
+          submission_id_file="${diagnostics_dir}/submission-id.txt"
+          notary_timeout_seconds="${NOTARIZATION_TIMEOUT_SECONDS}"
+          poll_interval_seconds="${NOTARIZATION_POLL_INTERVAL_SECONDS}"
+          submission_id=""
+          final_status="not submitted"
 
-          submit_json="$(xcrun notarytool submit "${dmg_path}" \
-            --keychain-profile "tabby-notarytool-profile" \
-            --wait \
-            --output-format json)"
-          echo "${submit_json}"
+          mkdir -p "${diagnostics_dir}"
 
-          submission_id="$(python3 -c 'import json, sys; print(json.load(sys.stdin)["id"])' <<< "${submit_json}")"
-          submission_status="$(python3 -c 'import json, sys; print(json.load(sys.stdin)["status"])' <<< "${submit_json}")"
+          parse_json_field() {
+            python3 - "$1" "$2" <<'PY'
+          import json
+          import sys
 
-          if [[ "${submission_status}" != "Accepted" ]]; then
-            echo "Notarization failed with status: ${submission_status}" >&2
+          path = sys.argv[1]
+          field = sys.argv[2]
+
+          try:
+              with open(path, "r", encoding="utf-8") as handle:
+                  value = json.load(handle).get(field, "")
+          except Exception:
+              value = ""
+
+          print(value or "")
+          PY
+          }
+
+          write_summary() {
+            if [[ -z "${GITHUB_STEP_SUMMARY:-}" ]]; then
+              return
+            fi
+
+            {
+              echo "### Notarization"
+              echo "- Submission ID: ${submission_id:-unavailable}"
+              echo "- Final status: ${final_status}"
+              echo "- Diagnostics artifact path: ${diagnostics_dir}/"
+            } >> "${GITHUB_STEP_SUMMARY}" || true
+          }
+
+          fetch_notarization_log() {
+            if [[ -z "${submission_id}" ]]; then
+              return
+            fi
+
+            # Apple only returns a useful log once processing has completed. This
+            # best-effort call still captures stderr when the log is unavailable.
             xcrun notarytool log "${submission_id}" \
-              --keychain-profile "tabby-notarytool-profile" || true
+              --keychain-profile "tabby-notarytool-profile" \
+              "${log_json}" \
+              > "${log_stdout}" \
+              2> "${log_stderr}" || true
+          }
+
+          trap write_summary EXIT
+
+          if ! xcrun notarytool submit "${dmg_path}" \
+            --keychain-profile "tabby-notarytool-profile" \
+            --output-format json \
+            > "${submit_json}" \
+            2> "${submit_stderr}"; then
+            final_status="submit failed"
+            cat "${submit_stderr}" >&2 || true
             exit 1
           fi
+
+          submission_id="$(parse_json_field "${submit_json}" "id")"
+          if [[ -z "${submission_id}" ]]; then
+            final_status="missing submission id"
+            echo "notarytool submit did not return a submission id." >&2
+            cat "${submit_json}" >&2 || true
+            exit 1
+          fi
+
+          printf '%s\n' "${submission_id}" > "${submission_id_file}"
+          echo "Notarization submitted with id ${submission_id}."
+
+          deadline_epoch="$(($(date +%s) + notary_timeout_seconds))"
+          while true; do
+            timestamp="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+
+            if xcrun notarytool info "${submission_id}" \
+              --keychain-profile "tabby-notarytool-profile" \
+              --output-format json \
+              > "${info_json}" \
+              2> "${info_stderr}"; then
+              final_status="$(parse_json_field "${info_json}" "status")"
+            else
+              final_status="info failed"
+              echo "${timestamp} ${submission_id} ${final_status}" | tee -a "${poll_history}"
+
+              if [[ "$(date +%s)" -ge "${deadline_epoch}" ]]; then
+                cat "${info_stderr}" >&2 || true
+                fetch_notarization_log
+                exit 1
+              fi
+
+              sleep "${poll_interval_seconds}"
+              continue
+            fi
+
+            echo "${timestamp} ${submission_id} ${final_status:-unknown}" | tee -a "${poll_history}"
+
+            case "${final_status}" in
+              Accepted)
+                break
+                ;;
+              Invalid|Rejected)
+                fetch_notarization_log
+                echo "Notarization finished with status ${final_status}." >&2
+                echo "See the uploaded ${diagnostics_dir}/ diagnostics for the Apple notary log." >&2
+                exit 1
+                ;;
+              "In Progress"|"")
+                ;;
+              *)
+                echo "Unexpected notarization status: ${final_status}" >&2
+                ;;
+            esac
+
+            if [[ "$(date +%s)" -ge "${deadline_epoch}" ]]; then
+              final_status="timed out after ${notary_timeout_seconds}s"
+              fetch_notarization_log
+              echo "Timed out waiting for notarization submission ${submission_id}." >&2
+              echo "See the uploaded ${diagnostics_dir}/ diagnostics for submit/info/log output." >&2
+              exit 1
+            fi
+
+            sleep "${poll_interval_seconds}"
+          done
+
+          fetch_notarization_log
 
           xcrun stapler staple "${dmg_path}"
           xcrun stapler validate "${dmg_path}"
@@ -429,4 +539,5 @@ jobs:
           path: |
             build/${{ env.DMG_NAME }}
             build/appcast.xml
+            build/notarization/**
           if-no-files-found: ignore

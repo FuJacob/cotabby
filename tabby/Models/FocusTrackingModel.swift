@@ -9,8 +9,10 @@ import Foundation
 @MainActor
 final class FocusTrackingModel: ObservableObject {
     @Published private(set) var snapshot: FocusSnapshot
+    @Published private(set) var latestExternalApplication: FocusedApplicationIdentity?
 
     private let tracker: FocusTracker
+    private let ignoredBundleIdentifier: String?
     private var isStarted = false
 
     init(
@@ -18,15 +20,20 @@ final class FocusTrackingModel: ObservableObject {
         permissionProvider: @escaping @MainActor () -> Bool,
         ignoredBundleIdentifier: String?
     ) {
+        self.ignoredBundleIdentifier = ignoredBundleIdentifier
         tracker = FocusTracker(
             pollInterval: pollInterval,
             permissionProvider: permissionProvider,
             ignoredBundleIdentifier: ignoredBundleIdentifier
         )
         snapshot = tracker.snapshot
+        latestExternalApplication = tracker.snapshot.externalApplicationIdentity(
+            ignoredBundleIdentifier: ignoredBundleIdentifier
+        )
 
         tracker.onSnapshotChange = { [weak self] snapshot in
             self?.snapshot = snapshot
+            self?.updateLatestExternalApplication(from: snapshot)
         }
     }
 
@@ -67,6 +74,16 @@ final class FocusTrackingModel: ObservableObject {
         case .unsupported:
             return "xmark.circle"
         }
+    }
+
+    private func updateLatestExternalApplication(from snapshot: FocusSnapshot) {
+        guard let application = snapshot.externalApplicationIdentity(
+            ignoredBundleIdentifier: ignoredBundleIdentifier
+        ) else {
+            return
+        }
+
+        latestExternalApplication = application
     }
 }
 

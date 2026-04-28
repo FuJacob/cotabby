@@ -13,6 +13,7 @@ import Foundation
 final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var isGloballyEnabled: Bool
     @Published private(set) var selectedIndicatorMode: ActivationIndicatorMode
+    @Published private(set) var disabledAppRules: [DisabledApplicationRule]
     @Published private(set) var customSuggestionTextColorHex: String?
     @Published private(set) var selectedEngine: SuggestionEngineKind
     @Published private(set) var selectedWordCountPreset: SuggestionWordCountPreset
@@ -22,6 +23,7 @@ final class SuggestionSettingsModel: ObservableObject {
     private let userDefaults: UserDefaults
 
     private static let isGloballyEnabledDefaultsKey = "tabbyGloballyEnabled"
+    private static let disabledAppRulesDefaultsKey = "tabbyDisabledAppRules"
     // Legacy key. Keep reading and writing through it so old builds degrade to a visible indicator.
     private static let showCaretIndicatorDefaultsKey = "tabbyShowCaretIndicator"
     private static let selectedIndicatorModeDefaultsKey = "tabbySelectedIndicatorMode"
@@ -38,6 +40,7 @@ final class SuggestionSettingsModel: ObservableObject {
         self.userDefaults = userDefaults
 
         let resolvedGloballyEnabled = userDefaults.object(forKey: Self.isGloballyEnabledDefaultsKey) as? Bool ?? true
+        let resolvedDisabledAppRules = Self.loadDisabledAppRules(from: userDefaults)
         let legacyShowCaretIndicator = userDefaults.object(forKey: Self.showCaretIndicatorDefaultsKey) as? Bool ?? true
         let resolvedIndicatorMode = userDefaults
             .string(forKey: Self.selectedIndicatorModeDefaultsKey)
@@ -65,6 +68,7 @@ final class SuggestionSettingsModel: ObservableObject {
         }
 
         isGloballyEnabled = resolvedGloballyEnabled
+        disabledAppRules = resolvedDisabledAppRules
         selectedIndicatorMode = resolvedIndicatorMode
         customSuggestionTextColorHex = resolvedCustomSuggestionTextColorHex
         selectedEngine = resolvedEngine
@@ -73,6 +77,7 @@ final class SuggestionSettingsModel: ObservableObject {
         customAIInstructions = resolvedCustomAIInstructions
 
         userDefaults.set(resolvedGloballyEnabled, forKey: Self.isGloballyEnabledDefaultsKey)
+        persistDisabledAppRules(resolvedDisabledAppRules)
         persistSelectedIndicatorMode(resolvedIndicatorMode)
         persistCustomSuggestionTextColorHex(resolvedCustomSuggestionTextColorHex)
         persistSelectedEngine(resolvedEngine)
@@ -101,6 +106,7 @@ final class SuggestionSettingsModel: ObservableObject {
     var snapshot: SuggestionSettingsSnapshot {
         SuggestionSettingsSnapshot(
             isGloballyEnabled: isGloballyEnabled,
+            disabledAppBundleIdentifiers: Set(disabledAppRules.map(\.bundleIdentifier)),
             selectedEngine: selectedEngine,
             selectedWordCountPreset: selectedWordCountPreset,
             effectivePromptMode: effectivePromptMode,
@@ -142,6 +148,84 @@ final class SuggestionSettingsModel: ObservableObject {
 
         isGloballyEnabled = enabled
         userDefaults.set(enabled, forKey: Self.isGloballyEnabledDefaultsKey)
+    }
+
+    func setApplicationDisabled(
+        bundleIdentifier: String?,
+        displayName: String,
+        disabled: Bool
+    ) {
+        guard let normalizedBundleIdentifier = Self.normalizedBundleIdentifier(bundleIdentifier) else {
+            return
+        }
+
+        if disabled {
+            disableApplication(
+                bundleIdentifier: normalizedBundleIdentifier,
+                displayName: displayName
+            )
+        } else {
+            removeDisabledApplication(bundleIdentifier: normalizedBundleIdentifier)
+        }
+    }
+
+    func disableApplication(
+        bundleIdentifier: String,
+        displayName: String
+    ) {
+        guard let normalizedBundleIdentifier = Self.normalizedBundleIdentifier(bundleIdentifier) else {
+            return
+        }
+
+        let normalizedDisplayName = Self.normalizedDisplayName(
+            displayName,
+            fallbackBundleIdentifier: normalizedBundleIdentifier
+        )
+        let rule = DisabledApplicationRule(
+            bundleIdentifier: normalizedBundleIdentifier,
+            displayName: normalizedDisplayName
+        )
+        var updatedRulesByBundleIdentifier = Dictionary(
+            uniqueKeysWithValues: disabledAppRules.map { ($0.bundleIdentifier, $0) }
+        )
+        updatedRulesByBundleIdentifier[normalizedBundleIdentifier] = rule
+        let updatedRules = Self.sortedDisabledAppRules(Array(updatedRulesByBundleIdentifier.values))
+
+        guard disabledAppRules != updatedRules else {
+            return
+        }
+
+        disabledAppRules = updatedRules
+        persistDisabledAppRules(updatedRules)
+    }
+
+    func removeDisabledApplication(bundleIdentifier: String?) {
+        guard let normalizedBundleIdentifier = Self.normalizedBundleIdentifier(bundleIdentifier)
+        else {
+            return
+        }
+
+        let updatedRules = disabledAppRules.filter {
+            $0.bundleIdentifier != normalizedBundleIdentifier
+        }
+
+        guard disabledAppRules != updatedRules else {
+            return
+        }
+
+        disabledAppRules = updatedRules
+        persistDisabledAppRules(updatedRules)
+    }
+
+    func isApplicationDisabled(bundleIdentifier: String?) -> Bool {
+        guard let normalizedBundleIdentifier = Self.normalizedBundleIdentifier(bundleIdentifier)
+        else {
+            return false
+        }
+
+        return disabledAppRules.contains {
+            $0.bundleIdentifier == normalizedBundleIdentifier
+        }
     }
 
     func selectIndicatorMode(_ mode: ActivationIndicatorMode) {
@@ -220,6 +304,68 @@ final class SuggestionSettingsModel: ObservableObject {
         showCaretIndicator ? .caretAnchor : .hidden
     }
 
+    private static func loadDisabledAppRules(from userDefaults: UserDefaults) -> [DisabledApplicationRule] {
+        guard let data = userDefaults.data(forKey: Self.disabledAppRulesDefaultsKey),
+              let decodedRules = try? JSONDecoder().decode([DisabledApplicationRule].self, from: data)
+        else {
+            return []
+        }
+
+        return sanitizedDisabledAppRules(decodedRules)
+    }
+
+    private static func sanitizedDisabledAppRules(
+        _ rules: [DisabledApplicationRule]
+    ) -> [DisabledApplicationRule] {
+        var rulesByBundleIdentifier: [String: DisabledApplicationRule] = [:]
+
+        for rule in rules {
+            guard let normalizedBundleIdentifier = normalizedBundleIdentifier(rule.bundleIdentifier)
+            else {
+                continue
+            }
+
+            rulesByBundleIdentifier[normalizedBundleIdentifier] = DisabledApplicationRule(
+                bundleIdentifier: normalizedBundleIdentifier,
+                displayName: normalizedDisplayName(
+                    rule.displayName,
+                    fallbackBundleIdentifier: normalizedBundleIdentifier
+                )
+            )
+        }
+
+        return sortedDisabledAppRules(Array(rulesByBundleIdentifier.values))
+    }
+
+    private static func sortedDisabledAppRules(
+        _ rules: [DisabledApplicationRule]
+    ) -> [DisabledApplicationRule] {
+        rules.sorted {
+            if $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedSame {
+                return $0.bundleIdentifier < $1.bundleIdentifier
+            }
+
+            return $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
+        }
+    }
+
+    private static func normalizedBundleIdentifier(_ bundleIdentifier: String?) -> String? {
+        guard let bundleIdentifier else {
+            return nil
+        }
+
+        let trimmed = bundleIdentifier.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private static func normalizedDisplayName(
+        _ displayName: String,
+        fallbackBundleIdentifier: String
+    ) -> String {
+        let trimmed = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? fallbackBundleIdentifier : trimmed
+    }
+
     private static func normalizedHexString(_ hex: String?) -> String? {
         guard let hex else {
             return nil
@@ -242,23 +388,36 @@ final class SuggestionSettingsModel: ObservableObject {
     private func persistCustomAIInstructions(_ instructions: String) {
         userDefaults.set(instructions, forKey: Self.customAIInstructionsDefaultsKey)
     }
+
+    private func persistDisabledAppRules(_ rules: [DisabledApplicationRule]) {
+        guard !rules.isEmpty else {
+            userDefaults.removeObject(forKey: Self.disabledAppRulesDefaultsKey)
+            return
+        }
+
+        if let data = try? JSONEncoder().encode(rules) {
+            userDefaults.set(data, forKey: Self.disabledAppRulesDefaultsKey)
+        }
+    }
 }
 
 extension SuggestionSettingsModel: SuggestionSettingsProviding {
     var snapshotPublisher: AnyPublisher<SuggestionSettingsSnapshot, Never> {
-        Publishers.CombineLatest(
+        Publishers.CombineLatest3(
             Publishers.CombineLatest4(
                 $isGloballyEnabled,
+                $disabledAppRules,
                 $selectedEngine,
-                $selectedWordCountPreset,
-                $selectedLocalPromptMode
+                $selectedWordCountPreset
             ),
+            $selectedLocalPromptMode,
             $customAIInstructions
         )
-        .map { combinedSettings, customAIInstructions in
-            let (globallyEnabled, engine, wordCountPreset, localPromptMode) = combinedSettings
+        .map { combinedSettings, localPromptMode, customAIInstructions in
+            let (globallyEnabled, disabledAppRules, engine, wordCountPreset) = combinedSettings
             return SuggestionSettingsSnapshot(
                 isGloballyEnabled: globallyEnabled,
+                disabledAppBundleIdentifiers: Set(disabledAppRules.map(\.bundleIdentifier)),
                 selectedEngine: engine,
                 selectedWordCountPreset: wordCountPreset,
                 effectivePromptMode: Self.effectivePromptMode(

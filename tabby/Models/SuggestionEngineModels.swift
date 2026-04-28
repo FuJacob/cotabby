@@ -56,10 +56,23 @@ enum SuggestionEngineKind: String, CaseIterable, Equatable, Hashable, Sendable, 
     }
 }
 
+/// A user-authored app blocklist entry.
+///
+/// The bundle identifier is the durable identity used by the suggestion pipeline. The display name
+/// is saved only so Settings can show a readable list without having to resolve installed
+/// applications again on every launch.
+struct DisabledApplicationRule: Codable, Equatable, Identifiable, Sendable {
+    let bundleIdentifier: String
+    let displayName: String
+
+    var id: String { bundleIdentifier }
+}
+
 /// A compact snapshot of the autocomplete settings the coordinator actually needs at generation
 /// time. Keeping this as a value type makes change detection simple and deterministic.
 struct SuggestionSettingsSnapshot: Equatable, Sendable {
     let isGloballyEnabled: Bool
+    let disabledAppBundleIdentifiers: Set<String>
     let selectedEngine: SuggestionEngineKind
     let selectedWordCountPreset: SuggestionWordCountPreset
     let effectivePromptMode: SuggestionPromptMode
