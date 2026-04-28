@@ -44,6 +44,15 @@ struct DownloadableRuntimeModel: Equatable, Hashable, Sendable, Identifiable {
     let displayName: String
     let downloadURL: URL
     let approximateSizeInGigabytes: Double
+    /// Exact byte count of the served file. Optional so future catalog entries
+    /// can land while metadata is still being filled in. When non-nil, the
+    /// download manager runs `ModelFileValidator.validateSize` against it
+    /// before promoting the staged file into the install location.
+    let expectedSizeBytes: Int64?
+    /// Lowercase SHA-256 hex string for the served file. Same nullability
+    /// rationale as `expectedSizeBytes`. HuggingFace exposes this as the
+    /// `x-linked-etag` response header on its CDN URLs.
+    let sha256: String?
     let alternateFilenames: [String]
 
     var id: String { filename }
@@ -59,12 +68,16 @@ struct DownloadableRuntimeModel: Equatable, Hashable, Sendable, Identifiable {
         displayName: String,
         downloadURL: URL,
         approximateSizeInGigabytes: Double,
+        expectedSizeBytes: Int64? = nil,
+        sha256: String? = nil,
         alternateFilenames: [String] = []
     ) {
         self.filename = filename
         self.displayName = displayName
         self.downloadURL = downloadURL
         self.approximateSizeInGigabytes = approximateSizeInGigabytes
+        self.expectedSizeBytes = expectedSizeBytes
+        self.sha256 = sha256
         self.alternateFilenames = alternateFilenames
     }
 }
@@ -84,6 +97,12 @@ enum RuntimeModelCatalog {
     }
 
     /// Canonical downloadable model list shown in Welcome and menu UI.
+    ///
+    /// `expectedSizeBytes` and `sha256` were captured from HuggingFace's CDN
+    /// response headers (`x-linked-size` and `x-linked-etag` respectively).
+    /// To refresh after a model is updated upstream:
+    ///
+    ///   curl -sIL "<URL>" | grep -iE "^(x-linked-size|x-linked-etag):"
     static let downloadableModels: [DownloadableRuntimeModel] = [
         DownloadableRuntimeModel(
             filename: "gemma-3-1b-it-Q4_K_M.gguf",
@@ -92,7 +111,9 @@ enum RuntimeModelCatalog {
                 string:
                     "https://huggingface.co/unsloth/gemma-3-1b-it-GGUF/resolve/main/gemma-3-1b-it-Q4_K_M.gguf?download=true"
             )!,
-            approximateSizeInGigabytes: 0.8
+            approximateSizeInGigabytes: 0.8,
+            expectedSizeBytes: 806_058_272,
+            sha256: "8270790f3ab69fdfe860b7b64008d9a19986d8df7e407bb018184caa08798ebd"
         ),
         DownloadableRuntimeModel(
             filename: "Qwen3-0.6B-Q4_K_M.gguf",
@@ -101,7 +122,9 @@ enum RuntimeModelCatalog {
                 string:
                     "https://huggingface.co/unsloth/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q4_K_M.gguf?download=true"
             )!,
-            approximateSizeInGigabytes: 0.4
+            approximateSizeInGigabytes: 0.4,
+            expectedSizeBytes: 396_705_472,
+            sha256: "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a"
         ),
         DownloadableRuntimeModel(
             filename: "gemma-3n-E4B-it-Q4_K_M.gguf",
@@ -110,7 +133,9 @@ enum RuntimeModelCatalog {
                 string:
                     "https://huggingface.co/unsloth/gemma-3n-E4B-it-GGUF/resolve/main/gemma-3n-E4B-it-Q4_K_M.gguf?download=true"
             )!,
-            approximateSizeInGigabytes: 3.5
+            approximateSizeInGigabytes: 3.5,
+            expectedSizeBytes: 4_539_054_208,
+            sha256: "43b489bb77a81bda85180e7c490d40ad7f1d5c2ce654c9b05e15e104bd3c777e"
         ),
     ]
 }
