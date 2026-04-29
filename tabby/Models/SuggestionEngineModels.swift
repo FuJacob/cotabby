@@ -62,6 +62,9 @@ struct SuggestionSettingsSnapshot: Equatable, Sendable {
     let isGloballyEnabled: Bool
     let selectedEngine: SuggestionEngineKind
     let selectedWordCountPreset: SuggestionWordCountPreset
+    /// Enables incremental rendering when a backend can produce partial output.
+    /// This belongs in the snapshot because streaming changes generation lifecycle, not just UI.
+    let streamingAutocompleteEnabled: Bool
     let effectivePromptMode: SuggestionPromptMode
     /// Normalized user-authored guidance for the instructions-based completion style.
     /// This travels in the snapshot so generation uses the same value the Settings UI shows.

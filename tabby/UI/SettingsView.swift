@@ -164,6 +164,12 @@ struct SettingsView: View {
                 }
             }
 
+            Toggle("Streaming Autocomplete", isOn: streamingAutocompleteBinding)
+
+            Text("Shows stable word chunks as the active engine generates, while preserving Tab acceptance for the visible suggestion.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
             if suggestionSettings.selectedEngine.supportsPromptModeSelection {
                 Picker("Completion Style", selection: selectedLocalPromptModeBinding) {
                     ForEach(suggestionSettings.availablePromptModes) { mode in
@@ -403,6 +409,15 @@ struct SettingsView: View {
             get: { suggestionSettings.selectedWordCountPreset },
             set: { preset in
                 suggestionSettings.selectWordCountPreset(preset)
+            }
+        )
+    }
+
+    private var streamingAutocompleteBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.streamingAutocompleteEnabled },
+            set: { enabled in
+                suggestionSettings.setStreamingAutocompleteEnabled(enabled)
             }
         )
     }

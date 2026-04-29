@@ -122,6 +122,61 @@ actor LlamaRuntimeCore {
         repetitionPenalty: Double,
         seed: UInt32? = nil
     ) throws -> String {
+        try generateInternal(
+            prompt: prompt,
+            cachedPrefixBytes: cachedPrefixBytes,
+            maxPredictionTokens: maxPredictionTokens,
+            temperature: temperature,
+            topK: topK,
+            topP: topP,
+            minP: minP,
+            repetitionPenalty: repetitionPenalty,
+            seed: seed,
+            onPartialRawText: nil
+        )
+    }
+
+    /// Samples a completion and reports the growing raw model text after each decoded token.
+    /// Callers still normalize/chunk the text above this runtime boundary because token pieces are
+    /// backend details, not safe UI text.
+    func generateStreaming(
+        prompt: String,
+        cachedPrefixBytes: Int? = nil,
+        maxPredictionTokens: Int,
+        temperature: Double,
+        topK: Int,
+        topP: Double,
+        minP: Double,
+        repetitionPenalty: Double,
+        seed: UInt32? = nil,
+        onPartialRawText: @Sendable @escaping (String) -> Void
+    ) throws -> String {
+        try generateInternal(
+            prompt: prompt,
+            cachedPrefixBytes: cachedPrefixBytes,
+            maxPredictionTokens: maxPredictionTokens,
+            temperature: temperature,
+            topK: topK,
+            topP: topP,
+            minP: minP,
+            repetitionPenalty: repetitionPenalty,
+            seed: seed,
+            onPartialRawText: onPartialRawText
+        )
+    }
+
+    private func generateInternal(
+        prompt: String,
+        cachedPrefixBytes: Int? = nil,
+        maxPredictionTokens: Int,
+        temperature: Double,
+        topK: Int,
+        topP: Double,
+        minP: Double,
+        repetitionPenalty: Double,
+        seed: UInt32? = nil,
+        onPartialRawText: (@Sendable (String) -> Void)?
+    ) throws -> String {
         guard let preparedRuntime else {
             throw LlamaRuntimeError.unavailable("The llama model is not loaded.")
         }
@@ -178,6 +233,7 @@ actor LlamaRuntimeCore {
 
         do {
             for _ in 0 ..< maxPredictionTokens {
+                try Task.checkCancellation()
                 let nextToken = llama_sampler_sample(sampler, context, -1)
                 if nextToken == llama_vocab_eos(vocab) || llama_vocab_is_eog(vocab, nextToken) {
                     break
@@ -185,6 +241,7 @@ actor LlamaRuntimeCore {
 
                 let piece = pieceString(for: nextToken, vocab: vocab)
                 generatedText += piece
+                onPartialRawText?(generatedText)
                 llama_sampler_accept(sampler, nextToken)
 
                 // Instruction-shaped prompts often make small models emit a leading newline before the

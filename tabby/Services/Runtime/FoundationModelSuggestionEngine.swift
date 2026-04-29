@@ -63,6 +63,104 @@ final class FoundationModelSuggestionEngine {
         }
     }
 
+    /// Streams partial snapshots from Apple's Foundation Models framework through Tabby's shared
+    /// stable-prefix contract. Apple snapshots are already accumulated strings for this use case,
+    /// but they still pass through the same normalizer and chunker as llama output so the overlay
+    /// never accepts backend-specific fragments.
+    func streamSuggestion(for request: SuggestionRequest) -> AsyncThrowingStream<SuggestionStreamUpdate, Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task { @MainActor [weak self] in
+                guard let self else {
+                    continuation.finish(throwing: SuggestionClientError.cancelled)
+                    return
+                }
+
+                availabilityService.refresh()
+
+                guard availabilityService.isAvailable else {
+                    continuation.finish(
+                        throwing: SuggestionClientError.unavailable(availabilityService.userVisibleMessage)
+                    )
+                    return
+                }
+
+                let startTime = Date()
+                let session = LanguageModelSession(
+                    model: availabilityService.model,
+                    instructions: FoundationModelPromptRenderer.sessionInstructions(for: request)
+                )
+                var lastRawSuggestion = ""
+                var lastStableSuggestion = ""
+
+                do {
+                    let responseStream = session.streamResponse(
+                        to: FoundationModelPromptRenderer.prompt(for: request),
+                        options: generationOptions(for: request)
+                    )
+
+                    for try await snapshot in responseStream {
+                        try Task.checkCancellation()
+                        let rawSuggestion = snapshot.content
+                        lastRawSuggestion = rawSuggestion
+                        let normalizedSuggestion = SuggestionTextNormalizer.normalize(
+                            rawSuggestion,
+                            for: request
+                        )
+                        let stableSuggestion = SuggestionStreamChunker.stablePrefix(
+                            from: normalizedSuggestion,
+                            isFinal: false
+                        )
+
+                        guard !stableSuggestion.isEmpty,
+                              stableSuggestion != lastStableSuggestion
+                        else {
+                            continue
+                        }
+
+                        lastStableSuggestion = stableSuggestion
+                        continuation.yield(
+                            SuggestionStreamUpdate(
+                                generation: request.generation,
+                                rawText: rawSuggestion,
+                                text: stableSuggestion,
+                                latency: Date().timeIntervalSince(startTime),
+                                isFinal: false
+                            )
+                        )
+                    }
+
+                    try Task.checkCancellation()
+                    let finalSuggestion = SuggestionTextNormalizer.normalize(
+                        lastRawSuggestion,
+                        for: request
+                    )
+                    continuation.yield(
+                        SuggestionStreamUpdate(
+                            generation: request.generation,
+                            rawText: lastRawSuggestion,
+                            text: finalSuggestion,
+                            latency: Date().timeIntervalSince(startTime),
+                            isFinal: true
+                        )
+                    )
+                    continuation.finish()
+                } catch is CancellationError {
+                    continuation.finish(throwing: SuggestionClientError.cancelled)
+                } catch let error as LanguageModelSession.GenerationError {
+                    continuation.finish(throwing: mapGenerationError(error))
+                } catch let error as SuggestionClientError {
+                    continuation.finish(throwing: error)
+                } catch {
+                    continuation.finish(throwing: SuggestionClientError.generationFailed(error.localizedDescription))
+                }
+            }
+
+            continuation.onTermination = { _ in
+                task.cancel()
+            }
+        }
+    }
+
     /// Foundation Models sessions are already one-shot, so there is no backend context to clear.
     func resetCachedGenerationContext() async {}
 

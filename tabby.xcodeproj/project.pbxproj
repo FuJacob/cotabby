@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		A1C3E0012F90000100AAA001 /* LlamaSwift in Frameworks */ = {isa = PBXBuildFile; productRef = A1C3E0002F90000100AAA001 /* LlamaSwift */; };
 		A1C3E0112F90000100AAA001 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = A1C3E0102F90000100AAA001 /* Sparkle */; };
+		A1C3E0312F94000100AAA001 /* SuggestionStreamChunkerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1C3E0302F94000100AAA001 /* SuggestionStreamChunkerTests.swift */; };
 		A404828463CADB2ECDAE7AF3 /* LlamaPromptRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F29623C5C0A67B992D383A3C /* LlamaPromptRendererTests.swift */; };
 		ADEFEE12C197DB6C990E3812 /* SuggestionRequestFactoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B1121FFDAD30C7F62E15289 /* SuggestionRequestFactoryTests.swift */; };
 		B053492719F6106E48290C32 /* SuggestionAvailabilityEvaluatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A39EC1A44E9160E13E2AE77 /* SuggestionAvailabilityEvaluatorTests.swift */; };
@@ -29,6 +30,7 @@
 		3FBFA92FA44AA317135426FB /* tabbyTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = tabbyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		5A39EC1A44E9160E13E2AE77 /* SuggestionAvailabilityEvaluatorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SuggestionAvailabilityEvaluatorTests.swift; sourceTree = "<group>"; };
 		8B1121FFDAD30C7F62E15289 /* SuggestionRequestFactoryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SuggestionRequestFactoryTests.swift; sourceTree = "<group>"; };
+		A1C3E0302F94000100AAA001 /* SuggestionStreamChunkerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SuggestionStreamChunkerTests.swift; sourceTree = "<group>"; };
 		F29623C5C0A67B992D383A3C /* LlamaPromptRendererTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LlamaPromptRendererTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -87,6 +89,7 @@
 				F29623C5C0A67B992D383A3C /* LlamaPromptRendererTests.swift */,
 				5A39EC1A44E9160E13E2AE77 /* SuggestionAvailabilityEvaluatorTests.swift */,
 				8B1121FFDAD30C7F62E15289 /* SuggestionRequestFactoryTests.swift */,
+				A1C3E0302F94000100AAA001 /* SuggestionStreamChunkerTests.swift */,
 			);
 			name = tabbyTests;
 			path = tabbyTests;
@@ -215,6 +218,7 @@
 				A404828463CADB2ECDAE7AF3 /* LlamaPromptRendererTests.swift in Sources */,
 				B053492719F6106E48290C32 /* SuggestionAvailabilityEvaluatorTests.swift in Sources */,
 				ADEFEE12C197DB6C990E3812 /* SuggestionRequestFactoryTests.swift in Sources */,
+				A1C3E0312F94000100AAA001 /* SuggestionStreamChunkerTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

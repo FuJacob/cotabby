@@ -29,6 +29,15 @@ final class SuggestionEngineRouter {
         }
     }
 
+    func streamSuggestion(for request: SuggestionRequest) -> AsyncThrowingStream<SuggestionStreamUpdate, Error> {
+        switch suggestionSettings.selectedEngine {
+        case .appleIntelligence:
+            return foundationModelEngine.streamSuggestion(for: request)
+        case .llamaOpenSource:
+            return llamaEngine.streamSuggestion(for: request)
+        }
+    }
+
     /// Clears backend-local continuation state when the coordinator knows the editing context is
     /// no longer continuous. The router fans this out so switching engines cannot leave stale
     /// llama KV state behind.

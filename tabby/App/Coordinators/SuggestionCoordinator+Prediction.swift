@@ -91,12 +91,23 @@ extension SuggestionCoordinator {
             }
 
             do {
-                let result = try await suggestionEngine.generateSuggestion(for: request)
-                guard !Task.isCancelled, self.workController.isCurrent(workID) else {
-                    return
-                }
+                if self.settingsSnapshot.streamingAutocompleteEnabled {
+                    let updateStream = suggestionEngine.streamSuggestion(for: request)
+                    for try await update in updateStream {
+                        guard !Task.isCancelled, self.workController.isCurrent(workID) else {
+                            return
+                        }
 
-                await apply(result: result, workID: workID)
+                        await apply(streamUpdate: update, workID: workID)
+                    }
+                } else {
+                    let result = try await suggestionEngine.generateSuggestion(for: request)
+                    guard !Task.isCancelled, self.workController.isCurrent(workID) else {
+                        return
+                    }
+
+                    await apply(result: result, workID: workID)
+                }
             } catch SuggestionClientError.cancelled {
                 return
             } catch {
@@ -212,6 +223,210 @@ extension SuggestionCoordinator {
         )
     }
 
+    /// Promotes one streamed stable-prefix update when it is still valid for the focused field.
+    /// Unlike final one-shot results, later streaming updates remain valid after Tab acceptance as
+    /// long as the live editor still contains the original prefix plus the accepted stream prefix.
+    func apply(streamUpdate update: SuggestionStreamUpdate, workID: UInt64) async {
+        guard workController.isCurrent(workID) else {
+            return
+        }
+
+        focusModel.refreshNow()
+        let snapshot = focusModel.snapshot
+
+        if let disabledReason = SuggestionAvailabilityEvaluator.disabledReason(
+            globallyEnabled: settingsSnapshot.isGloballyEnabled,
+            inputMonitoringGranted: permissionManager.inputMonitoringGranted,
+            focusSnapshot: snapshot
+        ) {
+            disablePredictions(reason: disabledReason)
+            return
+        }
+
+        guard let rawContext = snapshot.context else {
+            disablePredictions(reason: snapshot.capability.summary)
+            return
+        }
+
+        latestRawModelOutput = SuggestionDebugLogger.debugPreview(update.rawText)
+
+        if let activeSession = interactionState.activeSession,
+           activeSession.baseContext.generation == update.generation
+        {
+            await applyStreamUpdateToExistingSession(
+                update,
+                rawContext: rawContext,
+                workID: workID
+            )
+            return
+        }
+
+        let liveContext = interactionState.materializeContext(from: rawContext)
+
+        guard liveContext.generation == update.generation else {
+            logStage(
+                "stream-stale-drop",
+                workID: workID,
+                generation: update.generation,
+                message: "Dropped stale stream update because live generation is \(liveContext.generation).",
+                rawOutput: update.rawText,
+                normalizedOutput: update.text
+            )
+            return
+        }
+
+        guard !update.text.isEmpty else {
+            if update.isFinal {
+                clearSuggestion()
+                hideOverlay(reason: "Overlay hidden because the stream ended with an empty continuation.")
+                state = .idle
+                logStage(
+                    "stream-empty-result",
+                    workID: workID,
+                    generation: update.generation,
+                    message: "Streaming generation ended without a non-empty normalized suggestion.",
+                    rawOutput: update.rawText,
+                    normalizedOutput: update.text
+                )
+            }
+            return
+        }
+
+        guard liveContext.selection.length == 0 else {
+            clearSuggestion(clearDiagnostics: true)
+            hideOverlay(reason: "Overlay hidden because text is selected.")
+            state = .idle
+            logStage(
+                "stream-selected-text",
+                workID: workID,
+                generation: update.generation,
+                message: "Ignored the streamed suggestion because the current field has selected text.",
+                rawOutput: update.rawText,
+                normalizedOutput: update.text
+            )
+            return
+        }
+
+        latestLatencyMilliseconds = Int(update.latency * 1000)
+        latestGenerationNumber = liveContext.generation
+        let session = interactionState.startSession(
+            fullText: update.text,
+            liveContext: liveContext,
+            latency: update.latency,
+            isStreaming: !update.isFinal
+        )
+        applySessionDiagnostics(
+            session,
+            acceptanceAction: update.isFinal ? "Generated streamed suggestion." : "Streaming suggestion started."
+        )
+        displayStreamingSession(
+            session,
+            liveContext: liveContext,
+            update: update,
+            workID: workID
+        )
+    }
+
+    private func applyStreamUpdateToExistingSession(
+        _ update: SuggestionStreamUpdate,
+        rawContext: FocusedInputSnapshot,
+        workID: UInt64
+    ) async {
+        guard let reconciliation = interactionState.reconcileActiveSession(with: rawContext) else {
+            invalidateActiveSuggestion(reason: "Overlay hidden because no ready suggestion remains.")
+            cancelPredictionWork()
+            return
+        }
+
+        let liveContext: FocusedInputContext
+        switch reconciliation {
+        case let .valid(reconciledLiveContext, _, _):
+            liveContext = reconciledLiveContext
+
+        case let .invalid(reason):
+            invalidateActiveSuggestion(reason: reason)
+            cancelPredictionWork()
+            return
+        }
+
+        guard let updatedSession = interactionState.updateStreamingSession(
+            stableText: update.text,
+            latency: update.latency,
+            isStreaming: !update.isFinal
+        ) else {
+            invalidateActiveSuggestion(
+                reason: "Overlay hidden because streamed text diverged from the accepted prefix.",
+                clearDiagnostics: false
+            )
+            cancelPredictionWork()
+            return
+        }
+
+        latestLatencyMilliseconds = Int(update.latency * 1000)
+        latestGenerationNumber = liveContext.generation
+        applySessionDiagnostics(
+            updatedSession,
+            acceptanceAction: update.isFinal ? "Streaming finished." : latestAcceptanceAction
+        )
+        displayStreamingSession(
+            updatedSession,
+            liveContext: liveContext,
+            update: update,
+            workID: workID
+        )
+    }
+
+    private func displayStreamingSession(
+        _ session: ActiveSuggestionSession,
+        liveContext: FocusedInputContext,
+        update: SuggestionStreamUpdate,
+        workID: UInt64
+    ) {
+        if session.isExhausted {
+            completeActiveSuggestion(
+                reason: "Overlay hidden because the streamed suggestion was fully consumed.",
+                scheduleNextPrediction: true,
+                stage: "stream-session-exhausted",
+                message: "The streamed suggestion was fully consumed.",
+                acceptanceAction: "Streamed suggestion was fully consumed."
+            )
+            return
+        }
+
+        if session.isWaitingForMoreStreamedText {
+            hideOverlay(reason: "Overlay hidden while waiting for more streamed suggestion text.")
+            state = .streaming(text: "", latency: session.latency)
+            logStage(
+                "stream-awaiting-more",
+                workID: workID,
+                generation: update.generation,
+                message: "The user consumed all stable streamed text; waiting for the backend to append more.",
+                rawOutput: update.rawText,
+                normalizedOutput: session.fullText
+            )
+            return
+        }
+
+        state = update.isFinal
+            ? .ready(text: session.remainingText, latency: session.latency)
+            : .streaming(text: session.remainingText, latency: session.latency)
+        presentOverlay(
+            text: session.remainingText,
+            at: liveContext.caretRect,
+            caretQuality: liveContext.caretQuality
+        )
+        logStage(
+            update.isFinal ? "stream-ready" : "stream-partial-ready",
+            workID: workID,
+            generation: update.generation,
+            message: update.isFinal
+                ? "Streaming finished with a non-empty normalized suggestion."
+                : "Displayed a stable streamed suggestion chunk.",
+            rawOutput: update.rawText,
+            normalizedOutput: session.remainingText
+        )
+    }
+
     /// Converts a runtime or engine failure into visible coordinator state and clears stale UI.
     func applyFailure(_ message: String, workID: UInt64) async {
         guard workController.isCurrent(workID) else {
@@ -286,12 +501,19 @@ extension SuggestionCoordinator {
                 return
             }
 
-            state = .ready(text: reconciledSession.remainingText, latency: reconciledSession.latency)
-            presentOverlay(
-                text: reconciledSession.remainingText,
-                at: liveContext.caretRect,
-                caretQuality: liveContext.caretQuality
-            )
+            if reconciledSession.isWaitingForMoreStreamedText {
+                state = .streaming(text: "", latency: reconciledSession.latency)
+                hideOverlay(reason: "Overlay hidden while waiting for more streamed suggestion text.")
+            } else {
+                state = reconciledSession.isStreaming
+                    ? .streaming(text: reconciledSession.remainingText, latency: reconciledSession.latency)
+                    : .ready(text: reconciledSession.remainingText, latency: reconciledSession.latency)
+                presentOverlay(
+                    text: reconciledSession.remainingText,
+                    at: liveContext.caretRect,
+                    caretQuality: liveContext.caretQuality
+                )
+            }
             if let advancement {
                 logStage(
                     advancement.stage,
