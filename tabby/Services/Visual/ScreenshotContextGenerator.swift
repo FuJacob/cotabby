@@ -31,11 +31,13 @@ enum ScreenshotContextGenerationError: LocalizedError {
 final class ScreenshotContextGenerator {
     private let screenshotService: WindowScreenshotService
     private let textExtractor: ScreenTextExtractor
+    private let summarizer: VisualContextSummarizing?
     private let configuration: VisualContextConfiguration
 
     init(
         screenshotService: WindowScreenshotService? = nil,
         textExtractor: ScreenTextExtractor? = nil,
+        summarizer: VisualContextSummarizing? = nil,
         configuration: VisualContextConfiguration? = nil
     ) {
         let actualConfig = configuration ?? .default
@@ -46,6 +48,7 @@ final class ScreenshotContextGenerator {
                 maxImageDimension: actualConfig.maxImageDimension,
                 maxRecognizedCharacters: actualConfig.maxRecognizedCharacters
             )
+        self.summarizer = summarizer
         self.configuration = actualConfig
     }
 
@@ -118,11 +121,24 @@ final class ScreenshotContextGenerator {
                 "The screenshot did not contain enough visible text to build prompt context."
             )
         }
+        
+        let finalContextText: String
+        if let summarizer = summarizer {
+            await onStatusChange?(.summarizingText)
+            do {
+                finalContextText = try await summarizer.summarize(text: normalizedText, applicationName: context.applicationName)
+            } catch {
+                log("context-summarization-failed reason=\(error.localizedDescription)")
+                throw ScreenshotContextGenerationError.failed("Summarization failed: \(error.localizedDescription)")
+            }
+        } else {
+            finalContextText = normalizedText
+        }
 
-        log("context-ready text=\(preview(normalizedText))")
+        log("context-ready text=\(preview(finalContextText))")
 
         return VisualContextExcerpt(
-            text: normalizedText
+            text: finalContextText
         )
     }
 

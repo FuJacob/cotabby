@@ -82,9 +82,17 @@ struct WindowScreenshotService {
 
         let filter = SCContentFilter(desktopIndependentWindow: matchingWindow)
         let configuration = SCStreamConfiguration()
-        configuration.sourceRect = sourceRect
-        configuration.width = max(Int((sourceRect.width * outputScale).rounded(.up)), 1)
-        configuration.height = max(Int((sourceRect.height * outputScale).rounded(.up)), 1)
+        
+        let localSourceRect = CGRect(
+            x: sourceRect.minX - matchingWindow.frame.minX,
+            y: sourceRect.minY - matchingWindow.frame.minY,
+            width: sourceRect.width,
+            height: sourceRect.height
+        )
+        
+        configuration.sourceRect = localSourceRect
+        configuration.width = max(Int((localSourceRect.width * outputScale).rounded(.up)), 1)
+        configuration.height = max(Int((localSourceRect.height * outputScale).rounded(.up)), 1)
         configuration.showsCursor = false
 
         let image = try await captureImage(filter: filter, configuration: configuration)
@@ -96,21 +104,30 @@ struct WindowScreenshotService {
         return CapturedWindowScreenshot(image: image, windowTitle: matchingWindow.title)
     }
 
-    /// Chooses the capture anchor. Small fields benefit from centering on the whole field, while
-    /// large editors are better anchored on the caret so the crop stays near the current work area.
     private func snapshotRect(
         around context: FocusedInputSnapshot,
         windowFrame: CGRect,
         snapshotDimension: CGFloat
     ) -> CGRect {
-        let anchorRect = preferredAnchorRect(for: context, snapshotDimension: snapshotDimension)
-        let targetWidth = min(snapshotDimension, windowFrame.width)
-        let targetHeight = min(snapshotDimension, windowFrame.height)
-        let halfWidth = targetWidth / 2
-        let halfHeight = targetHeight / 2
+        let targetHeight: CGFloat = 300
+        let targetWidth: CGFloat
+        let proposedX: CGFloat
+        let proposedY: CGFloat
 
-        let proposedX = anchorRect.midX - halfWidth
-        let proposedY = anchorRect.midY - halfHeight
+        if let inputFrameAppKit = context.inputFrameRect, !inputFrameAppKit.isEmpty {
+            let inputFrameCG = convertBetweenAppKitAndCG(rect: inputFrameAppKit)
+            targetWidth = min(inputFrameCG.width, windowFrame.width)
+            proposedX = inputFrameCG.minX
+            proposedY = inputFrameCG.minY - targetHeight
+        } else {
+            // Fallback to caret if the input frame is completely unavailable
+            let caretRectCG = convertBetweenAppKitAndCG(rect: context.caretRect)
+            targetWidth = min(snapshotDimension, windowFrame.width)
+            proposedX = caretRectCG.midX - (targetWidth / 2)
+            proposedY = caretRectCG.minY - targetHeight
+        }
+
+        // Clamp securely within the window frame bounds so SCK doesn't fail or crop incorrectly
         let clampedX = min(max(proposedX, windowFrame.minX), windowFrame.maxX - targetWidth)
         let clampedY = min(max(proposedY, windowFrame.minY), windowFrame.maxY - targetHeight)
 
@@ -122,28 +139,26 @@ struct WindowScreenshotService {
         ).integral
     }
 
-    private func preferredAnchorRect(
-        for context: FocusedInputSnapshot,
-        snapshotDimension: CGFloat
-    ) -> CGRect {
-        if let inputFrameRect = context.inputFrameRect,
-           !inputFrameRect.isEmpty,
-           inputFrameRect.width <= snapshotDimension * 0.8,
-           inputFrameRect.height <= snapshotDimension * 0.8
-        {
-            return inputFrameRect
-        }
-
-        return context.caretRect
-    }
-
     private func backingScaleFactor(for rect: CGRect) -> CGFloat {
-        let midpoint = CGPoint(x: rect.midX, y: rect.midY)
+        let appKitRect = convertBetweenAppKitAndCG(rect: rect)
+        let midpoint = CGPoint(x: appKitRect.midX, y: appKitRect.midY)
+        
         if let screen = NSScreen.screens.first(where: { $0.frame.contains(midpoint) }) {
             return screen.backingScaleFactor
         }
 
         return NSScreen.main?.backingScaleFactor ?? 2.0
+    }
+    
+    private func convertBetweenAppKitAndCG(rect: CGRect) -> CGRect {
+        let desktopBounds = NSScreen.screens.map(\.frame).reduce(into: CGRect.null) { $0 = $0.union($1) }
+        guard !desktopBounds.isNull else { return rect }
+        return CGRect(
+            x: rect.origin.x,
+            y: desktopBounds.maxY - rect.origin.y - rect.height,
+            width: rect.width,
+            height: rect.height
+        )
     }
 
     /// Wraps ScreenCaptureKit's callback API so the rest of the app can use structured concurrency.

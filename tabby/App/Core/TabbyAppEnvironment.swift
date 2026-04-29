@@ -70,7 +70,7 @@ final class TabbyAppEnvironment {
         let overlayController = OverlayController(suggestionSettings: suggestionSettings)
         let activationIndicatorController = ActivationIndicatorController()
         let summarizer = LlamaVisualContextSummarizer(runtimeManager: runtimeManager)
-        let screenshotContextGenerator = ScreenshotContextGenerator()
+        let screenshotContextGenerator = ScreenshotContextGenerator(summarizer: summarizer)
         let visualContextCoordinator = VisualContextCoordinator(
             screenshotContextGenerator: screenshotContextGenerator,
             screenRecordingPermissionProvider: { permissionManager.screenRecordingGranted }
