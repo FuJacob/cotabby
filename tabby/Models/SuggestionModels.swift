@@ -263,7 +263,29 @@ struct SuggestionResult: Equatable, Sendable {
     let latency: TimeInterval
 }
 
-/// Represents one active inline-completion session after the model has produced a suggestion.
+/// One ordered update from a streaming backend.
+///
+/// `text` is the normalized stable suggestion prefix available so far, not the latest raw token.
+/// That distinction is central to streaming safety: runtime layers may emit token fragments, but
+/// the coordinator should only ever render or accept normalized text that passed chunk stability.
+struct SuggestionStreamUpdate: Equatable, Sendable {
+    let generation: UInt64
+    let rawText: String
+    let text: String
+    let latency: TimeInterval
+    let isFinal: Bool
+
+    var result: SuggestionResult {
+        SuggestionResult(
+            generation: generation,
+            rawText: rawText,
+            text: text,
+            latency: latency
+        )
+    }
+}
+
+/// Represents one active inline-completion session after the model has produced suggestion text.
 /// The key architectural shift is that a suggestion is no longer "fire once and forget."
 /// Instead, it becomes durable interaction state that can be partially consumed over time.
 struct ActiveSuggestionSession: Equatable, Sendable {
@@ -271,20 +293,27 @@ struct ActiveSuggestionSession: Equatable, Sendable {
     /// We keep this as the anchor so later text changes can be interpreted as:
     /// "user consumed part of the suggestion" vs "user diverged from it."
     let baseContext: FocusedInputContext
+    /// The normalized stable suggestion text known so far.
+    /// For non-streaming generations this is the final model output. For streaming generations it
+    /// can grow as more stable chunks arrive from the backend.
     let fullText: String
     let consumedCharacterCount: Int
     let latency: TimeInterval
+    /// True while the backend may still append more stable text to `fullText`.
+    let isStreaming: Bool
 
     init(
         baseContext: FocusedInputContext,
         fullText: String,
         consumedCharacterCount: Int = 0,
-        latency: TimeInterval
+        latency: TimeInterval,
+        isStreaming: Bool = false
     ) {
         self.baseContext = baseContext
         self.fullText = fullText
         self.consumedCharacterCount = min(max(consumedCharacterCount, 0), fullText.count)
         self.latency = latency
+        self.isStreaming = isStreaming
     }
 
     var acceptedText: String {
@@ -306,7 +335,13 @@ struct ActiveSuggestionSession: Equatable, Sendable {
     /// A whitespace-only tail is effectively exhausted for inline UX.
     /// Showing "ghost spaces" is visually confusing and not worth preserving.
     var isExhausted: Bool {
-        remainingText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        !isStreaming && remainingText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// During streaming, accepting everything currently visible is not final exhaustion; it means
+    /// Tabby should keep the session alive and wait for the backend to append more stable text.
+    var isWaitingForMoreStreamedText: Bool {
+        isStreaming && remainingText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     /// Returns a new session advanced by the accepted or typed character count.
@@ -316,7 +351,8 @@ struct ActiveSuggestionSession: Equatable, Sendable {
             baseContext: baseContext,
             fullText: fullText,
             consumedCharacterCount: self.consumedCharacterCount + max(consumedCharacters, 0),
-            latency: latency
+            latency: latency,
+            isStreaming: isStreaming
         )
     }
 
@@ -327,7 +363,20 @@ struct ActiveSuggestionSession: Equatable, Sendable {
             baseContext: baseContext,
             fullText: fullText,
             consumedCharacterCount: consumedCharacters,
-            latency: latency
+            latency: latency,
+            isStreaming: isStreaming
+        )
+    }
+
+    /// Replaces the stable suggestion text while preserving what the user already consumed.
+    /// Streaming uses this when a backend emits a larger stable prefix after the session exists.
+    func withStableText(_ stableText: String, isStreaming: Bool, latency: TimeInterval) -> ActiveSuggestionSession {
+        ActiveSuggestionSession(
+            baseContext: baseContext,
+            fullText: stableText,
+            consumedCharacterCount: consumedCharacterCount,
+            latency: latency,
+            isStreaming: isStreaming
         )
     }
 }
@@ -338,6 +387,7 @@ enum SuggestionDebugState: Equatable {
     case disabled(String)
     case debouncing
     case generating
+    case streaming(text: String, latency: TimeInterval)
     case ready(text: String, latency: TimeInterval)
     case failed(String)
 
@@ -351,6 +401,8 @@ enum SuggestionDebugState: Equatable {
             return "Debouncing"
         case .generating:
             return "Generating"
+        case .streaming:
+            return "Streaming"
         case .ready:
             return "Ready"
         case .failed:
@@ -368,8 +420,19 @@ enum SuggestionDebugState: Equatable {
             return "Waiting for typing to settle."
         case .generating:
             return "Requesting a completion from the active suggestion backend."
+        case .streaming:
+            return "Rendering stable streamed chunks while the backend continues generating."
         case .ready:
             return "Ready means Tabby has buffered a non-empty normalized completion for this field and can render it as ghost text."
+        }
+    }
+
+    var canAcceptSuggestion: Bool {
+        switch self {
+        case .ready, .streaming:
+            return true
+        case .idle, .disabled, .debouncing, .generating, .failed:
+            return false
         }
     }
 }

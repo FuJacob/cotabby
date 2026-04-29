@@ -121,6 +121,63 @@ final class LlamaRuntimeManager: ObservableObject {
         }
     }
 
+    /// Starts a raw llama generation stream after ensuring the selected model is prepared.
+    ///
+    /// The stream yields the accumulated raw model text after each sampled token. It intentionally
+    /// does not normalize or chunk text because the manager is still a runtime boundary; suggestion
+    /// policy belongs in `LlamaSuggestionEngine` and pure support helpers.
+    func rawGenerationStream(
+        prompt: String,
+        cachedPrefixBytes: Int? = nil,
+        maxPredictionTokens: Int,
+        temperature: Double,
+        topK: Int,
+        topP: Double,
+        minP: Double,
+        repetitionPenalty: Double,
+        seed: UInt32? = nil
+    ) -> AsyncThrowingStream<String, Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task { [weak self] in
+                guard let self else {
+                    continuation.finish(throwing: LlamaRuntimeError.cancelled)
+                    return
+                }
+
+                do {
+                    _ = try await preparedRuntime()
+                    _ = try await core.generateStreaming(
+                        prompt: prompt,
+                        cachedPrefixBytes: cachedPrefixBytes,
+                        maxPredictionTokens: maxPredictionTokens,
+                        temperature: temperature,
+                        topK: topK,
+                        topP: topP,
+                        minP: minP,
+                        repetitionPenalty: repetitionPenalty,
+                        seed: seed
+                    ) { rawText in
+                        continuation.yield(rawText)
+                    }
+                    continuation.finish()
+                } catch is CancellationError {
+                    continuation.finish(throwing: LlamaRuntimeError.cancelled)
+                } catch let error as LlamaRuntimeError {
+                    diagnostics.lastError = error.localizedDescription
+                    continuation.finish(throwing: error)
+                } catch {
+                    let runtimeError = LlamaRuntimeError.generationFailed(error.localizedDescription)
+                    diagnostics.lastError = runtimeError.localizedDescription
+                    continuation.finish(throwing: runtimeError)
+                }
+            }
+
+            continuation.onTermination = { _ in
+                task.cancel()
+            }
+        }
+    }
+
     /// Clears the native prompt KV cache without unloading the model.
     /// The manager exposes this as a lifecycle command because focus/settings resets originate in
     /// the app layer, while the actor still owns the raw llama pointers.

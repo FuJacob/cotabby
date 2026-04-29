@@ -39,9 +39,42 @@ protocol SuggestionInputMonitoring: AnyObject {
 @MainActor
 protocol SuggestionGenerating: AnyObject {
     func generateSuggestion(for request: SuggestionRequest) async throws -> SuggestionResult
+    /// Emits normalized, stable suggestion prefixes as they become available.
+    ///
+    /// Backends that cannot stream yet may use the default implementation below, which preserves
+    /// coordinator behavior by yielding a single final update after regular generation completes.
+    func streamSuggestion(for request: SuggestionRequest) -> AsyncThrowingStream<SuggestionStreamUpdate, Error>
     /// Clears backend-local continuation state when the focused editing context is no longer
     /// continuous. Stateless engines may implement this as a no-op.
     func resetCachedGenerationContext() async
+}
+
+extension SuggestionGenerating {
+    func streamSuggestion(for request: SuggestionRequest) -> AsyncThrowingStream<SuggestionStreamUpdate, Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task { @MainActor in
+                do {
+                    let result = try await generateSuggestion(for: request)
+                    continuation.yield(
+                        SuggestionStreamUpdate(
+                            generation: result.generation,
+                            rawText: result.rawText,
+                            text: result.text,
+                            latency: result.latency,
+                            isFinal: true
+                        )
+                    )
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+
+            continuation.onTermination = { _ in
+                task.cancel()
+            }
+        }
+    }
 }
 
 @MainActor
