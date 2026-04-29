@@ -55,6 +55,10 @@ final class SuggestionCoordinator: ObservableObject {
     // Async work and active-session storage now live in dedicated collaborators below.
     var cancellables = Set<AnyCancellable>()
     var settingsSnapshot: SuggestionSettingsSnapshot
+    // Synchronous input/focus callbacks cannot directly `await`, so resets are represented as a
+    // barrier task that the next generation must cross before it can ask the runtime for output.
+    var cacheResetSequence: UInt64 = 0
+    var pendingCacheReset: (sequence: UInt64, task: Task<Void, Never>)?
 
     init(
         permissionManager: any SuggestionPermissionProviding,

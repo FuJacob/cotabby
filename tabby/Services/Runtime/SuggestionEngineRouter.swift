@@ -32,9 +32,9 @@ final class SuggestionEngineRouter {
     /// Clears backend-local continuation state when the coordinator knows the editing context is
     /// no longer continuous. The router fans this out so switching engines cannot leave stale
     /// llama KV state behind.
-    func resetCachedGenerationContext() {
-        foundationModelEngine.resetCachedGenerationContext()
-        llamaEngine.resetCachedGenerationContext()
+    func resetCachedGenerationContext() async {
+        await foundationModelEngine.resetCachedGenerationContext()
+        await llamaEngine.resetCachedGenerationContext()
     }
 }
 

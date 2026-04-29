@@ -34,6 +34,11 @@ extension SuggestionCoordinator {
             return
         }
 
+        await awaitCachedGenerationContextResetIfNeeded()
+        guard workController.isCurrent(workID) else {
+            return
+        }
+
         // We intentionally re-read the latest focus snapshot here instead of trusting the earlier
         // key event, because the user may have switched apps or fields during the debounce window.
         focusModel.refreshNow()
@@ -305,7 +310,7 @@ extension SuggestionCoordinator {
     /// Fully disables prediction, clears cached context, and updates UI messaging with the cause.
     func disablePredictions(reason: String) {
         cancelPredictionWork()
-        suggestionEngine.resetCachedGenerationContext()
+        resetCachedGenerationContext()
         visualContextCoordinator.cancel(resetState: true)
         interactionState.resetAll()
         clearSuggestion(clearDiagnostics: true)
@@ -335,6 +340,36 @@ extension SuggestionCoordinator {
     /// Cancels debounce/generation tasks and advances the work id so late completions are ignored.
     func cancelPredictionWork() {
         workController.cancelAll()
+    }
+
+    /// Starts an ordered backend context reset without forcing synchronous input handlers to become
+    /// async. `generateFromCurrentFocus` awaits this barrier before it builds the next request, so a
+    /// reset caused by focus/settings changes cannot race with the following generation.
+    func resetCachedGenerationContext() {
+        pendingCacheReset?.task.cancel()
+        cacheResetSequence &+= 1
+        let sequence = cacheResetSequence
+        let suggestionEngine = suggestionEngine
+        let resetTask = Task { @MainActor in
+            guard !Task.isCancelled else {
+                return
+            }
+
+            await suggestionEngine.resetCachedGenerationContext()
+        }
+        pendingCacheReset = (sequence, resetTask)
+    }
+
+    func awaitCachedGenerationContextResetIfNeeded() async {
+        guard let pendingCacheReset else {
+            return
+        }
+
+        await pendingCacheReset.task.value
+
+        if self.pendingCacheReset?.sequence == pendingCacheReset.sequence {
+            self.pendingCacheReset = nil
+        }
     }
 
     // MARK: - Visual Context

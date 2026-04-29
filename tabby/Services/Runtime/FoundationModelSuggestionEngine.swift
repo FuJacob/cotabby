@@ -64,7 +64,7 @@ final class FoundationModelSuggestionEngine {
     }
 
     /// Foundation Models sessions are already one-shot, so there is no backend context to clear.
-    func resetCachedGenerationContext() {}
+    func resetCachedGenerationContext() async {}
 
     /// Maps Tabby's existing generation knobs onto the subset of Foundation Models options the
     /// system model exposes. We preserve the same upstream request shape so the coordinator does

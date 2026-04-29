@@ -124,10 +124,8 @@ final class LlamaRuntimeManager: ObservableObject {
     /// Clears the native prompt KV cache without unloading the model.
     /// The manager exposes this as a lifecycle command because focus/settings resets originate in
     /// the app layer, while the actor still owns the raw llama pointers.
-    func resetPromptCache() {
-        Task {
-            await core.resetPromptCache()
-        }
+    func resetPromptCache() async {
+        await core.resetPromptCache()
     }
 
     /// Cancels any retained prepared runtime and asks the actor to release backend resources.

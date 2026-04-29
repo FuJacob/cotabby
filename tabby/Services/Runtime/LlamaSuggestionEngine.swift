@@ -43,26 +43,26 @@ final class LlamaSuggestionEngine {
                 latency: Date().timeIntervalSince(startTime)
             )
         } catch is CancellationError {
-            resetCachedGenerationContext()
             throw SuggestionClientError.cancelled
         } catch let error as LlamaRuntimeError {
-            resetCachedGenerationContext()
+            await resetCachedGenerationContext()
             throw SuggestionClientError.unavailable(error.localizedDescription)
         } catch let error as SuggestionClientError {
-            resetCachedGenerationContext()
+            await resetCachedGenerationContext()
             throw error
         } catch {
-            resetCachedGenerationContext()
+            await resetCachedGenerationContext()
             throw SuggestionClientError.generationFailed(error.localizedDescription)
         }
     }
 
     /// Clears both the Swift-side hint tracker and the native llama KV cache.
     /// The tracker reset is synchronous because it protects the next request from advertising
-    /// stale reuse; the runtime reset is also enforced lazily by passing no hint on that request.
-    func resetCachedGenerationContext() {
+    /// stale reuse; awaiting the runtime reset keeps native KV invalidation ordered before the next
+    /// generation request that crosses this engine boundary.
+    func resetCachedGenerationContext() async {
         promptCacheHintTracker.reset()
-        runtimeManager.resetPromptCache()
+        await runtimeManager.resetPromptCache()
     }
 }
 
