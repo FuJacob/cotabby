@@ -40,7 +40,6 @@ enum SuggestionRequestFactory {
         let prompt = buildPrompt(
             context: context,
             prefixText: prefixText,
-            promptMode: settings.effectivePromptMode,
             completionLengthInstruction: completionLengthInstruction,
             customAIInstructions: customAIInstructions
         )
@@ -75,14 +74,12 @@ enum SuggestionRequestFactory {
     private static func buildPrompt(
         context: FocusedInputContext,
         prefixText: String,
-        promptMode: SuggestionPromptMode,
         completionLengthInstruction: String,
         customAIInstructions: String?
     ) -> String {
         LlamaPromptRenderer.prompt(
             prefixText: prefixText,
             applicationName: context.applicationName,
-            promptMode: promptMode,
             completionLengthInstruction: completionLengthInstruction,
             customAIInstructions: customAIInstructions
         )
@@ -106,10 +103,6 @@ enum SuggestionRequestFactory {
     private static func activeCustomAIInstructions(
         settings: SuggestionSettingsSnapshot
     ) -> String? {
-        guard settings.effectivePromptMode == .guided else {
-            return nil
-        }
-
         return settings.customAIInstructions
     }
 

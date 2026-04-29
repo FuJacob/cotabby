@@ -22,17 +22,6 @@ enum SuggestionEngineKind: String, CaseIterable, Equatable, Hashable, Sendable, 
         }
     }
 
-    /// These booleans let views render from capabilities instead of sprinkling engine-specific
-    /// branches throughout the codebase.
-    var supportsPromptModeSelection: Bool {
-        switch self {
-        case .appleIntelligence:
-            return false
-        case .llamaOpenSource:
-            return true
-        }
-    }
-
     var supportsLocalModelManagement: Bool {
         switch self {
         case .appleIntelligence:
@@ -40,19 +29,6 @@ enum SuggestionEngineKind: String, CaseIterable, Equatable, Hashable, Sendable, 
         case .llamaOpenSource:
             return true
         }
-    }
-
-    var supportedPromptModes: [SuggestionPromptMode] {
-        switch self {
-        case .appleIntelligence:
-            return [.prefixOnly]
-        case .llamaOpenSource:
-            return SuggestionPromptMode.allCases
-        }
-    }
-
-    var defaultPromptMode: SuggestionPromptMode {
-        .prefixOnly
     }
 }
 
@@ -75,8 +51,7 @@ struct SuggestionSettingsSnapshot: Equatable, Sendable {
     let disabledAppBundleIdentifiers: Set<String>
     let selectedEngine: SuggestionEngineKind
     let selectedWordCountPreset: SuggestionWordCountPreset
-    let effectivePromptMode: SuggestionPromptMode
-    /// Normalized user-authored guidance for the instructions-based completion style.
+    /// Normalized user-authored guidance for Tabby's instruction-rendered completion prompt.
     /// This travels in the snapshot so generation uses the same value the Settings UI shows.
     let customAIInstructions: String?
 }

@@ -3,7 +3,7 @@ import Foundation
 
 /// File overview:
 /// Owns the durable autocomplete preferences that are shared across the app:
-/// engine selection, completion length, indicator appearance, prompt strategy, and custom
+/// engine selection, completion length, indicator appearance, and custom
 /// writing guidance.
 ///
 /// This type is the right owner for these values because they are product settings, not
@@ -17,7 +17,6 @@ final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var customSuggestionTextColorHex: String?
     @Published private(set) var selectedEngine: SuggestionEngineKind
     @Published private(set) var selectedWordCountPreset: SuggestionWordCountPreset
-    @Published private(set) var selectedLocalPromptMode: SuggestionPromptMode
     @Published private(set) var customAIInstructions: String
 
     private let userDefaults: UserDefaults
@@ -30,7 +29,6 @@ final class SuggestionSettingsModel: ObservableObject {
     private static let customSuggestionTextColorHexDefaultsKey = "tabbyCustomSuggestionTextColorHex"
     private static let selectedEngineDefaultsKey = "selectedSuggestionEngine"
     private static let selectedWordCountPresetDefaultsKey = "selectedSuggestionWordCountPreset"
-    private static let selectedLocalPromptModeDefaultsKey = "selectedLocalSuggestionPromptMode"
     private static let customAIInstructionsDefaultsKey = "tabbyCustomAIInstructions"
 
     init(
@@ -57,10 +55,6 @@ final class SuggestionSettingsModel: ObservableObject {
             .string(forKey: Self.selectedWordCountPresetDefaultsKey)
             .flatMap(SuggestionWordCountPreset.init(rawValue:))
             ?? configuration.defaultWordCountPreset
-        let resolvedLocalPromptMode = userDefaults
-            .string(forKey: Self.selectedLocalPromptModeDefaultsKey)
-            .flatMap(SuggestionPromptMode.init(rawValue:))
-            ?? configuration.defaultPromptMode
         let resolvedCustomAIInstructions: String = if userDefaults.object(forKey: Self.customAIInstructionsDefaultsKey) == nil {
             configuration.defaultCustomAIInstructions ?? ""
         } else {
@@ -73,7 +67,6 @@ final class SuggestionSettingsModel: ObservableObject {
         customSuggestionTextColorHex = resolvedCustomSuggestionTextColorHex
         selectedEngine = resolvedEngine
         selectedWordCountPreset = resolvedWordCountPreset
-        selectedLocalPromptMode = resolvedLocalPromptMode
         customAIInstructions = resolvedCustomAIInstructions
 
         userDefaults.set(resolvedGloballyEnabled, forKey: Self.isGloballyEnabledDefaultsKey)
@@ -82,7 +75,6 @@ final class SuggestionSettingsModel: ObservableObject {
         persistCustomSuggestionTextColorHex(resolvedCustomSuggestionTextColorHex)
         persistSelectedEngine(resolvedEngine)
         persistSelectedWordCountPreset(resolvedWordCountPreset)
-        persistSelectedLocalPromptMode(resolvedLocalPromptMode)
         persistCustomAIInstructions(resolvedCustomAIInstructions)
     }
 
@@ -92,24 +84,12 @@ final class SuggestionSettingsModel: ObservableObject {
         selectedIndicatorMode != .hidden
     }
 
-    var availablePromptModes: [SuggestionPromptMode] {
-        selectedEngine.supportedPromptModes
-    }
-
-    var effectivePromptMode: SuggestionPromptMode {
-        Self.effectivePromptMode(
-            engine: selectedEngine,
-            localPromptMode: selectedLocalPromptMode
-        )
-    }
-
     var snapshot: SuggestionSettingsSnapshot {
         SuggestionSettingsSnapshot(
             isGloballyEnabled: isGloballyEnabled,
             disabledAppBundleIdentifiers: Set(disabledAppRules.map(\.bundleIdentifier)),
             selectedEngine: selectedEngine,
             selectedWordCountPreset: selectedWordCountPreset,
-            effectivePromptMode: effectivePromptMode,
             customAIInstructions: CustomAIInstructionFormatter.normalized(customAIInstructions)
         )
     }
@@ -130,15 +110,6 @@ final class SuggestionSettingsModel: ObservableObject {
 
         selectedWordCountPreset = preset
         persistSelectedWordCountPreset(preset)
-    }
-
-    func selectLocalPromptMode(_ mode: SuggestionPromptMode) {
-        guard selectedLocalPromptMode != mode else {
-            return
-        }
-
-        selectedLocalPromptMode = mode
-        persistSelectedLocalPromptMode(mode)
     }
 
     func setGloballyEnabled(_ enabled: Bool) {
@@ -262,27 +233,12 @@ final class SuggestionSettingsModel: ObservableObject {
         persistCustomAIInstructions(instructions)
     }
 
-    private static func effectivePromptMode(
-        engine: SuggestionEngineKind,
-        localPromptMode: SuggestionPromptMode
-    ) -> SuggestionPromptMode {
-        if engine.supportedPromptModes.contains(localPromptMode) {
-            return localPromptMode
-        }
-
-        return engine.defaultPromptMode
-    }
-
     private func persistSelectedEngine(_ engine: SuggestionEngineKind) {
         userDefaults.set(engine.rawValue, forKey: Self.selectedEngineDefaultsKey)
     }
 
     private func persistSelectedWordCountPreset(_ preset: SuggestionWordCountPreset) {
         userDefaults.set(preset.rawValue, forKey: Self.selectedWordCountPresetDefaultsKey)
-    }
-
-    private func persistSelectedLocalPromptMode(_ mode: SuggestionPromptMode) {
-        userDefaults.set(mode.rawValue, forKey: Self.selectedLocalPromptModeDefaultsKey)
     }
 
     private func persistSelectedIndicatorMode(_ mode: ActivationIndicatorMode) {
@@ -403,27 +359,20 @@ final class SuggestionSettingsModel: ObservableObject {
 
 extension SuggestionSettingsModel: SuggestionSettingsProviding {
     var snapshotPublisher: AnyPublisher<SuggestionSettingsSnapshot, Never> {
-        Publishers.CombineLatest3(
-            Publishers.CombineLatest4(
-                $isGloballyEnabled,
-                $disabledAppRules,
-                $selectedEngine,
-                $selectedWordCountPreset
-            ),
-            $selectedLocalPromptMode,
-            $customAIInstructions
+        Publishers.CombineLatest4(
+            $isGloballyEnabled,
+            $disabledAppRules,
+            $selectedEngine,
+            $selectedWordCountPreset
         )
-        .map { combinedSettings, localPromptMode, customAIInstructions in
+        .combineLatest($customAIInstructions)
+        .map { combinedSettings, customAIInstructions in
             let (globallyEnabled, disabledAppRules, engine, wordCountPreset) = combinedSettings
             return SuggestionSettingsSnapshot(
                 isGloballyEnabled: globallyEnabled,
                 disabledAppBundleIdentifiers: Set(disabledAppRules.map(\.bundleIdentifier)),
                 selectedEngine: engine,
                 selectedWordCountPreset: wordCountPreset,
-                effectivePromptMode: Self.effectivePromptMode(
-                    engine: engine,
-                    localPromptMode: localPromptMode
-                ),
                 customAIInstructions: CustomAIInstructionFormatter.normalized(customAIInstructions)
             )
         }

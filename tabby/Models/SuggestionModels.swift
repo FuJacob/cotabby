@@ -58,33 +58,6 @@ enum SuggestionWordCountPreset: String, CaseIterable, Equatable, Hashable, Senda
     }
 }
 
-/// Prompt construction strategy for inline completion.
-/// Both modes share the same generation pipeline; only the prompt wording changes.
-enum SuggestionPromptMode: String, CaseIterable, Equatable, Hashable, Sendable, Identifiable {
-    case guided
-    case prefixOnly
-
-    var id: String { rawValue }
-
-    var displayLabel: String {
-        switch self {
-        case .guided:
-            return "Use My Instructions"
-        case .prefixOnly:
-            return "Fast"
-        }
-    }
-
-    var compactLabel: String {
-        switch self {
-        case .guided:
-            return "Instructions"
-        case .prefixOnly:
-            return "Fast"
-        }
-    }
-}
-
 /// User-facing indicator display mode for supported text fields.
 /// This replaces the old caret-indicator boolean so Tabby can express multiple affordances
 /// without smuggling extra meaning through one toggle.
@@ -141,7 +114,6 @@ struct SuggestionConfiguration: Equatable, Sendable {
     /// the app's starting value for a fresh install.
     let defaultCustomAIInstructions: String?
     let defaultWordCountPreset: SuggestionWordCountPreset
-    let defaultPromptMode: SuggestionPromptMode
 
     /// The configuration shipped by the app today.
     /// These are product defaults, not temporary debug overrides.
@@ -168,8 +140,7 @@ struct SuggestionConfiguration: Equatable, Sendable {
             My name is Jacob Fu. I usually write in English.
             Write in a friendly, professional and empathetic voice.
             """,
-        defaultWordCountPreset: .sevenToTwelve,
-        defaultPromptMode: .prefixOnly
+        defaultWordCountPreset: .sevenToTwelve
     )
 }
 

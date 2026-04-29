@@ -41,8 +41,6 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		1937414B2F81DE7000BEC04F /* tabby */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = tabby;
 			sourceTree = "<group>";
 		};
@@ -169,7 +167,7 @@
 			mainGroup = 193741402F81DE7000BEC04F;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				A1C3E0022F90000100AAA001 /* XCRemoteSwiftPackageReference "llama.swift" */,
+				A1C3E0022F90000100AAA001 /* XCRemoteSwiftPackageReference "llama" */,
 				A1C3E0122F90000100AAA001 /* XCRemoteSwiftPackageReference "Sparkle" */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -500,7 +498,7 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		A1C3E0022F90000100AAA001 /* XCRemoteSwiftPackageReference "llama.swift" */ = {
+		A1C3E0022F90000100AAA001 /* XCRemoteSwiftPackageReference "llama" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/mattt/llama.swift";
 			requirement = {
@@ -521,7 +519,7 @@
 /* Begin XCSwiftPackageProductDependency section */
 		A1C3E0002F90000100AAA001 /* LlamaSwift */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = A1C3E0022F90000100AAA001 /* XCRemoteSwiftPackageReference "llama.swift" */;
+			package = A1C3E0022F90000100AAA001 /* XCRemoteSwiftPackageReference "llama" */;
 			productName = LlamaSwift;
 		};
 		A1C3E0102F90000100AAA001 /* Sparkle */ = {

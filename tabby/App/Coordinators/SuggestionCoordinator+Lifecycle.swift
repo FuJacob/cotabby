@@ -58,13 +58,11 @@ extension SuggestionCoordinator {
             latestStageMessage = "Updated autocomplete engine to \(snapshot.selectedEngine.displayLabel)."
         } else if previousSnapshot.selectedWordCountPreset != snapshot.selectedWordCountPreset {
             latestStageMessage = "Updated suggestion length to \(snapshot.selectedWordCountPreset.displayLabel)."
-        } else if previousSnapshot.effectivePromptMode != snapshot.effectivePromptMode {
-            latestStageMessage = "Updated prompt mode to \(snapshot.effectivePromptMode.displayLabel)."
         } else {
             latestStageMessage = "Updated autocomplete settings."
         }
 
-        // Legacy screenshot/OCR context capture is disabled for both prompt modes while we rebuild.
+        // Legacy screenshot/OCR context capture remains disabled while contextual prompting is rebuilt.
         if visualContextStatus != .idle {
             visualContextCoordinator.cancel(resetState: true)
         }
