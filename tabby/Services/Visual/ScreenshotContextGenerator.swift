@@ -177,7 +177,8 @@ final class ScreenshotContextGenerator {
     }
 
     private func saveDebugScreenshot(_ image: CGImage, text: String, name: String) {
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("tabby-debug-screenshots")
+        guard let desktopURL = FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask).first else { return }
+        let url = desktopURL.appendingPathComponent("tabby-debug-screenshots")
         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         
         let formatter = DateFormatter()

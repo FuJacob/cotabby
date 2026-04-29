@@ -78,7 +78,7 @@ private enum WelcomeStep: Int, Comparable {
         case .welcome:
             return NSSize(width: 500, height: 320)
         case .permissions:
-            return NSSize(width: 540, height: 400)
+            return NSSize(width: 540, height: 480)
         case .chooseModel:
             if selectedEngine == .llamaOpenSource {
                 return NSSize(width: 540, height: 520)

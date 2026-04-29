@@ -51,10 +51,10 @@ final class PermissionManager: ObservableObject {
         }
     }
 
-    /// Core autocomplete depends on Accessibility plus Input Monitoring.
+    /// Core autocomplete depends on Accessibility, Input Monitoring, and Screen Recording.
     ///
-    /// Screen Recording stays tracked here because legacy visual-context experiments still depend on
-    /// it, but it is not part of the required "Tabby basically works" definition.
+    /// Screen Recording was historically optional, but is now a core requirement for providing
+    /// visual context to the autocomplete engine.
     var requiredPermissionsGranted: Bool {
         TabbyPermissionKind.allCases
             .filter(\.isRequiredForAutocomplete)

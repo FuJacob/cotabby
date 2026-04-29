@@ -202,7 +202,7 @@ struct SettingsView: View {
     @ViewBuilder
     private var permissionsSection: some View {
         Section("Permissions") {
-            Text("Tabby needs Accessibility and Input Monitoring for autocomplete.")
+            Text("Tabby needs Accessibility, Input Monitoring, and Screen Recording for autocomplete.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
@@ -216,6 +216,12 @@ struct SettingsView: View {
                 title: "Input Monitoring",
                 granted: permissionManager.inputMonitoringGranted,
                 action: permissionManager.openInputMonitoringSettings
+            )
+
+            settingsPermissionRow(
+                title: "Screen Recording",
+                granted: permissionManager.screenRecordingGranted,
+                action: permissionManager.openScreenRecordingSettings
             )
         }
     }

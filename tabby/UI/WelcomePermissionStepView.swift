@@ -48,7 +48,7 @@ struct WelcomePermissionStepView: View {
             WelcomeNavigation(
                 canGoBack: true,
                 canContinue: permissionManager.requiredPermissionsGranted,
-                disabledHint: "Grant both permissions to continue.",
+                disabledHint: "Grant all permissions to continue.",
                 onBack: onBack,
                 onContinue: onContinue
             )

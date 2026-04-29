@@ -57,7 +57,7 @@ enum TabbyPermissionKind: String, CaseIterable, Identifiable, Sendable {
         case .inputMonitoring:
             "Detect typing and accept with Tab."
         case .screenRecording:
-            "Optional. Not required for autocomplete."
+            "Capture screen context for visual reasoning."
         }
     }
 
@@ -72,19 +72,15 @@ enum TabbyPermissionKind: String, CaseIterable, Identifiable, Sendable {
 
     var guidanceStyle: PermissionGuidanceStyle {
         switch self {
-        case .accessibility, .inputMonitoring:
+        case .accessibility, .inputMonitoring, .screenRecording:
             .guidedOverlay
-        case .screenRecording:
-            .settingsOnly
         }
     }
 
     var isRequiredForAutocomplete: Bool {
         switch self {
-        case .accessibility, .inputMonitoring:
+        case .accessibility, .inputMonitoring, .screenRecording:
             true
-        case .screenRecording:
-            false
         }
     }
 

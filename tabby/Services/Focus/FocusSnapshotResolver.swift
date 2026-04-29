@@ -12,7 +12,7 @@ struct FocusSnapshotResolver {
 
     // MARK: - Debug AX tree dump (temporary — remove after caret placement is fixed)
     /// Set to true to print the AX tree every time focus changes. Check Xcode console.
-    private static let dumpAXTree = true
+    private static let dumpAXTree = false
     private static var lastDumpedElementID: String?
 
     init(geometryResolver: AXTextGeometryResolver? = nil) {
@@ -384,10 +384,33 @@ struct FocusSnapshotResolver {
             supportedAttributes.contains(kAXSelectedTextRangeAttribute as String)
             ? AXHelper.rangeValue(for: kAXSelectedTextRangeAttribute as CFString, on: element)
             : nil
-        let inputFrameRect =
+        var inputFrameRect =
             supportedAttributes.contains("AXFrame")
             ? geometryResolver.resolveInputFrameRect(for: element)
             : nil
+            
+        if let currentFrame = inputFrameRect {
+            var finalWidth = currentFrame.width
+            var finalX = currentFrame.minX
+            
+            // Optimization: grab the parent container's width if the active element is narrow 
+            // so we capture the whole input bar context (e.g. Discord/Slack dynamically sized nodes).
+            if let parent = AXHelper.parentElement(of: element),
+               let parentFrame = AXHelper.rectValue(for: "AXFrame" as CFString, on: parent) {
+                let parentCocoa = AXHelper.cocoaRect(fromAccessibilityRect: parentFrame)
+                if parentCocoa.width > finalWidth {
+                    finalWidth = parentCocoa.width
+                    finalX = parentCocoa.minX
+                }
+            }
+            
+            // Enforce a minimum width to ensure we get a decent horizontal slice
+            if finalWidth < 500 {
+                finalWidth = max(finalWidth, 500)
+            }
+            
+            inputFrameRect = CGRect(x: finalX, y: currentFrame.minY, width: finalWidth, height: currentFrame.height)
+        }
         let caretResult = selection.flatMap {
             geometryResolver.resolveCaretRect(
                 for: element,
