@@ -29,7 +29,8 @@ enum SuggestionRequestFactory {
     static func buildRequest(
         context: FocusedInputContext,
         settings: SuggestionSettingsSnapshot,
-        configuration: SuggestionConfiguration
+        configuration: SuggestionConfiguration,
+        visualContextSummary: String? = nil
     ) -> SuggestionRequestBuildResult {
         let prefixText = truncatedPromptPrefix(
             from: context.precedingText,
@@ -41,7 +42,8 @@ enum SuggestionRequestFactory {
             context: context,
             prefixText: prefixText,
             completionLengthInstruction: completionLengthInstruction,
-            customAIInstructions: customAIInstructions
+            customAIInstructions: customAIInstructions,
+            visualContextSummary: visualContextSummary
         )
 
         let request = SuggestionRequest(
@@ -61,7 +63,8 @@ enum SuggestionRequestFactory {
             randomSeed: configuration.randomSeed,
             maxSuffixCharacters: configuration.maxSuffixCharacters,
             completionLengthInstruction: completionLengthInstruction,
-            customAIInstructions: customAIInstructions
+            customAIInstructions: customAIInstructions,
+            visualContextSummary: visualContextSummary
         )
 
         return SuggestionRequestBuildResult(
@@ -75,13 +78,15 @@ enum SuggestionRequestFactory {
         context: FocusedInputContext,
         prefixText: String,
         completionLengthInstruction: String,
-        customAIInstructions: String?
+        customAIInstructions: String?,
+        visualContextSummary: String?
     ) -> String {
         LlamaPromptRenderer.prompt(
             prefixText: prefixText,
             applicationName: context.applicationName,
             completionLengthInstruction: completionLengthInstruction,
-            customAIInstructions: customAIInstructions
+            customAIInstructions: customAIInstructions,
+            visualContextSummary: visualContextSummary
         )
     }
 

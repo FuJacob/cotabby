@@ -21,6 +21,8 @@ final class LlamaSuggestionEngine {
         do {
             let startTime = Date()
             let cachedPrefixBytes = promptCacheHintTracker.cachedPrefixBytes(for: request)
+            print("[LlamaSuggestionEngine] starting prediction with prompt length: \(request.prompt.count)")
+            print("[LlamaSuggestionEngine] FINAL INJECTED PROMPT:\n---\n\(request.prompt)\n---")
             let rawSuggestion = try await runtimeManager.generate(
                 prompt: request.prompt,
                 cachedPrefixBytes: cachedPrefixBytes,

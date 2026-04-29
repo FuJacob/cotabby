@@ -616,3 +616,68 @@ actor LlamaRuntimeCore {
         }
     }
 }
+
+extension LlamaRuntimeCore {
+    /// Generates a summary without reading or modifying the global KV prompt cache.
+    func summarize(
+        prompt: String,
+        maxPredictionTokens: Int,
+        temperature: Double
+    ) throws -> String {
+        guard let preparedRuntime else {
+            throw LlamaRuntimeError.unavailable("The llama model is not loaded.")
+        }
+        guard let model else {
+            throw LlamaRuntimeError.unavailable("The llama model is not loaded.")
+        }
+        guard let vocab = llama_model_get_vocab(model) else {
+            throw LlamaRuntimeError.generationFailed("Unable to access the model vocabulary.")
+        }
+
+        let promptTokens = try tokenize(prompt, vocab: vocab)
+
+        let context = try makeContext(
+            model: model,
+            contextWindowTokens: preparedRuntime.contextWindowTokens,
+            batchSize: preparedRuntime.batchSize,
+            threadCount: preparedRuntime.threadCount
+        )
+        defer { llama_free(context) }
+
+        try decodePrompt(
+            promptTokens,
+            startingAt: 0,
+            in: context,
+            batchCapacity: preparedRuntime.batchSize
+        )
+
+        let sampler = try makeSampler(
+            temperature: temperature,
+            topK: 40,
+            topP: 0.95,
+            minP: 0.05,
+            repetitionPenalty: 1.1,
+            seed: nil
+        )
+        defer { llama_sampler_free(sampler) }
+
+        var generatedText = ""
+        var position = Int32(promptTokens.count)
+
+        for _ in 0 ..< maxPredictionTokens {
+            let nextToken = llama_sampler_sample(sampler, context, -1)
+            if nextToken == llama_vocab_eos(vocab) || llama_vocab_is_eog(vocab, nextToken) {
+                break
+            }
+
+            let piece = pieceString(for: nextToken, vocab: vocab)
+            generatedText += piece
+            llama_sampler_accept(sampler, nextToken)
+
+            try decodeToken(nextToken, position: position, in: context)
+            position += 1
+        }
+
+        return generatedText
+    }
+}

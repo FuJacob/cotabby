@@ -68,10 +68,12 @@ extension SuggestionCoordinator {
         }
 
         let context = interactionState.materializeContext(from: rawContext)
+        let visualContextSummary = visualContextCoordinator.excerpt(for: context)
         let requestBuildResult = SuggestionRequestFactory.buildRequest(
             context: context,
             settings: settingsSnapshot,
-            configuration: configuration
+            configuration: configuration,
+            visualContextSummary: visualContextSummary
         )
         latestGenerationNumber = context.generation
         latestPromptPreview = requestBuildResult.promptPreview

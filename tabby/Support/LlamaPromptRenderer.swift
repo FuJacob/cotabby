@@ -18,7 +18,8 @@ enum LlamaPromptRenderer {
         prefixText: String,
         applicationName: String,
         completionLengthInstruction: String,
-        customAIInstructions: String?
+        customAIInstructions: String?,
+        visualContextSummary: String? = nil
     ) -> String {
         var sections = [
             "You are Tabby's inline autocomplete engine for a macOS text field.",
@@ -43,13 +44,17 @@ enum LlamaPromptRenderer {
             sections.append(contentsOf: customInstructionLines)
         }
 
-        sections.append(contentsOf: [
-            "",
-            "Context:",
-            "App: \(applicationName)",
-            "Text before caret:",
-            prefixText
-        ])
+        sections.append("")
+        sections.append("Context:")
+        sections.append("App: \(applicationName)")
+
+        if let summary = visualContextSummary, !summary.isEmpty {
+            sections.append("Screen content:")
+            sections.append(summary)
+        }
+
+        sections.append("Text before caret:")
+        sections.append(prefixText)
 
         return sections.joined(separator: "\n")
     }

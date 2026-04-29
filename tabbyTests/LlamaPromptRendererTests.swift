@@ -138,6 +138,31 @@ final class LlamaPromptRendererTests: XCTestCase {
                           "prefix must appear after the Context: header")
     }
 
+    func test_instructionPrompt_includesVisualContextSummaryWhenProvided() {
+        let prompt = LlamaPromptRenderer.prompt(
+            prefixText: "PREFIX",
+            applicationName: "App",
+            completionLengthInstruction: "Short.",
+            customAIInstructions: nil,
+            visualContextSummary: "A window describing a cat."
+        )
+
+        XCTAssertTrue(prompt.contains("Screen content:"))
+        XCTAssertTrue(prompt.contains("A window describing a cat."))
+    }
+
+    func test_instructionPrompt_omitsVisualContextSummaryWhenNil() {
+        let prompt = LlamaPromptRenderer.prompt(
+            prefixText: "PREFIX",
+            applicationName: "App",
+            completionLengthInstruction: "Short.",
+            customAIInstructions: nil,
+            visualContextSummary: nil
+        )
+
+        XCTAssertFalse(prompt.contains("Screen content:"))
+    }
+
     private func makeRequest(
         prompt: String,
         elementIdentifier: String = "field",
@@ -177,7 +202,8 @@ final class LlamaPromptRendererTests: XCTestCase {
             randomSeed: 42,
             maxSuffixCharacters: 192,
             completionLengthInstruction: "Return only the next few words.",
-            customAIInstructions: nil
+            customAIInstructions: nil,
+            visualContextSummary: nil
         )
     }
 }

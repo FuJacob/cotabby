@@ -62,9 +62,10 @@ extension SuggestionCoordinator {
             latestStageMessage = "Updated autocomplete settings."
         }
 
-        // Legacy screenshot/OCR context capture remains disabled while contextual prompting is rebuilt.
-        if visualContextStatus != .idle {
-            visualContextCoordinator.cancel(resetState: true)
+        // Cancel any obsolete context, then restart it if focus is still active.
+        visualContextCoordinator.cancel(resetState: true)
+        if let focusedSnapshot = focusModel.snapshot.context {
+            visualContextCoordinator.startSessionIfNeeded(for: focusedSnapshot)
         }
 
         if SuggestionAvailabilityEvaluator.shouldSchedulePrediction(

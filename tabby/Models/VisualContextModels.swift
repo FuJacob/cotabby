@@ -19,15 +19,17 @@ struct VisualContextConfiguration: Equatable, Sendable {
     let maxImageDimension: Int
     let minRecognizedCharacterCount: Int
     let maxRecognizedCharacters: Int
+    let maxSummaryCharacters: Int
 
     static let `default` = VisualContextConfiguration(
         // Capture a compact area around the focused field instead of an entire window.
-        snapshotDimension: 400,
+        snapshotDimension: 500,
         // Retina screenshots may still arrive at ~2x backing scale, so keep a small OCR ceiling.
         maxImageDimension: 900,
         minRecognizedCharacterCount: 12,
         // OCR text is injected directly into the completion prompt, so keep it intentionally short.
-        maxRecognizedCharacters: 320
+        maxRecognizedCharacters: 2000,
+        maxSummaryCharacters: 900
     )
 }
 
@@ -38,6 +40,7 @@ enum VisualContextStatus: Equatable, Sendable {
     case idle
     case capturing
     case extractingText
+    case summarizingText
     case ready
     case unavailable(String)
     case failed(String)
@@ -50,6 +53,8 @@ enum VisualContextStatus: Equatable, Sendable {
             return "Capturing nearby screen content."
         case .extractingText:
             return "Extracting visible text from the screenshot."
+        case .summarizingText:
+            return "Summarizing visible text for context."
         case .ready:
             return "Nearby visible text is ready."
         case let .unavailable(reason), let .failed(reason):

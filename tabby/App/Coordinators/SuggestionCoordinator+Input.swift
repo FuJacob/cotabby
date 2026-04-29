@@ -38,10 +38,8 @@ extension SuggestionCoordinator {
             return
         }
 
-        // Legacy screenshot/OCR context capture is disabled for both prompt modes while we rebuild.
-        if visualContextStatus != .idle {
-            visualContextCoordinator.cancel(resetState: true)
-        }
+        // Start capturing visual context for newly focused input.
+        visualContextCoordinator.startSessionIfNeeded(for: focusedContext)
 
         if case .disabled = state {
             state = .idle

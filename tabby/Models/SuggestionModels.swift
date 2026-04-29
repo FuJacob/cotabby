@@ -224,6 +224,8 @@ struct SuggestionRequest: Equatable, Sendable {
     /// Optional user-provided style guidance. We keep this separate from base product behavior so
     /// future settings/personalization work can evolve independently from prompt safety rules.
     let customAIInstructions: String?
+    /// Ephemeral screen context summary injected only when available for the active text field.
+    let visualContextSummary: String?
 }
 
 /// The engine's normalized response, including raw model text for debugging.
