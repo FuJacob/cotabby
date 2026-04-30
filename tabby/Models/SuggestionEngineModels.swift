@@ -79,4 +79,8 @@ struct SuggestionSettingsSnapshot: Equatable, Sendable {
     /// Normalized user-authored guidance for the instructions-based completion style.
     /// This travels in the snapshot so generation uses the same value the Settings UI shows.
     let customAIInstructions: String?
+    /// When true, the llama runtime applies `-inf` logit bias to known chat-residue tokens
+    /// on the first generated token, preventing conversational openers from appearing in
+    /// inline autocomplete suggestions.
+    let isFirstTokenGatingEnabled: Bool
 }

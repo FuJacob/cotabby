@@ -253,6 +253,10 @@ struct SuggestionRequest: Equatable, Sendable {
     /// Optional user-provided style guidance. We keep this separate from base product behavior so
     /// future settings/personalization work can evolve independently from prompt safety rules.
     let customAIInstructions: String?
+    /// When true, the llama runtime should apply `-inf` logit bias to known chat-residue tokens
+    /// on the very first sampled token. This is a llama-only feature — Apple Intelligence does
+    /// not expose logit-level control.
+    let isFirstTokenGatingEnabled: Bool
 }
 
 /// The engine's normalized response, including raw model text for debugging.

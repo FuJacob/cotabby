@@ -30,7 +30,8 @@ final class LlamaSuggestionEngine {
                 topP: request.topP,
                 minP: request.minP,
                 repetitionPenalty: request.repetitionPenalty,
-                seed: request.randomSeed
+                seed: request.randomSeed,
+                firstTokenGatingEnabled: request.isFirstTokenGatingEnabled
             )
             try Task.checkCancellation()
 

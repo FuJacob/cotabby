@@ -19,6 +19,11 @@ final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var selectedWordCountPreset: SuggestionWordCountPreset
     @Published private(set) var selectedLocalPromptMode: SuggestionPromptMode
     @Published private(set) var customAIInstructions: String
+    /// When enabled, the llama runtime applies a `-inf` logit bias to known chat-residue tokens
+    /// (e.g. "Sure,", "Here's", "I ") on the first generated token only.
+    /// This prevents instruction-tuned models from starting suggestions with conversational
+    /// openers that belong in a chat reply, not in inline autocomplete.
+    @Published private(set) var isFirstTokenGatingEnabled: Bool
 
     private let userDefaults: UserDefaults
 
@@ -32,6 +37,7 @@ final class SuggestionSettingsModel: ObservableObject {
     private static let selectedWordCountPresetDefaultsKey = "selectedSuggestionWordCountPreset"
     private static let selectedLocalPromptModeDefaultsKey = "selectedLocalSuggestionPromptMode"
     private static let customAIInstructionsDefaultsKey = "tabbyCustomAIInstructions"
+    private static let isFirstTokenGatingEnabledDefaultsKey = "tabbyFirstTokenGatingEnabled"
 
     init(
         configuration: SuggestionConfiguration,
@@ -66,6 +72,8 @@ final class SuggestionSettingsModel: ObservableObject {
         } else {
             userDefaults.string(forKey: Self.customAIInstructionsDefaultsKey) ?? ""
         }
+        // Default to enabled — first-token gating is a net positive for all known instruct models.
+        let resolvedFirstTokenGatingEnabled = userDefaults.object(forKey: Self.isFirstTokenGatingEnabledDefaultsKey) as? Bool ?? true
 
         isGloballyEnabled = resolvedGloballyEnabled
         disabledAppRules = resolvedDisabledAppRules
@@ -75,6 +83,7 @@ final class SuggestionSettingsModel: ObservableObject {
         selectedWordCountPreset = resolvedWordCountPreset
         selectedLocalPromptMode = resolvedLocalPromptMode
         customAIInstructions = resolvedCustomAIInstructions
+        isFirstTokenGatingEnabled = resolvedFirstTokenGatingEnabled
 
         userDefaults.set(resolvedGloballyEnabled, forKey: Self.isGloballyEnabledDefaultsKey)
         persistDisabledAppRules(resolvedDisabledAppRules)
@@ -84,6 +93,7 @@ final class SuggestionSettingsModel: ObservableObject {
         persistSelectedWordCountPreset(resolvedWordCountPreset)
         persistSelectedLocalPromptMode(resolvedLocalPromptMode)
         persistCustomAIInstructions(resolvedCustomAIInstructions)
+        userDefaults.set(resolvedFirstTokenGatingEnabled, forKey: Self.isFirstTokenGatingEnabledDefaultsKey)
     }
 
     /// Compatibility shim for legacy call sites while the UI migrates from the old toggle to the
@@ -110,7 +120,8 @@ final class SuggestionSettingsModel: ObservableObject {
             selectedEngine: selectedEngine,
             selectedWordCountPreset: selectedWordCountPreset,
             effectivePromptMode: effectivePromptMode,
-            customAIInstructions: CustomAIInstructionFormatter.normalized(customAIInstructions)
+            customAIInstructions: CustomAIInstructionFormatter.normalized(customAIInstructions),
+            isFirstTokenGatingEnabled: isFirstTokenGatingEnabled
         )
     }
 
@@ -262,6 +273,15 @@ final class SuggestionSettingsModel: ObservableObject {
         persistCustomAIInstructions(instructions)
     }
 
+    func setFirstTokenGatingEnabled(_ enabled: Bool) {
+        guard isFirstTokenGatingEnabled != enabled else {
+            return
+        }
+
+        isFirstTokenGatingEnabled = enabled
+        userDefaults.set(enabled, forKey: Self.isFirstTokenGatingEnabledDefaultsKey)
+    }
+
     private static func effectivePromptMode(
         engine: SuggestionEngineKind,
         localPromptMode: SuggestionPromptMode
@@ -403,7 +423,7 @@ final class SuggestionSettingsModel: ObservableObject {
 
 extension SuggestionSettingsModel: SuggestionSettingsProviding {
     var snapshotPublisher: AnyPublisher<SuggestionSettingsSnapshot, Never> {
-        Publishers.CombineLatest3(
+        Publishers.CombineLatest4(
             Publishers.CombineLatest4(
                 $isGloballyEnabled,
                 $disabledAppRules,
@@ -411,9 +431,10 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                 $selectedWordCountPreset
             ),
             $selectedLocalPromptMode,
-            $customAIInstructions
+            $customAIInstructions,
+            $isFirstTokenGatingEnabled
         )
-        .map { combinedSettings, localPromptMode, customAIInstructions in
+        .map { combinedSettings, localPromptMode, customAIInstructions, firstTokenGatingEnabled in
             let (globallyEnabled, disabledAppRules, engine, wordCountPreset) = combinedSettings
             return SuggestionSettingsSnapshot(
                 isGloballyEnabled: globallyEnabled,
@@ -424,7 +445,8 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                     engine: engine,
                     localPromptMode: localPromptMode
                 ),
-                customAIInstructions: CustomAIInstructionFormatter.normalized(customAIInstructions)
+                customAIInstructions: CustomAIInstructionFormatter.normalized(customAIInstructions),
+                isFirstTokenGatingEnabled: firstTokenGatingEnabled
             )
         }
         .removeDuplicates()

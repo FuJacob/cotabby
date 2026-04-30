@@ -173,6 +173,12 @@ struct SettingsView: View {
                             .tag(mode)
                     }
                 }
+
+                Toggle("Suppress Chat Openers", isOn: firstTokenGatingBinding)
+
+                Text("Blocks instruction-tuned models from starting suggestions with conversational openers like \"Sure,\" or \"Here's\". Open Source engine only.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             } else {
                 Text("Completion Style and custom instructions apply to the Open Source engine.")
                     .font(.caption)
@@ -473,6 +479,15 @@ struct SettingsView: View {
             get: { suggestionSettings.selectedLocalPromptMode },
             set: { mode in
                 suggestionSettings.selectLocalPromptMode(mode)
+            }
+        )
+    }
+
+    private var firstTokenGatingBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.isFirstTokenGatingEnabled },
+            set: { enabled in
+                suggestionSettings.setFirstTokenGatingEnabled(enabled)
             }
         )
     }
