@@ -203,7 +203,8 @@ extension SuggestionCoordinator {
         presentOverlay(
             text: session.remainingText,
             at: liveContext.caretRect,
-            caretQuality: liveContext.caretQuality
+            caretQuality: liveContext.caretQuality,
+            inputFrameRect: liveContext.inputFrameRect
         )
         logStage(
             "ready",
@@ -294,7 +295,8 @@ extension SuggestionCoordinator {
             presentOverlay(
                 text: reconciledSession.remainingText,
                 at: liveContext.caretRect,
-                caretQuality: liveContext.caretQuality
+                caretQuality: liveContext.caretQuality,
+                inputFrameRect: liveContext.inputFrameRect
             )
             if let advancement {
                 logStage(

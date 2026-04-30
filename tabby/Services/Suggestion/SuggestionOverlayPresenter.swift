@@ -22,6 +22,7 @@ struct SuggestionOverlayPresenter {
         text: String,
         at caretRect: CGRect,
         caretQuality: CaretGeometryQuality,
+        inputFrameRect: CGRect?,
         previousState: OverlayState
     ) -> String? {
         let displayText = text.trimmingCharacters(in: .whitespaces).isEmpty ? "" : text
@@ -32,21 +33,22 @@ struct SuggestionOverlayPresenter {
         guard previousState != .visible(
             text: displayText,
             caretRect: caretRect,
-            caretQuality: caretQuality
+            caretQuality: caretQuality,
+            inputFrameRect: inputFrameRect
         ) else {
             return nil
         }
 
-        overlayController.showSuggestion(displayText, at: caretRect, caretQuality: caretQuality)
+        overlayController.showSuggestion(displayText, at: caretRect, caretQuality: caretQuality, inputFrameRect: inputFrameRect)
 
         switch previousState {
-        case .visible(let previousText, let previousCaretRect, let previousCaretQuality)
+        case .visible(let previousText, let previousCaretRect, let previousCaretQuality, _)
         where previousText == displayText
             && previousCaretRect == caretRect
             && previousCaretQuality != caretQuality:
             return "Updated ghost text styling for the latest caret quality."
 
-        case .visible(let previousText, let previousCaretRect, _)
+        case .visible(let previousText, let previousCaretRect, _, _)
         where previousText == displayText && previousCaretRect != caretRect:
             return "Moved ghost text to the latest caret position."
 

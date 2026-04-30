@@ -378,7 +378,7 @@ enum SuggestionDebugState: Equatable {
 /// without poking into AppKit window objects directly.
 enum OverlayState: Equatable {
     case hidden(reason: String)
-    case visible(text: String, caretRect: CGRect, caretQuality: CaretGeometryQuality)
+    case visible(text: String, caretRect: CGRect, caretQuality: CaretGeometryQuality, inputFrameRect: CGRect?)
 
     var shortLabel: String {
         switch self {
@@ -393,7 +393,7 @@ enum OverlayState: Equatable {
         switch self {
         case let .hidden(reason):
             return reason
-        case let .visible(text, caretRect, caretQuality):
+        case let .visible(text, caretRect, caretQuality, _):
             return "Showing \(text.count) characters near (\(Int(caretRect.minX)), \(Int(caretRect.minY))) using \(caretQuality.label) caret geometry."
         }
     }
@@ -407,7 +407,7 @@ enum OverlayState: Equatable {
     }
 
     var visibleText: String? {
-        guard case let .visible(text, _, _) = self else {
+        guard case let .visible(text, _, _, _) = self else {
             return nil
         }
 

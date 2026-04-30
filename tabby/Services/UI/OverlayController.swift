@@ -60,7 +60,7 @@ final class OverlayController: SuggestionOverlayControlling {
     }()
 
     /// Sizes and positions the overlay next to the reported caret bounds for the current field.
-    func showSuggestion(_ text: String, at caretRect: CGRect, caretQuality: CaretGeometryQuality) {
+    func showSuggestion(_ text: String, at caretRect: CGRect, caretQuality: CaretGeometryQuality, inputFrameRect: CGRect?) {
         guard !text.isEmpty else {
             hide(reason: "Overlay not shown because the suggestion was empty.")
             return
@@ -70,19 +70,46 @@ final class OverlayController: SuggestionOverlayControlling {
         let customGhostColor = SuggestionTextColorCodec.color(
             fromHex: suggestionSettings.customSuggestionTextColorHex
         )
+        let (inlineText, overflowText) = splitTextForWrapping(
+            text: text,
+            caretRect: caretRect,
+            inputFrameRect: inputFrameRect,
+            fontSize: fontSize
+        )
+
+        let viewIndent: CGFloat
+        let panelOriginX: CGFloat
+        let containerWidth: CGFloat?
+        
+        if overflowText != nil, let frameRect = inputFrameRect {
+            panelOriginX = frameRect.minX
+            viewIndent = max(0, caretRect.maxX + 6 - frameRect.minX)
+            containerWidth = frameRect.width
+        } else {
+            panelOriginX = caretRect.maxX + 6
+            viewIndent = 0
+            containerWidth = nil
+        }
+
         let contentView: NSHostingView<GhostSuggestionView>
         if let existing = hostingView {
             existing.rootView = GhostSuggestionView(
-                text: text,
+                inlineText: inlineText,
+                overflowText: overflowText,
                 fontSize: fontSize,
+                viewIndent: viewIndent,
+                containerWidth: containerWidth,
                 customColor: customGhostColor
             )
             contentView = existing
         } else {
             let fresh = NSHostingView(
                 rootView: GhostSuggestionView(
-                    text: text,
+                    inlineText: inlineText,
+                    overflowText: overflowText,
                     fontSize: fontSize,
+                    viewIndent: viewIndent,
+                    containerWidth: containerWidth,
                     customColor: customGhostColor
                 )
             )
@@ -93,19 +120,27 @@ final class OverlayController: SuggestionOverlayControlling {
         contentView.layoutSubtreeIfNeeded()
         let contentSize = contentView.fittingSize
 
-        // Vertically center the ghost text within the caret rect. When the caret rect is a
-        // tight line-height box this looks identical to top-alignment, but when it's oversized
-        // (e.g. AXFrame fallback returning the full text area) the text lands at the visual
-        // midpoint instead of floating at the top edge.
+        // Vertically center the ghost text within the caret rect. 
+        // When there are multiple lines, we want the FIRST line to center around the caret's midY.
+        let originY: CGFloat
+        if overflowText != nil {
+            // In AppKit (bottom-up), the top Y is `origin.y + height`.
+            // We want the top of the first line to be `caretRect.midY + caretRect.height / 2`.
+            let topY = caretRect.midY + caretRect.height / 2
+            originY = topY - contentSize.height
+        } else {
+            originY = caretRect.midY - contentSize.height / 2
+        }
+
         let origin = CGPoint(
-            x: caretRect.maxX + 6,
-            y: caretRect.midY - contentSize.height / 2
+            x: panelOriginX,
+            y: originY
         )
         let frame = CGRect(origin: origin, size: contentSize)
 
         panel.setFrame(frame.integral, display: true)
         panel.orderFrontRegardless()
-        state = .visible(text: text, caretRect: caretRect, caretQuality: caretQuality)
+        state = .visible(text: text, caretRect: caretRect, caretQuality: caretQuality, inputFrameRect: inputFrameRect)
     }
 
     /// Hides the floating panel and records why the overlay is no longer visible.
@@ -132,6 +167,62 @@ final class OverlayController: SuggestionOverlayControlling {
 
         return min(proposedSize, qualityCap)
     }
+
+    /// Splits text into the portion that fits on the same line as the caret, and the overflow.
+    private func splitTextForWrapping(
+        text: String,
+        caretRect: CGRect,
+        inputFrameRect: CGRect?,
+        fontSize: CGFloat
+    ) -> (inlineText: String, overflowText: String?) {
+        guard let inputFrameRect = inputFrameRect else {
+            return (text, nil)
+        }
+        
+        // Tab keycap takes ~40 points; we reserve 10 points for safe margin.
+        let availableWidth = max(0, inputFrameRect.maxX - (caretRect.maxX + 6) - 10)
+        
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: fontSize)
+        ]
+        
+        let fullWidth = (text as NSString).size(withAttributes: attrs).width
+        if fullWidth <= availableWidth {
+            return (text, nil)
+        }
+        
+        var lastFitIndex = text.startIndex
+        for index in text.indices {
+            let substring = text[text.startIndex..<index]
+            let width = (String(substring) as NSString).size(withAttributes: attrs).width
+            if width > availableWidth {
+                break
+            }
+            if substring.last?.isWhitespace == true {
+                lastFitIndex = index
+            }
+        }
+        
+        // If not even the first word fits, break at the first space or take the whole text.
+        if lastFitIndex == text.startIndex {
+            if let firstSpace = text.firstIndex(where: { $0.isWhitespace }) {
+                lastFitIndex = firstSpace
+            } else {
+                lastFitIndex = text.endIndex
+            }
+        }
+        
+        let inlineText = String(text[text.startIndex..<lastFitIndex])
+        var overflowTextStr = String(text[lastFitIndex..<text.endIndex])
+        
+        // Trim leading spaces from the overflow text so the wrapped line is flush to the edge
+        while overflowTextStr.first?.isWhitespace == true {
+            overflowTextStr.removeFirst()
+        }
+        
+        let overflowText = overflowTextStr.isEmpty ? nil : overflowTextStr
+        return (inlineText.isEmpty ? text : inlineText, overflowText)
+    }
 }
 
 private final class OverlayPanel: NSPanel {
@@ -144,8 +235,11 @@ private final class OverlayPanel: NSPanel {
 /// without touching the AppKit positioning code.
 private struct GhostSuggestionView: View {
     @Environment(\.colorScheme) var colorScheme
-    let text: String
+    let inlineText: String
+    let overflowText: String?
     let fontSize: CGFloat
+    let viewIndent: CGFloat
+    let containerWidth: CGFloat?
     let customColor: Color?
 
     var ghostColor: Color {
@@ -158,16 +252,38 @@ private struct GhostSuggestionView: View {
     }
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 6) {
-            Text(text)
-                .font(.system(size: fontSize))
-                .foregroundStyle(ghostColor)
-                .lineLimit(1)
-                .fixedSize(horizontal: true, vertical: true)
+        if let overflow = overflowText {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(inlineText)
+                    .font(.system(size: fontSize))
+                    .foregroundStyle(ghostColor)
+                    .lineLimit(1)
+                    .padding(.leading, viewIndent)
+                
+                HStack(alignment: .lastTextBaseline, spacing: 6) {
+                    Text(overflow)
+                        .font(.system(size: fontSize))
+                        .foregroundStyle(ghostColor)
+                        .lineLimit(nil)
+                        .fixedSize(horizontal: false, vertical: true)
+                    
+                    GhostTabKeycap()
+                }
+            }
+            .frame(maxWidth: containerWidth, alignment: .leading)
+            .fixedSize(horizontal: true, vertical: true)
+        } else {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(inlineText)
+                    .font(.system(size: fontSize))
+                    .foregroundStyle(ghostColor)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: true)
 
-            GhostTabKeycap()
+                GhostTabKeycap()
+            }
+            .fixedSize(horizontal: true, vertical: true)
         }
-        .fixedSize(horizontal: true, vertical: true)
     }
 }
 
