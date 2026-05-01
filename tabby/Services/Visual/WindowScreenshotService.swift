@@ -41,12 +41,9 @@ struct WindowScreenshotService {
         around context: FocusedInputSnapshot,
         snapshotDimension: Int
     ) async throws -> CapturedWindowScreenshot {
-        let startedAt = Date()
         let processIdentifier = pid_t(context.processIdentifier)
-        log("capture-start pid=\(processIdentifier)")
 
         guard CGPreflightScreenCaptureAccess() else {
-            log("capture-blocked missing-screen-recording-permission pid=\(processIdentifier)")
             throw WindowScreenshotError.screenRecordingPermissionMissing
         }
 
@@ -60,7 +57,6 @@ struct WindowScreenshotService {
             })
 
         guard let matchingWindow else {
-            log("capture-no-window pid=\(processIdentifier)")
             throw WindowScreenshotError.noVisibleWindowForProcess(processIdentifier)
         }
 
@@ -70,11 +66,6 @@ struct WindowScreenshotService {
             snapshotDimension: CGFloat(snapshotDimension)
         )
         let outputScale = backingScaleFactor(for: sourceRect)
-        log(
-            "capture-window-selected pid=\(processIdentifier) title=\(matchingWindow.title ?? "<untitled>") " +
-                "window=\(Int(matchingWindow.frame.width.rounded(.up)))x\(Int(matchingWindow.frame.height.rounded(.up))) " +
-                "crop=\(Int(sourceRect.width.rounded(.up)))x\(Int(sourceRect.height.rounded(.up)))"
-        )
 
         let filter = SCContentFilter(desktopIndependentWindow: matchingWindow)
         let configuration = SCStreamConfiguration()
@@ -92,11 +83,6 @@ struct WindowScreenshotService {
         configuration.showsCursor = false
 
         let image = try await captureImage(filter: filter, configuration: configuration)
-        let elapsedMilliseconds = Int(Date().timeIntervalSince(startedAt) * 1000)
-        log(
-            "capture-success pid=\(processIdentifier) image=\(image.width)x\(image.height) " +
-                "elapsed_ms=\(elapsedMilliseconds)"
-        )
         return CapturedWindowScreenshot(image: image, windowTitle: matchingWindow.title)
     }
 
@@ -198,9 +184,5 @@ struct WindowScreenshotService {
                 continuation.resume(returning: image)
             }
         }
-    }
-
-    private func log(_ message: String) {
-        TabbyDebugOptions.log("[WindowScreenshotService] \(message)")
     }
 }

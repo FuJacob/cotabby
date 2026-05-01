@@ -1,37 +1,63 @@
 import Foundation
 
 /// File overview:
-/// Emits high-signal console logs for the suggestion pipeline when `-tabby-debug` is enabled.
-/// This logger owns the mechanics of compact summary lines, full prompt/output blocks, and
-/// duplicate suppression so the coordinator can focus on state transitions instead of string
-/// rendering.
+/// Emits high-signal model-boundary logs for the suggestion pipeline when `-tabby-debug` is
+/// enabled. The logger intentionally focuses on the payloads that explain model behavior:
+/// the prompt Tabby sent, the raw model response, and the normalized response Tabby may display.
 ///
-/// Logging is intentionally stateful because duplicate suppression depends on the previously
-/// emitted line. Keeping that state here avoids scattering "did we already print this?" checks
-/// through `SuggestionCoordinator`.
+/// Keeping color and block formatting here avoids leaking console-presentation details into the
+/// coordinator or lower-level services. Those services own behavior; this type owns observability.
 @MainActor
 final class SuggestionDebugLogger {
-    private let consoleStages: Set<String>
-    private var lastLoggedMessage: String?
-
-    init(
-        consoleStages: Set<String> = [
-            "generating",
-            "ready",
-            "empty-result",
-            "failed",
-            "tab-accepted-chunk",
-            "tab-accepted-final-chunk",
-            "typed-match-advanced",
-            "typed-match-exhausted",
-            "session-reconciled",
-            "session-exhausted"
-        ]
-    ) {
-        self.consoleStages = consoleStages
+    private enum ANSIStyle {
+        static let reset = "\u{001B}[0m"
+        static let cyan = "\u{001B}[36m"
+        static let yellow = "\u{001B}[33m"
+        static let green = "\u{001B}[32m"
+        static let red = "\u{001B}[31m"
     }
 
-    /// Emits a compact one-line summary and, when useful, the full prompt/output payload.
+    private enum LogBlockKind: String {
+        case promptInput = "prompt-input"
+        case rawOutput = "raw-output"
+        case normalizedOutput = "normalized-output"
+
+        var delimiterTitle: String {
+            switch self {
+            case .promptInput:
+                return "RAW PROMPT INPUT"
+            case .rawOutput:
+                return "RAW MODEL OUTPUT"
+            case .normalizedOutput:
+                return "NORMALIZED MODEL OUTPUT"
+            }
+        }
+
+        var color: String {
+            switch self {
+            case .promptInput:
+                return ANSIStyle.cyan
+            case .rawOutput:
+                return ANSIStyle.yellow
+            case .normalizedOutput:
+                return ANSIStyle.green
+            }
+        }
+    }
+
+    private let colorizedOutput: Bool
+    private var lastLoggedMessage: String?
+
+    init(colorizedOutput: Bool? = nil) {
+        let shouldUseColor = ProcessInfo.processInfo.environment["NO_COLOR"] == nil
+        self.colorizedOutput = colorizedOutput ?? shouldUseColor
+    }
+
+    /// Emits only the model-boundary artifacts that are useful for debugging suggestion quality.
+    ///
+    /// Lifecycle stages such as debounce, acceptance, and visual-context session dedup still update
+    /// coordinator state elsewhere, but they do not belong in the console stream. The useful
+    /// debugging question is: "what text crossed the model boundary, and what changed afterward?"
     func logStage(
         _ stage: String,
         workID: UInt64,
@@ -45,164 +71,41 @@ final class SuggestionDebugLogger {
             return
         }
 
-        guard consoleStages.contains(stage) else {
-            return
-        }
-
-        var parts = [
-            "[Suggestion]",
-            "stage=\(stage)",
-            "work=\(workID)"
-        ]
-
-        if let generation {
-            parts.append("generation=\(generation)")
-        }
-
-        parts.append("message=\(message)")
-
-        appendPromptPreviewIfNeeded(stage: stage, prompt: prompt, to: &parts)
-        appendOutputPreviewIfNeeded(
-            stage: stage,
-            rawOutput: rawOutput,
-            normalizedOutput: normalizedOutput,
-            to: &parts
-        )
-
-        let summaryLine = parts.joined(separator: " ")
-        logLine(summaryLine)
-
-        logPromptBlockIfNeeded(stage: stage, workID: workID, generation: generation, prompt: prompt)
-        logOutputBlocksIfNeeded(
-            stage: stage,
-            workID: workID,
-            generation: generation,
-            rawOutput: rawOutput,
-            normalizedOutput: normalizedOutput
-        )
-    }
-
-    private func appendPromptPreviewIfNeeded(
-        stage: String,
-        prompt: String?,
-        to parts: inout [String]
-    ) {
-        guard stage == "generating", let prompt else {
-            return
-        }
-
-        parts.append("prompt=\(Self.debugPreview(prompt))")
-    }
-
-    private func appendOutputPreviewIfNeeded(
-        stage: String,
-        rawOutput: String?,
-        normalizedOutput: String?,
-        to parts: inout [String]
-    ) {
-        guard stage != "generating" else {
-            return
-        }
-
-        switch (rawOutput, normalizedOutput) {
-        case let (raw?, normalized?):
-            appendPairedOutputPreview(raw: raw, normalized: normalized, to: &parts)
-        case let (raw?, nil):
-            parts.append("rawOutput=\(Self.debugPreview(raw))")
-        case let (nil, normalized?):
-            parts.append("normalizedOutput=\(Self.debugPreview(normalized))")
-        case (nil, nil):
-            break
-        }
-    }
-
-    private func appendPairedOutputPreview(
-        raw: String,
-        normalized: String,
-        to parts: inout [String]
-    ) {
-        // When generation and normalization diverge, surface both previews in the compact summary
-        // so we can immediately see whether cleanup stripped backend output away.
-        if raw == normalized {
-            parts.append("output=\(Self.debugPreview(raw))")
-        } else {
-            parts.append("rawOutput=\(Self.debugPreview(raw))")
-            parts.append("normalizedOutput=\(Self.debugPreview(normalized))")
-        }
-    }
-
-    private func logPromptBlockIfNeeded(
-        stage: String,
-        workID: UInt64,
-        generation: UInt64?,
-        prompt: String?
-    ) {
-        guard stage == "generating", let prompt else {
-            return
-        }
-
-        logTextBlock(
-            kind: "prompt",
-            stage: stage,
-            workID: workID,
-            generation: generation,
-            text: prompt
-        )
-    }
-
-    private func logOutputBlocksIfNeeded(
-        stage: String,
-        workID: UInt64,
-        generation: UInt64?,
-        rawOutput: String?,
-        normalizedOutput: String?
-    ) {
-        guard stage != "generating" else {
-            return
-        }
-
-        switch (rawOutput, normalizedOutput) {
-        case let (raw?, normalized?):
-            logPairedOutputBlocks(
-                stage: stage,
-                workID: workID,
-                generation: generation,
-                raw: raw,
-                normalized: normalized
-            )
-        case let (raw?, nil):
-            logTextBlock(kind: "raw-output", stage: stage, workID: workID, generation: generation, text: raw)
-        case let (nil, normalized?):
+        if stage == "generating", let prompt {
             logTextBlock(
-                kind: "normalized-output",
+                kind: .promptInput,
                 stage: stage,
                 workID: workID,
                 generation: generation,
-                text: normalized
+                text: prompt
             )
-        case (nil, nil):
-            break
+            return
         }
-    }
 
-    private func logPairedOutputBlocks(
-        stage: String,
-        workID: UInt64,
-        generation: UInt64?,
-        raw: String,
-        normalized: String
-    ) {
-        if raw == normalized {
-            logTextBlock(kind: "output", stage: stage, workID: workID, generation: generation, text: raw)
-        } else {
-            logTextBlock(kind: "raw-output", stage: stage, workID: workID, generation: generation, text: raw)
+        if let rawOutput {
             logTextBlock(
-                kind: "normalized-output",
+                kind: .rawOutput,
                 stage: stage,
                 workID: workID,
                 generation: generation,
-                text: normalized
+                text: rawOutput
             )
+
+            if let normalizedOutput {
+                logTextBlock(
+                    kind: .normalizedOutput,
+                    stage: stage,
+                    workID: workID,
+                    generation: generation,
+                    text: normalizedOutput
+                )
+            }
+            return
+        }
+
+        if stage == "failed" {
+            logErrorLine(stage: stage, workID: workID, generation: generation, message: message)
+            return
         }
     }
 
@@ -221,19 +124,33 @@ final class SuggestionDebugLogger {
         return "\(escaped[..<index])..."
     }
 
-    private func logLine(_ line: String) {
+    private func logLine(_ line: String, color: String? = nil) {
         guard line != lastLoggedMessage else {
             return
         }
 
         lastLoggedMessage = line
-        TabbyDebugOptions.log(line)
+        TabbyDebugOptions.log(styled(line, color: color))
     }
 
-    /// Compact one-line logs are good for scanning, but prompt debugging requires the exact payload.
-    /// We print the full block here so maintainers can inspect the precise prompt or output text.
+    private func logErrorLine(
+        stage: String,
+        workID: UInt64,
+        generation: UInt64?,
+        message: String
+    ) {
+        let generationSummary = generation.map(String.init) ?? "n/a"
+        logLine(
+            "[Suggestion error] stage=\(stage) work=\(workID) " +
+                "generation=\(generationSummary) message=\(message)",
+            color: ANSIStyle.red
+        )
+    }
+
+    /// Full blocks make prompt debugging inspectable without escaping user text into one line.
+    /// Only the header and delimiter lines are colored so copied prompt bodies remain clean.
     private func logTextBlock(
-        kind: String,
+        kind: LogBlockKind,
         stage: String,
         workID: UInt64,
         generation: UInt64?,
@@ -241,15 +158,28 @@ final class SuggestionDebugLogger {
     ) {
         let generationSummary = generation.map(String.init) ?? "n/a"
         let renderedText = text.isEmpty ? "<empty>" : text
-        // Multi-line log blocks are easier to inspect than escaped one-line strings when debugging
-        // prompt construction or output normalization.
+        let header = styled(
+            "[Suggestion \(kind.rawValue)] stage=\(stage) work=\(workID) generation=\(generationSummary)",
+            color: kind.color
+        )
+        let begin = styled("----- BEGIN \(kind.delimiterTitle) -----", color: kind.color)
+        let end = styled("----- END \(kind.delimiterTitle) -----", color: kind.color)
+
         TabbyDebugOptions.log(
             """
-            [Suggestion \(kind)] stage=\(stage) work=\(workID) generation=\(generationSummary)
-            ----- BEGIN \(kind.uppercased()) -----
+            \(header)
+            \(begin)
             \(renderedText)
-            ----- END \(kind.uppercased()) -----
+            \(end)
             """
         )
+    }
+
+    private func styled(_ text: String, color: String?) -> String {
+        guard colorizedOutput, let color else {
+            return text
+        }
+
+        return "\(color)\(text)\(ANSIStyle.reset)"
     }
 }

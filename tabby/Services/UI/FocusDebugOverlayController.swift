@@ -2,9 +2,13 @@ import AppKit
 import Foundation
 import SwiftUI
 
-/// Gated behind `-tabby-debug`. Shows a bright colored line at the resolved caret
-/// position and a label indicating the geometry source and quality. This lets you visually verify
-/// that the caret rect aligns with the real blinking cursor in the host app.
+/// Gated behind `-tabby-debug`. Shows focused-input geometry near the caret and renders a
+/// bottom-edge status panel for async debug signals such as AX observer notifications and the
+/// screenshot/OCR visual-context pipeline.
+///
+/// The controller is UI-only. It observes already-published app state instead of asking
+/// `FocusTracker` or `VisualContextCoordinator` for data directly, which keeps the service layer
+/// headless and testable.
 @MainActor
 final class FocusDebugOverlayController {
     static let launchArgument = TabbyDebugOptions.launchArgument
@@ -15,13 +19,17 @@ final class FocusDebugOverlayController {
 
     private lazy var caretPanel: NSPanel = makePanel()
     private lazy var framePanel: NSPanel = makePanel()
-    private lazy var observerPulsePanel: NSPanel = makePanel()
+    private lazy var bottomStatusPanel: NSPanel = makePanel()
+
     private var latestCaretRect: CGRect?
-    private var pulseHideTask: Task<Void, Never>?
+    private var latestVisualContextStatus: VisualContextStatus = .idle
+    private var latestVisualContextExcerptCharacterCount: Int?
+    private var latestObserverEvent: FocusObserverEvent?
+    private var observerEventClearTask: Task<Void, Never>?
 
     func update(for snapshot: FocusSnapshot) {
         guard let context = snapshot.context else {
-            hide()
+            hideFocusGeometry()
             return
         }
 
@@ -30,49 +38,45 @@ final class FocusDebugOverlayController {
         showFrameOutline(context: context)
     }
 
-    /// Flashes when an AX notification reaches `FocusTracker`.
+    /// Mirrors visual-context lifecycle state into the bottom debug panel.
     ///
-    /// This answers a different question than the caret/frame overlay: "did the observer fire at all?"
-    /// The snapshot may not visibly change for every notification, so this pulse is driven by the raw
-    /// observer event instead of by `FocusSnapshot` updates.
+    /// We show metadata only, not the OCR text or summary. The raw prompt block remains the source
+    /// of truth for sensitive text debugging, and it is already gated behind `-tabby-debug`.
+    func updateVisualContext(status: VisualContextStatus, excerpt: String?) {
+        latestVisualContextStatus = status
+        latestVisualContextExcerptCharacterCount = excerpt?.count
+        renderBottomStatusPanel()
+    }
+
+    /// Records an AX observer notification in the bottom status panel.
+    ///
+    /// The old implementation flashed this near the caret. Moving it to the bottom edge keeps
+    /// caret geometry debugging visually separate from event-stream debugging.
     func flashAXObserverHit(event: FocusObserverEvent) {
-        pulseHideTask?.cancel()
+        observerEventClearTask?.cancel()
+        latestObserverEvent = event
+        renderBottomStatusPanel()
 
-        let color = event.sequence.isMultiple(of: 2) ? Color.green : Color.cyan
-        let contentView = NSHostingView(rootView: AXObserverPulseView(
-            notificationName: event.displayName,
-            sequence: event.sequence,
-            color: color
-        ))
-        contentView.layoutSubtreeIfNeeded()
-        let contentSize = contentView.fittingSize
-
-        observerPulsePanel.alphaValue = 1
-        observerPulsePanel.contentView = contentView
-        observerPulsePanel.setFrame(
-            CGRect(origin: pulseOrigin(for: contentSize), size: contentSize).integral,
-            display: true
-        )
-        observerPulsePanel.orderFrontRegardless()
-
-        pulseHideTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: 180_000_000)
+        observerEventClearTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
             guard !Task.isCancelled else {
                 return
             }
 
-            self?.observerPulsePanel.orderOut(nil)
-            self?.pulseHideTask = nil
+            self?.latestObserverEvent = nil
+            self?.observerEventClearTask = nil
+            self?.renderBottomStatusPanel()
         }
     }
 
     func hide() {
-        latestCaretRect = nil
-        pulseHideTask?.cancel()
-        pulseHideTask = nil
-        caretPanel.orderOut(nil)
-        framePanel.orderOut(nil)
-        observerPulsePanel.orderOut(nil)
+        hideFocusGeometry()
+        observerEventClearTask?.cancel()
+        observerEventClearTask = nil
+        latestObserverEvent = nil
+        latestVisualContextStatus = .idle
+        latestVisualContextExcerptCharacterCount = nil
+        bottomStatusPanel.orderOut(nil)
     }
 
     // MARK: - Caret indicator
@@ -121,7 +125,49 @@ final class FocusDebugOverlayController {
         framePanel.orderFrontRegardless()
     }
 
+    // MARK: - Bottom status panel
+
+    private func renderBottomStatusPanel() {
+        guard shouldShowBottomStatusPanel else {
+            bottomStatusPanel.orderOut(nil)
+            return
+        }
+
+        let screenFrame = targetScreenVisibleFrame()
+        let maxWidth = min(screenFrame.width - 32, 620)
+        let contentView = NSHostingView(rootView: BottomDebugStatusView(
+            visualContextStatus: latestVisualContextStatus,
+            excerptCharacterCount: latestVisualContextExcerptCharacterCount,
+            observerEvent: latestObserverEvent,
+            maxWidth: maxWidth
+        ))
+        contentView.layoutSubtreeIfNeeded()
+        let contentSize = contentView.fittingSize
+
+        let origin = CGPoint(
+            x: screenFrame.midX - (contentSize.width / 2),
+            y: screenFrame.minY + 14
+        )
+
+        bottomStatusPanel.contentView = contentView
+        bottomStatusPanel.setFrame(
+            CGRect(origin: origin, size: contentSize).integral,
+            display: true
+        )
+        bottomStatusPanel.orderFrontRegardless()
+    }
+
+    private var shouldShowBottomStatusPanel: Bool {
+        latestVisualContextStatus != .idle || latestObserverEvent != nil
+    }
+
     // MARK: - Helpers
+
+    private func hideFocusGeometry() {
+        latestCaretRect = nil
+        caretPanel.orderOut(nil)
+        framePanel.orderOut(nil)
+    }
 
     private func makePanel() -> NSPanel {
         let panel = NSPanel(
@@ -135,7 +181,7 @@ final class FocusDebugOverlayController {
         panel.isOpaque = false
         panel.ignoresMouseEvents = true
         panel.hasShadow = false
-        // Above activation indicator and ghost text so it's always visible during debugging.
+        // Above activation indicator and ghost text so it is always visible during debugging.
         panel.level = NSWindow.Level(rawValue: NSWindow.Level.statusBar.rawValue + 2)
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
         return panel
@@ -147,21 +193,13 @@ final class FocusDebugOverlayController {
         return .red
     }
 
-    private func pulseOrigin(for contentSize: CGSize) -> CGPoint {
-        if let latestCaretRect {
-            return CGPoint(
-                x: latestCaretRect.maxX + 8,
-                y: latestCaretRect.maxY + 4
-            )
+    private func targetScreenVisibleFrame() -> CGRect {
+        if let latestCaretRect,
+           let screen = NSScreen.screens.first(where: { $0.frame.intersects(latestCaretRect) }) {
+            return screen.visibleFrame
         }
 
-        // If the observer fires before we have a supported caret snapshot, keep the pulse visible
-        // near the top-right of the active screen so the debug signal is still discoverable.
-        let screenFrame = NSScreen.main?.visibleFrame ?? CGRect(x: 0, y: 0, width: 800, height: 600)
-        return CGPoint(
-            x: screenFrame.maxX - contentSize.width - 20,
-            y: screenFrame.maxY - contentSize.height - 20
-        )
+        return NSScreen.main?.visibleFrame ?? CGRect(x: 0, y: 0, width: 800, height: 600)
     }
 }
 
@@ -193,28 +231,240 @@ private struct CaretDebugView: View {
     }
 }
 
-private struct AXObserverPulseView: View {
-    let notificationName: String
-    let sequence: Int
-    let color: Color
+private struct BottomDebugStatusView: View {
+    let visualContextStatus: VisualContextStatus
+    let excerptCharacterCount: Int?
+    let observerEvent: FocusObserverEvent?
+    let maxWidth: CGFloat
+
+    private var stages: [VisualContextDebugStage] {
+        VisualContextDebugStage.allCases
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text("Visual context")
+                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(.white)
+
+                Text(statusSummary)
+                    .font(.system(size: 10, weight: .medium, design: .monospaced))
+                    .foregroundStyle(statusColor)
+                    .lineLimit(1)
+
+                Spacer(minLength: 0)
+            }
+
+            HStack(spacing: 6) {
+                ForEach(stages) { stage in
+                    VisualContextStagePill(
+                        title: stage.title,
+                        state: stageState(for: stage)
+                    )
+                }
+            }
+
+            HStack(spacing: 10) {
+                Text(remainingSummary)
+                    .font(.system(size: 10, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.72))
+                    .lineLimit(1)
+
+                if let excerptCharacterCount {
+                    Text("context \(excerptCharacterCount)c")
+                        .font(.system(size: 10, weight: .medium, design: .monospaced))
+                        .foregroundStyle(.white.opacity(0.55))
+                        .lineLimit(1)
+                }
+            }
+
+            if let observerEvent {
+                Divider()
+                    .overlay(Color.white.opacity(0.16))
+
+                HStack(spacing: 7) {
+                    Circle()
+                        .fill(Color.cyan)
+                        .frame(width: 7, height: 7)
+
+                    Text("AX \(observerEvent.sequence)")
+                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        .foregroundStyle(.cyan)
+
+                    Text(observerEvent.displayName)
+                        .font(.system(size: 10, weight: .medium, design: .monospaced))
+                        .foregroundStyle(.white.opacity(0.82))
+                        .lineLimit(1)
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .frame(width: maxWidth, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.black.opacity(0.82))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.white.opacity(0.18), lineWidth: 1)
+        )
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private var statusSummary: String {
+        switch visualContextStatus {
+        case .idle:
+            return "idle"
+        case .capturing:
+            return "capturing screenshot"
+        case .extractingText:
+            return "running OCR"
+        case .summarizingText:
+            return "summarizing OCR"
+        case .ready:
+            return "ready"
+        case .unavailable:
+            return "unavailable"
+        case .failed:
+            return "failed"
+        }
+    }
+
+    private var statusColor: Color {
+        switch visualContextStatus {
+        case .ready:
+            return .green
+        case .unavailable, .failed:
+            return .red
+        case .idle:
+            return .white.opacity(0.5)
+        case .capturing, .extractingText, .summarizingText:
+            return .yellow
+        }
+    }
+
+    private var remainingSummary: String {
+        switch visualContextStatus {
+        case .idle:
+            return "Waiting for focused text input."
+        case .ready:
+            return "All stages complete."
+        case .unavailable(let reason), .failed(let reason):
+            return reason
+        case .capturing, .extractingText, .summarizingText:
+            let remaining = stages
+                .filter { stageState(for: $0) == .pending }
+                .map(\.title)
+            return remaining.isEmpty ? "No stages left." : "Left: \(remaining.joined(separator: " -> "))"
+        }
+    }
+
+    private func stageState(for stage: VisualContextDebugStage) -> VisualContextStageDisplayState {
+        switch visualContextStatus {
+        case .idle:
+            return .pending
+        case .capturing:
+            return stage == .capture ? .active : .pending
+        case .extractingText:
+            if stage == .capture { return .completed }
+            return stage == .ocr ? .active : .pending
+        case .summarizingText:
+            if stage == .capture || stage == .ocr { return .completed }
+            return stage == .summarize ? .active : .pending
+        case .ready:
+            return .completed
+        case .unavailable, .failed:
+            return .blocked
+        }
+    }
+}
+
+private struct VisualContextStagePill: View {
+    let title: String
+    let state: VisualContextStageDisplayState
 
     var body: some View {
         HStack(spacing: 4) {
             Circle()
-                .fill(color)
-                .frame(width: 7, height: 7)
+                .fill(state.color)
+                .frame(width: 6, height: 6)
 
-            Text("AX \(sequence) \(notificationName)")
-                .font(.system(size: 9, weight: .bold, design: .monospaced))
-                .foregroundStyle(.black)
+            Text(title)
+                .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                .foregroundStyle(state.textColor)
                 .lineLimit(1)
         }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 3)
+        .padding(.horizontal, 7)
+        .padding(.vertical, 4)
         .background(
-            Capsule()
-                .fill(color.opacity(0.92))
+            RoundedRectangle(cornerRadius: 5)
+                .fill(state.backgroundColor)
         )
-        .fixedSize()
+    }
+}
+
+private enum VisualContextDebugStage: CaseIterable, Identifiable {
+    case capture
+    case ocr
+    case summarize
+    case inject
+
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .capture:
+            return "Capture"
+        case .ocr:
+            return "OCR"
+        case .summarize:
+            return "Summarize"
+        case .inject:
+            return "Inject"
+        }
+    }
+}
+
+private enum VisualContextStageDisplayState {
+    case pending
+    case active
+    case completed
+    case blocked
+
+    var color: Color {
+        switch self {
+        case .pending:
+            return .white.opacity(0.35)
+        case .active:
+            return .yellow
+        case .completed:
+            return .green
+        case .blocked:
+            return .red
+        }
+    }
+
+    var textColor: Color {
+        switch self {
+        case .pending:
+            return .white.opacity(0.52)
+        case .active, .completed, .blocked:
+            return .white
+        }
+    }
+
+    var backgroundColor: Color {
+        switch self {
+        case .pending:
+            return .white.opacity(0.08)
+        case .active:
+            return .yellow.opacity(0.28)
+        case .completed:
+            return .green.opacity(0.22)
+        case .blocked:
+            return .red.opacity(0.25)
+        }
     }
 }

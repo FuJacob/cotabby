@@ -21,10 +21,6 @@ final class LlamaSuggestionEngine {
         do {
             let startTime = Date()
             let cachedPrefixBytes = promptCacheHintTracker.cachedPrefixBytes(for: request)
-            TabbyDebugOptions.log(
-                "[LlamaSuggestionEngine] starting prediction prompt_chars=\(request.prompt.count) "
-                    + "cached_prefix_bytes=\(cachedPrefixBytes ?? 0)"
-            )
             let rawSuggestion = try await runtimeManager.generate(
                 prompt: request.prompt,
                 cachedPrefixBytes: cachedPrefixBytes,

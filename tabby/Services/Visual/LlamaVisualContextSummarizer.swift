@@ -23,25 +23,21 @@ final class LlamaVisualContextSummarizer: VisualContextSummarizing {
     }
 
     func summarize(text: String, applicationName: String) async throws -> String {
-        TabbyDebugOptions.log(
-            "[LlamaVisualContextSummarizer] summarization-start "
-                + "app=\(applicationName) input_chars=\(text.count)"
-        )
-     let prompt = [
-    "Task: Write a concise, 4-sentence summary of what the provided text from the application '\(applicationName)' is about.",
-    "",
-    "Rules:",
-    "1. Output exactly and ONLY the summary text.",
-    "2. DO NOT add conversational filler (e.g., 'Here is the summary').",
-    "3. DO NOT add extra instructions or meta-commentary.",
-    "4. DO NOT repeat the prompt.",
-    "",
-    "--- START SCREEN TEXT ---",
-    text,
-    "--- END SCREEN TEXT ---",
-    "",
-    "Summary:"
-].joined(separator: "\n")
+        let prompt = [
+            "Task: Write a concise, 4-sentence summary of what the provided text from the application '\(applicationName)' is about.",
+            "",
+            "Rules:",
+            "1. Output exactly and ONLY the summary text.",
+            "2. DO NOT add conversational filler (e.g., 'Here is the summary').",
+            "3. DO NOT add extra instructions or meta-commentary.",
+            "4. DO NOT repeat the prompt.",
+            "",
+            "--- START SCREEN TEXT ---",
+            text,
+            "--- END SCREEN TEXT ---",
+            "",
+            "Summary:"
+        ].joined(separator: "\n")
 
         let result = try await runtimeManager.summarize(
             prompt: prompt,
@@ -49,10 +45,6 @@ final class LlamaVisualContextSummarizer: VisualContextSummarizing {
             temperature: 0
         )
         let trimmedResult = result.trimmingCharacters(in: .whitespacesAndNewlines)
-        TabbyDebugOptions.log(
-            "[LlamaVisualContextSummarizer] summarization-complete "
-                + "output_chars=\(trimmedResult.count)"
-        )
         return trimmedResult
     }
 }

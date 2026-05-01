@@ -4,10 +4,6 @@ import Foundation
 /// Owns the screenshot-derived prompt-augmentation lifecycle for the currently focused input.
 /// This service manages one field-scoped visual-context session at a time and reports state back
 /// to `SuggestionCoordinator`, which remains responsible for deciding when to schedule prediction.
-///
-/// DEPRECATED:
-/// The active suggestion request path no longer uses screenshot/OCR prompt injection in either
-/// prompt mode. This coordinator remains in place temporarily for the planned context-system rebuild.
 @MainActor
 final class VisualContextCoordinator {
     /// The coordinator consumes these callbacks to mirror service state into published UI state
@@ -52,11 +48,6 @@ final class VisualContextCoordinator {
                 screenRecordingPermissionProvider() {
                 cancel(resetState: true)
             } else {
-                log(
-                    "session-dedup element=\(snapshotContext.elementIdentifier) " +
-                        "seq=\(snapshotContext.focusChangeSequence) " +
-                        "status=\(activeAugmentationSession.status)"
-                )
                 return
             }
         }
@@ -81,13 +72,7 @@ final class VisualContextCoordinator {
         status = initialStatus
         publishState()
 
-        log(
-            "session-start element=\(snapshotContext.elementIdentifier) " +
-                "seq=\(snapshotContext.focusChangeSequence) permission=\(hasPermission)"
-        )
-
         guard hasPermission else {
-            log("session-blocked missing-screen-recording-permission")
             return
         }
 
@@ -104,7 +89,6 @@ final class VisualContextCoordinator {
                     }
                 )
                 guard !Task.isCancelled else {
-                    log("session-cancelled-after-generate sessionID=\(session.sessionID)")
                     return
                 }
 
@@ -114,13 +98,10 @@ final class VisualContextCoordinator {
                     identity: snapshotContext.identity
                 )
             } catch is CancellationError {
-                log("session-cancellation sessionID=\(session.sessionID)")
                 return
             } catch let error as ScreenshotContextGenerationError {
-                log("session-error sessionID=\(session.sessionID) error=\(error.localizedDescription)")
                 setStatus(errorStatus(for: error), for: session.sessionID)
             } catch {
-                log("session-error sessionID=\(session.sessionID) error=\(error.localizedDescription)")
                 setStatus(.failed(error.localizedDescription), for: session.sessionID)
             }
         }
@@ -200,10 +181,6 @@ final class VisualContextCoordinator {
 
     private func publishState() {
         onStateChange?(status, latestExcerpt)
-    }
-
-    private func log(_ message: String) {
-        TabbyDebugOptions.log("[VisualContextCoordinator] \(message)")
     }
 }
 

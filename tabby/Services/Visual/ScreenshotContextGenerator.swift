@@ -54,9 +54,6 @@ final class ScreenshotContextGenerator {
         for context: FocusedInputSnapshot,
         onStatusChange: (@Sendable (VisualContextStatus) async -> Void)? = nil
     ) async throws -> VisualContextExcerpt {
-        log(
-            "context-start app=\(context.applicationName) pid=\(context.processIdentifier) element=\(context.elementIdentifier)"
-        )
         await onStatusChange?(.capturing)
 
         let screenshot: CapturedWindowScreenshot
@@ -66,17 +63,10 @@ final class ScreenshotContextGenerator {
                 snapshotDimension: configuration.snapshotDimension
             )
         } catch let error as WindowScreenshotError {
-            log("context-capture-failed reason=\(error.localizedDescription)")
             throw ScreenshotContextGenerationError.unavailable(error.localizedDescription)
         } catch {
-            log("context-capture-failed reason=\(error.localizedDescription)")
             throw ScreenshotContextGenerationError.failed(error.localizedDescription)
         }
-
-        log(
-            "context-captured title=\(screenshot.windowTitle ?? "<untitled>") "
-                + "image=\(screenshot.image.width)x\(screenshot.image.height)"
-        )
 
         await onStatusChange?(.extractingText)
 
@@ -87,25 +77,20 @@ final class ScreenshotContextGenerator {
             guard let windowTitle = screenshot.windowTitle,
                 hasMeaningfulSignal(windowTitle)
             else {
-                log("context-ocr-unavailable no-recognized-text-and-weak-window-title")
                 throw ScreenshotContextGenerationError.unavailable(
                     "The screenshot did not contain enough visible text to build prompt context."
                 )
             }
 
             let fallbackText = normalizeRecognizedText(windowTitle)
-            log("context-ocr-empty using-window-title-fallback")
             return VisualContextExcerpt(text: boundedSummaryText(fallbackText))
         } catch let error as ScreenTextExtractionError {
-            log("context-ocr-failed reason=\(error.localizedDescription)")
             throw ScreenshotContextGenerationError.unavailable(error.localizedDescription)
         } catch {
-            log("context-ocr-failed reason=\(error.localizedDescription)")
             throw ScreenshotContextGenerationError.failed(error.localizedDescription)
         }
 
         let normalizedText = normalizeRecognizedText(extractedText)
-        log("context-ocr-ready chars=\(normalizedText.count)")
 
         if TabbyDebugOptions.isEnabled {
             saveDebugScreenshot(
@@ -116,7 +101,6 @@ final class ScreenshotContextGenerator {
         }
 
         guard hasMeaningfulSignal(normalizedText) else {
-            log("context-unavailable weak-screenshot-signal")
             throw ScreenshotContextGenerationError.unavailable(
                 "The screenshot did not contain enough visible text to build prompt context."
             )
@@ -131,7 +115,6 @@ final class ScreenshotContextGenerator {
                     applicationName: context.applicationName
                 )
             } catch {
-                log("context-summarization-failed reason=\(error.localizedDescription)")
                 throw ScreenshotContextGenerationError.failed(
                     "Summarization failed: \(error.localizedDescription)"
                 )
@@ -141,7 +124,6 @@ final class ScreenshotContextGenerator {
         }
 
         let finalContextText = boundedSummaryText(generatedContextText)
-        log("context-ready chars=\(finalContextText.count)")
 
         return VisualContextExcerpt(
             text: finalContextText
@@ -187,10 +169,6 @@ final class ScreenshotContextGenerator {
         return letterCount >= 4
     }
 
-    private func log(_ message: String) {
-        TabbyDebugOptions.log("[ScreenshotContextGenerator] \(message)")
-    }
-
     private func saveDebugScreenshot(_ image: CGImage, text: String, name: String) {
         guard let desktopURL = FileManager.default.urls(
             for: .desktopDirectory,
@@ -217,9 +195,6 @@ final class ScreenshotContextGenerator {
         ) {
             CGImageDestinationAddImage(dest, image, nil)
             CGImageDestinationFinalize(dest)
-            TabbyDebugOptions.log(
-                "[ScreenshotContextGenerator] saved-debug-screenshot path=\(fileURL.path)"
-            )
 
             try? text.write(to: textURL, atomically: true, encoding: .utf8)
         }

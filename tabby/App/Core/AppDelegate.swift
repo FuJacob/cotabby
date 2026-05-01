@@ -91,6 +91,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             .store(in: &cancellables)
 
+        suggestionCoordinator.$visualContextStatus
+            .combineLatest(suggestionCoordinator.$latestVisualContextText)
+            .sink { [weak self] status, excerpt in
+                self?.focusDebugOverlayController?.updateVisualContext(
+                    status: status,
+                    excerpt: excerpt
+                )
+            }
+            .store(in: &cancellables)
+
     }
 
     /// Starts runtime and observer services once AppKit reports that app launch finished.
