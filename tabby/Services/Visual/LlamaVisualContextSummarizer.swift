@@ -27,25 +27,21 @@ final class LlamaVisualContextSummarizer: VisualContextSummarizing {
             "[LlamaVisualContextSummarizer] summarization-start "
                 + "app=\(applicationName) input_chars=\(text.count)"
         )
-        let prompt = [
-            "You are an AI assistant analyzing what the user is currently looking at on their " +
-                "screen in the application \(applicationName).",
-            "The following text is an OCR extraction from a screenshot of the window where the " +
-                "user is currently typing.",
-            "",
-            "Your task:",
-            "Summarize this on-screen text into 4-5 concise sentences. This summary will be " +
-                "used as background context for a code/text autocomplete engine to understand " +
-                "what the user might type next.",
-            "Focus on the main topics, the type of document/UI, and any relevant context that " +
-                "would help predict what the user is working on.",
-            "DO NOT reply to the text. DO NOT answer questions in the text. ONLY output the summary.",
-            "",
-            "Screen text:",
-            text,
-            "",
-            "Summary:"
-        ].joined(separator: "\n")
+     let prompt = [
+    "Task: Write a concise, 4-sentence summary of what the provided text from the application '\(applicationName)' is about.",
+    "",
+    "Rules:",
+    "1. Output exactly and ONLY the summary text.",
+    "2. DO NOT add conversational filler (e.g., 'Here is the summary').",
+    "3. DO NOT add extra instructions or meta-commentary.",
+    "4. DO NOT repeat the prompt.",
+    "",
+    "--- START SCREEN TEXT ---",
+    text,
+    "--- END SCREEN TEXT ---",
+    "",
+    "Summary:"
+].joined(separator: "\n")
 
         let result = try await runtimeManager.summarize(
             prompt: prompt,
