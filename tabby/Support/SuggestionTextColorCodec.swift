@@ -22,8 +22,16 @@ enum SuggestionTextColorCodec {
             return nil
         }
 
+        let normalizedHex = hex.trimmingCharacters(in: .whitespacesAndNewlines)
+        let validCharacters = CharacterSet(charactersIn: "0123456789ABCDEFabcdef")
+        guard normalizedHex.count == 6,
+              normalizedHex.unicodeScalars.allSatisfy(validCharacters.contains(_:))
+        else {
+            return nil
+        }
+
         var value: UInt64 = 0
-        guard Scanner(string: hex).scanHexInt64(&value) else {
+        guard Scanner(string: normalizedHex).scanHexInt64(&value) else {
             return nil
         }
 
