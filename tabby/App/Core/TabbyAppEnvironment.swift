@@ -42,7 +42,8 @@ final class TabbyAppEnvironment {
         )
         let focusModel = FocusTrackingModel(
             permissionProvider: { permissionManager.accessibilityGranted },
-            ignoredBundleIdentifier: Bundle.main.bundleIdentifier
+            ignoredBundleIdentifier: Bundle.main.bundleIdentifier,
+            publishesPollingEvents: FocusDebugOverlayController.isEnabled
         )
         let appUpdateManager = AppUpdateManager()
         let launchAtLoginService = LaunchAtLoginService()

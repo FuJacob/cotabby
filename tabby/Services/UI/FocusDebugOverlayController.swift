@@ -3,8 +3,8 @@ import Foundation
 import SwiftUI
 
 /// Gated behind `-tabby-debug`. Shows focused-input geometry near the caret and renders a
-/// bottom-edge status panel for async debug signals such as AX observer notifications and the
-/// screenshot/OCR visual-context pipeline.
+/// bottom-edge status panel for focus polling diagnostics and the screenshot/OCR visual-context
+/// pipeline.
 ///
 /// The controller is UI-only. It observes already-published app state instead of asking
 /// `FocusTracker` or `VisualContextCoordinator` for data directly, which keeps the service layer
@@ -24,8 +24,7 @@ final class FocusDebugOverlayController {
     private var latestCaretRect: CGRect?
     private var latestVisualContextStatus: VisualContextStatus = .idle
     private var latestVisualContextExcerptCharacterCount: Int?
-    private var latestObserverEvent: FocusObserverEvent?
-    private var observerEventClearTask: Task<Void, Never>?
+    private var latestPollEvent: FocusPollingEvent?
 
     func update(for snapshot: FocusSnapshot) {
         guard let context = snapshot.context else {
@@ -48,32 +47,18 @@ final class FocusDebugOverlayController {
         renderBottomStatusPanel()
     }
 
-    /// Records an AX observer notification in the bottom status panel.
+    /// Mirrors focus polling diagnostics into the bottom status panel.
     ///
-    /// The old implementation flashed this near the caret. Moving it to the bottom edge keeps
-    /// caret geometry debugging visually separate from event-stream debugging.
-    func flashAXObserverHit(event: FocusObserverEvent) {
-        observerEventClearTask?.cancel()
-        latestObserverEvent = event
+    /// Polling diagnostics replace the old AXObserver pulse. This keeps focus debugging tied to
+    /// the single source of truth that now drives snapshots.
+    func updateFocusPolling(event: FocusPollingEvent) {
+        latestPollEvent = event
         renderBottomStatusPanel()
-
-        observerEventClearTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: 1_500_000_000)
-            guard !Task.isCancelled else {
-                return
-            }
-
-            self?.latestObserverEvent = nil
-            self?.observerEventClearTask = nil
-            self?.renderBottomStatusPanel()
-        }
     }
 
     func hide() {
         hideFocusGeometry()
-        observerEventClearTask?.cancel()
-        observerEventClearTask = nil
-        latestObserverEvent = nil
+        latestPollEvent = nil
         latestVisualContextStatus = .idle
         latestVisualContextExcerptCharacterCount = nil
         bottomStatusPanel.orderOut(nil)
@@ -138,7 +123,7 @@ final class FocusDebugOverlayController {
         let contentView = NSHostingView(rootView: BottomDebugStatusView(
             visualContextStatus: latestVisualContextStatus,
             excerptCharacterCount: latestVisualContextExcerptCharacterCount,
-            observerEvent: latestObserverEvent,
+            pollEvent: latestPollEvent,
             maxWidth: maxWidth
         ))
         contentView.layoutSubtreeIfNeeded()
@@ -158,7 +143,7 @@ final class FocusDebugOverlayController {
     }
 
     private var shouldShowBottomStatusPanel: Bool {
-        latestVisualContextStatus != .idle || latestObserverEvent != nil
+        latestVisualContextStatus != .idle || latestPollEvent != nil
     }
 
     // MARK: - Helpers
@@ -234,7 +219,7 @@ private struct CaretDebugView: View {
 private struct BottomDebugStatusView: View {
     let visualContextStatus: VisualContextStatus
     let excerptCharacterCount: Int?
-    let observerEvent: FocusObserverEvent?
+    let pollEvent: FocusPollingEvent?
     let maxWidth: CGFloat
 
     private var stages: [VisualContextDebugStage] {
@@ -279,20 +264,30 @@ private struct BottomDebugStatusView: View {
                 }
             }
 
-            if let observerEvent {
+            if let pollEvent {
                 Divider()
                     .overlay(Color.white.opacity(0.16))
 
                 HStack(spacing: 7) {
                     Circle()
-                        .fill(Color.cyan)
+                        .fill(pollEvent.didChangeFocusedInput ? Color.green : Color.cyan)
                         .frame(width: 7, height: 7)
 
-                    Text("AX \(observerEvent.sequence)")
+                    Text("Poll \(pollEvent.sequence)")
                         .font(.system(size: 10, weight: .bold, design: .monospaced))
                         .foregroundStyle(.cyan)
 
-                    Text(observerEvent.displayName)
+                    Text(pollEvent.changeSummary)
+                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(pollEvent.didChangeFocusedInput ? .green : .white.opacity(0.72))
+                        .lineLimit(1)
+
+                    Text("focusSeq \(pollEvent.focusChangeSequence)")
+                        .font(.system(size: 10, weight: .medium, design: .monospaced))
+                        .foregroundStyle(.white.opacity(0.62))
+                        .lineLimit(1)
+
+                    Text("\(pollEvent.applicationName) / \(pollEvent.capabilitySummary)")
                         .font(.system(size: 10, weight: .medium, design: .monospaced))
                         .foregroundStyle(.white.opacity(0.82))
                         .lineLimit(1)

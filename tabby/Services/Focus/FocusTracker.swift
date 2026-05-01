@@ -1,46 +1,17 @@
 import AppKit
-import ApplicationServices
 import Foundation
 
 /// File overview:
-/// Observes Accessibility focus notifications and publishes the latest `FocusSnapshot`.
+/// Polls the Accessibility tree on a fixed timer and publishes the latest `FocusSnapshot`.
 ///
-/// This experimental version removes the polling timer entirely. `FocusTracker` owns observer
-/// lifecycle, permission/frontmost-app guards, and the final `snapshot` publication contract.
-/// AX candidate resolution lives in `FocusSnapshotResolver`, and caret/frame heuristics live in
-/// `AXTextGeometryResolver`.
-nonisolated private let focusTrackerObserverCallback: AXObserverCallback = { _, _, notification, refcon in
-    guard let refcon else {
-        return
-    }
-
-    let notificationName = notification as String
-    let tracker = Unmanaged<FocusTracker>.fromOpaque(refcon).takeUnretainedValue()
-    Task { @MainActor in
-        tracker.handleAXNotification(named: notificationName)
-    }
-}
-
+/// Polling is intentionally the only focus-change source. AXObserver delivery is inconsistent in
+/// several host apps, and a hybrid push/poll design creates ordering ambiguity. A single polling
+/// loop gives Tabby predictable eventual consistency: every tick re-reads the current frontmost
+/// focused element and repairs stale state within one poll interval.
 @MainActor
 final class FocusTracker {
-    private enum AXNotificationSet {
-        static let application: [CFString] = [
-            kAXFocusedUIElementChangedNotification as CFString,
-            kAXFocusedWindowChangedNotification as CFString,
-            kAXApplicationDeactivatedNotification as CFString
-        ]
-
-        static let focusedElement: [CFString] = [
-            kAXValueChangedNotification as CFString,
-            kAXSelectedTextChangedNotification as CFString,
-            kAXUIElementDestroyedNotification as CFString
-        ]
-    }
-
     var onSnapshotChange: ((FocusSnapshot) -> Void)?
-    /// Debug hook for raw AX notification hits. The tracker still publishes snapshots separately
-    /// because several notifications can collapse into the same resolved focus state.
-    var onAXNotification: ((String) -> Void)?
+    var onPoll: ((FocusPollingEvent) -> Void)?
 
     private(set) var snapshot: FocusSnapshot = .inactive {
         didSet {
@@ -48,31 +19,23 @@ final class FocusTracker {
         }
     }
 
+    private let pollInterval: TimeInterval
     private let permissionProvider: @MainActor () -> Bool
     private let ignoredBundleIdentifier: String?
     private let snapshotResolver: FocusSnapshotResolver
 
-    private var observer: AXObserver?
-    private var observedApplicationElement: AXUIElement?
-    private var observedFocusedElement: AXUIElement?
-    private var observedApplicationPID: pid_t?
-    private var workspaceActivationObserver: NSObjectProtocol?
-    private var scheduledRefreshTask: Task<Void, Never>?
-
-    /// Monotonic counter that increments every time a focus-changing AX notification fires.
-    ///
-    /// AX element identity is based on `CFHash`, which macOS can recycle across unrelated
-    /// elements. This counter gives downstream consumers a guaranteed-unique signal that
-    /// focus actually changed, independent of hash collisions. It only increments on
-    /// notifications that signal a *new element or window* — value and selection changes
-    /// within the same field do not bump it.
+    private var timer: Timer?
+    private var pollSequence = 0
     private var focusChangeSequence: UInt64 = 0
+    private var lastFocusedInputSignature: FocusedInputPollingSignature?
 
     init(
+        pollInterval: TimeInterval = 0.25,
         permissionProvider: @escaping @MainActor () -> Bool,
         ignoredBundleIdentifier: String?,
         snapshotResolver: FocusSnapshotResolver? = nil
     ) {
+        self.pollInterval = pollInterval
         self.permissionProvider = permissionProvider
         self.ignoredBundleIdentifier = ignoredBundleIdentifier
         // Default resolver construction must happen inside the actor-isolated initializer body.
@@ -80,258 +43,202 @@ final class FocusTracker {
         self.snapshotResolver = snapshotResolver ?? FocusSnapshotResolver()
     }
 
-    /// Starts event-driven AX observation and immediately captures an initial snapshot.
+    /// Starts periodic AX polling and immediately captures an initial snapshot.
     func start() {
-        guard workspaceActivationObserver == nil else {
+        guard timer == nil else {
             refreshNow()
             return
         }
 
-        workspaceActivationObserver = NSWorkspace.shared.notificationCenter.addObserver(
-            forName: NSWorkspace.didActivateApplicationNotification,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                // Switching apps is always a focus change.
-                self?.focusChangeSequence += 1
-                self?.refreshNow()
-            }
-        }
-
-        // The initial observation counts as a focus change so the first snapshot always
-        // carries a non-zero sequence, distinguishing it from the default 0.
-        focusChangeSequence += 1
         refreshNow()
-    }
 
-    /// Stops event observation while leaving the most recent snapshot available to callers.
-    func stop() {
-        scheduledRefreshTask?.cancel()
-        scheduledRefreshTask = nil
-
-        if let workspaceActivationObserver {
-            NSWorkspace.shared.notificationCenter.removeObserver(workspaceActivationObserver)
-            self.workspaceActivationObserver = nil
-        }
-
-        clearAXObserver()
-    }
-
-    /// Performs a synchronous snapshot capture outside the normal notification cadence.
-    func refreshNow() {
-        scheduledRefreshTask?.cancel()
-        scheduledRefreshTask = nil
-
-        let capture = captureSnapshot()
-        snapshot = capture.snapshot
-
-        if let focusedElement = capture.focusedElement {
-            registerFocusedElementNotifications(on: focusedElement)
-        } else {
-            clearFocusedElementNotifications()
-        }
-    }
-
-    fileprivate func handleAXNotification(named notificationName: String) {
-        onAXNotification?(notificationName)
-
-        // Only focus-changing notifications bump the sequence. Value/selection changes within
-        // the same field should not, because the visual-context coordinator uses this counter
-        // to decide whether to start a new OCR session.
-        let focusChangingNotifications: Set<String> = [
-            kAXFocusedUIElementChangedNotification as String,
-            kAXFocusedWindowChangedNotification as String,
-            kAXApplicationDeactivatedNotification as String
-        ]
-        if focusChangingNotifications.contains(notificationName) {
-            focusChangeSequence += 1
-        }
-
-        if notificationName == kAXApplicationDeactivatedNotification as String {
-            scheduleRefresh(after: 0)
-            return
-        }
-
-        // AX notifications can fire before the app has updated value/selection attributes.
-        // A tiny coalescing delay avoids reading the old state while still feeling immediate.
-        scheduleRefresh(after: 0.005)
-    }
-
-    private func scheduleRefresh(after delay: TimeInterval) {
-        scheduledRefreshTask?.cancel()
-        scheduledRefreshTask = Task { [weak self] in
-            guard delay > 0 else {
+        let timer = Timer(timeInterval: pollInterval, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
                 self?.refreshNow()
-                return
             }
-
-            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-            guard !Task.isCancelled else {
-                return
-            }
-
-            self?.refreshNow()
         }
+        self.timer = timer
+        RunLoop.main.add(timer, forMode: .common)
+    }
+
+    /// Stops polling while leaving the most recent snapshot available to callers.
+    func stop() {
+        timer?.invalidate()
+        timer = nil
+    }
+
+    /// Performs a synchronous snapshot capture outside the normal polling cadence.
+    ///
+    /// Other subsystems still call this after input or acceptance events because they know a read is
+    /// useful immediately. The implementation is still polling-style: no event is trusted as state;
+    /// it only triggers another full AX read.
+    func refreshNow() {
+        pollSequence += 1
+        let capture = captureSnapshot()
+
+        if capture.snapshot != snapshot {
+            snapshot = capture.snapshot
+        }
+
+        onPoll?(
+            FocusPollingEvent(
+                sequence: pollSequence,
+                focusChangeSequence: focusChangeSequence,
+                didChangeFocusedInput: capture.didChangeFocusedInput,
+                applicationName: capture.snapshot.applicationName,
+                capabilitySummary: capture.snapshot.capability.shortLabel,
+                occurredAt: Date()
+            )
+        )
     }
 
     /// Captures the current frontmost application's focused element and reduces it into a snapshot.
     private func captureSnapshot() -> FocusCaptureResult {
         guard permissionProvider() else {
-            clearAXObserver()
-            return FocusCaptureResult(
-                snapshot: FocusSnapshot(
-                    applicationName: "Accessibility permission missing",
-                    bundleIdentifier: nil,
-                    capability: .blocked("Accessibility permission is required."),
-                    context: nil,
-                    inspection: nil
-                )
+            return inactiveCapture(
+                applicationName: "Accessibility permission missing",
+                bundleIdentifier: nil,
+                capability: .blocked("Accessibility permission is required.")
             )
         }
 
         guard let application = NSWorkspace.shared.frontmostApplication else {
-            clearAXObserver()
-            return FocusCaptureResult(
-                snapshot: FocusSnapshot(
-                    applicationName: "No active application",
-                    bundleIdentifier: nil,
-                    capability: .unsupported("No active application."),
-                    context: nil,
-                    inspection: nil
-                )
+            return inactiveCapture(
+                applicationName: "No active application",
+                bundleIdentifier: nil,
+                capability: .unsupported("No active application.")
             )
         }
 
         if application.bundleIdentifier == ignoredBundleIdentifier {
-            clearAXObserver()
-            return FocusCaptureResult(
-                snapshot: FocusSnapshot(
-                    applicationName: application.localizedName ?? "Tabby",
-                    bundleIdentifier: application.bundleIdentifier,
-                    capability: .blocked("Tabby is focused."),
-                    context: nil,
-                    inspection: nil
-                )
+            return inactiveCapture(
+                applicationName: application.localizedName ?? "Tabby",
+                bundleIdentifier: application.bundleIdentifier,
+                capability: .blocked("Tabby is focused.")
             )
         }
-
-        configureAXObserver(for: application)
 
         guard let focusedElement = AXHelper.focusedElement() else {
-            return FocusCaptureResult(
-                snapshot: FocusSnapshot(
-                    applicationName: application.localizedName ?? "Unknown",
-                    bundleIdentifier: application.bundleIdentifier,
-                    capability: .unsupported("No focused Accessibility element."),
-                    context: nil,
-                    inspection: nil
-                )
+            return inactiveCapture(
+                applicationName: application.localizedName ?? "Unknown",
+                bundleIdentifier: application.bundleIdentifier,
+                capability: .unsupported("No focused Accessibility element.")
             )
         }
 
-        return FocusCaptureResult(
-            snapshot: snapshotResolver.resolveSnapshot(
-                focusedElement: focusedElement,
-                application: application,
-                focusChangeSequence: focusChangeSequence
+        let firstPassSnapshot = snapshotResolver.resolveSnapshot(
+            focusedElement: focusedElement,
+            application: application,
+            focusChangeSequence: focusChangeSequence
+        )
+
+        guard let context = firstPassSnapshot.context else {
+            return FocusCaptureResult(
+                snapshot: firstPassSnapshot,
+                didChangeFocusedInput: clearFocusedInputSignatureIfNeeded()
+            )
+        }
+
+        let nextSignature = FocusedInputPollingSignature(context: context)
+        guard nextSignature != lastFocusedInputSignature else {
+            return FocusCaptureResult(snapshot: firstPassSnapshot, didChangeFocusedInput: false)
+        }
+
+        lastFocusedInputSignature = nextSignature
+        focusChangeSequence += 1
+
+        let finalSnapshot = snapshotResolver.resolveSnapshot(
+            focusedElement: focusedElement,
+            application: application,
+            focusChangeSequence: focusChangeSequence
+        )
+        return FocusCaptureResult(snapshot: finalSnapshot, didChangeFocusedInput: true)
+    }
+
+    private func inactiveCapture(
+        applicationName: String,
+        bundleIdentifier: String?,
+        capability: FocusCapability
+    ) -> FocusCaptureResult {
+        FocusCaptureResult(
+            snapshot: FocusSnapshot(
+                applicationName: applicationName,
+                bundleIdentifier: bundleIdentifier,
+                capability: capability,
+                context: nil,
+                inspection: nil
             ),
-            focusedElement: focusedElement
+            didChangeFocusedInput: clearFocusedInputSignatureIfNeeded()
         )
     }
 
-    private func configureAXObserver(for application: NSRunningApplication) {
-        let pid = application.processIdentifier
-        guard observer == nil || observedApplicationPID != pid else {
-            return
-        }
-
-        clearAXObserver()
-
-        var newObserver: AXObserver?
-        let result = AXObserverCreate(pid, focusTrackerObserverCallback, &newObserver)
-        guard result == .success, let newObserver else {
-            return
-        }
-
-        let applicationElement = AXUIElementCreateApplication(pid)
-        observer = newObserver
-        observedApplicationElement = applicationElement
-        observedApplicationPID = pid
-
-        let source = AXObserverGetRunLoopSource(newObserver)
-        CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
-
-        for notification in AXNotificationSet.application {
-            addNotification(notification, to: applicationElement)
-        }
-    }
-
-    private func registerFocusedElementNotifications(on focusedElement: AXUIElement) {
-        guard observer != nil else {
-            return
-        }
-
-        if let observedFocusedElement,
-           AXHelper.elementIdentity(for: observedFocusedElement) == AXHelper.elementIdentity(for: focusedElement) {
-            return
-        }
-
-        clearFocusedElementNotifications()
-        observedFocusedElement = focusedElement
-
-        for notification in AXNotificationSet.focusedElement {
-            addNotification(notification, to: focusedElement)
-        }
-    }
-
-    private func clearFocusedElementNotifications() {
-        guard let observer, let observedFocusedElement else {
-            self.observedFocusedElement = nil
-            return
-        }
-
-        for notification in AXNotificationSet.focusedElement {
-            AXObserverRemoveNotification(observer, observedFocusedElement, notification)
-        }
-
-        self.observedFocusedElement = nil
-    }
-
-    private func clearAXObserver() {
-        scheduledRefreshTask?.cancel()
-        scheduledRefreshTask = nil
-
-        clearFocusedElementNotifications()
-
-        if let observer {
-            let source = AXObserverGetRunLoopSource(observer)
-            CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
-        }
-
-        observer = nil
-        observedApplicationElement = nil
-        observedApplicationPID = nil
-    }
-
-    @discardableResult
-    private func addNotification(_ notification: CFString, to element: AXUIElement) -> Bool {
-        guard let observer else {
+    /// Clears the last field signature when polling no longer finds a usable focused input.
+    ///
+    /// This matters for a later return to the same AX element. Leaving and re-entering a field is a
+    /// new focus session for visual context even if the host app reuses the same AX object.
+    private func clearFocusedInputSignatureIfNeeded() -> Bool {
+        guard lastFocusedInputSignature != nil else {
             return false
         }
 
-        let refcon = Unmanaged.passUnretained(self).toOpaque()
-        let result = AXObserverAddNotification(observer, element, notification, refcon)
-        return result == .success || result == .notificationAlreadyRegistered
+        lastFocusedInputSignature = nil
+        focusChangeSequence += 1
+        return true
     }
 }
 
 private struct FocusCaptureResult {
     let snapshot: FocusSnapshot
-    let focusedElement: AXUIElement?
+    let didChangeFocusedInput: Bool
+}
 
-    init(snapshot: FocusSnapshot, focusedElement: AXUIElement? = nil) {
-        self.snapshot = snapshot
-        self.focusedElement = focusedElement
+/// Stable-enough identity for one focused input as observed by polling.
+///
+/// Text, selection, and caret position are deliberately excluded. Those can change inside the same
+/// field and should not restart the visual-context session. The input frame is preferred over the
+/// AX element id because AX identifiers are derived from Core Foundation object identity, which can
+/// be recycled by macOS.
+private struct FocusedInputPollingSignature: Equatable {
+    let bundleIdentifier: String
+    let processIdentifier: Int32
+    let role: String
+    let subrole: String?
+    let fieldAnchor: FieldAnchor
+
+    init(context: FocusedInputSnapshot) {
+        bundleIdentifier = context.bundleIdentifier
+        processIdentifier = context.processIdentifier
+        role = context.role
+        subrole = context.subrole
+        fieldAnchor = FieldAnchor(
+            inputFrame: context.inputFrameRect,
+            fallbackElementIdentifier: context.elementIdentifier
+        )
+    }
+}
+
+private extension FocusedInputPollingSignature {
+    struct FieldAnchor: Equatable {
+        let roundedInputFrame: RoundedRect?
+        let fallbackElementIdentifier: String?
+
+        init(inputFrame: CGRect?, fallbackElementIdentifier: String) {
+            roundedInputFrame = inputFrame.map(RoundedRect.init(rect:))
+            self.fallbackElementIdentifier = roundedInputFrame == nil ? fallbackElementIdentifier : nil
+        }
+    }
+
+    struct RoundedRect: Equatable {
+        let minX: Int
+        let minY: Int
+        let width: Int
+        let height: Int
+
+        init(rect: CGRect) {
+            minX = Int(rect.minX.rounded())
+            minY = Int(rect.minY.rounded())
+            width = Int(rect.width.rounded())
+            height = Int(rect.height.rounded())
+        }
     }
 }

@@ -146,8 +146,8 @@ struct FocusedInputSnapshot: Equatable {
     let selection: NSRange
     let isSecure: Bool
 
-    /// Monotonic counter that increments every time a focus-changing AX notification fires
-    /// (`kAXFocusedUIElementChanged`, `kAXFocusedWindowChanged`, app activation, etc.).
+    /// Monotonic counter that increments every time polling observes a focused-input identity
+    /// change.
     ///
     /// `elementIdentifier` is built from `CFHash`, which macOS can recycle when AX nodes are
     /// destroyed and recreated. That makes `elementIdentifier` unreliable for detecting field
@@ -270,18 +270,21 @@ struct FocusSnapshot: Equatable {
     }
 }
 
-/// Debug-only signal that an `AXObserver` notification reached Tabby.
+/// Debug-only signal that one focus polling pass completed.
 ///
-/// This intentionally stays separate from `FocusSnapshot`: a notification can be useful diagnostic
+/// This intentionally stays separate from `FocusSnapshot`: a poll can be useful diagnostic
 /// information even when the resolved focus snapshot does not change. The sequence number gives
-/// Combine/SwiftUI consumers an always-unique value for repeated identical notifications.
-struct FocusObserverEvent: Equatable {
+/// Combine/SwiftUI consumers an always-unique value for repeated identical polls.
+struct FocusPollingEvent: Equatable {
     let sequence: Int
-    let notificationName: String
+    let focusChangeSequence: UInt64
+    let didChangeFocusedInput: Bool
+    let applicationName: String
+    let capabilitySummary: String
     let occurredAt: Date
 
-    var displayName: String {
-        notificationName.replacingOccurrences(of: "AX", with: "")
+    var changeSummary: String {
+        didChangeFocusedInput ? "changed" : "unchanged"
     }
 }
 

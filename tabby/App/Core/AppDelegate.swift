@@ -84,12 +84,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             .store(in: &cancellables)
 
-        focusModel.$latestObserverEvent
-            .compactMap { $0 }
-            .sink { [weak self] event in
-                self?.focusDebugOverlayController?.flashAXObserverHit(event: event)
-            }
-            .store(in: &cancellables)
+        if let focusDebugOverlayController {
+            focusModel.$latestPollEvent
+                .compactMap { $0 }
+                .sink { [weak focusDebugOverlayController] pollEvent in
+                    focusDebugOverlayController?.updateFocusPolling(event: pollEvent)
+                }
+                .store(in: &cancellables)
+        }
 
         suggestionCoordinator.$visualContextStatus
             .combineLatest(suggestionCoordinator.$latestVisualContextText)
@@ -103,7 +105,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     }
 
-    /// Starts runtime and observer services once AppKit reports that app launch finished.
+    /// Starts runtime and polling services once AppKit reports that app launch finished.
     func applicationDidFinishLaunching(_ notification: Notification) {
         startRuntimeIfPreferredEngineRequiresIt()
         focusModel.start()
@@ -113,7 +115,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         welcomeCoordinator.presentIfNeeded()
     }
 
-    /// Stops long-lived services before process exit so observers and runtime resources detach cleanly.
+    /// Stops long-lived services before process exit so timers and runtime resources detach cleanly.
     func applicationWillTerminate(_ notification: Notification) {
         activationIndicatorController.hide(reason: "Activation indicator hidden because Tabby is terminating.")
         focusDebugOverlayController?.hide()

@@ -5,7 +5,7 @@ import Foundation
 /// File overview:
 /// Resolves the most usable editable candidate around the current AX focus and materializes a
 /// stable `FocusSnapshot`. This keeps AX candidate search and snapshot assembly separate from the
-/// event-observation shell in `FocusTracker`.
+/// polling shell in `FocusTracker`.
 @MainActor
 struct FocusSnapshotResolver {
     private let geometryResolver: AXTextGeometryResolver
