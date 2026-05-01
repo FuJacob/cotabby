@@ -24,6 +24,15 @@ final class SuggestionSettingsModel: ObservableObject {
     /// This prevents instruction-tuned models from starting suggestions with conversational
     /// openers that belong in a chat reply, not in inline autocomplete.
     @Published private(set) var isFirstTokenGatingEnabled: Bool
+    /// When enabled, the llama runtime measures the top-1 raw-logit softmax probability of the
+    /// first sampled token and silently suppresses the whole suggestion if it falls below
+    /// `firstTokenConfidenceThreshold`. This is a *separate* axis from chat-opener gating:
+    /// gating masks specific tokens; confidence suppression aborts generation entirely when
+    /// the model's own distribution is too flat to produce a trustworthy continuation.
+    @Published private(set) var isFirstTokenConfidenceGatingEnabled: Bool
+    /// Probability threshold in [0, 1]. Higher values are stricter (more suggestions are
+    /// suppressed). 0 effectively disables the gate even when the toggle is on.
+    @Published private(set) var firstTokenConfidenceThreshold: Double
 
     private let userDefaults: UserDefaults
 
@@ -38,6 +47,14 @@ final class SuggestionSettingsModel: ObservableObject {
     private static let selectedLocalPromptModeDefaultsKey = "selectedLocalSuggestionPromptMode"
     private static let customAIInstructionsDefaultsKey = "tabbyCustomAIInstructions"
     private static let isFirstTokenGatingEnabledDefaultsKey = "tabbyFirstTokenGatingEnabled"
+    private static let confidenceGatingEnabledDefaultsKey = "tabbyFirstTokenConfidenceGatingEnabled"
+    private static let confidenceThresholdDefaultsKey = "tabbyFirstTokenConfidenceThreshold"
+
+    /// 0.10 is a deliberately gentle starting point: our local models often peak at ~0.30-0.60
+    /// for unambiguous continuations, so this threshold catches only the genuinely-confused
+    /// cases (e.g. the model sees the prompt as ambiguous and spreads probability widely).
+    /// We expect to tune this once telemetry from the `first-token-confidence` log accumulates.
+    private static let defaultFirstTokenConfidenceThreshold: Double = 0.10
 
     init(
         configuration: SuggestionConfiguration,
@@ -74,6 +91,18 @@ final class SuggestionSettingsModel: ObservableObject {
         }
         // Default to enabled — first-token gating is a net positive for all known instruct models.
         let resolvedFirstTokenGatingEnabled = userDefaults.object(forKey: Self.isFirstTokenGatingEnabledDefaultsKey) as? Bool ?? true
+        // Default off until we've seen field telemetry. The deny-list gate ships on by default
+        // because it's evidence-backed and surgical; confidence suppression is heuristic and can
+        // hide useful suggestions when the threshold is mistuned, so users opt in explicitly.
+        let resolvedConfidenceGatingEnabled = userDefaults
+            .object(forKey: Self.confidenceGatingEnabledDefaultsKey) as? Bool ?? false
+        let resolvedConfidenceThreshold: Double = {
+            guard userDefaults.object(forKey: Self.confidenceThresholdDefaultsKey) != nil else {
+                return Self.defaultFirstTokenConfidenceThreshold
+            }
+            let raw = userDefaults.double(forKey: Self.confidenceThresholdDefaultsKey)
+            return min(max(raw, 0.0), 1.0)
+        }()
 
         isGloballyEnabled = resolvedGloballyEnabled
         disabledAppRules = resolvedDisabledAppRules
@@ -84,6 +113,8 @@ final class SuggestionSettingsModel: ObservableObject {
         selectedLocalPromptMode = resolvedLocalPromptMode
         customAIInstructions = resolvedCustomAIInstructions
         isFirstTokenGatingEnabled = resolvedFirstTokenGatingEnabled
+        isFirstTokenConfidenceGatingEnabled = resolvedConfidenceGatingEnabled
+        firstTokenConfidenceThreshold = resolvedConfidenceThreshold
 
         userDefaults.set(resolvedGloballyEnabled, forKey: Self.isGloballyEnabledDefaultsKey)
         persistDisabledAppRules(resolvedDisabledAppRules)
@@ -94,6 +125,8 @@ final class SuggestionSettingsModel: ObservableObject {
         persistSelectedLocalPromptMode(resolvedLocalPromptMode)
         persistCustomAIInstructions(resolvedCustomAIInstructions)
         userDefaults.set(resolvedFirstTokenGatingEnabled, forKey: Self.isFirstTokenGatingEnabledDefaultsKey)
+        userDefaults.set(resolvedConfidenceGatingEnabled, forKey: Self.confidenceGatingEnabledDefaultsKey)
+        userDefaults.set(resolvedConfidenceThreshold, forKey: Self.confidenceThresholdDefaultsKey)
     }
 
     /// Compatibility shim for legacy call sites while the UI migrates from the old toggle to the
@@ -121,7 +154,9 @@ final class SuggestionSettingsModel: ObservableObject {
             selectedWordCountPreset: selectedWordCountPreset,
             effectivePromptMode: effectivePromptMode,
             customAIInstructions: CustomAIInstructionFormatter.normalized(customAIInstructions),
-            isFirstTokenGatingEnabled: isFirstTokenGatingEnabled
+            isFirstTokenGatingEnabled: isFirstTokenGatingEnabled,
+            isFirstTokenConfidenceGatingEnabled: isFirstTokenConfidenceGatingEnabled,
+            firstTokenConfidenceThreshold: firstTokenConfidenceThreshold
         )
     }
 
@@ -282,6 +317,27 @@ final class SuggestionSettingsModel: ObservableObject {
         userDefaults.set(enabled, forKey: Self.isFirstTokenGatingEnabledDefaultsKey)
     }
 
+    func setFirstTokenConfidenceGatingEnabled(_ enabled: Bool) {
+        guard isFirstTokenConfidenceGatingEnabled != enabled else {
+            return
+        }
+
+        isFirstTokenConfidenceGatingEnabled = enabled
+        userDefaults.set(enabled, forKey: Self.confidenceGatingEnabledDefaultsKey)
+    }
+
+    func setFirstTokenConfidenceThreshold(_ threshold: Double) {
+        // Clamp at the setter boundary so any UI bug (slider out of range, manual defaults edit)
+        // cannot corrupt persisted state. The runtime layer trusts this value as already-valid.
+        let clamped = min(max(threshold, 0.0), 1.0)
+        guard firstTokenConfidenceThreshold != clamped else {
+            return
+        }
+
+        firstTokenConfidenceThreshold = clamped
+        userDefaults.set(clamped, forKey: Self.confidenceThresholdDefaultsKey)
+    }
+
     private static func effectivePromptMode(
         engine: SuggestionEngineKind,
         localPromptMode: SuggestionPromptMode
@@ -423,7 +479,12 @@ final class SuggestionSettingsModel: ObservableObject {
 
 extension SuggestionSettingsModel: SuggestionSettingsProviding {
     var snapshotPublisher: AnyPublisher<SuggestionSettingsSnapshot, Never> {
-        Publishers.CombineLatest4(
+        // Combine maxes out at four upstreams per operator, but the snapshot now depends on nine
+        // published values. We split them into two logical bundles — a "core" group of always-on
+        // selections and a "first-token" group of llama-only gating settings — then CombineLatest
+        // those two intermediate publishers. Equality on the bundles via removeDuplicates makes
+        // the downstream snapshot still emit only on real change.
+        let coreSelections = Publishers.CombineLatest4(
             Publishers.CombineLatest4(
                 $isGloballyEnabled,
                 $disabledAppRules,
@@ -434,22 +495,33 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
             $customAIInstructions,
             $isFirstTokenGatingEnabled
         )
-        .map { combinedSettings, localPromptMode, customAIInstructions, firstTokenGatingEnabled in
-            let (globallyEnabled, disabledAppRules, engine, wordCountPreset) = combinedSettings
-            return SuggestionSettingsSnapshot(
-                isGloballyEnabled: globallyEnabled,
-                disabledAppBundleIdentifiers: Set(disabledAppRules.map(\.bundleIdentifier)),
-                selectedEngine: engine,
-                selectedWordCountPreset: wordCountPreset,
-                effectivePromptMode: Self.effectivePromptMode(
-                    engine: engine,
-                    localPromptMode: localPromptMode
-                ),
-                customAIInstructions: CustomAIInstructionFormatter.normalized(customAIInstructions),
-                isFirstTokenGatingEnabled: firstTokenGatingEnabled
-            )
-        }
-        .removeDuplicates()
-        .eraseToAnyPublisher()
+
+        let confidenceSelections = Publishers.CombineLatest(
+            $isFirstTokenConfidenceGatingEnabled,
+            $firstTokenConfidenceThreshold
+        )
+
+        return Publishers.CombineLatest(coreSelections, confidenceSelections)
+            .map { coreTuple, confidenceTuple in
+                let (combinedSettings, localPromptMode, customAIInstructions, firstTokenGatingEnabled) = coreTuple
+                let (globallyEnabled, disabledAppRules, engine, wordCountPreset) = combinedSettings
+                let (confidenceGatingEnabled, confidenceThreshold) = confidenceTuple
+                return SuggestionSettingsSnapshot(
+                    isGloballyEnabled: globallyEnabled,
+                    disabledAppBundleIdentifiers: Set(disabledAppRules.map(\.bundleIdentifier)),
+                    selectedEngine: engine,
+                    selectedWordCountPreset: wordCountPreset,
+                    effectivePromptMode: Self.effectivePromptMode(
+                        engine: engine,
+                        localPromptMode: localPromptMode
+                    ),
+                    customAIInstructions: CustomAIInstructionFormatter.normalized(customAIInstructions),
+                    isFirstTokenGatingEnabled: firstTokenGatingEnabled,
+                    isFirstTokenConfidenceGatingEnabled: confidenceGatingEnabled,
+                    firstTokenConfidenceThreshold: confidenceThreshold
+                )
+            }
+            .removeDuplicates()
+            .eraseToAnyPublisher()
     }
 }

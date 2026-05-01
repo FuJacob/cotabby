@@ -21,18 +21,38 @@ final class LlamaSuggestionEngine {
         do {
             let startTime = Date()
             let cachedPrefixBytes = promptCacheHintTracker.cachedPrefixBytes(for: request)
-            let rawSuggestion = try await runtimeManager.generate(
-                prompt: request.prompt,
-                cachedPrefixBytes: cachedPrefixBytes,
-                maxPredictionTokens: request.maxPredictionTokens,
-                temperature: request.temperature,
-                topK: request.topK,
-                topP: request.topP,
-                minP: request.minP,
-                repetitionPenalty: request.repetitionPenalty,
-                seed: request.randomSeed,
-                firstTokenGatingEnabled: request.isFirstTokenGatingEnabled
-            )
+            let rawSuggestion: String
+            do {
+                rawSuggestion = try await runtimeManager.generate(
+                    prompt: request.prompt,
+                    cachedPrefixBytes: cachedPrefixBytes,
+                    maxPredictionTokens: request.maxPredictionTokens,
+                    temperature: request.temperature,
+                    topK: request.topK,
+                    topP: request.topP,
+                    minP: request.minP,
+                    repetitionPenalty: request.repetitionPenalty,
+                    seed: request.randomSeed,
+                    firstTokenGatingEnabled: request.isFirstTokenGatingEnabled,
+                    firstTokenConfidenceGatingEnabled: request.isFirstTokenConfidenceGatingEnabled,
+                    firstTokenConfidenceThreshold: request.firstTokenConfidenceThreshold
+                )
+            } catch let error as LlamaRuntimeError {
+                // Confidence suppression is a normal "no suggestion" outcome, not a failure.
+                // The runtime's own KV stays valid (it threw before any sampled-token decode), so
+                // we deliberately keep the prompt-cache hint tracker intact: the next request can
+                // still benefit from prefix reuse against this exact prompt.
+                if case .lowConfidenceSuppression = error {
+                    promptCacheHintTracker.recordSuccessfulRequest(request)
+                    return SuggestionResult(
+                        generation: request.generation,
+                        rawText: "",
+                        text: "",
+                        latency: Date().timeIntervalSince(startTime)
+                    )
+                }
+                throw error
+            }
             try Task.checkCancellation()
 
             promptCacheHintTracker.recordSuccessfulRequest(request)

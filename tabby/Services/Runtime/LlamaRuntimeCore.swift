@@ -41,6 +41,16 @@ actor LlamaRuntimeCore {
         category: "first-token-gate"
     )
 
+    /// Filterable signal for first-token confidence-based suppression. Distinct category from the
+    /// gate logger because these are *separate signals*: gating masks specific tokens; confidence
+    /// suppression aborts the whole suggestion when the model's distribution at position 0 is too
+    /// flat. A single generation can fire neither, one, or both.
+    ///   log stream --predicate 'subsystem == "app.tabby" AND category == "first-token-confidence"'
+    private static let firstTokenConfidenceLogger = Logger(
+        subsystem: "app.tabby",
+        category: "first-token-confidence"
+    )
+
     private var backendInitialized = false
     private var model: OpaquePointer?
     private var preparedRuntime: PreparedLlamaRuntime?
@@ -162,7 +172,9 @@ actor LlamaRuntimeCore {
         minP: Double,
         repetitionPenalty: Double,
         seed: UInt32? = nil,
-        firstTokenGatingEnabled: Bool = true
+        firstTokenGatingEnabled: Bool = true,
+        firstTokenConfidenceGatingEnabled: Bool = false,
+        firstTokenConfidenceThreshold: Double = 0.0
     ) throws -> String {
         guard let preparedRuntime else {
             throw LlamaRuntimeError.unavailable("The llama model is not loaded.")
@@ -257,6 +269,21 @@ actor LlamaRuntimeCore {
                     logFirstTokenGateFireIfNeeded(context: context, vocab: vocab)
                 }
 
+                // Confidence gating runs *before* sampling so we can abort the whole generation
+                // (and avoid burning a sampled token + decode) when the model's distribution at
+                // position 0 is too flat. The signal is the top-1 probability of the softmax over
+                // the raw logits — not the post-sampler distribution — because temperature/top-p
+                // shape the sampler's output, not the model's actual confidence.
+                if tokenIndex == 0 && firstTokenConfidenceGatingEnabled {
+                    if let suppression = lowConfidenceSuppressionIfNeeded(
+                        context: context,
+                        vocab: vocab,
+                        threshold: firstTokenConfidenceThreshold
+                    ) {
+                        throw suppression
+                    }
+                }
+
                 let nextToken = llama_sampler_sample(activeSampler, context, -1)
                 if nextToken == llama_vocab_eos(vocab) || llama_vocab_is_eog(vocab, nextToken) {
                     break
@@ -282,6 +309,14 @@ actor LlamaRuntimeCore {
                 try decodeToken(nextToken, position: position, in: context)
                 position += 1
             }
+        } catch let error as LlamaRuntimeError {
+            // Confidence suppression is a clean abort — the prompt KV is still valid and the next
+            // request can reuse it. Reserve the cache reset for genuine generation failures.
+            if case .lowConfidenceSuppression = error {
+                throw error
+            }
+            shouldResetPromptCache = true
+            throw error
         } catch {
             shouldResetPromptCache = true
             throw error
@@ -802,6 +837,73 @@ actor LlamaRuntimeCore {
             .replacingOccurrences(of: "\t", with: "\\t")
         Self.firstTokenGateLogger.debug(
             "gate suppressed token \(bestTokenID, privacy: .public) (\"\(escaped, privacy: .public)\", logit=\(bestLogit, privacy: .public))"
+        )
+    }
+
+    /// Checks the model's confidence at position 0 and returns a suppression error if it is too
+    /// low. Confidence is defined as the **top-1 probability of the softmax over the raw logits**
+    /// at the last context position — i.e. how peaked the model's actual distribution is, before
+    /// any sampler-chain transforms.
+    ///
+    /// We deliberately don't use the *sampled* token's post-transform probability: temperature,
+    /// top-p, and min-p reshape the distribution, so a sampled-token probability of 0.9 after
+    /// top-p can correspond to a raw distribution where the true top-1 was 0.05 (the model was
+    /// confused, but the sampler concentrated mass on a survivor). For inline autocomplete we
+    /// want to suppress when *the model itself* was uncertain, not when the sampler happened to
+    /// be confident about a leftover.
+    ///
+    /// Implementation note: we compute softmax in a numerically-stable way (subtract max logit
+    /// before exp) over the full vocabulary. This is one O(nVocab) pass — same cost as the gate
+    /// argmax — and it only runs once per generation when confidence gating is enabled.
+    private func lowConfidenceSuppressionIfNeeded(
+        context: OpaquePointer,
+        vocab: OpaquePointer,
+        threshold: Double
+    ) -> LlamaRuntimeError? {
+        guard let logits = llama_get_logits_ith(context, -1) else {
+            return nil
+        }
+
+        let nVocab = Int(llama_vocab_n_tokens(vocab))
+        guard nVocab > 0 else { return nil }
+
+        var maxLogit: Float = -.infinity
+        var argmaxTokenID: llama_token = 0
+        for tokenID in 0 ..< nVocab {
+            let value = logits[tokenID]
+            if value > maxLogit {
+                maxLogit = value
+                argmaxTokenID = llama_token(tokenID)
+            }
+        }
+
+        // Numerically-stable softmax: subtract the max before exponentiating so we don't overflow
+        // float on large logits. The probability of the argmax token is then
+        //   exp(0) / sum(exp(logit_i - max)) = 1 / sum(exp(logit_i - max))
+        var expSum: Double = 0
+        for tokenID in 0 ..< nVocab {
+            expSum += Double(exp(logits[tokenID] - maxLogit))
+        }
+        guard expSum > 0 else { return nil }
+
+        let topProbability = Float(1.0 / expSum)
+
+        guard Double(topProbability) < threshold else {
+            return nil
+        }
+
+        let piece = pieceString(for: argmaxTokenID, vocab: vocab)
+        let escaped = piece
+            .replacingOccurrences(of: "\n", with: "\\n")
+            .replacingOccurrences(of: "\t", with: "\\t")
+        Self.firstTokenConfidenceLogger.debug(
+            "suppressed: top-1 token \(argmaxTokenID, privacy: .public) (\"\(escaped, privacy: .public)\") prob=\(topProbability, privacy: .public) threshold=\(threshold, privacy: .public)"
+        )
+
+        return .lowConfidenceSuppression(
+            probability: topProbability,
+            threshold: threshold,
+            token: piece
         )
     }
 

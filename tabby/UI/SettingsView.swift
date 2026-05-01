@@ -182,6 +182,37 @@ struct SettingsView: View {
                 )
                     .font(.caption)
                     .foregroundStyle(.secondary)
+
+                Toggle("Suppress Low-Confidence Suggestions", isOn: firstTokenConfidenceGatingBinding)
+
+                if suggestionSettings.isFirstTokenConfidenceGatingEnabled {
+                    // Slider only renders when the gate is on so an inactive control doesn't
+                    // imply behavior. The 0...0.5 range covers the useful tuning band — local
+                    // models rarely peak above ~0.6 even on confident tokens, so going past
+                    // 0.5 would suppress almost everything.
+                    LabeledContent("Confidence Threshold") {
+                        HStack(spacing: 8) {
+                            Slider(
+                                value: firstTokenConfidenceThresholdBinding,
+                                in: 0.0 ... 0.5,
+                                step: 0.01
+                            )
+                            .frame(maxWidth: 220)
+
+                            Text(String(format: "%.2f", suggestionSettings.firstTokenConfidenceThreshold))
+                                .font(.callout.monospacedDigit())
+                                .frame(width: 40, alignment: .trailing)
+                        }
+                    }
+                }
+
+                Text(
+                    "Aborts the suggestion when the model's top choice for the first word "
+                    + "is below the threshold probability. Useful when prompts are ambiguous "
+                    + "and the model's distribution is flat. Open Source engine only."
+                )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             } else {
                 Text("Completion Style and custom instructions apply to the Open Source engine.")
                     .font(.caption)
@@ -491,6 +522,24 @@ struct SettingsView: View {
             get: { suggestionSettings.isFirstTokenGatingEnabled },
             set: { enabled in
                 suggestionSettings.setFirstTokenGatingEnabled(enabled)
+            }
+        )
+    }
+
+    private var firstTokenConfidenceGatingBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.isFirstTokenConfidenceGatingEnabled },
+            set: { enabled in
+                suggestionSettings.setFirstTokenConfidenceGatingEnabled(enabled)
+            }
+        )
+    }
+
+    private var firstTokenConfidenceThresholdBinding: Binding<Double> {
+        Binding(
+            get: { suggestionSettings.firstTokenConfidenceThreshold },
+            set: { value in
+                suggestionSettings.setFirstTokenConfidenceThreshold(value)
             }
         )
     }

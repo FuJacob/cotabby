@@ -94,7 +94,9 @@ final class LlamaRuntimeManager: ObservableObject {
         minP: Double,
         repetitionPenalty: Double,
         seed: UInt32? = nil,
-        firstTokenGatingEnabled: Bool = true
+        firstTokenGatingEnabled: Bool = true,
+        firstTokenConfidenceGatingEnabled: Bool = false,
+        firstTokenConfidenceThreshold: Double = 0.0
     ) async throws -> String {
         _ = try await preparedRuntime()
 
@@ -109,7 +111,9 @@ final class LlamaRuntimeManager: ObservableObject {
                 minP: minP,
                 repetitionPenalty: repetitionPenalty,
                 seed: seed,
-                firstTokenGatingEnabled: firstTokenGatingEnabled
+                firstTokenGatingEnabled: firstTokenGatingEnabled,
+                firstTokenConfidenceGatingEnabled: firstTokenConfidenceGatingEnabled,
+                firstTokenConfidenceThreshold: firstTokenConfidenceThreshold
             )
         } catch is CancellationError {
             throw LlamaRuntimeError.cancelled

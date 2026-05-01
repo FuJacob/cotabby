@@ -188,6 +188,12 @@ enum LlamaRuntimeError: LocalizedError {
     case unavailable(String)
     case cancelled
     case generationFailed(String)
+    /// Signals that the first-token confidence gate aborted generation because the model's top-1
+    /// raw-logit softmax probability at position 0 was below the configured threshold.
+    /// The engine layer treats this as a normal "no suggestion" outcome rather than a user-facing
+    /// failure. Carrying probability/threshold/token in the case lets diagnostics distinguish a
+    /// suppressed-by-confidence empty from any other empty result.
+    case lowConfidenceSuppression(probability: Float, threshold: Double, token: String)
 
     var errorDescription: String? {
         switch self {
@@ -195,6 +201,8 @@ enum LlamaRuntimeError: LocalizedError {
             return message
         case .cancelled:
             return "Runtime work was cancelled."
+        case let .lowConfidenceSuppression(probability, threshold, _):
+            return "Suggestion suppressed: first-token confidence \(probability) is below threshold \(threshold)."
         }
     }
 }

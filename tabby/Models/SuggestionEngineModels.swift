@@ -83,4 +83,13 @@ struct SuggestionSettingsSnapshot: Equatable, Sendable {
     /// on the first generated token, preventing conversational openers from appearing in
     /// inline autocomplete suggestions.
     let isFirstTokenGatingEnabled: Bool
+    /// When true, the llama runtime measures top-1 probability of the raw-logit softmax at
+    /// position 0 and silently suppresses the suggestion if it falls below
+    /// `firstTokenConfidenceThreshold`. Distinct from gating: gating *masks* specific tokens,
+    /// confidence suppression *aborts* the whole suggestion when the model is uncertain.
+    let isFirstTokenConfidenceGatingEnabled: Bool
+    /// Probability threshold in [0, 1]. The suggestion is suppressed when the model's top-1
+    /// raw-logit softmax probability at position 0 is below this value. 0 disables in practice
+    /// (any probability >= 0 passes).
+    let firstTokenConfidenceThreshold: Double
 }

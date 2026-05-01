@@ -213,7 +213,9 @@ final class LlamaPromptRendererTests: XCTestCase {
             maxSuffixCharacters: 192,
             completionLengthInstruction: "Return only the next few words.",
             customAIInstructions: nil,
-            isFirstTokenGatingEnabled: true
+            isFirstTokenGatingEnabled: true,
+            isFirstTokenConfidenceGatingEnabled: false,
+            firstTokenConfidenceThreshold: 0.0
         )
     }
 }

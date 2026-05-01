@@ -257,6 +257,12 @@ struct SuggestionRequest: Equatable, Sendable {
     /// on the very first sampled token. This is a llama-only feature — Apple Intelligence does
     /// not expose logit-level control.
     let isFirstTokenGatingEnabled: Bool
+    /// When true, the llama runtime measures the top-1 raw-logit softmax probability at the
+    /// first token position and aborts (returns no suggestion) when it falls below
+    /// `firstTokenConfidenceThreshold`. llama-only.
+    let isFirstTokenConfidenceGatingEnabled: Bool
+    /// Probability threshold in [0, 1] used by `isFirstTokenConfidenceGatingEnabled`.
+    let firstTokenConfidenceThreshold: Double
 }
 
 /// The engine's normalized response, including raw model text for debugging.

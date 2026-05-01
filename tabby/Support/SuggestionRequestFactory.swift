@@ -63,7 +63,9 @@ enum SuggestionRequestFactory {
             maxSuffixCharacters: configuration.maxSuffixCharacters,
             completionLengthInstruction: completionLengthInstruction,
             customAIInstructions: customAIInstructions,
-            isFirstTokenGatingEnabled: settings.isFirstTokenGatingEnabled
+            isFirstTokenGatingEnabled: settings.isFirstTokenGatingEnabled,
+            isFirstTokenConfidenceGatingEnabled: settings.isFirstTokenConfidenceGatingEnabled,
+            firstTokenConfidenceThreshold: settings.firstTokenConfidenceThreshold
         )
 
         return SuggestionRequestBuildResult(
