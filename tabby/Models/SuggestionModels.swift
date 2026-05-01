@@ -109,10 +109,11 @@ struct SuggestionConfiguration: Equatable, Sendable {
     let maxPrefixWords: Int
     let maxPrefixCharacters: Int
     let maxSuffixCharacters: Int
-    /// Shipped first-launch default for the user's saved custom instructions.
+    /// Shipped first-launch default for the user's saved profile.
     /// `SuggestionSettingsModel` persists the user's real preference; configuration only provides
     /// the app's starting value for a fresh install.
-    let defaultCustomAIInstructions: String?
+    let defaultUserName: String?
+    let defaultUserTags: [String]?
     let defaultWordCountPreset: SuggestionWordCountPreset
 
     /// The configuration shipped by the app today.
@@ -135,11 +136,9 @@ struct SuggestionConfiguration: Equatable, Sendable {
         // little quality gain because Tabby is only completing the immediate local continuation.
         maxPrefixCharacters: 1000,
         maxSuffixCharacters: 192,
-        // Seed the instructions-based mode with the current house writing guidance on first launch.
-        defaultCustomAIInstructions: """
-            My name is Jacob Fu. I usually write in English.
-            Write in a friendly, professional and empathetic voice.
-            """,
+        // Seed the profile settings with lightweight defaults on first launch.
+        defaultUserName: "Jacob",
+        defaultUserTags: [],
         defaultWordCountPreset: .sevenToTwelve
     )
 }
@@ -233,9 +232,10 @@ struct SuggestionRequest: Equatable, Sendable {
     /// Explicit length guidance stays separate from user style preferences so prompt builders can
     /// order and phrase them differently per backend.
     let completionLengthInstruction: String
-    /// Optional user-provided style guidance. We keep this separate from base product behavior so
+    /// Optional user-provided profile context. We keep this separate from base product behavior so
     /// future settings/personalization work can evolve independently from prompt safety rules.
-    let customAIInstructions: String?
+    let userName: String?
+    let userTags: [String]?
     /// Ephemeral screen context summary injected only when available for the active text field.
     let visualContextSummary: String?
 }

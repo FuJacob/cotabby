@@ -37,12 +37,14 @@ enum SuggestionRequestFactory {
             configuration: configuration
         )
         let completionLengthInstruction = settings.selectedWordCountPreset.promptInstruction
-        let customAIInstructions = activeCustomAIInstructions(settings: settings)
-        let prompt = buildPrompt(
-            context: context,
+        let userName = activeUserName(settings: settings)
+        let userTags = activeUserTags(settings: settings)
+        let prompt = LlamaPromptRenderer.prompt(
             prefixText: prefixText,
+            applicationName: context.applicationName,
             completionLengthInstruction: completionLengthInstruction,
-            customAIInstructions: customAIInstructions,
+            userName: userName,
+            userTags: userTags,
             visualContextSummary: visualContextSummary
         )
 
@@ -63,30 +65,14 @@ enum SuggestionRequestFactory {
             randomSeed: configuration.randomSeed,
             maxSuffixCharacters: configuration.maxSuffixCharacters,
             completionLengthInstruction: completionLengthInstruction,
-            customAIInstructions: customAIInstructions,
+            userName: userName,
+            userTags: userTags,
             visualContextSummary: visualContextSummary
         )
 
         return SuggestionRequestBuildResult(
             request: request,
             promptPreview: prompt
-        )
-    }
-
-    /// Builds the prompt contract that the local model sees for the current focused field.
-    private static func buildPrompt(
-        context: FocusedInputContext,
-        prefixText: String,
-        completionLengthInstruction: String,
-        customAIInstructions: String?,
-        visualContextSummary: String?
-    ) -> String {
-        LlamaPromptRenderer.prompt(
-            prefixText: prefixText,
-            applicationName: context.applicationName,
-            completionLengthInstruction: completionLengthInstruction,
-            customAIInstructions: customAIInstructions,
-            visualContextSummary: visualContextSummary
         )
     }
 
@@ -105,10 +91,16 @@ enum SuggestionRequestFactory {
         return trailingWords.isEmpty ? characterWindow : trailingWords
     }
 
-    private static func activeCustomAIInstructions(
+    private static func activeUserName(
         settings: SuggestionSettingsSnapshot
     ) -> String? {
-        settings.customAIInstructions
+        settings.userName
+    }
+
+    private static func activeUserTags(
+        settings: SuggestionSettingsSnapshot
+    ) -> [String]? {
+        settings.userTags
     }
 
     private static func activeMaxPredictionTokens(

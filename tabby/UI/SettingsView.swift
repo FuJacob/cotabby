@@ -31,7 +31,7 @@ struct SettingsView: View {
             generalSection
             autocompleteSection
             disabledAppsSection
-            customInstructionsSection
+            profileSection
             permissionsSection
             localModelsSection
             updatesSection
@@ -184,16 +184,36 @@ struct SettingsView: View {
     }
 
     @ViewBuilder
-    private var customInstructionsSection: some View {
-        Section("Custom AI Instructions") {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(customAIInstructionsDescription)
+    private var profileSection: some View {
+        Section("Profile") {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("This information is passed to the AI to help personalize your completions.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                TextEditor(text: customAIInstructionsBinding)
-                    .font(.system(size: 13))
-                    .frame(minHeight: 120)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Name")
+                        .font(.system(size: 13, weight: .medium))
+
+                    TextField("What should tabby call you?", text: Binding(
+                        get: { suggestionSettings.userName },
+                        set: { suggestionSettings.setUserName($0) }
+                    ))
+                    .textFieldStyle(.roundedBorder)
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Things you type often")
+                        .font(.system(size: 13, weight: .medium))
+
+                    TagsInputView(
+                        tags: Binding(
+                            get: { suggestionSettings.userTags },
+                            set: { suggestionSettings.setUserTags($0) }
+                        ),
+                        placeholder: "Add tags (press Enter to add)"
+                    )
+                }
             }
             .padding(.vertical, 4)
         }
@@ -461,15 +481,6 @@ struct SettingsView: View {
         )
     }
 
-    private var customAIInstructionsBinding: Binding<String> {
-        Binding(
-            get: { suggestionSettings.customAIInstructions },
-            set: { instructions in
-                suggestionSettings.setCustomAIInstructions(instructions)
-            }
-        )
-    }
-
     private var selectedModelBinding: Binding<String> {
         Binding(
             get: {
@@ -497,11 +508,6 @@ struct SettingsView: View {
         }
 
         return "Custom ghost text color is active."
-    }
-
-    private var customAIInstructionsDescription: String {
-        "These instructions are active for autocomplete. Use them to tell Tabby about your " +
-            "tone, language, audience, or formatting preferences."
     }
 
     private var localModelsDescription: String {

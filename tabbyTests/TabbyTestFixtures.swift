@@ -94,7 +94,8 @@ enum TabbyTestFixtures {
         generation: UInt64 = 1,
         maxPredictionTokens: Int = 8,
         completionLengthInstruction: String = "Return only the next few words.",
-        customAIInstructions: String? = nil,
+        userName: String? = nil,
+        userTags: [String]? = nil,
         visualContextSummary: String? = nil
     ) -> SuggestionRequest {
         let resolvedPrecedingText = precedingText ?? prefixText
@@ -118,7 +119,8 @@ enum TabbyTestFixtures {
             randomSeed: 42,
             maxSuffixCharacters: 192,
             completionLengthInstruction: completionLengthInstruction,
-            customAIInstructions: customAIInstructions,
+            userName: userName,
+            userTags: userTags,
             visualContextSummary: visualContextSummary
         )
     }
@@ -202,14 +204,16 @@ enum TabbyTestFixtures {
         disabledAppBundleIdentifiers: Set<String> = [],
         selectedEngine: SuggestionEngineKind = .llamaOpenSource,
         selectedWordCountPreset: SuggestionWordCountPreset = .sevenToTwelve,
-        customAIInstructions: String? = nil
+        userName: String = "",
+        userTags: [String] = []
     ) -> SuggestionSettingsSnapshot {
         SuggestionSettingsSnapshot(
             isGloballyEnabled: isGloballyEnabled,
             disabledAppBundleIdentifiers: disabledAppBundleIdentifiers,
             selectedEngine: selectedEngine,
             selectedWordCountPreset: selectedWordCountPreset,
-            customAIInstructions: customAIInstructions
+            userName: userName,
+            userTags: userTags
         )
     }
 }

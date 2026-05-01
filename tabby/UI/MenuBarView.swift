@@ -7,7 +7,7 @@ import SwiftUI
 /// Design philosophy: the menu bar is the primary interaction surface for a menu bar app.
 /// It shows status at a glance and exposes the controls users reach for mid-session
 /// (engine, model, completion length). Rarely-changed settings (model management,
-/// prompt mode, updates) live in the Settings window.
+/// profile personalization, updates) live in the Settings window.
 ///
 /// The focused-app context card was intentionally removed: opening the menu bar panel
 /// steals focus from whatever app the user was typing in, so live focus state is always
