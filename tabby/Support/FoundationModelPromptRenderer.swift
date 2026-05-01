@@ -27,7 +27,21 @@ enum FoundationModelPromptRenderer {
             "Use plain text only with no labels, bullets, markdown, or explanation."
         ]
 
-        lines.append(contentsOf: CustomAIInstructionFormatter.promptSectionLines(from: request.customAIInstructions))
+        var profileSections: [String] = []
+        if let name = request.userName, !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            profileSections.append("The user's name is \(name).")
+        }
+        if let tags = request.userTags, !tags.isEmpty {
+            let tagsString = tags.joined(separator: ", ")
+            profileSections.append("Things the user types often include: \(tagsString).")
+        }
+
+        if !profileSections.isEmpty {
+            lines.append("User Profile Context:")
+            lines.append(contentsOf: profileSections)
+            lines.append("Use this context only when it fits naturally into the continuation.")
+        }
+
         return lines.joined(separator: "\n")
     }
 

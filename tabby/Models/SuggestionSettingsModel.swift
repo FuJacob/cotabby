@@ -3,8 +3,8 @@ import Foundation
 
 /// File overview:
 /// Owns the durable autocomplete preferences that are shared across the app:
-/// engine selection, completion length, indicator appearance, and custom
-/// writing guidance.
+/// engine selection, completion length, indicator appearance, and profile
+/// personalization.
 ///
 /// This type is the right owner for these values because they are product settings, not
 /// `SuggestionCoordinator` session state. The coordinator should react to settings changes, not
@@ -17,8 +17,8 @@ final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var customSuggestionTextColorHex: String?
     @Published private(set) var selectedEngine: SuggestionEngineKind
     @Published private(set) var selectedWordCountPreset: SuggestionWordCountPreset
-    @Published private(set) var customAIInstructions: String
-
+    @Published private(set) var userName: String
+    @Published private(set) var userTags: [String]
     private let userDefaults: UserDefaults
 
     private static let isGloballyEnabledDefaultsKey = "tabbyGloballyEnabled"
@@ -29,7 +29,8 @@ final class SuggestionSettingsModel: ObservableObject {
     private static let customSuggestionTextColorHexDefaultsKey = "tabbyCustomSuggestionTextColorHex"
     private static let selectedEngineDefaultsKey = "selectedSuggestionEngine"
     private static let selectedWordCountPresetDefaultsKey = "selectedSuggestionWordCountPreset"
-    private static let customAIInstructionsDefaultsKey = "tabbyCustomAIInstructions"
+    private static let userNameDefaultsKey = "tabbyUserName"
+    private static let userTagsDefaultsKey = "tabbyUserTags"
 
     init(
         configuration: SuggestionConfiguration,
@@ -55,10 +56,16 @@ final class SuggestionSettingsModel: ObservableObject {
             .string(forKey: Self.selectedWordCountPresetDefaultsKey)
             .flatMap(SuggestionWordCountPreset.init(rawValue:))
             ?? configuration.defaultWordCountPreset
-        let resolvedCustomAIInstructions: String = if userDefaults.object(forKey: Self.customAIInstructionsDefaultsKey) == nil {
-            configuration.defaultCustomAIInstructions ?? ""
+        let resolvedUserName: String = if userDefaults.object(forKey: Self.userNameDefaultsKey) == nil {
+            configuration.defaultUserName ?? ""
         } else {
-            userDefaults.string(forKey: Self.customAIInstructionsDefaultsKey) ?? ""
+            userDefaults.string(forKey: Self.userNameDefaultsKey) ?? ""
+        }
+
+        let resolvedUserTags: [String] = if userDefaults.object(forKey: Self.userTagsDefaultsKey) == nil {
+            configuration.defaultUserTags ?? []
+        } else {
+            userDefaults.stringArray(forKey: Self.userTagsDefaultsKey) ?? []
         }
 
         isGloballyEnabled = resolvedGloballyEnabled
@@ -67,7 +74,8 @@ final class SuggestionSettingsModel: ObservableObject {
         customSuggestionTextColorHex = resolvedCustomSuggestionTextColorHex
         selectedEngine = resolvedEngine
         selectedWordCountPreset = resolvedWordCountPreset
-        customAIInstructions = resolvedCustomAIInstructions
+        userName = resolvedUserName
+        userTags = resolvedUserTags
 
         userDefaults.set(resolvedGloballyEnabled, forKey: Self.isGloballyEnabledDefaultsKey)
         persistDisabledAppRules(resolvedDisabledAppRules)
@@ -75,7 +83,8 @@ final class SuggestionSettingsModel: ObservableObject {
         persistCustomSuggestionTextColorHex(resolvedCustomSuggestionTextColorHex)
         persistSelectedEngine(resolvedEngine)
         persistSelectedWordCountPreset(resolvedWordCountPreset)
-        persistCustomAIInstructions(resolvedCustomAIInstructions)
+        persistUserName(resolvedUserName)
+        persistUserTags(resolvedUserTags)
     }
 
     /// Compatibility shim for legacy call sites while the UI migrates from the old toggle to the
@@ -90,7 +99,8 @@ final class SuggestionSettingsModel: ObservableObject {
             disabledAppBundleIdentifiers: Set(disabledAppRules.map(\.bundleIdentifier)),
             selectedEngine: selectedEngine,
             selectedWordCountPreset: selectedWordCountPreset,
-            customAIInstructions: CustomAIInstructionFormatter.normalized(customAIInstructions)
+            userName: userName,
+            userTags: userTags
         )
     }
 
@@ -224,13 +234,22 @@ final class SuggestionSettingsModel: ObservableObject {
         persistCustomSuggestionTextColorHex(normalizedHex)
     }
 
-    func setCustomAIInstructions(_ instructions: String) {
-        guard customAIInstructions != instructions else {
+    func setUserName(_ name: String) {
+        guard userName != name else {
             return
         }
 
-        customAIInstructions = instructions
-        persistCustomAIInstructions(instructions)
+        userName = name
+        persistUserName(name)
+    }
+
+    func setUserTags(_ tags: [String]) {
+        guard userTags != tags else {
+            return
+        }
+
+        userTags = tags
+        persistUserTags(tags)
     }
 
     private func persistSelectedEngine(_ engine: SuggestionEngineKind) {
@@ -341,8 +360,12 @@ final class SuggestionSettingsModel: ObservableObject {
         return trimmed
     }
 
-    private func persistCustomAIInstructions(_ instructions: String) {
-        userDefaults.set(instructions, forKey: Self.customAIInstructionsDefaultsKey)
+    private func persistUserName(_ name: String) {
+        userDefaults.set(name, forKey: Self.userNameDefaultsKey)
+    }
+
+    private func persistUserTags(_ tags: [String]) {
+        userDefaults.set(tags, forKey: Self.userTagsDefaultsKey)
     }
 
     private func persistDisabledAppRules(_ rules: [DisabledApplicationRule]) {
@@ -359,21 +382,25 @@ final class SuggestionSettingsModel: ObservableObject {
 
 extension SuggestionSettingsModel: SuggestionSettingsProviding {
     var snapshotPublisher: AnyPublisher<SuggestionSettingsSnapshot, Never> {
-        Publishers.CombineLatest4(
-            $isGloballyEnabled,
-            $disabledAppRules,
-            $selectedEngine,
-            $selectedWordCountPreset
+        Publishers.CombineLatest3(
+            Publishers.CombineLatest4(
+                $isGloballyEnabled,
+                $disabledAppRules,
+                $selectedEngine,
+                $selectedWordCountPreset
+            ),
+            $userName,
+            $userTags
         )
-        .combineLatest($customAIInstructions)
-        .map { combinedSettings, customAIInstructions in
+        .map { combinedSettings, userName, userTags in
             let (globallyEnabled, disabledAppRules, engine, wordCountPreset) = combinedSettings
             return SuggestionSettingsSnapshot(
                 isGloballyEnabled: globallyEnabled,
                 disabledAppBundleIdentifiers: Set(disabledAppRules.map(\.bundleIdentifier)),
                 selectedEngine: engine,
                 selectedWordCountPreset: wordCountPreset,
-                customAIInstructions: CustomAIInstructionFormatter.normalized(customAIInstructions)
+                userName: userName,
+                userTags: userTags
             )
         }
         .removeDuplicates()

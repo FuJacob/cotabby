@@ -11,14 +11,14 @@ import Foundation
 enum LlamaPromptRenderer {
     /// Renders Tabby's local-model prompt.
     ///
-    /// Tabby now always uses the instruction-rendered path. That makes custom user guidance the
-    /// default behavior and avoids keeping a second "fast" prompt contract that can drift from the
-    /// real product experience.
+    /// Tabby always uses the instruction-rendered path so profile context and base autocomplete
+    /// rules travel through one prompt contract instead of drifting across separate modes.
     static func prompt(
         prefixText: String,
         applicationName: String,
         completionLengthInstruction: String,
-        customAIInstructions: String?,
+        userName: String?,
+        userTags: [String]?,
         visualContextSummary: String? = nil
     ) -> String {
         var sections = [
@@ -38,10 +38,20 @@ enum LlamaPromptRenderer {
             "- Start immediately with the continuation text."
         ]
 
-        let customInstructionLines = CustomAIInstructionFormatter.promptSectionLines(from: customAIInstructions)
-        if !customInstructionLines.isEmpty {
+        var profileSections: [String] = []
+        if let name = userName, !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            profileSections.append("- The user's name is \(name).")
+        }
+        if let tags = userTags, !tags.isEmpty {
+            let tagsString = tags.joined(separator: ", ")
+            profileSections.append("- Things the user types often include: \(tagsString).")
+        }
+
+        if !profileSections.isEmpty {
             sections.append("")
-            sections.append(contentsOf: customInstructionLines)
+            sections.append("User Profile Context:")
+            sections.append(contentsOf: profileSections)
+            sections.append("- Use this context only when it fits naturally into the continuation.")
         }
 
         sections.append("")

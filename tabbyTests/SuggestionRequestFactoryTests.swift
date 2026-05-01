@@ -74,7 +74,8 @@ final class SuggestionRequestFactoryTests: XCTestCase {
             maxPrefixWords: 3,
             maxPrefixCharacters: 32,
             maxSuffixCharacters: 192,
-            defaultCustomAIInstructions: nil,
+            defaultUserName: nil,
+            defaultUserTags: nil,
             defaultWordCountPreset: .sevenToTwelve
         )
 
@@ -103,7 +104,8 @@ final class SuggestionRequestFactoryTests: XCTestCase {
             maxPrefixWords: 50,
             maxPrefixCharacters: 1000,
             maxSuffixCharacters: 192,
-            defaultCustomAIInstructions: nil,
+            defaultUserName: nil,
+            defaultUserTags: nil,
             defaultWordCountPreset: .sevenToTwelve
         )
 
@@ -121,23 +123,26 @@ final class SuggestionRequestFactoryTests: XCTestCase {
         XCTAssertEqual(result.promptPreview, result.request.prompt)
     }
 
-    func test_buildRequest_carriesCustomInstructionsAndVisualContextSummary() {
+    func test_buildRequest_carriesProfileAndVisualContextSummary() {
         let context = TabbyTestFixtures.focusedInputContext(precedingText: "Hello")
 
         let result = SuggestionRequestFactory.buildRequest(
             context: context,
             settings: TabbyTestFixtures.settingsSnapshot(
-                customAIInstructions: "Prefer direct wording."
+                userName: "Casey",
+                userTags: ["Prefer direct wording."]
             ),
             configuration: .standard,
             visualContextSummary: "Calendar window says project review at 3 PM."
         )
 
-        XCTAssertEqual(result.request.customAIInstructions, "Prefer direct wording.")
+        XCTAssertEqual(result.request.userName, "Casey")
+        XCTAssertEqual(result.request.userTags, ["Prefer direct wording."])
         XCTAssertEqual(
             result.request.visualContextSummary,
             "Calendar window says project review at 3 PM."
         )
+        XCTAssertTrue(result.promptPreview.contains("Casey"))
         XCTAssertTrue(result.promptPreview.contains("Prefer direct wording."))
         XCTAssertTrue(result.promptPreview.contains("Calendar window says project review at 3 PM."))
     }
