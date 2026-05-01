@@ -359,11 +359,25 @@ enum SuggestionDebugState: Equatable {
     }
 }
 
+/// Geometry needed to render ghost text in the same visual line box as the host editor.
+///
+/// `caretRect` tells Tabby where the current insertion point is. `inputFrameRect` gives the
+/// broader editor bounds, which lets the overlay wrap overflow text back to the field's left edge
+/// instead of drawing past the right edge of the text container.
+struct SuggestionOverlayGeometry: Equatable, Sendable {
+    let caretRect: CGRect
+    let inputFrameRect: CGRect?
+    let caretQuality: CaretGeometryQuality
+    /// Average character width from AX child-frame sampling when available. Layout uses this as a
+    /// cheap approximation for host-editor text width before falling back to local font metrics.
+    let observedCharWidth: CGFloat?
+}
+
 /// The overlay is intentionally modeled as data so diagnostics can reason about visibility
 /// without poking into AppKit window objects directly.
 enum OverlayState: Equatable {
     case hidden(reason: String)
-    case visible(text: String, caretRect: CGRect, caretQuality: CaretGeometryQuality)
+    case visible(text: String, geometry: SuggestionOverlayGeometry)
 
     var shortLabel: String {
         switch self {
@@ -378,10 +392,10 @@ enum OverlayState: Equatable {
         switch self {
         case let .hidden(reason):
             return reason
-        case let .visible(text, caretRect, caretQuality):
+        case let .visible(text, geometry):
             return "Showing \(text.count) characters near " +
-                "(\(Int(caretRect.minX)), \(Int(caretRect.minY))) " +
-                "using \(caretQuality.label) caret geometry."
+                "(\(Int(geometry.caretRect.minX)), \(Int(geometry.caretRect.minY))) " +
+                "using \(geometry.caretQuality.label) caret geometry."
         }
     }
 
@@ -394,7 +408,7 @@ enum OverlayState: Equatable {
     }
 
     var visibleText: String? {
-        guard case let .visible(text, _, _) = self else {
+        guard case let .visible(text, _) = self else {
             return nil
         }
 

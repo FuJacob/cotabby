@@ -60,20 +60,29 @@ final class OverlayController: SuggestionOverlayControlling {
     }()
 
     /// Sizes and positions the overlay next to the reported caret bounds for the current field.
-    func showSuggestion(_ text: String, at caretRect: CGRect, caretQuality: CaretGeometryQuality) {
+    func showSuggestion(_ text: String, geometry: SuggestionOverlayGeometry) {
         guard !text.isEmpty else {
             hide(reason: "Overlay not shown because the suggestion was empty.")
             return
         }
 
-        let fontSize = resolvedGhostFontSize(for: caretRect, caretQuality: caretQuality)
+        let fontSize = resolvedGhostFontSize(
+            for: geometry.caretRect,
+            caretQuality: geometry.caretQuality
+        )
+        let layout = GhostSuggestionLayout.make(
+            text: text,
+            geometry: geometry,
+            fontSize: fontSize,
+            visibleFrame: targetScreenVisibleFrame(for: geometry.caretRect)
+        )
         let customGhostColor = SuggestionTextColorCodec.color(
             fromHex: suggestionSettings.customSuggestionTextColorHex
         )
         let contentView: NSHostingView<GhostSuggestionView>
         if let existing = hostingView {
             existing.rootView = GhostSuggestionView(
-                text: text,
+                layout: layout,
                 fontSize: fontSize,
                 customColor: customGhostColor
             )
@@ -81,7 +90,7 @@ final class OverlayController: SuggestionOverlayControlling {
         } else {
             let fresh = NSHostingView(
                 rootView: GhostSuggestionView(
-                    text: text,
+                    layout: layout,
                     fontSize: fontSize,
                     customColor: customGhostColor
                 )
@@ -93,19 +102,11 @@ final class OverlayController: SuggestionOverlayControlling {
         contentView.layoutSubtreeIfNeeded()
         let contentSize = contentView.fittingSize
 
-        // Vertically center the ghost text within the caret rect. When the caret rect is a
-        // tight line-height box this looks identical to top-alignment, but when it's oversized
-        // (e.g. AXFrame fallback returning the full text area) the text lands at the visual
-        // midpoint instead of floating at the top edge.
-        let origin = CGPoint(
-            x: caretRect.maxX + 6,
-            y: caretRect.midY - contentSize.height / 2
-        )
-        let frame = CGRect(origin: origin, size: contentSize)
+        let frame = layout.panelFrame(for: contentSize, caretRect: geometry.caretRect)
 
         panel.setFrame(frame.integral, display: true)
         panel.orderFrontRegardless()
-        state = .visible(text: text, caretRect: caretRect, caretQuality: caretQuality)
+        state = .visible(text: text, geometry: geometry)
     }
 
     /// Hides the floating panel and records why the overlay is no longer visible.
@@ -132,6 +133,14 @@ final class OverlayController: SuggestionOverlayControlling {
 
         return min(proposedSize, qualityCap)
     }
+
+    private func targetScreenVisibleFrame(for caretRect: CGRect) -> CGRect {
+        if let screen = NSScreen.screens.first(where: { $0.frame.intersects(caretRect) }) {
+            return screen.visibleFrame
+        }
+
+        return NSScreen.main?.visibleFrame ?? CGRect(x: 0, y: 0, width: 800, height: 600)
+    }
 }
 
 private final class OverlayPanel: NSPanel {
@@ -144,7 +153,7 @@ private final class OverlayPanel: NSPanel {
 /// without touching the AppKit positioning code.
 private struct GhostSuggestionView: View {
     @Environment(\.colorScheme) var colorScheme
-    let text: String
+    let layout: GhostSuggestionLayout
     let fontSize: CGFloat
     let customColor: Color?
 
@@ -158,14 +167,22 @@ private struct GhostSuggestionView: View {
     }
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 6) {
-            Text(text)
-                .font(.system(size: fontSize))
-                .foregroundStyle(ghostColor)
-                .lineLimit(1)
-                .fixedSize(horizontal: true, vertical: true)
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(layout.lines) { line in
+                HStack(alignment: .firstTextBaseline, spacing: line.showsKeycap ? 6 : 0) {
+                    Text(line.text)
+                        .font(.system(size: fontSize))
+                        .foregroundStyle(ghostColor)
+                        .lineLimit(1)
+                        .fixedSize(horizontal: true, vertical: true)
 
-            GhostTabKeycap()
+                    if line.showsKeycap {
+                        GhostTabKeycap()
+                    }
+                }
+                .padding(.leading, line.leadingIndent)
+                .fixedSize(horizontal: true, vertical: true)
+            }
         }
         .fixedSize(horizontal: true, vertical: true)
     }

@@ -125,8 +125,7 @@ final class SuggestionInteractionStateTests: XCTestCase {
                 from: snapshot,
                 overlayState: .visible(
                     text: " world again",
-                    caretRect: context.caretRect,
-                    caretQuality: .exact
+                    geometry: TabbyTestFixtures.overlayGeometry(caretRect: context.caretRect)
                 )
             )
 
@@ -150,8 +149,7 @@ final class SuggestionInteractionStateTests: XCTestCase {
                 from: TabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello"),
                 overlayState: .visible(
                     text: " different",
-                    caretRect: context.caretRect,
-                    caretQuality: .exact
+                    geometry: TabbyTestFixtures.overlayGeometry(caretRect: context.caretRect)
                 )
             )
 
@@ -395,8 +393,7 @@ final class SuggestionOverlayPresenterTests: XCTestCase {
 
             let message = presenter.present(
                 text: "   ",
-                at: .zero,
-                caretQuality: .exact,
+                geometry: TabbyTestFixtures.overlayGeometry(caretRect: .zero),
                 previousState: overlayController.state
             )
 
@@ -414,8 +411,7 @@ final class SuggestionOverlayPresenterTests: XCTestCase {
 
             let message = presenter.present(
                 text: " world",
-                at: caretRect,
-                caretQuality: .exact,
+                geometry: TabbyTestFixtures.overlayGeometry(caretRect: caretRect),
                 previousState: overlayController.state
             )
 
@@ -429,15 +425,15 @@ final class SuggestionOverlayPresenterTests: XCTestCase {
     func test_presentIdenticalVisibleStateDoesNotCallOverlayAgain() {
         runOnMainActor {
             let caretRect = CGRect(x: 10, y: 20, width: 2, height: 18)
+            let geometry = TabbyTestFixtures.overlayGeometry(caretRect: caretRect)
             let overlayController = FakeOverlayController(
-                initialState: .visible(text: " world", caretRect: caretRect, caretQuality: .exact)
+                initialState: .visible(text: " world", geometry: geometry)
             )
             let presenter = SuggestionOverlayPresenter(overlayController: overlayController)
 
             let message = presenter.present(
                 text: " world",
-                at: caretRect,
-                caretQuality: .exact,
+                geometry: geometry,
                 previousState: overlayController.state
             )
 
@@ -455,9 +451,11 @@ final class SuggestionOverlayPresenterTests: XCTestCase {
 
             let message = presenter.present(
                 text: " world",
-                at: nextRect,
-                caretQuality: .exact,
-                previousState: .visible(text: " world", caretRect: previousRect, caretQuality: .exact)
+                geometry: TabbyTestFixtures.overlayGeometry(caretRect: nextRect),
+                previousState: .visible(
+                    text: " world",
+                    geometry: TabbyTestFixtures.overlayGeometry(caretRect: previousRect)
+                )
             )
 
             XCTAssertEqual(message, "Moved ghost text to the latest caret position.")
@@ -472,9 +470,14 @@ final class SuggestionOverlayPresenterTests: XCTestCase {
 
             let message = presenter.present(
                 text: " world",
-                at: caretRect,
-                caretQuality: .derived,
-                previousState: .visible(text: " world", caretRect: caretRect, caretQuality: .exact)
+                geometry: TabbyTestFixtures.overlayGeometry(
+                    caretRect: caretRect,
+                    caretQuality: .derived
+                ),
+                previousState: .visible(
+                    text: " world",
+                    geometry: TabbyTestFixtures.overlayGeometry(caretRect: caretRect)
+                )
             )
 
             XCTAssertEqual(message, "Updated ghost text styling for the latest caret quality.")
@@ -537,6 +540,7 @@ private final class FakeOverlayController: SuggestionOverlayControlling {
     private(set) var showCallCount = 0
     private(set) var lastShownText: String?
     private(set) var lastShownCaretRect: CGRect?
+    private(set) var lastShownGeometry: SuggestionOverlayGeometry?
     private(set) var hideReasons: [String] = []
 
     init(initialState: OverlayState = .hidden(reason: "Overlay idle.")) {
@@ -545,13 +549,13 @@ private final class FakeOverlayController: SuggestionOverlayControlling {
 
     func showSuggestion(
         _ text: String,
-        at caretRect: CGRect,
-        caretQuality: CaretGeometryQuality
+        geometry: SuggestionOverlayGeometry
     ) {
         showCallCount += 1
         lastShownText = text
-        lastShownCaretRect = caretRect
-        state = .visible(text: text, caretRect: caretRect, caretQuality: caretQuality)
+        lastShownCaretRect = geometry.caretRect
+        lastShownGeometry = geometry
+        state = .visible(text: text, geometry: geometry)
         onStateChange?(state)
     }
 

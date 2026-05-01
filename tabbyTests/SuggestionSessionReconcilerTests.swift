@@ -82,13 +82,19 @@ final class SuggestionSessionReconcilerTests: XCTestCase {
         XCTAssertTrue(
             SuggestionSessionReconciler.overlayAllowsAcceptance(
                 of: " world",
-                overlayState: .visible(text: " world", caretRect: caretRect, caretQuality: .exact)
+                overlayState: .visible(
+                    text: " world",
+                    geometry: TabbyTestFixtures.overlayGeometry(caretRect: caretRect)
+                )
             )
         )
         XCTAssertFalse(
             SuggestionSessionReconciler.overlayAllowsAcceptance(
                 of: " world",
-                overlayState: .visible(text: " there", caretRect: caretRect, caretQuality: .exact)
+                overlayState: .visible(
+                    text: " there",
+                    geometry: TabbyTestFixtures.overlayGeometry(caretRect: caretRect)
+                )
             )
         )
     }

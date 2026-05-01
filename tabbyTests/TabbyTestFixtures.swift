@@ -143,6 +143,20 @@ enum TabbyTestFixtures {
         )
     }
 
+    static func overlayGeometry(
+        caretRect: CGRect = CGRect(x: 10, y: 20, width: 2, height: 18),
+        inputFrameRect: CGRect? = CGRect(x: 0, y: 0, width: 240, height: 32),
+        caretQuality: CaretGeometryQuality = .exact,
+        observedCharWidth: CGFloat? = nil
+    ) -> SuggestionOverlayGeometry {
+        SuggestionOverlayGeometry(
+            caretRect: caretRect,
+            inputFrameRect: inputFrameRect,
+            caretQuality: caretQuality,
+            observedCharWidth: observedCharWidth
+        )
+    }
+
     static func focusCapabilityCandidate(
         elementIdentifier: String = "candidate",
         role: String = "AXTextField",

@@ -20,8 +20,7 @@ struct SuggestionOverlayPresenter {
     /// Shows or repositions ghost text while preserving the previous overlay message when nothing changed.
     func present(
         text: String,
-        at caretRect: CGRect,
-        caretQuality: CaretGeometryQuality,
+        geometry: SuggestionOverlayGeometry,
         previousState: OverlayState
     ) -> String? {
         let displayText = text.trimmingCharacters(in: .whitespaces).isEmpty ? "" : text
@@ -31,24 +30,27 @@ struct SuggestionOverlayPresenter {
 
         guard previousState != .visible(
             text: displayText,
-            caretRect: caretRect,
-            caretQuality: caretQuality
+            geometry: geometry
         ) else {
             return nil
         }
 
-        overlayController.showSuggestion(displayText, at: caretRect, caretQuality: caretQuality)
+        overlayController.showSuggestion(displayText, geometry: geometry)
 
         switch previousState {
-        case .visible(let previousText, let previousCaretRect, let previousCaretQuality)
+        case .visible(let previousText, let previousGeometry)
         where previousText == displayText
-            && previousCaretRect == caretRect
-            && previousCaretQuality != caretQuality:
+            && previousGeometry.caretRect == geometry.caretRect
+            && previousGeometry.caretQuality != geometry.caretQuality:
             return "Updated ghost text styling for the latest caret quality."
 
-        case .visible(let previousText, let previousCaretRect, _)
-        where previousText == displayText && previousCaretRect != caretRect:
+        case .visible(let previousText, let previousGeometry)
+        where previousText == displayText && previousGeometry.caretRect != geometry.caretRect:
             return "Moved ghost text to the latest caret position."
+
+        case .visible(let previousText, _)
+        where previousText == displayText:
+            return "Updated ghost text layout for the latest input bounds."
 
         default:
             return "Displayed ghost text near the caret."

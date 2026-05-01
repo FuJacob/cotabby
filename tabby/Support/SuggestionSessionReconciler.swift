@@ -264,7 +264,7 @@ enum SuggestionSessionReconciler {
     /// The overlay may be hidden briefly while waiting for the host app to publish an updated
     /// caret position, so hidden does not automatically mean "reject Tab."
     static func overlayAllowsAcceptance(of text: String, overlayState: OverlayState) -> Bool {
-        guard case let .visible(visibleText, _, _) = overlayState else {
+        guard case let .visible(visibleText, _) = overlayState else {
             return true
         }
 

@@ -62,7 +62,7 @@ protocol SuggestionOverlayControlling: AnyObject {
     var state: OverlayState { get }
     var onStateChange: ((OverlayState) -> Void)? { get set }
 
-    func showSuggestion(_ text: String, at caretRect: CGRect, caretQuality: CaretGeometryQuality)
+    func showSuggestion(_ text: String, geometry: SuggestionOverlayGeometry)
     func hide(reason: String)
 }
 

@@ -98,7 +98,9 @@ extension SuggestionCoordinator {
             presentOverlay(
                 text: advancedSession.remainingText,
                 at: predictedCaret,
-                caretQuality: liveContext.caretQuality
+                inputFrameRect: liveContext.inputFrameRect,
+                caretQuality: liveContext.caretQuality,
+                observedCharWidth: liveContext.observedCharWidth
             )
             // Force an early AX refresh so the real caret position corrects any prediction
             // error faster than the normal 250ms poll interval.
@@ -159,7 +161,9 @@ extension SuggestionCoordinator {
         presentOverlay(
             text: advancedSession.remainingText,
             at: session.baseContext.caretRect,
-            caretQuality: session.baseContext.caretQuality
+            inputFrameRect: session.baseContext.inputFrameRect,
+            caretQuality: session.baseContext.caretQuality,
+            observedCharWidth: session.baseContext.observedCharWidth
         )
         logStage(
             "typed-match-advanced",
@@ -297,12 +301,19 @@ extension SuggestionCoordinator {
     func presentOverlay(
         text: String,
         at caretRect: CGRect,
-        caretQuality: CaretGeometryQuality
+        inputFrameRect: CGRect?,
+        caretQuality: CaretGeometryQuality,
+        observedCharWidth: CGFloat?
     ) {
+        let geometry = SuggestionOverlayGeometry(
+            caretRect: caretRect,
+            inputFrameRect: inputFrameRect,
+            caretQuality: caretQuality,
+            observedCharWidth: observedCharWidth
+        )
         if let message = overlayPresenter.present(
             text: text,
-            at: caretRect,
-            caretQuality: caretQuality,
+            geometry: geometry,
             previousState: overlayState
         ) {
             latestOverlayMessage = message
