@@ -10,7 +10,7 @@ import Foundation
 final class FocusTrackingModel: ObservableObject {
     @Published private(set) var snapshot: FocusSnapshot
     @Published private(set) var latestExternalApplication: FocusedApplicationIdentity?
-    /// Debug-only pulse source for the caret overlay; not used by suggestion generation.
+    /// Debug-only raw AX event source for the diagnostics panel; not used by suggestion generation.
     @Published private(set) var latestObserverEvent: FocusObserverEvent?
 
     private let tracker: FocusTracker
@@ -20,12 +20,14 @@ final class FocusTrackingModel: ObservableObject {
 
     init(
         permissionProvider: @escaping @MainActor () -> Bool,
-        ignoredBundleIdentifier: String?
+        ignoredBundleIdentifier: String?,
+        diagnosticsLogger: (any DiagnosticsLogging)? = nil
     ) {
         self.ignoredBundleIdentifier = ignoredBundleIdentifier
         tracker = FocusTracker(
             permissionProvider: permissionProvider,
-            ignoredBundleIdentifier: ignoredBundleIdentifier
+            ignoredBundleIdentifier: ignoredBundleIdentifier,
+            diagnosticsLogger: diagnosticsLogger
         )
         snapshot = tracker.snapshot
         latestExternalApplication = tracker.snapshot.externalApplicationIdentity(

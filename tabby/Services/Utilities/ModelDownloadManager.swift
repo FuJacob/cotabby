@@ -58,9 +58,14 @@ final class ModelDownloadManager: ObservableObject {
 
     private let runtimeDirectoryURL: URL
     private let runtimeSearchDirectories: [URL]
+    private weak var diagnosticsLogger: (any DiagnosticsLogging)?
     private var downloadTasks: [String: Task<Void, Never>] = [:]
 
-    init(runtimeDirectoryURL: URL? = nil) {
+    init(
+        runtimeDirectoryURL: URL? = nil,
+        diagnosticsLogger: (any DiagnosticsLogging)? = nil
+    ) {
+        self.diagnosticsLogger = diagnosticsLogger
         let primaryDirectoryURL =
             runtimeDirectoryURL ?? BundledRuntimeLocator.userRuntimeDirectoryURL()
         self.runtimeDirectoryURL = primaryDirectoryURL
@@ -178,7 +183,15 @@ final class ModelDownloadManager: ObservableObject {
             refreshModelStates()
             onModelDirectoryChanged?()
         } catch {
-            print("Failed to delete model \(filename): \(error.localizedDescription)")
+            diagnosticsLogger?.error(
+                category: .runtime,
+                component: "ModelDownloadManager",
+                message: "Failed to delete model",
+                metadata: [
+                    "model": filename,
+                    "error": error.localizedDescription
+                ]
+            )
         }
     }
 

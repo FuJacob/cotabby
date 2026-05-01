@@ -38,6 +38,12 @@ enum WindowScreenshotError: LocalizedError {
 }
 
 struct WindowScreenshotService {
+    private let diagnosticsLogger: (any DiagnosticsLogging)?
+
+    init(diagnosticsLogger: (any DiagnosticsLogging)? = nil) {
+        self.diagnosticsLogger = diagnosticsLogger
+    }
+
     /// Finds the most relevant visible window for the focused process and captures a square region
     /// around the focused input. The crop is expressed in global display points so the caller does
     /// not need to know anything about ScreenCaptureKit's capture coordinate system.
@@ -203,6 +209,10 @@ struct WindowScreenshotService {
     }
 
     private func log(_ message: String) {
-        print("[WindowScreenshotService] \(message)")
+        diagnosticsLogger?.trace(
+            category: .visual,
+            component: "WindowScreenshotService",
+            message: message
+        )
     }
 }

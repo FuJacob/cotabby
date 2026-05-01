@@ -5,9 +5,9 @@ import Foundation
 /// File overview:
 /// Observes Accessibility focus notifications and publishes the latest `FocusSnapshot`.
 ///
-/// This experimental version removes the polling timer entirely. `FocusTracker` owns observer
-/// lifecycle, permission/frontmost-app guards, and the final `snapshot` publication contract.
-/// AX candidate resolution lives in `FocusSnapshotResolver`, and caret/frame heuristics live in
+/// `FocusTracker` uses a hybrid strategy: AX notifications trigger immediate refreshes, while a
+/// 100 ms polling loop covers host apps that fail to deliver every observer notification. AX
+/// candidate resolution lives in `FocusSnapshotResolver`, and caret/frame heuristics live in
 /// `AXTextGeometryResolver`.
 nonisolated private let focusTrackerObserverCallback: AXObserverCallback = { _, _, notification, refcon in
     guard let refcon else {
@@ -44,6 +44,10 @@ final class FocusTracker {
 
     private(set) var snapshot: FocusSnapshot = .inactive {
         didSet {
+            guard oldValue != snapshot else {
+                return
+            }
+
             onSnapshotChange?(snapshot)
         }
     }
@@ -58,31 +62,36 @@ final class FocusTracker {
     private var observedApplicationPID: pid_t?
     private var workspaceActivationObserver: NSObjectProtocol?
     private var scheduledRefreshTask: Task<Void, Never>?
+    private var pollingRefreshTask: Task<Void, Never>?
 
-    /// Monotonic counter that increments every time a focus-changing AX notification fires.
+    /// Monotonic counter that increments every time a focus-changing AX notification fires or
+    /// polling discovers a focused field switch that AX missed.
     ///
     /// AX element identity is based on `CFHash`, which macOS can recycle across unrelated
     /// elements. This counter gives downstream consumers a guaranteed-unique signal that
-    /// focus actually changed, independent of hash collisions. It only increments on
-    /// notifications that signal a *new element or window* — value and selection changes
+    /// focus actually changed, independent of hash collisions. Value and selection changes
     /// within the same field do not bump it.
     private var focusChangeSequence: UInt64 = 0
 
     init(
         permissionProvider: @escaping @MainActor () -> Bool,
         ignoredBundleIdentifier: String?,
-        snapshotResolver: FocusSnapshotResolver? = nil
+        snapshotResolver: FocusSnapshotResolver? = nil,
+        diagnosticsLogger: (any DiagnosticsLogging)? = nil
     ) {
         self.permissionProvider = permissionProvider
         self.ignoredBundleIdentifier = ignoredBundleIdentifier
         // Default resolver construction must happen inside the actor-isolated initializer body.
         // Swift evaluates default parameter expressions before entering the `@MainActor` context.
-        self.snapshotResolver = snapshotResolver ?? FocusSnapshotResolver()
+        self.snapshotResolver = snapshotResolver ?? FocusSnapshotResolver(
+            diagnosticsLogger: diagnosticsLogger
+        )
     }
 
-    /// Starts event-driven AX observation and immediately captures an initial snapshot.
+    /// Starts hybrid focus observation and immediately captures an initial snapshot.
     func start() {
         guard workspaceActivationObserver == nil else {
+            startPollingRefreshLoop()
             refreshNow()
             return
         }
@@ -103,12 +112,15 @@ final class FocusTracker {
         // carries a non-zero sequence, distinguishing it from the default 0.
         focusChangeSequence += 1
         refreshNow()
+        startPollingRefreshLoop()
     }
 
     /// Stops event observation while leaving the most recent snapshot available to callers.
     func stop() {
         scheduledRefreshTask?.cancel()
         scheduledRefreshTask = nil
+        pollingRefreshTask?.cancel()
+        pollingRefreshTask = nil
 
         if let workspaceActivationObserver {
             NSWorkspace.shared.notificationCenter.removeObserver(workspaceActivationObserver)
@@ -123,7 +135,12 @@ final class FocusTracker {
         scheduledRefreshTask?.cancel()
         scheduledRefreshTask = nil
 
-        let capture = captureSnapshot()
+        var capture = captureSnapshot()
+        if didFocusedContextChangeByPolling(from: snapshot.context, to: capture.snapshot.context) {
+            focusChangeSequence += 1
+            capture = captureSnapshot()
+        }
+
         snapshot = capture.snapshot
 
         if let focusedElement = capture.focusedElement {
@@ -153,9 +170,24 @@ final class FocusTracker {
             return
         }
 
-        // AX notifications can fire before the app has updated value/selection attributes.
-        // A tiny coalescing delay avoids reading the old state while still feeling immediate.
-        scheduleRefresh(after: 0.005)
+        scheduleRefresh(after: 0)
+    }
+
+    private func startPollingRefreshLoop() {
+        guard pollingRefreshTask == nil else {
+            return
+        }
+
+        pollingRefreshTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 100_000_000)
+                guard !Task.isCancelled else {
+                    return
+                }
+
+                self?.refreshNow()
+            }
+        }
     }
 
     private func scheduleRefresh(after delay: TimeInterval) {
@@ -324,6 +356,22 @@ final class FocusTracker {
         let refcon = Unmanaged.passUnretained(self).toOpaque()
         let result = AXObserverAddNotification(observer, element, notification, refcon)
         return result == .success || result == .notificationAlreadyRegistered
+    }
+
+    /// Polling can discover a new focused field even when the host app never delivered the
+    /// corresponding AX notification. When that happens, bump the sequence so downstream
+    /// field-scoped work, especially OCR sessions, can distinguish the new focus owner.
+    private func didFocusedContextChangeByPolling(
+        from previousContext: FocusedInputSnapshot?,
+        to nextContext: FocusedInputSnapshot?
+    ) -> Bool {
+        guard let previousContext, let nextContext else {
+            return false
+        }
+
+        return previousContext.bundleIdentifier != nextContext.bundleIdentifier
+            || previousContext.processIdentifier != nextContext.processIdentifier
+            || previousContext.elementIdentifier != nextContext.elementIdentifier
     }
 }
 

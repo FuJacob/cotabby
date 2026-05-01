@@ -17,6 +17,7 @@ final class VisualContextCoordinator {
 
     private let screenshotContextGenerator: ScreenshotContextGenerator
     private let screenRecordingPermissionProvider: @MainActor () -> Bool
+    private weak var diagnosticsLogger: (any DiagnosticsLogging)?
 
     private(set) var status: VisualContextStatus = .idle
     private(set) var latestExcerpt: String?
@@ -29,10 +30,12 @@ final class VisualContextCoordinator {
 
     init(
         screenshotContextGenerator: ScreenshotContextGenerator,
-        screenRecordingPermissionProvider: @escaping @MainActor () -> Bool
+        screenRecordingPermissionProvider: @escaping @MainActor () -> Bool,
+        diagnosticsLogger: (any DiagnosticsLogging)? = nil
     ) {
         self.screenshotContextGenerator = screenshotContextGenerator
         self.screenRecordingPermissionProvider = screenRecordingPermissionProvider
+        self.diagnosticsLogger = diagnosticsLogger
     }
 
     /// Starts one screenshot-derived augmentation session per focused field.
@@ -196,7 +199,11 @@ final class VisualContextCoordinator {
     }
 
     private func log(_ message: String) {
-        print("[VisualContextCoordinator] \(message)")
+        diagnosticsLogger?.trace(
+            category: .visual,
+            component: "VisualContextCoordinator",
+            message: message
+        )
     }
 }
 

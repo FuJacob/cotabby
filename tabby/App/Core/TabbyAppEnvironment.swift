@@ -17,22 +17,36 @@ final class TabbyAppEnvironment {
     let appUpdateManager: AppUpdateManager
     let launchAtLoginService: LaunchAtLoginService
     let suggestionSettings: SuggestionSettingsModel
+    let debugMode: DebugModeModel
+    let diagnosticsStore: DiagnosticsStore
+    let diagnosticsLogger: DiagnosticsLogger
     let foundationModelAvailabilityService: FoundationModelAvailabilityService
     let suggestionCoordinator: SuggestionCoordinator
     let welcomeCoordinator: WelcomeCoordinator
     let settingsCoordinator: SettingsCoordinator
     let activationIndicatorController: ActivationIndicatorController
-    let focusDebugOverlayController: FocusDebugOverlayController?
+    let devDiagnosticsPanelController: DevDiagnosticsPanelController
 
     init() {
         let configuration = SuggestionConfiguration.standard
+        let debugMode = DebugModeModel()
+        let diagnosticsStore = DiagnosticsStore()
+        let diagnosticsLogger = DiagnosticsLogger(
+            debugMode: debugMode,
+            store: diagnosticsStore
+        )
         let permissionManager = PermissionManager()
         let permissionGuidanceController = PermissionGuidanceController(
             permissionManager: permissionManager
         )
         let runtimeManager = LlamaRuntimeManager()
-        let runtimeModel = RuntimeBootstrapModel(runtimeManager: runtimeManager)
-        let modelDownloadManager = ModelDownloadManager()
+        let runtimeModel = RuntimeBootstrapModel(
+            runtimeManager: runtimeManager,
+            diagnosticsLogger: diagnosticsLogger
+        )
+        let modelDownloadManager = ModelDownloadManager(
+            diagnosticsLogger: diagnosticsLogger
+        )
         let suggestionSettings = SuggestionSettingsModel(configuration: configuration)
         let foundationModelAvailabilityService = FoundationModelAvailabilityService()
         let suppressionController = InputSuppressionController()
@@ -42,9 +56,10 @@ final class TabbyAppEnvironment {
         )
         let focusModel = FocusTrackingModel(
             permissionProvider: { permissionManager.accessibilityGranted },
-            ignoredBundleIdentifier: Bundle.main.bundleIdentifier
+            ignoredBundleIdentifier: Bundle.main.bundleIdentifier,
+            diagnosticsLogger: diagnosticsLogger
         )
-        let appUpdateManager = AppUpdateManager()
+        let appUpdateManager = AppUpdateManager(diagnosticsLogger: diagnosticsLogger)
         let launchAtLoginService = LaunchAtLoginService()
         let welcomeCoordinator = WelcomeCoordinator(
             permissionManager: permissionManager,
@@ -69,18 +84,28 @@ final class TabbyAppEnvironment {
         let suggestionInserter = SuggestionInserter(suppressionController: suppressionController)
         let overlayController = OverlayController(suggestionSettings: suggestionSettings)
         let activationIndicatorController = ActivationIndicatorController()
-        let summarizer = LlamaVisualContextSummarizer(runtimeManager: runtimeManager)
-        let screenshotContextGenerator = ScreenshotContextGenerator(summarizer: summarizer)
+        let summarizer = LlamaVisualContextSummarizer(
+            runtimeManager: runtimeManager,
+            diagnosticsLogger: diagnosticsLogger
+        )
+        let screenshotContextGenerator = ScreenshotContextGenerator(
+            summarizer: summarizer,
+            diagnosticsLogger: diagnosticsLogger
+        )
         let visualContextCoordinator = VisualContextCoordinator(
             screenshotContextGenerator: screenshotContextGenerator,
-            screenRecordingPermissionProvider: { permissionManager.screenRecordingGranted }
+            screenRecordingPermissionProvider: { permissionManager.screenRecordingGranted },
+            diagnosticsLogger: diagnosticsLogger
         )
         let suggestionEngine: any SuggestionGenerating = SuggestionEngineRouter(
             suggestionSettings: suggestionSettings,
             foundationModelEngine: FoundationModelSuggestionEngine(
                 availabilityService: foundationModelAvailabilityService
             ),
-            llamaEngine: LlamaSuggestionEngine(runtimeManager: runtimeManager)
+            llamaEngine: LlamaSuggestionEngine(
+                runtimeManager: runtimeManager,
+                diagnosticsLogger: diagnosticsLogger
+            )
         )
 
         let interactionState = SuggestionInteractionState()
@@ -96,7 +121,8 @@ final class TabbyAppEnvironment {
             visualContextCoordinator: visualContextCoordinator,
             interactionState: interactionState,
             workController: workController,
-            configuration: configuration
+            configuration: configuration,
+            diagnosticsLogger: diagnosticsLogger
         )
 
         self.permissionManager = permissionManager
@@ -107,13 +133,22 @@ final class TabbyAppEnvironment {
         self.appUpdateManager = appUpdateManager
         self.launchAtLoginService = launchAtLoginService
         self.suggestionSettings = suggestionSettings
+        self.debugMode = debugMode
+        self.diagnosticsStore = diagnosticsStore
+        self.diagnosticsLogger = diagnosticsLogger
         self.foundationModelAvailabilityService = foundationModelAvailabilityService
         self.suggestionCoordinator = suggestionCoordinator
         self.welcomeCoordinator = welcomeCoordinator
         self.settingsCoordinator = settingsCoordinator
         self.activationIndicatorController = activationIndicatorController
-        self.focusDebugOverlayController = FocusDebugOverlayController.isEnabled
-            ? FocusDebugOverlayController()
-            : nil
+        self.devDiagnosticsPanelController = DevDiagnosticsPanelController(
+            debugMode: debugMode,
+            diagnosticsStore: diagnosticsStore,
+            permissionManager: permissionManager,
+            runtimeModel: runtimeModel,
+            focusModel: focusModel,
+            suggestionSettings: suggestionSettings,
+            suggestionCoordinator: suggestionCoordinator
+        )
     }
 }

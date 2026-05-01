@@ -16,6 +16,7 @@ final class RuntimeBootstrapModel: ObservableObject {
 
     private let runtimeManager: LlamaRuntimeManager
     private let userDefaults: UserDefaults
+    private weak var diagnosticsLogger: (any DiagnosticsLogging)?
     private var cancellables = Set<AnyCancellable>()
     private var runtimeTask: Task<Void, Never>?
 
@@ -26,10 +27,12 @@ final class RuntimeBootstrapModel: ObservableObject {
 
     init(
         runtimeManager: LlamaRuntimeManager,
-        userDefaults: UserDefaults = .standard
+        userDefaults: UserDefaults = .standard,
+        diagnosticsLogger: (any DiagnosticsLogging)? = nil
     ) {
         self.runtimeManager = runtimeManager
         self.userDefaults = userDefaults
+        self.diagnosticsLogger = diagnosticsLogger
         state = runtimeManager.state
         diagnostics = runtimeManager.diagnostics
         availableModels = runtimeManager.availableModels
@@ -87,7 +90,12 @@ final class RuntimeBootstrapModel: ObservableObject {
             do {
                 try await self.runtimeManager.prepare()
             } catch {
-                print("Runtime startup failed: \(error.localizedDescription)")
+                self.diagnosticsLogger?.error(
+                    category: .runtime,
+                    component: "RuntimeBootstrapModel",
+                    message: "Runtime startup failed",
+                    metadata: ["error": error.localizedDescription]
+                )
             }
         }
     }
@@ -123,7 +131,15 @@ final class RuntimeBootstrapModel: ObservableObject {
             do {
                 try await self.runtimeManager.selectModel(filename: filename)
             } catch {
-                print("Runtime model switch failed: \(error.localizedDescription)")
+                self.diagnosticsLogger?.error(
+                    category: .runtime,
+                    component: "RuntimeBootstrapModel",
+                    message: "Runtime model switch failed",
+                    metadata: [
+                        "model": filename,
+                        "error": error.localizedDescription
+                    ]
+                )
             }
         }
 

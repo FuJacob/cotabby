@@ -7,13 +7,27 @@ protocol VisualContextSummarizing: AnyObject, Sendable {
 @MainActor
 final class LlamaVisualContextSummarizer: VisualContextSummarizing {
     private let runtimeManager: LlamaRuntimeManager
+    private weak var diagnosticsLogger: (any DiagnosticsLogging)?
 
-    init(runtimeManager: LlamaRuntimeManager) {
+    init(
+        runtimeManager: LlamaRuntimeManager,
+        diagnosticsLogger: (any DiagnosticsLogging)? = nil
+    ) {
         self.runtimeManager = runtimeManager
+        self.diagnosticsLogger = diagnosticsLogger
     }
 
     func summarize(text: String, applicationName: String) async throws -> String {
-        print("[LlamaVisualContextSummarizer] Starting ephemeral generation. Raw input text:\n\(text)\n---")
+        diagnosticsLogger?.trace(
+            category: .visual,
+            component: "LlamaVisualContextSummarizer",
+            message: "Starting visual-context summary",
+            metadata: [
+                "application": applicationName,
+                "inputCharacters": String(text.count),
+                "inputPreview": SuggestionDebugLogger.debugPreview(text)
+            ]
+        )
         let prompt = """
         You are an AI assistant analyzing what the user is currently looking at on their screen in the application \(applicationName).
         The following text is an OCR extraction from a screenshot of the window where the user is currently typing.
@@ -34,7 +48,15 @@ final class LlamaVisualContextSummarizer: VisualContextSummarizing {
             maxPredictionTokens: 160,
             temperature: 0
         )
-        print("[LlamaVisualContextSummarizer] Ephemeral generation complete. Summary result:\n\(result)\n---")
+        diagnosticsLogger?.trace(
+            category: .visual,
+            component: "LlamaVisualContextSummarizer",
+            message: "Completed visual-context summary",
+            metadata: [
+                "outputCharacters": String(result.count),
+                "outputPreview": SuggestionDebugLogger.debugPreview(result)
+            ]
+        )
         return result.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }

@@ -11,9 +11,11 @@ import Foundation
 @MainActor
 final class SuggestionDebugLogger {
     private let consoleStages: Set<String>
+    private weak var diagnosticsLogger: (any DiagnosticsLogging)?
     private var lastLoggedMessage: String?
 
     init(
+        diagnosticsLogger: (any DiagnosticsLogging)? = nil,
         consoleStages: Set<String> = [
             "generating",
             "ready",
@@ -27,6 +29,7 @@ final class SuggestionDebugLogger {
             "session-exhausted"
         ]
     ) {
+        self.diagnosticsLogger = diagnosticsLogger
         self.consoleStages = consoleStages
     }
 
@@ -82,7 +85,16 @@ final class SuggestionDebugLogger {
         }
 
         let summaryLine = parts.joined(separator: " ")
-        logLine(summaryLine)
+        logLine(
+            summaryLine,
+            stage: stage,
+            workID: workID,
+            generation: generation,
+            message: message,
+            prompt: prompt,
+            rawOutput: rawOutput,
+            normalizedOutput: normalizedOutput
+        )
 
         if stage == "generating", let prompt {
             logTextBlock(
@@ -158,13 +170,49 @@ final class SuggestionDebugLogger {
         return "\(escaped[..<index])..."
     }
 
-    private func logLine(_ line: String) {
+    private func logLine(
+        _ line: String,
+        stage: String,
+        workID: UInt64,
+        generation: UInt64?,
+        message: String,
+        prompt: String?,
+        rawOutput: String?,
+        normalizedOutput: String?
+    ) {
         guard line != lastLoggedMessage else {
             return
         }
 
         lastLoggedMessage = line
-        print(line)
+
+        var metadata = [
+            "stage": stage,
+            "workID": String(workID)
+        ]
+
+        if let generation {
+            metadata["generation"] = String(generation)
+        }
+
+        if let prompt {
+            metadata["promptPreview"] = Self.debugPreview(prompt)
+        }
+
+        if let rawOutput {
+            metadata["rawOutputPreview"] = Self.debugPreview(rawOutput)
+        }
+
+        if let normalizedOutput {
+            metadata["normalizedOutputPreview"] = Self.debugPreview(normalizedOutput)
+        }
+
+        diagnosticsLogger?.info(
+            category: .suggestion,
+            component: "SuggestionCoordinator",
+            message: message,
+            metadata: metadata
+        )
     }
 
     /// Compact one-line logs are good for scanning, but prompt debugging requires the exact payload.
@@ -178,15 +226,19 @@ final class SuggestionDebugLogger {
     ) {
         let generationSummary = generation.map(String.init) ?? "n/a"
         let renderedText = text.isEmpty ? "<empty>" : text
-        // Multi-line log blocks are easier to inspect than escaped one-line strings when debugging
-        // prompt construction or output normalization.
-        print(
-            """
-            [Suggestion \(kind)] stage=\(stage) work=\(workID) generation=\(generationSummary)
-            ----- BEGIN \(kind.uppercased()) -----
-            \(renderedText)
-            ----- END \(kind.uppercased()) -----
-            """
+        diagnosticsLogger?.trace(
+            category: .suggestion,
+            component: "SuggestionCoordinator",
+            message: "Captured \(kind) payload",
+            metadata: [
+                "_console": "true",
+                "stage": stage,
+                "workID": String(workID),
+                "generation": generationSummary,
+                "characterCount": String(renderedText.count),
+                "payload": renderedText,
+                "preview": Self.debugPreview(renderedText)
+            ]
         )
     }
 }

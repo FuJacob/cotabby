@@ -13,13 +13,15 @@ final class AppUpdateManager {
     /// The updater is created once and retained for the lifetime of the process, just like the
     /// runtime manager and the focus tracker. Sparkle expects its controller to stay alive.
     private let updaterController: SPUStandardUpdaterController
+    private weak var diagnosticsLogger: (any DiagnosticsLogging)?
 
     private var isStarted = false
 
     private static let debugCheckForUpdatesOnLaunchArgument = "-tabby-check-for-updates-on-launch"
     private static let publicKeyPlaceholder = "REPLACE_WITH_GENERATED_SPARKLE_PUBLIC_ED_KEY"
 
-    init() {
+    init(diagnosticsLogger: (any DiagnosticsLogging)? = nil) {
+        self.diagnosticsLogger = diagnosticsLogger
         // `startingUpdater: false` keeps lifecycle explicit. The app delegate decides when the
         // updater starts instead of Sparkle implicitly doing work during dependency construction.
         updaterController = SPUStandardUpdaterController(
@@ -93,6 +95,10 @@ final class AppUpdateManager {
     }
 
     private func log(_ message: String) {
-        print("[AppUpdateManager] \(message)")
+        diagnosticsLogger?.info(
+            category: .updates,
+            component: "AppUpdateManager",
+            message: message
+        )
     }
 }

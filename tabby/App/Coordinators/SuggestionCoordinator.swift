@@ -72,7 +72,8 @@ final class SuggestionCoordinator: ObservableObject {
         interactionState: SuggestionInteractionState,
         workController: SuggestionWorkController,
         configuration: SuggestionConfiguration,
-        userDefaults: UserDefaults = .standard
+        userDefaults: UserDefaults = .standard,
+        diagnosticsLogger: (any DiagnosticsLogging)? = nil
     ) {
         let storedTotalTabAcceptedWordCount = userDefaults.integer(
             forKey: Self.totalTabAcceptedWordCountDefaultsKey)
@@ -93,7 +94,7 @@ final class SuggestionCoordinator: ObservableObject {
         // These collaborators isolate "how overlay/logging works" from "when the coordinator
         // wants to show state," which keeps the coordinator closer to orchestration code.
         overlayPresenter = SuggestionOverlayPresenter(overlayController: overlayController)
-        logger = SuggestionDebugLogger()
+        logger = SuggestionDebugLogger(diagnosticsLogger: diagnosticsLogger)
         totalTabAcceptedWordCount = max(storedTotalTabAcceptedWordCount, 0)
         visualContextStatus = visualContextCoordinator.status
         latestVisualContextText = visualContextCoordinator.latestExcerpt

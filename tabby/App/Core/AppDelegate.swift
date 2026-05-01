@@ -21,13 +21,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let appUpdateManager: AppUpdateManager
     let launchAtLoginService: LaunchAtLoginService
     let suggestionSettings: SuggestionSettingsModel
+    let debugMode: DebugModeModel
+    let diagnosticsStore: DiagnosticsStore
+    let diagnosticsLogger: DiagnosticsLogger
     let foundationModelAvailabilityService: FoundationModelAvailabilityService
     let suggestionCoordinator: SuggestionCoordinator
     let welcomeCoordinator: WelcomeCoordinator
     let settingsCoordinator: SettingsCoordinator
 
     private let activationIndicatorController: ActivationIndicatorController
-    private let focusDebugOverlayController: FocusDebugOverlayController?
+    private let devDiagnosticsPanelController: DevDiagnosticsPanelController
     private var cancellables = Set<AnyCancellable>()
 
     override init() {
@@ -43,12 +46,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         appUpdateManager = environment.appUpdateManager
         launchAtLoginService = environment.launchAtLoginService
         suggestionSettings = environment.suggestionSettings
+        debugMode = environment.debugMode
+        diagnosticsStore = environment.diagnosticsStore
+        diagnosticsLogger = environment.diagnosticsLogger
         foundationModelAvailabilityService = environment.foundationModelAvailabilityService
         suggestionCoordinator = environment.suggestionCoordinator
         welcomeCoordinator = environment.welcomeCoordinator
         settingsCoordinator = environment.settingsCoordinator
         activationIndicatorController = environment.activationIndicatorController
-        focusDebugOverlayController = environment.focusDebugOverlayController
+        devDiagnosticsPanelController = environment.devDiagnosticsPanelController
         super.init()
 
         // These closures bridge events across subsystems without forcing those subsystems
@@ -80,14 +86,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         focusModel.$snapshot
             .sink { [weak self] snapshot in
                 self?.updateActivationIndicator(for: snapshot)
-                self?.focusDebugOverlayController?.update(for: snapshot)
             }
             .store(in: &cancellables)
 
         focusModel.$latestObserverEvent
             .compactMap { $0 }
             .sink { [weak self] event in
-                self?.focusDebugOverlayController?.flashAXObserverHit(event: event)
+                guard let self else {
+                    return
+                }
+
+                if debugMode.isEnabled {
+                    diagnosticsStore.recordAXNotification(event)
+                }
             }
             .store(in: &cancellables)
 
@@ -100,13 +111,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         inputMonitor.start()
         appUpdateManager.start()
         suggestionCoordinator.start()
+        devDiagnosticsPanelController.start()
         welcomeCoordinator.presentIfNeeded()
     }
 
     /// Stops long-lived services before process exit so observers and runtime resources detach cleanly.
     func applicationWillTerminate(_ notification: Notification) {
         activationIndicatorController.hide(reason: "Activation indicator hidden because Tabby is terminating.")
-        focusDebugOverlayController?.hide()
+        devDiagnosticsPanelController.hide()
         suggestionCoordinator.stop()
         inputMonitor.stop()
         focusModel.stop()

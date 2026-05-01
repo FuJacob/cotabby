@@ -33,15 +33,19 @@ final class ScreenshotContextGenerator {
     private let textExtractor: ScreenTextExtractor
     private let summarizer: VisualContextSummarizing?
     private let configuration: VisualContextConfiguration
+    private let diagnosticsLogger: (any DiagnosticsLogging)?
 
     init(
         screenshotService: WindowScreenshotService? = nil,
         textExtractor: ScreenTextExtractor? = nil,
         summarizer: VisualContextSummarizing? = nil,
-        configuration: VisualContextConfiguration? = nil
+        configuration: VisualContextConfiguration? = nil,
+        diagnosticsLogger: (any DiagnosticsLogging)? = nil
     ) {
         let actualConfig = configuration ?? .default
-        self.screenshotService = screenshotService ?? WindowScreenshotService()
+        self.screenshotService = screenshotService ?? WindowScreenshotService(
+            diagnosticsLogger: diagnosticsLogger
+        )
         self.textExtractor =
             textExtractor
             ?? ScreenTextExtractor(
@@ -50,6 +54,7 @@ final class ScreenshotContextGenerator {
             )
         self.summarizer = summarizer
         self.configuration = actualConfig
+        self.diagnosticsLogger = diagnosticsLogger
     }
 
     /// Captures a compact region around the focused input, runs OCR, and returns normalized visible
@@ -109,7 +114,7 @@ final class ScreenshotContextGenerator {
         }
 
         let normalizedText = normalizeRecognizedText(extractedText)
-        log("context-ocr-ready chars=\(normalizedText.count)")
+        log("context-ocr-ready chars=\(normalizedText.count)", mirrorToConsole: true)
 
         #if DEBUG
         saveDebugScreenshot(screenshot.image, text: extractedText, name: context.applicationName.replacingOccurrences(of: " ", with: "_"))
@@ -172,8 +177,18 @@ final class ScreenshotContextGenerator {
         return letterCount >= 4
     }
 
-    private func log(_ message: String) {
-        print("[ScreenshotContextGenerator] \(message)")
+    private func log(_ message: String, mirrorToConsole: Bool = false) {
+        var metadata: [String: String] = [:]
+        if mirrorToConsole {
+            metadata["_console"] = "true"
+        }
+
+        diagnosticsLogger?.trace(
+            category: .visual,
+            component: "ScreenshotContextGenerator",
+            message: message,
+            metadata: metadata
+        )
     }
 
     private func saveDebugScreenshot(_ image: CGImage, text: String, name: String) {
@@ -191,7 +206,12 @@ final class ScreenshotContextGenerator {
         if let dest = CGImageDestinationCreateWithURL(fileURL as CFURL, UTType.png.identifier as CFString, 1, nil) {
             CGImageDestinationAddImage(dest, image, nil)
             CGImageDestinationFinalize(dest)
-            print("[DEBUG] Saved screenshot to: \(fileURL.path)")
+            diagnosticsLogger?.info(
+                category: .visual,
+                component: "ScreenshotContextGenerator",
+                message: "Saved debug screenshot",
+                metadata: ["path": fileURL.path]
+            )
             
             try? text.write(to: textURL, atomically: true, encoding: .utf8)
         }

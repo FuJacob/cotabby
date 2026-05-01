@@ -9,14 +9,19 @@ import Foundation
 @MainActor
 struct FocusSnapshotResolver {
     private let geometryResolver: AXTextGeometryResolver
+    private let diagnosticsLogger: (any DiagnosticsLogging)?
 
     // MARK: - Debug AX tree dump (temporary — remove after caret placement is fixed)
     /// Set to true to print the AX tree every time focus changes. Check Xcode console.
     private static let dumpAXTree = false
     private static var lastDumpedElementID: String?
 
-    init(geometryResolver: AXTextGeometryResolver? = nil) {
+    init(
+        geometryResolver: AXTextGeometryResolver? = nil,
+        diagnosticsLogger: (any DiagnosticsLogging)? = nil
+    ) {
         self.geometryResolver = geometryResolver ?? AXTextGeometryResolver()
+        self.diagnosticsLogger = diagnosticsLogger
     }
 
     /// Resolves the best editable candidate around the focused AX node and materializes a focus snapshot.
@@ -503,7 +508,12 @@ struct FocusSnapshotResolver {
         dumpChildrenRecursive(of: focusedElement, into: &out, indent: "", depth: 0)
 
         out += "========== END DUMP ==========\n"
-        print(out)
+        diagnosticsLogger?.trace(
+            category: .accessibility,
+            component: "FocusSnapshotResolver",
+            message: "Captured AX tree dump",
+            metadata: ["dump": out]
+        )
     }
 
     private func dumpChildrenRecursive(

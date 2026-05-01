@@ -10,10 +10,15 @@ import Foundation
 @MainActor
 final class LlamaSuggestionEngine {
     private let runtimeManager: LlamaRuntimeManager
+    private weak var diagnosticsLogger: (any DiagnosticsLogging)?
     private var promptCacheHintTracker = LlamaPromptCacheHintTracker()
 
-    init(runtimeManager: LlamaRuntimeManager) {
+    init(
+        runtimeManager: LlamaRuntimeManager,
+        diagnosticsLogger: (any DiagnosticsLogging)? = nil
+    ) {
         self.runtimeManager = runtimeManager
+        self.diagnosticsLogger = diagnosticsLogger
     }
 
     /// Executes one generation request and packages the raw and normalized result for the coordinator.
@@ -21,8 +26,17 @@ final class LlamaSuggestionEngine {
         do {
             let startTime = Date()
             let cachedPrefixBytes = promptCacheHintTracker.cachedPrefixBytes(for: request)
-            print("[LlamaSuggestionEngine] starting prediction with prompt length: \(request.prompt.count)")
-            print("[LlamaSuggestionEngine] FINAL INJECTED PROMPT:\n---\n\(request.prompt)\n---")
+            diagnosticsLogger?.info(
+                category: .runtime,
+                component: "LlamaSuggestionEngine",
+                message: "Starting prediction",
+                metadata: [
+                    "generation": String(request.generation),
+                    "promptCharacters": String(request.prompt.count),
+                    "cachedPrefixBytes": cachedPrefixBytes.map(String.init) ?? "none",
+                    "promptPreview": SuggestionDebugLogger.debugPreview(request.prompt)
+                ]
+            )
             let rawSuggestion = try await runtimeManager.generate(
                 prompt: request.prompt,
                 cachedPrefixBytes: cachedPrefixBytes,
