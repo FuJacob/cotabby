@@ -1,8 +1,10 @@
 # Tabby Architecture
 
-This document is the maintainer map for Tabby. Read this before making changes to the suggestion pipeline, Accessibility integration, or runtime lifecycle.
+This document is the maintainer map for Tabby. Read this before making changes to the suggestion
+pipeline, Accessibility integration, or runtime lifecycle.
 
-If you are fluent in JavaScript but new to Swift or macOS APIs, read [`SWIFT_FOR_JS_DEVELOPERS.md`](SWIFT_FOR_JS_DEVELOPERS.md) first, then come back here.
+If you are new to Swift or macOS APIs, treat this file as the system-level map and follow the
+linked source files in order rather than hunting through the project tree at random.
 
 ## System Shape
 
