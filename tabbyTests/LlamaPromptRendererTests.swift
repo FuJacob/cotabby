@@ -60,10 +60,10 @@ final class LlamaPromptRendererTests: XCTestCase {
 
     // MARK: - instruction prompt
 
-    /// The structural contract of the instruction prompt: three labelled sections the
-    /// instruct model is trained to parse. Losing any of them would silently
-    /// degrade output quality without throwing.
-    func test_instructionPrompt_containsTaskAndOutputContract() {
+    /// The structural contract for local instruct models: stable task rules first, supporting
+    /// context in the middle, then a late length cue right before the prefix the model must
+    /// continue. Losing one of these sections tends to degrade prompt-following without throwing.
+    func test_instructionPrompt_containsTaskScreenContextAndFinalInstruction() {
         let prompt = LlamaPromptRenderer.prompt(
             prefixText: "Once upon",
             applicationName: "Messages",
@@ -74,10 +74,14 @@ final class LlamaPromptRendererTests: XCTestCase {
 
         XCTAssertTrue(prompt.contains("Task:"), "instruction prompt should include Task section")
         XCTAssertTrue(
-            prompt.contains("Output contract:"),
-            "instruction prompt should include Output contract section"
+            prompt.contains("Screen context:"),
+            "instruction prompt should include Screen context section"
         )
-        XCTAssertTrue(prompt.contains("Context:"), "instruction prompt should include Context section")
+        XCTAssertTrue(
+            prompt.contains("Final instruction:"),
+            "instruction prompt should include a late final instruction section"
+        )
+        XCTAssertTrue(prompt.contains("Text before caret:"), "instruction prompt should include the prefix header")
     }
 
     func test_instructionPrompt_includesApplicationNameAndPrefix() {
@@ -96,9 +100,9 @@ final class LlamaPromptRendererTests: XCTestCase {
     /// The completion-length instruction is chosen from the user's word-count
     /// preset. It must reach the prompt verbatim so the model sees the exact
     /// guidance the UI showed the user.
-    func test_instructionPrompt_includesCompletionLengthInstruction() {
+    func test_instructionPrompt_includesCompletionLengthInstructionNearPrefix() {
         let prompt = LlamaPromptRenderer.prompt(
-            prefixText: "x",
+            prefixText: "PREFIX_BODY_XYZ",
             applicationName: "App",
             completionLengthInstruction: "UNIQUE_LENGTH_MARKER_7_TO_12_WORDS",
             userName: nil,
@@ -106,6 +110,16 @@ final class LlamaPromptRendererTests: XCTestCase {
         )
 
         XCTAssertTrue(prompt.contains("UNIQUE_LENGTH_MARKER_7_TO_12_WORDS"))
+
+        guard let finalInstructionRange = prompt.range(of: "Final instruction:"),
+              let lengthRange = prompt.range(of: "UNIQUE_LENGTH_MARKER_7_TO_12_WORDS"),
+              let prefixRange = prompt.range(of: "PREFIX_BODY_XYZ") else {
+            XCTFail("Expected final instruction header, length marker, and prefix in the prompt")
+            return
+        }
+
+        XCTAssertLessThan(finalInstructionRange.lowerBound, lengthRange.lowerBound)
+        XCTAssertLessThan(lengthRange.lowerBound, prefixRange.lowerBound)
     }
 
     func test_instructionPrompt_includesProfileContextWhenProvided() {
@@ -123,10 +137,9 @@ final class LlamaPromptRendererTests: XCTestCase {
                       "instruction prompt should carry user-provided profile tags")
     }
 
-    /// The prefix is always the *last* section of the instruction prompt — the model
-    /// continues from the last token, so the prefix has to come last.
-    /// Tests the contract that prefix comes after Context:/App:/Text before caret:.
-    func test_instructionPrompt_prefixAppearsAfterContextHeader() {
+    /// The prefix remains the last payload in the prompt so the model still ends on the actual
+    /// text it must continue, even though the length cue is moved later in the prompt.
+    func test_instructionPrompt_prefixAppearsAfterScreenContextAndEndsPrompt() {
         let prompt = LlamaPromptRenderer.prompt(
             prefixText: "PREFIX_BODY_XYZ",
             applicationName: "App",
@@ -135,14 +148,15 @@ final class LlamaPromptRendererTests: XCTestCase {
             userTags: nil
         )
 
-        guard let contextRange = prompt.range(of: "Context:"),
+        guard let contextRange = prompt.range(of: "Screen context:"),
               let prefixRange = prompt.range(of: "PREFIX_BODY_XYZ") else {
-            XCTFail("Expected both Context: and PREFIX_BODY_XYZ in the prompt")
+            XCTFail("Expected both Screen context: and PREFIX_BODY_XYZ in the prompt")
             return
         }
 
         XCTAssertLessThan(contextRange.lowerBound, prefixRange.lowerBound,
-                          "prefix must appear after the Context: header")
+                          "prefix must appear after the Screen context header")
+        XCTAssertTrue(prompt.hasSuffix("PREFIX_BODY_XYZ"))
     }
 
     func test_instructionPrompt_includesVisualContextSummaryWhenProvided() {

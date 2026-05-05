@@ -22,20 +22,11 @@ enum LlamaPromptRenderer {
         visualContextSummary: String? = nil
     ) -> String {
         var sections = [
-            "You are Tabby's inline autocomplete engine for a macOS text field.",
-            "",
             "Task:",
             "- Continue the user's existing text exactly at the caret position.",
             "- This is autocomplete, not chat. Do not answer the user or start a conversation.",
-            "- Return exactly one continuation fragment.",
             "- Never repeat, restate, or quote the text before the caret.",
-            "- \(completionLengthInstruction)",
-            "- Match the surrounding language, tone, casing, punctuation, and formatting.",
-            "",
-            "Output contract:",
-            "- Plain text only.",
-            "- No labels, bullets, markdown, quotes, or explanation.",
-            "- Start immediately with the continuation text."
+            "- Return plain text only with no labels, bullets, markdown, quotes, or explanation."
         ]
 
         var profileSections: [String] = []
@@ -51,18 +42,23 @@ enum LlamaPromptRenderer {
             sections.append("")
             sections.append("User Profile Context:")
             sections.append(contentsOf: profileSections)
-            sections.append("- Use this context only when it fits naturally into the continuation.")
         }
 
         sections.append("")
-        sections.append("Context:")
+        sections.append("Screen context:")
         sections.append("App: \(applicationName)")
-
         if let summary = visualContextSummary, !summary.isEmpty {
             sections.append("Screen content:")
             sections.append(summary)
         }
 
+        // The final task cue sits immediately before the prefix so small instruct models see the
+        // current length policy right before the text they must continue, while the prefix itself
+        // still remains the last payload in the prompt.
+        sections.append("")
+        sections.append("Final instruction:")
+        sections.append("- \(completionLengthInstruction)")
+        sections.append("- The next line must begin directly with the continuation text.")
         sections.append("Text before caret:")
         sections.append(prefixText)
 
