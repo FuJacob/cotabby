@@ -64,10 +64,22 @@ jobs:
         with:
           xcode-version: latest-stable
 
+      - name: Select Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
       - name: Toolchain info
         run: |
           xcodebuild -version
           swift --version
+
+      - name: Install DMG packaging dependencies
+        run: |
+          set -euo pipefail
+
+          python3 -m pip install --upgrade pip
+          python3 -m pip install "dmgbuild[badge_icons]==1.6.7"
 
       - name: Resolve release metadata
         id: metadata
@@ -228,13 +240,11 @@ jobs:
 
           codesign --verify --deep --strict --verbose=2 "${app_path}"
 
-          rm -f "${dmg_path}"
-          hdiutil create \
-            -volname "Tabby" \
-            -srcfolder "${app_path}" \
-            -ov \
-            -format UDZO \
-            "${dmg_path}"
+          python3 scripts/build_release_dmg.py \
+            --app-path "${app_path}" \
+            --output-path "${dmg_path}" \
+            --background-path "assets/release/dmg-background.png" \
+            --volume-name "Tabby"
 
           codesign \
             --force \

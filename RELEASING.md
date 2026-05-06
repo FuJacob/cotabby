@@ -94,7 +94,24 @@ xcrun stapler staple ./tabby.app
 
 ---
 
-### 3. Create DMG (your existing process)
+### 3. Create the styled DMG
+
+The release pipeline now builds a styled installer DMG through:
+
+```sh
+python3 -m pip install "dmgbuild[badge_icons]==1.6.7"
+python3 scripts/build_release_dmg.py \
+  --app-path /path/to/tabby.app \
+  --output-path /path/to/Tabby.dmg \
+  --background-path assets/release/dmg-background.png \
+  --volume-name Tabby
+```
+
+What this does:
+- packages `tabby.app` with an `Applications` shortcut
+- applies the committed background art from `assets/release/dmg-background.png`
+- locks the icon layout for the drag-to-Applications flow
+- reuses the app bundle icon as a best-effort mounted-volume badge when available
 
 ---
 
@@ -139,14 +156,15 @@ Required repo secrets:
 
 What CI does:
 1. Imports the Developer ID certificate into a temporary keychain.
-2. Archives a Release build.
-3. Packages `Tabby.dmg`.
-4. Sends the DMG to Apple notarization.
-5. Staples and validates the notarization ticket.
-6. Verifies the Sparkle private key matches `SUPublicEDKey`.
-7. Signs the final DMG with Sparkle.
-8. Creates a GitHub Release with `Tabby.dmg`.
-9. Publishes `appcast.xml` to GitHub Pages last.
+2. Installs the pinned `dmgbuild[badge_icons]` dependency.
+3. Archives a Release build.
+4. Packages a styled `Tabby.dmg` with `scripts/build_release_dmg.py`.
+5. Sends the DMG to Apple notarization.
+6. Staples and validates the notarization ticket.
+7. Verifies the Sparkle private key matches `SUPublicEDKey`.
+8. Signs the final DMG with Sparkle.
+9. Creates a GitHub Release with `Tabby.dmg`.
+10. Publishes `appcast.xml` to GitHub Pages last.
 
 Pages output:
 - `/appcast.xml`
@@ -169,6 +187,16 @@ sparkle-sign-update /path/to/Tabby.dmg
 ```
 
 Signature must match appcast.
+
+Check installer layout locally:
+```sh
+hdiutil attach /path/to/Tabby.dmg
+```
+
+Verify the mounted image opens in icon view, shows the committed background
+art, places `tabby.app` on the left, and places the `Applications` shortcut on
+the right. The mounted volume badge is best-effort; do not fail a release if
+the window layout is correct but Finder falls back to the default disk icon.
 
 ---
 

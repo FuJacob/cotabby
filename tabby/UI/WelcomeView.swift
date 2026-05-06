@@ -101,7 +101,10 @@ private enum WelcomeStep: Int, Comparable {
 extension WelcomeView {
     fileprivate var welcomeStep: some View {
         VStack(spacing: 24) {
-            Image(nsImage: NSApp.applicationIconImage)
+            // Onboarding should show the exported product mark, not the AppKit-derived runtime icon.
+            // `NSApp.applicationIconImage` can pick up the newer glass treatment, which makes the
+            // welcome screen drift from the branded artwork users see elsewhere.
+            Image("WelcomeAppIcon")
                 .resizable()
                 .interpolation(.high)
                 .scaledToFit()
