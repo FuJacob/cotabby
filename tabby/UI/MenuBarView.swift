@@ -159,17 +159,13 @@ struct MenuBarView: View {
                     .font(.subheadline.weight(.medium))
                     .padding(.bottom, 2)
 
-                PermissionRow(
-                    title: "Accessibility",
-                    granted: permissionManager.accessibilityGranted,
-                    action: permissionManager.openAccessibilitySettings
-                )
-
-                PermissionRow(
-                    title: "Input Monitoring",
-                    granted: permissionManager.inputMonitoringGranted,
-                    action: permissionManager.openInputMonitoringSettings
-                )
+                ForEach(TabbyPermissionKind.allCases.filter(\.isRequiredForAutocomplete)) { permission in
+                    PermissionRow(
+                        title: permission.title,
+                        granted: permissionManager.isGranted(permission),
+                        action: { permissionManager.openSettings(for: permission) }
+                    )
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(12)
@@ -278,8 +274,7 @@ struct MenuBarView: View {
     // MARK: - Derived state
 
     private var allPermissionsGranted: Bool {
-        permissionManager.accessibilityGranted
-            && permissionManager.inputMonitoringGranted
+        permissionManager.requiredPermissionsGranted
     }
 
     private func refreshAppleIntelligenceAvailabilityIfNeeded() {
