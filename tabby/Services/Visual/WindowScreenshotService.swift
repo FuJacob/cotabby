@@ -34,9 +34,19 @@ enum WindowScreenshotError: LocalizedError {
 }
 
 struct WindowScreenshotService {
-    /// Finds the most relevant visible window for the focused process and captures a square region
-    /// around the focused input. The crop is expressed in global display points so the caller does
-    /// not need to know anything about ScreenCaptureKit's capture coordinate system.
+    private enum CaptureMetrics {
+        /// Extra horizontal context captured around the focused field. ScreenCaptureKit works in
+        /// display points here, which map to physical pixels later through `backingScaleFactor`.
+        static let horizontalPadding: CGFloat = 100
+
+        /// Capture a taller band above the input so OCR can see nearby labels, messages, and
+        /// surrounding page content instead of only the field chrome.
+        static let verticalContextHeight: CGFloat = 600
+    }
+
+    /// Finds the most relevant visible window for the focused process and captures an expanded
+    /// region above the focused input. The crop is expressed in global display points so the
+    /// caller does not need to know anything about ScreenCaptureKit's capture coordinate system.
     func captureSnapshot(
         around context: FocusedInputSnapshot,
         snapshotDimension: Int
@@ -91,20 +101,26 @@ struct WindowScreenshotService {
         windowFrame: CGRect,
         snapshotDimension: CGFloat
     ) -> CGRect {
-        let targetHeight: CGFloat = 300
+        let targetHeight = min(CaptureMetrics.verticalContextHeight, windowFrame.height)
         let targetWidth: CGFloat
         let proposedX: CGFloat
         let proposedY: CGFloat
 
         if let inputFrameAppKit = context.inputFrameRect, !inputFrameAppKit.isEmpty {
             let inputFrameCG = convertBetweenAppKitAndCG(rect: inputFrameAppKit)
-            targetWidth = min(inputFrameCG.width, windowFrame.width)
-            proposedX = inputFrameCG.minX
+            targetWidth = min(
+                inputFrameCG.width + (CaptureMetrics.horizontalPadding * 2),
+                windowFrame.width
+            )
+            proposedX = inputFrameCG.minX - CaptureMetrics.horizontalPadding
             proposedY = inputFrameCG.minY - targetHeight
         } else {
             // Fall back to the caret if the input frame is completely unavailable.
             let caretRectCG = convertBetweenAppKitAndCG(rect: context.caretRect)
-            targetWidth = min(snapshotDimension, windowFrame.width)
+            targetWidth = min(
+                snapshotDimension + (CaptureMetrics.horizontalPadding * 2),
+                windowFrame.width
+            )
             proposedX = caretRectCG.midX - (targetWidth / 2)
             proposedY = caretRectCG.minY - targetHeight
         }
