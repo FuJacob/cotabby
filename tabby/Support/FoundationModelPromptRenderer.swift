@@ -24,6 +24,7 @@ enum FoundationModelPromptRenderer {
             request.completionLengthInstruction,
             "Do not repeat or quote the existing text.",
             "Match the existing tone, language, casing, and punctuation.",
+            "Use clipboard context only when it directly helps the inline continuation.",
             "Use plain text only with no labels, bullets, markdown, or explanation."
         ]
 
@@ -57,14 +58,25 @@ enum FoundationModelPromptRenderer {
             return "Continue the text at the caret using a short inline completion."
         }
 
-        return [
+        var sections = [
             "App: \(request.context.applicationName)",
+        ]
+
+        if let clipboardContext = request.clipboardContext,
+           !clipboardContext.isEmpty {
+            sections.append("")
+            sections.append("User's clipboard:")
+            sections.append(clipboardContext)
+        }
+
+        sections.append(contentsOf: [
             "",
             "Text before the caret:",
             prefixText,
             "",
             "Write only the next continuation fragment."
-        ]
-        .joined(separator: "\n")
+        ])
+
+        return sections.joined(separator: "\n")
     }
 }

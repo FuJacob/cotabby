@@ -96,6 +96,7 @@ enum TabbyTestFixtures {
         completionLengthInstruction: String = "Return only the next few words.",
         userName: String? = nil,
         userTags: [String]? = nil,
+        clipboardContext: String? = nil,
         visualContextSummary: String? = nil
     ) -> SuggestionRequest {
         let resolvedPrecedingText = precedingText ?? prefixText
@@ -121,6 +122,7 @@ enum TabbyTestFixtures {
             completionLengthInstruction: completionLengthInstruction,
             userName: userName,
             userTags: userTags,
+            clipboardContext: clipboardContext,
             visualContextSummary: visualContextSummary
         )
     }
@@ -204,6 +206,7 @@ enum TabbyTestFixtures {
         disabledAppBundleIdentifiers: Set<String> = [],
         selectedEngine: SuggestionEngineKind = .llamaOpenSource,
         selectedWordCountPreset: SuggestionWordCountPreset = .sevenToTwelve,
+        isClipboardContextEnabled: Bool = true,
         userName: String = "",
         userTags: [String] = []
     ) -> SuggestionSettingsSnapshot {
@@ -212,6 +215,7 @@ enum TabbyTestFixtures {
             disabledAppBundleIdentifiers: disabledAppBundleIdentifiers,
             selectedEngine: selectedEngine,
             selectedWordCountPreset: selectedWordCountPreset,
+            isClipboardContextEnabled: isClipboardContextEnabled,
             userName: userName,
             userTags: userTags
         )

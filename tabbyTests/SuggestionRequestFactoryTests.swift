@@ -146,4 +146,50 @@ final class SuggestionRequestFactoryTests: XCTestCase {
         XCTAssertTrue(result.promptPreview.contains("Prefer direct wording."))
         XCTAssertTrue(result.promptPreview.contains("Calendar window says project review at 3 PM."))
     }
+
+    func test_buildRequest_carriesClipboardContextWhenEnabled() {
+        let context = TabbyTestFixtures.focusedInputContext(precedingText: "Hello")
+
+        let result = SuggestionRequestFactory.buildRequest(
+            context: context,
+            settings: TabbyTestFixtures.settingsSnapshot(isClipboardContextEnabled: true),
+            configuration: .standard,
+            clipboardContext: "  Copied project notes.  "
+        )
+
+        XCTAssertEqual(result.request.clipboardContext, "Copied project notes.")
+        XCTAssertTrue(result.promptPreview.contains("User's clipboard:"))
+        XCTAssertTrue(result.promptPreview.contains("Copied project notes."))
+    }
+
+    func test_buildRequest_omitsClipboardContextWhenDisabled() {
+        let context = TabbyTestFixtures.focusedInputContext(precedingText: "Hello")
+
+        let result = SuggestionRequestFactory.buildRequest(
+            context: context,
+            settings: TabbyTestFixtures.settingsSnapshot(isClipboardContextEnabled: false),
+            configuration: .standard,
+            clipboardContext: "Copied project notes."
+        )
+
+        XCTAssertNil(result.request.clipboardContext)
+        XCTAssertFalse(result.promptPreview.contains("User's clipboard:"))
+        XCTAssertFalse(result.promptPreview.contains("Copied project notes."))
+    }
+
+    func test_buildRequest_clipsLongClipboardContext() throws {
+        let context = TabbyTestFixtures.focusedInputContext(precedingText: "Hello")
+        let longClipboard = String(repeating: "a", count: 1_500)
+
+        let result = SuggestionRequestFactory.buildRequest(
+            context: context,
+            settings: TabbyTestFixtures.settingsSnapshot(isClipboardContextEnabled: true),
+            configuration: .standard,
+            clipboardContext: longClipboard
+        )
+
+        let clipboardContext = try XCTUnwrap(result.request.clipboardContext)
+        XCTAssertEqual(clipboardContext.count, 1_200)
+        XCTAssertTrue(clipboardContext.hasSuffix("..."))
+    }
 }

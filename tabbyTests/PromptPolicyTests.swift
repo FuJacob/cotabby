@@ -35,6 +35,18 @@ final class FoundationModelPromptRendererTests: XCTestCase {
         XCTAssertFalse(prompt.contains("  Hello from the field  "))
     }
 
+    func test_prompt_includesClipboardContextWhenProvided() {
+        let request = TabbyTestFixtures.suggestionRequest(
+            prefixText: "Continue this",
+            clipboardContext: "UNIQUE_APPLE_CLIPBOARD_MARKER"
+        )
+
+        let prompt = FoundationModelPromptRenderer.prompt(for: request)
+
+        XCTAssertTrue(prompt.contains("User's clipboard:"))
+        XCTAssertTrue(prompt.contains("UNIQUE_APPLE_CLIPBOARD_MARKER"))
+    }
+
     func test_prompt_returnsFallbackWhenPrefixIsEmptyAfterTrimming() {
         let request = TabbyTestFixtures.suggestionRequest(
             prefixText: " \n ",

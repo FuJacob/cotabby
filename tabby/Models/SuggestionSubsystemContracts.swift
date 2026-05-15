@@ -51,6 +51,11 @@ protocol SuggestionSettingsProviding: AnyObject {
 }
 
 @MainActor
+protocol ClipboardContextProviding: AnyObject {
+    func currentContext() -> String?
+}
+
+@MainActor
 protocol SuggestionInserting: AnyObject {
     var lastErrorMessage: String? { get }
 

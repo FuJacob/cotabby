@@ -17,6 +17,7 @@ final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var customSuggestionTextColorHex: String?
     @Published private(set) var selectedEngine: SuggestionEngineKind
     @Published private(set) var selectedWordCountPreset: SuggestionWordCountPreset
+    @Published private(set) var isClipboardContextEnabled: Bool
     @Published private(set) var userName: String
     @Published private(set) var userTags: [String]
     private let userDefaults: UserDefaults
@@ -29,6 +30,7 @@ final class SuggestionSettingsModel: ObservableObject {
     private static let customSuggestionTextColorHexDefaultsKey = "tabbyCustomSuggestionTextColorHex"
     private static let selectedEngineDefaultsKey = "selectedSuggestionEngine"
     private static let selectedWordCountPresetDefaultsKey = "selectedSuggestionWordCountPreset"
+    private static let clipboardContextEnabledDefaultsKey = "tabbyClipboardContextEnabled"
     private static let userNameDefaultsKey = "tabbyUserName"
     private static let userTagsDefaultsKey = "tabbyUserTags"
 
@@ -56,6 +58,8 @@ final class SuggestionSettingsModel: ObservableObject {
             .string(forKey: Self.selectedWordCountPresetDefaultsKey)
             .flatMap(SuggestionWordCountPreset.init(rawValue:))
             ?? configuration.defaultWordCountPreset
+        let resolvedClipboardContextEnabled =
+            userDefaults.object(forKey: Self.clipboardContextEnabledDefaultsKey) as? Bool ?? true
         let resolvedUserName: String = if userDefaults.object(forKey: Self.userNameDefaultsKey) == nil {
             configuration.defaultUserName ?? ""
         } else {
@@ -74,6 +78,7 @@ final class SuggestionSettingsModel: ObservableObject {
         customSuggestionTextColorHex = resolvedCustomSuggestionTextColorHex
         selectedEngine = resolvedEngine
         selectedWordCountPreset = resolvedWordCountPreset
+        isClipboardContextEnabled = resolvedClipboardContextEnabled
         userName = resolvedUserName
         userTags = resolvedUserTags
 
@@ -83,6 +88,7 @@ final class SuggestionSettingsModel: ObservableObject {
         persistCustomSuggestionTextColorHex(resolvedCustomSuggestionTextColorHex)
         persistSelectedEngine(resolvedEngine)
         persistSelectedWordCountPreset(resolvedWordCountPreset)
+        persistClipboardContextEnabled(resolvedClipboardContextEnabled)
         persistUserName(resolvedUserName)
         persistUserTags(resolvedUserTags)
     }
@@ -99,6 +105,7 @@ final class SuggestionSettingsModel: ObservableObject {
             disabledAppBundleIdentifiers: Set(disabledAppRules.map(\.bundleIdentifier)),
             selectedEngine: selectedEngine,
             selectedWordCountPreset: selectedWordCountPreset,
+            isClipboardContextEnabled: isClipboardContextEnabled,
             userName: userName,
             userTags: userTags
         )
@@ -120,6 +127,15 @@ final class SuggestionSettingsModel: ObservableObject {
 
         selectedWordCountPreset = preset
         persistSelectedWordCountPreset(preset)
+    }
+
+    func setClipboardContextEnabled(_ enabled: Bool) {
+        guard isClipboardContextEnabled != enabled else {
+            return
+        }
+
+        isClipboardContextEnabled = enabled
+        persistClipboardContextEnabled(enabled)
     }
 
     func setGloballyEnabled(_ enabled: Bool) {
@@ -260,6 +276,10 @@ final class SuggestionSettingsModel: ObservableObject {
         userDefaults.set(preset.rawValue, forKey: Self.selectedWordCountPresetDefaultsKey)
     }
 
+    private func persistClipboardContextEnabled(_ enabled: Bool) {
+        userDefaults.set(enabled, forKey: Self.clipboardContextEnabledDefaultsKey)
+    }
+
     private func persistSelectedIndicatorMode(_ mode: ActivationIndicatorMode) {
         userDefaults.set(mode.rawValue, forKey: Self.selectedIndicatorModeDefaultsKey)
         userDefaults.set(mode != .hidden, forKey: Self.showCaretIndicatorDefaultsKey)
@@ -389,16 +409,18 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                 $selectedEngine,
                 $selectedWordCountPreset
             ),
-            $userName,
-            $userTags
+            $isClipboardContextEnabled,
+            Publishers.CombineLatest($userName, $userTags)
         )
-        .map { combinedSettings, userName, userTags in
+        .map { combinedSettings, clipboardContextEnabled, profile in
             let (globallyEnabled, disabledAppRules, engine, wordCountPreset) = combinedSettings
+            let (userName, userTags) = profile
             return SuggestionSettingsSnapshot(
                 isGloballyEnabled: globallyEnabled,
                 disabledAppBundleIdentifiers: Set(disabledAppRules.map(\.bundleIdentifier)),
                 selectedEngine: engine,
                 selectedWordCountPreset: wordCountPreset,
+                isClipboardContextEnabled: clipboardContextEnabled,
                 userName: userName,
                 userTags: userTags
             )

@@ -78,6 +78,10 @@ struct MenuBarView: View {
                 .toggleStyle(.switch)
                 .controlSize(.small)
 
+            Toggle("Clipboard Context", isOn: clipboardContextEnabledBinding)
+                .toggleStyle(.switch)
+                .controlSize(.small)
+
             if let application = focusModel.latestExternalApplication {
                 Toggle("Enable in \(application.applicationName)", isOn: appEnabledBinding(for: application))
                     .toggleStyle(.switch)
@@ -217,6 +221,13 @@ struct MenuBarView: View {
         Binding(
             get: { suggestionSettings.isGloballyEnabled },
             set: { suggestionSettings.setGloballyEnabled($0) }
+        )
+    }
+
+    private var clipboardContextEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.isClipboardContextEnabled },
+            set: { suggestionSettings.setClipboardContextEnabled($0) }
         )
     }
 

@@ -71,10 +71,14 @@ extension SuggestionCoordinator {
 
         let context = interactionState.materializeContext(from: rawContext)
         let visualContextSummary = visualContextCoordinator.excerpt(for: context)
+        let clipboardContext = settingsSnapshot.isClipboardContextEnabled
+            ? clipboardContextProvider.currentContext()
+            : nil
         let requestBuildResult = SuggestionRequestFactory.buildRequest(
             context: context,
             settings: settingsSnapshot,
             configuration: configuration,
+            clipboardContext: clipboardContext,
             visualContextSummary: visualContextSummary
         )
         latestGenerationNumber = context.generation

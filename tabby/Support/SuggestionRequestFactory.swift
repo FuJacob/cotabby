@@ -17,6 +17,8 @@ struct SuggestionRequestBuildResult: Equatable, Sendable {
 /// Pure prompt-policy surface for the autocomplete pipeline.
 /// This type has no access to UserDefaults, tasks, overlays, or runtime services.
 enum SuggestionRequestFactory {
+    private static let maxClipboardContextCharacters = 1_200
+
     /// Require at least one non-whitespace character so we don't suggest on a blank field.
     /// No trailing-space gate — the debounce handles rapid keystroke settling, and
     /// `SuggestionTextNormalizer` applies deterministic space management on the output side.
@@ -30,6 +32,7 @@ enum SuggestionRequestFactory {
         context: FocusedInputContext,
         settings: SuggestionSettingsSnapshot,
         configuration: SuggestionConfiguration,
+        clipboardContext: String? = nil,
         visualContextSummary: String? = nil
     ) -> SuggestionRequestBuildResult {
         let prefixText = truncatedPromptPrefix(
@@ -39,12 +42,17 @@ enum SuggestionRequestFactory {
         let completionLengthInstruction = settings.selectedWordCountPreset.promptInstruction
         let userName = activeUserName(settings: settings)
         let userTags = activeUserTags(settings: settings)
+        let boundedClipboardContext = activeClipboardContext(
+            rawContext: clipboardContext,
+            settings: settings
+        )
         let prompt = LlamaPromptRenderer.prompt(
             prefixText: prefixText,
             applicationName: context.applicationName,
             completionLengthInstruction: completionLengthInstruction,
             userName: userName,
             userTags: userTags,
+            clipboardContext: boundedClipboardContext,
             visualContextSummary: visualContextSummary
         )
 
@@ -67,6 +75,7 @@ enum SuggestionRequestFactory {
             completionLengthInstruction: completionLengthInstruction,
             userName: userName,
             userTags: userTags,
+            clipboardContext: boundedClipboardContext,
             visualContextSummary: visualContextSummary
         )
 
@@ -101,6 +110,35 @@ enum SuggestionRequestFactory {
         settings: SuggestionSettingsSnapshot
     ) -> [String]? {
         settings.userTags
+    }
+
+    private static func activeClipboardContext(
+        rawContext: String?,
+        settings: SuggestionSettingsSnapshot
+    ) -> String? {
+        guard settings.isClipboardContextEnabled,
+              let rawContext
+        else {
+            return nil
+        }
+
+        let trimmed = rawContext.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return nil
+        }
+
+        return clippedText(trimmed, maxCharacters: maxClipboardContextCharacters)
+    }
+
+    private static func clippedText(_ text: String, maxCharacters: Int) -> String {
+        guard text.count > maxCharacters else {
+            return text
+        }
+
+        let suffix = "..."
+        let allowedPrefixCount = max(maxCharacters - suffix.count, 0)
+        return String(text.prefix(allowedPrefixCount))
+            .trimmingCharacters(in: .whitespacesAndNewlines) + suffix
     }
 
     private static func activeMaxPredictionTokens(

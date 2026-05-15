@@ -19,6 +19,7 @@ enum LlamaPromptRenderer {
         completionLengthInstruction: String,
         userName: String?,
         userTags: [String]?,
+        clipboardContext: String? = nil,
         visualContextSummary: String? = nil
     ) -> String {
         var sections = [
@@ -26,6 +27,7 @@ enum LlamaPromptRenderer {
             "- Continue the user's existing text exactly at the caret position.",
             "- This is autocomplete, not chat. Do not answer the user or start a conversation.",
             "- Never repeat, restate, or quote the text before the caret.",
+            "- Use clipboard context only when it directly helps the inline continuation.",
             "- Return plain text only with no labels, bullets, markdown, quotes, or explanation."
         ]
 
@@ -50,6 +52,10 @@ enum LlamaPromptRenderer {
         if let summary = visualContextSummary, !summary.isEmpty {
             sections.append("Screen content:")
             sections.append(summary)
+        }
+        if let clipboardContext, !clipboardContext.isEmpty {
+            sections.append("User's clipboard:")
+            sections.append(clipboardContext)
         }
 
         // The final task cue sits immediately before the prefix so small instruct models see the

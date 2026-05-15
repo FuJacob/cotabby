@@ -113,6 +113,8 @@ struct SettingsView: View {
         Section("Autocomplete") {
             Toggle("Enable Globally", isOn: globallyEnabledBinding)
 
+            Toggle("Clipboard Context", isOn: clipboardContextEnabledBinding)
+
             Picker("Indicator", selection: selectedIndicatorModeBinding) {
                 ForEach(ActivationIndicatorMode.allCases) { mode in
                     Text(mode.displayLabel)
@@ -429,6 +431,13 @@ struct SettingsView: View {
         Binding(
             get: { suggestionSettings.isGloballyEnabled },
             set: { suggestionSettings.setGloballyEnabled($0) }
+        )
+    }
+
+    private var clipboardContextEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.isClipboardContextEnabled },
+            set: { suggestionSettings.setClipboardContextEnabled($0) }
         )
     }
 

@@ -19,6 +19,7 @@ final class TabbyAppEnvironment {
     let permissionGuidanceController: PermissionGuidanceController
     let suggestionSettings: SuggestionSettingsModel
     let foundationModelAvailabilityService: FoundationModelAvailabilityService
+    let clipboardContextProvider: ClipboardContextProvider
     let suggestionCoordinator: SuggestionCoordinator
     let welcomeCoordinator: WelcomeCoordinator
     let settingsCoordinator: SettingsCoordinator
@@ -71,6 +72,7 @@ final class TabbyAppEnvironment {
         let suggestionInserter = SuggestionInserter(suppressionController: suppressionController)
         let overlayController = OverlayController(suggestionSettings: suggestionSettings)
         let activationIndicatorController = ActivationIndicatorController()
+        let clipboardContextProvider = ClipboardContextProvider()
         let summarizer = LlamaVisualContextSummarizer(runtimeManager: runtimeManager)
         let screenshotContextGenerator = ScreenshotContextGenerator(summarizer: summarizer)
         let visualContextCoordinator = VisualContextCoordinator(
@@ -95,6 +97,7 @@ final class TabbyAppEnvironment {
             suggestionInserter: suggestionInserter,
             suggestionEngine: suggestionEngine,
             suggestionSettings: suggestionSettings,
+            clipboardContextProvider: clipboardContextProvider,
             visualContextCoordinator: visualContextCoordinator,
             interactionState: interactionState,
             workController: workController,
@@ -111,6 +114,7 @@ final class TabbyAppEnvironment {
         self.permissionGuidanceController = permissionGuidanceController
         self.suggestionSettings = suggestionSettings
         self.foundationModelAvailabilityService = foundationModelAvailabilityService
+        self.clipboardContextProvider = clipboardContextProvider
         self.suggestionCoordinator = suggestionCoordinator
         self.welcomeCoordinator = welcomeCoordinator
         self.settingsCoordinator = settingsCoordinator

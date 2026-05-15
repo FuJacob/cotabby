@@ -173,6 +173,20 @@ final class LlamaPromptRendererTests: XCTestCase {
         XCTAssertTrue(prompt.contains("A window describing a cat."))
     }
 
+    func test_instructionPrompt_includesClipboardContextWhenProvided() {
+        let prompt = LlamaPromptRenderer.prompt(
+            prefixText: "PREFIX",
+            applicationName: "App",
+            completionLengthInstruction: "Short.",
+            userName: nil,
+            userTags: nil,
+            clipboardContext: "UNIQUE_CLIPBOARD_MARKER"
+        )
+
+        XCTAssertTrue(prompt.contains("User's clipboard:"))
+        XCTAssertTrue(prompt.contains("UNIQUE_CLIPBOARD_MARKER"))
+    }
+
     func test_instructionPrompt_omitsVisualContextSummaryWhenNil() {
         let prompt = LlamaPromptRenderer.prompt(
             prefixText: "PREFIX",
@@ -227,6 +241,7 @@ final class LlamaPromptRendererTests: XCTestCase {
             completionLengthInstruction: "Return only the next few words.",
             userName: nil,
             userTags: nil,
+            clipboardContext: nil,
             visualContextSummary: nil
         )
     }

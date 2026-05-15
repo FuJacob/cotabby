@@ -51,6 +51,7 @@ struct SuggestionSettingsSnapshot: Equatable, Sendable {
     let disabledAppBundleIdentifiers: Set<String>
     let selectedEngine: SuggestionEngineKind
     let selectedWordCountPreset: SuggestionWordCountPreset
+    let isClipboardContextEnabled: Bool
     /// User-authored profile data for Tabby's single instruction-rendered completion prompt.
     /// This travels in the snapshot so generation uses the same value the Settings UI shows.
     let userName: String

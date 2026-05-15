@@ -459,6 +459,44 @@ final class SuggestionSettingsModelDisabledAppsTests: XCTestCase {
         _ = cancellables
     }
 
+    func test_clipboardContextEnabled_defaultsToTrueAndPersists() {
+        runOnMainActor {
+            let userDefaults = makeUserDefaults()
+            let model = makeModel(userDefaults: userDefaults)
+
+            XCTAssertTrue(model.isClipboardContextEnabled)
+            XCTAssertTrue(model.snapshot.isClipboardContextEnabled)
+
+            model.setClipboardContextEnabled(false)
+            let reloadedModel = makeModel(userDefaults: userDefaults)
+
+            XCTAssertFalse(reloadedModel.isClipboardContextEnabled)
+            XCTAssertFalse(reloadedModel.snapshot.isClipboardContextEnabled)
+        }
+    }
+
+    func test_snapshotPublisher_emitsWhenClipboardContextSettingChanges() {
+        let expectation = expectation(description: "snapshot emits after clipboard setting changes")
+        var cancellables = Set<AnyCancellable>()
+
+        runOnMainActor {
+            let model = makeModel()
+
+            model.snapshotPublisher
+                .dropFirst()
+                .sink { snapshot in
+                    XCTAssertFalse(snapshot.isClipboardContextEnabled)
+                    expectation.fulfill()
+                }
+                .store(in: &cancellables)
+
+            model.setClipboardContextEnabled(false)
+        }
+
+        wait(for: [expectation], timeout: 1.0)
+        _ = cancellables
+    }
+
     @MainActor
     private func makeModel(
         userDefaults: UserDefaults? = nil
