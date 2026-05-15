@@ -20,9 +20,14 @@ final class PermissionManager: ObservableObject {
     /// Polling keeps UI state aligned with system settings changes performed outside the app.
     init() {
         refresh()
-        pollTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
+        let pollTimer = Timer(timeInterval: 2.0, repeats: true) { [weak self] _ in
             DispatchQueue.main.async { self?.refresh() }
         }
+        // Menu panels and drag sessions can move the main run loop out of its default mode.
+        // Common modes keep the permission cache from freezing during exactly the flows that
+        // change permissions.
+        RunLoop.main.add(pollTimer, forMode: .common)
+        self.pollTimer = pollTimer
     }
 
     deinit {
@@ -31,9 +36,23 @@ final class PermissionManager: ObservableObject {
 
     /// Re-reads the current system permission state and republishes any changes to observers.
     func refresh() {
-        accessibilityGranted = AXIsProcessTrusted()
-        inputMonitoringGranted = CGPreflightListenEventAccess()
-        screenRecordingGranted = CGPreflightScreenCaptureAccess()
+        let latestAccessibilityGranted = AXIsProcessTrusted()
+        let latestInputMonitoringGranted = CGPreflightListenEventAccess()
+        let latestScreenRecordingGranted = CGPreflightScreenCaptureAccess()
+
+        // `@Published` notifies on assignment, even when the value is unchanged. Compare first so
+        // the 2-second poll does not redraw SwiftUI surfaces that already have the right state.
+        if accessibilityGranted != latestAccessibilityGranted {
+            accessibilityGranted = latestAccessibilityGranted
+        }
+
+        if inputMonitoringGranted != latestInputMonitoringGranted {
+            inputMonitoringGranted = latestInputMonitoringGranted
+        }
+
+        if screenRecordingGranted != latestScreenRecordingGranted {
+            screenRecordingGranted = latestScreenRecordingGranted
+        }
     }
 
     /// Returns the latest cached grant state for a specific permission kind.

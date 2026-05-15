@@ -33,6 +33,11 @@ struct MenuBarView: View {
         }
         .padding(16)
         .frame(width: 340)
+        .background(
+            MenuBarPresentationObserver {
+                permissionManager.refresh()
+            }
+        )
         .onAppear {
             // The menu is a status surface, so re-read system permissions whenever it opens.
             // The background poll eventually catches changes too, but this avoids showing stale
