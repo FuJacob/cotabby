@@ -10,7 +10,40 @@
 
 ## Demo
 
-[Watch on YouTube](https://www.youtube.com/watch?v=p3TIgxQFQGE)
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=p3TIgxQFQGE">Watch on YouTube</a>
+</p>
+
+<div align="center">
+
+<table>
+  <tr>
+    <td align="center" width="420">
+      <img width="840" alt="Tabby in Email" src="https://github.com/user-attachments/assets/ff89bed1-176e-422b-844f-a46c27b63585" />
+      <br />
+      <sub>Email</sub>
+    </td>
+    <td align="center" width="420">
+      <img width="840" alt="Tabby in Slack" src="https://github.com/user-attachments/assets/66ae00c6-34a0-4383-beb0-4b0713c9f1bc" />
+      <br />
+      <sub>Slack</sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="420">
+      <img width="840" alt="Tabby in Notes" src="https://github.com/user-attachments/assets/7e60e91f-9d9d-4a98-8810-23b74dfc9657" />
+      <br />
+      <sub>Notes</sub>
+    </td>
+    <td align="center" width="420">
+      <img width="840" alt="Tabby in iMessage" src="https://github.com/user-attachments/assets/acaa3679-bffc-4fbb-8262-72b651a77f54" />
+      <br />
+      <sub>iMessage</sub>
+    </td>
+  </tr>
+</table>
+
+</div>
 
 ## What It Does
 
