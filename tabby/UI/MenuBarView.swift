@@ -17,6 +17,7 @@ struct MenuBarView: View {
     @ObservedObject var runtimeModel: RuntimeBootstrapModel
     @ObservedObject var modelDownloadManager: ModelDownloadManager
     @ObservedObject var focusModel: FocusTrackingModel
+    let permissionGuidanceController: PermissionGuidanceController
     @ObservedObject var suggestionSettings: SuggestionSettingsModel
     @ObservedObject var foundationModelAvailabilityService: FoundationModelAvailabilityService
     @ObservedObject var suggestionCoordinator: SuggestionCoordinator
@@ -163,7 +164,12 @@ struct MenuBarView: View {
                     PermissionRow(
                         title: permission.title,
                         granted: permissionManager.isGranted(permission),
-                        action: { permissionManager.openSettings(for: permission) }
+                        action: { sourceFrameInScreen in
+                            permissionGuidanceController.requestAccess(
+                                for: permission,
+                                sourceFrameInScreen: sourceFrameInScreen
+                            )
+                        }
                     )
                 }
             }

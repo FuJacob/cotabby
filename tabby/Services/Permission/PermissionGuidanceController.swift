@@ -34,7 +34,7 @@ final class PermissionGuidanceController {
         }
     }
 
-    /// Public entry point used by onboarding buttons.
+    /// Public entry point used by onboarding and menu-bar permission buttons.
     ///
     /// The controller chooses the appropriate experience based on the permission's metadata. That
     /// keeps the view layer simple: onboarding asks for help with a permission, and this type

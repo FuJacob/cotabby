@@ -50,13 +50,17 @@ struct MenuBarPickerRow<Content: View>: View {
     }
 }
 
-/// A single permission row with a checkmark/x indicator and an inline "Grant" button
-/// when the permission is missing. The button calls directly into PermissionManager's
-/// existing System Settings openers.
+/// A single permission row with a checkmark/x indicator and an inline "Grant" button.
+///
+/// The row measures the Grant button in screen coordinates so callers can anchor AppKit overlays
+/// to the exact clicked control. That keeps the menu row presentational while still giving the
+/// permission-guidance service the geometry it needs for its cross-window animation.
 struct PermissionRow: View {
     let title: String
     let granted: Bool
-    let action: () -> Void
+    let action: (CGRect?) -> Void
+
+    @State private var actionButtonFrame = CGRect.zero
 
     var body: some View {
         HStack(spacing: 8) {
@@ -71,11 +75,12 @@ struct PermissionRow: View {
 
             if !granted {
                 Button("Grant") {
-                    action()
+                    action(actionButtonFrame.isEmpty ? nil : actionButtonFrame)
                 }
                 .font(.caption)
                 .buttonStyle(.borderless)
                 .foregroundStyle(.tint)
+                .background(ScreenFrameReader(frameInScreen: $actionButtonFrame))
             }
         }
     }

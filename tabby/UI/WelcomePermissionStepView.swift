@@ -1,4 +1,3 @@
-import AppKit
 import SwiftUI
 
 /// File overview:
@@ -149,58 +148,5 @@ private struct PermissionDoneBadge: View {
                 .font(.system(size: 12, weight: .medium))
         }
         .foregroundStyle(.green)
-    }
-}
-
-/// SwiftUI wrapper around a tiny AppKit view that reports its bounds in screen coordinates.
-///
-/// The permission guidance animation needs a global screen rect to anchor the drag helper overlay
-/// on a separate NSPanel. GeometryReader only knows local layout, so we bridge through AppKit.
-private struct ScreenFrameReader: NSViewRepresentable {
-    @Binding var frameInScreen: CGRect
-
-    func makeNSView(context: Context) -> ScreenFrameTrackingView {
-        let view = ScreenFrameTrackingView()
-        view.onFrameChange = { frame in
-            frameInScreen = frame
-        }
-        return view
-    }
-
-    func updateNSView(_ nsView: ScreenFrameTrackingView, context: Context) {
-        nsView.onFrameChange = { frame in
-            frameInScreen = frame
-        }
-        nsView.reportFrame()
-    }
-}
-
-private final class ScreenFrameTrackingView: NSView {
-    var onFrameChange: ((CGRect) -> Void)?
-
-    override func viewDidMoveToWindow() {
-        super.viewDidMoveToWindow()
-        reportFrame()
-    }
-
-    override func layout() {
-        super.layout()
-        reportFrame()
-    }
-
-    override func updateTrackingAreas() {
-        super.updateTrackingAreas()
-        reportFrame()
-    }
-
-    func reportFrame() {
-        guard let window else {
-            return
-        }
-
-        let frame = window.convertToScreen(convert(bounds, to: nil))
-        DispatchQueue.main.async { [onFrameChange] in
-            onFrameChange?(frame)
-        }
     }
 }

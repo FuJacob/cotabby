@@ -18,6 +18,7 @@ struct TabbyApp: App {
                 runtimeModel: appDelegate.runtimeModel,
                 modelDownloadManager: appDelegate.modelDownloadManager,
                 focusModel: appDelegate.focusModel,
+                permissionGuidanceController: appDelegate.permissionGuidanceController,
                 suggestionSettings: appDelegate.suggestionSettings,
                 foundationModelAvailabilityService: appDelegate.foundationModelAvailabilityService,
                 suggestionCoordinator: appDelegate.suggestionCoordinator,

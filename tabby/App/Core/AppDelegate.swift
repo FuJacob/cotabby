@@ -20,6 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let inputMonitor: InputMonitor
     let appUpdateManager: AppUpdateManager
     let launchAtLoginService: LaunchAtLoginService
+    let permissionGuidanceController: PermissionGuidanceController
     let suggestionSettings: SuggestionSettingsModel
     let foundationModelAvailabilityService: FoundationModelAvailabilityService
     let suggestionCoordinator: SuggestionCoordinator
@@ -42,6 +43,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         inputMonitor = environment.inputMonitor
         appUpdateManager = environment.appUpdateManager
         launchAtLoginService = environment.launchAtLoginService
+        permissionGuidanceController = environment.permissionGuidanceController
         suggestionSettings = environment.suggestionSettings
         foundationModelAvailabilityService = environment.foundationModelAvailabilityService
         suggestionCoordinator = environment.suggestionCoordinator

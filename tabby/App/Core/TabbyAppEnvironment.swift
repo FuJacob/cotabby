@@ -16,6 +16,7 @@ final class TabbyAppEnvironment {
     let inputMonitor: InputMonitor
     let appUpdateManager: AppUpdateManager
     let launchAtLoginService: LaunchAtLoginService
+    let permissionGuidanceController: PermissionGuidanceController
     let suggestionSettings: SuggestionSettingsModel
     let foundationModelAvailabilityService: FoundationModelAvailabilityService
     let suggestionCoordinator: SuggestionCoordinator
@@ -107,6 +108,7 @@ final class TabbyAppEnvironment {
         self.inputMonitor = inputMonitor
         self.appUpdateManager = appUpdateManager
         self.launchAtLoginService = launchAtLoginService
+        self.permissionGuidanceController = permissionGuidanceController
         self.suggestionSettings = suggestionSettings
         self.foundationModelAvailabilityService = foundationModelAvailabilityService
         self.suggestionCoordinator = suggestionCoordinator
