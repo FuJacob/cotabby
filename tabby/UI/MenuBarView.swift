@@ -60,7 +60,7 @@ struct MenuBarView: View {
 
             Spacer(minLength: 0)
 
-            Text("\(suggestionCoordinator.totalTabAcceptedWordCount) words accepted")
+            Text("\(suggestionSettings.selectedInteractionMode.displayLabel) - \(suggestionCoordinator.totalTabAcceptedWordCount) words accepted")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
@@ -86,6 +86,17 @@ struct MenuBarView: View {
                 Toggle("Enable in \(application.applicationName)", isOn: appEnabledBinding(for: application))
                     .toggleStyle(.switch)
                     .controlSize(.small)
+            }
+
+            MenuBarPickerRow(title: "Mode") {
+                Picker("Mode", selection: selectedInteractionModeBinding) {
+                    ForEach(SuggestionInteractionMode.allCases) { mode in
+                        Text(mode.displayLabel)
+                            .tag(mode)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
             }
 
             MenuBarPickerRow(title: "Indicator") {
@@ -252,6 +263,15 @@ struct MenuBarView: View {
         Binding(
             get: { suggestionSettings.selectedIndicatorMode },
             set: { suggestionSettings.selectIndicatorMode($0) }
+        )
+    }
+
+    private var selectedInteractionModeBinding: Binding<SuggestionInteractionMode> {
+        Binding(
+            get: { suggestionSettings.selectedInteractionMode },
+            set: { mode in
+                suggestionSettings.selectInteractionMode(mode)
+            }
         )
     }
 

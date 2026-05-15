@@ -7,6 +7,11 @@ extension SuggestionCoordinator {
     // MARK: - Prediction Pipeline
 
     func schedulePrediction() {
+        guard settingsSnapshot.selectedInteractionMode == .autocomplete else {
+            disablePredictionsPreservingVisualContext(reason: composeModePendingReason)
+            return
+        }
+
         if let disabledReason = SuggestionAvailabilityEvaluator.disabledReason(
             globallyEnabled: settingsSnapshot.isGloballyEnabled,
             disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
@@ -32,6 +37,11 @@ extension SuggestionCoordinator {
 
     /// Refreshes focus after debounce, materializes a stable context, and starts generation.
     func generateFromCurrentFocus(workID: UInt64) async {
+        guard settingsSnapshot.selectedInteractionMode == .autocomplete else {
+            disablePredictionsPreservingVisualContext(reason: composeModePendingReason)
+            return
+        }
+
         guard workController.isCurrent(workID) else {
             return
         }
@@ -411,6 +421,10 @@ extension SuggestionCoordinator {
     /// Once screenshot context becomes ready, regenerate only if the user is still in the same
     /// field and there is enough typed text for a real inline completion request.
     func schedulePredictionForCurrentFocusIfPossible(matching identity: FocusedInputIdentity) {
+        guard settingsSnapshot.selectedInteractionMode == .autocomplete else {
+            return
+        }
+
         focusModel.refreshNow()
         let snapshot = focusModel.snapshot
 
@@ -422,5 +436,9 @@ extension SuggestionCoordinator {
         }
 
         schedulePrediction()
+    }
+
+    private var composeModePendingReason: String {
+        "Compose Mode is selected. Draft generation will be enabled after the Compose request pipeline is installed."
     }
 }

@@ -2,9 +2,9 @@ import Combine
 import Foundation
 
 /// File overview:
-/// Owns the durable autocomplete preferences that are shared across the app:
-/// engine selection, completion length, indicator appearance, and profile
-/// personalization.
+/// Owns the durable suggestion preferences that are shared across the app:
+/// interaction mode, engine selection, completion length, indicator appearance,
+/// and profile personalization.
 ///
 /// This type is the right owner for these values because they are product settings, not
 /// `SuggestionCoordinator` session state. The coordinator should react to settings changes, not
@@ -15,6 +15,7 @@ final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var selectedIndicatorMode: ActivationIndicatorMode
     @Published private(set) var disabledAppRules: [DisabledApplicationRule]
     @Published private(set) var customSuggestionTextColorHex: String?
+    @Published private(set) var selectedInteractionMode: SuggestionInteractionMode
     @Published private(set) var selectedEngine: SuggestionEngineKind
     @Published private(set) var selectedWordCountPreset: SuggestionWordCountPreset
     @Published private(set) var isClipboardContextEnabled: Bool
@@ -28,6 +29,7 @@ final class SuggestionSettingsModel: ObservableObject {
     private static let showCaretIndicatorDefaultsKey = "tabbyShowCaretIndicator"
     private static let selectedIndicatorModeDefaultsKey = "tabbySelectedIndicatorMode"
     private static let customSuggestionTextColorHexDefaultsKey = "tabbyCustomSuggestionTextColorHex"
+    private static let selectedInteractionModeDefaultsKey = "tabbySelectedInteractionMode"
     private static let selectedEngineDefaultsKey = "selectedSuggestionEngine"
     private static let selectedWordCountPresetDefaultsKey = "selectedSuggestionWordCountPreset"
     private static let clipboardContextEnabledDefaultsKey = "tabbyClipboardContextEnabled"
@@ -50,6 +52,10 @@ final class SuggestionSettingsModel: ObservableObject {
         let resolvedCustomSuggestionTextColorHex = Self.normalizedHexString(
             userDefaults.string(forKey: Self.customSuggestionTextColorHexDefaultsKey)
         )
+        let resolvedInteractionMode = userDefaults
+            .string(forKey: Self.selectedInteractionModeDefaultsKey)
+            .flatMap(SuggestionInteractionMode.init(rawValue:))
+            ?? .autocomplete
         let resolvedEngine = userDefaults
             .string(forKey: Self.selectedEngineDefaultsKey)
             .flatMap(SuggestionEngineKind.init(rawValue:))
@@ -76,6 +82,7 @@ final class SuggestionSettingsModel: ObservableObject {
         disabledAppRules = resolvedDisabledAppRules
         selectedIndicatorMode = resolvedIndicatorMode
         customSuggestionTextColorHex = resolvedCustomSuggestionTextColorHex
+        selectedInteractionMode = resolvedInteractionMode
         selectedEngine = resolvedEngine
         selectedWordCountPreset = resolvedWordCountPreset
         isClipboardContextEnabled = resolvedClipboardContextEnabled
@@ -86,6 +93,7 @@ final class SuggestionSettingsModel: ObservableObject {
         persistDisabledAppRules(resolvedDisabledAppRules)
         persistSelectedIndicatorMode(resolvedIndicatorMode)
         persistCustomSuggestionTextColorHex(resolvedCustomSuggestionTextColorHex)
+        persistSelectedInteractionMode(resolvedInteractionMode)
         persistSelectedEngine(resolvedEngine)
         persistSelectedWordCountPreset(resolvedWordCountPreset)
         persistClipboardContextEnabled(resolvedClipboardContextEnabled)
@@ -100,15 +108,25 @@ final class SuggestionSettingsModel: ObservableObject {
     }
 
     var snapshot: SuggestionSettingsSnapshot {
-        SuggestionSettingsSnapshot(
+        Self.makeSnapshot(
             isGloballyEnabled: isGloballyEnabled,
-            disabledAppBundleIdentifiers: Set(disabledAppRules.map(\.bundleIdentifier)),
+            disabledAppRules: disabledAppRules,
+            selectedInteractionMode: selectedInteractionMode,
             selectedEngine: selectedEngine,
             selectedWordCountPreset: selectedWordCountPreset,
             isClipboardContextEnabled: isClipboardContextEnabled,
             userName: userName,
             userTags: userTags
         )
+    }
+
+    func selectInteractionMode(_ mode: SuggestionInteractionMode) {
+        guard selectedInteractionMode != mode else {
+            return
+        }
+
+        selectedInteractionMode = mode
+        persistSelectedInteractionMode(mode)
     }
 
     func selectEngine(_ engine: SuggestionEngineKind) {
@@ -268,6 +286,32 @@ final class SuggestionSettingsModel: ObservableObject {
         persistUserTags(tags)
     }
 
+    private static func makeSnapshot(
+        isGloballyEnabled: Bool,
+        disabledAppRules: [DisabledApplicationRule],
+        selectedInteractionMode: SuggestionInteractionMode,
+        selectedEngine: SuggestionEngineKind,
+        selectedWordCountPreset: SuggestionWordCountPreset,
+        isClipboardContextEnabled: Bool,
+        userName: String,
+        userTags: [String]
+    ) -> SuggestionSettingsSnapshot {
+        SuggestionSettingsSnapshot(
+            isGloballyEnabled: isGloballyEnabled,
+            disabledAppBundleIdentifiers: Set(disabledAppRules.map(\.bundleIdentifier)),
+            selectedInteractionMode: selectedInteractionMode,
+            selectedEngine: selectedEngine,
+            selectedWordCountPreset: selectedWordCountPreset,
+            isClipboardContextEnabled: isClipboardContextEnabled,
+            userName: userName,
+            userTags: userTags
+        )
+    }
+
+    private func persistSelectedInteractionMode(_ mode: SuggestionInteractionMode) {
+        userDefaults.set(mode.rawValue, forKey: Self.selectedInteractionModeDefaultsKey)
+    }
+
     private func persistSelectedEngine(_ engine: SuggestionEngineKind) {
         userDefaults.set(engine.rawValue, forKey: Self.selectedEngineDefaultsKey)
     }
@@ -402,22 +446,24 @@ final class SuggestionSettingsModel: ObservableObject {
 
 extension SuggestionSettingsModel: SuggestionSettingsProviding {
     var snapshotPublisher: AnyPublisher<SuggestionSettingsSnapshot, Never> {
-        Publishers.CombineLatest3(
+        Publishers.CombineLatest4(
             Publishers.CombineLatest4(
                 $isGloballyEnabled,
                 $disabledAppRules,
-                $selectedEngine,
-                $selectedWordCountPreset
+                $selectedInteractionMode,
+                $selectedEngine
             ),
+            $selectedWordCountPreset,
             $isClipboardContextEnabled,
             Publishers.CombineLatest($userName, $userTags)
         )
-        .map { combinedSettings, clipboardContextEnabled, profile in
-            let (globallyEnabled, disabledAppRules, engine, wordCountPreset) = combinedSettings
+        .map { coreSettings, wordCountPreset, clipboardContextEnabled, profile in
+            let (globallyEnabled, disabledAppRules, interactionMode, engine) = coreSettings
             let (userName, userTags) = profile
-            return SuggestionSettingsSnapshot(
+            return Self.makeSnapshot(
                 isGloballyEnabled: globallyEnabled,
-                disabledAppBundleIdentifiers: Set(disabledAppRules.map(\.bundleIdentifier)),
+                disabledAppRules: disabledAppRules,
+                selectedInteractionMode: interactionMode,
                 selectedEngine: engine,
                 selectedWordCountPreset: wordCountPreset,
                 isClipboardContextEnabled: clipboardContextEnabled,
