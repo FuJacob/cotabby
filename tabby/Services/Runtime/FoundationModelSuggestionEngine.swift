@@ -30,12 +30,13 @@ final class FoundationModelSuggestionEngine {
 
         do {
             let startTime = Date()
+            let prompt = FoundationModelPromptRenderer.prompt(for: request)
             let session = LanguageModelSession(
                 model: availabilityService.model,
                 instructions: FoundationModelPromptRenderer.sessionInstructions(for: request)
             )
             let response = try await session.respond(
-                to: FoundationModelPromptRenderer.prompt(for: request),
+                to: prompt,
                 options: generationOptions(for: request)
             )
             try Task.checkCancellation()
@@ -43,7 +44,8 @@ final class FoundationModelSuggestionEngine {
             let rawSuggestion = response.content
             let normalizedSuggestion = SuggestionTextNormalizer.normalize(
                 rawSuggestion,
-                for: request
+                for: request,
+                promptEchoCandidates: [prompt]
             )
 
             return SuggestionResult(
@@ -94,7 +96,9 @@ final class FoundationModelSuggestionEngine {
         case .assetsUnavailable:
             return .unavailable("Apple Intelligence assets are unavailable right now.")
         case .unsupportedLanguageOrLocale:
-            return .unavailable("Apple Intelligence does not support the current language or locale.")
+            return .unsupportedLanguageOrLocale(
+                "Apple Intelligence does not support the current language or locale for this request."
+            )
         case .exceededContextWindowSize:
             return .generationFailed("The Apple on-device model rejected the prompt because it was too large.")
         case .guardrailViolation:

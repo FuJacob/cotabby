@@ -50,17 +50,24 @@ enum FoundationModelPromptRenderer {
     /// Foundation Models tends to behave more reliably when the prompt describes the immediate task
     /// and the stable rules live in session instructions instead of being mixed together.
     static func prompt(for request: SuggestionRequest) -> String {
-        let prefixText = request.prefixText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let prefixText = request.prefixText
 
-        if prefixText.isEmpty {
+        if prefixText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             // This should be rare because upstream generation is already gated on meaningful text.
             // Returning a small fallback prompt is safer than crashing or sending an empty string.
             return "Continue the text at the caret using a short inline completion."
         }
 
         var sections = [
-            "App: \(request.context.applicationName)",
+            "Screen context:",
+            "App: \(request.context.applicationName)"
         ]
+
+        if let summary = request.visualContextSummary,
+           !summary.isEmpty {
+            sections.append("Screen content:")
+            sections.append(summary)
+        }
 
         if let clipboardContext = request.clipboardContext,
            !clipboardContext.isEmpty {
@@ -78,5 +85,18 @@ enum FoundationModelPromptRenderer {
         ])
 
         return sections.joined(separator: "\n")
+    }
+
+    /// Diagnostics need to show both payloads Apple receives: the high-priority instructions and
+    /// the shorter request prompt. Keeping this renderer-owned prevents the menu/debug preview from
+    /// accidentally showing the llama prompt while Apple Intelligence is the selected engine.
+    static func promptPreview(for request: SuggestionRequest) -> String {
+        [
+            "Instructions:",
+            sessionInstructions(for: request),
+            "",
+            "Prompt:",
+            prompt(for: request)
+        ].joined(separator: "\n")
     }
 }

@@ -2,14 +2,15 @@ import Foundation
 
 /// File overview:
 /// Owns the pure rules for deciding whether Tabby should generate and, when it should, how the
-/// request payload and prompt preview are constructed. This keeps prompt policy out of the coordinator.
+/// request payload and backend-specific prompt preview are constructed.
+/// This keeps prompt policy out of the coordinator.
 ///
 /// Architectural role:
 /// `SuggestionCoordinator` decides when a generation attempt should happen. This factory decides
 /// what the request should contain once that decision has already been made.
 struct SuggestionRequestBuildResult: Equatable, Sendable {
-    /// The engine-facing request plus the exact prompt preview shown in the menu UI.
-    /// Keeping these together prevents preview text from drifting away from the real request.
+    /// The engine-facing request plus the selected backend's prompt preview shown in diagnostics.
+    /// Keeping these together prevents preview text from drifting away from the chosen engine.
     let request: SuggestionRequest
     let promptPreview: String
 }
@@ -81,7 +82,7 @@ enum SuggestionRequestFactory {
 
         return SuggestionRequestBuildResult(
             request: request,
-            promptPreview: prompt
+            promptPreview: promptPreview(for: request, selectedEngine: settings.selectedEngine)
         )
     }
 
@@ -146,5 +147,17 @@ enum SuggestionRequestFactory {
         wordCountPreset: SuggestionWordCountPreset
     ) -> Int {
         max(configuration.maxPredictionTokens, wordCountPreset.suggestedPredictionTokenBudget)
+    }
+
+    private static func promptPreview(
+        for request: SuggestionRequest,
+        selectedEngine: SuggestionEngineKind
+    ) -> String {
+        switch selectedEngine {
+        case .appleIntelligence:
+            return FoundationModelPromptRenderer.promptPreview(for: request)
+        case .llamaOpenSource:
+            return request.prompt
+        }
     }
 }

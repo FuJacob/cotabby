@@ -8,7 +8,11 @@ import Foundation
 /// This type is intentionally pure. Given the same request and raw output, it always returns the
 /// same normalized suggestion. That makes it safe to share across backends and easy to test later.
 enum SuggestionTextNormalizer {
-    static func normalize(_ rawSuggestion: String, for request: SuggestionRequest) -> String {
+    static func normalize(
+        _ rawSuggestion: String,
+        for request: SuggestionRequest,
+        promptEchoCandidates: [String] = []
+    ) -> String {
         var normalized = rawSuggestion.replacingOccurrences(of: "\r", with: "")
 
         // Some runtimes echo the prompt or include chat-template control markers in the response.
@@ -16,8 +20,11 @@ enum SuggestionTextNormalizer {
         normalized = normalized.replacingOccurrences(of: "<|im_end|>", with: "")
         normalized = normalized.replacingOccurrences(of: "<|im_start|>", with: "")
 
-        if !request.prompt.isEmpty, normalized.hasPrefix(request.prompt) {
-            normalized.removeFirst(request.prompt.count)
+        for prompt in [request.prompt] + promptEchoCandidates {
+            if !prompt.isEmpty, normalized.hasPrefix(prompt) {
+                normalized.removeFirst(prompt.count)
+                normalized = normalized.trimmingCharacters(in: .controlCharacters.union(.newlines))
+            }
         }
 
         // Apple Intelligence uses a separate instructions channel and a short task prompt, so the

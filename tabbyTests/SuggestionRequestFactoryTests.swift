@@ -147,6 +147,24 @@ final class SuggestionRequestFactoryTests: XCTestCase {
         XCTAssertTrue(result.promptPreview.contains("Calendar window says project review at 3 PM."))
     }
 
+    func test_buildRequest_usesApplePromptPreviewWhenAppleEngineSelected() {
+        let context = TabbyTestFixtures.focusedInputContext(precedingText: "Hello")
+
+        let result = SuggestionRequestFactory.buildRequest(
+            context: context,
+            settings: TabbyTestFixtures.settingsSnapshot(selectedEngine: .appleIntelligence),
+            configuration: .standard,
+            visualContextSummary: "Calendar window says project review at 3 PM."
+        )
+
+        XCTAssertEqual(
+            result.promptPreview,
+            FoundationModelPromptRenderer.promptPreview(for: result.request)
+        )
+        XCTAssertNotEqual(result.promptPreview, result.request.prompt)
+        XCTAssertTrue(result.promptPreview.contains("Calendar window says project review at 3 PM."))
+    }
+
     func test_buildRequest_carriesClipboardContextWhenEnabled() {
         let context = TabbyTestFixtures.focusedInputContext(precedingText: "Hello")
 

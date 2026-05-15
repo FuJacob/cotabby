@@ -37,6 +37,22 @@ final class SuggestionTextNormalizerTests: XCTestCase {
         XCTAssertEqual(normalized, ", with a small addition")
     }
 
+    func test_normalize_removesBackendSpecificPromptEchoCandidate() {
+        let request = TabbyTestFixtures.suggestionRequest(
+            prefixText: "Hello world",
+            prompt: "LLAMA_PROMPT",
+            precedingText: "Hello world"
+        )
+
+        let normalized = SuggestionTextNormalizer.normalize(
+            "APPLE_PROMPT\n useful continuation",
+            for: request,
+            promptEchoCandidates: ["APPLE_PROMPT"]
+        )
+
+        XCTAssertEqual(normalized, " useful continuation")
+    }
+
     func test_normalize_trimsLeadingFormattingNewlinesBeforeTakingFirstLine() {
         let request = TabbyTestFixtures.suggestionRequest(precedingText: "Hello")
 

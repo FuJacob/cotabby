@@ -7,13 +7,13 @@ import Foundation
 @MainActor
 final class SuggestionEngineRouter {
     private let suggestionSettings: SuggestionSettingsModel
-    private let foundationModelEngine: FoundationModelSuggestionEngine
-    private let llamaEngine: LlamaSuggestionEngine
+    private let foundationModelEngine: any SuggestionGenerating
+    private let llamaEngine: any SuggestionGenerating
 
     init(
         suggestionSettings: SuggestionSettingsModel,
-        foundationModelEngine: FoundationModelSuggestionEngine,
-        llamaEngine: LlamaSuggestionEngine
+        foundationModelEngine: any SuggestionGenerating,
+        llamaEngine: any SuggestionGenerating
     ) {
         self.suggestionSettings = suggestionSettings
         self.foundationModelEngine = foundationModelEngine
@@ -23,7 +23,14 @@ final class SuggestionEngineRouter {
     func generateSuggestion(for request: SuggestionRequest) async throws -> SuggestionResult {
         switch suggestionSettings.selectedEngine {
         case .appleIntelligence:
-            return try await foundationModelEngine.generateSuggestion(for: request)
+            do {
+                return try await foundationModelEngine.generateSuggestion(for: request)
+            } catch SuggestionClientError.unsupportedLanguageOrLocale(let message) {
+                return try await generateOpenSourceFallback(
+                    for: request,
+                    appleFailureMessage: message
+                )
+            }
         case .llamaOpenSource:
             return try await llamaEngine.generateSuggestion(for: request)
         }
@@ -35,6 +42,24 @@ final class SuggestionEngineRouter {
     func resetCachedGenerationContext() async {
         await foundationModelEngine.resetCachedGenerationContext()
         await llamaEngine.resetCachedGenerationContext()
+    }
+
+    /// Apple Intelligence can reject a request after global availability reports success because
+    /// language support is checked against the active request/locale. Falling back here keeps the
+    /// coordinator backend-agnostic while giving local models a chance to handle that text.
+    private func generateOpenSourceFallback(
+        for request: SuggestionRequest,
+        appleFailureMessage: String
+    ) async throws -> SuggestionResult {
+        do {
+            return try await llamaEngine.generateSuggestion(for: request)
+        } catch SuggestionClientError.cancelled {
+            throw SuggestionClientError.cancelled
+        } catch {
+            throw SuggestionClientError.unavailable(
+                "\(appleFailureMessage) Open Source fallback also failed: \(error.localizedDescription)"
+            )
+        }
     }
 }
 
