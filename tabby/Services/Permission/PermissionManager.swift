@@ -55,6 +55,34 @@ final class PermissionManager: ObservableObject {
         }
     }
 
+    /// Asks macOS to register or prompt for the current process before showing manual guidance.
+    ///
+    /// The drag helper is useful once the user is in System Settings, but TCC permissions are
+    /// ultimately granted to the current app's code identity. Calling the native request API first
+    /// makes macOS resolve that identity itself instead of relying only on a file dragged into the
+    /// Settings table.
+    @discardableResult
+    func requestSystemAccess(for permission: TabbyPermissionKind) -> Bool {
+        let granted: Bool
+
+        switch permission {
+        case .accessibility:
+            let options = [
+                kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true
+            ] as CFDictionary
+            granted = AXIsProcessTrustedWithOptions(options)
+
+        case .inputMonitoring:
+            granted = CGRequestListenEventAccess()
+
+        case .screenRecording:
+            granted = CGRequestScreenCaptureAccess()
+        }
+
+        refresh()
+        return granted
+    }
+
     /// Returns the latest cached grant state for a specific permission kind.
     ///
     /// Keeping this switch here means higher-level UI can reason in terms of `TabbyPermissionKind`

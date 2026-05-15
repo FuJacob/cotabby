@@ -40,6 +40,16 @@ final class PermissionGuidanceController {
     /// keeps the view layer simple: onboarding asks for help with a permission, and this type
     /// decides whether that means a rich guided overlay or a plain Settings deep link.
     func requestAccess(for permission: TabbyPermissionKind, sourceFrameInScreen: CGRect? = nil) {
+        permissionManager.refresh()
+        guard !permissionManager.isGranted(permission) else {
+            return
+        }
+
+        permissionManager.requestSystemAccess(for: permission)
+        guard !permissionManager.isGranted(permission) else {
+            return
+        }
+
         switch permission.guidanceStyle {
         case .guidedOverlay:
             presentGuidance(for: permission, sourceFrameInScreen: sourceFrameInScreen)

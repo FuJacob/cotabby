@@ -7,7 +7,7 @@ import Foundation
 /// This lives in AppKit instead of SwiftUI because the flow depends on `NSDraggingSession`,
 /// pasteboard item providers, and a view snapshot used as the drag image. Those APIs are far more
 /// natural at the AppKit boundary.
-final class PermissionDragSourceView: NSView, NSPasteboardItemDataProvider, NSDraggingSource {
+final class PermissionDragSourceView: NSView, NSDraggingSource {
     private let hostApp: PermissionHostApp
     private let rowView = NSView()
     private let iconChrome = NSView()
@@ -31,10 +31,10 @@ final class PermissionDragSourceView: NSView, NSPasteboardItemDataProvider, NSDr
     }
 
     override func mouseDown(with event: NSEvent) {
-        let pasteboardItem = NSPasteboardItem()
-        pasteboardItem.setDataProvider(self, forTypes: [.fileURL])
-
-        let draggingItem = NSDraggingItem(pasteboardWriter: pasteboardItem)
+        // Use NSURL as the pasteboard writer so System Settings receives AppKit's native file-URL
+        // representations for the current app bundle. Hand-encoding `.fileURL` data is easy to get
+        // subtly wrong and can make TCC grant a different identity than the running process.
+        let draggingItem = NSDraggingItem(pasteboardWriter: hostApp.bundleURL as NSURL)
         draggingItem.setDraggingFrame(draggingFrame(), contents: draggingImage())
 
         let session = beginDraggingSession(with: [draggingItem], event: event, source: self)
@@ -44,18 +44,6 @@ final class PermissionDragSourceView: NSView, NSPasteboardItemDataProvider, NSDr
     override func viewDidChangeEffectiveAppearance() {
         super.viewDidChangeEffectiveAppearance()
         updateAppearance()
-    }
-
-    func pasteboard(
-        _ pasteboard: NSPasteboard?,
-        item: NSPasteboardItem,
-        provideDataForType type: NSPasteboard.PasteboardType
-    ) {
-        guard type == .fileURL else {
-            return
-        }
-
-        item.setData(hostApp.bundleURL.dataRepresentation, forType: .fileURL)
     }
 
     func draggingSession(_ session: NSDraggingSession, willBeginAt screenPoint: NSPoint) {
