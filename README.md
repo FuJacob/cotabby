@@ -21,24 +21,24 @@
 <table align="center" width="100%">
   <tr>
     <td align="center" valign="top" width="50%">
-      <img src="https://github.com/user-attachments/assets/ff89bed1-176e-422b-844f-a46c27b63585" alt="Tabby in Email" width="100%" />
+      <img src=".github/assets/readme/demo-email.png" alt="Tabby autocomplete in Email" width="100%" />
       <br />
       <sub><b>Email</b></sub>
     </td>
     <td align="center" valign="top" width="50%">
-      <img src="https://github.com/user-attachments/assets/66ae00c6-34a0-4383-beb0-4b0713c9f1bc" alt="Tabby in Slack" width="100%" />
+      <img src=".github/assets/readme/demo-slack.png" alt="Tabby autocomplete in Slack" width="100%" />
       <br />
       <sub><b>Slack</b></sub>
     </td>
   </tr>
   <tr>
     <td align="center" valign="top" width="50%">
-      <img src="https://github.com/user-attachments/assets/7e60e91f-9d9d-4a98-8810-23b74dfc9657" alt="Tabby in Notes" width="100%" />
+      <img src=".github/assets/readme/demo-notes.png" alt="Tabby autocomplete in Notes" width="100%" />
       <br />
       <sub><b>Notes</b></sub>
     </td>
     <td align="center" valign="top" width="50%">
-      <img src="https://github.com/user-attachments/assets/acaa3679-bffc-4fbb-8262-72b651a77f54" alt="Tabby in iMessage" width="100%" />
+      <img src=".github/assets/readme/demo-imessage.png" alt="Tabby autocomplete in iMessage" width="100%" />
       <br />
       <sub><b>iMessage</b></sub>
     </td>
@@ -57,11 +57,11 @@ Everything runs on-device. No hosted API, no cloud round-trip.
 
 **Open Source** — runs local GGUF models in-process through llama.cpp via `llama.swift`. Built-in downloadable models:
 
-| Model | File | Size |
-|---|---|---|
-| `tabby-fast-1` | `Qwen3-0.6B-Q4_K_M.gguf` | ~0.4 GB |
-| `tabby-balanced-1` | `gemma-3-1b-it-Q4_K_M.gguf` | ~0.8 GB |
-| `tabby-depth-1` | `gemma-3n-E4B-it-Q4_K_M.gguf` | ~3.5 GB |
+| Model              | File                            | Size    |
+| ------------------ | ------------------------------- | ------- |
+| `tabby-fast-1`     | `Qwen3-0.6B-Q4_K_M.gguf`        | ~0.4 GB |
+| `tabby-balanced-1` | `gemma-3-1b-it-Q4_K_M.gguf`     | ~0.8 GB |
+| `tabby-depth-1`    | `gemma-3n-E4B-it-Q4_K_M.gguf`   | ~3.5 GB |
 
 You can also drop your own `.gguf` files into Tabby's models folder and refresh the model list.
 
