@@ -20,7 +20,8 @@ Please read and follow the [Code of Conduct](CODE_OF_CONDUCT.md) before particip
 
 You need:
 
-- macOS 26.0 or later for running the app and tests.
+- macOS 15.0 or later for running the app and tests. Apple Intelligence runtime work requires
+  macOS 26 or later.
 - Xcode with Command Line Tools installed.
 - A local Apple development team configured in Xcode if you want to launch the signed app from the
   IDE.
@@ -105,7 +106,8 @@ xcodebuild test \
   CODE_SIGNING_ALLOWED=NO
 ```
 
-The CI test workflow runs on a macOS 26 runner because the app deployment target is macOS 26.0.
+The CI test workflow uses the same macOS deployment target as the app, so tests should not require
+a macOS 26 runner unless a future change raises the app baseline again.
 
 ## Lint
 

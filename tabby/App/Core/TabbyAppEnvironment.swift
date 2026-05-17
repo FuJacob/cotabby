@@ -79,11 +79,26 @@ final class TabbyAppEnvironment {
             screenshotContextGenerator: screenshotContextGenerator,
             screenRecordingPermissionProvider: { permissionManager.screenRecordingGranted }
         )
+        let foundationModelEngine: any SuggestionGenerating
+        #if canImport(FoundationModels)
+        if #available(macOS 26.0, *) {
+            foundationModelEngine = FoundationModelSuggestionEngine(
+                availabilityService: foundationModelAvailabilityService
+            )
+        } else {
+            foundationModelEngine = UnavailableSuggestionEngine(
+                message: foundationModelAvailabilityService.userVisibleMessage
+            )
+        }
+        #else
+        foundationModelEngine = UnavailableSuggestionEngine(
+            message: foundationModelAvailabilityService.userVisibleMessage
+        )
+        #endif
+
         let suggestionEngine: any SuggestionGenerating = SuggestionEngineRouter(
             suggestionSettings: suggestionSettings,
-            foundationModelEngine: FoundationModelSuggestionEngine(
-                availabilityService: foundationModelAvailabilityService
-            ),
+            foundationModelEngine: foundationModelEngine,
             llamaEngine: LlamaSuggestionEngine(runtimeManager: runtimeManager)
         )
 

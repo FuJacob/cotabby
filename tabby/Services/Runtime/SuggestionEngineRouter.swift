@@ -64,3 +64,21 @@ final class SuggestionEngineRouter {
 }
 
 extension SuggestionEngineRouter: SuggestionGenerating {}
+
+/// A tiny runtime boundary used when an engine is a product option but not available in the
+/// current process. Keeping this as a `SuggestionGenerating` implementation lets app composition
+/// pass the same router dependencies on macOS versions that cannot load Apple Intelligence APIs.
+@MainActor
+final class UnavailableSuggestionEngine: SuggestionGenerating {
+    let message: String
+
+    init(message: String) {
+        self.message = message
+    }
+
+    func generateSuggestion(for request: SuggestionRequest) async throws -> SuggestionResult {
+        throw SuggestionClientError.unavailable(message)
+    }
+
+    func resetCachedGenerationContext() async {}
+}

@@ -53,7 +53,7 @@ Everything runs on-device. No hosted API, no cloud round-trip.
 
 ## Engines
 
-**Apple Intelligence** — uses Apple's on-device `FoundationModels` runtime. No download required. Availability depends on your Mac; Tabby checks at runtime and explains when this engine is unavailable.
+**Apple Intelligence** — uses Apple's on-device `FoundationModels` runtime on macOS 26 or later. No download required. Availability depends on your Mac; Tabby checks at runtime and explains when this engine is unavailable.
 
 **Open Source** — runs local GGUF models in-process through llama.cpp via `llama.swift`. Built-in downloadable models:
 
@@ -89,7 +89,7 @@ If macOS blocks first launch, right-click `Tabby.app` → `Open`, or allow it in
 - Activity indicators that can be hidden, anchored to the caret, or shown as a field-edge icon
 - Accepted-word counter
 
-**Requires macOS 26.0 or later.** Behavior depends on what each host app exposes through the Accessibility APIs — some fields only provide coarse caret geometry, so Tabby falls back to more conservative placement.
+**Requires macOS 15.0 or later.** Apple Intelligence suggestions require macOS 26 or later; on earlier supported systems, use the Open Source engine. Behavior depends on what each host app exposes through the Accessibility APIs — some fields only provide coarse caret geometry, so Tabby falls back to more conservative placement.
 
 ## Local Development
 

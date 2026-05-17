@@ -27,13 +27,11 @@ concurrency:
 jobs:
   tests:
     name: xcodebuild test (macOS)
-    # Pinned to macos-26 (not macos-latest) because the test action actually
-    # executes the compiled binary, and tabby's deployment target is macOS
-    # 26.0. A macos-15 runner refuses to load the binary at test time with
-    # "macOS 15.7.4 doesn't match tabbyTests's macOS 26.0 deployment target".
-    # Build and Lint jobs can stay on macos-latest since they only compile;
-    # tests is the one that needs a runner OS >= tabby's deploy target.
-    runs-on: macos-26
+    # Tests execute the compiled app, so the runner OS still has to be at or
+    # above the deployment target. Pin to the app baseline instead of
+    # macos-latest so a future runner image change can't silently move this
+    # test gate below the minimum supported OS.
+    runs-on: macos-15
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
