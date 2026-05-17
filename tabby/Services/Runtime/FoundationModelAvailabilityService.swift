@@ -63,13 +63,26 @@ final class FoundationModelAvailabilityService: ObservableObject {
     }
 }
 
+/// Abstracts the availability state and refresh operation for the Apple Intelligence backend.
+/// `FoundationModelAvailabilityService` owns the provider and publishes its state to engines and
+/// UI-facing objects; providers own the OS-specific details. Keeping this as a protocol lets tests
+/// inject deterministic states and lets app composition swap in an unsupported implementation on
+/// older macOS versions without touching FoundationModels-only symbols.
 @MainActor
 protocol FoundationModelAvailabilityProviding {
+    /// The most recently known app-level availability state exposed to the service.
     var currentState: FoundationModelAvailabilityState { get }
 
+    /// Re-reads provider-specific availability and returns it in Tabby's app-level vocabulary.
     func refresh() -> FoundationModelAvailabilityState
 }
 
+/// Reports a stable unavailable state for the Apple Intelligence backend.
+/// This provider collaborates with `FoundationModelAvailabilityService` in the same shape as the
+/// real system provider, which keeps the service from branching on OS support. It exists as its own
+/// type to protect older macOS builds from constructing or importing FoundationModels runtime
+/// objects while still giving the rest of the app a clear user-facing reason; `refresh()` is
+/// intentionally constant because unsupported runtime state cannot become available in-process.
 @MainActor
 private struct UnsupportedFoundationModelAvailabilityProvider: FoundationModelAvailabilityProviding {
     let currentState: FoundationModelAvailabilityState
@@ -101,10 +114,20 @@ extension FoundationModelAvailabilityService {
 @available(macOS 26.0, *)
 extension FoundationModelAvailabilityService {
     var systemLanguageModel: SystemLanguageModel? {
+        // In production, `.available` can only come from `SystemFoundationModelAvailabilityProvider`,
+        // the provider installed by `makeDefaultProvider` on macOS 26+. The optional keeps tests and
+        // future injected providers from accidentally relying on a FoundationModels instance they
+        // do not own.
         (provider as? SystemFoundationModelAvailabilityProvider)?.model
     }
 }
 
+/// Owns the real `SystemLanguageModel` instance used by the Apple Intelligence backend.
+/// It collaborates with `FoundationModelAvailabilityService` to publish framework availability and
+/// with `FoundationModelSuggestionEngine` by handing out the model after runtime checks pass. It is
+/// separate from the unsupported provider because it is the only implementation allowed to
+/// construct FoundationModels objects and map `SystemLanguageModel.Availability` into Tabby's
+/// app-level availability state before engines or UI read it.
 @available(macOS 26.0, *)
 @MainActor
 private final class SystemFoundationModelAvailabilityProvider: FoundationModelAvailabilityProviding {
