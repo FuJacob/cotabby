@@ -28,9 +28,10 @@ jobs:
   tests:
     name: xcodebuild test (macOS)
     # Tests execute the compiled app, so the runner OS still has to be at or
-    # above the deployment target. The app baseline is macOS 15 now; Apple
-    # Intelligence remains guarded behind runtime availability checks.
-    runs-on: macos-latest
+    # above the deployment target. Pin to the app baseline instead of
+    # macos-latest so a future runner image change can't silently move this
+    # test gate below the minimum supported OS.
+    runs-on: macos-15
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
