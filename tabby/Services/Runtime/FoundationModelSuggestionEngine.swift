@@ -41,7 +41,9 @@ final class FoundationModelSuggestionEngine {
             // the model instance. If a future test provider reports available without a model, keep
             // the failure explicit instead of constructing a session with the wrong backend state.
             guard let model = availabilityService.systemLanguageModel else {
-                throw SuggestionClientError.unavailable(availabilityService.userVisibleMessage)
+                throw SuggestionClientError.unavailable(
+                    "Apple Intelligence reported available, but Tabby could not access the system language model."
+                )
             }
 
             let session = LanguageModelSession(
