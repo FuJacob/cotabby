@@ -47,6 +47,9 @@ enum SuggestionRequestFactory {
             rawContext: clipboardContext,
             settings: settings
         )
+        let boundedVisualContextSummary = activeVisualContextSummary(
+            rawSummary: visualContextSummary
+        )
         let prompt = LlamaPromptRenderer.prompt(
             prefixText: prefixText,
             applicationName: context.applicationName,
@@ -54,7 +57,7 @@ enum SuggestionRequestFactory {
             userName: userName,
             userTags: userTags,
             clipboardContext: boundedClipboardContext,
-            visualContextSummary: visualContextSummary
+            visualContextSummary: boundedVisualContextSummary
         )
 
         let request = SuggestionRequest(
@@ -77,7 +80,7 @@ enum SuggestionRequestFactory {
             userName: userName,
             userTags: userTags,
             clipboardContext: boundedClipboardContext,
-            visualContextSummary: visualContextSummary
+            visualContextSummary: boundedVisualContextSummary
         )
 
         return SuggestionRequestBuildResult(
@@ -123,12 +126,29 @@ enum SuggestionRequestFactory {
             return nil
         }
 
-        let trimmed = rawContext.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
+        let sanitizedContext = PromptContextSanitizer.sanitize(rawContext)
+        guard !sanitizedContext.isEmpty,
+              PromptContextSanitizer.containsAlphanumericSignal(sanitizedContext)
+        else {
             return nil
         }
 
-        return clippedText(trimmed, maxCharacters: maxClipboardContextCharacters)
+        return clippedText(sanitizedContext, maxCharacters: maxClipboardContextCharacters)
+    }
+
+    private static func activeVisualContextSummary(rawSummary: String?) -> String? {
+        guard let rawSummary else {
+            return nil
+        }
+
+        let sanitizedSummary = PromptContextSanitizer.sanitize(rawSummary)
+        guard !sanitizedSummary.isEmpty,
+              PromptContextSanitizer.containsAlphanumericSignal(sanitizedSummary)
+        else {
+            return nil
+        }
+
+        return sanitizedSummary
     }
 
     private static func clippedText(_ text: String, maxCharacters: Int) -> String {

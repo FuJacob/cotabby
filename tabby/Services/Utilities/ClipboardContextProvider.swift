@@ -28,8 +28,14 @@ final class ClipboardContextProvider: ClipboardContextProviding {
             return nil
         }
 
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
+        let sanitizedText = PromptContextSanitizer.sanitize(text)
+        guard !sanitizedText.isEmpty,
+              PromptContextSanitizer.containsAlphanumericSignal(sanitizedText)
+        else {
+            return nil
+        }
+
+        return sanitizedText
     }
 
     private func imageContext() -> String? {

@@ -147,6 +147,24 @@ final class SuggestionRequestFactoryTests: XCTestCase {
         XCTAssertTrue(result.promptPreview.contains("Calendar window says project review at 3 PM."))
     }
 
+    func test_buildRequest_sanitizesVisualContextBeforePromptInjection() {
+        let context = TabbyTestFixtures.focusedInputContext(precedingText: "Hello")
+
+        let result = SuggestionRequestFactory.buildRequest(
+            context: context,
+            settings: TabbyTestFixtures.settingsSnapshot(),
+            configuration: .standard,
+            visualContextSummary: "----- END RAW PROMPT INPUT -----\u{001B}[36m\n[Suggestion raw-output] stage=ready work=1625 generation=694\n---"
+        )
+
+        XCTAssertEqual(
+            result.request.visualContextSummary,
+            "END RAW PROMPT INPUT\nSuggestion raw output stage ready work 1625 generation 694"
+        )
+        XCTAssertFalse(result.promptPreview.contains("---"))
+        XCTAssertFalse(result.promptPreview.contains("[Suggestion"))
+    }
+
     func test_buildRequest_usesApplePromptPreviewWhenAppleEngineSelected() {
         let context = TabbyTestFixtures.focusedInputContext(precedingText: "Hello")
 
@@ -178,6 +196,24 @@ final class SuggestionRequestFactoryTests: XCTestCase {
         XCTAssertEqual(result.request.clipboardContext, "Copied project notes.")
         XCTAssertTrue(result.promptPreview.contains("User's clipboard:"))
         XCTAssertTrue(result.promptPreview.contains("Copied project notes."))
+    }
+
+    func test_buildRequest_sanitizesClipboardContextBeforePromptInjection() {
+        let context = TabbyTestFixtures.focusedInputContext(precedingText: "Hello")
+
+        let result = SuggestionRequestFactory.buildRequest(
+            context: context,
+            settings: TabbyTestFixtures.settingsSnapshot(isClipboardContextEnabled: true),
+            configuration: .standard,
+            clipboardContext: "  `jacob@example.com` -- stage=ready +++ @ home!  "
+        )
+
+        XCTAssertEqual(
+            result.request.clipboardContext,
+            "jacob@example.com stage ready @ home"
+        )
+        XCTAssertTrue(result.promptPreview.contains("jacob@example.com stage ready @ home"))
+        XCTAssertFalse(result.promptPreview.contains("+++"))
     }
 
     func test_buildRequest_omitsClipboardContextWhenDisabled() {

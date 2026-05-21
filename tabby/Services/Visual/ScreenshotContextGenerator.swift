@@ -83,6 +83,12 @@ final class ScreenshotContextGenerator {
             }
 
             let fallbackText = normalizeRecognizedText(windowTitle)
+            guard hasMeaningfulSignal(fallbackText) else {
+                throw ScreenshotContextGenerationError.unavailable(
+                    "The screenshot did not contain enough visible text to build prompt context."
+                )
+            }
+
             return VisualContextExcerpt(text: boundedSummaryText(fallbackText))
         } catch let error as ScreenTextExtractionError {
             throw ScreenshotContextGenerationError.unavailable(error.localizedDescription)
@@ -124,6 +130,11 @@ final class ScreenshotContextGenerator {
         }
 
         let finalContextText = boundedSummaryText(generatedContextText)
+        guard hasMeaningfulSignal(finalContextText) else {
+            throw ScreenshotContextGenerationError.unavailable(
+                "The screenshot did not contain enough visible text to build prompt context."
+            )
+        }
 
         return VisualContextExcerpt(
             text: finalContextText
@@ -133,19 +144,10 @@ final class ScreenshotContextGenerator {
     /// OCR is noisy by nature. We normalize line whitespace and keep only a bounded excerpt so the
     /// completion prompt receives nearby visible text, not an unbounded UI dump.
     private func normalizeRecognizedText(_ rawText: String) -> String {
-        let lines =
-            rawText
-            .replacingOccurrences(of: "\r", with: "")
-            .components(separatedBy: .newlines)
-            .map {
-                $0.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
-                    .trimmingCharacters(in: .whitespacesAndNewlines)
-            }
-            .filter { !$0.isEmpty }
-
-        let joinedText = lines.joined(separator: "\n")
-        return String(joinedText.prefix(configuration.maxRecognizedCharacters))
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+        PromptContextSanitizer.sanitize(
+            rawText,
+            maxCharacters: configuration.maxRecognizedCharacters
+        )
     }
 
     /// Applies the final prompt-injection budget after optional summarization.
@@ -153,8 +155,10 @@ final class ScreenshotContextGenerator {
     /// `maxRecognizedCharacters` protects the OCR and summarizer input. This separate cap protects
     /// the autocomplete prompt from a verbose model summary or from the raw-OCR fallback path.
     private func boundedSummaryText(_ text: String) -> String {
-        String(text.prefix(configuration.maxSummaryCharacters))
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+        PromptContextSanitizer.sanitize(
+            text,
+            maxCharacters: configuration.maxSummaryCharacters
+        )
     }
 
     /// We reject OCR text that is mostly punctuation or numeric noise because that would hurt
