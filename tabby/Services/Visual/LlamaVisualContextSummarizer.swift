@@ -51,7 +51,7 @@ final class LlamaVisualContextSummarizer: VisualContextSummarizing {
             temperature: 0
         )
         let trimmedResult = result.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmedResult
+        return truncateAtRepeatedBlock(trimmedResult)
     }
 
     /// Collapses runs of identical trimmed lines to a single occurrence.
@@ -69,5 +69,30 @@ final class LlamaVisualContextSummarizer: VisualContextSummarizing {
             }
         }
         return result.joined(separator: "\n")
+    }
+
+    /// Detects repeated multi-line blocks in the model output and truncates at the first repeat.
+    /// Small models under greedy decoding can still loop even with a full-window repetition penalty
+    /// if the cycle length is long enough. This catches any remaining loops post-generation.
+    private func truncateAtRepeatedBlock(_ text: String) -> String {
+        let lines = text.components(separatedBy: "\n")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        guard lines.count >= 4 else { return text }
+
+        // Try block sizes from 1 line up to half the output.
+        for blockSize in 1 ... lines.count / 2 {
+            let block = Array(lines[0 ..< blockSize])
+            let nextStart = blockSize
+            let nextEnd = nextStart + blockSize
+            guard nextEnd <= lines.count else { continue }
+            let nextBlock = Array(lines[nextStart ..< nextEnd])
+            if block == nextBlock {
+                // Keep only the first occurrence of the block.
+                return block.joined(separator: "\n")
+            }
+        }
+
+        return text
     }
 }

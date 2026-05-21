@@ -175,6 +175,10 @@ struct LlamaGenerationOptions: Equatable, Sendable {
     let topP: Double
     let minP: Double
     let repetitionPenalty: Double
+    /// How many recent tokens the repetition penalty examines. A cycle longer than this window
+    /// escapes the penalty entirely. Defaults to 64 for autocomplete (short outputs); summaries
+    /// set this to `maxPredictionTokens` so the penalty covers the entire generation.
+    let repetitionPenaltyWindow: Int
     var seed: UInt32?
 
     static func summary(maxPredictionTokens: Int, temperature: Double) -> LlamaGenerationOptions {
@@ -186,7 +190,9 @@ struct LlamaGenerationOptions: Equatable, Sendable {
             minP: 0.05,
             // Higher penalty than autocomplete (1.05) because summaries span more tokens and
             // are more prone to looping when OCR input contains repeated phrases.
-            repetitionPenalty: 1.4
+            repetitionPenalty: 1.4,
+            // Cover the entire generation so multi-sentence cycles can't escape the window.
+            repetitionPenaltyWindow: maxPredictionTokens
         )
     }
 }
