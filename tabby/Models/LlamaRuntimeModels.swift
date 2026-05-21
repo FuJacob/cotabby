@@ -184,7 +184,9 @@ struct LlamaGenerationOptions: Equatable, Sendable {
             topK: 40,
             topP: 0.95,
             minP: 0.05,
-            repetitionPenalty: 1.1
+            // Higher penalty than autocomplete (1.05) because summaries span more tokens and
+            // are more prone to looping when OCR input contains repeated phrases.
+            repetitionPenalty: 1.4
         )
     }
 }

@@ -23,6 +23,12 @@ final class LlamaVisualContextSummarizer: VisualContextSummarizing {
     }
 
     func summarize(text: String, applicationName: String) async throws -> String {
+        // Deduplicate repeated lines before sending to the model. OCR from screens showing
+        // chatbot output (e.g. "Final Answer\nFinal Answer\n...") teaches the model to loop
+        // that pattern verbatim in its output. Collapsing consecutive duplicates removes the
+        // repeating signal without losing any unique content.
+        let deduplicatedText = deduplicateConsecutiveLines(text)
+
         let prompt = [
             "Task: Write a concise, 4-sentence summary of what the provided text from the application '\(applicationName)' is about.",
             "",
@@ -33,7 +39,7 @@ final class LlamaVisualContextSummarizer: VisualContextSummarizing {
             "4. DO NOT repeat the prompt.",
             "",
             "--- START SCREEN TEXT ---",
-            text,
+            deduplicatedText,
             "--- END SCREEN TEXT ---",
             "",
             "Summary:"
@@ -46,5 +52,22 @@ final class LlamaVisualContextSummarizer: VisualContextSummarizing {
         )
         let trimmedResult = result.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmedResult
+    }
+
+    /// Collapses runs of identical trimmed lines to a single occurrence.
+    /// Preserves blank lines and non-duplicate content unchanged.
+    private func deduplicateConsecutiveLines(_ text: String) -> String {
+        var result: [String] = []
+        var previous: String?
+        for line in text.components(separatedBy: "\n") {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.isEmpty || trimmed != previous {
+                result.append(line)
+                if !trimmed.isEmpty {
+                    previous = trimmed
+                }
+            }
+        }
+        return result.joined(separator: "\n")
     }
 }
