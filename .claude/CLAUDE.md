@@ -1,10 +1,13 @@
 # Claude Instructions for Tabby
 
-Tabby is a macOS menu bar app that provides on-device inline autocomplete in the
-text field the user is already editing. It watches Accessibility focus, monitors
-global input, generates a local continuation through Apple Intelligence or
-llama.cpp, renders ghost text near the caret, and inserts accepted text when the
-user presses `Tab`.
+Tabby is a community-driven open-source macOS menu bar app that provides
+on-device inline autocomplete in any text field. It watches Accessibility focus,
+monitors global input, generates a local continuation through Apple Intelligence
+or llama.cpp, renders ghost text near the caret, and inserts accepted text when
+the user presses `Tab`.
+
+This is a production app with real users and external contributors. Treat every
+change as shipping to end users, not as an exercise.
 
 ## How To Work In This Repo
 
@@ -49,15 +52,25 @@ user presses `Tab`.
   `FoundationModelSuggestionEngine`, `LlamaSuggestionEngine`,
   `LlamaRuntimeManager`, and the serialized `LlamaRuntimeCore` actor.
 
-## Teaching Comments
+## Comments
 
-- Comments should teach, not narrate. Explain why a design exists, which invariant
-  it protects, or which macOS/Swift pitfall it avoids.
+- Comments should explain why, not what. Explain which invariant a design
+  protects or which macOS/Swift pitfall it avoids.
 - Prefer file-level and type-level `///` comments for new important files/types.
 - Add targeted inline comments for tricky lifecycle, `@MainActor`, `Task`,
   cancellation, Accessibility/Core Foundation bridging, unsafe pointer work, and
   llama.cpp runtime state.
 - Avoid comments that merely restate the next line of code.
+
+## Contributing Workflow
+
+- External contributors open PRs against `main`. Greptile reviews automatically.
+- New test files in `tabbyTests/` must be manually registered in
+  `tabby.xcodeproj/project.pbxproj` (the `tabby/` source group auto-discovers
+  files, but `tabbyTests/` uses manual PBXGroup entries).
+- Run SwiftLint before pushing: `swiftlint lint --quiet`. The project config is
+  in `.swiftlint.yml` (line length 140/200, trailing commas disallowed).
+- Wiki lives at https://github.com/FuJacob/tabby/wiki for contributor onboarding.
 
 ## Swift And macOS Expectations
 
