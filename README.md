@@ -64,7 +64,7 @@ Everything runs on-device. No hosted API, no cloud round-trip.
 
 **Apple Intelligence** — uses Apple's on-device `FoundationModels` runtime on macOS 26 or later. No download required. Availability depends on your Mac; tabby checks at runtime and explains when this engine is unavailable.
 
-**Open Source** — runs local GGUF models in-process through llama.cpp via `llama.swift`. Built-in downloadable models:
+**Open Source**: runs local GGUF models in-process through llama.cpp via `llama.swift`. Built-in downloadable models:
 
 | Model           | File                            | Size    |
 | --------------- | ------------------------------- | ------- |
@@ -78,20 +78,20 @@ You can also drop your own `.gguf` files into tabby's models folder and refresh 
 1. Download the latest `tabby.dmg` from GitHub Releases.
 2. Drag `tabby.app` into `Applications` and launch it.
 3. Grant **Accessibility** and **Input Monitoring** when prompted.
-4. Pick an engine — Apple Intelligence if available, otherwise Open Source + a model.
+4. Pick an engine. Apple Intelligence if available, otherwise Open Source plus a model.
 5. Start typing in any supported editable field.
 
 If macOS blocks first launch, right-click `tabby.app` → `Open`, or allow it in `System Settings → Privacy & Security`.
 
 ### Why those permissions?
 
-- **Accessibility** — read the focused text field's value and caret position.
-- **Input Monitoring** — detect global `Tab` presses for acceptance.
+- **Accessibility**: read the focused text field's value and caret position.
+- **Input Monitoring**: detect global `Tab` presses for acceptance.
 
 ## Features
 
 - Ghost text rendered live next to your caret
-- Partial `Tab` acceptance — take a chunk, keep the tail alive, press again to continue
+- Partial `Tab` acceptance: take a chunk, keep the tail alive, press again to continue
 - Menu bar quick controls: enable, engine, model, indicator mode, completion length
 - Settings for launch at login, ghost text color, model downloads, and updates
 - Activity indicators that can be hidden, anchored to the caret, or shown as a field-edge icon
@@ -115,11 +115,15 @@ If you want to understand the runtime and suggestion pipeline before contributin
 
 Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, build, and PR guidelines, and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for community expectations. For a tour of the runtime and suggestion pipeline, read [ARCHITECTURE.md](ARCHITECTURE.md).
 
+## Creators
+
+Tabby is built by [@FuJacob](https://github.com/FuJacob) and [@jam-cai](https://github.com/jam-cai).
+
 ## Acknowledgments
 
-- [llama.cpp](https://github.com/ggerganov/llama.cpp) — local GGUF inference
-- [llama.swift](https://github.com/eastriverlee/LLM.swift) — Swift bindings for llama.cpp
-- Apple's [FoundationModels](https://developer.apple.com/documentation/foundationmodels) framework — on-device Apple Intelligence runtime
+- [llama.cpp](https://github.com/ggerganov/llama.cpp): local GGUF inference
+- [llama.swift](https://github.com/eastriverlee/LLM.swift): Swift bindings for llama.cpp
+- Apple's [FoundationModels](https://developer.apple.com/documentation/foundationmodels) framework: on-device Apple Intelligence runtime
 - The Qwen and Gemma model teams for the open-weight models Tabby ships with
 
 ## License
