@@ -446,18 +446,18 @@ actor LlamaRuntimeCore {
 
             batch.n_tokens = Int32(chunkSize)
 
-            for i in 0 ..< chunkSize {
-                let tokenIndex = cursor + i
-                batch.token[i] = promptTokens[tokenIndex]
-                batch.pos[i] = Int32(tokenIndex)
-                batch.n_seq_id[i] = 1
+            for offset in 0 ..< chunkSize {
+                let tokenIndex = cursor + offset
+                batch.token[offset] = promptTokens[tokenIndex]
+                batch.pos[offset] = Int32(tokenIndex)
+                batch.n_seq_id[offset] = 1
 
-                if let seqIDs = batch.seq_id, let seqID = seqIDs[i] {
+                if let seqIDs = batch.seq_id, let seqID = seqIDs[offset] {
                     seqID[0] = Self.promptSequenceID
                 }
 
                 // Only request logits for the very last token of the entire prompt.
-                batch.logits[i] = (chunkEnd == endIndex && i == chunkSize - 1) ? 1 : 0
+                batch.logits[offset] = (chunkEnd == endIndex && offset == chunkSize - 1) ? 1 : 0
             }
 
             guard llama_decode(context, batch) == 0 else {
