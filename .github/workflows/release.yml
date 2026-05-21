@@ -244,7 +244,8 @@ jobs:
             --app-path "${app_path}" \
             --output-path "${dmg_path}" \
             --background-path "assets/release/dmg_background.png" \
-            --volume-name "tabby"
+            --background-2x-path "assets/release/dmg_background@2x.png" \
+            --volume-name "Tabby"
 
           codesign \
             --force \

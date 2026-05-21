@@ -57,7 +57,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--background-path",
         required=True,
-        help="Path to the committed DMG background PNG source asset.",
+        help="Path to the committed 1x DMG background PNG source asset.",
+    )
+    parser.add_argument(
+        "--background-2x-path",
+        required=True,
+        help="Path to the committed @2x DMG background PNG source asset.",
     )
     parser.add_argument(
         "--volume-name",
@@ -148,16 +153,28 @@ def resolve_app_icon_path(app_path: Path) -> Path | None:
     return None
 
 
-def normalize_background_image(source_path: Path, destination_path: Path) -> None:
-    """Copy the background art into the staging temp dir for dmgbuild.
+def normalize_background_image(
+    source_1x_path: Path,
+    source_2x_path: Path,
+    destination_path: Path,
+) -> None:
+    """Combine 1x and @2x PNGs into a multi-rep TIFF for Finder.
 
-    The committed asset is already authored at 2x (1080×1520 px for a 540×760 pt
-    window), so no resampling is needed. Downsampling to point size previously
-    produced an image too small for Finder to apply as a background on Retina
-    displays, resulting in a blank DMG background.
+    A single PNG can't carry multiple resolutions, and DPI-tagging tricks are
+    fragile across macOS versions. A multi-image TIFF (the same format Apple's
+    own installers use) lets Finder pick the right rep per display.
     """
 
-    shutil.copy2(source_path, destination_path)
+    run_command(
+        [
+            "tiffutil",
+            "-cathidpicheck",
+            str(source_1x_path),
+            str(source_2x_path),
+            "-out",
+            str(destination_path),
+        ]
+    )
 
 
 def stage_release_root(app_path: Path, staging_root: Path) -> Path:
@@ -255,13 +272,16 @@ def main() -> int:
     args = parse_args()
     ensure_dmgbuild_available()
     app_path = require_existing_path(Path(args.app_path), kind="App bundle")
-    background_path = require_existing_path(Path(args.background_path), kind="Background asset")
+    background_1x_path = require_existing_path(Path(args.background_path), kind="Background asset (1x)")
+    background_2x_path = require_existing_path(Path(args.background_2x_path), kind="Background asset (@2x)")
     output_path = Path(args.output_path).resolve()
 
     if app_path.suffix != ".app":
         raise ValueError(f"Expected a .app bundle, got {app_path}")
-    if background_path.suffix.lower() != ".png":
-        raise ValueError(f"Expected a PNG background asset, got {background_path}")
+    if background_1x_path.suffix.lower() != ".png":
+        raise ValueError(f"Expected a PNG background asset, got {background_1x_path}")
+    if background_2x_path.suffix.lower() != ".png":
+        raise ValueError(f"Expected a PNG background asset, got {background_2x_path}")
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -271,8 +291,12 @@ def main() -> int:
         staging_root.mkdir()
 
         staged_app_path = stage_release_root(app_path, staging_root)
-        normalized_background_path = temporary_root_path / "dmg-background.png"
-        normalize_background_image(background_path, normalized_background_path)
+        normalized_background_path = temporary_root_path / "dmg-background.tiff"
+        normalize_background_image(
+            background_1x_path,
+            background_2x_path,
+            normalized_background_path,
+        )
 
         badge_icon_path = resolve_app_icon_path(app_path)
 
