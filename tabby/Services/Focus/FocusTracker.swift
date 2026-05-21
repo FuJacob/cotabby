@@ -240,7 +240,7 @@ private extension FocusedInputPollingSignature {
         let fallbackElementIdentifier: String?
 
         init(inputFrame: CGRect?, fallbackElementIdentifier: String) {
-            roundedInputFrame = inputFrame.map(RoundedRect.init(rect:))
+            roundedInputFrame = inputFrame.map { RoundedRect(rect: $0) }
             self.fallbackElementIdentifier = roundedInputFrame == nil ? fallbackElementIdentifier : nil
         }
     }
