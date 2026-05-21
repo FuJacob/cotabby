@@ -89,7 +89,7 @@ struct MenuBarView: View {
                     .controlSize(.small)
             }
 
-            Toggle("Show Indicator", isOn: showIndicatorBinding)
+            Toggle("Indicator", isOn: showIndicatorBinding)
                 .toggleStyle(.switch)
                 .controlSize(.small)
 
