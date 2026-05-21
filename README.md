@@ -57,11 +57,10 @@ Everything runs on-device. No hosted API, no cloud round-trip.
 
 **Open Source** — runs local GGUF models in-process through llama.cpp via `llama.swift`. Built-in downloadable models:
 
-| Model              | File                            | Size    |
-| ------------------ | ------------------------------- | ------- |
-| `tabby-fast-1`     | `Qwen3-0.6B-Q4_K_M.gguf`        | ~0.4 GB |
-| `tabby-balanced-1` | `gemma-3-1b-it-Q4_K_M.gguf`     | ~0.8 GB |
-| `tabby-depth-1`    | `gemma-3n-E4B-it-Q4_K_M.gguf`   | ~3.5 GB |
+| Model           | File                            | Size    |
+| --------------- | ------------------------------- | ------- |
+| `tabby-fast`    | `Qwen3.5-0.8B-Q4_K_M.gguf`     | ~0.5 GB |
+| `tabby-quality` | `gemma-4-E2B-it-Q4_K_M.gguf`   | ~3.1 GB |
 
 You can also drop your own `.gguf` files into Tabby's models folder and refresh the model list.
 
