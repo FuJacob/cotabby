@@ -511,7 +511,11 @@ actor LlamaRuntimeCore {
             throw LlamaRuntimeError.generationFailed("Unable to initialize the llama sampler chain.")
         }
 
-        try addPenaltySamplerIfNeeded(to: sampler, repetitionPenalty: options.repetitionPenalty)
+        try addPenaltySamplerIfNeeded(
+            to: sampler,
+            repetitionPenalty: options.repetitionPenalty,
+            window: options.repetitionPenaltyWindow
+        )
 
         if options.temperature > 0 {
             try addRandomSamplingChain(to: sampler, options: options)
@@ -524,14 +528,15 @@ actor LlamaRuntimeCore {
 
     private func addPenaltySamplerIfNeeded(
         to sampler: UnsafeMutablePointer<llama_sampler>,
-        repetitionPenalty: Double
+        repetitionPenalty: Double,
+        window: Int
     ) throws {
         guard repetitionPenalty > 1.0 else {
             return
         }
 
         guard let penaltySampler = llama_sampler_init_penalties(
-            64,
+            Int32(window),
             Float(repetitionPenalty),
             1.0,
             1.0

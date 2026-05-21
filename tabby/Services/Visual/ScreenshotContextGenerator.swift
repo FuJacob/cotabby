@@ -55,6 +55,7 @@ final class ScreenshotContextGenerator {
         onStatusChange: (@Sendable (VisualContextStatus) async -> Void)? = nil
     ) async throws -> VisualContextExcerpt {
         await onStatusChange?(.capturing)
+        let pipelineStart = Date()
 
         let screenshot: CapturedWindowScreenshot
         do {
@@ -68,7 +69,15 @@ final class ScreenshotContextGenerator {
             throw ScreenshotContextGenerationError.failed(error.localizedDescription)
         }
 
+        if TabbyDebugOptions.isEnabled {
+            let captureElapsed = Date().timeIntervalSince(pipelineStart)
+            TabbyDebugOptions.log(
+                "[Visual context] capture done — \(String(format: "%.1f", captureElapsed))s"
+            )
+        }
+
         await onStatusChange?(.extractingText)
+        let ocrStart = Date()
 
         let extractedText: String
         do {
@@ -94,6 +103,13 @@ final class ScreenshotContextGenerator {
         let normalizedText = normalizeRecognizedText(extractedText)
 
         if TabbyDebugOptions.isEnabled {
+            let ocrElapsed = Date().timeIntervalSince(ocrStart)
+            TabbyDebugOptions.log(
+                "[Visual context] OCR done — \(String(format: "%.1f", ocrElapsed))s, \(extractedText.count) chars extracted"
+            )
+        }
+
+        if TabbyDebugOptions.isEnabled {
             saveDebugScreenshot(
                 screenshot.image,
                 text: extractedText,
@@ -110,14 +126,39 @@ final class ScreenshotContextGenerator {
         let generatedContextText: String
         if let summarizer = summarizer {
             await onStatusChange?(.summarizingText)
+            let inputCharCount = normalizedText.count
+            let summarizeStart = Date()
+            if TabbyDebugOptions.isEnabled {
+                TabbyDebugOptions.log(
+                    "[Visual context] summarize start — input \(inputCharCount) chars, app=\(context.applicationName)"
+                )
+            }
             do {
                 generatedContextText = try await summarizer.summarize(
                     text: normalizedText,
                     applicationName: context.applicationName
                 )
             } catch {
+                if TabbyDebugOptions.isEnabled {
+                    let elapsed = Date().timeIntervalSince(summarizeStart)
+                    TabbyDebugOptions.log(
+                        "[Visual context] summarize FAILED after \(String(format: "%.1f", elapsed))s — \(error.localizedDescription)"
+                    )
+                }
                 throw ScreenshotContextGenerationError.failed(
                     "Summarization failed: \(error.localizedDescription)"
+                )
+            }
+            if TabbyDebugOptions.isEnabled {
+                let elapsed = Date().timeIntervalSince(summarizeStart)
+                TabbyDebugOptions.log(
+                    "[Visual context] summarize done — \(String(format: "%.1f", elapsed))s, output \(generatedContextText.count) chars"
+                )
+                TabbyDebugOptions.log(
+                    "[Visual context] summarize input:\n\(normalizedText.prefix(500))"
+                )
+                TabbyDebugOptions.log(
+                    "[Visual context] summarize output:\n\(generatedContextText)"
                 )
             }
         } else {

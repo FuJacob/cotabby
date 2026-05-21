@@ -31,6 +31,7 @@ final class LlamaSuggestionEngine {
                     topP: request.topP,
                     minP: request.minP,
                     repetitionPenalty: request.repetitionPenalty,
+                    repetitionPenaltyWindow: 64,
                     seed: request.randomSeed
                 )
             )
