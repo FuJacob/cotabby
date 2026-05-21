@@ -13,13 +13,6 @@ struct PermissionReminderView: View {
     let permissionGuidanceController: PermissionGuidanceController
     let onDismiss: () -> Void
 
-    /// Only show permissions that are required and not yet granted.
-    private var missingPermissions: [TabbyPermissionKind] {
-        TabbyPermissionKind.allCases
-            .filter(\.isRequiredForAutocomplete)
-            .filter { !permissionManager.isGranted($0) }
-    }
-
     var body: some View {
         VStack(spacing: 28) {
             VStack(spacing: 8) {
@@ -53,9 +46,6 @@ struct PermissionReminderView: View {
         .padding(36)
         .frame(width: 540)
         .background(.ultraThinMaterial)
-        .onDisappear {
-            permissionGuidanceController.dismiss()
-        }
     }
 }
 
