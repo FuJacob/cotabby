@@ -148,7 +148,7 @@ actor LlamaRuntimeCore {
 
         // Reserve space for generation and trim from the front if needed. The tail of the prompt
         // is closest to the caret and matters most for completion quality.
-        let maxPromptTokens = preparedRuntime.contextWindowTokens - options.maxPredictionTokens
+        let maxPromptTokens = max(1, preparedRuntime.contextWindowTokens - options.maxPredictionTokens)
         let promptTokens: [llama_token]
         let adjustedCachedPrefixBytes: Int?
         if allPromptTokens.count > maxPromptTokens {
@@ -669,7 +669,7 @@ extension LlamaRuntimeCore {
         }
 
         let allPromptTokens = try tokenize(prompt, vocab: vocab)
-        let maxPromptTokens = preparedRuntime.contextWindowTokens - options.maxPredictionTokens
+        let maxPromptTokens = max(1, preparedRuntime.contextWindowTokens - options.maxPredictionTokens)
         let promptTokens = allPromptTokens.count > maxPromptTokens
             ? Array(allPromptTokens.suffix(maxPromptTokens))
             : allPromptTokens
