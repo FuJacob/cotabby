@@ -1,9 +1,9 @@
-# Contributing To Tabby
+# Contributing To tabby
 
-Thanks for helping improve Tabby. This guide is the contributor entry point for local setup,
+Thanks for helping improve tabby. This guide is the contributor entry point for local setup,
 validation, and codebase orientation.
 
-Tabby is a macOS menu bar app that provides on-device inline autocomplete in other apps. The repo
+tabby is a macOS menu bar app that provides on-device inline autocomplete in other apps. The repo
 is split by responsibility so contributors can make small, reviewable changes without spreading
 platform-specific behavior across unrelated layers.
 

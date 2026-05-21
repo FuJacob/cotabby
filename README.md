@@ -1,7 +1,7 @@
-# Tabby
+# tabby
 
 <p align="center">
-  <img width="128" alt="Tabby logo" src="https://github.com/user-attachments/assets/8a67095e-4d03-4055-8d4c-8871335152dd" />
+  <img width="128" alt="tabby logo" src="https://github.com/user-attachments/assets/8a67095e-4d03-4055-8d4c-8871335152dd" />
 </p>
 
 <p align="center">
@@ -21,24 +21,24 @@
 <table align="center" width="100%">
   <tr>
     <td align="center" valign="top" width="50%">
-      <img src=".github/assets/readme/demo-email.png" alt="Tabby autocomplete in Email" width="100%" />
+      <img src=".github/assets/readme/demo-email.png" alt="tabby autocomplete in Email" width="100%" />
       <br />
       <sub><b>Email</b></sub>
     </td>
     <td align="center" valign="top" width="50%">
-      <img src=".github/assets/readme/demo-slack.png" alt="Tabby autocomplete in Slack" width="100%" />
+      <img src=".github/assets/readme/demo-slack.png" alt="tabby autocomplete in Slack" width="100%" />
       <br />
       <sub><b>Slack</b></sub>
     </td>
   </tr>
   <tr>
     <td align="center" valign="top" width="50%">
-      <img src=".github/assets/readme/demo-notes.png" alt="Tabby autocomplete in Notes" width="100%" />
+      <img src=".github/assets/readme/demo-notes.png" alt="tabby autocomplete in Notes" width="100%" />
       <br />
       <sub><b>Notes</b></sub>
     </td>
     <td align="center" valign="top" width="50%">
-      <img src=".github/assets/readme/demo-imessage.png" alt="Tabby autocomplete in iMessage" width="100%" />
+      <img src=".github/assets/readme/demo-imessage.png" alt="tabby autocomplete in iMessage" width="100%" />
       <br />
       <sub><b>iMessage</b></sub>
     </td>
@@ -47,13 +47,13 @@
 
 ## What It Does
 
-Tabby is a menu bar app that brings inline autocomplete to the text field you're already using. Keep typing in your host app — Tabby watches the focused field, generates a continuation, and renders it as ghost text next to your caret. Press `Tab` to accept a chunk, keep pressing to advance, or just keep typing to diverge.
+tabby is a menu bar app that brings inline autocomplete to the text field you're already using. Keep typing in your host app — tabby watches the focused field, generates a continuation, and renders it as ghost text next to your caret. Press `Tab` to accept a chunk, keep pressing to advance, or just keep typing to diverge.
 
 Everything runs on-device. No hosted API, no cloud round-trip.
 
 ## Engines
 
-**Apple Intelligence** — uses Apple's on-device `FoundationModels` runtime on macOS 26 or later. No download required. Availability depends on your Mac; Tabby checks at runtime and explains when this engine is unavailable.
+**Apple Intelligence** — uses Apple's on-device `FoundationModels` runtime on macOS 26 or later. No download required. Availability depends on your Mac; tabby checks at runtime and explains when this engine is unavailable.
 
 **Open Source** — runs local GGUF models in-process through llama.cpp via `llama.swift`. Built-in downloadable models:
 
@@ -63,17 +63,17 @@ Everything runs on-device. No hosted API, no cloud round-trip.
 | `tabby-balanced-1` | `gemma-3-1b-it-Q4_K_M.gguf`     | ~0.8 GB |
 | `tabby-depth-1`    | `gemma-3n-E4B-it-Q4_K_M.gguf`   | ~3.5 GB |
 
-You can also drop your own `.gguf` files into Tabby's models folder and refresh the model list.
+You can also drop your own `.gguf` files into tabby's models folder and refresh the model list.
 
 ## Install
 
-1. Download the latest `Tabby.dmg` from GitHub Releases.
-2. Drag `Tabby.app` into `Applications` and launch it.
+1. Download the latest `tabby.dmg` from GitHub Releases.
+2. Drag `tabby.app` into `Applications` and launch it.
 3. Grant **Accessibility** and **Input Monitoring** when prompted.
 4. Pick an engine — Apple Intelligence if available, otherwise Open Source + a model.
 5. Start typing in any supported editable field.
 
-If macOS blocks first launch, right-click `Tabby.app` → `Open`, or allow it in `System Settings → Privacy & Security`.
+If macOS blocks first launch, right-click `tabby.app` → `Open`, or allow it in `System Settings → Privacy & Security`.
 
 ### Why those permissions?
 
@@ -89,7 +89,7 @@ If macOS blocks first launch, right-click `Tabby.app` → `Open`, or allow it in
 - Activity indicators that can be hidden, anchored to the caret, or shown as a field-edge icon
 - Accepted-word counter
 
-**Requires macOS 15.0 or later.** Apple Intelligence suggestions require macOS 26 or later; on earlier supported systems, use the Open Source engine. Behavior depends on what each host app exposes through the Accessibility APIs — some fields only provide coarse caret geometry, so Tabby falls back to more conservative placement.
+**Requires macOS 15.0 or later.** Apple Intelligence suggestions require macOS 26 or later; on earlier supported systems, use the Open Source engine. Behavior depends on what each host app exposes through the Accessibility APIs — some fields only provide coarse caret geometry, so tabby falls back to more conservative placement.
 
 ## Local Development
 
@@ -105,4 +105,4 @@ If you want to understand the runtime and suggestion pipeline before contributin
 
 ## License
 
-Tabby is licensed under the [GNU Affero General Public License v3.0](LICENSE). The AGPL's network-use clause means any modified version made available to users over a network must also be source-available under the same terms.
+tabby is licensed under the [GNU Affero General Public License v3.0](LICENSE). The AGPL's network-use clause means any modified version made available to users over a network must also be source-available under the same terms.

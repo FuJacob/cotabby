@@ -1,8 +1,8 @@
-# Tabby Codex Instructions
+# tabby Codex Instructions
 
 ## Project Identity
 
-Tabby is a macOS menu bar app for on-device inline autocomplete. The core loop is:
+tabby is a macOS menu bar app for on-device inline autocomplete. The core loop is:
 
 1. Track the currently focused editable field through Accessibility.
 2. Monitor global keyboard input without stealing focus.
@@ -98,7 +98,7 @@ about than coordinator mutations.
 Focus and geometry live in:
 
 - `FocusTracker`: observes focus/value/selection changes and publishes snapshots.
-- `FocusSnapshotResolver`: reduces raw AX elements into Tabby-supported focus snapshots.
+- `FocusSnapshotResolver`: reduces raw AX elements into tabby-supported focus snapshots.
 - `AXTextGeometryResolver`: resolves caret and input geometry.
 - `AXHelper`: low-level Accessibility/Core Foundation helper calls.
 - `FocusModels`: pure focus values, identities, capabilities, and debug inspection data.

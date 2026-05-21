@@ -1,4 +1,4 @@
-# Releasing Tabby (Sparkle)
+# Releasing tabby (Sparkle)
 
 Short, practical guide to signing + releasing updates.
 
@@ -87,8 +87,8 @@ codesign --force --deep --options runtime \
 
 ### 2. Notarize
 ```sh
-ditto -c -k --keepParent ./tabby.app Tabby.zip
-xcrun notarytool submit Tabby.zip --keychain-profile "AC_PASSWORD" --wait
+ditto -c -k --keepParent ./tabby.app tabby.zip
+xcrun notarytool submit tabby.zip --keychain-profile "AC_PASSWORD" --wait
 xcrun stapler staple ./tabby.app
 ```
 
@@ -102,9 +102,9 @@ The release pipeline now builds a styled installer DMG through:
 python3 -m pip install "dmgbuild[badge_icons]==1.6.7"
 python3 scripts/build_release_dmg.py \
   --app-path /path/to/tabby.app \
-  --output-path /path/to/Tabby.dmg \
+  --output-path /path/to/tabby.dmg \
   --background-path assets/release/dmg_background.png \
-  --volume-name Tabby
+  --volume-name tabby
 ```
 
 What this does:
@@ -117,7 +117,7 @@ What this does:
 
 ### 4. Sign update (Sparkle)
 ```sh
-sparkle-sign-update /path/to/Tabby.dmg
+sparkle-sign-update /path/to/tabby.dmg
 ```
 
 ---
@@ -127,7 +127,7 @@ sparkle-sign-update /path/to/Tabby.dmg
 python3 scripts/generate_appcast.py \
   --release-version 1.0.0 \
   --build-number 100 \
-  --archive /path/to/Tabby.dmg \
+  --archive /path/to/tabby.dmg \
   --output build/appcast.xml \
   --ed-key-file ~/secure/tabby-key.txt
 ```
@@ -158,12 +158,12 @@ What CI does:
 1. Imports the Developer ID certificate into a temporary keychain.
 2. Installs the pinned `dmgbuild[badge_icons]` dependency.
 3. Archives a Release build.
-4. Packages a styled `Tabby.dmg` with `scripts/build_release_dmg.py`.
+4. Packages a styled `tabby.dmg` with `scripts/build_release_dmg.py`.
 5. Sends the DMG to Apple notarization.
 6. Staples and validates the notarization ticket.
 7. Verifies the Sparkle private key matches `SUPublicEDKey`.
 8. Signs the final DMG with Sparkle.
-9. Creates a GitHub Release with `Tabby.dmg`.
+9. Creates a GitHub Release with `tabby.dmg`.
 10. Publishes `appcast.xml` to GitHub Pages last.
 
 Pages output:
@@ -182,14 +182,14 @@ spctl -a -t exec -vv ./tabby.app
 
 Check Sparkle signature:
 ```sh
-sparkle-sign-update /path/to/Tabby.dmg
+sparkle-sign-update /path/to/tabby.dmg
 ```
 
 Signature must match appcast.
 
 Check installer layout locally:
 ```sh
-hdiutil attach /path/to/Tabby.dmg
+hdiutil attach /path/to/tabby.dmg
 ```
 
 Verify the mounted image opens in icon view, shows the committed background

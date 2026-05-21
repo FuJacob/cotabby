@@ -1,4 +1,4 @@
-# Tag-driven release pipeline for Tabby.
+# Tag-driven release pipeline for tabby.
 #
 # Release ordering matters:
 # 1. build and Developer ID sign the app
@@ -39,7 +39,7 @@ concurrency:
 
 env:
   APP_NAME: tabby
-  DMG_NAME: Tabby.dmg
+  DMG_NAME: tabby.dmg
   PROJECT_PATH: tabby.xcodeproj
   SCHEME: tabby
   CONFIGURATION: Release
@@ -244,7 +244,7 @@ jobs:
             --app-path "${app_path}" \
             --output-path "${dmg_path}" \
             --background-path "assets/release/dmg_background.png" \
-            --volume-name "Tabby"
+            --volume-name "tabby"
 
           codesign \
             --force \
@@ -513,7 +513,7 @@ jobs:
           set -euo pipefail
 
           gh release create "${RELEASE_TAG}" "build/${DMG_NAME}" \
-            --title "Tabby ${RELEASE_VERSION}" \
+            --title "tabby ${RELEASE_VERSION}" \
             --generate-notes
 
       - name: Prepare Pages artifact

@@ -1,6 +1,6 @@
-# Tabby Architecture
+# tabby Architecture
 
-This document is the maintainer map for Tabby. Read this before making changes to the suggestion
+This document is the maintainer map for tabby. Read this before making changes to the suggestion
 pipeline, Accessibility integration, or runtime lifecycle.
 
 If you are new to Swift or macOS APIs, treat this file as the system-level map and follow the
@@ -8,7 +8,7 @@ linked source files in order rather than hunting through the project tree at ran
 
 ## System Shape
 
-Tabby is a macOS menu bar app with one long-lived dependency graph and one main product loop:
+tabby is a macOS menu bar app with one long-lived dependency graph and one main product loop:
 
 1. Resolve the currently focused editable field through Accessibility.
 2. Watch keyboard input globally.
@@ -75,7 +75,7 @@ Focus detection is a small pipeline of its own:
 3. `AXTextGeometryResolver` computes caret and text geometry.
 4. `AXHelper` contains the low-level Core Foundation / Accessibility bridging.
 
-If the issue is “Tabby does not recognize this field” or “the ghost text is in the wrong place,” start in those files before touching the coordinator.
+If the issue is “tabby does not recognize this field” or “the ghost text is in the wrong place,” start in those files before touching the coordinator.
 
 ## Runtime And Models
 
