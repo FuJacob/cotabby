@@ -102,22 +102,30 @@ final class LlamaVisualContextSummarizer: VisualContextSummarizing {
     }
 
     /// Detects repeated multi-line blocks in the model output and truncates at the first repeat.
+    ///
+    /// Uses a sliding window: for every starting position, checks whether a block of `blockSize`
+    /// lines repeats immediately after itself. When found, everything from the second copy onward
+    /// is dropped. Both paths return from the same normalized (trimmed, non-empty) line array so
+    /// callers always get consistent formatting.
     private func truncateAtRepeatedBlock(_ text: String) -> String {
         let lines = text.components(separatedBy: "\n")
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
-        guard lines.count >= 4 else { return text }
+        guard lines.count >= 4 else { return lines.joined(separator: "\n") }
 
-        for blockSize in 1 ... lines.count / 2 {
-            let block = Array(lines[0 ..< blockSize])
-            let nextStart = blockSize
-            let nextEnd = nextStart + blockSize
-            guard nextEnd <= lines.count else { continue }
-            if Array(lines[nextStart ..< nextEnd]) == block {
-                return block.joined(separator: "\n")
+        for i in 0 ..< lines.count {
+            let maxBlockSize = (lines.count - i) / 2
+            guard maxBlockSize >= 1 else { continue }
+            for blockSize in 1 ... maxBlockSize {
+                let repeatStart = i + blockSize
+                let repeatEnd = repeatStart + blockSize
+                guard repeatEnd <= lines.count else { continue }
+                if Array(lines[i ..< repeatStart]) == Array(lines[repeatStart ..< repeatEnd]) {
+                    return Array(lines[0 ..< repeatStart]).joined(separator: "\n")
+                }
             }
         }
 
-        return text
+        return lines.joined(separator: "\n")
     }
 }
