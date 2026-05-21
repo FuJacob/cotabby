@@ -117,7 +117,7 @@ Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, bui
 
 ## Creators
 
-Tabby is built by [@FuJacob](https://github.com/FuJacob) and [@jam-cai](https://github.com/jam-cai).
+tabby is built by [@FuJacob](https://github.com/FuJacob) and [@jam-cai](https://github.com/jam-cai).
 
 ## Acknowledgments
 
