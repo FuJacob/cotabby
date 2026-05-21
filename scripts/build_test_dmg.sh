@@ -35,7 +35,7 @@ python3 "$REPO_ROOT/scripts/build_release_dmg.py" \
 
 # Eject any stale tabby volumes so the DMG mounts exactly as /Volumes/tabby.
 while IFS= read -r vol; do
-    hdiutil detach "$vol" -quiet 2>/dev/null && echo "Ejected $vol"
+    hdiutil detach "$vol" -quiet 2>/dev/null && echo "Ejected $vol" || true
 done < <(ls /Volumes/ 2>/dev/null | grep -i "^tabby" | sed 's|^|/Volumes/|')
 
 echo "Opening $OUTPUT_PATH"
