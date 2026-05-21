@@ -43,5 +43,12 @@ while IFS= read -r vol; do
     hdiutil detach "$vol" -quiet 2>/dev/null && echo "Ejected $vol"
 done < <(ls /Volumes/ 2>/dev/null | grep -i "^tabby" | sed 's|^|/Volumes/|')
 
+# Eject any stale Tabby volumes so the DMG mounts as /Volumes/Tabby.
+# The DS_Store background path is absolute — if it mounts as /Volumes/Tabby 2/
+# the background reference breaks and Finder shows a blank window.
+while IFS= read -r vol; do
+    hdiutil detach "$vol" -quiet 2>/dev/null && echo "Ejected $vol"
+done < <(ls /Volumes/ 2>/dev/null | grep -i "^Tabby" | sed 's|^|/Volumes/|')
+
 echo "Opening $OUTPUT_PATH"
 open "$OUTPUT_PATH"
