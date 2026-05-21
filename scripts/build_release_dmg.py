@@ -149,23 +149,15 @@ def resolve_app_icon_path(app_path: Path) -> Path | None:
 
 
 def normalize_background_image(source_path: Path, destination_path: Path) -> None:
-    """Resize the committed art to the Finder window size with macOS tooling.
+    """Copy the background art into the staging temp dir for dmgbuild.
 
-    We use `sips` instead of a third-party Python imaging dependency because
-    release CI already runs on macOS. That keeps the packaging stack smaller and
-    avoids teaching the workflow about another runtime requirement.
+    The committed asset is already authored at 2x (1080×1520 px for a 540×760 pt
+    window), so no resampling is needed. Downsampling to point size previously
+    produced an image too small for Finder to apply as a background on Retina
+    displays, resulting in a blank DMG background.
     """
 
     shutil.copy2(source_path, destination_path)
-    run_command(
-        [
-            "sips",
-            "--resampleHeightWidth",
-            str(WINDOW_HEIGHT),
-            str(WINDOW_WIDTH),
-            str(destination_path),
-        ]
-    )
 
 
 def stage_release_root(app_path: Path, staging_root: Path) -> Path:
