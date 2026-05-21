@@ -192,11 +192,15 @@ jobs:
       - name: Archive signed app
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          RELEASE_VERSION: ${{ steps.metadata.outputs.release_version }}
         run: |
           set -euo pipefail
 
           mkdir -p build
 
+          # Strip any pre-release suffix for the marketing version shown in
+          # Settings and Sparkle. "0.0.1-beta" → "0.0.1-beta" is kept as-is
+          # so users see the full version string including the channel tag.
           xcodebuild archive \
             -project "${PROJECT_PATH}" \
             -scheme "${SCHEME}" \
@@ -208,6 +212,7 @@ jobs:
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="Developer ID Application" \
             OTHER_CODE_SIGN_FLAGS="--timestamp" \
+            MARKETING_VERSION="${RELEASE_VERSION}" \
             archive
 
       - name: Re-sign nested code for notarization

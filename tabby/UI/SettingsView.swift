@@ -32,7 +32,9 @@ struct SettingsView: View {
             uninstallSection
             generalSection
             autocompleteSection
-            performanceSection
+            // performanceSection — hidden until these controls are productized.
+            // Both suggestion delay and focus poll interval are developer-facing
+            // tuning knobs that invite misconfiguration for end users.
             disabledAppsSection
             profileSection
             permissionsSection
@@ -91,14 +93,9 @@ struct SettingsView: View {
     @ViewBuilder
     private var generalSection: some View {
         Section("General") {
-            Toggle("Open at Login", isOn: launchAtLoginBinding)
-                .disabled(!launchAtLoginService.state.canToggle)
-
-            if let message = launchAtLoginMessage {
-                Text(message)
-                    .font(.caption)
-                    .foregroundStyle(launchAtLoginMessageColor)
-            }
+            // Open at Login is hidden until the quarantine/SMAppService issue is resolved.
+            // The toggle reports .notFound for quarantined apps and apps outside /Applications,
+            // making it appear broken for most users. See LaunchAtLoginService for details.
 
             LabeledContent("Onboarding") {
                 Button("Open Welcome Guide") {
