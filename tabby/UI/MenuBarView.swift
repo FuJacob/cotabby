@@ -200,7 +200,7 @@ struct MenuBarView: View {
 
             Spacer(minLength: 0)
 
-            Button("Quit Tabby") {
+            Button("Quit tabby") {
                 NSApplication.shared.terminate(nil)
             }
             .buttonStyle(.borderless)
