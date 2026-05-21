@@ -82,7 +82,6 @@ struct SuggestionConfiguration: Equatable, Sendable {
     /// `SuggestionSettingsModel` persists the user's real preference; configuration only provides
     /// the app's starting value for a fresh install.
     let defaultUserName: String?
-    let defaultUserTags: [String]?
     let defaultWordCountPreset: SuggestionWordCountPreset
     let focusPollIntervalMilliseconds: Int
 
@@ -108,7 +107,6 @@ struct SuggestionConfiguration: Equatable, Sendable {
         maxSuffixCharacters: 192,
         // Seed the profile settings with lightweight defaults on first launch.
         defaultUserName: "Jacob",
-        defaultUserTags: [],
         defaultWordCountPreset: .sevenToTwelve,
         focusPollIntervalMilliseconds: 50
     )
@@ -206,7 +204,6 @@ struct SuggestionRequest: Equatable, Sendable {
     /// Optional user-provided profile context. We keep this separate from base product behavior so
     /// future settings/personalization work can evolve independently from prompt safety rules.
     let userName: String?
-    let userTags: [String]?
     /// Ephemeral clipboard context captured only when the user has enabled clipboard prompting.
     let clipboardContext: String?
     /// Ephemeral screen context summary injected only when available for the active text field.

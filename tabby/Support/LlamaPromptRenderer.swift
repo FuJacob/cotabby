@@ -18,7 +18,6 @@ enum LlamaPromptRenderer {
         applicationName: String,
         completionLengthInstruction: String,
         userName: String?,
-        userTags: [String]?,
         clipboardContext: String? = nil,
         visualContextSummary: String? = nil
     ) -> String {
@@ -35,12 +34,6 @@ enum LlamaPromptRenderer {
         if let name = userName, !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             profileSections.append("- The user's name is \(name).")
         }
-        // TODO: Re-enable userTags in the prompt once we validate the feature's value.
-        // if let tags = userTags, !tags.isEmpty {
-        //     let tagsString = tags.joined(separator: ", ")
-        //     profileSections.append("- Things the user types often include: \(tagsString).")
-        // }
-
         if !profileSections.isEmpty {
             sections.append("")
             sections.append("User Profile Context:")

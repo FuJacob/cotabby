@@ -9,8 +9,7 @@ final class FoundationModelPromptRendererTests: XCTestCase {
     func test_sessionInstructions_includeAutocompleteContractAndRequestPolicies() {
         let request = TabbyTestFixtures.suggestionRequest(
             completionLengthInstruction: "UNIQUE_LENGTH_POLICY",
-            userName: "UNIQUE_PROFILE_NAME",
-            userTags: ["UNIQUE_PROFILE_TAG"]
+            userName: "UNIQUE_PROFILE_NAME"
         )
 
         let instructions = FoundationModelPromptRenderer.sessionInstructions(for: request)
@@ -18,9 +17,6 @@ final class FoundationModelPromptRendererTests: XCTestCase {
         XCTAssertTrue(instructions.contains("inline autocomplete engine"))
         XCTAssertTrue(instructions.contains("UNIQUE_LENGTH_POLICY"))
         XCTAssertTrue(instructions.contains("UNIQUE_PROFILE_NAME"))
-        // userTags emission is intentionally disabled in FoundationModelPromptRenderer
-        // (see TODO in that file); the tag string must not leak into instructions today.
-        XCTAssertFalse(instructions.contains("UNIQUE_PROFILE_TAG"))
         XCTAssertTrue(instructions.contains("Do not repeat or quote the existing text."))
     }
 

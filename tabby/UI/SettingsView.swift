@@ -254,19 +254,6 @@ struct SettingsView: View {
                     .textFieldStyle(.roundedBorder)
                 }
 
-                // TODO: Re-enable "Things you type often" once we validate the feature's value.
-                // VStack(alignment: .leading, spacing: 6) {
-                //     Text("Things you type often")
-                //         .font(.system(size: 13, weight: .medium))
-                //
-                //     TagsInputView(
-                //         tags: Binding(
-                //             get: { suggestionSettings.userTags },
-                //             set: { suggestionSettings.setUserTags($0) }
-                //         ),
-                //         placeholder: "Add tags (press Enter to add)"
-                //     )
-                // }
             }
             .padding(.vertical, 4)
         }

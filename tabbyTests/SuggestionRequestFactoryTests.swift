@@ -75,7 +75,6 @@ final class SuggestionRequestFactoryTests: XCTestCase {
             maxPrefixCharacters: 32,
             maxSuffixCharacters: 192,
             defaultUserName: nil,
-            defaultUserTags: nil,
             defaultWordCountPreset: .sevenToTwelve,
             focusPollIntervalMilliseconds: 50
         )
@@ -106,7 +105,6 @@ final class SuggestionRequestFactoryTests: XCTestCase {
             maxPrefixCharacters: 1000,
             maxSuffixCharacters: 192,
             defaultUserName: nil,
-            defaultUserTags: nil,
             defaultWordCountPreset: .sevenToTwelve,
             focusPollIntervalMilliseconds: 50
         )
@@ -131,25 +129,18 @@ final class SuggestionRequestFactoryTests: XCTestCase {
         let result = SuggestionRequestFactory.buildRequest(
             context: context,
             settings: TabbyTestFixtures.settingsSnapshot(
-                userName: "Casey",
-                userTags: ["Prefer direct wording."]
+                userName: "Casey"
             ),
             configuration: .standard,
             visualContextSummary: "Calendar window says project review at 3 PM."
         )
 
         XCTAssertEqual(result.request.userName, "Casey")
-        // userTags disabled — re-enable when the feature is validated.
-        XCTAssertNil(result.request.userTags)
         XCTAssertEqual(
             result.request.visualContextSummary,
             "Calendar window says project review at 3 PM."
         )
         XCTAssertTrue(result.promptPreview.contains("Casey"))
-        // userTags emission is intentionally disabled in the prompt renderers
-        // (see TODO in LlamaPromptRenderer/FoundationModelPromptRenderer); the tag string
-        // is plumbed through the request but must not appear in the rendered prompt today.
-        XCTAssertFalse(result.promptPreview.contains("Prefer direct wording."))
         XCTAssertTrue(result.promptPreview.contains("Calendar window says project review at 3 PM."))
     }
 

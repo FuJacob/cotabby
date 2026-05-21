@@ -42,7 +42,6 @@ enum SuggestionRequestFactory {
         )
         let completionLengthInstruction = settings.selectedWordCountPreset.promptInstruction
         let userName = activeUserName(settings: settings)
-        let userTags = activeUserTags(settings: settings)
         let boundedClipboardContext = activeClipboardContext(
             rawContext: clipboardContext,
             settings: settings
@@ -55,7 +54,6 @@ enum SuggestionRequestFactory {
             applicationName: context.applicationName,
             completionLengthInstruction: completionLengthInstruction,
             userName: userName,
-            userTags: userTags,
             clipboardContext: boundedClipboardContext,
             visualContextSummary: boundedVisualContextSummary
         )
@@ -78,7 +76,6 @@ enum SuggestionRequestFactory {
             maxSuffixCharacters: configuration.maxSuffixCharacters,
             completionLengthInstruction: completionLengthInstruction,
             userName: userName,
-            userTags: userTags,
             clipboardContext: boundedClipboardContext,
             visualContextSummary: boundedVisualContextSummary
         )
@@ -108,13 +105,6 @@ enum SuggestionRequestFactory {
         settings: SuggestionSettingsSnapshot
     ) -> String? {
         settings.userName
-    }
-
-    private static func activeUserTags(
-        settings: SuggestionSettingsSnapshot
-    ) -> [String]? {
-        // TODO: Re-enable userTags once we validate the feature's value.
-        nil
     }
 
     private static func activeClipboardContext(

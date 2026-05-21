@@ -68,8 +68,7 @@ final class LlamaPromptRendererTests: XCTestCase {
             prefixText: "Once upon",
             applicationName: "Messages",
             completionLengthInstruction: "Keep completion short.",
-            userName: nil,
-            userTags: nil
+            userName: nil
         )
 
         XCTAssertTrue(prompt.contains("Task:"), "instruction prompt should include Task section")
@@ -89,8 +88,7 @@ final class LlamaPromptRendererTests: XCTestCase {
             prefixText: "My prefix text here",
             applicationName: "Slack",
             completionLengthInstruction: "Short.",
-            userName: nil,
-            userTags: nil
+            userName: nil
         )
 
         XCTAssertTrue(prompt.contains("App: Slack"))
@@ -105,8 +103,7 @@ final class LlamaPromptRendererTests: XCTestCase {
             prefixText: "PREFIX_BODY_XYZ",
             applicationName: "App",
             completionLengthInstruction: "UNIQUE_LENGTH_MARKER_7_TO_12_WORDS",
-            userName: nil,
-            userTags: nil
+            userName: nil
         )
 
         XCTAssertTrue(prompt.contains("UNIQUE_LENGTH_MARKER_7_TO_12_WORDS"))
@@ -127,16 +124,11 @@ final class LlamaPromptRendererTests: XCTestCase {
             prefixText: "x",
             applicationName: "App",
             completionLengthInstruction: "Short.",
-            userName: "UNIQUE_NAME_MARKER_ZQRT",
-            userTags: ["UNIQUE_TAG_MARKER"]
+            userName: "UNIQUE_NAME_MARKER_ZQRT"
         )
 
         XCTAssertTrue(prompt.contains("UNIQUE_NAME_MARKER_ZQRT"),
                       "instruction prompt should carry user-provided profile name")
-        // userTags emission is intentionally disabled in LlamaPromptRenderer
-        // (see TODO in that file); the tag string must not leak into the prompt today.
-        XCTAssertFalse(prompt.contains("UNIQUE_TAG_MARKER"),
-                       "instruction prompt should not carry user-provided profile tags while the feature is gated off")
     }
 
     /// The prefix remains the last payload in the prompt so the model still ends on the actual
@@ -146,8 +138,7 @@ final class LlamaPromptRendererTests: XCTestCase {
             prefixText: "PREFIX_BODY_XYZ",
             applicationName: "App",
             completionLengthInstruction: "Short.",
-            userName: nil,
-            userTags: nil
+            userName: nil
         )
 
         guard let contextRange = prompt.range(of: "Screen context:"),
@@ -167,7 +158,6 @@ final class LlamaPromptRendererTests: XCTestCase {
             applicationName: "App",
             completionLengthInstruction: "Short.",
             userName: nil,
-            userTags: nil,
             visualContextSummary: "A window describing a cat."
         )
 
@@ -181,7 +171,6 @@ final class LlamaPromptRendererTests: XCTestCase {
             applicationName: "App",
             completionLengthInstruction: "Short.",
             userName: nil,
-            userTags: nil,
             clipboardContext: "UNIQUE_CLIPBOARD_MARKER"
         )
 
@@ -195,7 +184,6 @@ final class LlamaPromptRendererTests: XCTestCase {
             applicationName: "App",
             completionLengthInstruction: "Short.",
             userName: nil,
-            userTags: nil,
             visualContextSummary: nil
         )
 
@@ -242,7 +230,6 @@ final class LlamaPromptRendererTests: XCTestCase {
             maxSuffixCharacters: 192,
             completionLengthInstruction: "Return only the next few words.",
             userName: nil,
-            userTags: nil,
             clipboardContext: nil,
             visualContextSummary: nil
         )

@@ -95,7 +95,6 @@ enum TabbyTestFixtures {
         maxPredictionTokens: Int = 8,
         completionLengthInstruction: String = "Return only the next few words.",
         userName: String? = nil,
-        userTags: [String]? = nil,
         clipboardContext: String? = nil,
         visualContextSummary: String? = nil
     ) -> SuggestionRequest {
@@ -121,7 +120,6 @@ enum TabbyTestFixtures {
             maxSuffixCharacters: 192,
             completionLengthInstruction: completionLengthInstruction,
             userName: userName,
-            userTags: userTags,
             clipboardContext: clipboardContext,
             visualContextSummary: visualContextSummary
         )
@@ -208,7 +206,6 @@ enum TabbyTestFixtures {
         selectedWordCountPreset: SuggestionWordCountPreset = .sevenToTwelve,
         isClipboardContextEnabled: Bool = true,
         userName: String = "",
-        userTags: [String] = [],
         debounceMilliseconds: Int = 50,
         focusPollIntervalMilliseconds: Int = 50
     ) -> SuggestionSettingsSnapshot {
@@ -219,7 +216,6 @@ enum TabbyTestFixtures {
             selectedWordCountPreset: selectedWordCountPreset,
             isClipboardContextEnabled: isClipboardContextEnabled,
             userName: userName,
-            userTags: userTags,
             debounceMilliseconds: debounceMilliseconds,
             focusPollIntervalMilliseconds: focusPollIntervalMilliseconds
         )
