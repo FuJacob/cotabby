@@ -115,12 +115,7 @@ struct SettingsView: View {
 
             Toggle("Include Clipboard Context", isOn: clipboardContextEnabledBinding)
 
-            Picker("Indicator", selection: selectedIndicatorModeBinding) {
-                ForEach(ActivationIndicatorMode.allCases) { mode in
-                    Text(mode.displayLabel)
-                        .tag(mode)
-                }
-            }
+            Toggle("Show Indicator", isOn: showCaretIndicatorBinding)
 
             LabeledContent("Ghost Text Color") {
                 HStack(spacing: 8) {
@@ -442,12 +437,10 @@ struct SettingsView: View {
         )
     }
 
-    private var selectedIndicatorModeBinding: Binding<ActivationIndicatorMode> {
+    private var showCaretIndicatorBinding: Binding<Bool> {
         Binding(
-            get: { suggestionSettings.selectedIndicatorMode },
-            set: { mode in
-                suggestionSettings.selectIndicatorMode(mode)
-            }
+            get: { suggestionSettings.showCaretIndicator },
+            set: { suggestionSettings.setShowCaretIndicator($0) }
         )
     }
 

@@ -3,18 +3,14 @@ import Foundation
 import SwiftUI
 
 /// File overview:
-/// Owns the tiny non-activating panel that marks supported inputs with a subtle affordance.
-/// Unlike the ghost-text overlay, this controller is focus-driven and can anchor either to the
-/// caret itself or to the left edge of the active text area.
+/// Owns the tiny non-activating panel that marks supported inputs with a subtle caret pointer.
+/// Unlike the ghost-text overlay, this controller is focus-driven and toggled by a simple boolean.
 ///
 /// Keeping this as a separate controller preserves the architectural split between:
 /// supported-field affordances and suggestion-specific UI.
 @MainActor
 final class ActivationIndicatorController {
     private let verticalGap: CGFloat = 2
-    /// Field-edge mode should visually touch the input's outside edge. A gap reads as accidental
-    /// padding because the icon is an affordance for the field itself, not for the surrounding UI.
-    private let fieldEdgeGap: CGFloat = 0
     private let screenInset: CGFloat = 2
 
     private lazy var contentView: NSHostingView<AnyView> = {
@@ -40,20 +36,15 @@ final class ActivationIndicatorController {
         return panel
     }()
 
-    private var lastMode: ActivationIndicatorMode?
+    private var isVisible = false
 
-    /// Sizes and positions the chosen activation affordance for the current field.
-    ///
-    /// `caretAnchor` points directly at the insertion point, while `fieldEdgeIcon` places Tabby's
-    /// icon outside the text area's left edge so the signal stays visible even when caret geometry
-    /// is jittery.
+    /// Shows or hides the caret-anchored indicator based on a simple boolean toggle.
     func show(
-        mode: ActivationIndicatorMode,
-        caretRect: CGRect,
-        inputFrameRect: CGRect?
+        enabled: Bool,
+        caretRect: CGRect
     ) {
-        guard mode != .hidden else {
-            hide(reason: "Activation indicator hidden because the chosen mode is Hidden.")
+        guard enabled else {
+            hide(reason: "Activation indicator hidden because it is disabled.")
             return
         }
 
@@ -62,51 +53,25 @@ final class ActivationIndicatorController {
             return
         }
 
-        contentView.rootView = AnyView(view(for: mode))
+        contentView.rootView = AnyView(CaretAnchorIndicatorView())
         contentView.layoutSubtreeIfNeeded()
         let contentSize = contentView.fittingSize
-
-        let origin: CGPoint
-        switch mode {
-        case .hidden:
-            hide(reason: "Activation indicator hidden because the chosen mode is Hidden.")
-            return
-        case .caretAnchor:
-            origin = caretAnchorOrigin(for: caretRect, contentSize: contentSize)
-        case .fieldEdgeIcon:
-            origin = fieldEdgeIconOrigin(
-                caretRect: caretRect,
-                inputFrameRect: inputFrameRect,
-                contentSize: contentSize
-            )
-        }
+        let origin = caretAnchorOrigin(for: caretRect, contentSize: contentSize)
 
         let frame = CGRect(origin: origin, size: contentSize).integral
-        if lastMode == mode, panel.frame == frame, panel.isVisible {
+        if isVisible, panel.frame == frame, panel.isVisible {
             return
         }
 
         panel.setFrame(frame, display: true)
         panel.orderFrontRegardless()
-        lastMode = mode
+        isVisible = true
     }
 
     /// Hides the indicator when Tabby is not actively supporting the current field.
     func hide(reason _: String) {
         panel.orderOut(nil)
-        lastMode = nil
-    }
-
-    @ViewBuilder
-    private func view(for mode: ActivationIndicatorMode) -> some View {
-        switch mode {
-        case .hidden:
-            EmptyView()
-        case .caretAnchor:
-            CaretAnchorIndicatorView()
-        case .fieldEdgeIcon:
-            FieldEdgeIconIndicatorView(icon: NSApp.applicationIconImage)
-        }
+        isVisible = false
     }
 
     /// Centers the caret pointer horizontally on the caret and prefers placing it just below the
@@ -132,42 +97,6 @@ final class ActivationIndicatorController {
         )
         let clampedY = min(
             max(preferredY, visibleFrame.minY + screenInset),
-            visibleFrame.maxY - contentSize.height - screenInset
-        )
-
-        return CGPoint(x: clampedX, y: clampedY)
-    }
-
-    /// Places Tabby's icon just outside the text area's left edge. When the field is flush against
-    /// the screen edge we fall back to the right side so the icon stays fully visible.
-    private func fieldEdgeIconOrigin(
-        caretRect: CGRect,
-        inputFrameRect: CGRect?,
-        contentSize: CGSize
-    ) -> CGPoint {
-        let anchorRect = if let inputFrameRect, !inputFrameRect.isEmpty {
-            inputFrameRect
-        } else {
-            caretRect
-        }
-        let preferredLeftX = anchorRect.minX - contentSize.width - fieldEdgeGap
-        let fallbackRightX = anchorRect.maxX + fieldEdgeGap
-        let centeredY = anchorRect.midY - (contentSize.height / 2)
-
-        guard let screen = screen(for: anchorRect) else {
-            return CGPoint(x: preferredLeftX, y: centeredY)
-        }
-
-        let visibleFrame = screen.visibleFrame
-        let preferredX = preferredLeftX >= visibleFrame.minX + screenInset
-            ? preferredLeftX
-            : fallbackRightX
-        let clampedX = min(
-            max(preferredX, visibleFrame.minX + screenInset),
-            visibleFrame.maxX - contentSize.width - screenInset
-        )
-        let clampedY = min(
-            max(centeredY, visibleFrame.minY + screenInset),
             visibleFrame.maxY - contentSize.height - screenInset
         )
 
@@ -205,22 +134,6 @@ private struct CaretAnchorIndicatorView: View {
             .fill(bgColor)
             .frame(width: 8, height: 5)
             .shadow(color: .black.opacity(0.16), radius: 1, y: 1)
-            .fixedSize()
-    }
-}
-
-private struct FieldEdgeIconIndicatorView: View {
-    let icon: NSImage
-
-    var body: some View {
-        Image(nsImage: icon)
-            .resizable()
-            .interpolation(.high)
-            .scaledToFit()
-            .frame(width: 20, height: 20)
-            .brightness(0.16)
-            .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
-            .shadow(color: .black.opacity(0.10), radius: 2, y: 1)
             .fixedSize()
     }
 }
