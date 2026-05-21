@@ -23,6 +23,10 @@ enum SuggestionAvailabilityEvaluator {
             return "Tabby is disabled in \(focusSnapshot.applicationName)."
         }
 
+        if TerminalAppDetector.isTerminal(bundleIdentifier: focusSnapshot.bundleIdentifier) {
+            return "Tabby is not available in terminal apps."
+        }
+
         guard inputMonitoringGranted else {
             return "Input Monitoring permission is required before Tabby can react to typing."
         }

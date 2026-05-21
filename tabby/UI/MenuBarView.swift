@@ -82,7 +82,8 @@ struct MenuBarView: View {
                 .toggleStyle(.switch)
                 .controlSize(.small)
 
-            if let application = focusModel.latestExternalApplication {
+            if let application = focusModel.latestExternalApplication,
+               !TerminalAppDetector.isTerminal(bundleIdentifier: application.bundleIdentifier) {
                 Toggle("Enable in \(application.applicationName)", isOn: appEnabledBinding(for: application))
                     .toggleStyle(.switch)
                     .controlSize(.small)
