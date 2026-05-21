@@ -121,9 +121,9 @@ struct SuggestionConfiguration: Equatable, Sendable {
     static let standard = SuggestionConfiguration(
         // Keep completions short so ghost text stays fast and easy to accept.
         maxPredictionTokens: 8,
-        // Many host apps do not publish updated AX text/caret state in the same frame as typing.
-        // A slightly slower debounce gives the model fresher context and avoids obvious staleness.
-        debounceMilliseconds: 180,
+        // Aggressive debounce: 50ms is enough for most apps to publish AX state. The KV cache
+        // reuse path handles prefix changes gracefully if AX is occasionally one char stale.
+        debounceMilliseconds: 50,
         // Low temperature keeps inline completions stable and less likely to drift.
         temperature: 0.1,
         topK: 20,
@@ -134,8 +134,8 @@ struct SuggestionConfiguration: Equatable, Sendable {
         maxPrefixWords: 50,
         // Prompt windows should stay small. Sending an entire editor buffer hurts latency with
         // little quality gain because Tabby is only completing the immediate local continuation.
-        maxPrefixCharacters: 1000,
-        maxSuffixCharacters: 192,
+        maxPrefixCharacters: 600,
+        maxSuffixCharacters: 100,
         // Seed the profile settings with lightweight defaults on first launch.
         defaultUserName: "Jacob",
         defaultUserTags: [],

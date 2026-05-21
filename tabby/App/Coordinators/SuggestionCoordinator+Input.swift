@@ -104,6 +104,9 @@ extension SuggestionCoordinator {
         }
 
         if event.shouldSchedulePrediction {
+            // Capture AX state immediately at keystroke time so the debounce window
+            // works with the freshest possible snapshot, not whenever the poll timer last fired.
+            focusModel.refreshNow()
             schedulePrediction()
         }
 
