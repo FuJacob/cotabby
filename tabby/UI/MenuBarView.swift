@@ -22,6 +22,7 @@ struct MenuBarView: View {
     @ObservedObject var foundationModelAvailabilityService: FoundationModelAvailabilityService
     @ObservedObject var suggestionCoordinator: SuggestionCoordinator
     let onOpenSettings: () -> Void
+    let onCheckForUpdates: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -199,6 +200,9 @@ struct MenuBarView: View {
 
         HStack {
             Button("Settings…", action: onOpenSettings)
+                .buttonStyle(.borderless)
+
+            Button("Check for Updates…", action: onCheckForUpdates)
                 .buttonStyle(.borderless)
 
             Spacer(minLength: 0)
