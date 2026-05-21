@@ -56,13 +56,13 @@
 
 ## What It Does
 
-tabby is a menu bar app that brings inline autocomplete to the text field you're already using. Keep typing in your host app — tabby watches the focused field, generates a continuation, and renders it as ghost text next to your caret. Press `Tab` to accept a chunk, keep pressing to advance, or just keep typing to diverge.
+tabby is a menu bar app that brings inline autocomplete to the text field you're already using. Keep typing in your host app — tabby watches the focused field, generates a continuation, and renderas it as ghost text next to your caret. Press `Tab` to accept a chunk, keep pressing to advance, or just keep typing to diverge.
 
 Everything runs on-device. No hosted API, no cloud round-trip.
 
 ## Engines
 
-**Apple Intelligence** — uses Apple's on-device `FoundationModels` runtime on macOS 26 or later. No download required. Availability depends on your Mac; tabby checks at runtime and explains when this engine is unavailable.
+**Apple Intelligence** -> uses Apple's on-device `FoundationModels` runtime on macOS 26 or later. No download required. Availability depends on your Mac; tabby checks at runtime and explains when this engine is unavailable.
 
 **Open Source**: runs local GGUF models in-process through llama.cpp via `llama.swift`. Built-in downloadable models:
 
