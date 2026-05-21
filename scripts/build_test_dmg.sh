@@ -12,7 +12,7 @@ BACKGROUND="$REPO_ROOT/assets/release/dmg_background.png"
 # Ensure dmgbuild is available.
 if ! python3 -c "import dmgbuild" 2>/dev/null; then
     echo "Installing dmgbuild..."
-    python3 -m pip install "dmgbuild[badge_icons]==1.6.7"
+    python3 -m pip install --user "dmgbuild[badge_icons]==1.6.7"
 fi
 
 # Build the app if the bundle is missing.
