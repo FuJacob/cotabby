@@ -63,7 +63,7 @@ final class SuggestionSettingsModel: ObservableObject {
             .flatMap(SuggestionWordCountPreset.init(rawValue:))
             ?? configuration.defaultWordCountPreset
         let resolvedClipboardContextEnabled =
-            userDefaults.object(forKey: Self.clipboardContextEnabledDefaultsKey) as? Bool ?? true
+            userDefaults.object(forKey: Self.clipboardContextEnabledDefaultsKey) as? Bool ?? false
         let resolvedUserName: String = if userDefaults.object(forKey: Self.userNameDefaultsKey) == nil {
             configuration.defaultUserName ?? ""
         } else {
