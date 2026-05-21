@@ -82,14 +82,9 @@ final class ScreenshotContextGenerator {
                 )
             }
 
-            let fallbackText = normalizeRecognizedText(windowTitle)
-            guard hasMeaningfulSignal(fallbackText) else {
-                throw ScreenshotContextGenerationError.unavailable(
-                    "The screenshot did not contain enough visible text to build prompt context."
-                )
-            }
-
-            return VisualContextExcerpt(text: boundedSummaryText(fallbackText))
+            return VisualContextExcerpt(
+                text: boundedSummaryText(normalizeRecognizedText(windowTitle))
+            )
         } catch let error as ScreenTextExtractionError {
             throw ScreenshotContextGenerationError.unavailable(error.localizedDescription)
         } catch {
