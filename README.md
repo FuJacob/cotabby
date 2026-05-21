@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <em>On-device AI autocomplete for macOS text fields.</em>
+  <em>Open-source, local-first AI autocomplete for macOS.</em>
 </p>
 
 <p align="center">
