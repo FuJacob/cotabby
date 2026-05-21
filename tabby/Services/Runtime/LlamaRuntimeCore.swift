@@ -421,42 +421,50 @@ actor LlamaRuntimeCore {
         }
     }
 
-    /// Feeds prompt tokens through the context so sampling can begin from the final prompt state.
+    /// Feeds prompt tokens through the context in chunks that respect `batchCapacity` so
+    /// `llama_decode` never receives more tokens than `n_batch` / `n_ubatch` allow.
     private func decodePrompt(
         _ promptTokens: [llama_token],
         startingAt startIndex: Int,
         in context: OpaquePointer,
         batchCapacity: Int
     ) throws {
-        let tokenCount = promptTokens.count - startIndex
-        guard tokenCount > 0 else {
+        let totalTokens = promptTokens.count - startIndex
+        guard totalTokens > 0 else {
             return
         }
 
-        var batch = llama_batch_init(Int32(max(tokenCount, batchCapacity)), 0, 1)
+        var batch = llama_batch_init(Int32(batchCapacity), 0, 1)
         defer { llama_batch_free(batch) }
 
-        batch.n_tokens = Int32(tokenCount)
+        var cursor = startIndex
+        let endIndex = promptTokens.count
 
-        for batchIndex in 0 ..< tokenCount {
-            let tokenIndex = startIndex + batchIndex
-            batch.token[batchIndex] = promptTokens[tokenIndex]
-            batch.pos[batchIndex] = Int32(tokenIndex)
-            batch.n_seq_id[batchIndex] = 1
+        while cursor < endIndex {
+            let chunkEnd = min(cursor + batchCapacity, endIndex)
+            let chunkSize = chunkEnd - cursor
 
-            if let seqIDs = batch.seq_id, let seqID = seqIDs[batchIndex] {
-                seqID[0] = Self.promptSequenceID
+            batch.n_tokens = Int32(chunkSize)
+
+            for i in 0 ..< chunkSize {
+                let tokenIndex = cursor + i
+                batch.token[i] = promptTokens[tokenIndex]
+                batch.pos[i] = Int32(tokenIndex)
+                batch.n_seq_id[i] = 1
+
+                if let seqIDs = batch.seq_id, let seqID = seqIDs[i] {
+                    seqID[0] = Self.promptSequenceID
+                }
+
+                // Only request logits for the very last token of the entire prompt.
+                batch.logits[i] = (chunkEnd == endIndex && i == chunkSize - 1) ? 1 : 0
             }
 
-            batch.logits[batchIndex] = 0
-        }
+            guard llama_decode(context, batch) == 0 else {
+                throw LlamaRuntimeError.generationFailed("llama_decode failed while evaluating the prompt.")
+            }
 
-        if batch.n_tokens > 0 {
-            batch.logits[Int(batch.n_tokens) - 1] = 1
-        }
-
-        guard llama_decode(context, batch) == 0 else {
-            throw LlamaRuntimeError.generationFailed("llama_decode failed while evaluating the prompt.")
+            cursor = chunkEnd
         }
     }
 
