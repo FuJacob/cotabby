@@ -120,6 +120,20 @@ swiftlint --reporter github-actions-logging
 The current CI lint gate is warnings-only. Treat warnings as cleanup work, but avoid bundling
 unrelated style rewrites into functional PRs.
 
+## Debugging
+
+The shared Xcode scheme passes `-tabby-debug` by default in Debug builds. This enables
+developer-only diagnostics:
+
+- **Focus debug overlay** — translucent panels showing caret geometry, element bounds, focus
+  polling events, and visual-context pipeline status.
+- **Suggestion debug logger** — color-coded console output for each generation cycle: prompt sent,
+  raw model response, and normalized output.
+- **Screenshot capture** — saves OCR debug screenshots to disk when the visual-context pipeline
+  runs.
+
+To disable it, uncheck `-tabby-debug` in the scheme's Run → Arguments tab.
+
 ## Pull Requests
 
 Before opening or updating a PR:
