@@ -123,7 +123,7 @@ enum RuntimeModelCatalog {
                 approximateSizeInGigabytes: 3.1,
                 expectedSizeBytes: 3106736256,
                 sha256: "9378bc471710229ef165709b62e34bfb62231420ddaf6d729e727305b5b8672d"
-            ),
+            )
         ]
     }
 
@@ -141,9 +141,9 @@ struct LlamaRuntimeConfiguration: Equatable, Sendable {
         runtimeDirectoryPath: nil,
         preferredModelNames: [
             "gemma-4-E2B-it-Q4_K_M.gguf",
-            "Qwen3.5-0.8B-Q4_K_M.gguf",
+            "Qwen3.5-0.8B-Q4_K_M.gguf"
         ],
-        contextWindowTokens: 4096,
+        contextWindowTokens: 2048,
         batchSize: 512,
         gpuLayerCount: -1
     )
