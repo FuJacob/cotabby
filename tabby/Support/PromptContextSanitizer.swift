@@ -44,8 +44,53 @@ enum PromptContextSanitizer {
         return boundedText.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    /// Stricter sanitization for OCR text headed to the summarizer. On top of the base sanitize
+    /// pass, this drops single/two-character noise tokens and standalone numbers that come from
+    /// UI chrome (PID numbers, CPU percentages, pixel dimensions). Lines that become mostly empty
+    /// after filtering are dropped entirely.
+    static func sanitizeOCR(_ rawText: String, maxCharacters: Int? = nil) -> String {
+        let baseSanitized = sanitize(rawText, maxCharacters: nil)
+        let filteredLines = baseSanitized
+            .components(separatedBy: .newlines)
+            .compactMap { filterOCRNoiseLine($0) }
+
+        let joined = filteredLines.joined(separator: "\n")
+        let bounded = maxCharacters.map { String(joined.prefix($0)) } ?? joined
+        return bounded.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     static func containsAlphanumericSignal(_ text: String) -> Bool {
         text.unicodeScalars.contains { CharacterSet.alphanumerics.contains($0) }
+    }
+
+    /// Common 1-2 character English words that should survive OCR noise filtering.
+    private static let preservedShortWords: Set<String> = [
+        "a", "i", "an", "am", "as", "at", "be", "by", "do", "go", "he",
+        "if", "in", "is", "it", "me", "my", "no", "of", "on", "or", "so",
+        "to", "up", "us", "we"
+    ]
+
+    /// Filters a single OCR line: drops short noise tokens and standalone numbers, then drops
+    /// the entire line if fewer than half its original tokens survived.
+    private static func filterOCRNoiseLine(_ line: String) -> String? {
+        let tokens = line.components(separatedBy: " ").filter { !$0.isEmpty }
+        guard !tokens.isEmpty else { return nil }
+
+        let kept = tokens.filter { token in
+            // Drop standalone numbers (UI chrome: "50", "424", "102")
+            if token.allSatisfy(\.isNumber) { return false }
+            // Keep common short English words; drop other 1-2 char noise ("l", "I", "iD3")
+            if token.count <= 2 {
+                return preservedShortWords.contains(token.lowercased())
+            }
+            return true
+        }
+
+        // If more than half the tokens were noise, the whole line is probably UI chrome.
+        guard kept.count * 2 >= tokens.count else { return nil }
+
+        let result = kept.joined(separator: " ")
+        return result.isEmpty ? nil : result
     }
 
     private static func collapseInlineWhitespace(in line: String) -> String {

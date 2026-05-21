@@ -16,6 +16,7 @@ protocol VisualContextSummarizing: AnyObject, Sendable {
 /// hidden owner of the visual-context lifecycle.
 @MainActor
 final class LlamaVisualContextSummarizer: VisualContextSummarizing {
+    private static let timeoutSeconds: UInt64 = 3
     private let runtimeManager: LlamaRuntimeManager
 
     init(runtimeManager: LlamaRuntimeManager) {
@@ -45,13 +46,42 @@ final class LlamaVisualContextSummarizer: VisualContextSummarizing {
             "Summary:"
         ].joined(separator: "\n")
 
-        let result = try await runtimeManager.summarize(
-            prompt: prompt,
-            maxPredictionTokens: 160,
-            temperature: 0
-        )
+        let result = await summarizeWithTimeout(prompt: prompt)
         let trimmedResult = result.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmedResult
+        return truncateAtRepeatedBlock(trimmedResult)
+    }
+
+    /// Soft timeout: runs generation in a child Task and cancels it after the deadline.
+    /// `LlamaRuntimeCore.summarize()` checks `Task.isCancelled` each token and returns whatever
+    /// partial text it has accumulated, so the result is the best-effort summary — not a failure.
+    private func summarizeWithTimeout(prompt: String) async -> String {
+        let manager = runtimeManager
+
+        let generationTask = Task {
+            try await manager.summarize(
+                prompt: prompt,
+                maxPredictionTokens: 80,
+                temperature: 0
+            )
+        }
+
+        let timeoutTask = Task {
+            try? await Task.sleep(nanoseconds: Self.timeoutSeconds * 1_000_000_000)
+            generationTask.cancel()
+        }
+
+        // Wait for generation to finish. On timeout, cancel fires → Task.isCancelled breaks
+        // the token loop → core.summarize() returns partial text → task.value returns it.
+        let result: String
+        do {
+            result = try await generationTask.value
+        } catch {
+            // Real error (model not loaded, etc.) — no partial text available.
+            result = ""
+        }
+        timeoutTask.cancel()
+
+        return result
     }
 
     /// Collapses runs of identical trimmed lines to a single occurrence.
@@ -69,5 +99,25 @@ final class LlamaVisualContextSummarizer: VisualContextSummarizing {
             }
         }
         return result.joined(separator: "\n")
+    }
+
+    /// Detects repeated multi-line blocks in the model output and truncates at the first repeat.
+    private func truncateAtRepeatedBlock(_ text: String) -> String {
+        let lines = text.components(separatedBy: "\n")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        guard lines.count >= 4 else { return text }
+
+        for blockSize in 1 ... lines.count / 2 {
+            let block = Array(lines[0 ..< blockSize])
+            let nextStart = blockSize
+            let nextEnd = nextStart + blockSize
+            guard nextEnd <= lines.count else { continue }
+            if Array(lines[nextStart ..< nextEnd]) == block {
+                return block.joined(separator: "\n")
+            }
+        }
+
+        return text
     }
 }

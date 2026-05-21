@@ -136,10 +136,10 @@ final class ScreenshotContextGenerator {
         )
     }
 
-    /// OCR is noisy by nature. We normalize line whitespace and keep only a bounded excerpt so the
-    /// completion prompt receives nearby visible text, not an unbounded UI dump.
+    /// OCR is noisy by nature. We normalize line whitespace, strip short-token noise from UI
+    /// chrome, and keep only a bounded excerpt so the summarizer receives meaningful text.
     private func normalizeRecognizedText(_ rawText: String) -> String {
-        PromptContextSanitizer.sanitize(
+        PromptContextSanitizer.sanitizeOCR(
             rawText,
             maxCharacters: configuration.maxRecognizedCharacters
         )

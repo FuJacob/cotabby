@@ -696,6 +696,12 @@ extension LlamaRuntimeCore {
         var position = Int32(promptTokens.count)
 
         for _ in 0 ..< options.maxPredictionTokens {
+            // Cooperative cancellation: if the caller's Task is cancelled (e.g. timeout),
+            // return whatever text was generated so far instead of blocking until completion.
+            if Task.isCancelled {
+                break
+            }
+
             let nextToken = llama_sampler_sample(sampler, context, -1)
             if nextToken == llama_vocab_eos(vocab) || llama_vocab_is_eog(vocab, nextToken) {
                 break
