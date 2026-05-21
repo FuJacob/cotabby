@@ -103,13 +103,13 @@ python3 -m pip install "dmgbuild[badge_icons]==1.6.7"
 python3 scripts/build_release_dmg.py \
   --app-path /path/to/tabby.app \
   --output-path /path/to/Tabby.dmg \
-  --background-path assets/release/dmg-background.png \
+  --background-path assets/release/dmg_background.png \
   --volume-name Tabby
 ```
 
 What this does:
 - packages `tabby.app` with an `Applications` shortcut
-- applies the committed background art from `assets/release/dmg-background.png`
+- applies the committed background art from `assets/release/dmg_background.png`
 - locks the icon layout for the drag-to-Applications flow
 - reuses the app bundle icon as a best-effort mounted-volume badge when available
 
@@ -193,9 +193,10 @@ hdiutil attach /path/to/Tabby.dmg
 ```
 
 Verify the mounted image opens in icon view, shows the committed background
-art, places `tabby.app` on the left, and places the `Applications` shortcut on
-the right. The mounted volume badge is best-effort; do not fail a release if
-the window layout is correct but Finder falls back to the default disk icon.
+art, places `tabby.app` above the arrows, and places the `Applications` shortcut
+inside the dashed drop target. The mounted volume badge is best-effort; do not
+fail a release if the window layout is correct but Finder falls back to the
+default disk icon.
 
 ---
 

@@ -29,11 +29,14 @@ from pathlib import Path
 from textwrap import dedent
 
 
-WINDOW_WIDTH = 960
-WINDOW_HEIGHT = 640
+# The committed background art is authored larger than the Finder window, matching the previous
+# release asset's 1.6x source scale. These dimensions preserve the new 1080x1520 vertical design
+# without opening an oversized 1520-point-tall Finder window on user machines.
+WINDOW_WIDTH = 675
+WINDOW_HEIGHT = 950
 ICON_SIZE = 128
-APP_ICON_LOCATION = (237, 303)
-APPLICATIONS_ICON_LOCATION = (714, 303)
+APP_ICON_LOCATION = (338, 360)
+APPLICATIONS_ICON_LOCATION = (338, 793)
 
 
 def parse_args() -> argparse.Namespace:
