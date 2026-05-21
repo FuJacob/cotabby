@@ -12,6 +12,15 @@
   <a href="https://tabbyapp.dev"><strong>Visit the landing page →</strong></a>
 </p>
 
+<p align="center">
+  <a href="LICENSE"><img alt="License: AGPL v3" src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" /></a>
+  <a href="https://github.com/FuJacob/tabby/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/FuJacob/tabby" /></a>
+  <a href="https://github.com/FuJacob/tabby/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/FuJacob/tabby/total" /></a>
+  <a href="https://github.com/FuJacob/tabby/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/FuJacob/tabby?style=flat" /></a>
+  <img alt="Platform" src="https://img.shields.io/badge/platform-macOS%2015%2B-lightgrey" />
+  <img alt="Visitors" src="https://visitor-badge.laobi.icu/badge?page_id=FuJacob.tabby" />
+</p>
+
 ## Demo
 
 <p align="center">
@@ -57,11 +66,10 @@ Everything runs on-device. No hosted API, no cloud round-trip.
 
 **Open Source** — runs local GGUF models in-process through llama.cpp via `llama.swift`. Built-in downloadable models:
 
-| Model              | File                            | Size    |
-| ------------------ | ------------------------------- | ------- |
-| `tabby-fast-1`     | `Qwen3-0.6B-Q4_K_M.gguf`        | ~0.4 GB |
-| `tabby-balanced-1` | `gemma-3-1b-it-Q4_K_M.gguf`     | ~0.8 GB |
-| `tabby-depth-1`    | `gemma-3n-E4B-it-Q4_K_M.gguf`   | ~3.5 GB |
+| Model           | File                            | Size    |
+| --------------- | ------------------------------- | ------- |
+| `tabby-fast`    | `Qwen3.5-0.8B-Q4_K_M.gguf`     | ~0.5 GB |
+| `tabby-quality` | `gemma-4-E2B-it-Q4_K_M.gguf`   | ~3.1 GB |
 
 You can also drop your own `.gguf` files into tabby's models folder and refresh the model list.
 
@@ -102,6 +110,17 @@ open tabby.xcodeproj
 ```
 
 If you want to understand the runtime and suggestion pipeline before contributing, read [ARCHITECTURE.md](ARCHITECTURE.md).
+
+## Contributing
+
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, build, and PR guidelines, and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for community expectations. For a tour of the runtime and suggestion pipeline, read [ARCHITECTURE.md](ARCHITECTURE.md).
+
+## Acknowledgments
+
+- [llama.cpp](https://github.com/ggerganov/llama.cpp) — local GGUF inference
+- [llama.swift](https://github.com/eastriverlee/LLM.swift) — Swift bindings for llama.cpp
+- Apple's [FoundationModels](https://developer.apple.com/documentation/foundationmodels) framework — on-device Apple Intelligence runtime
+- The Qwen and Gemma model teams for the open-weight models Tabby ships with
 
 ## License
 

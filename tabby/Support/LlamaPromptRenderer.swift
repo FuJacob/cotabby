@@ -28,7 +28,7 @@ enum LlamaPromptRenderer {
             "- This is autocomplete, not chat. Do not answer the user or start a conversation.",
             "- Never repeat, restate, or quote the text before the caret.",
             "- Use clipboard context only when it directly helps the inline continuation.",
-            "- Return plain text only with no labels, bullets, markdown, quotes, or explanation."
+            "- Return plain text only with no thinking, labels, bullets, markdown, quotes, or explanation."
         ]
 
         var profileSections: [String] = []

@@ -144,8 +144,10 @@ final class SuggestionRequestFactoryTests: XCTestCase {
             "Calendar window says project review at 3 PM."
         )
         XCTAssertTrue(result.promptPreview.contains("Casey"))
-        // userTags disabled — re-enable when the feature is validated.
-        // XCTAssertTrue(result.promptPreview.contains("Prefer direct wording."))
+        // userTags emission is intentionally disabled in the prompt renderers
+        // (see TODO in LlamaPromptRenderer/FoundationModelPromptRenderer); the tag string
+        // is plumbed through the request but must not appear in the rendered prompt today.
+        XCTAssertFalse(result.promptPreview.contains("Prefer direct wording."))
         XCTAssertTrue(result.promptPreview.contains("Calendar window says project review at 3 PM."))
     }
 

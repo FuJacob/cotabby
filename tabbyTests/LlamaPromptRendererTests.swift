@@ -133,9 +133,10 @@ final class LlamaPromptRendererTests: XCTestCase {
 
         XCTAssertTrue(prompt.contains("UNIQUE_NAME_MARKER_ZQRT"),
                       "instruction prompt should carry user-provided profile name")
-        // userTags disabled — re-enable when the feature is validated.
-        // XCTAssertTrue(prompt.contains("UNIQUE_TAG_MARKER"),
-        //               "instruction prompt should carry user-provided profile tags")
+        // userTags emission is intentionally disabled in LlamaPromptRenderer
+        // (see TODO in that file); the tag string must not leak into the prompt today.
+        XCTAssertFalse(prompt.contains("UNIQUE_TAG_MARKER"),
+                       "instruction prompt should not carry user-provided profile tags while the feature is gated off")
     }
 
     /// The prefix remains the last payload in the prompt so the model still ends on the actual
