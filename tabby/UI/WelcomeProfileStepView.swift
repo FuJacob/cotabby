@@ -33,23 +33,23 @@ struct WelcomeProfileStepView: View {
                     .controlSize(.large)
                 }
 
-                // Tags
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Things you type often")
-                        .font(.system(size: 13, weight: .medium))
-
-                    Text("Optional. Tabby will self-learn, but feel free to add common phrases, email sign-offs, or jargon.")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-
-                    TagsInputView(
-                        tags: Binding(
-                            get: { suggestionSettings.userTags },
-                            set: { suggestionSettings.setUserTags($0) }
-                        ),
-                        placeholder: "e.g., 'Best regards, Jacob', 'PR approved', 'LGTM'"
-                    )
-                }
+                // TODO: Re-enable "Things you type often" once we validate the feature's value.
+                // VStack(alignment: .leading, spacing: 6) {
+                //     Text("Things you type often")
+                //         .font(.system(size: 13, weight: .medium))
+                //
+                //     Text("Optional. Tabby will self-learn, but feel free to add common phrases, email sign-offs, or jargon.")
+                //         .font(.system(size: 11))
+                //         .foregroundStyle(.secondary)
+                //
+                //     TagsInputView(
+                //         tags: Binding(
+                //             get: { suggestionSettings.userTags },
+                //             set: { suggestionSettings.setUserTags($0) }
+                //         ),
+                //         placeholder: "e.g., 'Best regards, Jacob', 'PR approved', 'LGTM'"
+                //     )
+                // }
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 4)

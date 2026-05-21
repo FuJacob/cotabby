@@ -28,13 +28,13 @@ struct SettingsView: View {
     var body: some View {
         Form {
             settingsHeader
+            updatesSection
             generalSection
             autocompleteSection
             disabledAppsSection
             profileSection
             permissionsSection
             localModelsSection
-            updatesSection
         }
         .formStyle(.grouped)
         .frame(minWidth: 620, minHeight: 560)
@@ -113,7 +113,7 @@ struct SettingsView: View {
         Section("Autocomplete") {
             Toggle("Enable Globally", isOn: globallyEnabledBinding)
 
-            Toggle("Clipboard Context", isOn: clipboardContextEnabledBinding)
+            Toggle("Include Clipboard Context", isOn: clipboardContextEnabledBinding)
 
             Picker("Indicator", selection: selectedIndicatorModeBinding) {
                 ForEach(ActivationIndicatorMode.allCases) { mode in
@@ -204,18 +204,19 @@ struct SettingsView: View {
                     .textFieldStyle(.roundedBorder)
                 }
 
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Things you type often")
-                        .font(.system(size: 13, weight: .medium))
-
-                    TagsInputView(
-                        tags: Binding(
-                            get: { suggestionSettings.userTags },
-                            set: { suggestionSettings.setUserTags($0) }
-                        ),
-                        placeholder: "Add tags (press Enter to add)"
-                    )
-                }
+                // TODO: Re-enable "Things you type often" once we validate the feature's value.
+                // VStack(alignment: .leading, spacing: 6) {
+                //     Text("Things you type often")
+                //         .font(.system(size: 13, weight: .medium))
+                //
+                //     TagsInputView(
+                //         tags: Binding(
+                //             get: { suggestionSettings.userTags },
+                //             set: { suggestionSettings.setUserTags($0) }
+                //         ),
+                //         placeholder: "Add tags (press Enter to add)"
+                //     )
+                // }
             }
             .padding(.vertical, 4)
         }
