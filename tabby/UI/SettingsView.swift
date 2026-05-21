@@ -41,13 +41,11 @@ struct SettingsView: View {
         .formStyle(.grouped)
         .frame(minWidth: 620, minHeight: 560)
         .onAppear {
-            refreshAppleIntelligenceAvailabilityIfNeeded()
             launchAtLoginService.refresh()
             permissionManager.refresh()
         }
         .onChange(of: suggestionSettings.selectedEngine) { _, _ in
             pendingDeletionModel = nil
-            refreshAppleIntelligenceAvailabilityIfNeeded()
         }
         .alert(
             "Delete Model?",
@@ -625,11 +623,4 @@ struct SettingsView: View {
         runtimeModel.refreshAvailableModels()
     }
 
-    private func refreshAppleIntelligenceAvailabilityIfNeeded() {
-        guard suggestionSettings.selectedEngine == .appleIntelligence else {
-            return
-        }
-
-        foundationModelAvailabilityService.refresh()
-    }
 }

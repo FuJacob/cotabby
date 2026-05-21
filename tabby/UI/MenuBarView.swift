@@ -43,10 +43,6 @@ struct MenuBarView: View {
             // The background poll eventually catches changes too, but this avoids showing stale
             // "Grant" rows after the user just updated System Settings.
             permissionManager.refresh()
-            refreshAppleIntelligenceAvailabilityIfNeeded()
-        }
-        .onChange(of: suggestionSettings.selectedEngine) { _, _ in
-            refreshAppleIntelligenceAvailabilityIfNeeded()
         }
     }
 
@@ -102,6 +98,13 @@ struct MenuBarView: View {
                 }
                 .labelsHidden()
                 .pickerStyle(.menu)
+            }
+
+            if suggestionSettings.selectedEngine == .appleIntelligence,
+               !foundationModelAvailabilityService.isAvailable {
+                Text(foundationModelAvailabilityService.userVisibleMessage)
+                    .font(.caption)
+                    .foregroundStyle(.orange)
             }
 
             if suggestionSettings.selectedEngine.supportsLocalModelManagement {
@@ -297,11 +300,4 @@ struct MenuBarView: View {
         permissionManager.requiredPermissionsGranted
     }
 
-    private func refreshAppleIntelligenceAvailabilityIfNeeded() {
-        guard suggestionSettings.selectedEngine == .appleIntelligence else {
-            return
-        }
-
-        foundationModelAvailabilityService.refresh()
-    }
 }

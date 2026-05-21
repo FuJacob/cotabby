@@ -39,12 +39,15 @@ final class FoundationModelAvailabilityService: ObservableObject {
     @Published private(set) var state: FoundationModelAvailabilityState
 
     private let provider: any FoundationModelAvailabilityProviding
+    private var observationTask: Task<Void, Never>?
 
     init(provider: (any FoundationModelAvailabilityProviding)? = nil) {
         let resolvedProvider = provider ?? Self.makeDefaultProvider()
 
         self.provider = resolvedProvider
         self.state = resolvedProvider.currentState
+
+        startObserving()
     }
 
     /// Refreshes the cached availability before a generation attempt.
@@ -61,6 +64,16 @@ final class FoundationModelAvailabilityService: ObservableObject {
     var userVisibleMessage: String {
         state.summary
     }
+
+    /// Starts a reactive observation loop so availability changes propagate to the UI without
+    /// manual `refresh()` calls. The provider owns the observation mechanism: the system provider
+    /// watches `SystemLanguageModel.availability` via Swift Observation, while the unsupported
+    /// provider is a no-op since its state never changes.
+    private func startObserving() {
+        observationTask = provider.observe { [weak self] newState in
+            self?.state = newState
+        }
+    }
 }
 
 /// Abstracts the availability state and refresh operation for the Apple Intelligence backend.
@@ -75,6 +88,11 @@ protocol FoundationModelAvailabilityProviding {
 
     /// Re-reads provider-specific availability and returns it in Tabby's app-level vocabulary.
     func refresh() -> FoundationModelAvailabilityState
+
+    /// Returns a long-lived task that calls `onChange` whenever availability changes.
+    /// The system provider uses Swift Observation to watch `SystemLanguageModel`; the unsupported
+    /// provider returns nil because its state is constant.
+    func observe(onChange: @escaping @MainActor (FoundationModelAvailabilityState) -> Void) -> Task<Void, Never>?
 }
 
 /// Reports a stable unavailable state for the Apple Intelligence backend.
@@ -93,6 +111,10 @@ private struct UnsupportedFoundationModelAvailabilityProvider: FoundationModelAv
 
     func refresh() -> FoundationModelAvailabilityState {
         currentState
+    }
+
+    func observe(onChange: @escaping @MainActor (FoundationModelAvailabilityState) -> Void) -> Task<Void, Never>? {
+        nil
     }
 }
 
@@ -146,6 +168,32 @@ private final class SystemFoundationModelAvailabilityProvider: FoundationModelAv
 
     func refresh() -> FoundationModelAvailabilityState {
         Self.map(model.availability)
+    }
+
+    /// Uses Swift Observation to watch `SystemLanguageModel.availability` and push changes
+    /// back to the service. `withObservationTracking` fires once per change, so the loop
+    /// re-registers after each callback to stay subscribed for the lifetime of the task.
+    func observe(onChange: @escaping @MainActor (FoundationModelAvailabilityState) -> Void) -> Task<Void, Never>? {
+        let observedModel = model
+        return Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                let newState: FoundationModelAvailabilityState? = await withCheckedContinuation { continuation in
+                    withObservationTracking {
+                        _ = observedModel.availability
+                    } onChange: {
+                        Task { @MainActor in
+                            guard let self else {
+                                continuation.resume(returning: nil)
+                                return
+                            }
+                            continuation.resume(returning: Self.map(observedModel.availability))
+                        }
+                    }
+                }
+                guard let newState else { break }
+                onChange(newState)
+            }
+        }
     }
 
     private static func map(
