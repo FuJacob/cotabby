@@ -19,7 +19,7 @@ final class FocusTracker {
         }
     }
 
-    private let pollInterval: TimeInterval
+    private var pollInterval: TimeInterval
     private let permissionProvider: @MainActor () -> Bool
     private let ignoredBundleIdentifier: String?
     private let snapshotResolver: FocusSnapshotResolver
@@ -65,6 +65,23 @@ final class FocusTracker {
     func stop() {
         timer?.invalidate()
         timer = nil
+    }
+
+    /// Restarts the polling timer with a new interval. No-op if the interval hasn't changed.
+    func updatePollInterval(_ interval: TimeInterval) {
+        guard interval != pollInterval else {
+            return
+        }
+
+        pollInterval = interval
+
+        // Only restart if a timer is already running.
+        guard timer != nil else {
+            return
+        }
+
+        stop()
+        start()
     }
 
     /// Performs a synchronous snapshot capture outside the normal polling cadence.

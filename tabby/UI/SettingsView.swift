@@ -34,6 +34,7 @@ struct SettingsView: View {
             uninstallSection
             generalSection
             autocompleteSection
+            performanceSection
             disabledAppsSection
             profileSection
             permissionsSection
@@ -189,6 +190,33 @@ struct SettingsView: View {
                         .tag(preset)
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private var performanceSection: some View {
+        Section("Performance") {
+            Stepper(
+                "Suggestion Delay: \(suggestionSettings.debounceMilliseconds)ms",
+                value: debounceMillisecondsBinding,
+                in: 10...500,
+                step: 10
+            )
+
+            Text("How long to wait after typing before generating a suggestion.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Stepper(
+                "Focus Poll Interval: \(suggestionSettings.focusPollIntervalMilliseconds)ms",
+                value: focusPollIntervalMillisecondsBinding,
+                in: 10...500,
+                step: 10
+            )
+
+            Text("How often Tabby checks for focus and caret changes. Lower values detect changes faster but use more CPU.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
         }
     }
 
@@ -500,6 +528,20 @@ struct SettingsView: View {
         Binding(
             get: { suggestionSettings.showIndicator },
             set: { suggestionSettings.setShowIndicator($0) }
+        )
+    }
+
+    private var debounceMillisecondsBinding: Binding<Int> {
+        Binding(
+            get: { suggestionSettings.debounceMilliseconds },
+            set: { suggestionSettings.setDebounceMilliseconds($0) }
+        )
+    }
+
+    private var focusPollIntervalMillisecondsBinding: Binding<Int> {
+        Binding(
+            get: { suggestionSettings.focusPollIntervalMilliseconds },
+            set: { suggestionSettings.setFocusPollIntervalMilliseconds($0) }
         )
     }
 

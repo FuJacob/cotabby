@@ -208,7 +208,9 @@ enum TabbyTestFixtures {
         selectedWordCountPreset: SuggestionWordCountPreset = .sevenToTwelve,
         isClipboardContextEnabled: Bool = true,
         userName: String = "",
-        userTags: [String] = []
+        userTags: [String] = [],
+        debounceMilliseconds: Int = 50,
+        focusPollIntervalMilliseconds: Int = 50
     ) -> SuggestionSettingsSnapshot {
         SuggestionSettingsSnapshot(
             isGloballyEnabled: isGloballyEnabled,
@@ -217,7 +219,9 @@ enum TabbyTestFixtures {
             selectedWordCountPreset: selectedWordCountPreset,
             isClipboardContextEnabled: isClipboardContextEnabled,
             userName: userName,
-            userTags: userTags
+            userTags: userTags,
+            debounceMilliseconds: debounceMilliseconds,
+            focusPollIntervalMilliseconds: focusPollIntervalMilliseconds
         )
     }
 }

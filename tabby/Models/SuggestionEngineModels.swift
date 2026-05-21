@@ -56,4 +56,6 @@ struct SuggestionSettingsSnapshot: Equatable, Sendable {
     /// This travels in the snapshot so generation uses the same value the Settings UI shows.
     let userName: String
     let userTags: [String]
+    let debounceMilliseconds: Int
+    let focusPollIntervalMilliseconds: Int
 }

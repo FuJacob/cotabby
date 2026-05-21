@@ -67,6 +67,11 @@ final class FocusTrackingModel: ObservableObject {
         tracker.refreshNow()
     }
 
+    /// Updates the AX polling interval at runtime. Restarts the timer if already running.
+    func updatePollInterval(milliseconds: Int) {
+        tracker.updatePollInterval(TimeInterval(milliseconds) / 1000.0)
+    }
+
     /// The menu bar needs a compact status string, not the full diagnostic reason.
     var menuBarStatusText: String {
         snapshot.capability.shortLabel

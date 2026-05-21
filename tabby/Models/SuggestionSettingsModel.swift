@@ -20,6 +20,8 @@ final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var isClipboardContextEnabled: Bool
     @Published private(set) var userName: String
     @Published private(set) var userTags: [String]
+    @Published private(set) var debounceMilliseconds: Int
+    @Published private(set) var focusPollIntervalMilliseconds: Int
     private let userDefaults: UserDefaults
 
     private static let isGloballyEnabledDefaultsKey = "tabbyGloballyEnabled"
@@ -33,6 +35,8 @@ final class SuggestionSettingsModel: ObservableObject {
     private static let clipboardContextEnabledDefaultsKey = "tabbyClipboardContextEnabled"
     private static let userNameDefaultsKey = "tabbyUserName"
     private static let userTagsDefaultsKey = "tabbyUserTags"
+    private static let debounceMillisecondsDefaultsKey = "tabbyDebounceMilliseconds"
+    private static let focusPollIntervalMillisecondsDefaultsKey = "tabbyFocusPollIntervalMilliseconds"
 
     init(
         configuration: SuggestionConfiguration,
@@ -74,6 +78,15 @@ final class SuggestionSettingsModel: ObservableObject {
             userDefaults.stringArray(forKey: Self.userTagsDefaultsKey) ?? []
         }
 
+        let resolvedDebounceMilliseconds: Int = {
+            let stored = userDefaults.object(forKey: Self.debounceMillisecondsDefaultsKey) as? Int
+            return stored ?? configuration.debounceMilliseconds
+        }()
+        let resolvedFocusPollIntervalMilliseconds: Int = {
+            let stored = userDefaults.object(forKey: Self.focusPollIntervalMillisecondsDefaultsKey) as? Int
+            return stored ?? Int(0.05 * 1000)
+        }()
+
         isGloballyEnabled = resolvedGloballyEnabled
         disabledAppRules = resolvedDisabledAppRules
         showIndicator = resolvedShowIndicator
@@ -83,6 +96,8 @@ final class SuggestionSettingsModel: ObservableObject {
         isClipboardContextEnabled = resolvedClipboardContextEnabled
         userName = resolvedUserName
         userTags = resolvedUserTags
+        debounceMilliseconds = resolvedDebounceMilliseconds
+        focusPollIntervalMilliseconds = resolvedFocusPollIntervalMilliseconds
 
         userDefaults.set(resolvedGloballyEnabled, forKey: Self.isGloballyEnabledDefaultsKey)
         persistDisabledAppRules(resolvedDisabledAppRules)
@@ -93,6 +108,8 @@ final class SuggestionSettingsModel: ObservableObject {
         persistClipboardContextEnabled(resolvedClipboardContextEnabled)
         persistUserName(resolvedUserName)
         persistUserTags(resolvedUserTags)
+        userDefaults.set(resolvedDebounceMilliseconds, forKey: Self.debounceMillisecondsDefaultsKey)
+        userDefaults.set(resolvedFocusPollIntervalMilliseconds, forKey: Self.focusPollIntervalMillisecondsDefaultsKey)
     }
 
     /// Legacy compatibility shim. Reads through to `showIndicator`.
@@ -108,7 +125,9 @@ final class SuggestionSettingsModel: ObservableObject {
             selectedWordCountPreset: selectedWordCountPreset,
             isClipboardContextEnabled: isClipboardContextEnabled,
             userName: userName,
-            userTags: userTags
+            userTags: userTags,
+            debounceMilliseconds: debounceMilliseconds,
+            focusPollIntervalMilliseconds: focusPollIntervalMilliseconds
         )
     }
 
@@ -137,6 +156,26 @@ final class SuggestionSettingsModel: ObservableObject {
 
         isClipboardContextEnabled = enabled
         persistClipboardContextEnabled(enabled)
+    }
+
+    func setDebounceMilliseconds(_ value: Int) {
+        let clamped = max(10, min(500, value))
+        guard debounceMilliseconds != clamped else {
+            return
+        }
+
+        debounceMilliseconds = clamped
+        userDefaults.set(clamped, forKey: Self.debounceMillisecondsDefaultsKey)
+    }
+
+    func setFocusPollIntervalMilliseconds(_ value: Int) {
+        let clamped = max(10, min(500, value))
+        guard focusPollIntervalMilliseconds != clamped else {
+            return
+        }
+
+        focusPollIntervalMilliseconds = clamped
+        userDefaults.set(clamped, forKey: Self.focusPollIntervalMillisecondsDefaultsKey)
     }
 
     func setGloballyEnabled(_ enabled: Bool) {
@@ -392,7 +431,7 @@ final class SuggestionSettingsModel: ObservableObject {
 
 extension SuggestionSettingsModel: SuggestionSettingsProviding {
     var snapshotPublisher: AnyPublisher<SuggestionSettingsSnapshot, Never> {
-        Publishers.CombineLatest3(
+        Publishers.CombineLatest4(
             Publishers.CombineLatest4(
                 $isGloballyEnabled,
                 $disabledAppRules,
@@ -400,11 +439,13 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                 $selectedWordCountPreset
             ),
             $isClipboardContextEnabled,
-            Publishers.CombineLatest($userName, $userTags)
+            Publishers.CombineLatest($userName, $userTags),
+            Publishers.CombineLatest($debounceMilliseconds, $focusPollIntervalMilliseconds)
         )
-        .map { combinedSettings, clipboardContextEnabled, profile in
+        .map { combinedSettings, clipboardContextEnabled, profile, timing in
             let (globallyEnabled, disabledAppRules, engine, wordCountPreset) = combinedSettings
             let (userName, userTags) = profile
+            let (debounce, focusPoll) = timing
             return SuggestionSettingsSnapshot(
                 isGloballyEnabled: globallyEnabled,
                 disabledAppBundleIdentifiers: Set(disabledAppRules.map(\.bundleIdentifier)),
@@ -412,7 +453,9 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                 selectedWordCountPreset: wordCountPreset,
                 isClipboardContextEnabled: clipboardContextEnabled,
                 userName: userName,
-                userTags: userTags
+                userTags: userTags,
+                debounceMilliseconds: debounce,
+                focusPollIntervalMilliseconds: focusPoll
             )
         }
         .removeDuplicates()

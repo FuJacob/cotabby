@@ -21,13 +21,13 @@ extension SuggestionCoordinator {
         // Task cancellation in Swift is cooperative, so we also use an explicit work id.
         // That gives us strict "latest request wins" semantics even if an old task wakes up late.
         let workID = workController.replaceDebouncedWork(
-            delayMilliseconds: configuration.debounceMilliseconds
+            delayMilliseconds: settingsSnapshot.debounceMilliseconds
         ) { [weak self] workID in
             await self?.generateFromCurrentFocus(workID: workID)
         }
 
         state = .debouncing
-        logStage("debouncing", workID: workID, message: "Waiting \(configuration.debounceMilliseconds)ms before generating.")
+        logStage("debouncing", workID: workID, message: "Waiting \(settingsSnapshot.debounceMilliseconds)ms before generating.")
     }
 
     /// Refreshes focus after debounce, materializes a stable context, and starts generation.

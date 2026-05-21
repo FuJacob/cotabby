@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 
 /// File overview:
@@ -26,6 +27,8 @@ final class TabbyAppEnvironment {
     let settingsCoordinator: SettingsCoordinator
     let activationIndicatorController: ActivationIndicatorController
     let focusDebugOverlayController: FocusDebugOverlayController?
+
+    private var cancellables = Set<AnyCancellable>()
 
     init() {
         let configuration = SuggestionConfiguration.standard
@@ -145,5 +148,13 @@ final class TabbyAppEnvironment {
         self.focusDebugOverlayController = FocusDebugOverlayController.isEnabled
             ? FocusDebugOverlayController()
             : nil
+
+        // Update the AX polling timer whenever the user changes the poll interval setting.
+        suggestionSettings.$focusPollIntervalMilliseconds
+            .removeDuplicates()
+            .sink { [weak focusModel] milliseconds in
+                focusModel?.updatePollInterval(milliseconds: milliseconds)
+            }
+            .store(in: &cancellables)
     }
 }
