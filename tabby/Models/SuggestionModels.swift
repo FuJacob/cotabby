@@ -84,6 +84,7 @@ struct SuggestionConfiguration: Equatable, Sendable {
     let defaultUserName: String?
     let defaultUserTags: [String]?
     let defaultWordCountPreset: SuggestionWordCountPreset
+    let focusPollIntervalMilliseconds: Int
 
     /// The configuration shipped by the app today.
     /// These are product defaults, not temporary debug overrides.
@@ -108,7 +109,8 @@ struct SuggestionConfiguration: Equatable, Sendable {
         // Seed the profile settings with lightweight defaults on first launch.
         defaultUserName: "Jacob",
         defaultUserTags: [],
-        defaultWordCountPreset: .sevenToTwelve
+        defaultWordCountPreset: .sevenToTwelve,
+        focusPollIntervalMilliseconds: 50
     )
 }
 

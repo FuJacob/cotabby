@@ -76,7 +76,8 @@ final class SuggestionRequestFactoryTests: XCTestCase {
             maxSuffixCharacters: 192,
             defaultUserName: nil,
             defaultUserTags: nil,
-            defaultWordCountPreset: .sevenToTwelve
+            defaultWordCountPreset: .sevenToTwelve,
+            focusPollIntervalMilliseconds: 50
         )
 
         let result = SuggestionRequestFactory.buildRequest(
@@ -106,7 +107,8 @@ final class SuggestionRequestFactoryTests: XCTestCase {
             maxSuffixCharacters: 192,
             defaultUserName: nil,
             defaultUserTags: nil,
-            defaultWordCountPreset: .sevenToTwelve
+            defaultWordCountPreset: .sevenToTwelve,
+            focusPollIntervalMilliseconds: 50
         )
 
         let result = SuggestionRequestFactory.buildRequest(

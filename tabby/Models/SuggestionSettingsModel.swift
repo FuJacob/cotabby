@@ -79,12 +79,14 @@ final class SuggestionSettingsModel: ObservableObject {
         }
 
         let resolvedDebounceMilliseconds: Int = {
-            let stored = userDefaults.object(forKey: Self.debounceMillisecondsDefaultsKey) as? Int
-            return stored ?? configuration.debounceMilliseconds
+            let raw = userDefaults.object(forKey: Self.debounceMillisecondsDefaultsKey) as? Int
+                ?? configuration.debounceMilliseconds
+            return max(10, min(500, raw))
         }()
         let resolvedFocusPollIntervalMilliseconds: Int = {
-            let stored = userDefaults.object(forKey: Self.focusPollIntervalMillisecondsDefaultsKey) as? Int
-            return stored ?? Int(0.05 * 1000)
+            let raw = userDefaults.object(forKey: Self.focusPollIntervalMillisecondsDefaultsKey) as? Int
+                ?? configuration.focusPollIntervalMilliseconds
+            return max(10, min(500, raw))
         }()
 
         isGloballyEnabled = resolvedGloballyEnabled
