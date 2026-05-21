@@ -53,37 +53,11 @@ enum SuggestionWordCountPreset: String, CaseIterable, Equatable, Hashable, Senda
     }
 }
 
-/// User-facing indicator display mode for supported text fields.
-/// This replaces the old caret-indicator boolean so Tabby can express multiple affordances
-/// without smuggling extra meaning through one toggle.
-enum ActivationIndicatorMode: String, CaseIterable, Equatable, Hashable, Sendable, Identifiable {
+/// Persisted indicator mode values. Only `hidden` and `fieldEdgeIcon` are active;
+/// the enum exists so UserDefaults round-trips through a stable raw value.
+enum ActivationIndicatorMode: String, Equatable, Hashable, Sendable {
     case hidden
-    case caretAnchor
     case fieldEdgeIcon
-
-    var id: String { rawValue }
-
-    var displayLabel: String {
-        switch self {
-        case .hidden:
-            return "None"
-        case .caretAnchor:
-            return "Caret"
-        case .fieldEdgeIcon:
-            return "Tabby Icon"
-        }
-    }
-
-    var compactLabel: String {
-        switch self {
-        case .hidden:
-            return "None"
-        case .caretAnchor:
-            return "Caret"
-        case .fieldEdgeIcon:
-            return "Tabby"
-        }
-    }
 }
 
 /// Runtime knobs for the inline-completion pipeline.

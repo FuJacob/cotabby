@@ -12,7 +12,7 @@ import Foundation
 @MainActor
 final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var isGloballyEnabled: Bool
-    @Published private(set) var selectedIndicatorMode: ActivationIndicatorMode
+    @Published private(set) var showIndicator: Bool
     @Published private(set) var disabledAppRules: [DisabledApplicationRule]
     @Published private(set) var customSuggestionTextColorHex: String?
     @Published private(set) var selectedEngine: SuggestionEngineKind
@@ -42,11 +42,13 @@ final class SuggestionSettingsModel: ObservableObject {
 
         let resolvedGloballyEnabled = userDefaults.object(forKey: Self.isGloballyEnabledDefaultsKey) as? Bool ?? true
         let resolvedDisabledAppRules = Self.loadDisabledAppRules(from: userDefaults)
-        let legacyShowCaretIndicator = userDefaults.object(forKey: Self.showCaretIndicatorDefaultsKey) as? Bool ?? true
-        let resolvedIndicatorMode = userDefaults
-            .string(forKey: Self.selectedIndicatorModeDefaultsKey)
-            .flatMap(ActivationIndicatorMode.init(rawValue:))
-            ?? Self.migrateIndicatorMode(fromLegacyShowCaretIndicator: legacyShowCaretIndicator)
+        let resolvedShowIndicator: Bool = if let modeString = userDefaults.string(
+            forKey: Self.selectedIndicatorModeDefaultsKey
+        ) {
+            modeString != ActivationIndicatorMode.hidden.rawValue
+        } else {
+            userDefaults.object(forKey: Self.showCaretIndicatorDefaultsKey) as? Bool ?? true
+        }
         let resolvedCustomSuggestionTextColorHex = Self.normalizedHexString(
             userDefaults.string(forKey: Self.customSuggestionTextColorHexDefaultsKey)
         )
@@ -74,7 +76,7 @@ final class SuggestionSettingsModel: ObservableObject {
 
         isGloballyEnabled = resolvedGloballyEnabled
         disabledAppRules = resolvedDisabledAppRules
-        selectedIndicatorMode = resolvedIndicatorMode
+        showIndicator = resolvedShowIndicator
         customSuggestionTextColorHex = resolvedCustomSuggestionTextColorHex
         selectedEngine = resolvedEngine
         selectedWordCountPreset = resolvedWordCountPreset
@@ -84,7 +86,7 @@ final class SuggestionSettingsModel: ObservableObject {
 
         userDefaults.set(resolvedGloballyEnabled, forKey: Self.isGloballyEnabledDefaultsKey)
         persistDisabledAppRules(resolvedDisabledAppRules)
-        persistSelectedIndicatorMode(resolvedIndicatorMode)
+        persistShowIndicator(resolvedShowIndicator)
         persistCustomSuggestionTextColorHex(resolvedCustomSuggestionTextColorHex)
         persistSelectedEngine(resolvedEngine)
         persistSelectedWordCountPreset(resolvedWordCountPreset)
@@ -93,10 +95,9 @@ final class SuggestionSettingsModel: ObservableObject {
         persistUserTags(resolvedUserTags)
     }
 
-    /// Compatibility shim for legacy call sites while the UI migrates from the old toggle to the
-    /// richer indicator-mode picker.
+    /// Legacy compatibility shim. Reads through to `showIndicator`.
     var showCaretIndicator: Bool {
-        selectedIndicatorMode != .hidden
+        showIndicator
     }
 
     var snapshot: SuggestionSettingsSnapshot {
@@ -225,19 +226,13 @@ final class SuggestionSettingsModel: ObservableObject {
         }
     }
 
-    func selectIndicatorMode(_ mode: ActivationIndicatorMode) {
-        guard selectedIndicatorMode != mode else {
+    func setShowIndicator(_ show: Bool) {
+        guard showIndicator != show else {
             return
         }
 
-        selectedIndicatorMode = mode
-        persistSelectedIndicatorMode(mode)
-    }
-
-    /// Compatibility shim for old toggle-driven call sites. Turning the toggle back on enables the
-    /// field-edge icon indicator, which is the current default.
-    func setShowCaretIndicator(_ show: Bool) {
-        selectIndicatorMode(show ? .fieldEdgeIcon : .hidden)
+        showIndicator = show
+        persistShowIndicator(show)
     }
 
     func setCustomSuggestionTextColorHex(_ hex: String?) {
@@ -280,9 +275,10 @@ final class SuggestionSettingsModel: ObservableObject {
         userDefaults.set(enabled, forKey: Self.clipboardContextEnabledDefaultsKey)
     }
 
-    private func persistSelectedIndicatorMode(_ mode: ActivationIndicatorMode) {
+    private func persistShowIndicator(_ show: Bool) {
+        let mode: ActivationIndicatorMode = show ? .fieldEdgeIcon : .hidden
         userDefaults.set(mode.rawValue, forKey: Self.selectedIndicatorModeDefaultsKey)
-        userDefaults.set(mode != .hidden, forKey: Self.showCaretIndicatorDefaultsKey)
+        userDefaults.set(show, forKey: Self.showCaretIndicatorDefaultsKey)
     }
 
     private func persistCustomSuggestionTextColorHex(_ hex: String?) {
@@ -291,12 +287,6 @@ final class SuggestionSettingsModel: ObservableObject {
         } else {
             userDefaults.removeObject(forKey: Self.customSuggestionTextColorHexDefaultsKey)
         }
-    }
-
-    private static func migrateIndicatorMode(
-        fromLegacyShowCaretIndicator showCaretIndicator: Bool
-    ) -> ActivationIndicatorMode {
-        showCaretIndicator ? .fieldEdgeIcon : .hidden
     }
 
     private static func loadDisabledAppRules(from userDefaults: UserDefaults) -> [DisabledApplicationRule] {

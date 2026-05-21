@@ -127,9 +127,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         runtimeModel.stop()
     }
 
-    /// Mirrors supported-focus state into the selected activation indicator mode.
-    /// Different modes intentionally use different geometry contracts: caret-anchor mode hugs the
-    /// insertion point, while the icon mode sits outside the field edge.
+    /// Shows or hides the field-edge tabby icon based on focus state and the user's toggle.
     private func updateActivationIndicator(for snapshot: FocusSnapshot) {
         guard case .supported = snapshot.capability,
               let context = snapshot.context
@@ -139,7 +137,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         activationIndicatorController.show(
-            mode: suggestionSettings.selectedIndicatorMode,
+            enabled: suggestionSettings.showIndicator,
             caretRect: context.caretRect,
             inputFrameRect: context.inputFrameRect
         )
