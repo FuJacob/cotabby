@@ -34,7 +34,7 @@
 ## Demo
 
 <p align="center">
-  <a href="https://www.youtube.com/watch?v=p3TIgxQFQGE"><strong>Watch on YouTube</strong></a>
+  <a href="https://www.youtube.com/watch?v=p3TIgxQFQGE"><strong>Watch on YouTube →</strong></a>
 </p>
 
 <table align="center" width="100%">
