@@ -57,7 +57,7 @@ jobs:
       url: ${{ steps.deploy-pages.outputs.page_url }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Select Xcode
         uses: maxim-lobanov/setup-xcode@v1
