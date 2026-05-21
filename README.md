@@ -62,9 +62,9 @@ Everything runs on-device. No hosted API, no cloud round-trip.
 
 ## Engines
 
-**Apple Intelligence** —> uses Apple's on-device `FoundationModels` runtime on macOS 26 or later. No download required. Availability depends on your Mac; tabby checks at runtime and explains when this engine is unavailable.
+**Apple Intelligence** — uses Apple's on-device `FoundationModels` runtime on macOS 26 or later. No download required. Availability depends on your Mac; tabby checks at runtime and explains when this engine is unavailable.
 
-**Open Source**: runs local GGUF models in-process through llama.cpp via `llama.swift`. Built-in downloadable models:
+**Open Source** — runs local GGUF models in-process through llama.cpp via `llama.swift`. Built-in downloadable models:
 
 | Model           | File                            | Size    |
 | --------------- | ------------------------------- | ------- |
@@ -77,7 +77,7 @@ You can also drop your own `.gguf` files into tabby's models folder and refresh 
 
 1. Download the latest `tabby.dmg` from GitHub Releases.
 2. Drag `tabby.app` into `Applications` and launch it.
-3. Grant **Accessibility** and **Input Monitoring** when prompted.
+3. Grant **Accessibility**, **Input Monitoring**, and **Screen Recording** when prompted.
 4. Pick an engine. Apple Intelligence if available, otherwise Open Source plus a model.
 5. Start typing in any supported editable field.
 
@@ -87,14 +87,18 @@ If macOS blocks first launch, right-click `tabby.app` → `Open`, or allow it in
 
 - **Accessibility**: read the focused text field's value and caret position.
 - **Input Monitoring**: detect global `Tab` presses for acceptance.
+- **Screen Recording**: capture a screenshot around the focused field for visual context (OCR).
 
 ## Features
 
 - Ghost text rendered live next to your caret
 - Partial `Tab` acceptance: take a chunk, keep the tail alive, press again to continue
-- Menu bar quick controls: enable, engine, model, indicator mode, completion length
-- Settings for launch at login, ghost text color, model downloads, and updates
-- Activity indicators that can be hidden, anchored to the caret, or shown as a field-edge icon
+- Visual context: screenshot OCR around the focused field gives the model awareness of what's on screen
+- Clipboard context: recent clipboard content helps inform suggestions
+- Per-app disable rules and automatic terminal detection
+- Menu bar quick controls: enable/disable, engine, model, completion length
+- Settings for launch at login, ghost text color, suggestion delay, model downloads, and updates
+- Field-edge activity indicator (can be hidden)
 - Accepted-word counter
 
 **Requires macOS 15.0 or later.** Apple Intelligence suggestions require macOS 26 or later; on earlier supported systems, use the Open Source engine. Behavior depends on what each host app exposes through the Accessibility APIs — some fields only provide coarse caret geometry, so tabby falls back to more conservative placement.
@@ -114,6 +118,12 @@ If you want to understand the runtime and suggestion pipeline before contributin
 ## Contributing
 
 Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, build, and PR guidelines, and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for community expectations. For a tour of the runtime and suggestion pipeline, read [ARCHITECTURE.md](ARCHITECTURE.md).
+
+## Support
+
+If tabby is useful to you, consider buying us a coffee:
+
+<a href="https://buymeacoffee.com/tabbyapp" target="_blank"><img src="https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png" alt="Buy Me A Coffee" style="height: 41px !important;width: 174px !important;box-shadow: 0px 3px 2px 0px rgba(190, 190, 190, 0.5) !important;-webkit-box-shadow: 0px 3px 2px 0px rgba(190, 190, 190, 0.5) !important;" ></a>
 
 ## Creators
 
