@@ -85,12 +85,10 @@ struct DownloadableRuntimeModel: Equatable, Hashable, Sendable, Identifiable {
 enum RuntimeModelCatalog {
     static func displayName(for filename: String) -> String {
         switch filename {
-        case "Qwen3-0.6B-Q4_K_M.gguf":
-            return "tabby-fast-1"
-        case "gemma-3-1b-it-Q4_K_M.gguf":
-            return "tabby-balanced-1"
-        case "gemma-3n-E4B-it-Q4_K_M.gguf":
-            return "tabby-depth-1"
+        case "Qwen3.5-0.8B-Q4_K_M.gguf":
+            return "tabby-fast"
+        case "gemma-4-E2B-it-Q4_K_M.gguf":
+            return "tabby-quality"
         default:
             return filename
         }
@@ -104,41 +102,30 @@ enum RuntimeModelCatalog {
     ///
     ///   curl -sIL "<URL>" | grep -iE "^(x-linked-size|x-linked-etag):"
     static let downloadableModels: [DownloadableRuntimeModel] = [
-        DownloadableRuntimeModel(
-            filename: "gemma-3-1b-it-Q4_K_M.gguf",
-            displayName: displayName(for: "gemma-3-1b-it-Q4_K_M.gguf"),
-            downloadURL: URL(
-                string:
-                    "https://huggingface.co/unsloth/gemma-3-1b-it-GGUF/resolve/main/gemma-3-1b-it-Q4_K_M.gguf?download=true"
-            )!,
-            approximateSizeInGigabytes: 0.8,
-            expectedSizeBytes: 806_058_272,
-            sha256: "8270790f3ab69fdfe860b7b64008d9a19986d8df7e407bb018184caa08798ebd"
-        ),
-        DownloadableRuntimeModel(
-            filename: "Qwen3-0.6B-Q4_K_M.gguf",
-            displayName: displayName(for: "Qwen3-0.6B-Q4_K_M.gguf"),
-            downloadURL: URL(
-                string:
-                    "https://huggingface.co/unsloth/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q4_K_M.gguf?download=true"
-            )!,
-            approximateSizeInGigabytes: 0.4,
-            expectedSizeBytes: 396_705_472,
-            sha256: "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a"
-        ),
-        DownloadableRuntimeModel(
-            filename: "gemma-3n-E4B-it-Q4_K_M.gguf",
-            displayName: displayName(for: "gemma-3n-E4B-it-Q4_K_M.gguf"),
-            downloadURL: URL(
-                string:
-                    "https://huggingface.co/unsloth/gemma-3n-E4B-it-GGUF/resolve/main/gemma-3n-E4B-it-Q4_K_M.gguf?download=true"
-            )!,
-            approximateSizeInGigabytes: 3.5,
-            expectedSizeBytes: 4_539_054_208,
-            sha256: "43b489bb77a81bda85180e7c490d40ad7f1d5c2ce654c9b05e15e104bd3c777e"
-        )
-    ]
-}
+            DownloadableRuntimeModel(
+                filename: "Qwen3.5-0.8B-Q4_K_M.gguf",
+                displayName: displayName(for: "Qwen3.5-0.8B-Q4_K_M.gguf"),
+                downloadURL: URL(
+                    string:
+                        "https://huggingface.co/unsloth/Qwen3.5-0.8B-GGUF/resolve/main/Qwen3.5-0.8B-Q4_K_M.gguf?download=true"
+                )!,
+                approximateSizeInGigabytes: 0.5,
+                expectedSizeBytes: 532517120,
+                sha256: "bd258782e35f7f458f8aced1adc053e6e92e89bc735ba3be89d38a06121dc517"
+            ),
+            DownloadableRuntimeModel(
+                filename: "gemma-4-E2B-it-Q4_K_M.gguf",
+                displayName: displayName(for: "gemma-4-E2B-it-Q4_K_M.gguf"),
+                downloadURL: URL(
+                    string:
+                        "https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF/resolve/main/gemma-4-E2B-it-Q4_K_M.gguf?download=true"
+                )!,
+                approximateSizeInGigabytes: 3.1,
+                expectedSizeBytes: 3106736256,
+                sha256: "9378bc471710229ef165709b62e34bfb62231420ddaf6d729e727305b5b8672d"
+            ),
+        ]
+    }
 
 /// Startup configuration that controls which GGUF model to load and how large the runtime should be.
 struct LlamaRuntimeConfiguration: Equatable, Sendable {
@@ -153,11 +140,10 @@ struct LlamaRuntimeConfiguration: Equatable, Sendable {
     static let `default` = LlamaRuntimeConfiguration(
         runtimeDirectoryPath: nil,
         preferredModelNames: [
-            "gemma-3-1b-it-Q4_K_M.gguf",
-            "Qwen3-0.6B-Q4_K_M.gguf",
-            "gemma-3n-E4B-it-Q4_K_M.gguf"
+            "gemma-4-E2B-it-Q4_K_M.gguf",
+            "Qwen3.5-0.8B-Q4_K_M.gguf",
         ],
-        contextWindowTokens: 2048,
+        contextWindowTokens: 4096,
         batchSize: 512,
         gpuLayerCount: -1
     )
