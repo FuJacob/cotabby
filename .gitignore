@@ -18,6 +18,11 @@ build/
 .LSOverride
 ._*
 
+# Python virtual environments
+.venv/
+.venv-*/
+venv/
+
 # Large model files — keep out of git
 *.gguf
 *.bin
