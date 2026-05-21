@@ -37,6 +37,10 @@ final class TerminalAppDetectorTests: XCTestCase {
         XCTAssertTrue(TerminalAppDetector.isTerminal(bundleIdentifier: "com.github.wez.wezterm"))
     }
 
+    func test_isTerminal_rio() {
+        XCTAssertTrue(TerminalAppDetector.isTerminal(bundleIdentifier: "io.rio.terminal"))
+    }
+
     // MARK: - Non-terminals
 
     func test_isTerminal_safari() {

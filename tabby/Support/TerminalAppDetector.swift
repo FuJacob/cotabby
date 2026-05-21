@@ -16,8 +16,7 @@ enum TerminalAppDetector {
         "com.mitchellh.ghostty",
         "dev.warp.Warp-Stable",
         "com.github.wez.wezterm",
-        "com.colliderli.iina-terminal",
-        "io.rio.terminal",
+        "io.rio.terminal"
     ]
 
     static func isTerminal(bundleIdentifier: String?) -> Bool {
