@@ -141,7 +141,12 @@ struct SettingsView: View {
 
             Toggle("Include Clipboard Context", isOn: clipboardContextEnabledBinding)
 
-            Toggle("Show Indicator", isOn: showCaretIndicatorBinding)
+            Picker("Indicator", selection: selectedIndicatorModeBinding) {
+                ForEach(ActivationIndicatorMode.allCases) { mode in
+                    Text(mode.displayLabel)
+                        .tag(mode)
+                }
+            }
 
             // TODO: Re-enable ghost text color customization once the inline overlay is stable.
             // LabeledContent("Ghost Text Color") {
@@ -496,10 +501,12 @@ struct SettingsView: View {
         )
     }
 
-    private var showCaretIndicatorBinding: Binding<Bool> {
+    private var selectedIndicatorModeBinding: Binding<ActivationIndicatorMode> {
         Binding(
-            get: { suggestionSettings.showCaretIndicator },
-            set: { suggestionSettings.setShowCaretIndicator($0) }
+            get: { suggestionSettings.selectedIndicatorMode },
+            set: { mode in
+                suggestionSettings.selectIndicatorMode(mode)
+            }
         )
     }
 

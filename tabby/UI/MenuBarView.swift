@@ -88,9 +88,16 @@ struct MenuBarView: View {
                     .controlSize(.small)
             }
 
-            Toggle("Indicator", isOn: showCaretIndicatorBinding)
-                .toggleStyle(.switch)
-                .controlSize(.small)
+            MenuBarPickerRow(title: "Indicator") {
+                Picker("Indicator", selection: selectedIndicatorModeBinding) {
+                    ForEach(ActivationIndicatorMode.allCases) { mode in
+                        Text(mode.compactLabel)
+                            .tag(mode)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+            }
 
             MenuBarPickerRow(title: "Engine") {
                 Picker("Engine", selection: selectedEngineBinding) {
@@ -241,10 +248,10 @@ struct MenuBarView: View {
         )
     }
 
-    private var showCaretIndicatorBinding: Binding<Bool> {
+    private var selectedIndicatorModeBinding: Binding<ActivationIndicatorMode> {
         Binding(
-            get: { suggestionSettings.showCaretIndicator },
-            set: { suggestionSettings.setShowCaretIndicator($0) }
+            get: { suggestionSettings.selectedIndicatorMode },
+            set: { suggestionSettings.selectIndicatorMode($0) }
         )
     }
 

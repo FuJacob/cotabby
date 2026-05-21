@@ -140,7 +140,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         activationIndicatorController.show(
             mode: suggestionSettings.selectedIndicatorMode,
-            caretRect: context.caretRect
+            caretRect: context.caretRect,
+            inputFrameRect: context.inputFrameRect
         )
     }
 
