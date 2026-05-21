@@ -18,7 +18,8 @@ final class FoundationModelPromptRendererTests: XCTestCase {
         XCTAssertTrue(instructions.contains("inline autocomplete engine"))
         XCTAssertTrue(instructions.contains("UNIQUE_LENGTH_POLICY"))
         XCTAssertTrue(instructions.contains("UNIQUE_PROFILE_NAME"))
-        XCTAssertTrue(instructions.contains("UNIQUE_PROFILE_TAG"))
+        // userTags disabled — re-enable when the feature is validated.
+        // XCTAssertTrue(instructions.contains("UNIQUE_PROFILE_TAG"))
         XCTAssertTrue(instructions.contains("Do not repeat or quote the existing text."))
     }
 

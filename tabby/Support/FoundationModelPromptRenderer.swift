@@ -32,10 +32,11 @@ enum FoundationModelPromptRenderer {
         if let name = request.userName, !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             profileSections.append("The user's name is \(name).")
         }
-        if let tags = request.userTags, !tags.isEmpty {
-            let tagsString = tags.joined(separator: ", ")
-            profileSections.append("Things the user types often include: \(tagsString).")
-        }
+        // TODO: Re-enable userTags in the prompt once we validate the feature's value.
+        // if let tags = request.userTags, !tags.isEmpty {
+        //     let tagsString = tags.joined(separator: ", ")
+        //     profileSections.append("Things the user types often include: \(tagsString).")
+        // }
 
         if !profileSections.isEmpty {
             lines.append("User Profile Context:")

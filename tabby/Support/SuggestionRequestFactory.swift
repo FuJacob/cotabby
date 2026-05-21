@@ -113,7 +113,8 @@ enum SuggestionRequestFactory {
     private static func activeUserTags(
         settings: SuggestionSettingsSnapshot
     ) -> [String]? {
-        settings.userTags
+        // TODO: Re-enable userTags once we validate the feature's value.
+        nil
     }
 
     private static func activeClipboardContext(
