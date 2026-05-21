@@ -117,25 +117,26 @@ struct SettingsView: View {
 
             Toggle("Show Indicator", isOn: showCaretIndicatorBinding)
 
-            LabeledContent("Ghost Text Color") {
-                HStack(spacing: 8) {
-                    ColorPicker(
-                        "Ghost Text Color",
-                        selection: customSuggestionTextColorBinding,
-                        supportsOpacity: false
-                    )
-                    .labelsHidden()
-
-                    Button("Use Automatic") {
-                        suggestionSettings.setCustomSuggestionTextColorHex(nil)
-                    }
-                    .disabled(suggestionSettings.customSuggestionTextColorHex == nil)
-                }
-            }
-
-            Text(ghostTextColorDescription)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            // TODO: Re-enable ghost text color customization once the inline overlay is stable.
+            // LabeledContent("Ghost Text Color") {
+            //     HStack(spacing: 8) {
+            //         ColorPicker(
+            //             "Ghost Text Color",
+            //             selection: customSuggestionTextColorBinding,
+            //             supportsOpacity: false
+            //         )
+            //         .labelsHidden()
+            //
+            //         Button("Use Automatic") {
+            //             suggestionSettings.setCustomSuggestionTextColorHex(nil)
+            //         }
+            //         .disabled(suggestionSettings.customSuggestionTextColorHex == nil)
+            //     }
+            // }
+            //
+            // Text(ghostTextColorDescription)
+            //     .font(.caption)
+            //     .foregroundStyle(.secondary)
 
             Picker("Engine", selection: selectedEngineBinding) {
                 ForEach(SuggestionEngineKind.allCases) { engine in

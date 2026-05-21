@@ -78,7 +78,7 @@ struct MenuBarView: View {
                 .toggleStyle(.switch)
                 .controlSize(.small)
 
-            Toggle("Clipboard Context", isOn: clipboardContextEnabledBinding)
+            Toggle("Include Clipboard Context", isOn: clipboardContextEnabledBinding)
                 .toggleStyle(.switch)
                 .controlSize(.small)
 
