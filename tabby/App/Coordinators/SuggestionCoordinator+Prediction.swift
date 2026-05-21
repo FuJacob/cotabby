@@ -273,7 +273,7 @@ extension SuggestionCoordinator {
     /// This is the heart of partial acceptance: a text change is not automatically "stale" anymore.
     /// It may instead mean "the user consumed the next expected part of the suggestion."
     func reconcileActiveSession(with snapshot: FocusSnapshot) {
-        guard interactionState.activeSession != nil else {
+        guard interactionState.activeAutocompleteSession != nil else {
             if overlayState.isVisible {
                 hideOverlay(reason: "Overlay hidden because no ready suggestion remains.")
             }

@@ -22,6 +22,10 @@ final class LlamaRuntimeManager: ObservableObject {
     private var cachedRuntime: PreparedLlamaRuntime?
     private var selectedModelFilename: String?
 
+    var selectedModelSupportsCompose: Bool {
+        RuntimeModelCatalog.supportsCompose(filename: selectedModelFilename)
+    }
+
     convenience init() {
         self.init(
             configuration: .default,
@@ -109,10 +113,6 @@ final class LlamaRuntimeManager: ObservableObject {
         }
     }
 
-    /// Clears the native prompt KV cache without unloading the model.
-    /// The manager exposes this as a lifecycle command because focus/settings resets originate in
-    /// the app layer, while the actor still owns the raw llama pointers.
-
     /// Generates a short summary using an ephemeral context so the autocomplete cache is unaffected.
     func summarize(
         prompt: String,
@@ -141,6 +141,34 @@ final class LlamaRuntimeManager: ObservableObject {
         }
     }
 
+    /// Generates a longer uncached response for Compose so autocomplete KV reuse cannot leak across
+    /// the two interaction contracts.
+    func generateUncached(
+        prompt: String,
+        options: LlamaGenerationOptions
+    ) async throws -> String {
+        _ = try await preparedRuntime()
+
+        do {
+            return try await core.summarize(
+                prompt: prompt,
+                options: options
+            )
+        } catch is CancellationError {
+            throw LlamaRuntimeError.cancelled
+        } catch let error as LlamaRuntimeError {
+            diagnostics.lastError = error.localizedDescription
+            throw error
+        } catch {
+            let runtimeError = LlamaRuntimeError.generationFailed(error.localizedDescription)
+            diagnostics.lastError = runtimeError.localizedDescription
+            throw runtimeError
+        }
+    }
+
+    /// Clears the native prompt KV cache without unloading the model.
+    /// The manager exposes this as a lifecycle command because focus/settings resets originate in
+    /// the app layer, while the actor still owns the raw llama pointers.
     func resetPromptCache() async {
         await core.resetPromptCache()
     }

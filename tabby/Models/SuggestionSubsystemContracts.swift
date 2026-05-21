@@ -39,6 +39,7 @@ protocol SuggestionInputMonitoring: AnyObject {
 @MainActor
 protocol SuggestionGenerating: AnyObject {
     func generateSuggestion(for request: SuggestionRequest) async throws -> SuggestionResult
+    func generateCompose(for request: ComposeRequest) async throws -> ComposeResult
     /// Clears backend-local continuation state when the focused editing context is no longer
     /// continuous. Stateless engines may implement this as a no-op.
     func resetCachedGenerationContext() async
@@ -60,6 +61,10 @@ protocol SuggestionInserting: AnyObject {
     var lastErrorMessage: String? { get }
 
     func insert(_ suggestion: String) -> Bool
+    func typeDraft(
+        _ draft: String,
+        shouldContinue: @escaping @MainActor () -> Bool
+    ) async -> Bool
 }
 
 @MainActor
@@ -68,6 +73,7 @@ protocol SuggestionOverlayControlling: AnyObject {
     var onStateChange: ((OverlayState) -> Void)? { get set }
 
     func showSuggestion(_ text: String, geometry: SuggestionOverlayGeometry)
+    func showComposePreview(_ text: String, geometry: SuggestionOverlayGeometry)
     func hide(reason: String)
 }
 

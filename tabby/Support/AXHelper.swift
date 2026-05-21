@@ -251,6 +251,12 @@ enum AXHelper {
         return "\(pid)-\(CFHash(element))"
     }
 
+    static func processIdentifier(for element: AXUIElement) -> pid_t {
+        var pid: pid_t = 0
+        AXUIElementGetPid(element, &pid)
+        return pid
+    }
+
     /// Builds a stable identifier for an AX element by combining bundle identity and AX identity.
     static func elementIdentifier(for element: AXUIElement, bundleIdentifier: String) -> String {
         "\(bundleIdentifier)-\(elementIdentity(for: element))"

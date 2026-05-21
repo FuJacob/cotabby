@@ -57,6 +57,24 @@ struct SuggestionOverlayPresenter {
         }
     }
 
+    func presentComposePreview(
+        text: String,
+        geometry: SuggestionOverlayGeometry,
+        previousState: OverlayState
+    ) -> String? {
+        let displayText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !displayText.isEmpty else {
+            return hide(reason: "Overlay hidden because the Compose draft was empty.")
+        }
+
+        guard previousState != .composePreview(text: displayText, geometry: geometry) else {
+            return nil
+        }
+
+        overlayController.showComposePreview(displayText, geometry: geometry)
+        return "Displayed Compose draft preview near the caret."
+    }
+
     func hide(reason: String) -> String {
         overlayController.hide(reason: reason)
         return reason

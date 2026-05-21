@@ -2,8 +2,8 @@ import Foundation
 
 /// File overview:
 /// Owns the mutable interaction state that sits between Accessibility snapshots and a live
-/// suggestion session. This includes the buffered focused-input context, the active suggestion
-/// session, and the AX-lag sentinel used after partial Tab acceptance.
+/// generation session. This includes the buffered focused-input context, the active autocomplete or
+/// Compose session, and the AX-lag sentinel used after partial Tab acceptance.
 ///
 /// The architectural lesson is that `SuggestionCoordinator` should orchestrate state transitions,
 /// not store every mutable implementation detail itself. This type becomes the home for that
@@ -12,7 +12,7 @@ import Foundation
 final class SuggestionInteractionState {
     private let contextBuffer: ContextBuffer
 
-    private(set) var activeSession: ActiveSuggestionSession?
+    private(set) var activeSession: ActiveGenerationSession?
     private(set) var pendingInsertionConsumedCount: Int?
 
     init(contextBuffer: ContextBuffer? = nil) {
@@ -23,6 +23,22 @@ final class SuggestionInteractionState {
 
     var currentContext: FocusedInputContext? {
         contextBuffer.currentContext
+    }
+
+    var activeAutocompleteSession: ActiveSuggestionSession? {
+        guard case .autocomplete(let session) = activeSession else {
+            return nil
+        }
+
+        return session
+    }
+
+    var activeComposeSession: ActiveComposeSession? {
+        guard case .compose(let session) = activeSession else {
+            return nil
+        }
+
+        return session
     }
 
     /// Exposes the higher-level meaning of `pendingInsertionConsumedCount` without leaking the
@@ -56,7 +72,22 @@ final class SuggestionInteractionState {
             fullText: fullText,
             latency: latency
         )
-        activeSession = session
+        activeSession = .autocomplete(session)
+        pendingInsertionConsumedCount = nil
+        return session
+    }
+
+    func startComposeSession(
+        fullText: String,
+        liveContext: FocusedInputContext,
+        latency: TimeInterval
+    ) -> ActiveComposeSession {
+        let session = ActiveComposeSession(
+            baseContext: liveContext,
+            fullText: fullText,
+            latency: latency
+        )
+        activeSession = .compose(session)
         pendingInsertionConsumedCount = nil
         return session
     }
@@ -77,7 +108,7 @@ final class SuggestionInteractionState {
     func reconcileActiveSession(
         with snapshot: FocusedInputSnapshot
     ) -> SuggestionStoredSessionReconciliation? {
-        guard let activeSession else {
+        guard let activeSession = activeAutocompleteSession else {
             return nil
         }
 
@@ -88,7 +119,7 @@ final class SuggestionInteractionState {
             pendingInsertionConsumedCount: pendingInsertionConsumedCount
         ) {
         case let .valid(reconciledSession, advancement, nextPendingInsertionConsumedCount):
-            self.activeSession = reconciledSession
+            self.activeSession = .autocomplete(reconciledSession)
             pendingInsertionConsumedCount = nextPendingInsertionConsumedCount
             return .valid(
                 liveContext: liveContext,
@@ -108,7 +139,7 @@ final class SuggestionInteractionState {
         from snapshot: FocusedInputSnapshot,
         overlayState: OverlayState
     ) -> SuggestionAcceptancePreparation {
-        guard let activeSession else {
+        guard let activeSession = activeAutocompleteSession else {
             return .invalid("Tab passed through because no valid suggestion was ready.")
         }
 
@@ -138,7 +169,7 @@ final class SuggestionInteractionState {
                 return .invalid(reason)
 
             case let .valid(reconciledSession, _, nextPendingInsertionConsumedCount):
-                self.activeSession = reconciledSession
+                self.activeSession = .autocomplete(reconciledSession)
                 pendingInsertionConsumedCount = nextPendingInsertionConsumedCount
                 sessionForAcceptance = reconciledSession
             }
@@ -184,7 +215,7 @@ final class SuggestionInteractionState {
             return .exhausted(generation: liveContext.generation)
         }
 
-        activeSession = advancedSession
+        activeSession = .autocomplete(advancedSession)
         return .advanced(session: advancedSession, generation: liveContext.generation)
     }
 
@@ -193,7 +224,7 @@ final class SuggestionInteractionState {
         _ typedCharacters: String,
         expectedSession: ActiveSuggestionSession
     ) -> ActiveSuggestionSession? {
-        guard let activeSession,
+        guard let activeSession = activeAutocompleteSession,
               activeSession == expectedSession,
               let advancedSession = SuggestionSessionReconciler.advanceIfTypedCharactersMatch(
                   typedCharacters,
@@ -203,8 +234,17 @@ final class SuggestionInteractionState {
             return nil
         }
 
-        self.activeSession = advancedSession
+        self.activeSession = .autocomplete(advancedSession)
         return advancedSession
+    }
+
+    func clearComposeSession(_ session: ActiveComposeSession) {
+        guard activeComposeSession == session else {
+            return
+        }
+
+        activeSession = nil
+        pendingInsertionConsumedCount = nil
     }
 }
 

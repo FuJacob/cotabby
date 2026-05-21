@@ -79,6 +79,7 @@ final class TabbyAppEnvironment {
             screenshotContextGenerator: screenshotContextGenerator,
             screenRecordingPermissionProvider: { permissionManager.screenRecordingGranted }
         )
+        let composeContextCollector = ComposeContextCollector()
         let suggestionEngine: any SuggestionGenerating = SuggestionEngineRouter(
             suggestionSettings: suggestionSettings,
             foundationModelEngine: FoundationModelSuggestionEngine(
@@ -99,6 +100,7 @@ final class TabbyAppEnvironment {
             suggestionSettings: suggestionSettings,
             clipboardContextProvider: clipboardContextProvider,
             visualContextCoordinator: visualContextCoordinator,
+            composeContextCollector: composeContextCollector,
             interactionState: interactionState,
             workController: workController,
             configuration: configuration

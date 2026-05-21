@@ -13,9 +13,12 @@ final class InputSuppressionController {
     private var suppressionExpiry = Date.distantPast
 
     /// Arms a short-lived suppression window for the synthetic keydown events Tabby is about to post.
-    func registerSyntheticInsertion(expectedKeyDownCount: Int) {
-        remainingKeyDownSuppressions = max(expectedKeyDownCount, 0)
-        suppressionExpiry = Date().addingTimeInterval(1.0)
+    func registerSyntheticInsertion(
+        expectedKeyDownCount: Int,
+        duration: TimeInterval = 1.0
+    ) {
+        remainingKeyDownSuppressions += max(expectedKeyDownCount, 0)
+        suppressionExpiry = max(suppressionExpiry, Date().addingTimeInterval(duration))
     }
 
     /// Consumes one pending suppression token if the current event still falls inside the expiry window.

@@ -43,6 +43,7 @@ final class SuggestionCoordinator: ObservableObject {
     let suggestionSettings: any SuggestionSettingsProviding
     let clipboardContextProvider: any ClipboardContextProviding
     let visualContextCoordinator: any VisualContextCoordinating
+    let composeContextCollector: ComposeContextCollector
     let interactionState: SuggestionInteractionState
     let workController: SuggestionWorkController
     let configuration: SuggestionConfiguration
@@ -71,6 +72,7 @@ final class SuggestionCoordinator: ObservableObject {
         suggestionSettings: any SuggestionSettingsProviding,
         clipboardContextProvider: any ClipboardContextProviding,
         visualContextCoordinator: any VisualContextCoordinating,
+        composeContextCollector: ComposeContextCollector,
         interactionState: SuggestionInteractionState,
         workController: SuggestionWorkController,
         configuration: SuggestionConfiguration,
@@ -88,6 +90,7 @@ final class SuggestionCoordinator: ObservableObject {
         self.suggestionSettings = suggestionSettings
         self.clipboardContextProvider = clipboardContextProvider
         self.visualContextCoordinator = visualContextCoordinator
+        self.composeContextCollector = composeContextCollector
         self.interactionState = interactionState
         self.workController = workController
         self.configuration = configuration

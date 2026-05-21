@@ -10,6 +10,7 @@ enum SuggestionAvailabilityEvaluator {
     static func disabledReason(
         globallyEnabled: Bool = true,
         disabledAppBundleIdentifiers: Set<String> = [],
+        interactionMode: SuggestionInteractionMode = .autocomplete,
         inputMonitoringGranted: Bool,
         screenRecordingGranted: Bool,
         focusSnapshot: FocusSnapshot
@@ -27,9 +28,11 @@ enum SuggestionAvailabilityEvaluator {
             return "Input Monitoring permission is required before Tabby can react to typing."
         }
 
-        guard screenRecordingGranted else {
-            return "Screen Recording permission is required before Tabby can build visual context "
-                + "for autocomplete."
+        if interactionMode == .autocomplete {
+            guard screenRecordingGranted else {
+                return "Screen Recording permission is required before Tabby can build visual context "
+                    + "for autocomplete."
+            }
         }
 
         switch focusSnapshot.capability {
@@ -43,6 +46,7 @@ enum SuggestionAvailabilityEvaluator {
     static func shouldSchedulePrediction(
         globallyEnabled: Bool = true,
         disabledAppBundleIdentifiers: Set<String> = [],
+        interactionMode: SuggestionInteractionMode = .autocomplete,
         inputMonitoringGranted: Bool,
         screenRecordingGranted: Bool,
         focusSnapshot: FocusSnapshot
@@ -50,6 +54,7 @@ enum SuggestionAvailabilityEvaluator {
         disabledReason(
             globallyEnabled: globallyEnabled,
             disabledAppBundleIdentifiers: disabledAppBundleIdentifiers,
+            interactionMode: interactionMode,
             inputMonitoringGranted: inputMonitoringGranted,
             screenRecordingGranted: screenRecordingGranted,
             focusSnapshot: focusSnapshot

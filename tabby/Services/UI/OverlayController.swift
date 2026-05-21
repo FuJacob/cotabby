@@ -30,7 +30,7 @@ final class OverlayController: SuggestionOverlayControlling {
     /// Reused across overlay updates to avoid allocating a new SwiftUI hosting view on every
     /// tab-per-word cycle. Only the rootView is swapped, which triggers a lightweight diff
     /// instead of a full view rebuild + layout pass.
-    private var hostingView: NSHostingView<GhostSuggestionView>?
+    private var hostingView: NSHostingView<AnyView>?
 
     init(suggestionSettings: SuggestionSettingsModel) {
         self.suggestionSettings = suggestionSettings
@@ -79,22 +79,17 @@ final class OverlayController: SuggestionOverlayControlling {
         let customGhostColor = SuggestionTextColorCodec.color(
             fromHex: suggestionSettings.customSuggestionTextColorHex
         )
-        let contentView: NSHostingView<GhostSuggestionView>
+        let rootView = AnyView(GhostSuggestionView(
+            layout: layout,
+            fontSize: fontSize,
+            customColor: customGhostColor
+        ))
+        let contentView: NSHostingView<AnyView>
         if let existing = hostingView {
-            existing.rootView = GhostSuggestionView(
-                layout: layout,
-                fontSize: fontSize,
-                customColor: customGhostColor
-            )
+            existing.rootView = rootView
             contentView = existing
         } else {
-            let fresh = NSHostingView(
-                rootView: GhostSuggestionView(
-                    layout: layout,
-                    fontSize: fontSize,
-                    customColor: customGhostColor
-                )
-            )
+            let fresh = NSHostingView(rootView: rootView)
             hostingView = fresh
             panel.contentView = fresh
             contentView = fresh
@@ -107,6 +102,49 @@ final class OverlayController: SuggestionOverlayControlling {
         panel.setFrame(frame.integral, display: true)
         panel.orderFrontRegardless()
         state = .visible(text: text, geometry: geometry)
+    }
+
+    /// Shows a compact multiline draft preview. Compose output is intentionally not drawn as inline
+    /// ghost text because accepting a full paragraph needs a more deliberate visual affordance.
+    func showComposePreview(_ text: String, geometry: SuggestionOverlayGeometry) {
+        let previewText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !previewText.isEmpty else {
+            hide(reason: "Overlay not shown because the Compose draft was empty.")
+            return
+        }
+
+        let contentView: NSHostingView<AnyView>
+        let rootView = AnyView(ComposePreviewView(text: previewText))
+        if let existing = hostingView {
+            existing.rootView = rootView
+            contentView = existing
+        } else {
+            let fresh = NSHostingView(rootView: rootView)
+            hostingView = fresh
+            panel.contentView = fresh
+            contentView = fresh
+        }
+        contentView.layoutSubtreeIfNeeded()
+
+        let visibleFrame = targetScreenVisibleFrame(for: geometry.caretRect)
+        let contentSize = contentView.fittingSize
+        let width = min(max(contentSize.width, 260), min(420, visibleFrame.width - 32))
+        let height = min(max(contentSize.height, 96), min(260, visibleFrame.height - 32))
+        let originX = min(
+            max(geometry.caretRect.maxX + 8, visibleFrame.minX + 16),
+            visibleFrame.maxX - width - 16
+        )
+        let preferredOriginY = geometry.caretRect.minY - height - 10
+        let originY = preferredOriginY >= visibleFrame.minY + 16
+            ? preferredOriginY
+            : min(geometry.caretRect.maxY + 10, visibleFrame.maxY - height - 16)
+
+        panel.setFrame(
+            CGRect(x: originX, y: originY, width: width, height: height).integral,
+            display: true
+        )
+        panel.orderFrontRegardless()
+        state = .composePreview(text: previewText, geometry: geometry)
     }
 
     /// Hides the floating panel and records why the overlay is no longer visible.
@@ -185,6 +223,44 @@ private struct GhostSuggestionView: View {
             }
         }
         .fixedSize(horizontal: true, vertical: true)
+    }
+}
+
+private struct ComposePreviewView: View {
+    let text: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Text("Compose Draft")
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.secondary)
+
+                Spacer(minLength: 0)
+
+                Text("tab to type")
+                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .background(.quaternary, in: Capsule())
+            }
+
+            Text(text)
+                .font(.system(size: 13))
+                .foregroundStyle(.primary)
+                .lineLimit(8)
+                .multilineTextAlignment(.leading)
+                .frame(maxWidth: 380, alignment: .leading)
+        }
+        .padding(12)
+        .frame(maxWidth: 420, alignment: .leading)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(.quaternary, lineWidth: 1)
+        )
+        .fixedSize(horizontal: false, vertical: true)
     }
 }
 
