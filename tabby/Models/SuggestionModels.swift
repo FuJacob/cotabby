@@ -134,8 +134,8 @@ struct SuggestionConfiguration: Equatable, Sendable {
         maxPrefixWords: 50,
         // Prompt windows should stay small. Sending an entire editor buffer hurts latency with
         // little quality gain because Tabby is only completing the immediate local continuation.
-        maxPrefixCharacters: 600,
-        maxSuffixCharacters: 100,
+        maxPrefixCharacters: 1000,
+        maxSuffixCharacters: 192,
         // Seed the profile settings with lightweight defaults on first launch.
         defaultUserName: "Jacob",
         defaultUserTags: [],
