@@ -76,7 +76,7 @@ struct SettingsView: View {
         } message: {
             Text(
                 // swiftlint:disable:next line_length
-                "This removes Tabby's local settings, downloaded models, caches, and login item registration, then moves the app to the Trash. macOS privacy permissions must still be removed from System Settings."
+                "This removes tabby's local settings, downloaded models, caches, and login item registration, then moves the app to the Trash. macOS privacy permissions must still be removed from System Settings."
             )
         }
         .alert("Uninstall Failed", isPresented: uninstallFailureAlertBinding) {

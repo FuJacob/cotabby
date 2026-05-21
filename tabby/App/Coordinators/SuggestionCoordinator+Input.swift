@@ -137,6 +137,7 @@ extension SuggestionCoordinator {
                 clearDiagnostics: false
             )
             if event.shouldSchedulePrediction {
+                focusModel.refreshNow()
                 schedulePrediction()
             }
             return false
@@ -147,6 +148,7 @@ extension SuggestionCoordinator {
                 clearDiagnostics: false
             )
             if event.shouldSchedulePrediction {
+                focusModel.refreshNow()
                 schedulePrediction()
             }
             return false
