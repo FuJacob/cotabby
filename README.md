@@ -23,14 +23,6 @@
 
 ---
 
-<p align="center">
-  <a href="https://buymeacoffee.com/tabbyapp" target="_blank"><img src="https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png" alt="Buy Me A Coffee" style="height: 41px !important;width: 174px !important;box-shadow: 0px 3px 2px 0px rgba(190, 190, 190, 0.5) !important;-webkit-box-shadow: 0px 3px 2px 0px rgba(190, 190, 190, 0.5) !important;" ></a>
-  <br />
-  Built by <a href="https://github.com/FuJacob">@FuJacob</a> and <a href="https://github.com/jam-cai">@jam-cai</a>
-</p>
-
----
-
 ## Demo
 
 <p align="center">
@@ -70,16 +62,24 @@ tabby is a menu bar app that brings inline autocomplete to the text field you're
 
 Everything runs on-device. No hosted API, no cloud round-trip.
 
+## Features
+
+- **System-wide completions** -- Works in any macOS text field (Safari, Notes, Mail, etc.)
+- **Ghost text UI** -- Suggestions appear as translucent overlay text at your cursor
+- **100% local** -- All inference runs on-device. No data ever leaves your Mac
+- **Visual context** -- Screenshot OCR gives the model awareness of what's on screen
+- **Low latency** -- Optimized for fast response on Apple Silicon
+
 ## Engines
 
 **Apple Intelligence** — uses Apple's on-device `FoundationModels` runtime on macOS 26 or later. No download required. Availability depends on your Mac; tabby checks at runtime and explains when this engine is unavailable.
 
 **Open Source** — runs local GGUF models in-process through llama.cpp via `llama.swift`. Built-in downloadable models:
 
-| Model           | File                            | Size    |
-| --------------- | ------------------------------- | ------- |
-| `tabby-fast`    | `Qwen3.5-0.8B-Q4_K_M.gguf`     | ~0.5 GB |
-| `tabby-quality` | `gemma-4-E2B-it-Q4_K_M.gguf`   | ~3.1 GB |
+| Model              | File                            | Size    |
+| ------------------ | ------------------------------- | ------- |
+| `tabby-fast-1`     | `Qwen3-0.6B-Q4_K_M.gguf`       | ~0.4 GB |
+| `tabby-balanced-1` | `gemma-3-1b-it-Q4_K_M.gguf`    | ~0.8 GB |
 
 You can also drop your own `.gguf` files into tabby's models folder and refresh the model list.
 
@@ -99,19 +99,7 @@ If macOS blocks first launch, right-click `tabby.app` → `Open`, or allow it in
 - **Input Monitoring**: detect global `Tab` presses for acceptance.
 - **Screen Recording**: capture a screenshot around the focused field for visual context (OCR).
 
-## Features
-
-- Ghost text rendered live next to your caret
-- Partial `Tab` acceptance: take a chunk, keep the tail alive, press again to continue
-- Visual context: screenshot OCR around the focused field gives the model awareness of what's on screen
-- Clipboard context: recent clipboard content helps inform suggestions
-- Per-app disable rules and automatic terminal detection
-- Menu bar quick controls: enable/disable, engine, model, completion length
-- Settings for launch at login, ghost text color, suggestion delay, model downloads, and updates
-- Field-edge activity indicator (can be hidden)
-- Accepted-word counter
-
-**Requires macOS 15.0 or later.** Apple Intelligence suggestions require macOS 26 or later; on earlier supported systems, use the Open Source engine. Behavior depends on what each host app exposes through the Accessibility APIs — some fields only provide coarse caret geometry, so tabby falls back to more conservative placement.
+**Requires macOS 15.0 or later.** Apple Intelligence suggestions require macOS 26 or later; on earlier supported systems, use the Open Source engine.
 
 ## Local Development
 
@@ -140,6 +128,10 @@ Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, bui
 - The Hugging Face community for hosting and distributing GGUF model weights
 - Swift, SwiftUI, and AppKit, which together make the menu bar app, overlays, and settings UI possible
 - Everyone who has filed issues, tested prereleases, and contributed pull requests
+
+## Built by
+
+<a href="https://github.com/FuJacob">@FuJacob</a> and <a href="https://github.com/jam-cai">@jam-cai</a>
 
 ## License
 
