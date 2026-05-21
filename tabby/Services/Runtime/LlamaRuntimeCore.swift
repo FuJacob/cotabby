@@ -144,12 +144,28 @@ actor LlamaRuntimeCore {
             throw LlamaRuntimeError.generationFailed("Unable to access the model vocabulary.")
         }
 
-        let promptTokens = try tokenize(prompt, vocab: vocab)
+        let allPromptTokens = try tokenize(prompt, vocab: vocab)
+
+        // Reserve space for generation and trim from the front if needed. The tail of the prompt
+        // is closest to the caret and matters most for completion quality.
+        let maxPromptTokens = preparedRuntime.contextWindowTokens - options.maxPredictionTokens
+        let promptTokens: [llama_token]
+        let adjustedCachedPrefixBytes: Int?
+        if allPromptTokens.count > maxPromptTokens {
+            promptTokens = Array(allPromptTokens.suffix(maxPromptTokens))
+            // Front-trimming invalidates any byte-level prefix overlap with the cache.
+            adjustedCachedPrefixBytes = nil
+        } else {
+            promptTokens = allPromptTokens
+            adjustedCachedPrefixBytes = cachedPrefixBytes
+        }
+
+        let promptBytes = Array(prompt.utf8)
         let contextRequest = PromptContextRequest(
-            promptBytes: Array(prompt.utf8),
+            promptBytes: promptBytes,
             promptTokens: promptTokens,
             samplingFingerprint: SamplingFingerprint(options: options),
-            cachedPrefixBytes: cachedPrefixBytes
+            cachedPrefixBytes: adjustedCachedPrefixBytes
         )
         let context = try preparePromptContext(
             model: model,
@@ -644,7 +660,11 @@ extension LlamaRuntimeCore {
             throw LlamaRuntimeError.generationFailed("Unable to access the model vocabulary.")
         }
 
-        let promptTokens = try tokenize(prompt, vocab: vocab)
+        let allPromptTokens = try tokenize(prompt, vocab: vocab)
+        let maxPromptTokens = preparedRuntime.contextWindowTokens - options.maxPredictionTokens
+        let promptTokens = allPromptTokens.count > maxPromptTokens
+            ? Array(allPromptTokens.suffix(maxPromptTokens))
+            : allPromptTokens
 
         let context = try makeContext(
             model: model,
