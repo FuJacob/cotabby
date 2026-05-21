@@ -102,30 +102,30 @@ enum RuntimeModelCatalog {
     ///
     ///   curl -sIL "<URL>" | grep -iE "^(x-linked-size|x-linked-etag):"
     static let downloadableModels: [DownloadableRuntimeModel] = [
-            DownloadableRuntimeModel(
-                filename: "Qwen3.5-0.8B-Q4_K_M.gguf",
-                displayName: displayName(for: "Qwen3.5-0.8B-Q4_K_M.gguf"),
-                downloadURL: URL(
-                    string:
-                        "https://huggingface.co/unsloth/Qwen3.5-0.8B-GGUF/resolve/main/Qwen3.5-0.8B-Q4_K_M.gguf?download=true"
-                )!,
-                approximateSizeInGigabytes: 0.5,
-                expectedSizeBytes: 532517120,
-                sha256: "bd258782e35f7f458f8aced1adc053e6e92e89bc735ba3be89d38a06121dc517"
-            ),
-            DownloadableRuntimeModel(
-                filename: "gemma-4-E2B-it-Q4_K_M.gguf",
-                displayName: displayName(for: "gemma-4-E2B-it-Q4_K_M.gguf"),
-                downloadURL: URL(
-                    string:
-                        "https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF/resolve/main/gemma-4-E2B-it-Q4_K_M.gguf?download=true"
-                )!,
-                approximateSizeInGigabytes: 3.1,
-                expectedSizeBytes: 3106736256,
-                sha256: "9378bc471710229ef165709b62e34bfb62231420ddaf6d729e727305b5b8672d"
-            )
-        ]
-    }
+        DownloadableRuntimeModel(
+            filename: "Qwen3.5-0.8B-Q4_K_M.gguf",
+            displayName: displayName(for: "Qwen3.5-0.8B-Q4_K_M.gguf"),
+            downloadURL: URL(
+                string:
+                    "https://huggingface.co/unsloth/Qwen3.5-0.8B-GGUF/resolve/main/Qwen3.5-0.8B-Q4_K_M.gguf?download=true"
+            )!,
+            approximateSizeInGigabytes: 0.5,
+            expectedSizeBytes: 532_517_120,
+            sha256: "bd258782e35f7f458f8aced1adc053e6e92e89bc735ba3be89d38a06121dc517"
+        ),
+        DownloadableRuntimeModel(
+            filename: "gemma-4-E2B-it-Q4_K_M.gguf",
+            displayName: displayName(for: "gemma-4-E2B-it-Q4_K_M.gguf"),
+            downloadURL: URL(
+                string:
+                    "https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF/resolve/main/gemma-4-E2B-it-Q4_K_M.gguf?download=true"
+            )!,
+            approximateSizeInGigabytes: 3.1,
+            expectedSizeBytes: 3_106_736_256,
+            sha256: "9378bc471710229ef165709b62e34bfb62231420ddaf6d729e727305b5b8672d"
+        )
+    ]
+}
 
 /// Startup configuration that controls which GGUF model to load and how large the runtime should be.
 struct LlamaRuntimeConfiguration: Equatable, Sendable {

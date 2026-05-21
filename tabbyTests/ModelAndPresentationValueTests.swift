@@ -149,6 +149,10 @@ final class RuntimeAndInputModelValueTests: XCTestCase {
             "tabby-fast"
         )
         XCTAssertEqual(
+            RuntimeModelCatalog.displayName(for: "gemma-4-E2B-it-Q4_K_M.gguf"),
+            "tabby-quality"
+        )
+        XCTAssertEqual(
             RuntimeModelCatalog.displayName(for: "custom-local-model.gguf"),
             "custom-local-model.gguf"
         )
