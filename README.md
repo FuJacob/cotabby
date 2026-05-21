@@ -121,10 +121,15 @@ tabby is built by [@FuJacob](https://github.com/FuJacob) and [@jam-cai](https://
 
 ## Acknowledgments
 
-- [llama.cpp](https://github.com/ggerganov/llama.cpp): local GGUF inference
-- [llama.swift](https://github.com/eastriverlee/LLM.swift): Swift bindings for llama.cpp
+- [llama.cpp](https://github.com/ggerganov/llama.cpp): local GGUF inference engine that powers the Open Source models
+- [llama.swift](https://github.com/mattt/llama.swift): Swift package wrapping llama.cpp for in-process inference
+- [Sparkle](https://github.com/sparkle-project/Sparkle): in-app update framework
 - Apple's [FoundationModels](https://developer.apple.com/documentation/foundationmodels) framework: on-device Apple Intelligence runtime
-- The Qwen and Gemma model teams for the open-weight models Tabby ships with
+- Apple's Accessibility (AX) APIs: focused-field discovery and caret geometry
+- The [Qwen](https://github.com/QwenLM) and [Gemma](https://ai.google.dev/gemma) model teams for the open-weight models Tabby ships with
+- The Hugging Face community for hosting and distributing GGUF model weights
+- Swift, SwiftUI, and AppKit, which together make the menu bar app, overlays, and settings UI possible
+- Everyone who has filed issues, tested prereleases, and contributed pull requests
 
 ## License
 
