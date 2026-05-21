@@ -105,7 +105,7 @@ final class ActivationIndicatorController {
         case .caretAnchor:
             CaretAnchorIndicatorView()
         case .fieldEdgeIcon:
-            FieldEdgeIconIndicatorView(icon: NSApp.applicationIconImage)
+            FieldEdgeIconIndicatorView()
         }
     }
 
@@ -196,18 +196,27 @@ private final class ActivationIndicatorPanel: NSPanel {
 }
 
 private struct FieldEdgeIconIndicatorView: View {
-    let icon: NSImage
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var bgColor: Color {
+        colorScheme == .dark ? Color(white: 0.15) : Color(white: 0.92)
+    }
+
+    private var pawColor: Color {
+        colorScheme == .dark ? .white : Color(white: 0.25)
+    }
 
     var body: some View {
-        Image(nsImage: icon)
-            .resizable()
-            .interpolation(.high)
-            .scaledToFit()
-            .frame(width: 20, height: 20)
-            .brightness(0.16)
-            .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
-            .shadow(color: .black.opacity(0.10), radius: 2, y: 1)
-            .fixedSize()
+        ZStack {
+            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                .fill(bgColor)
+            Image(systemName: "pawprint.fill")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(pawColor)
+        }
+        .frame(width: 20, height: 20)
+        .shadow(color: .black.opacity(0.12), radius: 2, y: 1)
+        .fixedSize()
     }
 }
 
