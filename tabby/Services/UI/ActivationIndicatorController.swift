@@ -12,7 +12,9 @@ import SwiftUI
 @MainActor
 final class ActivationIndicatorController {
     private let verticalGap: CGFloat = 2
-    private let horizontalGap: CGFloat = 6
+    /// Field-edge mode should visually touch the input's outside edge. A gap reads as accidental
+    /// padding because the icon is an affordance for the field itself, not for the surrounding UI.
+    private let fieldEdgeGap: CGFloat = 0
     private let screenInset: CGFloat = 2
 
     private lazy var contentView: NSHostingView<AnyView> = {
@@ -148,8 +150,8 @@ final class ActivationIndicatorController {
         } else {
             caretRect
         }
-        let preferredLeftX = anchorRect.minX - contentSize.width - horizontalGap
-        let fallbackRightX = anchorRect.maxX + horizontalGap
+        let preferredLeftX = anchorRect.minX - contentSize.width - fieldEdgeGap
+        let fallbackRightX = anchorRect.maxX + fieldEdgeGap
         let centeredY = anchorRect.midY - (contentSize.height / 2)
 
         guard let screen = screen(for: anchorRect) else {
@@ -215,9 +217,10 @@ private struct FieldEdgeIconIndicatorView: View {
             .resizable()
             .interpolation(.high)
             .scaledToFit()
-            .frame(width: 16, height: 16)
-            .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
-            .shadow(color: .black.opacity(0.12), radius: 2, y: 1)
+            .frame(width: 20, height: 20)
+            .brightness(0.16)
+            .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+            .shadow(color: .black.opacity(0.10), radius: 2, y: 1)
             .fixedSize()
     }
 }
