@@ -6,8 +6,11 @@
 
 <p align="center">
   <em>Open-source, local-first AI autocomplete for macOS.</em>
-</p>
-
+  </p>
+  
+  <p align="center">
+  <em>[currently in beta]</em>
+  </p>
 <p align="center">
   <a href="https://tabbyapp.dev"><strong>Visit the landing page →</strong></a>
   &nbsp;|&nbsp;
@@ -39,24 +42,25 @@
       <sub><b>Email</b></sub>
     </td>
     <td align="center" valign="top" width="50%">
-      <img src=".github/assets/readme/demo-slack.png" alt="tabby autocomplete in Slack" width="100%" />
+      <img src="https://github.com/user-attachments/assets/05c04d09-e658-478b-b10e-25c6a0d1b4ee" alt="tabby autocomplete in Slack" width="100%" />
       <br />
       <sub><b>Slack</b></sub>
     </td>
   </tr>
   <tr>
     <td align="center" valign="top" width="50%">
-      <img src=".github/assets/readme/demo-notes.png" alt="tabby autocomplete in Notes" width="100%" />
+      <img src="https://github.com/user-attachments/assets/7d16957f-e2bd-487a-9910-757286b445ea" alt="tabby autocomplete in Notes" width="100%" />
       <br />
       <sub><b>Notes</b></sub>
     </td>
     <td align="center" valign="top" width="50%">
-      <img src=".github/assets/readme/demo-imessage.png" alt="tabby autocomplete in iMessage" width="100%" />
+      <img src="https://github.com/user-attachments/assets/407ccd42-b0fb-414d-9bd2-9ce05119777e" alt="tabby autocomplete in iMessage" width="100%" />
       <br />
       <sub><b>iMessage</b></sub>
     </td>
   </tr>
 </table>
+
 
 ## What It Does
 
@@ -76,7 +80,7 @@ Everything runs on-device. No hosted API, no cloud round-trip.
 
 **Apple Intelligence [BETA]**: uses Apple's on-device `FoundationModels` runtime on macOS 26 or later. No download required. Availability depends on your Mac; tabby checks at runtime and explains when this engine is unavailable. Apple Intelligence support is currently in beta and may not perform as well as the Open Source models. We're actively working on improving it.
 
-**Open Source**: runs local GGUF models in-process through llama.cpp via `llama.swift`. Built-in downloadable models:
+**Open Source**: runs local GGUF models in-process through llama.cpp via `llama.swift`. Built-in downloadable models suggested for use:
 
 | Model              | File                            | Size    |
 | ------------------ | ------------------------------- | ------- |
