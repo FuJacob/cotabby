@@ -20,7 +20,7 @@ Do not mix them.
 
 ## Current Config
 
-- Feed: https://tabbyapp.dev/tabby/appcast.xml
+- Feed: https://updates.tabbyapp.dev/appcast.xml
 - Public key (`SUPublicEDKey`):
   `efJeZNfUISOs6npbxI2MLLe7sBB5tT/sVnTk9t/qBSY=`
 
@@ -168,9 +168,8 @@ What CI does:
 
 Pages output:
 - `/appcast.xml`
-- `/tabby/appcast.xml`
 
-The `/tabby/appcast.xml` path matches the current feed URL.
+The `/appcast.xml` path matches the current feed URL (`https://updates.tabbyapp.dev/appcast.xml`).
 
 ---
 
