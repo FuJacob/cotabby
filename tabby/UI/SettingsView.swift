@@ -75,6 +75,7 @@ struct SettingsView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text(
+                // swiftlint:disable:next line_length
                 "This removes Tabby's local settings, downloaded models, caches, and login item registration, then moves the app to the Trash. macOS privacy permissions must still be removed from System Settings."
             )
         }

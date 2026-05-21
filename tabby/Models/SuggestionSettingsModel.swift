@@ -234,10 +234,10 @@ final class SuggestionSettingsModel: ObservableObject {
         persistSelectedIndicatorMode(mode)
     }
 
-    /// Compatibility shim for old toggle-driven call sites. Turning the toggle back on restores the
-    /// caret-anchor indicator because that was the historic behavior users opted into.
+    /// Compatibility shim for old toggle-driven call sites. Turning the toggle back on enables the
+    /// field-edge icon indicator, which is the current default.
     func setShowCaretIndicator(_ show: Bool) {
-        selectIndicatorMode(show ? .caretAnchor : .hidden)
+        selectIndicatorMode(show ? .fieldEdgeIcon : .hidden)
     }
 
     func setCustomSuggestionTextColorHex(_ hex: String?) {
@@ -296,7 +296,7 @@ final class SuggestionSettingsModel: ObservableObject {
     private static func migrateIndicatorMode(
         fromLegacyShowCaretIndicator showCaretIndicator: Bool
     ) -> ActivationIndicatorMode {
-        showCaretIndicator ? .caretAnchor : .hidden
+        showCaretIndicator ? .fieldEdgeIcon : .hidden
     }
 
     private static func loadDisabledAppRules(from userDefaults: UserDefaults) -> [DisabledApplicationRule] {

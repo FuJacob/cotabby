@@ -3,8 +3,8 @@ import Foundation
 import SwiftUI
 
 /// File overview:
-/// Owns the tiny non-activating panel that marks supported inputs with a subtle caret pointer.
-/// Unlike the ghost-text overlay, this controller is focus-driven and toggled by a simple boolean.
+/// Owns the tiny non-activating panel that marks supported inputs with either a caret pointer
+/// or a small tabby icon near the field edge, depending on the user's selected indicator mode.
 ///
 /// Keeping this as a separate controller preserves the architectural split between:
 /// supported-field affordances and suggestion-specific UI.
@@ -38,12 +38,12 @@ final class ActivationIndicatorController {
 
     private var isVisible = false
 
-    /// Shows or hides the caret-anchored indicator based on a simple boolean toggle.
+    /// Shows the indicator in the given mode, positioned relative to the caret.
     func show(
-        enabled: Bool,
+        mode: ActivationIndicatorMode,
         caretRect: CGRect
     ) {
-        guard enabled else {
+        guard mode != .hidden else {
             hide(reason: "Activation indicator hidden because it is disabled.")
             return
         }
@@ -53,7 +53,16 @@ final class ActivationIndicatorController {
             return
         }
 
-        contentView.rootView = AnyView(CaretAnchorIndicatorView())
+        let indicatorView: AnyView = switch mode {
+        case .caretAnchor:
+            AnyView(CaretAnchorIndicatorView())
+        case .fieldEdgeIcon:
+            AnyView(FieldEdgeIconView())
+        case .hidden:
+            AnyView(EmptyView())
+        }
+
+        contentView.rootView = indicatorView
         contentView.layoutSubtreeIfNeeded()
         let contentSize = contentView.fittingSize
         let origin = caretAnchorOrigin(for: caretRect, contentSize: contentSize)
@@ -68,13 +77,13 @@ final class ActivationIndicatorController {
         isVisible = true
     }
 
-    /// Hides the indicator when Tabby is not actively supporting the current field.
+    /// Hides the indicator when tabby is not actively supporting the current field.
     func hide(reason _: String) {
         panel.orderOut(nil)
         isVisible = false
     }
 
-    /// Centers the caret pointer horizontally on the caret and prefers placing it just below the
+    /// Centers the indicator horizontally on the caret and prefers placing it just below the
     /// current line box. If the caret is too close to the bottom edge of the visible screen,
     /// we fall back above the line instead.
     private func caretAnchorOrigin(for caretRect: CGRect, contentSize: CGSize) -> CGPoint {
@@ -134,6 +143,22 @@ private struct CaretAnchorIndicatorView: View {
             .fill(bgColor)
             .frame(width: 8, height: 5)
             .shadow(color: .black.opacity(0.16), radius: 1, y: 1)
+            .fixedSize()
+    }
+}
+
+/// A small pawprint icon that sits below the caret to indicate tabby is active on this field.
+private struct FieldEdgeIconView: View {
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var iconColor: Color {
+        colorScheme == .dark ? Color(white: 0.45) : Color(white: 0.55)
+    }
+
+    var body: some View {
+        Image(systemName: "pawprint.fill")
+            .font(.system(size: 8, weight: .medium))
+            .foregroundStyle(iconColor)
             .fixedSize()
     }
 }
