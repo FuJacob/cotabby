@@ -308,7 +308,9 @@ enum SuggestionTextNormalizer {
         _ suggestion: String,
         for request: SuggestionRequest
     ) -> Bool {
-        let draft = request.context.precedingText
+        let draft = recentSentenceFragment(
+            in: request.context.precedingText
+        )
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .lowercased()
         let response = suggestion
@@ -340,6 +342,38 @@ enum SuggestionTextNormalizer {
                 || response.hasPrefix("\(prefix),")
                 || response.hasPrefix("\(prefix) ")
         }
+    }
+
+    /// Narrows question/answer detection to the sentence nearest the caret.
+    ///
+    /// Inline completion runs against the full text before the caret, but the "model answered the
+    /// user instead of continuing" heuristic should only inspect the current sentence or line. An
+    /// earlier `?` elsewhere in the field should not suppress natural continuations near the caret.
+    private static func recentSentenceFragment(in draft: String) -> String {
+        let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return ""
+        }
+
+        let boundaryCharacters: Set<Character> = [".", "?", "!", "\n"]
+        let searchable: Substring
+
+        // A terminal `?` still belongs to the current sentence, so search for an earlier boundary
+        // instead of treating the trailing punctuation as "start a new sentence after this."
+        if let lastCharacter = trimmed.last,
+           boundaryCharacters.contains(lastCharacter) {
+            searchable = trimmed[..<trimmed.index(before: trimmed.endIndex)]
+        } else {
+            searchable = trimmed[...]
+        }
+
+        guard let boundaryIndex = searchable.lastIndex(where: { boundaryCharacters.contains($0) }) else {
+            return trimmed
+        }
+
+        let fragment = trimmed[trimmed.index(after: boundaryIndex)...]
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return fragment.isEmpty ? trimmed : String(fragment)
     }
 
     /// Rejects chat-assistant boilerplate that should never appear in inline autocomplete.

@@ -325,6 +325,34 @@ final class SuggestionTextNormalizerTests: XCTestCase {
         XCTAssertEqual(normalized, "")
     }
 
+    func test_normalize_dropsAnswerLikeSuggestionWhenCurrentSentenceEndsWithQuestionMark() {
+        let request = TabbyTestFixtures.suggestionRequest(
+            prefixText: "When is the delivery?",
+            precedingText: "When is the delivery?"
+        )
+
+        let normalized = SuggestionTextNormalizer.normalize(
+            " probably tomorrow",
+            for: request
+        )
+
+        XCTAssertEqual(normalized, "")
+    }
+
+    func test_normalize_keepsAnswerPrefixLikeContinuationWhenEarlierQuestionIsFarFromCaret() {
+        let request = TabbyTestFixtures.suggestionRequest(
+            prefixText: "When is the delivery? Here is the tracking info: the package is",
+            precedingText: "When is the delivery? Here is the tracking info: the package is"
+        )
+
+        let normalized = SuggestionTextNormalizer.normalize(
+            " probably in transit",
+            for: request
+        )
+
+        XCTAssertEqual(normalized, " probably in transit")
+    }
+
     func test_normalize_dropsAssistantMetaResponse() {
         let request = TabbyTestFixtures.suggestionRequest(
             prefixText: "still exac",
