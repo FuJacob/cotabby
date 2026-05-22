@@ -395,6 +395,34 @@ final class SuggestionTextNormalizerTests: XCTestCase {
         XCTAssertEqual(normalized, "")
     }
 
+    func test_normalize_keepsShortSuggestionWhenDraftNumberWouldOCRNormalizeToWords() {
+        let request = TabbyTestFixtures.suggestionRequest(
+            prefixText: "we have 15 things to do",
+            precedingText: "we have 15 things to do"
+        )
+
+        let normalized = SuggestionTextNormalizer.normalize(
+            " is things",
+            for: request
+        )
+
+        XCTAssertEqual(normalized, " is things")
+    }
+
+    func test_normalize_keepsLongSuggestionWhenDraftNumberWouldOCRNormalizeToWords() {
+        let request = TabbyTestFixtures.suggestionRequest(
+            prefixText: "we have 50 reasons now maybe later",
+            precedingText: "we have 50 reasons now maybe later"
+        )
+
+        let normalized = SuggestionTextNormalizer.normalize(
+            " so reasons now maybe because",
+            for: request
+        )
+
+        XCTAssertEqual(normalized, " so reasons now maybe because")
+    }
+
     func test_normalize_dropsNewPhraseAfterLikelyUnfinishedLongToken() {
         let request = TabbyTestFixtures.suggestionRequest(
             prefixText: "do you think we will get it today, experme",

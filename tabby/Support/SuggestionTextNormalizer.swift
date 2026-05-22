@@ -428,8 +428,8 @@ enum SuggestionTextNormalizer {
         _ suggestion: String,
         precedingText: String
     ) -> Bool {
-        let suggestionTokens = comparableContextTokens(from: suggestion)
-        let precedingTokens = comparableContextTokens(from: precedingText)
+        let suggestionTokens = draftCopyTokens(from: suggestion)
+        let precedingTokens = draftCopyTokens(from: precedingText)
         guard suggestionTokens.count >= 5, precedingTokens.count >= 5 else {
             return false
         }
@@ -465,12 +465,12 @@ enum SuggestionTextNormalizer {
         _ suggestion: String,
         precedingText: String
     ) -> Bool {
-        let suggestionTokens = comparableContextTokens(from: suggestion)
+        let suggestionTokens = draftCopyTokens(from: suggestion)
         guard (2...4).contains(suggestionTokens.count) else {
             return false
         }
 
-        let precedingTokens = comparableContextTokens(from: precedingText)
+        let precedingTokens = draftCopyTokens(from: precedingText)
         guard precedingTokens.count > suggestionTokens.count else {
             return false
         }
@@ -521,7 +521,20 @@ enum SuggestionTextNormalizer {
             .replacingOccurrences(of: "0", with: "o")
             .replacingOccurrences(of: "1", with: "i")
 
-        return normalized
+        return tokenizedLowercaseWordsAndNumbers(from: normalized)
+    }
+
+    /// Tokenizes text that came from the focused field itself.
+    ///
+    /// The draft is not OCR-sourced, so numeric tokens must stay numeric. Rewriting `15` to `is`
+    /// is useful when matching OCR-corrupted auxiliary context, but it creates false draft-copy
+    /// matches for legitimate continuations like "is things" after "we have 15 things...".
+    private static func draftCopyTokens(from text: String) -> [String] {
+        tokenizedLowercaseWordsAndNumbers(from: text.lowercased())
+    }
+
+    private static func tokenizedLowercaseWordsAndNumbers(from text: String) -> [String] {
+        return text
             .split { !$0.isLetter && !$0.isNumber }
             .map(String.init)
             .filter { !$0.isEmpty }
