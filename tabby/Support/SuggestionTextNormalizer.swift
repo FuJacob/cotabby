@@ -203,7 +203,7 @@ enum SuggestionTextNormalizer {
         }
 
         let relativeTimePattern =
-            #"(?i)(^|\s|\()\d{1,3}\s*(s|sec|secs|second|seconds|m|min|mins|minute|minutes|h|hr|hrs|hour|hours|d|day|days|w|wk|wks|week|weeks|mo|mos|month|months|y|yr|yrs|year|years)\b(\)|$|\s)"#
+            #"(?i)^\(?\d{1,3}\s*(s|sec|secs|second|seconds|m|min|mins|minute|minutes|h|hr|hrs|hour|hours|d|day|days|w|wk|wks|week|weeks|mo|mos|month|months|y|yr|yrs|year|years)\)?$"#
 
         return compact.range(
             of: relativeTimePattern,

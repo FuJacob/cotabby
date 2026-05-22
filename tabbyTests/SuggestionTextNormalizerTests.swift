@@ -218,16 +218,36 @@ final class SuggestionTextNormalizerTests: XCTestCase {
         XCTAssertEqual(normalized, "")
     }
 
-    func test_normalize_dropsShortSuggestionWithParenthesizedTimestamp() {
+    func test_normalize_dropsStandaloneParenthesizedTimestampCopiedFromUI() {
         let request = TabbyTestFixtures.suggestionRequest(
             prefixText: "much better results",
             precedingText: "much better results",
             fieldContextText: "Copy\n23 hrs\nReply"
         )
 
-        let normalized = SuggestionTextNormalizer.normalize(" this (23 hrs)", for: request)
+        let normalized = SuggestionTextNormalizer.normalize(" (23 hrs)", for: request)
 
         XCTAssertEqual(normalized, "")
+    }
+
+    func test_normalize_keepsShortNaturalDurationPhrases() {
+        let request = TabbyTestFixtures.suggestionRequest(
+            prefixText: "The drive",
+            precedingText: "The drive"
+        )
+
+        XCTAssertEqual(
+            SuggestionTextNormalizer.normalize(" takes 2 hours", for: request),
+            " takes 2 hours"
+        )
+        XCTAssertEqual(
+            SuggestionTextNormalizer.normalize(" in 3 days", for: request),
+            " in 3 days"
+        )
+        XCTAssertEqual(
+            SuggestionTextNormalizer.normalize(" after 10 minutes", for: request),
+            " after 10 minutes"
+        )
     }
 
     func test_normalize_keepsNaturalDurationPhraseWhenItHasDraftMeaning() {
