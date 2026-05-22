@@ -13,12 +13,40 @@ import Foundation
 /// field-specific validation.
 @MainActor
 final class SuggestionInserter {
-    private let suppressionController: InputSuppressionController
+    typealias SuppressionRegistrar = (Int) -> Void
+    typealias KeyboardEventFactory = (CGKeyCode, Bool) -> CGEvent?
+    typealias EventPoster = (CGEvent) -> Void
+
+    private let registerSuppression: SuppressionRegistrar
+    private let makeKeyboardEvent: KeyboardEventFactory
+    private let postEvent: EventPoster
 
     private(set) var lastErrorMessage: String?
 
-    init(suppressionController: InputSuppressionController) {
-        self.suppressionController = suppressionController
+    convenience init(suppressionController: InputSuppressionController) {
+        self.init(
+            registerSuppression: { expectedKeyDownCount in
+                suppressionController.registerSyntheticInsertion(
+                    expectedKeyDownCount: expectedKeyDownCount
+                )
+            },
+            makeKeyboardEvent: { keyCode, keyDown in
+                CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: keyDown)
+            },
+            postEvent: { event in
+                event.post(tap: .cghidEventTap)
+            }
+        )
+    }
+
+    init(
+        registerSuppression: @escaping SuppressionRegistrar,
+        makeKeyboardEvent: @escaping KeyboardEventFactory,
+        postEvent: @escaping EventPoster
+    ) {
+        self.registerSuppression = registerSuppression
+        self.makeKeyboardEvent = makeKeyboardEvent
+        self.postEvent = postEvent
     }
 
     /// Posts a Unicode keydown/keyup pair for the accepted suggestion and reports any insertion failure.
@@ -29,18 +57,13 @@ final class SuggestionInserter {
             return false
         }
 
-        guard let keyDownEvent = CGEvent(keyboardEventSource: nil, virtualKey: 0, keyDown: true),
-              let keyUpEvent = CGEvent(keyboardEventSource: nil, virtualKey: 0, keyDown: false) else {
+        guard let events = preparedUnicodeInsertionEvents(for: normalized) else {
             lastErrorMessage = "Unable to create a synthetic keyboard event."
             return false
         }
 
-        let utf16CodeUnits = Array(normalized.utf16)
-        suppressionController.registerSyntheticInsertion(expectedKeyDownCount: 1)
-        keyDownEvent.keyboardSetUnicodeString(stringLength: utf16CodeUnits.count, unicodeString: utf16CodeUnits)
-        keyUpEvent.keyboardSetUnicodeString(stringLength: utf16CodeUnits.count, unicodeString: utf16CodeUnits)
-        keyDownEvent.post(tap: .cghidEventTap)
-        keyUpEvent.post(tap: .cghidEventTap)
+        registerSuppression(1)
+        postPreparedEvents(events)
         lastErrorMessage = nil
         return true
     }
@@ -64,48 +87,59 @@ final class SuggestionInserter {
             return false
         }
 
-        suppressionController.registerSyntheticInsertion(expectedKeyDownCount: deleteCount + 1)
+        var bufferedEvents: [CGEvent] = []
+        bufferedEvents.reserveCapacity((deleteCount + 1) * 2)
 
         for _ in 0 ..< deleteCount {
-            guard postBackspace() else {
+            guard let backspaceEvents = preparedBackspaceEvents() else {
                 lastErrorMessage = "Unable to create a synthetic Backspace event."
                 return false
             }
+            bufferedEvents.append(contentsOf: backspaceEvents)
         }
 
-        guard postUnicodeInsertion(normalizedReplacement) else {
+        guard let replacementEvents = preparedUnicodeInsertionEvents(for: normalizedReplacement) else {
             lastErrorMessage = "Unable to create a synthetic keyboard event."
             return false
         }
+        bufferedEvents.append(contentsOf: replacementEvents)
 
+        // Only arm suppression after the full replacement plan exists. Otherwise a late event
+        // creation failure could leave suppression tokens armed with no matching synthetic events.
+        registerSuppression(deleteCount + 1)
+        postPreparedEvents(bufferedEvents)
         lastErrorMessage = nil
         return true
     }
 
-    private func postUnicodeInsertion(_ text: String) -> Bool {
-        guard let keyDownEvent = CGEvent(keyboardEventSource: nil, virtualKey: 0, keyDown: true),
-              let keyUpEvent = CGEvent(keyboardEventSource: nil, virtualKey: 0, keyDown: false) else {
-            return false
+    private func preparedUnicodeInsertionEvents(for text: String) -> [CGEvent]? {
+        guard let keyDownEvent = makeKeyboardEvent(0, true),
+              let keyUpEvent = makeKeyboardEvent(0, false)
+        else {
+            return nil
         }
 
         let utf16CodeUnits = Array(text.utf16)
         keyDownEvent.keyboardSetUnicodeString(stringLength: utf16CodeUnits.count, unicodeString: utf16CodeUnits)
         keyUpEvent.keyboardSetUnicodeString(stringLength: utf16CodeUnits.count, unicodeString: utf16CodeUnits)
-        keyDownEvent.post(tap: .cghidEventTap)
-        keyUpEvent.post(tap: .cghidEventTap)
-        return true
+        return [keyDownEvent, keyUpEvent]
     }
 
-    private func postBackspace() -> Bool {
+    private func preparedBackspaceEvents() -> [CGEvent]? {
         let backspaceKeyCode: CGKeyCode = 51
-        guard let keyDownEvent = CGEvent(keyboardEventSource: nil, virtualKey: backspaceKeyCode, keyDown: true),
-              let keyUpEvent = CGEvent(keyboardEventSource: nil, virtualKey: backspaceKeyCode, keyDown: false) else {
-            return false
+        guard let keyDownEvent = makeKeyboardEvent(backspaceKeyCode, true),
+              let keyUpEvent = makeKeyboardEvent(backspaceKeyCode, false)
+        else {
+            return nil
         }
 
-        keyDownEvent.post(tap: .cghidEventTap)
-        keyUpEvent.post(tap: .cghidEventTap)
-        return true
+        return [keyDownEvent, keyUpEvent]
+    }
+
+    private func postPreparedEvents(_ events: [CGEvent]) {
+        for event in events {
+            postEvent(event)
+        }
     }
 }
 
