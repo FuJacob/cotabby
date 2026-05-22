@@ -282,9 +282,12 @@ enum SuggestionRequestFactory {
             // Greedy decoding makes the local fallback feel closer to Apple Intelligence: shorter,
             // steadier, and less likely to role-play. The local deterministic spell/word-completion
             // path already handles the easy token-level cases, so llama is free to be conservative.
+            // `topK` is unused when temperature is zero because the runtime switches to a greedy
+            // sampler, but we still encode "no top-k filter" explicitly here instead of leaving a
+            // sentinel that some llama runtimes interpret differently.
             return SamplingParameters(
                 temperature: 0,
-                topK: 0,
+                topK: -1,
                 topP: 1,
                 minP: 0,
                 repetitionPenalty: max(configuration.repetitionPenalty, 1.1)

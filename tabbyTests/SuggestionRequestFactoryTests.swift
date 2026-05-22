@@ -276,7 +276,7 @@ final class SuggestionRequestFactoryTests: XCTestCase {
         )
 
         XCTAssertEqual(result.request.temperature, 0)
-        XCTAssertEqual(result.request.topK, 0)
+        XCTAssertEqual(result.request.topK, -1)
         XCTAssertEqual(result.request.topP, 1)
         XCTAssertEqual(result.request.minP, 0)
         XCTAssertEqual(result.request.repetitionPenalty, 1.1)
