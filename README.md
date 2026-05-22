@@ -76,6 +76,17 @@ Everything runs on-device. No hosted API, no cloud round-trip.
 - **Visual context** -- Screenshot OCR gives the model awareness of what's on screen
 - **Low latency** -- Optimized for fast response on Apple Silicon
 
+## Compared To The Original Upstream Code
+
+This working tree currently differs from the original upstream codebase in a few behaviorally important ways:
+
+- **Richer field context from Accessibility** -- suggestions can use focused-field metadata and nearby AX text, not just the text before the caret.
+- **Prompting that understands both sides of the caret** -- request building now carries the text after the caret as a constraint, which improves completions in the middle of existing text.
+- **Stronger output cleanup** -- normalization is more aggressive about dropping generic filler, assistant-style replies, copied OCR/UI fragments, repeated draft text, and bad whole-word echoes.
+- **Faster partial-word completion** -- common word tails can be completed locally through macOS spelling/completion APIs before falling back to model generation.
+- **Better non-keyboard update handling** -- autocomplete can reschedule when the focused text changes through Accessibility without a normal key event, which helps automation and some host-app/input-method paths.
+- **More careful visual-context behavior** -- screenshot OCR remains a best-effort prompt signal; Screen Recording improves visual context but does not block plain text-only autocomplete.
+
 ## Engines
 
 **Apple Intelligence [EXPERIMENTAL]**: uses Apple's on-device `FoundationModels` runtime on macOS 26 or later, no download required. Currently does not perform as well as the Open Source models. We're actively working on improving it.
@@ -93,7 +104,7 @@ You can also drop your own `.gguf` files into tabby's models folder and refresh 
 
 1. Download the latest `tabby.dmg` from GitHub Releases.
 2. Drag `tabby.app` into `Applications` and launch it.
-3. Grant **Accessibility**, **Input Monitoring**, and **Screen Recording** when prompted.
+3. Grant **Accessibility** and **Input Monitoring** when prompted. Grant **Screen Recording** if you want screenshot-derived visual context.
 4. Pick an engine. Apple Intelligence if available, otherwise Open Source plus a model.
 5. Start typing in any supported editable field.
 
@@ -103,7 +114,7 @@ If macOS blocks first launch, right-click `tabby.app` → `Open`, or allow it in
 
 - **Accessibility**: read the focused text field's value and caret position.
 - **Input Monitoring**: detect global `Tab` presses for acceptance.
-- **Screen Recording**: capture a screenshot around the focused field for visual context (OCR).
+- **Screen Recording**: optional, used to capture a screenshot around the focused field for visual context (OCR).
 
 **Requires macOS 15.0 or later.** Apple Intelligence suggestions require macOS 26 or later; on earlier supported systems, use the Open Source engine.
 

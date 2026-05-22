@@ -40,27 +40,35 @@ enum SuggestionRequestFactory {
             from: context.precedingText,
             configuration: configuration
         )
+        let suffixText = truncatedPromptSuffix(
+            from: context.trailingText,
+            configuration: configuration
+        )
         let completionLengthInstruction = settings.selectedWordCountPreset.promptInstruction
         let userName = activeUserName(settings: settings)
         let boundedClipboardContext = activeClipboardContext(
             rawContext: clipboardContext,
             settings: settings
         )
+        let boundedFieldContext = activeFieldContext(rawContext: context.fieldContextText)
         let boundedVisualContextSummary = activeVisualContextSummary(
             rawSummary: visualContextSummary
         )
         let prompt = LlamaPromptRenderer.prompt(
             prefixText: prefixText,
+            suffixText: suffixText,
             applicationName: context.applicationName,
             completionLengthInstruction: completionLengthInstruction,
             userName: userName,
             clipboardContext: boundedClipboardContext,
+            fieldContextText: boundedFieldContext,
             visualContextSummary: boundedVisualContextSummary
         )
 
         let request = SuggestionRequest(
             context: context,
             prefixText: prefixText,
+            suffixText: suffixText,
             prompt: prompt,
             generation: context.generation,
             maxPredictionTokens: activeMaxPredictionTokens(
@@ -77,6 +85,7 @@ enum SuggestionRequestFactory {
             completionLengthInstruction: completionLengthInstruction,
             userName: userName,
             clipboardContext: boundedClipboardContext,
+            fieldContextText: boundedFieldContext,
             visualContextSummary: boundedVisualContextSummary
         )
 
@@ -86,19 +95,71 @@ enum SuggestionRequestFactory {
         )
     }
 
-    /// Keep only the latest short word tail to prevent long stale context from steering output.
+    /// Keep recent context while preserving the user's original spacing and line breaks.
+    ///
+    /// Older code split the prefix into words and joined them with single spaces. That was compact,
+    /// but it erased paragraph/list/code shape, which is exactly the signal an autocomplete model uses
+    /// to infer "what kind of thing is being written." We still bound by characters and words, but the
+    /// final slice stays verbatim.
     private static func truncatedPromptPrefix(
         from precedingText: String,
         configuration: SuggestionConfiguration
     ) -> String {
         let characterWindow = String(precedingText.suffix(configuration.maxPrefixCharacters))
-        let trailingWords = characterWindow
-            .split(whereSeparator: { $0.isWhitespace })
-            .suffix(configuration.maxPrefixWords)
-            .map(String.init)
-            .joined(separator: " ")
+        return suffixPreservingWhitespace(
+            from: characterWindow,
+            maxWords: configuration.maxPrefixWords
+        )
+    }
 
-        return trailingWords.isEmpty ? characterWindow : trailingWords
+    /// Keep only the beginning of the suffix after the caret.
+    ///
+    /// The suffix is not a second thing to complete; it is a constraint the generated text must fit
+    /// before. A short bounded window is enough for the model to avoid duplicating or contradicting
+    /// the text that is already after the insertion point.
+    private static func truncatedPromptSuffix(
+        from trailingText: String,
+        configuration: SuggestionConfiguration
+    ) -> String {
+        String(trailingText.prefix(configuration.maxSuffixCharacters))
+    }
+
+    private static func suffixPreservingWhitespace(
+        from text: String,
+        maxWords: Int
+    ) -> String {
+        guard maxWords > 0 else {
+            return text
+        }
+
+        var wordRanges: [Range<String.Index>] = []
+        var wordStart: String.Index?
+        var index = text.startIndex
+
+        while index < text.endIndex {
+            if text[index].isWhitespace {
+                if let start = wordStart {
+                    wordRanges.append(start..<index)
+                    wordStart = nil
+                }
+            } else if wordStart == nil {
+                wordStart = index
+            }
+
+            index = text.index(after: index)
+        }
+
+        if let start = wordStart {
+            wordRanges.append(start..<text.endIndex)
+        }
+
+        guard wordRanges.count > maxWords,
+              let firstKeptWordStart = wordRanges.suffix(maxWords).first?.lowerBound
+        else {
+            return text
+        }
+
+        return String(text[firstKeptWordStart...])
     }
 
     private static func activeUserName(
@@ -125,6 +186,21 @@ enum SuggestionRequestFactory {
         }
 
         return clippedText(sanitizedContext, maxCharacters: maxClipboardContextCharacters)
+    }
+
+    private static func activeFieldContext(rawContext: String?) -> String? {
+        guard let rawContext else {
+            return nil
+        }
+
+        let sanitizedContext = PromptContextSanitizer.sanitize(rawContext, maxCharacters: 500)
+        guard !sanitizedContext.isEmpty,
+              PromptContextSanitizer.containsAlphanumericSignal(sanitizedContext)
+        else {
+            return nil
+        }
+
+        return sanitizedContext
     }
 
     private static func activeVisualContextSummary(rawSummary: String?) -> String? {

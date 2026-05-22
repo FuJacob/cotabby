@@ -90,6 +90,72 @@ final class SuggestionRequestFactoryTests: XCTestCase {
         XCTAssertFalse(result.promptPreview.contains("alpha beta"))
     }
 
+    func test_buildRequest_preservesWhitespaceAndLineBreaksInsidePrefixWindow() {
+        let context = TabbyTestFixtures.focusedInputContext(
+            precedingText: "Project notes:\n- Confirm Aurora launch date\n- Ask Priya about"
+        )
+        let configuration = SuggestionConfiguration(
+            maxPredictionTokens: 8,
+            debounceMilliseconds: 0,
+            temperature: 0.1,
+            topK: 20,
+            topP: 0.7,
+            minP: 0.08,
+            repetitionPenalty: 1.05,
+            randomSeed: 42,
+            maxPrefixWords: 8,
+            maxPrefixCharacters: 200,
+            maxSuffixCharacters: 192,
+            defaultUserName: nil,
+            defaultWordCountPreset: .sevenToTwelve,
+            focusPollIntervalMilliseconds: 50
+        )
+
+        let result = SuggestionRequestFactory.buildRequest(
+            context: context,
+            settings: TabbyTestFixtures.settingsSnapshot(),
+            configuration: configuration
+        )
+
+        XCTAssertEqual(
+            result.request.prefixText,
+            "Confirm Aurora launch date\n- Ask Priya about"
+        )
+    }
+
+    func test_buildRequest_carriesBoundedTextAfterCaret() {
+        let context = TabbyTestFixtures.focusedInputContext(
+            precedingText: "Can we move",
+            trailingText: " to Friday after the customer call?"
+        )
+        let configuration = SuggestionConfiguration(
+            maxPredictionTokens: 8,
+            debounceMilliseconds: 0,
+            temperature: 0.1,
+            topK: 20,
+            topP: 0.7,
+            minP: 0.08,
+            repetitionPenalty: 1.05,
+            randomSeed: 42,
+            maxPrefixWords: 50,
+            maxPrefixCharacters: 1000,
+            maxSuffixCharacters: 10,
+            defaultUserName: nil,
+            defaultWordCountPreset: .sevenToTwelve,
+            focusPollIntervalMilliseconds: 50
+        )
+
+        let result = SuggestionRequestFactory.buildRequest(
+            context: context,
+            settings: TabbyTestFixtures.settingsSnapshot(),
+            configuration: configuration
+        )
+
+        XCTAssertEqual(result.request.suffixText, " to Friday")
+        XCTAssertTrue(result.promptPreview.contains("Text after caret:"))
+        XCTAssertTrue(result.promptPreview.contains(" to Friday"))
+    }
+
     func test_buildRequest_usesWordCountPresetForInstructionAndTokenBudget() {
         let context = TabbyTestFixtures.focusedInputContext(precedingText: "Hello world")
         let configuration = SuggestionConfiguration(
@@ -142,6 +208,26 @@ final class SuggestionRequestFactoryTests: XCTestCase {
         )
         XCTAssertTrue(result.promptPreview.contains("Casey"))
         XCTAssertTrue(result.promptPreview.contains("Calendar window says project review at 3 PM."))
+    }
+
+    func test_buildRequest_carriesFocusedFieldContext() {
+        let context = TabbyTestFixtures.focusedInputContext(
+            precedingText: "Can we",
+            fieldContextText: "Message composer\nPlaceholder Reply to Priya about Aurora launch"
+        )
+
+        let result = SuggestionRequestFactory.buildRequest(
+            context: context,
+            settings: TabbyTestFixtures.settingsSnapshot(),
+            configuration: .standard
+        )
+
+        XCTAssertEqual(
+            result.request.fieldContextText,
+            "Message composer\nPlaceholder Reply to Priya about Aurora launch"
+        )
+        XCTAssertTrue(result.promptPreview.contains("Focused field:"))
+        XCTAssertTrue(result.promptPreview.contains("Priya about Aurora launch"))
     }
 
     func test_buildRequest_sanitizesVisualContextBeforePromptInjection() {

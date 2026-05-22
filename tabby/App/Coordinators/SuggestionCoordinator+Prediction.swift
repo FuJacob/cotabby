@@ -70,6 +70,23 @@ extension SuggestionCoordinator {
         }
 
         let context = interactionState.materializeContext(from: rawContext)
+
+        if let localWordCompletion = LocalWordCompletionProvider.suggestion(for: context) {
+            latestGenerationNumber = context.generation
+            latestPromptPreview = "Local word completion for current token."
+            latestRawModelOutput = SuggestionDebugLogger.debugPreview(localWordCompletion.rawText)
+            logStage(
+                "local-word-completion",
+                workID: workID,
+                generation: context.generation,
+                message: "Using local word completion before model generation.",
+                rawOutput: localWordCompletion.rawText,
+                normalizedOutput: localWordCompletion.text
+            )
+            await apply(result: localWordCompletion, workID: workID)
+            return
+        }
+
         let visualContextSummary = visualContextCoordinator.excerpt(for: context)
         let clipboardContext = settingsSnapshot.isClipboardContextEnabled
             ? clipboardContextProvider.currentContext()
@@ -329,6 +346,7 @@ extension SuggestionCoordinator {
     func disablePredictions(reason: String) {
         cancelPredictionWork()
         resetCachedGenerationContext()
+        lastSnapshotDrivenPredictionSignature = nil
         visualContextCoordinator.cancel(resetState: true)
         interactionState.resetAll()
         clearSuggestion(clearDiagnostics: true)
@@ -346,6 +364,7 @@ extension SuggestionCoordinator {
     func disablePredictionsPreservingVisualContext(reason: String) {
         cancelPredictionWork()
         resetCachedGenerationContext()
+        lastSnapshotDrivenPredictionSignature = nil
         interactionState.resetAll()
         clearSuggestion(clearDiagnostics: true)
         hideOverlay(reason: reason)

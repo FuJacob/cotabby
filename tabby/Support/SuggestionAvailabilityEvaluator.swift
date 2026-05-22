@@ -31,11 +31,6 @@ enum SuggestionAvailabilityEvaluator {
             return "Input Monitoring permission is required before Tabby can react to typing."
         }
 
-        guard screenRecordingGranted else {
-            return "Screen Recording permission is required before Tabby can build visual context "
-                + "for autocomplete."
-        }
-
         switch focusSnapshot.capability {
         case .supported:
             return nil

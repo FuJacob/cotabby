@@ -31,19 +31,21 @@ final class LlamaVisualContextSummarizer: VisualContextSummarizing {
         let deduplicatedText = deduplicateConsecutiveLines(text)
 
         let prompt = [
-            "Task: Write a concise, 4-sentence summary of what the provided text from the application '\(applicationName)' is about.",
+            "Task: Extract the visible details from '\(applicationName)' that would help an inline autocomplete continue what the user is writing.",
             "",
             "Rules:",
-            "1. Output exactly and ONLY the summary text.",
-            "2. DO NOT add conversational filler (e.g., 'Here is the summary').",
-            "3. DO NOT add extra instructions or meta-commentary.",
-            "4. DO NOT repeat the prompt.",
+            "1. Output exactly and ONLY concise reference notes.",
+            "2. Preserve specific names, topics, dates, requests, entities, and visible message/page state.",
+            "3. Omit generic UI chrome unless it explains the user's writing task.",
+            "4. DO NOT add conversational filler (e.g., 'Here is the summary').",
+            "5. DO NOT add extra instructions or meta-commentary.",
+            "6. DO NOT repeat the prompt.",
             "",
             "--- START SCREEN TEXT ---",
             deduplicatedText,
             "--- END SCREEN TEXT ---",
             "",
-            "Summary:"
+            "Autocomplete-relevant context:"
         ].joined(separator: "\n")
 
         let result = await summarizeWithTimeout(prompt: prompt)

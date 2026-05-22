@@ -95,6 +95,20 @@ final class LlamaPromptRendererTests: XCTestCase {
         XCTAssertTrue(prompt.contains("My prefix text here"))
     }
 
+    func test_instructionPrompt_tellsModelToIgnoreUIMetadata() {
+        let prompt = LlamaPromptRenderer.prompt(
+            prefixText: "much better results",
+            applicationName: "Messages",
+            completionLengthInstruction: "Short.",
+            userName: nil,
+            visualContextSummary: "23h\nCopy\nReply"
+        )
+
+        XCTAssertTrue(prompt.contains("Ignore app chrome and UI metadata"))
+        XCTAssertTrue(prompt.contains("timestamps"))
+        XCTAssertTrue(prompt.contains("time-ago badges"))
+    }
+
     /// The completion-length instruction is chosen from the user's word-count
     /// preset. It must reach the prompt verbatim so the model sees the exact
     /// guidance the UI showed the user.
@@ -163,6 +177,33 @@ final class LlamaPromptRendererTests: XCTestCase {
 
         XCTAssertTrue(prompt.contains("Screen content:"))
         XCTAssertTrue(prompt.contains("A window describing a cat."))
+    }
+
+    func test_instructionPrompt_includesFocusedFieldContextWhenProvided() {
+        let prompt = LlamaPromptRenderer.prompt(
+            prefixText: "PREFIX",
+            applicationName: "Messages",
+            completionLengthInstruction: "Short.",
+            userName: nil,
+            fieldContextText: "Reply to Priya about Aurora launch"
+        )
+
+        XCTAssertTrue(prompt.contains("Focused field:"))
+        XCTAssertTrue(prompt.contains("Reply to Priya about Aurora launch"))
+    }
+
+    func test_instructionPrompt_includesSuffixButStillEndsWithPrefix() {
+        let prompt = LlamaPromptRenderer.prompt(
+            prefixText: "Can we move",
+            suffixText: " to Friday?",
+            applicationName: "Messages",
+            completionLengthInstruction: "Short.",
+            userName: nil
+        )
+
+        XCTAssertTrue(prompt.contains("Text after caret:"))
+        XCTAssertTrue(prompt.contains(" to Friday?"))
+        XCTAssertTrue(prompt.hasSuffix("Can we move"))
     }
 
     func test_instructionPrompt_includesClipboardContextWhenProvided() {

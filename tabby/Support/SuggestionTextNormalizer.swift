@@ -82,7 +82,409 @@ enum SuggestionTextNormalizer {
         // strips "world" so the ghost text shows only "is great".
         normalized = stripEchoPrefix(normalized, precedingText: request.context.precedingText)
 
+        normalized = stripCurrentTokenPrefixOverlap(
+            normalized,
+            precedingText: request.context.precedingText
+        )
+
+        normalized = repairedWordBoundaryIfNeeded(
+            normalized,
+            precedingText: request.context.precedingText
+        )
+
+        guard !isLikelyUIMetadataLeak(normalized) else {
+            return ""
+        }
+
+        guard !isLikelyOCRCorruption(normalized) else {
+            return ""
+        }
+
+        guard !isLikelyAuxiliaryContextCopy(normalized, for: request) else {
+            return ""
+        }
+
+        guard !isLikelyAnswerInsteadOfContinuation(normalized, for: request) else {
+            return ""
+        }
+
+        guard !isAssistantMetaResponse(normalized) else {
+            return ""
+        }
+
+        guard !containsLongRepeatedPhraseFromDraft(normalized, precedingText: request.context.precedingText) else {
+            return ""
+        }
+
+        guard !isShortPhraseCopiedFromDraft(normalized, precedingText: request.context.precedingText) else {
+            return ""
+        }
+
+        guard !isLowValueGenericContinuation(normalized, for: request) else {
+            return ""
+        }
+
         return normalized
+    }
+
+    /// Rejects short filler completions that are grammatically plausible but context-poor.
+    ///
+    /// The model can always finish "what should I" with "be doing" or "do next"; showing that in the
+    /// overlay is worse than showing nothing because it teaches the user the app is guessing. This
+    /// gate is deliberately narrow: it only catches tiny, common autocomplete clichés after the model
+    /// has already produced them.
+    private static func isLowValueGenericContinuation(
+        _ suggestion: String,
+        for request: SuggestionRequest
+    ) -> Bool {
+        let compact = suggestion
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+            .trimmingCharacters(in: CharacterSet(charactersIn: ".?!,;: "))
+
+        guard !compact.isEmpty else {
+            return false
+        }
+
+        let hardBlockedPhrases: Set<String> = [
+            "be doing",
+            "be doing next",
+            "do next",
+            "write next",
+            "say next",
+            "type next",
+            "be writing",
+            "be saying",
+            "be typing"
+        ]
+        if hardBlockedPhrases.contains(compact) {
+            return true
+        }
+
+        let words = compact.split(whereSeparator: { $0.isWhitespace }).map(String.init)
+        guard words.count <= 4 else {
+            return false
+        }
+
+        let genericWords: Set<String> = [
+            "be", "do", "doing", "next", "now", "here", "there",
+            "this", "that", "thing", "something", "anything", "write",
+            "say", "type", "continue", "more", "better"
+        ]
+
+        let hasOnlyGenericWords = words.allSatisfy { genericWords.contains($0) }
+        guard hasOnlyGenericWords else {
+            return false
+        }
+
+        return lacksConcreteAuxiliaryContext(request)
+    }
+
+    /// Rejects short suggestions that look copied from surrounding app chrome rather than generated
+    /// from the user's draft. This catches chat timestamps like "23h" and "(23 hrs)" even if the model
+    /// ignored the prompt instruction to treat visible text as reference material.
+    private static func isLikelyUIMetadataLeak(_ suggestion: String) -> Bool {
+        let compact = suggestion
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+
+        guard !compact.isEmpty else {
+            return false
+        }
+
+        if PromptContextSanitizer.isStandaloneUIMetadata(compact) {
+            return true
+        }
+
+        let words = compact.split { !$0.isLetter && !$0.isNumber }
+        guard words.count <= 4 else {
+            return false
+        }
+
+        let relativeTimePattern =
+            #"(?i)(^|\s|\()\d{1,3}\s*(s|sec|secs|second|seconds|m|min|mins|minute|minutes|h|hr|hrs|hour|hours|d|day|days|w|wk|wks|week|weeks|mo|mos|month|months|y|yr|yrs|year|years)\b(\)|$|\s)"#
+
+        return compact.range(
+            of: relativeTimePattern,
+            options: .regularExpression
+        ) != nil
+    }
+
+    /// Drops visible OCR mistakes before they reach the overlay. Mixed letter/number words such as
+    /// "5hould" and "rendera5" are rarely intentional autocomplete content; they usually mean OCR or a
+    /// copied UI fragment leaked through the prompt context.
+    private static func isLikelyOCRCorruption(_ suggestion: String) -> Bool {
+        let words = suggestion
+            .split { !$0.isLetter && !$0.isNumber }
+            .map(String.init)
+
+        return words.contains { word in
+            let scalarView = word.unicodeScalars
+            let hasLetter = scalarView.contains { CharacterSet.letters.contains($0) }
+            let hasNumber = scalarView.contains { CharacterSet.decimalDigits.contains($0) }
+            guard hasLetter, hasNumber else {
+                return false
+            }
+
+            let lowercased = word.lowercased()
+            if lowercased.contains("@") || lowercased.contains(".") {
+                return false
+            }
+
+            return true
+        }
+    }
+
+    /// Prevents the model from turning screen/field context into the continuation itself.
+    ///
+    /// We still want context to contribute names and topics. What we do not want is a long copied
+    /// fragment from the chat/document above the input, especially when OCR has already distorted it.
+    /// The threshold deliberately starts at five words so short useful completions like "the timeline"
+    /// can still reuse concrete context words.
+    private static func isLikelyAuxiliaryContextCopy(
+        _ suggestion: String,
+        for request: SuggestionRequest
+    ) -> Bool {
+        let suggestionTokens = comparableContextTokens(from: suggestion)
+        guard suggestionTokens.count >= 5 else {
+            return false
+        }
+
+        let auxiliaryText = [
+            request.fieldContextText,
+            request.visualContextSummary,
+            request.clipboardContext
+        ]
+            .compactMap { $0 }
+            .joined(separator: "\n")
+
+        let auxiliaryTokens = Set(comparableContextTokens(from: auxiliaryText))
+        guard !auxiliaryTokens.isEmpty else {
+            return false
+        }
+
+        let overlapCount = suggestionTokens.filter { auxiliaryTokens.contains($0) }.count
+        let longOverlapCount = suggestionTokens.filter {
+            $0.count >= 4 && auxiliaryTokens.contains($0)
+        }.count
+        let overlapRatio = Double(overlapCount) / Double(suggestionTokens.count)
+
+        return overlapRatio >= 0.65 && longOverlapCount >= 3
+    }
+
+    /// Rejects completions where the model answers text the user is composing instead of continuing it.
+    /// This is common with question-shaped drafts such as "do you think..." where small instruct
+    /// models return "sure, I think..." as if they were the recipient.
+    private static func isLikelyAnswerInsteadOfContinuation(
+        _ suggestion: String,
+        for request: SuggestionRequest
+    ) -> Bool {
+        let draft = request.context.precedingText
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+        let response = suggestion
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+
+        guard !draft.isEmpty, !response.isEmpty else {
+            return false
+        }
+
+        let questionStems = [
+            "do you", "does this", "did you", "can you", "could you", "would you",
+            "should we", "should i", "what", "why", "how", "when", "where",
+            "is it", "are we", "will we", "will it"
+        ]
+        let looksQuestionLike = questionStems.contains { draft.hasPrefix($0) }
+            || draft.contains("?")
+        guard looksQuestionLike else {
+            return false
+        }
+
+        let answerPrefixes = [
+            "sure", "yes", "yeah", "yep", "no", "nope", "i think", "i don't think",
+            "probably", "maybe", "it should", "we should", "we will", "you should"
+        ]
+        return answerPrefixes.contains { prefix in
+            response == prefix
+                || response.hasPrefix("\(prefix),")
+                || response.hasPrefix("\(prefix) ")
+        }
+    }
+
+    /// Rejects chat-assistant boilerplate that should never appear in inline autocomplete.
+    ///
+    /// Tabby is not asking the model to be an assistant in a conversation; it is asking for raw text
+    /// that can be inserted into the user's focused field. Phrases like "as an LLM" or "I can't"
+    /// mean the model broke role, so the safest UI behavior is to show no suggestion.
+    private static func isAssistantMetaResponse(_ suggestion: String) -> Bool {
+        let compact = suggestion
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+
+        guard !compact.isEmpty else {
+            return false
+        }
+
+        let blockedPrefixes = [
+            "i'm sorry",
+            "i am sorry",
+            "sorry, but",
+            "as an ai",
+            "as a language model",
+            "as an llm",
+            "i can't",
+            "i cannot",
+            "i'm unable",
+            "i am unable"
+        ]
+        if blockedPrefixes.contains(where: { compact.hasPrefix($0) }) {
+            return true
+        }
+
+        let blockedFragments = [
+            "as an ai",
+            "as a language model",
+            "as an llm",
+            "created by openai",
+            "created by an ai",
+            "i don't have access",
+            "i do not have access",
+            "i can't assist",
+            "i cannot assist"
+        ]
+        return blockedFragments.contains { compact.contains($0) }
+    }
+
+    /// Catches model output that is not a prefix echo but still reuses a long interior phrase from the
+    /// draft. In the UI this reads like the suggestion is talking back to the user or looping over the
+    /// sentence already typed.
+    private static func containsLongRepeatedPhraseFromDraft(
+        _ suggestion: String,
+        precedingText: String
+    ) -> Bool {
+        let suggestionTokens = comparableContextTokens(from: suggestion)
+        let precedingTokens = comparableContextTokens(from: precedingText)
+        guard suggestionTokens.count >= 5, precedingTokens.count >= 5 else {
+            return false
+        }
+
+        let minimumOverlap = 4
+        var precedingPhrases = Set<String>()
+        for length in minimumOverlap...min(precedingTokens.count, 8) {
+            guard precedingTokens.count >= length else { continue }
+            for start in 0...(precedingTokens.count - length) {
+                precedingPhrases.insert(precedingTokens[start..<(start + length)].joined(separator: " "))
+            }
+        }
+
+        for length in minimumOverlap...min(suggestionTokens.count, 8) {
+            guard suggestionTokens.count >= length else { continue }
+            for start in 0...(suggestionTokens.count - length) {
+                let phrase = suggestionTokens[start..<(start + length)].joined(separator: " ")
+                if precedingPhrases.contains(phrase) {
+                    return true
+                }
+            }
+        }
+
+        return false
+    }
+
+    /// Blocks short copied phrases that are too small for the long-overlap detector.
+    ///
+    /// Autocomplete may reuse one concrete word from the draft, but a whole two- or three-word
+    /// phrase from earlier in the same field usually reads as a loop. The user is already past that
+    /// phrase; showing it again after the caret is worse than showing no suggestion.
+    private static func isShortPhraseCopiedFromDraft(
+        _ suggestion: String,
+        precedingText: String
+    ) -> Bool {
+        let suggestionTokens = comparableContextTokens(from: suggestion)
+        guard (2...4).contains(suggestionTokens.count) else {
+            return false
+        }
+
+        let precedingTokens = comparableContextTokens(from: precedingText)
+        guard precedingTokens.count > suggestionTokens.count else {
+            return false
+        }
+
+        for start in 0...(precedingTokens.count - suggestionTokens.count) {
+            let candidate = Array(precedingTokens[start..<(start + suggestionTokens.count)])
+            if candidate == suggestionTokens {
+                return true
+            }
+        }
+
+        return false
+    }
+
+    /// Fixes a narrow but common model formatting error: after a lowercase word, some small models
+    /// return a title-cased next word without the required leading space. We repair that exact shape
+    /// so "this" + "Text Okay" displays as "this Text Okay" instead of "thisText Okay".
+    private static func repairedWordBoundaryIfNeeded(
+        _ suggestion: String,
+        precedingText: String
+    ) -> String {
+        guard let firstSuggestionScalar = suggestion.unicodeScalars.first,
+              let lastPrecedingScalar = precedingText.unicodeScalars.last,
+              CharacterSet.uppercaseLetters.contains(firstSuggestionScalar),
+              CharacterSet.lowercaseLetters.contains(lastPrecedingScalar)
+        else {
+            return suggestion
+        }
+
+        return " \(suggestion)"
+    }
+
+    private static func trailingToken(in text: String) -> String {
+        guard let range = text.range(
+            of: #"[A-Za-z0-9_]+$"#,
+            options: .regularExpression
+        ) else {
+            return ""
+        }
+
+        return String(text[range])
+    }
+
+    private static func comparableContextTokens(from text: String) -> [String] {
+        let normalized = text
+            .lowercased()
+            .replacingOccurrences(of: "5", with: "s")
+            .replacingOccurrences(of: "0", with: "o")
+            .replacingOccurrences(of: "1", with: "i")
+
+        return normalized
+            .split { !$0.isLetter && !$0.isNumber }
+            .map(String.init)
+            .filter { !$0.isEmpty }
+    }
+
+    private static func lacksConcreteAuxiliaryContext(_ request: SuggestionRequest) -> Bool {
+        let auxiliaryContext = [
+            request.fieldContextText,
+            request.visualContextSummary,
+            request.clipboardContext,
+            request.suffixText
+        ]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .joined(separator: "\n")
+
+        guard !auxiliaryContext.isEmpty else {
+            return true
+        }
+
+        let contentWords = auxiliaryContext
+            .lowercased()
+            .split { !$0.isLetter && !$0.isNumber }
+            .filter { $0.count >= 4 }
+
+        return contentWords.count < 3
     }
 
     /// Finds the longest suffix of `precedingText` (at any word offset) that matches a prefix
@@ -128,6 +530,73 @@ enum SuggestionTextNormalizer {
             return ""
         }
 
-        return suggestionWords.dropFirst(bestOverlap).joined(separator: " ")
+        let remainder = suggestionWords.dropFirst(bestOverlap).joined(separator: " ")
+        if needsInsertedWordBoundary(
+            before: remainder,
+            after: precedingText
+        ) {
+            return " \(remainder)"
+        }
+
+        return remainder
+    }
+
+    /// Converts whole-word model output into the missing mid-word tail.
+    ///
+    /// Local models often return the completed word even when the user has already typed its prefix:
+    /// `minu` -> `minutes?`. Inline autocomplete inserts exactly what the overlay shows, so keeping
+    /// the whole word would produce `minuminutes?`. Stripping the current token overlap makes the
+    /// displayed ghost text behave like system autocomplete: only `tes?` is offered.
+    private static func stripCurrentTokenPrefixOverlap(
+        _ suggestion: String,
+        precedingText: String
+    ) -> String {
+        guard let firstSuggestionScalar = suggestion.unicodeScalars.first,
+              CharacterSet.alphanumerics.contains(firstSuggestionScalar)
+        else {
+            return suggestion
+        }
+
+        let currentToken = trailingToken(in: precedingText)
+        guard !currentToken.isEmpty,
+              suggestion.count > currentToken.count,
+              suggestion.lowercased().hasPrefix(currentToken.lowercased())
+        else {
+            return suggestion
+        }
+
+        let remainderStart = suggestion.index(
+            suggestion.startIndex,
+            offsetBy: currentToken.count
+        )
+        let remainder = String(suggestion[remainderStart...])
+        let compactRemainder = remainder.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // A one-character tail like "r" (for "bette" -> "better") reads as noisy in the overlay
+        // and users perceive it as a regression. We drop this shape and let the pipeline request a
+        // richer continuation instead of surfacing micro-completions.
+        if !compactRemainder.contains(where: \.isWhitespace),
+           compactRemainder.count <= 1 {
+            return ""
+        }
+
+        return remainder
+    }
+
+    /// Echo stripping rebuilds text from word tokens, so it can accidentally remove the separator
+    /// between the user's last typed word and the remaining suggestion. If the remainder begins with a
+    /// letter/number and the draft also ends with one, restore the natural word boundary.
+    private static func needsInsertedWordBoundary(
+        before suggestion: String,
+        after precedingText: String
+    ) -> Bool {
+        guard let firstSuggestionScalar = suggestion.unicodeScalars.first,
+              let lastPrecedingScalar = precedingText.unicodeScalars.last
+        else {
+            return false
+        }
+
+        return CharacterSet.alphanumerics.contains(firstSuggestionScalar)
+            && CharacterSet.alphanumerics.contains(lastPrecedingScalar)
     }
 }

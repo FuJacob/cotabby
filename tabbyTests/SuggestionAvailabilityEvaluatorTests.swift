@@ -87,7 +87,7 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
                       "reason should point the user at the permission they need to grant")
     }
 
-    func test_disabledReason_whenScreenRecordingDenied_mentionsPermission() {
+    func test_disabledReason_whenScreenRecordingDenied_doesNotDisableAutocomplete() {
         let reason = SuggestionAvailabilityEvaluator.disabledReason(
             globallyEnabled: true,
             inputMonitoringGranted: true,
@@ -95,9 +95,7 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
             focusSnapshot: makeSnapshot(capability: .supported)
         )
 
-        XCTAssertNotNil(reason)
-        XCTAssertTrue(reason?.contains("Screen Recording") ?? false,
-                      "reason should point the user at the permission needed for visual context")
+        XCTAssertNil(reason)
     }
 
     // MARK: - disabledReason: guard ordering
@@ -248,7 +246,7 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
         XCTAssertFalse(ok)
     }
 
-    func test_shouldSchedulePrediction_falseWhenScreenRecordingDenied() {
+    func test_shouldSchedulePrediction_trueWhenScreenRecordingDenied() {
         let ok = SuggestionAvailabilityEvaluator.shouldSchedulePrediction(
             globallyEnabled: true,
             inputMonitoringGranted: true,
@@ -256,7 +254,7 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
             focusSnapshot: makeSnapshot(capability: .supported)
         )
 
-        XCTAssertFalse(ok)
+        XCTAssertTrue(ok)
     }
 
     func test_visualContextReadyScheduling_trueWhenElementAndFocusSequenceMatch() {

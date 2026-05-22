@@ -23,6 +23,7 @@ enum TabbyTestFixtures {
         observedCharWidth: CGFloat? = nil,
         precedingText: String = "Hello",
         trailingText: String = "",
+        fieldContextText: String? = nil,
         selection: NSRange? = nil,
         isSecure: Bool = false,
         focusChangeSequence: UInt64 = 1
@@ -44,6 +45,7 @@ enum TabbyTestFixtures {
             observedCharWidth: observedCharWidth,
             precedingText: precedingText,
             trailingText: trailingText,
+            fieldContextText: fieldContextText,
             selection: resolvedSelection,
             isSecure: isSecure,
             focusChangeSequence: focusChangeSequence
@@ -61,6 +63,7 @@ enum TabbyTestFixtures {
         observedCharWidth: CGFloat? = nil,
         precedingText: String = "Hello",
         trailingText: String = "",
+        fieldContextText: String? = nil,
         selection: NSRange? = nil,
         isSecure: Bool = false,
         focusChangeSequence: UInt64 = 1,
@@ -78,6 +81,7 @@ enum TabbyTestFixtures {
                 observedCharWidth: observedCharWidth,
                 precedingText: precedingText,
                 trailingText: trailingText,
+                fieldContextText: fieldContextText,
                 selection: selection,
                 isSecure: isSecure,
                 focusChangeSequence: focusChangeSequence
@@ -88,6 +92,7 @@ enum TabbyTestFixtures {
 
     static func suggestionRequest(
         prefixText: String = "Hello",
+        suffixText: String = "",
         prompt: String = "PROMPT",
         precedingText: String? = nil,
         trailingText: String = "",
@@ -96,6 +101,7 @@ enum TabbyTestFixtures {
         completionLengthInstruction: String = "Return only the next few words.",
         userName: String? = nil,
         clipboardContext: String? = nil,
+        fieldContextText: String? = nil,
         visualContextSummary: String? = nil
     ) -> SuggestionRequest {
         let resolvedPrecedingText = precedingText ?? prefixText
@@ -108,6 +114,7 @@ enum TabbyTestFixtures {
         return SuggestionRequest(
             context: context,
             prefixText: prefixText,
+            suffixText: suffixText,
             prompt: prompt,
             generation: generation,
             maxPredictionTokens: maxPredictionTokens,
@@ -121,6 +128,7 @@ enum TabbyTestFixtures {
             completionLengthInstruction: completionLengthInstruction,
             userName: userName,
             clipboardContext: clipboardContext,
+            fieldContextText: fieldContextText,
             visualContextSummary: visualContextSummary
         )
     }

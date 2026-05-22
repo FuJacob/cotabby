@@ -15,6 +15,7 @@ extension SuggestionCoordinator {
     func stop() {
         cancelPredictionWork()
         resetCachedGenerationContext()
+        lastSnapshotDrivenPredictionSignature = nil
         visualContextCoordinator.cancel(resetState: true)
         hideOverlay(reason: "Overlay hidden because Tabby stopped observing suggestions.")
         inputMonitor.onEvent = nil
@@ -29,6 +30,7 @@ extension SuggestionCoordinator {
     func prepareForRuntimeModelSwitch() {
         cancelPredictionWork()
         resetCachedGenerationContext()
+        lastSnapshotDrivenPredictionSignature = nil
         interactionState.resetAll()
         visualContextCoordinator.cancel(resetState: true)
         clearSuggestion(clearDiagnostics: true)
@@ -50,6 +52,7 @@ extension SuggestionCoordinator {
         settingsSnapshot = snapshot
         cancelPredictionWork()
         resetCachedGenerationContext()
+        lastSnapshotDrivenPredictionSignature = nil
         clearSuggestion(clearDiagnostics: true)
         hideOverlay(reason: "Overlay hidden because autocomplete settings changed.")
         state = .idle

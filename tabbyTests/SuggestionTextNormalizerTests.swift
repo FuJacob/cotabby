@@ -102,7 +102,77 @@ final class SuggestionTextNormalizerTests: XCTestCase {
             for: request
         )
 
-        XCTAssertEqual(normalized, "matcha in the morning")
+        XCTAssertEqual(normalized, " matcha in the morning")
+    }
+
+    func test_normalize_preservesWordBoundaryAfterStrippingEchoedTailWord() {
+        let request = TabbyTestFixtures.suggestionRequest(
+            prefixText: "stuff like this",
+            precedingText: "stuff like this"
+        )
+
+        let normalized = SuggestionTextNormalizer.normalize(
+            "this Text Okay",
+            for: request
+        )
+
+        XCTAssertEqual(normalized, " Text Okay")
+    }
+
+    func test_normalize_repairsMissingSpaceBeforeTitleCaseSuggestion() {
+        let request = TabbyTestFixtures.suggestionRequest(
+            prefixText: "stuff like this",
+            precedingText: "stuff like this"
+        )
+
+        let normalized = SuggestionTextNormalizer.normalize(
+            "Text Okay",
+            for: request
+        )
+
+        XCTAssertEqual(normalized, " Text Okay")
+    }
+
+    func test_normalize_stripsAlreadyTypedPrefixFromWholeWordCompletion() {
+        let request = TabbyTestFixtures.suggestionRequest(
+            prefixText: "so what else have you been doing for the lasdt 30 minu",
+            precedingText: "so what else have you been doing for the lasdt 30 minu"
+        )
+
+        let normalized = SuggestionTextNormalizer.normalize(
+            "minutes?",
+            for: request
+        )
+
+        XCTAssertEqual(normalized, "tes?")
+    }
+
+    func test_normalize_dropsSingleLetterTailFromWholeWordCompletion() {
+        let request = TabbyTestFixtures.suggestionRequest(
+            prefixText: "I am now testing the app to see if it is any bette",
+            precedingText: "I am now testing the app to see if it is any bette"
+        )
+
+        let normalized = SuggestionTextNormalizer.normalize(
+            "better",
+            for: request
+        )
+
+        XCTAssertEqual(normalized, "")
+    }
+
+    func test_normalize_stripsAlreadyTypedPrefixFromWholePhraseCompletion() {
+        let request = TabbyTestFixtures.suggestionRequest(
+            prefixText: "I will check the docum",
+            precedingText: "I will check the docum"
+        )
+
+        let normalized = SuggestionTextNormalizer.normalize(
+            "document tomorrow",
+            for: request
+        )
+
+        XCTAssertEqual(normalized, "ent tomorrow")
     }
 
     func test_normalize_returnsEmptyWhenSuggestionIsOnlyAnEchoedTailWord() {
@@ -111,5 +181,241 @@ final class SuggestionTextNormalizerTests: XCTestCase {
         let normalized = SuggestionTextNormalizer.normalize("world", for: request)
 
         XCTAssertEqual(normalized, "")
+    }
+
+    func test_normalize_dropsLowValueGenericQuestionCompletion() {
+        let request = TabbyTestFixtures.suggestionRequest(
+            prefixText: "I am now testing this. What should I",
+            precedingText: "I am now testing this. What should I"
+        )
+
+        let normalized = SuggestionTextNormalizer.normalize(" be doing.", for: request)
+
+        XCTAssertEqual(normalized, "")
+    }
+
+    func test_normalize_keepsConcreteContinuationEvenWhenShort() {
+        let request = TabbyTestFixtures.suggestionRequest(
+            prefixText: "Ask Priya about",
+            precedingText: "Ask Priya about",
+            fieldContextText: "Aurora launch review\nCustomer timeline"
+        )
+
+        let normalized = SuggestionTextNormalizer.normalize(" the timeline", for: request)
+
+        XCTAssertEqual(normalized, " the timeline")
+    }
+
+    func test_normalize_dropsStandaloneRelativeTimestampCopiedFromUI() {
+        let request = TabbyTestFixtures.suggestionRequest(
+            prefixText: "much better results",
+            precedingText: "much better results",
+            fieldContextText: "Copy\n23h\nLike"
+        )
+
+        let normalized = SuggestionTextNormalizer.normalize(" 23h", for: request)
+
+        XCTAssertEqual(normalized, "")
+    }
+
+    func test_normalize_dropsShortSuggestionWithParenthesizedTimestamp() {
+        let request = TabbyTestFixtures.suggestionRequest(
+            prefixText: "much better results",
+            precedingText: "much better results",
+            fieldContextText: "Copy\n23 hrs\nReply"
+        )
+
+        let normalized = SuggestionTextNormalizer.normalize(" this (23 hrs)", for: request)
+
+        XCTAssertEqual(normalized, "")
+    }
+
+    func test_normalize_keepsNaturalDurationPhraseWhenItHasDraftMeaning() {
+        let request = TabbyTestFixtures.suggestionRequest(
+            prefixText: "The benchmark recovered",
+            precedingText: "The benchmark recovered"
+        )
+
+        let normalized = SuggestionTextNormalizer.normalize(" after 23 hours of testing", for: request)
+
+        XCTAssertEqual(normalized, " after 23 hours of testing")
+    }
+
+    func test_normalize_dropsOCRCorruptedWordsCopiedFromVisibleContext() {
+        let request = TabbyTestFixtures.suggestionRequest(
+            prefixText: "i still get a",
+            precedingText: "i still get a",
+            visualContextSummary: "So it should render as this Text Okay not thisText Okay"
+        )
+
+        let normalized = SuggestionTextNormalizer.normalize(
+            " 5hould rendera5 this Text Okay not this",
+            for: request
+        )
+
+        XCTAssertEqual(normalized, "")
+    }
+
+    func test_normalize_dropsLongSuggestionMostlyCopiedFromAuxiliaryContext() {
+        let request = TabbyTestFixtures.suggestionRequest(
+            prefixText: "i still get a",
+            precedingText: "i still get a",
+            visualContextSummary: "So it should render as this Text Okay not thisText Okay"
+        )
+
+        let normalized = SuggestionTextNormalizer.normalize(
+            " should render as this Text Okay",
+            for: request
+        )
+
+        XCTAssertEqual(normalized, "")
+    }
+
+    func test_normalize_keepsShortConcreteReuseFromAuxiliaryContext() {
+        let request = TabbyTestFixtures.suggestionRequest(
+            prefixText: "Ask Priya about",
+            precedingText: "Ask Priya about",
+            visualContextSummary: "Aurora launch review\nCustomer timeline"
+        )
+
+        let normalized = SuggestionTextNormalizer.normalize(" the timeline", for: request)
+
+        XCTAssertEqual(normalized, " the timeline")
+    }
+
+    func test_normalize_dropsQuestionAnswerInsteadOfContinuation() {
+        let request = TabbyTestFixtures.suggestionRequest(
+            prefixText: "do you think we will get it today, experme",
+            precedingText: "do you think we will get it today, experme"
+        )
+
+        let normalized = SuggestionTextNormalizer.normalize(
+            " sure, i think we will get it today, exper",
+            for: request
+        )
+
+        XCTAssertEqual(normalized, "")
+    }
+
+    func test_normalize_dropsAssistantMetaResponse() {
+        let request = TabbyTestFixtures.suggestionRequest(
+            prefixText: "still exac",
+            precedingText: "still exac"
+        )
+
+        let normalized = SuggestionTextNormalizer.normalize(
+            " I'm sorry, but as an LLM created by",
+            for: request
+        )
+
+        XCTAssertEqual(normalized, "")
+    }
+
+    func test_normalize_dropsInteriorDraftPhraseRepetition() {
+        let request = TabbyTestFixtures.suggestionRequest(
+            prefixText: "do you think we will get it today, experme",
+            precedingText: "do you think we will get it today, experme"
+        )
+
+        let normalized = SuggestionTextNormalizer.normalize(
+            " hopefully think we will get it today before lunch",
+            for: request
+        )
+
+        XCTAssertEqual(normalized, "")
+    }
+
+    func test_normalize_dropsShortPhraseCopiedFromEarlierDraft() {
+        let request = TabbyTestFixtures.suggestionRequest(
+            prefixText: "lets see if the test passes. i will try",
+            precedingText: "lets see if the test passes. i will try"
+        )
+
+        let normalized = SuggestionTextNormalizer.normalize(
+            " test passes.",
+            for: request
+        )
+
+        XCTAssertEqual(normalized, "")
+    }
+
+    func test_normalize_dropsNewPhraseAfterLikelyUnfinishedLongToken() {
+        let request = TabbyTestFixtures.suggestionRequest(
+            prefixText: "do you think we will get it today, experme",
+            precedingText: "do you think we will get it today, experme"
+        )
+
+        let normalized = SuggestionTextNormalizer.normalize(
+            " sure, i can check",
+            for: request
+        )
+
+        XCTAssertEqual(normalized, "")
+    }
+
+    func test_normalize_keepsQuestionContinuationWhenItDoesNotAnswer() {
+        let request = TabbyTestFixtures.suggestionRequest(
+            prefixText: "do you think we will get it today, experme",
+            precedingText: "do you think we will get it today, experme"
+        )
+
+        let normalized = SuggestionTextNormalizer.normalize(
+            "ntal build or tomorrow",
+            for: request
+        )
+
+        XCTAssertEqual(normalized, "ntal build or tomorrow")
+    }
+}
+
+final class LocalWordCompletionCandidateReducerTests: XCTestCase {
+    func test_currentToken_returnsPartialWordAtCaret() {
+        XCTAssertEqual(
+            LocalWordCompletionCandidateReducer.currentToken(in: "the last 30 minu"),
+            "minu"
+        )
+    }
+
+    func test_currentToken_ignoresCompletedWordWithTrailingSpace() {
+        XCTAssertNil(
+            LocalWordCompletionCandidateReducer.currentToken(in: "the last 30 minutes ")
+        )
+    }
+
+    func test_suggestionTail_returnsOnlyMissingSuffix() {
+        let tail = LocalWordCompletionCandidateReducer.suggestionTail(
+            currentToken: "minu",
+            candidates: ["minimum", "minute", "minutes"]
+        )
+
+        XCTAssertEqual(tail, "te")
+    }
+
+    func test_suggestionTail_prefersPluralAfterNumber() {
+        let tail = LocalWordCompletionCandidateReducer.suggestionTail(
+            currentToken: "minu",
+            candidates: ["minimum", "minute", "minutes"],
+            precedingText: "the last 30 minu"
+        )
+
+        XCTAssertEqual(tail, "tes")
+    }
+
+    func test_suggestionTail_rejectsCandidateWithoutTokenPrefix() {
+        let tail = LocalWordCompletionCandidateReducer.suggestionTail(
+            currentToken: "exac",
+            candidates: ["answer", "maybe"]
+        )
+
+        XCTAssertNil(tail)
+    }
+
+    func test_suggestionTail_rejectsSingleCharacterTail() {
+        let tail = LocalWordCompletionCandidateReducer.suggestionTail(
+            currentToken: "bette",
+            candidates: ["better"]
+        )
+
+        XCTAssertNil(tail)
     }
 }
