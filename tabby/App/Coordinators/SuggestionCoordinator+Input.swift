@@ -13,7 +13,6 @@ extension SuggestionCoordinator {
             globallyEnabled: settingsSnapshot.isGloballyEnabled,
             disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
             inputMonitoringGranted: permissionManager.inputMonitoringGranted,
-            screenRecordingGranted: permissionManager.screenRecordingGranted,
             focusSnapshot: focusModel.snapshot
         ) {
             handleSupportedSnapshot(focusModel.snapshot)
@@ -34,7 +33,6 @@ extension SuggestionCoordinator {
             globallyEnabled: settingsSnapshot.isGloballyEnabled,
             disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
             inputMonitoringGranted: permissionManager.inputMonitoringGranted,
-            screenRecordingGranted: permissionManager.screenRecordingGranted,
             focusSnapshot: snapshot
         ) {
             disablePredictionsPreservingVisualContext(reason: disabledReason)
@@ -124,7 +122,6 @@ extension SuggestionCoordinator {
             globallyEnabled: settingsSnapshot.isGloballyEnabled,
             disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
             inputMonitoringGranted: permissionManager.inputMonitoringGranted,
-            screenRecordingGranted: permissionManager.screenRecordingGranted,
             focusSnapshot: focusModel.snapshot
         ) {
             disablePredictions(reason: disabledReason)

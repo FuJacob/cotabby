@@ -266,6 +266,39 @@ final class SuggestionRequestFactoryTests: XCTestCase {
         XCTAssertTrue(result.promptPreview.contains("Calendar window says project review at 3 PM."))
     }
 
+    func test_buildRequest_usesGreedySamplingForOpenSourceEngine() {
+        let context = TabbyTestFixtures.focusedInputContext(precedingText: "Hello")
+
+        let result = SuggestionRequestFactory.buildRequest(
+            context: context,
+            settings: TabbyTestFixtures.settingsSnapshot(selectedEngine: .llamaOpenSource),
+            configuration: .standard
+        )
+
+        XCTAssertEqual(result.request.temperature, 0)
+        XCTAssertEqual(result.request.topK, 0)
+        XCTAssertEqual(result.request.topP, 1)
+        XCTAssertEqual(result.request.minP, 0)
+        XCTAssertEqual(result.request.repetitionPenalty, 1.1)
+    }
+
+    func test_buildRequest_preservesConfiguredSamplingForAppleEngine() {
+        let context = TabbyTestFixtures.focusedInputContext(precedingText: "Hello")
+        let standard = SuggestionConfiguration.standard
+
+        let result = SuggestionRequestFactory.buildRequest(
+            context: context,
+            settings: TabbyTestFixtures.settingsSnapshot(selectedEngine: .appleIntelligence),
+            configuration: standard
+        )
+
+        XCTAssertEqual(result.request.temperature, standard.temperature)
+        XCTAssertEqual(result.request.topK, standard.topK)
+        XCTAssertEqual(result.request.topP, standard.topP)
+        XCTAssertEqual(result.request.minP, standard.minP)
+        XCTAssertEqual(result.request.repetitionPenalty, standard.repetitionPenalty)
+    }
+
     func test_buildRequest_carriesClipboardContextWhenEnabled() {
         let context = TabbyTestFixtures.focusedInputContext(precedingText: "Hello")
 

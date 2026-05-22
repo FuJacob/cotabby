@@ -11,7 +11,6 @@ extension SuggestionCoordinator {
             globallyEnabled: settingsSnapshot.isGloballyEnabled,
             disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
             inputMonitoringGranted: permissionManager.inputMonitoringGranted,
-            screenRecordingGranted: permissionManager.screenRecordingGranted,
             focusSnapshot: focusModel.snapshot
         ) {
             disablePredictions(reason: disabledReason)
@@ -50,7 +49,6 @@ extension SuggestionCoordinator {
             globallyEnabled: settingsSnapshot.isGloballyEnabled,
             disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
             inputMonitoringGranted: permissionManager.inputMonitoringGranted,
-            screenRecordingGranted: permissionManager.screenRecordingGranted,
             focusSnapshot: snapshot
         ) {
             disablePredictions(reason: disabledReason)
@@ -70,6 +68,22 @@ extension SuggestionCoordinator {
         }
 
         let context = interactionState.materializeContext(from: rawContext)
+
+        if let localSpellCorrection = LocalSpellCorrectionProvider.suggestion(for: context) {
+            latestGenerationNumber = context.generation
+            latestPromptPreview = "Local spell correction for current text."
+            latestRawModelOutput = SuggestionDebugLogger.debugPreview(localSpellCorrection.rawText)
+            logStage(
+                "local-spell-correction",
+                workID: workID,
+                generation: context.generation,
+                message: "Using local spell correction before model generation.",
+                rawOutput: localSpellCorrection.rawText,
+                normalizedOutput: localSpellCorrection.text
+            )
+            await apply(result: localSpellCorrection, workID: workID)
+            return
+        }
 
         if let localWordCompletion = LocalWordCompletionProvider.suggestion(for: context) {
             latestGenerationNumber = context.generation
@@ -151,7 +165,6 @@ extension SuggestionCoordinator {
             globallyEnabled: settingsSnapshot.isGloballyEnabled,
             disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
             inputMonitoringGranted: permissionManager.inputMonitoringGranted,
-            screenRecordingGranted: permissionManager.screenRecordingGranted,
             focusSnapshot: snapshot
         ) {
 
@@ -221,7 +234,8 @@ extension SuggestionCoordinator {
         let session = interactionState.startSession(
             fullText: result.text,
             liveContext: liveContext,
-            latency: result.latency
+            latency: result.latency,
+            acceptanceEdit: result.acceptanceEdit
         )
         applySessionDiagnostics(session, acceptanceAction: "Generated new suggestion.")
         state = .ready(text: session.remainingText, latency: session.latency)
@@ -263,7 +277,6 @@ extension SuggestionCoordinator {
             globallyEnabled: settingsSnapshot.isGloballyEnabled,
             disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
             inputMonitoringGranted: permissionManager.inputMonitoringGranted,
-            screenRecordingGranted: permissionManager.screenRecordingGranted,
             focusSnapshot: focusModel.snapshot
         )
 

@@ -72,6 +72,7 @@ final class LlamaPromptRendererTests: XCTestCase {
         )
 
         XCTAssertTrue(prompt.contains("Task:"), "instruction prompt should include Task section")
+        XCTAssertTrue(prompt.contains("inline autocomplete engine"))
         XCTAssertTrue(
             prompt.contains("Screen context:"),
             "instruction prompt should include Screen context section"
@@ -109,6 +110,19 @@ final class LlamaPromptRendererTests: XCTestCase {
         XCTAssertTrue(prompt.contains("time-ago badges"))
     }
 
+    func test_instructionPrompt_tellsModelToMatchToneAndFinishMidWord() {
+        let prompt = LlamaPromptRenderer.prompt(
+            prefixText: "I think we shou",
+            applicationName: "Messages",
+            completionLengthInstruction: "Short.",
+            userName: nil
+        )
+
+        XCTAssertTrue(prompt.contains("Match the existing tone, language, casing, and punctuation."))
+        XCTAssertTrue(prompt.contains("finish that word before starting a new one"))
+        XCTAssertTrue(prompt.contains("Return exactly one continuation fragment."))
+    }
+
     /// The completion-length instruction is chosen from the user's word-count
     /// preset. It must reach the prompt verbatim so the model sees the exact
     /// guidance the UI showed the user.
@@ -131,6 +145,7 @@ final class LlamaPromptRendererTests: XCTestCase {
 
         XCTAssertLessThan(finalInstructionRange.lowerBound, lengthRange.lowerBound)
         XCTAssertLessThan(lengthRange.lowerBound, prefixRange.lowerBound)
+        XCTAssertTrue(prompt.contains("Stop as soon as the continuation fragment is complete."))
     }
 
     func test_instructionPrompt_includesProfileContextWhenProvided() {

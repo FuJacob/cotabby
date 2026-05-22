@@ -261,12 +261,38 @@ struct SuggestionRequest: Equatable, Sendable {
     }
 }
 
+/// Describes the concrete edit Tabby should commit when the user accepts a suggestion.
+///
+/// Most autocomplete results are plain insertions at the caret. Spell correction is different:
+/// the useful action is replacing the misspelled token immediately before the caret. Keeping that
+/// edit shape in the model layer prevents prompt builders from silently rewriting context and lets
+/// acceptance stay honest about what will happen in the host app.
+enum SuggestionAcceptanceEdit: Equatable, Sendable {
+    case insert
+    case replacePreviousCharacters(count: Int)
+}
+
 /// The engine's normalized response, including raw model text for debugging.
 struct SuggestionResult: Equatable, Sendable {
     let generation: UInt64
     let rawText: String
     let text: String
     let latency: TimeInterval
+    let acceptanceEdit: SuggestionAcceptanceEdit
+
+    init(
+        generation: UInt64,
+        rawText: String,
+        text: String,
+        latency: TimeInterval,
+        acceptanceEdit: SuggestionAcceptanceEdit = .insert
+    ) {
+        self.generation = generation
+        self.rawText = rawText
+        self.text = text
+        self.latency = latency
+        self.acceptanceEdit = acceptanceEdit
+    }
 }
 
 /// Represents one active inline-completion session after the model has produced a suggestion.
@@ -280,17 +306,20 @@ struct ActiveSuggestionSession: Equatable, Sendable {
     let fullText: String
     let consumedCharacterCount: Int
     let latency: TimeInterval
+    let acceptanceEdit: SuggestionAcceptanceEdit
 
     init(
         baseContext: FocusedInputContext,
         fullText: String,
         consumedCharacterCount: Int = 0,
-        latency: TimeInterval
+        latency: TimeInterval,
+        acceptanceEdit: SuggestionAcceptanceEdit = .insert
     ) {
         self.baseContext = baseContext
         self.fullText = fullText
         self.consumedCharacterCount = min(max(consumedCharacterCount, 0), fullText.count)
         self.latency = latency
+        self.acceptanceEdit = acceptanceEdit
     }
 
     var acceptedText: String {
@@ -322,7 +351,8 @@ struct ActiveSuggestionSession: Equatable, Sendable {
             baseContext: baseContext,
             fullText: fullText,
             consumedCharacterCount: self.consumedCharacterCount + max(consumedCharacters, 0),
-            latency: latency
+            latency: latency,
+            acceptanceEdit: acceptanceEdit
         )
     }
 
@@ -333,7 +363,8 @@ struct ActiveSuggestionSession: Equatable, Sendable {
             baseContext: baseContext,
             fullText: fullText,
             consumedCharacterCount: consumedCharacters,
-            latency: latency
+            latency: latency,
+            acceptanceEdit: acceptanceEdit
         )
     }
 }

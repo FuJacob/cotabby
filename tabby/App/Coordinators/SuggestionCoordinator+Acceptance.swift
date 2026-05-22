@@ -41,7 +41,7 @@ extension SuggestionCoordinator {
             return passTabThrough(reason: reason)
         }
 
-        guard suggestionInserter.insert(acceptedChunk) else {
+        guard commitAcceptedText(acceptedChunk, for: sessionForAcceptance) else {
             let message = suggestionInserter.lastErrorMessage ?? "Suggestion insertion failed."
             cancelPredictionWork()
             clearSuggestion(clearDiagnostics: true)
@@ -113,6 +113,16 @@ extension SuggestionCoordinator {
                 normalizedOutput: acceptedChunk
             )
             return true
+        }
+    }
+
+    private func commitAcceptedText(_ acceptedChunk: String, for session: ActiveSuggestionSession) -> Bool {
+        switch session.acceptanceEdit {
+        case .insert:
+            return suggestionInserter.insert(acceptedChunk)
+
+        case let .replacePreviousCharacters(count):
+            return suggestionInserter.replacePreviousCharacters(count: count, with: acceptedChunk)
         }
     }
 

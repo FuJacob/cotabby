@@ -60,6 +60,7 @@ protocol SuggestionInserting: AnyObject {
     var lastErrorMessage: String? { get }
 
     func insert(_ suggestion: String) -> Bool
+    func replacePreviousCharacters(count: Int, with replacement: String) -> Bool
 }
 
 @MainActor

@@ -38,6 +38,53 @@ final class SuggestionTextColorCodecTests: XCTestCase {
 }
 
 final class SuggestionModelValueTests: XCTestCase {
+    func test_spellCorrectionTarget_usesCurrentTokenBeforeCaret() {
+        let target = LocalSpellCorrectionCandidateReducer.correctionTarget(in: "I coukd")
+
+        XCTAssertEqual(target?.token, "coukd")
+        XCTAssertEqual(target?.trailingDelimiter, "")
+        XCTAssertEqual(target?.replacedCharacterCount, 5)
+    }
+
+    func test_spellCorrectionTarget_preservesJustFinishedWordDelimiter() {
+        let target = LocalSpellCorrectionCandidateReducer.correctionTarget(in: "I typed teh ")
+
+        XCTAssertEqual(target?.token, "teh")
+        XCTAssertEqual(target?.trailingDelimiter, " ")
+        XCTAssertEqual(target?.replacedCharacterCount, 4)
+    }
+
+    func test_spellCorrectionReducer_returnsHighConfidenceCorrectionWithDelimiter() {
+        let target = LocalSpellCorrectionCandidateReducer.CorrectionTarget(
+            token: "teh",
+            trailingDelimiter: " ",
+            replacedCharacterCount: 4
+        )
+
+        XCTAssertEqual(
+            LocalSpellCorrectionCandidateReducer.correctedText(
+                for: target,
+                candidates: ["tech", "the"]
+            ),
+            "the "
+        )
+    }
+
+    func test_spellCorrectionReducer_rejectsCompletionLikeCandidate() {
+        let target = LocalSpellCorrectionCandidateReducer.CorrectionTarget(
+            token: "minu",
+            trailingDelimiter: "",
+            replacedCharacterCount: 4
+        )
+
+        XCTAssertNil(
+            LocalSpellCorrectionCandidateReducer.correctedText(
+                for: target,
+                candidates: ["minute"]
+            )
+        )
+    }
+
     func test_wordCountPresetsExposeMatchingPromptInstructionsAndTokenBudgets() {
         XCTAssertEqual(SuggestionWordCountPreset.threeToSeven.promptInstruction, "Return only the next 3 to 7 words.")
         XCTAssertEqual(SuggestionWordCountPreset.threeToSeven.suggestedPredictionTokenBudget, 11)

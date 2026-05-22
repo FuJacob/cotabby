@@ -20,6 +20,18 @@ struct SuggestionRequestBuildResult: Equatable, Sendable {
 enum SuggestionRequestFactory {
     private static let maxClipboardContextCharacters = 1_200
 
+    /// Engine-specific generation tuning lives here instead of in the coordinator so request
+    /// behavior stays a pure function of settings plus focused text. Apple Intelligence already
+    /// behaves greedily at the shipped defaults; local instruct models need a stricter profile to
+    /// stay in "continue this text" mode instead of wandering into assistant-style replies.
+    private struct SamplingParameters {
+        let temperature: Double
+        let topK: Int
+        let topP: Double
+        let minP: Double
+        let repetitionPenalty: Double
+    }
+
     /// Require at least one non-whitespace character so we don't suggest on a blank field.
     /// No trailing-space gate — the debounce handles rapid keystroke settling, and
     /// `SuggestionTextNormalizer` applies deterministic space management on the output side.
@@ -54,6 +66,10 @@ enum SuggestionRequestFactory {
         let boundedVisualContextSummary = activeVisualContextSummary(
             rawSummary: visualContextSummary
         )
+        let samplingParameters = samplingParameters(
+            for: settings.selectedEngine,
+            configuration: configuration
+        )
         let prompt = LlamaPromptRenderer.prompt(
             prefixText: prefixText,
             suffixText: suffixText,
@@ -75,11 +91,11 @@ enum SuggestionRequestFactory {
                 configuration: configuration,
                 wordCountPreset: settings.selectedWordCountPreset
             ),
-            temperature: configuration.temperature,
-            topK: configuration.topK,
-            topP: configuration.topP,
-            minP: configuration.minP,
-            repetitionPenalty: configuration.repetitionPenalty,
+            temperature: samplingParameters.temperature,
+            topK: samplingParameters.topK,
+            topP: samplingParameters.topP,
+            minP: samplingParameters.minP,
+            repetitionPenalty: samplingParameters.repetitionPenalty,
             randomSeed: configuration.randomSeed,
             maxSuffixCharacters: configuration.maxSuffixCharacters,
             completionLengthInstruction: completionLengthInstruction,
@@ -245,6 +261,34 @@ enum SuggestionRequestFactory {
             return FoundationModelPromptRenderer.promptPreview(for: request)
         case .llamaOpenSource:
             return request.prompt
+        }
+    }
+
+    private static func samplingParameters(
+        for engine: SuggestionEngineKind,
+        configuration: SuggestionConfiguration
+    ) -> SamplingParameters {
+        switch engine {
+        case .appleIntelligence:
+            return SamplingParameters(
+                temperature: configuration.temperature,
+                topK: configuration.topK,
+                topP: configuration.topP,
+                minP: configuration.minP,
+                repetitionPenalty: configuration.repetitionPenalty
+            )
+
+        case .llamaOpenSource:
+            // Greedy decoding makes the local fallback feel closer to Apple Intelligence: shorter,
+            // steadier, and less likely to role-play. The local deterministic spell/word-completion
+            // path already handles the easy token-level cases, so llama is free to be conservative.
+            return SamplingParameters(
+                temperature: 0,
+                topK: 0,
+                topP: 1,
+                minP: 0,
+                repetitionPenalty: max(configuration.repetitionPenalty, 1.1)
+            )
         }
     }
 }

@@ -11,7 +11,6 @@ enum SuggestionAvailabilityEvaluator {
         globallyEnabled: Bool = true,
         disabledAppBundleIdentifiers: Set<String> = [],
         inputMonitoringGranted: Bool,
-        screenRecordingGranted: Bool,
         focusSnapshot: FocusSnapshot
     ) -> String? {
         guard globallyEnabled else {
@@ -43,14 +42,12 @@ enum SuggestionAvailabilityEvaluator {
         globallyEnabled: Bool = true,
         disabledAppBundleIdentifiers: Set<String> = [],
         inputMonitoringGranted: Bool,
-        screenRecordingGranted: Bool,
         focusSnapshot: FocusSnapshot
     ) -> Bool {
         disabledReason(
             globallyEnabled: globallyEnabled,
             disabledAppBundleIdentifiers: disabledAppBundleIdentifiers,
             inputMonitoringGranted: inputMonitoringGranted,
-            screenRecordingGranted: screenRecordingGranted,
             focusSnapshot: focusSnapshot
         ) == nil
     }

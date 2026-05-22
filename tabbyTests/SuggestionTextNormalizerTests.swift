@@ -256,6 +256,34 @@ final class SuggestionTextNormalizerTests: XCTestCase {
         XCTAssertEqual(normalized, "")
     }
 
+    func test_normalize_keepsMixedAlphanumericTechnicalTokens() {
+        let request = TabbyTestFixtures.suggestionRequest(
+            prefixText: "the new",
+            precedingText: "the new"
+        )
+
+        let normalized = SuggestionTextNormalizer.normalize(
+            " M1 chip with HTML5 and OAuth2 support",
+            for: request
+        )
+
+        XCTAssertEqual(normalized, " M1 chip with HTML5 and OAuth2 support")
+    }
+
+    func test_normalize_keepsOrdinalAndShortModelTokens() {
+        let request = TabbyTestFixtures.suggestionRequest(
+            prefixText: "we shipped the",
+            precedingText: "we shipped the"
+        )
+
+        let normalized = SuggestionTextNormalizer.normalize(
+            " 1st 3D pass for iOS18 and B2B users",
+            for: request
+        )
+
+        XCTAssertEqual(normalized, " 1st 3D pass for iOS18 and B2B users")
+    }
+
     func test_normalize_dropsLongSuggestionMostlyCopiedFromAuxiliaryContext() {
         let request = TabbyTestFixtures.suggestionRequest(
             prefixText: "i still get a",

@@ -211,29 +211,57 @@ enum SuggestionTextNormalizer {
         ) != nil
     }
 
-    /// Drops visible OCR mistakes before they reach the overlay. Mixed letter/number words such as
-    /// "5hould" and "rendera5" are rarely intentional autocomplete content; they usually mean OCR or a
-    /// copied UI fragment leaked through the prompt context.
+    /// Drops visible OCR mistakes before they reach the overlay.
+    ///
+    /// The goal is deliberately narrower than "reject any token containing both letters and digits".
+    /// Real writing often includes mixed alphanumeric terms such as `M1`, `HTML5`, `OAuth2`, `3D`,
+    /// or `1st`. What we want to catch here are longer, lowercase, word-like fragments where a digit
+    /// appears to have replaced a letter, especially when several such fragments show up in one
+    /// suggestion copied from noisy OCR.
     private static func isLikelyOCRCorruption(_ suggestion: String) -> Bool {
         let words = suggestion
             .split { !$0.isLetter && !$0.isNumber }
             .map(String.init)
 
-        return words.contains { word in
-            let scalarView = word.unicodeScalars
-            let hasLetter = scalarView.contains { CharacterSet.letters.contains($0) }
-            let hasNumber = scalarView.contains { CharacterSet.decimalDigits.contains($0) }
-            guard hasLetter, hasNumber else {
-                return false
+        let suspiciousWordCount = words.reduce(into: 0) { count, word in
+            if isLikelyOCRCorruptedWord(word) {
+                count += 1
             }
-
-            let lowercased = word.lowercased()
-            if lowercased.contains("@") || lowercased.contains(".") {
-                return false
-            }
-
-            return true
         }
+        return suspiciousWordCount >= 2
+    }
+
+    private static func isLikelyOCRCorruptedWord(_ word: String) -> Bool {
+        let scalarView = word.unicodeScalars
+        let letterCount = scalarView.count(where: { CharacterSet.letters.contains($0) })
+        let digitCount = scalarView.count(where: { CharacterSet.decimalDigits.contains($0) })
+        guard letterCount >= 4, digitCount == 1 else {
+            return false
+        }
+
+        let lowercased = word.lowercased()
+        guard lowercased == word else {
+            return false
+        }
+
+        // Keep common mixed tokens that are usually genuine model numbers, standards, versions, or
+        // ordinals rather than OCR damage.
+        let safePatterns = [
+            #"^\d+(st|nd|rd|th)$"#,
+            #"^[a-z]{1,6}\d{1,3}$"#,
+            #"^\d{1,2}[a-z]{1,3}$"#,
+            #"^[a-z]{1,3}\d[a-z]{1,3}$"#
+        ]
+        if safePatterns.contains(where: { pattern in
+            lowercased.range(of: pattern, options: .regularExpression) != nil
+        }) {
+            return false
+        }
+
+        return lowercased.range(
+            of: #"^(?:\d[a-z]{4,}|[a-z]{2,}\d[a-z]{2,}|[a-z]{6,}\d)$"#,
+            options: .regularExpression
+        ) != nil
     }
 
     /// Prevents the model from turning screen/field context into the continuation itself.

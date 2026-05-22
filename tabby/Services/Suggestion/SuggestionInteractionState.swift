@@ -50,11 +50,17 @@ final class SuggestionInteractionState {
         clearSuggestion()
     }
 
-    func startSession(fullText: String, liveContext: FocusedInputContext, latency: TimeInterval) -> ActiveSuggestionSession {
+    func startSession(
+        fullText: String,
+        liveContext: FocusedInputContext,
+        latency: TimeInterval,
+        acceptanceEdit: SuggestionAcceptanceEdit = .insert
+    ) -> ActiveSuggestionSession {
         let session = ActiveSuggestionSession(
             baseContext: liveContext,
             fullText: fullText,
-            latency: latency
+            latency: latency,
+            acceptanceEdit: acceptanceEdit
         )
         activeSession = session
         pendingInsertionConsumedCount = nil
@@ -157,7 +163,18 @@ final class SuggestionInteractionState {
             return .invalid("Tab passed through because no remaining suggestion text was available.")
         }
 
-        let acceptedChunk = SuggestionSessionReconciler.nextAcceptanceChunk(from: sessionForAcceptance.remainingText)
+        let acceptedChunk: String
+        switch sessionForAcceptance.acceptanceEdit {
+        case .insert:
+            acceptedChunk = SuggestionSessionReconciler.nextAcceptanceChunk(from: sessionForAcceptance.remainingText)
+
+        case .replacePreviousCharacters:
+            // Replacement edits are one-shot. Partial acceptance only makes sense for insertion
+            // tails, where every accepted chunk leaves the document as a prefix of the full
+            // suggestion. A spell correction changes already-typed text, so splitting it would make
+            // reconciliation ambiguous and hard for the user to reason about.
+            acceptedChunk = sessionForAcceptance.remainingText
+        }
         guard !acceptedChunk.isEmpty else {
             return .invalid("Tab passed through because no remaining suggestion chunk was available.")
         }
@@ -175,6 +192,12 @@ final class SuggestionInteractionState {
         liveContext: FocusedInputContext,
         session: ActiveSuggestionSession
     ) -> SuggestionAcceptedChunkProgress {
+        if case .replacePreviousCharacters = session.acceptanceEdit {
+            pendingInsertionConsumedCount = nil
+            activeSession = nil
+            return .exhausted(generation: liveContext.generation)
+        }
+
         let advancedSession = session.advancing(by: acceptedChunk.count)
         pendingInsertionConsumedCount = advancedSession.consumedCharacterCount
 
@@ -195,6 +218,7 @@ final class SuggestionInteractionState {
     ) -> ActiveSuggestionSession? {
         guard let activeSession,
               activeSession == expectedSession,
+              activeSession.acceptanceEdit == .insert,
               let advancedSession = SuggestionSessionReconciler.advanceIfTypedCharactersMatch(
                   typedCharacters,
                   session: activeSession
