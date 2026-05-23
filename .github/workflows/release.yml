@@ -436,27 +436,32 @@ jobs:
           xcrun stapler staple "${dmg_path}"
           xcrun stapler validate "${dmg_path}"
 
-      - name: Locate Sparkle tools
+      - name: Download Sparkle tools
         id: sparkle-tools
+        env:
+          SPARKLE_VERSION: "2.9.1"
         run: |
           set -euo pipefail
 
-          sign_update="$(find build/DerivedData "$HOME/Library/Developer/Xcode/DerivedData" \
-            -type f \
-            -path '*/Sparkle/bin/sign_update' \
-            -print \
-            2>/dev/null |
-            head -n 1)"
+          # SPM's artifact extraction is non-deterministic — the bin/ directory
+          # containing sign_update and generate_keys is sometimes missing from
+          # DerivedData even though the xcframework resolves fine. Downloading the
+          # official release tarball directly is deterministic and fast (~3s).
+          sparkle_dir="${RUNNER_TEMP}/sparkle-tools"
+          mkdir -p "${sparkle_dir}"
 
-          generate_keys="$(find build/DerivedData "$HOME/Library/Developer/Xcode/DerivedData" \
-            -type f \
-            -path '*/Sparkle/bin/generate_keys' \
-            -print \
-            2>/dev/null |
-            head -n 1)"
+          curl -fsSL \
+            "https://github.com/sparkle-project/Sparkle/releases/download/${SPARKLE_VERSION}/Sparkle-${SPARKLE_VERSION}.tar.xz" \
+            -o "${sparkle_dir}/Sparkle.tar.xz"
 
-          if [[ -z "${sign_update}" || -z "${generate_keys}" ]]; then
-            echo "Could not locate Sparkle sign_update and generate_keys tools." >&2
+          tar -xf "${sparkle_dir}/Sparkle.tar.xz" -C "${sparkle_dir}"
+
+          sign_update="${sparkle_dir}/bin/sign_update"
+          generate_keys="${sparkle_dir}/bin/generate_keys"
+
+          if [[ ! -x "${sign_update}" || ! -x "${generate_keys}" ]]; then
+            echo "Sparkle ${SPARKLE_VERSION} archive did not contain expected tools." >&2
+            ls -la "${sparkle_dir}/bin/" >&2 || true
             exit 1
           fi
 
