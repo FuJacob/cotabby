@@ -155,6 +155,10 @@ final class LlamaRuntimeManager: ObservableObject {
     }
 
     deinit {
+        // Last-resort cleanup if the owner forgot to call `stop()`. The unstructured task can
+        // outlive this deinit; production is fine because `LlamaBackendRegistry.shared`'s
+        // `freeBackend` is a no-op, but callers that need deterministic teardown (uninstall,
+        // model switch) must use `stopAndWait()`.
         startupTask?.cancel()
         let core = core
         Task { await core.shutdown() }
