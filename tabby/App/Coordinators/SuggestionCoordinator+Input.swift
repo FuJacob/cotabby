@@ -86,7 +86,7 @@ extension SuggestionCoordinator {
             return false
         }
 
-        if event.kind == .tab {
+        if event.kind == .acceptance {
             return acceptCurrentSuggestion()
         }
 
@@ -161,7 +161,7 @@ extension SuggestionCoordinator {
             state = .idle
             return false
 
-        case .other, .tab:
+        case .other, .acceptance:
             return false
         }
     }

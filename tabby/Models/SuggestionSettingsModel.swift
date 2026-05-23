@@ -1,3 +1,4 @@
+import ApplicationServices
 import Combine
 import Foundation
 
@@ -21,6 +22,8 @@ final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var userName: String
     @Published private(set) var debounceMilliseconds: Int
     @Published private(set) var focusPollIntervalMilliseconds: Int
+    @Published private(set) var acceptanceKeyCode: CGKeyCode
+    @Published private(set) var acceptanceKeyLabel: String
     private let userDefaults: UserDefaults
 
     private static let isGloballyEnabledDefaultsKey = "tabbyGloballyEnabled"
@@ -35,6 +38,11 @@ final class SuggestionSettingsModel: ObservableObject {
     private static let userNameDefaultsKey = "tabbyUserName"
     private static let debounceMillisecondsDefaultsKey = "tabbyDebounceMilliseconds"
     private static let focusPollIntervalMillisecondsDefaultsKey = "tabbyFocusPollIntervalMilliseconds"
+    private static let acceptanceKeyCodeDefaultsKey = "tabbyAcceptanceKeyCode"
+    private static let acceptanceKeyLabelDefaultsKey = "tabbyAcceptanceKeyLabel"
+
+    static let defaultAcceptanceKeyCode: CGKeyCode = 48
+    static let defaultAcceptanceKeyLabel = "Tab"
 
     init(
         configuration: SuggestionConfiguration,
@@ -81,6 +89,13 @@ final class SuggestionSettingsModel: ObservableObject {
             return max(10, min(500, raw))
         }()
 
+        let resolvedAcceptanceKeyCode = CGKeyCode(
+            userDefaults.object(forKey: Self.acceptanceKeyCodeDefaultsKey) as? Int
+                ?? Int(Self.defaultAcceptanceKeyCode)
+        )
+        let resolvedAcceptanceKeyLabel = userDefaults.string(forKey: Self.acceptanceKeyLabelDefaultsKey)
+            ?? Self.defaultAcceptanceKeyLabel
+
         isGloballyEnabled = resolvedGloballyEnabled
         disabledAppRules = resolvedDisabledAppRules
         showIndicator = resolvedShowIndicator
@@ -91,6 +106,8 @@ final class SuggestionSettingsModel: ObservableObject {
         userName = resolvedUserName
         debounceMilliseconds = resolvedDebounceMilliseconds
         focusPollIntervalMilliseconds = resolvedFocusPollIntervalMilliseconds
+        acceptanceKeyCode = resolvedAcceptanceKeyCode
+        acceptanceKeyLabel = resolvedAcceptanceKeyLabel
 
         userDefaults.set(resolvedGloballyEnabled, forKey: Self.isGloballyEnabledDefaultsKey)
         persistDisabledAppRules(resolvedDisabledAppRules)
@@ -282,6 +299,17 @@ final class SuggestionSettingsModel: ObservableObject {
 
         userName = name
         persistUserName(name)
+    }
+
+    func setAcceptanceKey(keyCode: CGKeyCode, label: String) {
+        guard acceptanceKeyCode != keyCode || acceptanceKeyLabel != label else {
+            return
+        }
+
+        acceptanceKeyCode = keyCode
+        acceptanceKeyLabel = label
+        userDefaults.set(Int(keyCode), forKey: Self.acceptanceKeyCodeDefaultsKey)
+        userDefaults.set(label, forKey: Self.acceptanceKeyLabelDefaultsKey)
     }
 
     private func persistSelectedEngine(_ engine: SuggestionEngineKind) {

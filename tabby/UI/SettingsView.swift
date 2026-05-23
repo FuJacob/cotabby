@@ -24,6 +24,7 @@ struct SettingsView: View {
     @Environment(\.colorScheme) private var colorScheme
 
     @State private var pendingDeletionModel: RuntimeModelOption?
+    @State private var isRecordingKeybind = false
 
     var body: some View {
         Form {
@@ -32,6 +33,7 @@ struct SettingsView: View {
             uninstallSection
             generalSection
             autocompleteSection
+            keybindSection
             // performanceSection — hidden until these controls are productized.
             // Both suggestion delay and focus poll interval are developer-facing
             // tuning knobs that invite misconfiguration for end users.
@@ -158,6 +160,44 @@ struct SettingsView: View {
                 ForEach(SuggestionWordCountPreset.allCases) { preset in
                     Text(preset.displayLabel)
                         .tag(preset)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var keybindSection: some View {
+        Section("Keybind") {
+            LabeledContent("Accept Suggestion") {
+                HStack(spacing: 8) {
+                    Text(suggestionSettings.acceptanceKeyLabel)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6)
+                                .fill(.quaternary)
+                        )
+
+                    if isRecordingKeybind {
+                        KeyRecorderView { keyCode, label in
+                            suggestionSettings.setAcceptanceKey(keyCode: keyCode, label: label)
+                            isRecordingKeybind = false
+                        }
+                    } else {
+                        Button("Change") {
+                            isRecordingKeybind = true
+                        }
+                    }
+
+                    if suggestionSettings.acceptanceKeyCode != SuggestionSettingsModel.defaultAcceptanceKeyCode {
+                        Button("Reset to Default") {
+                            suggestionSettings.setAcceptanceKey(
+                                keyCode: SuggestionSettingsModel.defaultAcceptanceKeyCode,
+                                label: SuggestionSettingsModel.defaultAcceptanceKeyLabel
+                            )
+                            isRecordingKeybind = false
+                        }
+                    }
                 }
             }
         }

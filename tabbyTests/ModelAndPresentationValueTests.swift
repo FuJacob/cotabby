@@ -161,7 +161,7 @@ final class RuntimeAndInputModelValueTests: XCTestCase {
         XCTAssertFalse(TabbyTestFixtures.inputEvent(kind: .navigation).shouldSchedulePrediction)
 
         XCTAssertTrue(TabbyTestFixtures.inputEvent(kind: .dismissal).shouldClearSuggestion)
-        XCTAssertFalse(TabbyTestFixtures.inputEvent(kind: .tab).shouldClearSuggestion)
+        XCTAssertFalse(TabbyTestFixtures.inputEvent(kind: .acceptance).shouldClearSuggestion)
         XCTAssertFalse(TabbyTestFixtures.inputEvent(kind: .other).shouldClearSuggestion)
     }
 }

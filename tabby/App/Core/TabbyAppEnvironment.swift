@@ -45,6 +45,7 @@ final class TabbyAppEnvironment {
             permissionProvider: { permissionManager.inputMonitoringGranted },
             suppressionController: suppressionController
         )
+        inputMonitor.acceptanceKeyCode = suggestionSettings.acceptanceKeyCode
         let focusModel = FocusTrackingModel(
             permissionProvider: { permissionManager.accessibilityGranted },
             ignoredBundleIdentifier: Bundle.main.bundleIdentifier,
@@ -146,6 +147,14 @@ final class TabbyAppEnvironment {
             .removeDuplicates()
             .sink { [weak focusModel] milliseconds in
                 focusModel?.updatePollInterval(milliseconds: milliseconds)
+            }
+            .store(in: &cancellables)
+
+        // Push acceptance key changes from settings into the event classifier.
+        suggestionSettings.$acceptanceKeyCode
+            .removeDuplicates()
+            .sink { [weak inputMonitor] keyCode in
+                inputMonitor?.acceptanceKeyCode = keyCode
             }
             .store(in: &cancellables)
     }
