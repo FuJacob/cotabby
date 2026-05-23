@@ -459,19 +459,19 @@ final class SuggestionSettingsModelDisabledAppsTests: XCTestCase {
         _ = cancellables
     }
 
-    func test_clipboardContextEnabled_defaultsToTrueAndPersists() {
+    func test_clipboardContextEnabled_defaultsToFalseAndPersists() {
         runOnMainActor {
             let userDefaults = makeUserDefaults()
             let model = makeModel(userDefaults: userDefaults)
 
-            XCTAssertTrue(model.isClipboardContextEnabled)
-            XCTAssertTrue(model.snapshot.isClipboardContextEnabled)
+            XCTAssertFalse(model.isClipboardContextEnabled)
+            XCTAssertFalse(model.snapshot.isClipboardContextEnabled)
 
-            model.setClipboardContextEnabled(false)
+            model.setClipboardContextEnabled(true)
             let reloadedModel = makeModel(userDefaults: userDefaults)
 
-            XCTAssertFalse(reloadedModel.isClipboardContextEnabled)
-            XCTAssertFalse(reloadedModel.snapshot.isClipboardContextEnabled)
+            XCTAssertTrue(reloadedModel.isClipboardContextEnabled)
+            XCTAssertTrue(reloadedModel.snapshot.isClipboardContextEnabled)
         }
     }
 
@@ -485,12 +485,12 @@ final class SuggestionSettingsModelDisabledAppsTests: XCTestCase {
             model.snapshotPublisher
                 .dropFirst()
                 .sink { snapshot in
-                    XCTAssertFalse(snapshot.isClipboardContextEnabled)
+                    XCTAssertTrue(snapshot.isClipboardContextEnabled)
                     expectation.fulfill()
                 }
                 .store(in: &cancellables)
 
-            model.setClipboardContextEnabled(false)
+            model.setClipboardContextEnabled(true)
         }
 
         wait(for: [expectation], timeout: 1.0)

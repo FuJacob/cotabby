@@ -19,7 +19,13 @@ final class FocusDebugOverlayController {
 
     private lazy var caretPanel: NSPanel = makePanel()
     private lazy var framePanel: NSPanel = makePanel()
-    private lazy var bottomStatusPanel: NSPanel = makePanel()
+    private lazy var bottomStatusPanel: NSPanel = makePanel(draggable: true)
+
+    /// User-dragged origin for the bottom panel. `nil` means use the default centered position.
+    private var bottomPanelDraggedOrigin: CGPoint?
+
+    /// The last origin we set programmatically, used to detect genuine user drags.
+    private var bottomPanelProgrammaticOrigin: CGPoint?
 
     private var latestCaretRect: CGRect?
     private var latestVisualContextStatus: VisualContextStatus = .idle
@@ -118,6 +124,15 @@ final class FocusDebugOverlayController {
             return
         }
 
+        // Detect genuine user drags by comparing against the last programmatic origin.
+        if bottomStatusPanel.isVisible,
+           let programmatic = bottomPanelProgrammaticOrigin {
+            let current = bottomStatusPanel.frame.origin
+            if current != programmatic {
+                bottomPanelDraggedOrigin = current
+            }
+        }
+
         let screenFrame = targetScreenVisibleFrame()
         let maxWidth = min(screenFrame.width - 32, 620)
         let contentView = NSHostingView(rootView: BottomDebugStatusView(
@@ -129,16 +144,20 @@ final class FocusDebugOverlayController {
         contentView.layoutSubtreeIfNeeded()
         let contentSize = contentView.fittingSize
 
-        let origin = CGPoint(
-            x: screenFrame.midX - (contentSize.width / 2),
-            y: screenFrame.minY + 14
-        )
+        let origin: CGPoint
+        if let dragged = bottomPanelDraggedOrigin {
+            origin = dragged
+        } else {
+            origin = CGPoint(
+                x: screenFrame.midX - (contentSize.width / 2),
+                y: screenFrame.minY + 14
+            )
+        }
 
+        let frame = CGRect(origin: origin, size: contentSize).integral
         bottomStatusPanel.contentView = contentView
-        bottomStatusPanel.setFrame(
-            CGRect(origin: origin, size: contentSize).integral,
-            display: true
-        )
+        bottomStatusPanel.setFrame(frame, display: true)
+        bottomPanelProgrammaticOrigin = frame.origin
         bottomStatusPanel.orderFrontRegardless()
     }
 
@@ -154,7 +173,7 @@ final class FocusDebugOverlayController {
         framePanel.orderOut(nil)
     }
 
-    private func makePanel() -> NSPanel {
+    private func makePanel(draggable: Bool = false) -> NSPanel {
         let panel = NSPanel(
             contentRect: CGRect(x: 0, y: 0, width: 10, height: 10),
             styleMask: [.borderless, .nonactivatingPanel],
@@ -164,7 +183,8 @@ final class FocusDebugOverlayController {
         panel.isReleasedWhenClosed = false
         panel.backgroundColor = .clear
         panel.isOpaque = false
-        panel.ignoresMouseEvents = true
+        panel.ignoresMouseEvents = !draggable
+        panel.isMovableByWindowBackground = draggable
         panel.hasShadow = false
         // Above activation indicator and ghost text so it is always visible during debugging.
         panel.level = NSWindow.Level(rawValue: NSWindow.Level.statusBar.rawValue + 2)

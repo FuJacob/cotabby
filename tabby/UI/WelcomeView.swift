@@ -101,15 +101,11 @@ private enum WelcomeStep: Int, Comparable {
 extension WelcomeView {
     fileprivate var welcomeStep: some View {
         VStack(spacing: 24) {
-            // Onboarding should show the exported product mark, not the AppKit-derived runtime icon.
-            // `NSApp.applicationIconImage` can pick up the newer glass treatment, which makes the
-            // welcome screen drift from the branded artwork users see elsewhere.
-            Image("WelcomeAppIcon")
+            Image(systemName: "pawprint.fill")
                 .resizable()
-                .interpolation(.high)
                 .scaledToFit()
                 .frame(width: 72, height: 72)
-                .shadow(color: .black.opacity(0.12), radius: 8, y: 4)
+                .foregroundStyle(.white)
 
             VStack(spacing: 8) {
                 Text("Welcome to tabby")
@@ -189,7 +185,7 @@ extension WelcomeView {
 
         return EngineCard(
             artworkName: "apple_intelligence",
-            title: "Apple Intelligence",
+            title: "Apple Intelligence [BETA]",
             subtitle: isAvailable
                 ? "Built into macOS. No download needed."
                 : "Requires Apple Silicon and macOS 26.",

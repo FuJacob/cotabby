@@ -107,7 +107,7 @@ struct SuggestionConfiguration: Equatable, Sendable {
         maxSuffixCharacters: 192,
         // Seed the profile settings with lightweight defaults on first launch.
         defaultUserName: "Jacob",
-        defaultWordCountPreset: .sevenToTwelve,
+        defaultWordCountPreset: .twelveToTwenty,
         focusPollIntervalMilliseconds: 50
     )
 }

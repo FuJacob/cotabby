@@ -104,6 +104,7 @@ python3 scripts/build_release_dmg.py \
   --app-path /path/to/tabby.app \
   --output-path /path/to/tabby.dmg \
   --background-path assets/release/dmg_background.png \
+  --background-2x-path assets/release/dmg_background@2x.png \
   --volume-name tabby
 ```
 
@@ -143,8 +144,30 @@ Workflow:
 `.github/workflows/release.yml`
 
 Trigger:
-- Push a tag like `v1.0.0`
+- Push a tag like `v0.0.2-beta` or `v1.0.0`
 - Or run manually with `workflow_dispatch` for validation
+
+### Tag naming and pre-release behavior
+
+Tags with a hyphen suffix (e.g., `v0.0.1-beta`, `v1.0.0-rc1`) are automatically
+marked as **Pre-release** on the GitHub Releases page. This means they won't
+become the "Latest" release.
+
+- **Beta/RC release**: `git tag v0.0.2-beta && git push origin v0.0.2-beta`
+- **Stable release**: `git tag v1.0.0 && git push origin v1.0.0`
+
+To promote a pre-release to Latest without re-running the pipeline:
+```sh
+gh release edit v0.0.1-beta --prerelease=false --latest
+```
+
+To re-release the same tag on a newer commit (e.g., hotfix):
+```sh
+gh release delete v0.0.1-beta --yes            # delete the GitHub Release
+git push origin :refs/tags/v0.0.1-beta          # delete remote tag
+git tag -f v0.0.1-beta                          # re-tag at current HEAD
+git push origin v0.0.1-beta                     # push triggers pipeline
+```
 
 Required repo secrets:
 - `APPLE_ID`

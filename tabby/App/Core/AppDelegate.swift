@@ -115,6 +115,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         appUpdateManager.start()
         suggestionCoordinator.start()
         welcomeCoordinator.presentIfNeeded()
+        welcomeCoordinator.presentPermissionReminderIfNeeded()
     }
 
     /// Stops long-lived services before process exit so timers and runtime resources detach cleanly.
@@ -127,9 +128,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         runtimeModel.stop()
     }
 
-    /// Shows or hides the field-edge tabby icon based on focus state and the user's toggle.
+    /// Shows or hides the field-edge tabby icon based on focus state, global enable, per-app
+    /// disable rules, and the user's indicator toggle.
     private func updateActivationIndicator(for snapshot: FocusSnapshot) {
-        guard case .supported = snapshot.capability,
+        guard suggestionSettings.isGloballyEnabled,
+              !suggestionSettings.isApplicationDisabled(bundleIdentifier: snapshot.bundleIdentifier),
+              case .supported = snapshot.capability,
               let context = snapshot.context
         else {
             activationIndicatorController.hide(reason: "Activation indicator hidden.")

@@ -29,7 +29,7 @@
 	<key>SUAutomaticallyUpdate</key>
 	<false/>
 	<key>SUEnableAutomaticChecks</key>
-	<false/>
+	<true/>
 	<key>SUFeedURL</key>
 	<string>https://updates.tabbyapp.dev/appcast.xml</string>
     <key>SUPublicEDKey</key>

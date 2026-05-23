@@ -16,7 +16,7 @@ enum SuggestionEngineKind: String, CaseIterable, Equatable, Hashable, Sendable, 
     var displayLabel: String {
         switch self {
         case .appleIntelligence:
-            return "Apple Intelligence"
+            return "Apple Intelligence [BETA]"
         case .llamaOpenSource:
             return "Open Source"
         }
