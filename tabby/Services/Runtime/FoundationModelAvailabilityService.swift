@@ -182,7 +182,7 @@ private final class SystemFoundationModelAvailabilityProvider: FoundationModelAv
                         _ = observedModel.availability
                     } onChange: {
                         Task { @MainActor in
-                            guard let self else {
+                            guard self != nil else {
                                 continuation.resume(returning: nil)
                                 return
                             }
