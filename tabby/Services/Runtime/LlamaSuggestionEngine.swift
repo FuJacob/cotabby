@@ -64,7 +64,7 @@ final class LlamaSuggestionEngine {
     /// generation request that crosses this engine boundary.
     func resetCachedGenerationContext() async {
         promptCacheHintTracker.reset()
-        await runtimeManager.resetPromptCache()
+        runtimeManager.resetPromptCache()
     }
 }
 

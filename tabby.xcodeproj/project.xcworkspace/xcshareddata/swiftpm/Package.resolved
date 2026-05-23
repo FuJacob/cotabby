@@ -1,15 +1,6 @@
 {
-  "originHash" : "b8e898721f3ddc9b0783c2c3695043183f3d5cccd2940dfdb3aed5cf26ff31f4",
+  "originHash" : "e721da7f9826abdffcb6185e886155efa2514bd6234475f1afa893e29eb258d6",
   "pins" : [
-    {
-      "identity" : "llama.swift",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/mattt/llama.swift",
-      "state" : {
-        "revision" : "07261d8a4a89088ad1c50490699d97bd1430c861",
-        "version" : "2.8665.0"
-      }
-    },
     {
       "identity" : "sparkle",
       "kind" : "remoteSourceControl",

@@ -208,8 +208,8 @@ final class WelcomeCoordinator: NSObject, NSWindowDelegate {
         }
 
         let currentContentSize = window.contentLayoutRect.size
-        guard abs(currentContentSize.width - contentSize.width) > 0.5
-            || abs(currentContentSize.height - contentSize.height) > 0.5 else {
+        guard Swift.abs(currentContentSize.width - contentSize.width) > 0.5
+            || Swift.abs(currentContentSize.height - contentSize.height) > 0.5 else {
             return
         }
 
