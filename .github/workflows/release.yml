@@ -240,6 +240,12 @@ jobs:
           echo "publish=${publish}" >> "$GITHUB_OUTPUT"
           echo "is_prerelease=${is_prerelease}" >> "$GITHUB_OUTPUT"
 
+      - name: Require Sparkle key for publishing
+        if: steps.metadata.outputs.publish == 'true' && steps.sparkle-key.outputs.has_key != 'true'
+        run: |
+          echo "Cannot publish a release without SPARKLE_ED25519_PRIVATE_KEY." >&2
+          exit 1
+
       - name: Ensure release does not already exist
         if: steps.metadata.outputs.publish == 'true'
         env:
