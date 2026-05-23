@@ -23,7 +23,7 @@
 		C10000062F91000100BBB006 /* ModelAndPresentationValueTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000162F91000100BBB016 /* ModelAndPresentationValueTests.swift */; };
 		C10000072F91000100BBB007 /* SuggestionStateHelperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000172F91000100BBB017 /* SuggestionStateHelperTests.swift */; };
 		D10000012F92000100CCC001 /* TerminalAppDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000112F92000100CCC011 /* TerminalAppDetectorTests.swift */; };
-		D20000012F93000100DDD001 /* LlamaBackendRegistryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000112F93000100DDD011 /* LlamaBackendRegistryTests.swift */; };
+		D30000012F94000100EEE001 /* LlamaBackendRefCountTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D30000112F94000100EEE011 /* LlamaBackendRefCountTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -51,7 +51,7 @@
 		C10000162F91000100BBB016 /* ModelAndPresentationValueTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ModelAndPresentationValueTests.swift; sourceTree = "<group>"; };
 		C10000172F91000100BBB017 /* SuggestionStateHelperTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SuggestionStateHelperTests.swift; sourceTree = "<group>"; };
 		D10000112F92000100CCC011 /* TerminalAppDetectorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TerminalAppDetectorTests.swift; sourceTree = "<group>"; };
-		D20000112F93000100DDD011 /* LlamaBackendRegistryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LlamaBackendRegistryTests.swift; sourceTree = "<group>"; };
+		D30000112F94000100EEE011 /* LlamaBackendRefCountTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LlamaBackendRefCountTests.swift; sourceTree = "<group>"; };
 		F29623C5C0A67B992D383A3C /* LlamaPromptRendererTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LlamaPromptRendererTests.swift; sourceTree = "<group>"; };
 		F9D35DB9E86506B9FAE1CFE9 /* ModelFileValidatorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ModelFileValidatorTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -119,7 +119,7 @@
 				F9D35DB9E86506B9FAE1CFE9 /* ModelFileValidatorTests.swift */,
 				BAAEE25772008D75883F2655 /* DownloadFileRescuerTests.swift */,
 				D10000112F92000100CCC011 /* TerminalAppDetectorTests.swift */,
-				D20000112F93000100DDD011 /* LlamaBackendRegistryTests.swift */,
+				D30000112F94000100EEE011 /* LlamaBackendRefCountTests.swift */,
 			);
 			path = tabbyTests;
 			sourceTree = "<group>";
@@ -251,7 +251,7 @@
 				AF0F4C853CCA8B86BB5E28CD /* ModelFileValidatorTests.swift in Sources */,
 				B5788B37B93AFEC10EFD3108 /* DownloadFileRescuerTests.swift in Sources */,
 				D10000012F92000100CCC001 /* TerminalAppDetectorTests.swift in Sources */,
-				D20000012F93000100DDD001 /* LlamaBackendRegistryTests.swift in Sources */,
+				D30000012F94000100EEE001 /* LlamaBackendRefCountTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
