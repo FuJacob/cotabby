@@ -1,4 +1,4 @@
-# tabby
+# tabby [beta]
 
 <p align="center">
   <img width="128" alt="tabby logo" src="https://github.com/user-attachments/assets/8a67095e-4d03-4055-8d4c-8871335152dd" />
@@ -8,13 +8,8 @@
   <em>Open-source, local-first AI autocomplete for macOS.</em>
   </p>
   
-  <p align="center">
-  <em>[currently in beta]</em>
-  </p>
 <p align="center">
   <a href="https://tabbyapp.dev"><strong>Visit the landing page →</strong></a>
-  &nbsp;|&nbsp;
-  <a href="https://discord.gg/qBq5RHcruX"><strong>Join the Discord →</strong></a>
 </p>
 
 <p align="center">
