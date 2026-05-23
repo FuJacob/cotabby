@@ -69,7 +69,7 @@ struct ScreenTextExtractor {
                     let observations = (request.results as? [VNRecognizedTextObservation]) ?? []
                     let orderedLines = observations
                         .sorted {
-                            if abs($0.boundingBox.minY - $1.boundingBox.minY) > 0.02 {
+                            if Swift.abs($0.boundingBox.minY - $1.boundingBox.minY) > 0.02 {
                                 return $0.boundingBox.minY > $1.boundingBox.minY
                             }
 

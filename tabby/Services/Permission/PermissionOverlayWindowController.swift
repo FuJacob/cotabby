@@ -153,7 +153,7 @@ final class PermissionOverlayWindowController: NSWindowController {
         let time = max(0, elapsed)
         let progress: Double
 
-        if abs(launchAnimationDampingFraction - 1) < 0.0001 {
+        if Swift.abs(launchAnimationDampingFraction - 1) < 0.0001 {
             progress = 1 - exp(-omega * time) * (1 + (omega * time))
         } else {
             progress = min(1, time / launchAnimationDuration)

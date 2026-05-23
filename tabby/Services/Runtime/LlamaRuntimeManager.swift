@@ -7,8 +7,8 @@ import Logging
 /// The manager does not talk to native llama.cpp APIs directly anymore; it delegates that work to
 /// `LlamaRuntimeCore`, which keeps pointer ownership and generation serialization in a separate file.
 ///
-/// `@MainActor` keeps the published state SwiftUI-friendly while the heavy inference work still runs
-/// inside the separate core actor.
+/// `@MainActor` keeps the published state SwiftUI-friendly while the heavy inference work runs
+/// inside `LlamaRuntimeCore`, a thread-safe class backed by the C++ `TabbyInferenceEngine`.
 @MainActor
 final class LlamaRuntimeManager: ObservableObject {
     @Published private(set) var state: RuntimeBootstrapState = .idle
@@ -85,9 +85,9 @@ final class LlamaRuntimeManager: ObservableObject {
         _ = try await preparedRuntime()
     }
 
-    /// Forwards one generation request into the serialized runtime actor after ensuring preparation.
+    /// Forwards one generation request to the runtime core after ensuring preparation.
     /// `cachedPrefixBytes` is a caller-provided reuse hint, not a correctness guarantee; the core
-    /// actor still validates the token prefix before trusting any native KV state.
+    /// still validates the token prefix before trusting any native KV state.
     func generate(
         prompt: String,
         cachedPrefixBytes: Int? = nil,
@@ -95,12 +95,15 @@ final class LlamaRuntimeManager: ObservableObject {
     ) async throws -> String {
         _ = try await preparedRuntime()
 
+        let core = self.core
         do {
-            return try await core.generate(
-                prompt: prompt,
-                cachedPrefixBytes: cachedPrefixBytes,
-                options: options
-            )
+            return try await Task.detached {
+                try core.generate(
+                    prompt: prompt,
+                    cachedPrefixBytes: cachedPrefixBytes,
+                    options: options
+                )
+            }.value
         } catch is CancellationError {
             TabbyLogger.runtime.debug("Generation cancelled")
             throw LlamaRuntimeError.cancelled
@@ -117,8 +120,6 @@ final class LlamaRuntimeManager: ObservableObject {
     }
 
     /// Clears the native prompt KV cache without unloading the model.
-    /// The manager exposes this as a lifecycle command because focus/settings resets originate in
-    /// the app layer, while the actor still owns the raw llama pointers.
 
     /// Generates a short summary using an ephemeral context so the autocomplete cache is unaffected.
     func summarize(
@@ -128,14 +129,17 @@ final class LlamaRuntimeManager: ObservableObject {
     ) async throws -> String {
         _ = try await preparedRuntime()
 
+        let core = self.core
         do {
-            return try await core.summarize(
-                prompt: prompt,
-                options: .summary(
-                    maxPredictionTokens: maxPredictionTokens,
-                    temperature: temperature
+            return try await Task.detached {
+                try core.summarize(
+                    prompt: prompt,
+                    options: .summary(
+                        maxPredictionTokens: maxPredictionTokens,
+                        temperature: temperature
+                    )
                 )
-            )
+            }.value
         } catch is CancellationError {
             throw LlamaRuntimeError.cancelled
         } catch let error as LlamaRuntimeError {
@@ -148,27 +152,23 @@ final class LlamaRuntimeManager: ObservableObject {
         }
     }
 
-    func resetPromptCache() async {
-        await core.resetPromptCache()
+    func resetPromptCache() {
+        core.resetPromptCache()
     }
 
-    /// Cancels any retained prepared runtime and asks the actor to release backend resources.
+    /// Cancels any retained prepared runtime and releases backend resources.
     func stop() {
         TabbyLogger.runtime.info("Runtime stop requested")
         prepareForStop()
-
-        Task {
-            await core.shutdown()
-        }
+        core.shutdown()
     }
 
     /// Cancels runtime work and waits until native llama resources are released.
     /// Destructive flows such as uninstall need this stronger guarantee before deleting model files
     /// that may have been memory-mapped by the runtime.
-    func stopAndWait() async {
-        TabbyLogger.runtime.info("Runtime stop-and-wait requested")
+    func stopAndWait() {
         prepareForStop()
-        await core.shutdown()
+        core.shutdown()
     }
 
     private func prepareForStop() {
@@ -212,8 +212,8 @@ final class LlamaRuntimeManager: ObservableObject {
         diagnostics.lastError = nil
         diagnostics.lastLoadStatus = "Starting"
         diagnostics.modelFilePath = resolvedRuntime.modelFileURL.path
-        let startupTask = Task { [core, configuration] in
-            try await core.prepare(
+        let startupTask = Task.detached { [core, configuration] in
+            try core.prepare(
                 resolvedRuntime: resolvedRuntime,
                 configuration: configuration
             )
