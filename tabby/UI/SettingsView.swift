@@ -327,6 +327,15 @@ struct SettingsView: View {
                         .multilineTextAlignment(.trailing)
 
                     HStack(spacing: 8) {
+                        let lmStudioURL = FileManager.default.homeDirectoryForCurrentUser
+                            .appendingPathComponent(".lmstudio/models")
+                        Button("LM Studio Folder") {
+                            NSWorkspace.shared.open(lmStudioURL)
+                        }
+                        .disabled(
+                            !FileManager.default.fileExists(atPath: lmStudioURL.path)
+                        )
+
                         Button("Open Folder") {
                             modelDownloadManager.openModelsDirectory()
                         }
