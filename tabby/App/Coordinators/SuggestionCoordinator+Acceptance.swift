@@ -103,7 +103,7 @@ extension SuggestionCoordinator {
                 inputFrameRect: liveContext.inputFrameRect,
                 caretQuality: liveContext.caretQuality,
                 observedCharWidth: liveContext.observedCharWidth,
-                precedingText: liveContext.precedingText
+                isRightToLeft: isRTL
             )
             // Force an early AX refresh so the real caret position corrects any prediction
             // error faster than the normal 250ms poll interval.
@@ -310,14 +310,14 @@ extension SuggestionCoordinator {
         inputFrameRect: CGRect?,
         caretQuality: CaretGeometryQuality,
         observedCharWidth: CGFloat?,
-        precedingText: String = ""
+        isRightToLeft: Bool = false
     ) {
         let geometry = SuggestionOverlayGeometry(
             caretRect: caretRect,
             inputFrameRect: inputFrameRect,
             caretQuality: caretQuality,
             observedCharWidth: observedCharWidth,
-            isRightToLeft: TextDirectionDetector.isRightToLeft(precedingText)
+            isRightToLeft: isRightToLeft
         )
         if let message = overlayPresenter.present(
             text: text,

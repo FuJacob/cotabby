@@ -20,8 +20,9 @@ enum TextDirectionDetector {
 
     private static func isStrongRTL(_ scalar: Unicode.Scalar) -> Bool {
         let value = scalar.value
-        // Arabic (0600–06FF), Syriac (0700–074F), Arabic Supplement (0750–077F),
-        // Thaana (0780–07BF), NKo (07C0–07FF), Arabic Extended (0870–08FF) — one contiguous test
+        // Hebrew (0590–05FF), Arabic (0600–06FF), Syriac (0700–074F),
+        // Arabic Supplement (0750–077F), Thaana (0780–07BF), NKo (07C0–07FF),
+        // Arabic Extended (0870–08FF) — one contiguous test
         if value >= 0x0590 && value <= 0x08FF { return true }
         // Arabic/Hebrew presentation forms + Arabic Presentation Forms-B
         if value >= 0xFB1D && value <= 0xFDFF { return true }
