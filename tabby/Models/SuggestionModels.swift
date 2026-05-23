@@ -129,6 +129,7 @@ struct FocusedInputContext: Equatable, Sendable {
     let observedCharWidth: CGFloat?
     let precedingText: String
     let trailingText: String
+    let fieldContextText: String?
     let selection: NSRange
     let isSecure: Bool
     /// Carries the immutable focus-observation identity across debounce/generation boundaries.
@@ -150,6 +151,7 @@ struct FocusedInputContext: Equatable, Sendable {
         observedCharWidth = snapshot.observedCharWidth
         precedingText = snapshot.precedingText
         trailingText = snapshot.trailingText
+        fieldContextText = snapshot.fieldContextText
         selection = snapshot.selection
         isSecure = snapshot.isSecure
         focusChangeSequence = snapshot.focusChangeSequence
@@ -171,6 +173,7 @@ struct FocusedInputContext: Equatable, Sendable {
             String(selection.length),
             precedingText,
             trailingText,
+            fieldContextText ?? "",
             isSecure ? "secure" : "plain"
         ].joined(separator: "::")
     }
@@ -183,6 +186,12 @@ struct SuggestionRequest: Equatable, Sendable {
     /// This stays backend-agnostic and gives every engine access to the same local writing context
     /// even if they render prompts differently.
     let prefixText: String
+    /// The truncated text immediately after the caret.
+    ///
+    /// Accessibility already gives Tabby both sides of the focused field. The suggestion model should
+    /// see the suffix when it exists so insertions in the middle of a sentence can fit the text that
+    /// will remain after the ghost text is accepted.
+    let suffixText: String
     /// The canonical prompt payload for prompt-oriented backends such as the local llama runtime.
     /// Engines that prefer a separate instructions channel can derive their own request text from
     /// `prefixText` and the other shared fields instead of consuming this string directly.
@@ -206,8 +215,61 @@ struct SuggestionRequest: Equatable, Sendable {
     let userName: String?
     /// Ephemeral clipboard context captured only when the user has enabled clipboard prompting.
     let clipboardContext: String?
+    /// Short AX metadata for the focused field, for example placeholder or nearby label text.
+    let fieldContextText: String?
     /// Ephemeral screen context summary injected only when available for the active text field.
     let visualContextSummary: String?
+
+    init(
+        context: FocusedInputContext,
+        prefixText: String,
+        suffixText: String = "",
+        prompt: String,
+        generation: UInt64,
+        maxPredictionTokens: Int,
+        temperature: Double,
+        topK: Int,
+        topP: Double,
+        minP: Double,
+        repetitionPenalty: Double,
+        randomSeed: UInt32?,
+        maxSuffixCharacters: Int,
+        completionLengthInstruction: String,
+        userName: String?,
+        clipboardContext: String?,
+        fieldContextText: String? = nil,
+        visualContextSummary: String?
+    ) {
+        self.context = context
+        self.prefixText = prefixText
+        self.suffixText = suffixText
+        self.prompt = prompt
+        self.generation = generation
+        self.maxPredictionTokens = maxPredictionTokens
+        self.temperature = temperature
+        self.topK = topK
+        self.topP = topP
+        self.minP = minP
+        self.repetitionPenalty = repetitionPenalty
+        self.randomSeed = randomSeed
+        self.maxSuffixCharacters = maxSuffixCharacters
+        self.completionLengthInstruction = completionLengthInstruction
+        self.userName = userName
+        self.clipboardContext = clipboardContext
+        self.fieldContextText = fieldContextText
+        self.visualContextSummary = visualContextSummary
+    }
+}
+
+/// Describes the concrete edit Tabby should commit when the user accepts a suggestion.
+///
+/// Most autocomplete results are plain insertions at the caret. Spell correction is different:
+/// the useful action is replacing the misspelled token immediately before the caret. Keeping that
+/// edit shape in the model layer prevents prompt builders from silently rewriting context and lets
+/// acceptance stay honest about what will happen in the host app.
+enum SuggestionAcceptanceEdit: Equatable, Sendable {
+    case insert
+    case replacePreviousCharacters(count: Int)
 }
 
 /// The engine's normalized response, including raw model text for debugging.
@@ -216,6 +278,21 @@ struct SuggestionResult: Equatable, Sendable {
     let rawText: String
     let text: String
     let latency: TimeInterval
+    let acceptanceEdit: SuggestionAcceptanceEdit
+
+    init(
+        generation: UInt64,
+        rawText: String,
+        text: String,
+        latency: TimeInterval,
+        acceptanceEdit: SuggestionAcceptanceEdit = .insert
+    ) {
+        self.generation = generation
+        self.rawText = rawText
+        self.text = text
+        self.latency = latency
+        self.acceptanceEdit = acceptanceEdit
+    }
 }
 
 /// Represents one active inline-completion session after the model has produced a suggestion.
@@ -229,17 +306,20 @@ struct ActiveSuggestionSession: Equatable, Sendable {
     let fullText: String
     let consumedCharacterCount: Int
     let latency: TimeInterval
+    let acceptanceEdit: SuggestionAcceptanceEdit
 
     init(
         baseContext: FocusedInputContext,
         fullText: String,
         consumedCharacterCount: Int = 0,
-        latency: TimeInterval
+        latency: TimeInterval,
+        acceptanceEdit: SuggestionAcceptanceEdit = .insert
     ) {
         self.baseContext = baseContext
         self.fullText = fullText
         self.consumedCharacterCount = min(max(consumedCharacterCount, 0), fullText.count)
         self.latency = latency
+        self.acceptanceEdit = acceptanceEdit
     }
 
     var acceptedText: String {
@@ -271,7 +351,8 @@ struct ActiveSuggestionSession: Equatable, Sendable {
             baseContext: baseContext,
             fullText: fullText,
             consumedCharacterCount: self.consumedCharacterCount + max(consumedCharacters, 0),
-            latency: latency
+            latency: latency,
+            acceptanceEdit: acceptanceEdit
         )
     }
 
@@ -282,7 +363,8 @@ struct ActiveSuggestionSession: Equatable, Sendable {
             baseContext: baseContext,
             fullText: fullText,
             consumedCharacterCount: consumedCharacters,
-            latency: latency
+            latency: latency,
+            acceptanceEdit: acceptanceEdit
         )
     }
 }

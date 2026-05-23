@@ -11,7 +11,6 @@ extension SuggestionCoordinator {
             globallyEnabled: settingsSnapshot.isGloballyEnabled,
             disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
             inputMonitoringGranted: permissionManager.inputMonitoringGranted,
-            screenRecordingGranted: permissionManager.screenRecordingGranted,
             focusSnapshot: focusModel.snapshot
         ) {
             disablePredictions(reason: disabledReason)
@@ -50,7 +49,6 @@ extension SuggestionCoordinator {
             globallyEnabled: settingsSnapshot.isGloballyEnabled,
             disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
             inputMonitoringGranted: permissionManager.inputMonitoringGranted,
-            screenRecordingGranted: permissionManager.screenRecordingGranted,
             focusSnapshot: snapshot
         ) {
             disablePredictions(reason: disabledReason)
@@ -70,6 +68,39 @@ extension SuggestionCoordinator {
         }
 
         let context = interactionState.materializeContext(from: rawContext)
+
+        if let localSpellCorrection = LocalSpellCorrectionProvider.suggestion(for: context) {
+            latestGenerationNumber = context.generation
+            latestPromptPreview = "Local spell correction for current text."
+            latestRawModelOutput = SuggestionDebugLogger.debugPreview(localSpellCorrection.rawText)
+            logStage(
+                "local-spell-correction",
+                workID: workID,
+                generation: context.generation,
+                message: "Using local spell correction before model generation.",
+                rawOutput: localSpellCorrection.rawText,
+                normalizedOutput: localSpellCorrection.text
+            )
+            await apply(result: localSpellCorrection, workID: workID)
+            return
+        }
+
+        if let localWordCompletion = LocalWordCompletionProvider.suggestion(for: context) {
+            latestGenerationNumber = context.generation
+            latestPromptPreview = "Local word completion for current token."
+            latestRawModelOutput = SuggestionDebugLogger.debugPreview(localWordCompletion.rawText)
+            logStage(
+                "local-word-completion",
+                workID: workID,
+                generation: context.generation,
+                message: "Using local word completion before model generation.",
+                rawOutput: localWordCompletion.rawText,
+                normalizedOutput: localWordCompletion.text
+            )
+            await apply(result: localWordCompletion, workID: workID)
+            return
+        }
+
         let visualContextSummary = visualContextCoordinator.excerpt(for: context)
         let clipboardContext = settingsSnapshot.isClipboardContextEnabled
             ? clipboardContextProvider.currentContext()
@@ -134,7 +165,6 @@ extension SuggestionCoordinator {
             globallyEnabled: settingsSnapshot.isGloballyEnabled,
             disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
             inputMonitoringGranted: permissionManager.inputMonitoringGranted,
-            screenRecordingGranted: permissionManager.screenRecordingGranted,
             focusSnapshot: snapshot
         ) {
 
@@ -204,7 +234,8 @@ extension SuggestionCoordinator {
         let session = interactionState.startSession(
             fullText: result.text,
             liveContext: liveContext,
-            latency: result.latency
+            latency: result.latency,
+            acceptanceEdit: result.acceptanceEdit
         )
         applySessionDiagnostics(session, acceptanceAction: "Generated new suggestion.")
         state = .ready(text: session.remainingText, latency: session.latency)
@@ -246,7 +277,6 @@ extension SuggestionCoordinator {
             globallyEnabled: settingsSnapshot.isGloballyEnabled,
             disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
             inputMonitoringGranted: permissionManager.inputMonitoringGranted,
-            screenRecordingGranted: permissionManager.screenRecordingGranted,
             focusSnapshot: focusModel.snapshot
         )
 
@@ -329,6 +359,7 @@ extension SuggestionCoordinator {
     func disablePredictions(reason: String) {
         cancelPredictionWork()
         resetCachedGenerationContext()
+        lastSnapshotDrivenPredictionSignature = nil
         visualContextCoordinator.cancel(resetState: true)
         interactionState.resetAll()
         clearSuggestion(clearDiagnostics: true)
@@ -346,6 +377,7 @@ extension SuggestionCoordinator {
     func disablePredictionsPreservingVisualContext(reason: String) {
         cancelPredictionWork()
         resetCachedGenerationContext()
+        lastSnapshotDrivenPredictionSignature = nil
         interactionState.resetAll()
         clearSuggestion(clearDiagnostics: true)
         hideOverlay(reason: reason)

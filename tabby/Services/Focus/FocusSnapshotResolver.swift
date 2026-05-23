@@ -10,11 +10,6 @@ import Foundation
 struct FocusSnapshotResolver {
     private let geometryResolver: AXTextGeometryResolver
 
-    // MARK: - Debug AX tree dump (temporary — remove after caret placement is fixed)
-    /// Set to true to print the AX tree every time focus changes. Check Xcode console.
-    private static let dumpAXTree = false
-    private static var lastDumpedElementID: String?
-
     init(geometryResolver: AXTextGeometryResolver? = nil) {
         self.geometryResolver = geometryResolver ?? AXTextGeometryResolver()
     }
@@ -37,13 +32,6 @@ struct FocusSnapshotResolver {
             for: kAXSubroleAttribute as CFString, on: focusedElement)
         let focusedElementIdentifier = AXHelper.elementIdentifier(
             for: focusedElement, bundleIdentifier: bundleIdentifier)
-
-        // Dump once per element change so it doesn't spam on repeated focus/value notifications.
-        if Self.dumpAXTree, Self.lastDumpedElementID != focusedElementIdentifier {
-            Self.lastDumpedElementID = focusedElementIdentifier
-            printAXTreeDump(
-                focusedElement: focusedElement, app: applicationName, bundle: bundleIdentifier)
-        }
 
         let candidates = candidateElements(around: focusedElement).map {
             candidateSnapshot(for: $0, bundleIdentifier: bundleIdentifier)
@@ -151,6 +139,13 @@ struct FocusSnapshotResolver {
         let nsValue = value as NSString
         let safeSelectionLocation = min(selection.location, nsValue.length)
         let trailingStart = min(selection.location + selection.length, nsValue.length)
+        let fieldContextText = combinedFieldContextText(
+            directContext: resolvedCandidate.fieldContextText,
+            nearbyContext: nearbyAccessibilityTextContext(
+                around: resolvedCandidate.element,
+                focusedTextValue: value
+            )
+        )
         let context = FocusedInputSnapshot(
             applicationName: applicationName,
             bundleIdentifier: bundleIdentifier,
@@ -165,6 +160,7 @@ struct FocusSnapshotResolver {
             observedCharWidth: observedCharWidth,
             precedingText: nsValue.substring(to: safeSelectionLocation),
             trailingText: nsValue.substring(from: trailingStart),
+            fieldContextText: fieldContextText,
             selection: selection,
             isSecure: resolvedCandidate.isSecure,
             focusChangeSequence: focusChangeSequence
@@ -434,6 +430,10 @@ struct FocusSnapshotResolver {
         let caretRect = caretResult?.rect
         let caretQuality = caretResult?.quality
         let isSecure = isSecureElement(element: element, role: role, subrole: subrole)
+        let fieldContextText = focusedFieldContextText(
+            for: element,
+            textValue: textValue
+        )
         let elementIdentifier = AXHelper.elementIdentifier(
             for: element, bundleIdentifier: bundleIdentifier)
         let resolverCandidate = FocusCapabilityCandidate(
@@ -462,9 +462,199 @@ struct FocusSnapshotResolver {
             caretQuality: caretQuality,
             observedCharWidth: caretResult?.observedCharWidth,
             inputFrameRect: inputFrameRect,
+            fieldContextText: fieldContextText,
             isSecure: isSecure,
             resolverCandidate: resolverCandidate
         )
+    }
+
+    /// Extracts short field-level labels from Accessibility metadata.
+    ///
+    /// Many apps do not expose the surrounding document or conversation text through AX, but they do
+    /// expose the active field's placeholder, title, description, or parent label. Keeping this as
+    /// metadata separate from `textValue` prevents the typed user content from being duplicated while
+    /// still giving autocomplete a stronger clue than just "App: Slack" or "App: Safari".
+    private func focusedFieldContextText(
+        for element: AXUIElement,
+        textValue: String?
+    ) -> String? {
+        var pieces: [String] = []
+        appendFieldMetadata(from: element, into: &pieces)
+
+        if let parent = AXHelper.parentElement(of: element) {
+            appendFieldMetadata(from: parent, into: &pieces)
+        }
+
+        let typedText = textValue?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedPieces = pieces
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .filter { $0 != typedText }
+
+        var seen = Set<String>()
+        let uniquePieces = normalizedPieces.filter { piece in
+            seen.insert(piece.lowercased()).inserted
+        }
+
+        guard !uniquePieces.isEmpty else {
+            return nil
+        }
+
+        let joined = uniquePieces.prefix(6).joined(separator: "\n")
+        let sanitized = PromptContextSanitizer.sanitize(joined, maxCharacters: 500)
+        return PromptContextSanitizer.containsAlphanumericSignal(sanitized) ? sanitized : nil
+    }
+
+    private func appendFieldMetadata(from element: AXUIElement, into pieces: inout [String]) {
+        let metadataAttributes: [CFString] = [
+            kAXTitleAttribute as CFString,
+            kAXDescriptionAttribute as CFString,
+            kAXHelpAttribute as CFString,
+            "AXPlaceholderValue" as CFString,
+            "AXDOMIdentifier" as CFString
+        ]
+
+        for attribute in metadataAttributes {
+            if let value = AXHelper.stringValue(for: attribute, on: element) {
+                pieces.append(value)
+            }
+        }
+    }
+
+    /// Collects a small, ordered text excerpt from the AX neighborhood around the focused field.
+    ///
+    /// This is the low-latency alternative to asking a model to summarize a screenshot. It is bounded
+    /// by ancestors, depth, node count, and character count so focus polling stays cheap enough for an
+    /// autocomplete loop.
+    private func nearbyAccessibilityTextContext(
+        around element: AXUIElement,
+        focusedTextValue: String
+    ) -> String? {
+        let root = nearbyContextRoot(for: element)
+        let focusedText = focusedTextValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        let maxDepth = 4
+        let maxNodes = 140
+        let maxCharacters = 1_200
+        var visitedNodeCount = 0
+        var seenElements = Set<String>()
+        var seenText = Set<String>()
+        var pieces: [String] = []
+        var joinedCharacterCount = 0
+
+        func appendText(_ rawText: String?) {
+            guard let rawText else { return }
+
+            let text = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard text.count >= 3,
+                  text != focusedText,
+                  !PromptContextSanitizer.isStandaloneUIMetadata(text),
+                  PromptContextSanitizer.containsAlphanumericSignal(text)
+            else {
+                return
+            }
+
+            let key = text.lowercased()
+            guard seenText.insert(key).inserted else {
+                return
+            }
+
+            // Track the eventual joined length incrementally so the traversal can stop in O(1)
+            // after each child visit instead of rebuilding the whole excerpt to measure it.
+            joinedCharacterCount += text.count + (pieces.isEmpty ? 0 : 1)
+            pieces.append(text)
+        }
+
+        func visit(_ current: AXUIElement, depth: Int) {
+            guard depth <= maxDepth, visitedNodeCount < maxNodes else {
+                return
+            }
+
+            let identity = AXHelper.elementIdentity(for: current)
+            guard seenElements.insert(identity).inserted else {
+                return
+            }
+
+            visitedNodeCount += 1
+            let role = AXHelper.stringValue(for: kAXRoleAttribute as CFString, on: current)
+            let attributes = Set(AXHelper.attributeNames(on: current))
+
+            // Prefer display text and labels. Avoid pulling editable values from nested fields; those
+            // are often unrelated drafts in complex web apps.
+            if role == kAXStaticTextRole as String || role == "AXLink" || role == kAXButtonRole as String {
+                appendText(AXHelper.stringValue(for: kAXValueAttribute as CFString, on: current))
+            }
+
+            appendText(AXHelper.stringValue(for: kAXTitleAttribute as CFString, on: current))
+            appendText(AXHelper.stringValue(for: kAXDescriptionAttribute as CFString, on: current))
+
+            if attributes.contains("AXPlaceholderValue") {
+                appendText(AXHelper.stringValue(for: "AXPlaceholderValue" as CFString, on: current))
+            }
+
+            guard depth < maxDepth else {
+                return
+            }
+
+            for child in AXHelper.childElements(of: current) {
+                visit(child, depth: depth + 1)
+                if joinedCharacterCount >= maxCharacters {
+                    return
+                }
+            }
+        }
+
+        visit(root, depth: 0)
+
+        let joined = pieces.joined(separator: "\n")
+        let sanitized = PromptContextSanitizer.sanitize(joined, maxCharacters: maxCharacters)
+        guard !sanitized.isEmpty,
+              PromptContextSanitizer.containsAlphanumericSignal(sanitized)
+        else {
+            return nil
+        }
+
+        return sanitized
+    }
+
+    private func nearbyContextRoot(for element: AXUIElement) -> AXUIElement {
+        var root = element
+        var current = element
+
+        // Two parent hops usually reaches the message/input container without walking an entire
+        // browser window. The node/depth caps above are the real safety rail if an app exposes more.
+        for _ in 0..<2 {
+            guard let parent = AXHelper.parentElement(of: current) else {
+                break
+            }
+
+            root = parent
+            current = parent
+        }
+
+        return root
+    }
+
+    private func combinedFieldContextText(
+        directContext: String?,
+        nearbyContext: String?
+    ) -> String? {
+        let pieces = [directContext, nearbyContext]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        guard !pieces.isEmpty else {
+            return nil
+        }
+
+        var seen = Set<String>()
+        let uniquePieces = pieces.filter { piece in
+            seen.insert(piece.lowercased()).inserted
+        }
+        let sanitized = PromptContextSanitizer.sanitize(
+            uniquePieces.joined(separator: "\n"),
+            maxCharacters: 1_400
+        )
+        return PromptContextSanitizer.containsAlphanumericSignal(sanitized) ? sanitized : nil
     }
 
     /// Detects secure inputs so Tabby can intentionally refuse to operate in sensitive fields.
@@ -482,107 +672,6 @@ struct FocusSnapshotResolver {
             marker.contains("secure") || marker.contains("password")
         }
     }
-
-    // MARK: - Debug AX tree dump
-
-    private func printAXTreeDump(focusedElement: AXUIElement, app: String, bundle: String) {
-        var out = "\n========== AX TREE DUMP ==========\n"
-        out += "App: \(app) (\(bundle))\n\n"
-
-        out += "-- Focused + ancestors --\n"
-        var ancestors: [AXUIElement] = [focusedElement]
-        var currentElement = focusedElement
-        for _ in 0..<3 {
-            guard let parent = AXHelper.parentElement(of: currentElement) else { break }
-            ancestors.append(parent)
-            currentElement = parent
-        }
-        for (offset, element) in ancestors.enumerated().reversed() {
-            let indent = String(repeating: "  ", count: ancestors.count - 1 - offset)
-            out += describeNode(element, indent: indent)
-        }
-
-        out += "\n-- Children (depth 6) --\n"
-        dumpChildrenRecursive(of: focusedElement, into: &out, indent: "", depth: 0)
-
-        out += "========== END DUMP ==========\n"
-        print(out)
-    }
-
-    private func dumpChildrenRecursive(
-        of element: AXUIElement,
-        into out: inout String,
-        indent: String,
-        depth: Int
-    ) {
-        guard depth < 6 else { return }
-        let children = AXHelper.childElements(of: element)
-        for (offset, child) in children.prefix(20).enumerated() {
-            out += describeNode(child, indent: "\(indent)[\(offset)] ")
-            dumpChildrenRecursive(of: child, into: &out, indent: indent + "  ", depth: depth + 1)
-        }
-        if children.count > 20 {
-            out += "\(indent)  ...+\(children.count - 20) more\n"
-        }
-    }
-
-    private func describeNode(_ element: AXUIElement, indent: String) -> String {
-        let role = AXHelper.stringValue(for: kAXRoleAttribute as CFString, on: element) ?? "?"
-        let subrole = AXHelper.stringValue(for: kAXSubroleAttribute as CFString, on: element)
-        let attributes = Set(AXHelper.attributeNames(on: element))
-        let parameterizedAttributes = Set(AXHelper.parameterizedAttributeNames(on: element))
-
-        var summary = "\(indent)\(role)"
-        if let subrole { summary += " (\(subrole))" }
-        summary += "\n"
-
-        if let frame = AXHelper.rectValue(for: "AXFrame" as CFString, on: element) {
-            let cocoa = AXHelper.cocoaRect(fromAccessibilityRect: frame)
-            summary += "\(indent)  frame(AX): \(fmt(frame))  frame(cocoa): \(fmt(cocoa))\n"
-        }
-
-        if attributes.contains(kAXValueAttribute as String),
-            let text = AXHelper.stringValue(for: kAXValueAttribute as CFString, on: element) {
-            let previewText = text.count > 80 ? String(text.prefix(80)) + "…" : text
-            summary += "\(indent)  value: " +
-                "\"\(previewText.replacingOccurrences(of: "\n", with: "\\n"))\" " +
-                "(len=\(text.count))\n"
-        }
-
-        if let range = AXHelper.rangeValue(for: kAXSelectedTextRangeAttribute as CFString, on: element) {
-            summary += "\(indent)  selection: loc=\(range.location) len=\(range.length)\n"
-
-            if parameterizedAttributes.contains(kAXBoundsForRangeParameterizedAttribute as String) {
-                let boundsRect = AXHelper.parameterizedRectValue(
-                    for: kAXBoundsForRangeParameterizedAttribute as CFString,
-                    range: NSRange(location: range.location, length: 0),
-                    on: element
-                )
-                if let boundsRect, !boundsRect.isEmpty {
-                    summary += "\(indent)  BoundsForRange(loc,0): \(fmt(boundsRect))\n"
-                } else {
-                    summary += "\(indent)  BoundsForRange(loc,0): FAILED\n"
-                }
-            }
-        }
-
-        if let markerRect = AXHelper.textMarkerCaretRect(on: element), !markerRect.isEmpty {
-            summary += "\(indent)  TextMarkerCaret: \(fmt(markerRect))\n"
-        }
-
-        if let isEditable = AXHelper.boolValue(for: "AXEditable" as CFString, on: element) {
-            summary += "\(indent)  editable: \(isEditable)\n"
-        }
-
-        let childCount = AXHelper.childElements(of: element).count
-        if childCount > 0 { summary += "\(indent)  children: \(childCount)\n" }
-
-        return summary
-    }
-
-    private func fmt(_ rect: CGRect) -> String {
-        String(format: "(%.0f, %.0f, %.0f×%.0f)", rect.origin.x, rect.origin.y, rect.width, rect.height)
-    }
 }
 
 /// AX data read from one candidate element near the current focus.
@@ -598,6 +687,7 @@ private struct AXFocusCandidate {
     let caretQuality: CaretGeometryQuality?
     let observedCharWidth: CGFloat?
     let inputFrameRect: CGRect?
+    let fieldContextText: String?
     let isSecure: Bool
     let resolverCandidate: FocusCapabilityCandidate
 }

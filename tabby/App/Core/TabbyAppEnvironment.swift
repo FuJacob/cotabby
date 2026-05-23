@@ -76,8 +76,14 @@ final class TabbyAppEnvironment {
         let overlayController = OverlayController(suggestionSettings: suggestionSettings)
         let activationIndicatorController = ActivationIndicatorController()
         let clipboardContextProvider = ClipboardContextProvider()
+        // The summarizer helps Apple Intelligence by turning OCR into shorter task-shaped notes.
+        // When the open-source engine is selected, summarization would compete for the same local
+        // llama runtime and delay actual completions, so that path falls back to sanitized OCR.
         let summarizer = LlamaVisualContextSummarizer(runtimeManager: runtimeManager)
-        let screenshotContextGenerator = ScreenshotContextGenerator(summarizer: summarizer)
+        let screenshotContextGenerator = ScreenshotContextGenerator(
+            summarizer: summarizer,
+            shouldUseSummarizer: { suggestionSettings.selectedEngine == .appleIntelligence }
+        )
         let visualContextCoordinator = VisualContextCoordinator(
             screenshotContextGenerator: screenshotContextGenerator,
             screenRecordingPermissionProvider: { permissionManager.screenRecordingGranted }

@@ -28,12 +28,14 @@ final class ScreenshotContextGenerator {
     private let screenshotService: WindowScreenshotService
     private let textExtractor: ScreenTextExtractor
     private let summarizer: VisualContextSummarizing?
+    private let shouldUseSummarizer: @MainActor () -> Bool
     private let configuration: VisualContextConfiguration
 
     init(
         screenshotService: WindowScreenshotService? = nil,
         textExtractor: ScreenTextExtractor? = nil,
         summarizer: VisualContextSummarizing? = nil,
+        shouldUseSummarizer: @escaping @MainActor () -> Bool = { true },
         configuration: VisualContextConfiguration? = nil
     ) {
         let actualConfig = configuration ?? .default
@@ -45,6 +47,7 @@ final class ScreenshotContextGenerator {
                 maxRecognizedCharacters: actualConfig.maxRecognizedCharacters
             )
         self.summarizer = summarizer
+        self.shouldUseSummarizer = shouldUseSummarizer
         self.configuration = actualConfig
     }
 
@@ -108,17 +111,22 @@ final class ScreenshotContextGenerator {
         }
 
         let generatedContextText: String
-        if let summarizer = summarizer {
+        if let summarizer = summarizer, shouldUseSummarizer() {
             await onStatusChange?(.summarizingText)
             do {
-                generatedContextText = try await summarizer.summarize(
+                let summarizedText = try await summarizer.summarize(
                     text: normalizedText,
                     applicationName: context.applicationName
                 )
-            } catch {
-                throw ScreenshotContextGenerationError.failed(
-                    "Summarization failed: \(error.localizedDescription)"
+                generatedContextText = preferredVisualContextText(
+                    summarizedText: summarizedText,
+                    fallbackText: normalizedText
                 )
+            } catch {
+                // Visual context should still help even when the local summarizer is unavailable.
+                // Falling back to bounded OCR keeps the prompt augmentation alive instead of
+                // turning one summarization failure into a complete loss of screen context.
+                generatedContextText = normalizedText
             }
         } else {
             generatedContextText = normalizedText
@@ -154,6 +162,20 @@ final class ScreenshotContextGenerator {
             text,
             maxCharacters: configuration.maxSummaryCharacters
         )
+    }
+
+    /// Prefers a compact summary when it still contains real signal. Some failure modes produce an
+    /// empty string or generic filler, and using those would be worse than keeping the sanitized OCR.
+    func preferredVisualContextText(
+        summarizedText: String,
+        fallbackText: String
+    ) -> String {
+        let sanitizedSummary = boundedSummaryText(summarizedText)
+        guard hasMeaningfulSignal(sanitizedSummary) else {
+            return fallbackText
+        }
+
+        return sanitizedSummary
     }
 
     /// We reject OCR text that is mostly punctuation or numeric noise because that would hurt

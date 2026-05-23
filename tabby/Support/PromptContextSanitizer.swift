@@ -59,6 +59,37 @@ enum PromptContextSanitizer {
         return bounded.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    /// Detects tiny UI metadata strings that are useful as screen context but harmful as autocomplete
+    /// content. Time badges like "23h" or "(23 hrs)" are common in chat apps and should not be copied
+    /// into a draft unless the user explicitly typed them.
+    static func isStandaloneUIMetadata(_ text: String) -> Bool {
+        let compact = text
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .trimmingCharacters(in: CharacterSet(charactersIn: "()[]{}<>.,;: "))
+            .lowercased()
+            .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+
+        guard !compact.isEmpty else {
+            return false
+        }
+
+        let relativeTimePatterns = [
+            #"^\d{1,3}\s*(s|sec|secs|second|seconds)$"#,
+            #"^\d{1,3}\s*(m|min|mins|minute|minutes)$"#,
+            #"^\d{1,3}\s*(h|hr|hrs|hour|hours)$"#,
+            #"^\d{1,3}\s*(d|day|days)$"#,
+            #"^\d{1,3}\s*(w|wk|wks|week|weeks)$"#,
+            #"^\d{1,3}\s*(mo|mos|month|months)$"#,
+            #"^\d{1,3}\s*(y|yr|yrs|year|years)$"#,
+            #"^\d{1,3}\s+(seconds|minutes|hours|days|weeks|months|years)\s+ago$"#,
+            #"^\d{1,2}:\d{2}\s*(am|pm)?$"#
+        ]
+
+        return relativeTimePatterns.contains { pattern in
+            compact.range(of: pattern, options: .regularExpression) != nil
+        }
+    }
+
     static func containsAlphanumericSignal(_ text: String) -> Bool {
         text.unicodeScalars.contains { CharacterSet.alphanumerics.contains($0) }
     }
@@ -73,10 +104,15 @@ enum PromptContextSanitizer {
     /// Filters a single OCR line: drops short noise tokens and standalone numbers, then drops
     /// the entire line if fewer than half its original tokens survived.
     private static func filterOCRNoiseLine(_ line: String) -> String? {
+        guard !isStandaloneUIMetadata(line) else {
+            return nil
+        }
+
         let tokens = line.components(separatedBy: " ").filter { !$0.isEmpty }
         guard !tokens.isEmpty else { return nil }
 
         let kept = tokens.filter { token in
+            if isStandaloneUIMetadata(token) { return false }
             // Drop standalone numbers (UI chrome: "50", "424", "102")
             if token.allSatisfy(\.isNumber) { return false }
             // Keep common short English words; drop other 1-2 char noise ("l", "I", "iD3")

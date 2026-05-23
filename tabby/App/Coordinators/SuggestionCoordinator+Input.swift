@@ -13,7 +13,6 @@ extension SuggestionCoordinator {
             globallyEnabled: settingsSnapshot.isGloballyEnabled,
             disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
             inputMonitoringGranted: permissionManager.inputMonitoringGranted,
-            screenRecordingGranted: permissionManager.screenRecordingGranted,
             focusSnapshot: focusModel.snapshot
         ) {
             handleSupportedSnapshot(focusModel.snapshot)
@@ -34,7 +33,6 @@ extension SuggestionCoordinator {
             globallyEnabled: settingsSnapshot.isGloballyEnabled,
             disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
             inputMonitoringGranted: permissionManager.inputMonitoringGranted,
-            screenRecordingGranted: permissionManager.screenRecordingGranted,
             focusSnapshot: snapshot
         ) {
             disablePredictionsPreservingVisualContext(reason: disabledReason)
@@ -67,11 +65,56 @@ extension SuggestionCoordinator {
             clearSuggestion(clearDiagnostics: true)
             hideOverlay(reason: "Overlay hidden because the focused field changed.")
             state = .idle
+            lastSnapshotDrivenPredictionSignature = nil
         }
+
+        schedulePredictionIfFocusedTextChangedWithoutKeyEvent(focusedContext)
 
         if overlayState.isVisible {
             hideOverlay(reason: "Overlay hidden because no ready suggestion remains.")
         }
+    }
+
+    /// Schedules a generation when Accessibility reports text changed but no global key event reached
+    /// `InputMonitor`. This covers automation paths like Computer Use and some host-app/input-method
+    /// combinations that mutate the text value without a normal `keyDown` event.
+    func schedulePredictionIfFocusedTextChangedWithoutKeyEvent(_ focusedContext: FocusedInputSnapshot) {
+        guard !isRefreshingFocusForInputEvent else {
+            _ = interactionState.materializeContext(from: focusedContext)
+            return
+        }
+
+        guard interactionState.activeSession == nil else {
+            return
+        }
+
+        guard let previousContext = interactionState.currentContext else {
+            _ = interactionState.materializeContext(from: focusedContext)
+            return
+        }
+
+        guard previousContext.processIdentifier == focusedContext.processIdentifier else {
+            _ = interactionState.materializeContext(from: focusedContext)
+            lastSnapshotDrivenPredictionSignature = nil
+            return
+        }
+
+        let signature = focusedContext.contentSignature
+        guard signature != previousContext.contentSignature else {
+            return
+        }
+
+        _ = interactionState.materializeContext(from: focusedContext)
+
+        guard focusedContext.selection.length == 0,
+              SuggestionRequestFactory.shouldGenerateSuggestion(for: focusedContext.precedingText),
+              lastSnapshotDrivenPredictionSignature != signature
+        else {
+            return
+        }
+
+        lastSnapshotDrivenPredictionSignature = signature
+        schedulePrediction()
     }
 
     func handleInputEvent(_ event: CapturedInputEvent) -> Bool {
@@ -79,7 +122,6 @@ extension SuggestionCoordinator {
             globallyEnabled: settingsSnapshot.isGloballyEnabled,
             disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
             inputMonitoringGranted: permissionManager.inputMonitoringGranted,
-            screenRecordingGranted: permissionManager.screenRecordingGranted,
             focusSnapshot: focusModel.snapshot
         ) {
             disablePredictions(reason: disabledReason)
@@ -104,9 +146,12 @@ extension SuggestionCoordinator {
         }
 
         if event.shouldSchedulePrediction {
+            lastSnapshotDrivenPredictionSignature = nil
             // Capture AX state immediately at keystroke time so the debounce window
             // works with the freshest possible snapshot, not whenever the poll timer last fired.
+            isRefreshingFocusForInputEvent = true
             focusModel.refreshNow()
+            isRefreshingFocusForInputEvent = false
             schedulePrediction()
         }
 
@@ -137,7 +182,10 @@ extension SuggestionCoordinator {
                 clearDiagnostics: false
             )
             if event.shouldSchedulePrediction {
+                lastSnapshotDrivenPredictionSignature = nil
+                isRefreshingFocusForInputEvent = true
                 focusModel.refreshNow()
+                isRefreshingFocusForInputEvent = false
                 schedulePrediction()
             }
             return false
@@ -148,7 +196,10 @@ extension SuggestionCoordinator {
                 clearDiagnostics: false
             )
             if event.shouldSchedulePrediction {
+                lastSnapshotDrivenPredictionSignature = nil
+                isRefreshingFocusForInputEvent = true
                 focusModel.refreshNow()
+                isRefreshingFocusForInputEvent = false
                 schedulePrediction()
             }
             return false

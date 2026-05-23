@@ -9,10 +9,6 @@ import Foundation
 /// We deliberately downsample very large screenshots before OCR. The goal is not archival fidelity;
 /// it is fast, good-enough semantic extraction for autocomplete context.
 ///
-/// DEPRECATED:
-/// The current autocomplete request path no longer injects OCR-derived context.
-/// Keep this extractor only for legacy experiments until the context rewrite lands.
-
 struct ExtractedScreenText: Sendable {
     let text: String
     let lineCount: Int

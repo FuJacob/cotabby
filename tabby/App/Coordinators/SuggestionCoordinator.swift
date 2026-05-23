@@ -56,6 +56,11 @@ final class SuggestionCoordinator: ObservableObject {
     // Async work and active-session storage now live in dedicated collaborators below.
     var cancellables = Set<AnyCancellable>()
     var settingsSnapshot: SuggestionSettingsSnapshot
+    // AX-only text mutations, such as automation or some input methods, can change the focused text
+    // without producing a CGEvent tap callback. This signature keeps that fallback from repeatedly
+    // scheduling the same snapshot while polling catches up.
+    var lastSnapshotDrivenPredictionSignature: String?
+    var isRefreshingFocusForInputEvent = false
     // Synchronous input/focus callbacks cannot directly `await`, so resets are represented as a
     // barrier task that the next generation must cross before it can ask the runtime for output.
     var cacheResetSequence: UInt64 = 0

@@ -143,6 +143,10 @@ struct FocusedInputSnapshot: Equatable {
     let observedCharWidth: CGFloat?
     let precedingText: String
     let trailingText: String
+    /// Short Accessibility-provided metadata for the focused field, such as placeholder, title,
+    /// description, or nearby parent label text. This is not the user's typed content; it is context
+    /// that helps the model infer what kind of value or message the field expects.
+    let fieldContextText: String?
     let selection: NSRange
     let isSecure: Bool
 
@@ -178,6 +182,7 @@ struct FocusedInputSnapshot: Equatable {
         observedCharWidth: CGFloat?,
         precedingText: String,
         trailingText: String,
+        fieldContextText: String? = nil,
         selection: NSRange,
         isSecure: Bool,
         focusChangeSequence: UInt64 = 0
@@ -195,6 +200,7 @@ struct FocusedInputSnapshot: Equatable {
         self.observedCharWidth = observedCharWidth
         self.precedingText = precedingText
         self.trailingText = trailingText
+        self.fieldContextText = fieldContextText
         self.selection = selection
         self.isSecure = isSecure
         self.focusChangeSequence = focusChangeSequence
@@ -218,6 +224,7 @@ struct FocusedInputSnapshot: Equatable {
             String(selection.length),
             precedingText,
             trailingText,
+            fieldContextText ?? "",
             isSecure ? "secure" : "plain"
         ].joined(separator: "::")
     }

@@ -505,6 +505,8 @@ actor LlamaRuntimeCore {
     }
 
     /// Assembles the sampler chain that controls temperature, nucleus sampling, and repetition behavior.
+    /// When temperature is zero we bypass top-k/top-p/min-p entirely and use llama.cpp's greedy
+    /// sampler, so request-layer sentinel values for those knobs cannot affect generation.
     private func makeSampler(options: LlamaGenerationOptions) throws -> UnsafeMutablePointer<llama_sampler> {
         let params = llama_sampler_chain_default_params()
         guard let sampler = llama_sampler_chain_init(params) else {

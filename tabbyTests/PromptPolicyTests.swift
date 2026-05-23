@@ -20,6 +20,19 @@ final class FoundationModelPromptRendererTests: XCTestCase {
         XCTAssertTrue(instructions.contains("Do not repeat or quote the existing text."))
     }
 
+    func test_sessionInstructions_tellModelToIgnoreUIMetadata() {
+        let request = TabbyTestFixtures.suggestionRequest(
+            prefixText: "much better results",
+            visualContextSummary: "23h\nCopy\nReply"
+        )
+
+        let instructions = FoundationModelPromptRenderer.sessionInstructions(for: request)
+
+        XCTAssertTrue(instructions.contains("Ignore app chrome and UI metadata"))
+        XCTAssertTrue(instructions.contains("timestamps"))
+        XCTAssertTrue(instructions.contains("time-ago badges"))
+    }
+
     func test_prompt_includesApplicationNameAndPreservesPrefixText() {
         let request = TabbyTestFixtures.suggestionRequest(
             prefixText: "  Hello from the field  ",
@@ -56,6 +69,30 @@ final class FoundationModelPromptRendererTests: XCTestCase {
         XCTAssertTrue(prompt.contains("UNIQUE_APPLE_CLIPBOARD_MARKER"))
     }
 
+    func test_prompt_includesFocusedFieldContextWhenProvided() {
+        let request = TabbyTestFixtures.suggestionRequest(
+            prefixText: "Continue this",
+            fieldContextText: "Reply field for Aurora launch thread"
+        )
+
+        let prompt = FoundationModelPromptRenderer.prompt(for: request)
+
+        XCTAssertTrue(prompt.contains("Focused field:"))
+        XCTAssertTrue(prompt.contains("Aurora launch thread"))
+    }
+
+    func test_prompt_includesSuffixContextWhenProvided() {
+        let request = TabbyTestFixtures.suggestionRequest(
+            prefixText: "Can we move",
+            suffixText: " to Friday?"
+        )
+
+        let prompt = FoundationModelPromptRenderer.prompt(for: request)
+
+        XCTAssertTrue(prompt.contains("Text after the caret:"))
+        XCTAssertTrue(prompt.contains(" to Friday?"))
+    }
+
     func test_prompt_returnsFallbackWhenPrefixIsEmptyAfterTrimming() {
         let request = TabbyTestFixtures.suggestionRequest(
             prefixText: " \n ",
@@ -83,6 +120,32 @@ final class FoundationModelPromptRendererTests: XCTestCase {
         XCTAssertTrue(preview.contains("UNIQUE_LENGTH_POLICY"))
         XCTAssertTrue(preview.contains("Prompt:\n"))
         XCTAssertTrue(preview.contains("UNIQUE_APPLE_SCREEN_CONTEXT"))
+    }
+}
+
+final class PromptContextSanitizerTests: XCTestCase {
+    func test_isStandaloneUIMetadata_detectsRelativeTimeBadges() {
+        XCTAssertTrue(PromptContextSanitizer.isStandaloneUIMetadata("23h"))
+        XCTAssertTrue(PromptContextSanitizer.isStandaloneUIMetadata("(23 hrs)"))
+        XCTAssertTrue(PromptContextSanitizer.isStandaloneUIMetadata("2 days ago"))
+    }
+
+    func test_isStandaloneUIMetadata_keepsMeaningfulText() {
+        XCTAssertFalse(PromptContextSanitizer.isStandaloneUIMetadata("after 23 hours of testing"))
+        XCTAssertFalse(PromptContextSanitizer.isStandaloneUIMetadata("release notes"))
+    }
+
+    func test_sanitizeOCR_dropsStandaloneRelativeTimeLines() {
+        let sanitized = PromptContextSanitizer.sanitizeOCR(
+            """
+            much better results
+            23h
+            Copy
+            """
+        )
+
+        XCTAssertFalse(sanitized.contains("23h"))
+        XCTAssertTrue(sanitized.contains("much better results"))
     }
 }
 
