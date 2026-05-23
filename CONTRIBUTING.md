@@ -15,6 +15,12 @@ Please read and follow the [Code of Conduct](CODE_OF_CONDUCT.md) before particip
 - Read [ARCHITECTURE.md](ARCHITECTURE.md) before changing the suggestion pipeline, runtime
   lifecycle, or Accessibility behavior.
 - Check for an existing issue or open one before starting substantial work.
+- Prefer small, atomic PRs with a single clear objective. Large mixed-purpose changes are harder to
+review, validate, and revert safely.
+- Before implementing a change, make sure you can clearly explain:
+   1. The problem being solved
+   2. Why the current behavior is insufficient
+   3. Why the proposed approach fits the existing architecture
 
 ## Development Prerequisites
 
