@@ -6,12 +6,12 @@ import SwiftUI
 /// so no leaked monitors accumulate.
 struct KeyRecorderView: View {
     let onKeyRecorded: (CGKeyCode, String) -> Void
+    var onCancelled: (() -> Void)?
 
     @State private var monitor: Any?
 
     /// Keys that conflict with the suggestion pipeline's built-in classification.
     private static let reservedKeyCodes: Set<UInt16> = [
-        53,                     // Escape
         36, 76,                 // Return, Enter
         123, 124, 125, 126      // Arrow keys
     ]
@@ -24,8 +24,16 @@ struct KeyRecorderView: View {
     }
 
     private func installMonitor() {
+        guard monitor == nil else { return }
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [self] event in
             let keyCode = event.keyCode
+
+            if keyCode == 53 { // Escape cancels recording
+                removeMonitor()
+                onCancelled?()
+                return nil
+            }
+
             guard !Self.reservedKeyCodes.contains(keyCode) else {
                 return event
             }

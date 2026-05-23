@@ -179,10 +179,15 @@ struct SettingsView: View {
                         )
 
                     if isRecordingKeybind {
-                        KeyRecorderView { keyCode, label in
-                            suggestionSettings.setAcceptanceKey(keyCode: keyCode, label: label)
-                            isRecordingKeybind = false
-                        }
+                        KeyRecorderView(
+                            onKeyRecorded: { keyCode, label in
+                                suggestionSettings.setAcceptanceKey(keyCode: keyCode, label: label)
+                                isRecordingKeybind = false
+                            },
+                            onCancelled: {
+                                isRecordingKeybind = false
+                            }
+                        )
                     } else {
                         Button("Change") {
                             isRecordingKeybind = true
