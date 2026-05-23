@@ -13,6 +13,7 @@ struct KeyRecorderView: View {
     /// Keys that conflict with the suggestion pipeline's built-in classification.
     private static let reservedKeyCodes: Set<UInt16> = [
         36, 76,                 // Return, Enter
+        51, 117,                // Delete, Forward Delete
         123, 124, 125, 126      // Arrow keys
     ]
 
