@@ -20,7 +20,7 @@ struct MenuBarView: View {
     let permissionGuidanceController: PermissionGuidanceController
     @ObservedObject var suggestionSettings: SuggestionSettingsModel
     @ObservedObject var foundationModelAvailabilityService: FoundationModelAvailabilityService
-    @ObservedObject var suggestionCoordinator: SuggestionCoordinator
+    let appUpdateManager: AppUpdateManager
     let onOpenSettings: () -> Void
     let onReportFeedback: () -> Void
 
@@ -57,9 +57,9 @@ struct MenuBarView: View {
 
             Spacer(minLength: 0)
 
-            Text("\(suggestionCoordinator.totalTabAcceptedWordCount) words accepted")
+            Button("Report Bug / Feedback", action: onReportFeedback)
+                .buttonStyle(.borderless)
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
         }
         .padding(.bottom, 12)
     }
@@ -202,8 +202,10 @@ struct MenuBarView: View {
             Button("Settings", action: onOpenSettings)
                 .buttonStyle(.borderless)
 
-            Button("Report Bug / Feedback", action: onReportFeedback)
-                .buttonStyle(.borderless)
+            Button("Check for Updates") {
+                appUpdateManager.checkForUpdates()
+            }
+            .buttonStyle(.borderless)
 
             Spacer(minLength: 0)
 
