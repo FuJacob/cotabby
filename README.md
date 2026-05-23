@@ -1,11 +1,11 @@
-# tabby [beta]
+# tabby
 
 <p align="center">
   <img width="128" alt="tabby logo" src="https://github.com/user-attachments/assets/8a67095e-4d03-4055-8d4c-8871335152dd" />
 </p>
 
 <p align="center">
-  <em>Open-source, local-first AI autocomplete for macOS.</em>
+  <em>Open-source, local-first AI autocomplete for macOS. [beta]</em>
   </p>
   
 <p align="center">
