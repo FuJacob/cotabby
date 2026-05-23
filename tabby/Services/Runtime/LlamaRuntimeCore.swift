@@ -11,6 +11,56 @@ import LlamaSwift
 /// mutable native pointers that must never be touched concurrently.
 nonisolated private let llamaSilencedLogCallback: ggml_log_callback = { _, _, _ in }
 
+final class LlamaBackendRegistry: @unchecked Sendable {
+    static let shared = LlamaBackendRegistry(
+        initBackend: {
+            llama_log_set(llamaSilencedLogCallback, nil)
+            llama_backend_init()
+        },
+        freeBackend: { llama_backend_free() }
+    )
+
+    private let lock = NSLock()
+    private let initBackend: @Sendable () -> Void
+    private let freeBackend: @Sendable () -> Void
+    private var referenceCount = 0
+
+    init(
+        initBackend: @escaping @Sendable () -> Void,
+        freeBackend: @escaping @Sendable () -> Void
+    ) {
+        self.initBackend = initBackend
+        self.freeBackend = freeBackend
+    }
+
+    var currentReferenceCount: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return referenceCount
+    }
+
+    func acquire() {
+        lock.lock()
+        defer { lock.unlock() }
+
+        if referenceCount == 0 {
+            initBackend()
+        }
+        referenceCount += 1
+    }
+
+    func release() {
+        lock.lock()
+        defer { lock.unlock() }
+
+        guard referenceCount > 0 else { return }
+        referenceCount -= 1
+        if referenceCount == 0 {
+            freeBackend()
+        }
+    }
+}
+
 /// Immutable runtime metadata captured after a model has been successfully prepared.
 ///
 /// This is intentionally a separate type instead of a tuple so the manager can republish runtime
@@ -29,10 +79,9 @@ struct PreparedLlamaRuntime: Sendable {
 /// already-decoded KV cache for their common token prefix. Keeping that state here matters because
 /// raw llama pointers are mutable and must be serialized behind one owner.
 actor LlamaRuntimeCore {
-    private static var isNativeLoggingSilenced = false
     private static let promptSequenceID: llama_seq_id = 0
 
-    private var backendInitialized = false
+    private var backendAcquired = false
     private var model: OpaquePointer?
     private var preparedRuntime: PreparedLlamaRuntime?
     private var promptCache: PromptCache?
@@ -92,13 +141,9 @@ actor LlamaRuntimeCore {
             shutdown()
         }
 
-        if !backendInitialized {
-            if !Self.isNativeLoggingSilenced {
-                llama_log_set(llamaSilencedLogCallback, nil)
-                Self.isNativeLoggingSilenced = true
-            }
-            llama_backend_init()
-            backendInitialized = true
+        if !backendAcquired {
+            LlamaBackendRegistry.shared.acquire()
+            backendAcquired = true
         }
 
         var modelParams = llama_model_default_params()
@@ -239,9 +284,23 @@ actor LlamaRuntimeCore {
 
         preparedRuntime = nil
 
-        if backendInitialized {
-            llama_backend_free()
-            backendInitialized = false
+        if backendAcquired {
+            LlamaBackendRegistry.shared.release()
+            backendAcquired = false
+        }
+    }
+
+    deinit {
+        if let promptCache {
+            llama_free(promptCache.context)
+        }
+
+        if let model {
+            llama_model_free(model)
+        }
+
+        if backendAcquired {
+            LlamaBackendRegistry.shared.release()
         }
     }
 

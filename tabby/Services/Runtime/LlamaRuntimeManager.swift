@@ -154,6 +154,12 @@ final class LlamaRuntimeManager: ObservableObject {
         }
     }
 
+    deinit {
+        startupTask?.cancel()
+        let core = core
+        Task { await core.shutdown() }
+    }
+
     /// Cancels runtime work and waits until native llama resources are released.
     /// Destructive flows such as uninstall need this stronger guarantee before deleting model files
     /// that may have been memory-mapped by the runtime.
