@@ -11,9 +11,12 @@ struct KeyRecorderView: View {
     @State private var monitor: Any?
 
     /// Keys that conflict with the suggestion pipeline's built-in classification.
+    /// Escape (53) is also handled above as the cancel-recording key, but lives here too
+    /// so it stays reserved even if the cancel logic changes.
     private static let reservedKeyCodes: Set<UInt16> = [
         36, 76,                 // Return, Enter
         51, 117,                // Delete, Forward Delete
+        53,                     // Escape
         123, 124, 125, 126      // Arrow keys
     ]
 
