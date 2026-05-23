@@ -26,7 +26,9 @@ struct TabbyApp: App {
                     appDelegate.settingsCoordinator.showSettings()
                 },
                 onReportFeedback: {
-                    NSWorkspace.shared.open(URL(string: "https://www.tabbyapp.dev/feedback")!)
+                    if let feedbackURL = URL(string: "https://www.tabbyapp.dev/feedback") {
+                        NSWorkspace.shared.open(feedbackURL)
+                    }
                 }
             )
         } label: {

@@ -185,7 +185,8 @@ final class ScreenshotContextGenerator {
         try? FileManager.default.createDirectory(at: appFolderURL, withIntermediateDirectories: true)
 
         let formatter = DateFormatter()
-        formatter.dateFormat = "MMM d, yyyy 'at' h.mm.ss a"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "MMM d, yyyy 'at' h.mm.ss.SSS a"
         let timestamp = formatter.string(from: Date())
 
         let fileURL = appFolderURL.appendingPathComponent("\(timestamp).png")
@@ -198,12 +199,11 @@ final class ScreenshotContextGenerator {
             nil
         ) {
             CGImageDestinationAddImage(dest, image, nil)
-            CGImageDestinationFinalize(dest)
-
-            try? text.write(to: textURL, atomically: true, encoding: .utf8)
+            if CGImageDestinationFinalize(dest) {
+                try? text.write(to: textURL, atomically: true, encoding: .utf8)
+                evictOldDebugCaptures(in: appFolderURL)
+            }
         }
-
-        evictOldDebugCaptures(in: appFolderURL)
     }
 
     /// Keeps only the newest `maxDebugCapturesPerApp` png+txt pairs per app folder,
