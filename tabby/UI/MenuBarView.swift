@@ -22,7 +22,7 @@ struct MenuBarView: View {
     @ObservedObject var foundationModelAvailabilityService: FoundationModelAvailabilityService
     @ObservedObject var suggestionCoordinator: SuggestionCoordinator
     let onOpenSettings: () -> Void
-    let onCheckForUpdates: () -> Void
+    let onReportFeedback: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -199,15 +199,15 @@ struct MenuBarView: View {
             .padding(.bottom, 10)
 
         HStack {
-            Button("Settings…", action: onOpenSettings)
+            Button("Settings", action: onOpenSettings)
                 .buttonStyle(.borderless)
 
-            Button("Check for Updates…", action: onCheckForUpdates)
+            Button("Report Bug / Feedback", action: onReportFeedback)
                 .buttonStyle(.borderless)
 
             Spacer(minLength: 0)
 
-            Button("Quit tabby") {
+            Button("Quit") {
                 NSApplication.shared.terminate(nil)
             }
             .buttonStyle(.borderless)
