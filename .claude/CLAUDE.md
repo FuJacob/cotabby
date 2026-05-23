@@ -72,6 +72,17 @@ change as shipping to end users, not as an exercise.
   in `.swiftlint.yml` (line length 140/200, trailing commas disallowed).
 - Wiki lives at https://github.com/FuJacob/tabby/wiki for contributor onboarding.
 
+## GitHub Automation Rules
+
+- **No Co-Authored-By lines.** Never add `Co-Authored-By` trailers to commits.
+- **PRs must use the repo template.** When creating a pull request, read
+  `.github/PULL_REQUEST_TEMPLATE.md` and fill in every section (Summary,
+  Validation, Linked issues, Risk / rollout notes). Do not invent your own
+  format or use a generic body.
+- **Issues must use the repo templates.** When opening an issue, read the
+  matching template in `.github/ISSUE_TEMPLATE/` (bug_report.md or
+  feature_request.md) and fill in every field. Do not invent your own format.
+
 ## Swift And macOS Expectations
 
 - UI, AppKit, SwiftUI, and most Accessibility interactions belong on the main actor.
