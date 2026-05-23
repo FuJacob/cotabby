@@ -19,7 +19,10 @@ final class FocusDebugOverlayController {
 
     private lazy var caretPanel: NSPanel = makePanel()
     private lazy var framePanel: NSPanel = makePanel()
-    private lazy var bottomStatusPanel: NSPanel = makePanel()
+    private lazy var bottomStatusPanel: NSPanel = makeDraggablePanel()
+
+    /// User-dragged origin for the bottom panel. `nil` means use the default centered position.
+    private var bottomPanelDraggedOrigin: CGPoint?
 
     private var latestCaretRect: CGRect?
     private var latestVisualContextStatus: VisualContextStatus = .idle
@@ -118,6 +121,11 @@ final class FocusDebugOverlayController {
             return
         }
 
+        // Capture any user drag that happened since the last render.
+        if bottomStatusPanel.isVisible {
+            bottomPanelDraggedOrigin = bottomStatusPanel.frame.origin
+        }
+
         let screenFrame = targetScreenVisibleFrame()
         let maxWidth = min(screenFrame.width - 32, 620)
         let contentView = NSHostingView(rootView: BottomDebugStatusView(
@@ -129,10 +137,15 @@ final class FocusDebugOverlayController {
         contentView.layoutSubtreeIfNeeded()
         let contentSize = contentView.fittingSize
 
-        let origin = CGPoint(
-            x: screenFrame.midX - (contentSize.width / 2),
-            y: screenFrame.minY + 14
-        )
+        let origin: CGPoint
+        if let dragged = bottomPanelDraggedOrigin {
+            origin = dragged
+        } else {
+            origin = CGPoint(
+                x: screenFrame.midX - (contentSize.width / 2),
+                y: screenFrame.minY + 14
+            )
+        }
 
         bottomStatusPanel.contentView = contentView
         bottomStatusPanel.setFrame(
@@ -152,6 +165,24 @@ final class FocusDebugOverlayController {
         latestCaretRect = nil
         caretPanel.orderOut(nil)
         framePanel.orderOut(nil)
+    }
+
+    private func makeDraggablePanel() -> NSPanel {
+        let panel = NSPanel(
+            contentRect: CGRect(x: 0, y: 0, width: 10, height: 10),
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: true
+        )
+        panel.isReleasedWhenClosed = false
+        panel.backgroundColor = .clear
+        panel.isOpaque = false
+        panel.ignoresMouseEvents = false
+        panel.isMovableByWindowBackground = true
+        panel.hasShadow = false
+        panel.level = NSWindow.Level(rawValue: NSWindow.Level.statusBar.rawValue + 2)
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
+        return panel
     }
 
     private func makePanel() -> NSPanel {
