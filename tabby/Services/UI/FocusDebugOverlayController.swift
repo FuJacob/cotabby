@@ -19,10 +19,13 @@ final class FocusDebugOverlayController {
 
     private lazy var caretPanel: NSPanel = makePanel()
     private lazy var framePanel: NSPanel = makePanel()
-    private lazy var bottomStatusPanel: NSPanel = makeDraggablePanel()
+    private lazy var bottomStatusPanel: NSPanel = makePanel(draggable: true)
 
     /// User-dragged origin for the bottom panel. `nil` means use the default centered position.
     private var bottomPanelDraggedOrigin: CGPoint?
+
+    /// The last origin we set programmatically, used to detect genuine user drags.
+    private var bottomPanelProgrammaticOrigin: CGPoint?
 
     private var latestCaretRect: CGRect?
     private var latestVisualContextStatus: VisualContextStatus = .idle
@@ -121,9 +124,13 @@ final class FocusDebugOverlayController {
             return
         }
 
-        // Capture any user drag that happened since the last render.
-        if bottomStatusPanel.isVisible {
-            bottomPanelDraggedOrigin = bottomStatusPanel.frame.origin
+        // Detect genuine user drags by comparing against the last programmatic origin.
+        if bottomStatusPanel.isVisible,
+           let programmatic = bottomPanelProgrammaticOrigin {
+            let current = bottomStatusPanel.frame.origin
+            if current != programmatic {
+                bottomPanelDraggedOrigin = current
+            }
         }
 
         let screenFrame = targetScreenVisibleFrame()
@@ -147,11 +154,10 @@ final class FocusDebugOverlayController {
             )
         }
 
+        let frame = CGRect(origin: origin, size: contentSize).integral
         bottomStatusPanel.contentView = contentView
-        bottomStatusPanel.setFrame(
-            CGRect(origin: origin, size: contentSize).integral,
-            display: true
-        )
+        bottomStatusPanel.setFrame(frame, display: true)
+        bottomPanelProgrammaticOrigin = frame.origin
         bottomStatusPanel.orderFrontRegardless()
     }
 
@@ -167,7 +173,7 @@ final class FocusDebugOverlayController {
         framePanel.orderOut(nil)
     }
 
-    private func makeDraggablePanel() -> NSPanel {
+    private func makePanel(draggable: Bool = false) -> NSPanel {
         let panel = NSPanel(
             contentRect: CGRect(x: 0, y: 0, width: 10, height: 10),
             styleMask: [.borderless, .nonactivatingPanel],
@@ -177,25 +183,8 @@ final class FocusDebugOverlayController {
         panel.isReleasedWhenClosed = false
         panel.backgroundColor = .clear
         panel.isOpaque = false
-        panel.ignoresMouseEvents = false
-        panel.isMovableByWindowBackground = true
-        panel.hasShadow = false
-        panel.level = NSWindow.Level(rawValue: NSWindow.Level.statusBar.rawValue + 2)
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
-        return panel
-    }
-
-    private func makePanel() -> NSPanel {
-        let panel = NSPanel(
-            contentRect: CGRect(x: 0, y: 0, width: 10, height: 10),
-            styleMask: [.borderless, .nonactivatingPanel],
-            backing: .buffered,
-            defer: true
-        )
-        panel.isReleasedWhenClosed = false
-        panel.backgroundColor = .clear
-        panel.isOpaque = false
-        panel.ignoresMouseEvents = true
+        panel.ignoresMouseEvents = !draggable
+        panel.isMovableByWindowBackground = draggable
         panel.hasShadow = false
         // Above activation indicator and ghost text so it is always visible during debugging.
         panel.level = NSWindow.Level(rawValue: NSWindow.Level.statusBar.rawValue + 2)
