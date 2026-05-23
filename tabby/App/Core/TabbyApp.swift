@@ -25,8 +25,8 @@ struct TabbyApp: App {
                 onOpenSettings: {
                     appDelegate.settingsCoordinator.showSettings()
                 },
-                onCheckForUpdates: {
-                    appDelegate.appUpdateManager.checkForUpdates()
+                onReportFeedback: {
+                    NSWorkspace.shared.open(URL(string: "https://www.tabbyapp.dev/feedback")!)
                 }
             )
         } label: {
