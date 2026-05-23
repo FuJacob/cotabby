@@ -121,12 +121,20 @@ jobs:
             is_prerelease="false"
           fi
 
-          build_number="$(xcodebuild \
-            -project "${PROJECT_PATH}" \
-            -scheme "${SCHEME}" \
-            -configuration "${CONFIGURATION}" \
-            -showBuildSettings |
-            awk -F '= ' '/CURRENT_PROJECT_VERSION/ { print $2; exit }')"
+          # Derive build number from the release version so Sparkle can detect
+          # upgrades. CURRENT_PROJECT_VERSION in the Xcode project is static and
+          # was always "1", which made every appcast report the same build number
+          # and Sparkle would say "You're up to date!" even when a newer release
+          # existed. The formula (major*100000 + minor*1000 + patch) gives each
+          # component room up to 999 before collisions.
+          build_number="$(echo "${release_version}" |
+            sed 's/-.*$//' |
+            awk -F. '{ printf "%d", $1*100000 + $2*1000 + $3 }')"
+
+          if [[ -z "${build_number}" || "${build_number}" -le 0 ]]; then
+            echo "Derived build number '${build_number}' from version '${release_version}' is not a positive integer." >&2
+            exit 1
+          fi
 
           echo "release_tag=${release_tag}" >> "$GITHUB_OUTPUT"
           echo "release_version=${release_version}" >> "$GITHUB_OUTPUT"
