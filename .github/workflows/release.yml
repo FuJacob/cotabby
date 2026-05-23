@@ -49,6 +49,9 @@ env:
   PAGES_CUSTOM_DOMAIN: updates.tabbyapp.dev
   NOTARIZATION_TIMEOUT_SECONDS: 3300
   NOTARIZATION_POLL_INTERVAL_SECONDS: 60
+  # SHA-256 of the Sparkle release tarball used for signing tools. Update
+  # this hash whenever Sparkle is bumped in Package.resolved.
+  SPARKLE_SHA256: c0dde519fd2a43ddfc6a1eb76aec284d7d888fe281414f9177de3164d98ba4c7
 
 jobs:
   release:
@@ -83,6 +86,101 @@ jobs:
 
           python3 -m pip install --upgrade pip
           python3 -m pip install "dmgbuild[badge_icons]==1.6.7"
+
+      - name: Resolve Sparkle version
+        id: sparkle-version
+        run: |
+          set -euo pipefail
+
+          sparkle_version="$(python3 -c "
+          import json, sys
+          resolved = json.load(open('tabby.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved'))
+          pins = {p['identity']: p for p in resolved['pins']}
+          if 'sparkle' not in pins:
+              print('Sparkle not found in Package.resolved', file=sys.stderr)
+              sys.exit(1)
+          print(pins['sparkle']['state']['version'])
+          ")"
+
+          if [[ -z "${sparkle_version}" ]]; then
+            echo "Failed to resolve Sparkle version from Package.resolved." >&2
+            exit 1
+          fi
+
+          echo "sparkle_version=${sparkle_version}" >> "$GITHUB_OUTPUT"
+          echo "Resolved Sparkle version: ${sparkle_version}"
+
+      - name: Download Sparkle tools
+        id: sparkle-tools
+        env:
+          SPARKLE_VERSION: ${{ steps.sparkle-version.outputs.sparkle_version }}
+        run: |
+          set -euo pipefail
+
+          # Download the official Sparkle release tarball directly rather than
+          # scavenging DerivedData, where SPM artifact extraction is
+          # non-deterministic.
+          sparkle_dir="${RUNNER_TEMP}/sparkle-tools"
+          mkdir -p "${sparkle_dir}"
+
+          curl -fsSL \
+            "https://github.com/sparkle-project/Sparkle/releases/download/${SPARKLE_VERSION}/Sparkle-${SPARKLE_VERSION}.tar.xz" \
+            -o "${sparkle_dir}/Sparkle.tar.xz"
+
+          echo "${SPARKLE_SHA256}  ${sparkle_dir}/Sparkle.tar.xz" | shasum -a 256 --check
+
+          tar -xf "${sparkle_dir}/Sparkle.tar.xz" -C "${sparkle_dir}"
+
+          sign_update="${sparkle_dir}/bin/sign_update"
+          generate_keys="${sparkle_dir}/bin/generate_keys"
+
+          if [[ ! -x "${sign_update}" || ! -x "${generate_keys}" ]]; then
+            echo "Sparkle ${SPARKLE_VERSION} archive did not contain expected tools." >&2
+            ls -la "${sparkle_dir}/bin/" >&2 || true
+            exit 1
+          fi
+
+          echo "sign_update=${sign_update}" >> "$GITHUB_OUTPUT"
+          echo "generate_keys=${generate_keys}" >> "$GITHUB_OUTPUT"
+
+      - name: Write Sparkle private key
+        id: sparkle-key
+        env:
+          SPARKLE_ED25519_PRIVATE_KEY: ${{ secrets.SPARKLE_ED25519_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${SPARKLE_ED25519_PRIVATE_KEY}" ]]; then
+            echo "SPARKLE_ED25519_PRIVATE_KEY is not configured — skipping." >&2
+            echo "has_key=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          sparkle_key_file="${RUNNER_TEMP}/sparkle-ed25519-private-key.txt"
+          printf '%s' "${SPARKLE_ED25519_PRIVATE_KEY}" > "${sparkle_key_file}"
+          chmod 600 "${sparkle_key_file}"
+
+          echo "SPARKLE_KEY_FILE=${sparkle_key_file}" >> "$GITHUB_ENV"
+          echo "has_key=true" >> "$GITHUB_OUTPUT"
+
+      - name: Verify Sparkle key matches Info.plist
+        if: steps.sparkle-key.outputs.has_key == 'true'
+        env:
+          GENERATE_KEYS_TOOL: ${{ steps.sparkle-tools.outputs.generate_keys }}
+        run: |
+          set -euo pipefail
+
+          "${GENERATE_KEYS_TOOL}" -f "${SPARKLE_KEY_FILE}"
+
+          expected_public_key="$(/usr/libexec/PlistBuddy \
+            -c 'Print :SUPublicEDKey' \
+            TabbyInfo.plist)"
+          actual_public_key="$("${GENERATE_KEYS_TOOL}" -p)"
+
+          if [[ "${actual_public_key}" != "${expected_public_key}" ]]; then
+            echo "Sparkle private key does not match SUPublicEDKey in TabbyInfo.plist." >&2
+            exit 1
+          fi
 
       - name: Resolve release metadata
         id: metadata
@@ -207,9 +305,8 @@ jobs:
 
           mkdir -p build
 
-          # Strip any pre-release suffix for the marketing version shown in
-          # Settings and Sparkle. "0.0.1-beta" → "0.0.1-beta" is kept as-is
-          # so users see the full version string including the channel tag.
+          # "0.0.1-beta" is kept as-is so users see the full version
+          # string including the channel tag.
           xcodebuild archive \
             -project "${PROJECT_PATH}" \
             -scheme "${SCHEME}" \
@@ -224,6 +321,21 @@ jobs:
             MARKETING_VERSION="${RELEASE_VERSION}" \
             CURRENT_PROJECT_VERSION="${BUILD_NUMBER}" \
             archive
+
+      - name: Verify build number in archive
+        env:
+          BUILD_NUMBER: ${{ steps.metadata.outputs.build_number }}
+        run: |
+          set -euo pipefail
+
+          info_plist="build/${APP_NAME}.xcarchive/Products/Applications/${APP_NAME}.app/Contents/Info.plist"
+          actual="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "${info_plist}")"
+          if [[ "${actual}" != "${BUILD_NUMBER}" ]]; then
+            echo "CFBundleVersion is '${actual}', expected '${BUILD_NUMBER}'." >&2
+            echo "xcodebuild silently ignored the CURRENT_PROJECT_VERSION override." >&2
+            exit 1
+          fi
+          echo "Verified CFBundleVersion: ${actual}"
 
       - name: Re-sign nested code for notarization
         run: |
@@ -258,6 +370,19 @@ jobs:
           done
 
           codesign --verify --deep --strict --verbose=4 "${app_path}"
+
+          # Catch any executable inside Sparkle.framework that the hardcoded
+          # list above missed. If Sparkle reorganizes its internals in a future
+          # version, this prevents shipping unsigned code that Apple will reject.
+          # Uses BSD find's -perm +111 (macOS runners only).
+          unsigned="$(find "${app_path}/Contents/Frameworks/Sparkle.framework" \
+            -type f -perm +111 \
+            -exec sh -c 'codesign -dvv "$1" 2>&1 | grep -q "Developer ID" || echo "$1"' _ {} \;)"
+          if [[ -n "${unsigned}" ]]; then
+            echo "Unsigned binaries found inside Sparkle.framework — update the re-sign list:" >&2
+            echo "${unsigned}" >&2
+            exit 1
+          fi
 
       - name: Package DMG
         run: |
@@ -438,74 +563,8 @@ jobs:
           xcrun stapler staple "${dmg_path}"
           xcrun stapler validate "${dmg_path}"
 
-      - name: Download Sparkle tools
-        id: sparkle-tools
-        env:
-          SPARKLE_VERSION: "2.9.1"
-        run: |
-          set -euo pipefail
-
-          # SPM's artifact extraction is non-deterministic — the bin/ directory
-          # containing sign_update and generate_keys is sometimes missing from
-          # DerivedData even though the xcframework resolves fine. Downloading the
-          # official release tarball directly is deterministic and fast (~3s).
-          sparkle_dir="${RUNNER_TEMP}/sparkle-tools"
-          mkdir -p "${sparkle_dir}"
-
-          curl -fsSL \
-            "https://github.com/sparkle-project/Sparkle/releases/download/${SPARKLE_VERSION}/Sparkle-${SPARKLE_VERSION}.tar.xz" \
-            -o "${sparkle_dir}/Sparkle.tar.xz"
-
-          tar -xf "${sparkle_dir}/Sparkle.tar.xz" -C "${sparkle_dir}"
-
-          sign_update="${sparkle_dir}/bin/sign_update"
-          generate_keys="${sparkle_dir}/bin/generate_keys"
-
-          if [[ ! -x "${sign_update}" || ! -x "${generate_keys}" ]]; then
-            echo "Sparkle ${SPARKLE_VERSION} archive did not contain expected tools." >&2
-            ls -la "${sparkle_dir}/bin/" >&2 || true
-            exit 1
-          fi
-
-          echo "sign_update=${sign_update}" >> "$GITHUB_OUTPUT"
-          echo "generate_keys=${generate_keys}" >> "$GITHUB_OUTPUT"
-
-      - name: Write Sparkle private key
-        env:
-          SPARKLE_ED25519_PRIVATE_KEY: ${{ secrets.SPARKLE_ED25519_PRIVATE_KEY }}
-        run: |
-          set -euo pipefail
-
-          if [[ -z "${SPARKLE_ED25519_PRIVATE_KEY}" ]]; then
-            echo "SPARKLE_ED25519_PRIVATE_KEY is not configured." >&2
-            exit 1
-          fi
-
-          sparkle_key_file="${RUNNER_TEMP}/sparkle-ed25519-private-key.txt"
-          printf '%s' "${SPARKLE_ED25519_PRIVATE_KEY}" > "${sparkle_key_file}"
-          chmod 600 "${sparkle_key_file}"
-
-          echo "SPARKLE_KEY_FILE=${sparkle_key_file}" >> "$GITHUB_ENV"
-
-      - name: Verify Sparkle key matches Info.plist
-        env:
-          GENERATE_KEYS_TOOL: ${{ steps.sparkle-tools.outputs.generate_keys }}
-        run: |
-          set -euo pipefail
-
-          "${GENERATE_KEYS_TOOL}" -f "${SPARKLE_KEY_FILE}"
-
-          expected_public_key="$(/usr/libexec/PlistBuddy \
-            -c 'Print :SUPublicEDKey' \
-            TabbyInfo.plist)"
-          actual_public_key="$("${GENERATE_KEYS_TOOL}" -p)"
-
-          if [[ "${actual_public_key}" != "${expected_public_key}" ]]; then
-            echo "Sparkle private key does not match SUPublicEDKey in TabbyInfo.plist." >&2
-            exit 1
-          fi
-
       - name: Generate signed appcast
+        if: steps.sparkle-key.outputs.has_key == 'true'
         env:
           SIGN_UPDATE_TOOL: ${{ steps.sparkle-tools.outputs.sign_update }}
           RELEASE_VERSION: ${{ steps.metadata.outputs.release_version }}
@@ -517,6 +576,7 @@ jobs:
             --release-version "${RELEASE_VERSION}" \
             --build-number "${BUILD_NUMBER}" \
             --archive "build/${DMG_NAME}" \
+            --archive-filename "${DMG_NAME}" \
             --output "build/appcast.xml" \
             --sign-update-tool "${SIGN_UPDATE_TOOL}" \
             --ed-key-file "${SPARKLE_KEY_FILE}"
@@ -525,6 +585,7 @@ jobs:
           grep -q 'length="' build/appcast.xml
 
       - name: Verify Sparkle signature against final DMG
+        if: steps.sparkle-key.outputs.has_key == 'true'
         env:
           SIGN_UPDATE_TOOL: ${{ steps.sparkle-tools.outputs.sign_update }}
         run: |
@@ -554,15 +615,38 @@ jobs:
 
           # Prereleases must not become "Latest" on the GitHub release page —
           # otherwise beta DMGs get surfaced to users browsing the repo.
-          prerelease_flag=()
+          release_flags=()
           if [[ "${IS_PRERELEASE}" == "true" ]]; then
-            prerelease_flag=(--prerelease)
+            release_flags=(--prerelease)
+          else
+            release_flags=(--latest)
           fi
 
           gh release create "${RELEASE_TAG}" "build/${DMG_NAME}" \
             --title "tabby ${RELEASE_VERSION}" \
             --generate-notes \
-            "${prerelease_flag[@]}"
+            "${release_flags[@]}"
+
+      - name: Release summary
+        if: always() && steps.metadata.outputs.release_version != ''
+        env:
+          RELEASE_TAG: ${{ steps.metadata.outputs.release_tag }}
+          RELEASE_VERSION: ${{ steps.metadata.outputs.release_version }}
+          BUILD_NUMBER: ${{ steps.metadata.outputs.build_number }}
+          IS_PRERELEASE: ${{ steps.metadata.outputs.is_prerelease }}
+          PUBLISH: ${{ steps.metadata.outputs.publish }}
+        run: |
+          {
+            echo "### Release"
+            echo "| Field | Value |"
+            echo "|-------|-------|"
+            echo "| Version | ${RELEASE_VERSION} |"
+            echo "| Tag | ${RELEASE_TAG} |"
+            echo "| Build number | ${BUILD_NUMBER} |"
+            echo "| Prerelease | ${IS_PRERELEASE} |"
+            echo "| Published | ${PUBLISH} |"
+            echo "| Appcast URL | https://${PAGES_CUSTOM_DOMAIN}/appcast.xml |"
+          } >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Prepare Pages artifact
         if: steps.metadata.outputs.publish == 'true'

@@ -58,6 +58,11 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--archive-filename",
+        default=None,
+        help="Filename in the GitHub Release download URL. Defaults to basename of --archive.",
+    )
+    parser.add_argument(
         "--github-owner",
         default=DEFAULT_OWNER,
         help="GitHub owner used to build release and repository URLs",
@@ -200,7 +205,8 @@ def main() -> int:
     repository_url = f"https://github.com/{args.github_owner}/{args.github_repository}"
     release_tag = f"v{args.release_version}"
     release_page_url = f"{repository_url}/releases/tag/{release_tag}"
-    archive_url = f"{repository_url}/releases/download/{release_tag}/Tabby.dmg"
+    archive_filename = args.archive_filename or archive.name
+    archive_url = f"{repository_url}/releases/download/{release_tag}/{archive_filename}"
 
     rendered_appcast = render_appcast(
         template_path=template_path,
