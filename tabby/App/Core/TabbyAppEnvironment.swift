@@ -17,7 +17,6 @@ final class TabbyAppEnvironment {
     let inputMonitor: InputMonitor
     let appUpdateManager: AppUpdateManager
     let launchAtLoginService: LaunchAtLoginService
-    let appUninstallService: AppUninstallService
     let permissionGuidanceController: PermissionGuidanceController
     let suggestionSettings: SuggestionSettingsModel
     let foundationModelAvailabilityService: FoundationModelAvailabilityService
@@ -53,11 +52,6 @@ final class TabbyAppEnvironment {
         )
         let appUpdateManager = AppUpdateManager()
         let launchAtLoginService = LaunchAtLoginService()
-        let appUninstallService = AppUninstallService(
-            launchAtLoginService: launchAtLoginService,
-            runtimeModel: runtimeModel,
-            modelDownloadManager: modelDownloadManager
-        )
         let welcomeCoordinator = WelcomeCoordinator(
             permissionManager: permissionManager,
             permissionGuidanceController: permissionGuidanceController,
@@ -69,7 +63,6 @@ final class TabbyAppEnvironment {
         let settingsCoordinator = SettingsCoordinator(
             appUpdateManager: appUpdateManager,
             launchAtLoginService: launchAtLoginService,
-            appUninstallService: appUninstallService,
             permissionManager: permissionManager,
             suggestionSettings: suggestionSettings,
             foundationModelAvailabilityService: foundationModelAvailabilityService,
@@ -136,7 +129,6 @@ final class TabbyAppEnvironment {
         self.inputMonitor = inputMonitor
         self.appUpdateManager = appUpdateManager
         self.launchAtLoginService = launchAtLoginService
-        self.appUninstallService = appUninstallService
         self.permissionGuidanceController = permissionGuidanceController
         self.suggestionSettings = suggestionSettings
         self.foundationModelAvailabilityService = foundationModelAvailabilityService

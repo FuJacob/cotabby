@@ -20,6 +20,15 @@ enum SuggestionTextNormalizer {
         normalized = normalized.replacingOccurrences(of: "<|im_end|>", with: "")
         normalized = normalized.replacingOccurrences(of: "<|im_start|>", with: "")
 
+        // Thinking-capable models may emit <think>…</think> reasoning blocks. Strip complete
+        // blocks first, then any trailing open tag left when generation hit the token limit.
+        if let thinkRange = normalized.range(of: "<think>[\\s\\S]*?</think>", options: .regularExpression) {
+            normalized.replaceSubrange(thinkRange, with: "")
+        }
+        if let openTag = normalized.range(of: "<think>[\\s\\S]*", options: .regularExpression) {
+            normalized.replaceSubrange(openTag, with: "")
+        }
+
         for prompt in [request.prompt] + promptEchoCandidates {
             if !prompt.isEmpty, normalized.hasPrefix(prompt) {
                 normalized.removeFirst(prompt.count)

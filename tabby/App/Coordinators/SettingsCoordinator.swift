@@ -13,7 +13,6 @@ import SwiftUI
 final class SettingsCoordinator: NSObject, NSWindowDelegate {
     private let appUpdateManager: AppUpdateManager
     private let launchAtLoginService: LaunchAtLoginService
-    private let appUninstallService: AppUninstallService
     private let permissionManager: PermissionManager
     private let suggestionSettings: SuggestionSettingsModel
     private let foundationModelAvailabilityService: FoundationModelAvailabilityService
@@ -26,7 +25,6 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
     init(
         appUpdateManager: AppUpdateManager,
         launchAtLoginService: LaunchAtLoginService,
-        appUninstallService: AppUninstallService,
         permissionManager: PermissionManager,
         suggestionSettings: SuggestionSettingsModel,
         foundationModelAvailabilityService: FoundationModelAvailabilityService,
@@ -36,7 +34,6 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
     ) {
         self.appUpdateManager = appUpdateManager
         self.launchAtLoginService = launchAtLoginService
-        self.appUninstallService = appUninstallService
         self.permissionManager = permissionManager
         self.suggestionSettings = suggestionSettings
         self.foundationModelAvailabilityService = foundationModelAvailabilityService
@@ -59,7 +56,6 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
             rootView: SettingsView(
                 appUpdateManager: appUpdateManager,
                 launchAtLoginService: launchAtLoginService,
-                appUninstallService: appUninstallService,
                 permissionManager: permissionManager,
                 suggestionSettings: suggestionSettings,
                 foundationModelAvailabilityService: foundationModelAvailabilityService,

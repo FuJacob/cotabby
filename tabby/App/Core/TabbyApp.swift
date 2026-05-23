@@ -24,6 +24,9 @@ struct TabbyApp: App {
                 suggestionCoordinator: appDelegate.suggestionCoordinator,
                 onOpenSettings: {
                     appDelegate.settingsCoordinator.showSettings()
+                },
+                onCheckForUpdates: {
+                    appDelegate.appUpdateManager.checkForUpdates()
                 }
             )
         } label: {

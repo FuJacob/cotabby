@@ -90,7 +90,7 @@ final class LaunchAtLoginService: ObservableObject {
         case .requiresApproval:
             return .requiresApproval
         case .notFound:
-            return .unavailable("Open at Login is unavailable in this build.")
+            return .unavailable("Move tabby to the Applications folder and relaunch to enable this.")
         @unknown default:
             return .unavailable("Open at Login is unavailable for an unknown reason.")
         }

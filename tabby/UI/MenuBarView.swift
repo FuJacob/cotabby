@@ -22,6 +22,7 @@ struct MenuBarView: View {
     @ObservedObject var foundationModelAvailabilityService: FoundationModelAvailabilityService
     @ObservedObject var suggestionCoordinator: SuggestionCoordinator
     let onOpenSettings: () -> Void
+    let onCheckForUpdates: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -43,10 +44,6 @@ struct MenuBarView: View {
             // The background poll eventually catches changes too, but this avoids showing stale
             // "Grant" rows after the user just updated System Settings.
             permissionManager.refresh()
-            refreshAppleIntelligenceAvailabilityIfNeeded()
-        }
-        .onChange(of: suggestionSettings.selectedEngine) { _, _ in
-            refreshAppleIntelligenceAvailabilityIfNeeded()
         }
     }
 
@@ -102,6 +99,13 @@ struct MenuBarView: View {
                 }
                 .labelsHidden()
                 .pickerStyle(.menu)
+            }
+
+            if suggestionSettings.selectedEngine == .appleIntelligence,
+               !foundationModelAvailabilityService.isAvailable {
+                Text(foundationModelAvailabilityService.userVisibleMessage)
+                    .font(.caption)
+                    .foregroundStyle(.orange)
             }
 
             if suggestionSettings.selectedEngine.supportsLocalModelManagement {
@@ -198,9 +202,12 @@ struct MenuBarView: View {
             Button("Settings…", action: onOpenSettings)
                 .buttonStyle(.borderless)
 
+            Button("Check for Updates…", action: onCheckForUpdates)
+                .buttonStyle(.borderless)
+
             Spacer(minLength: 0)
 
-            Button("Quit Tabby") {
+            Button("Quit tabby") {
                 NSApplication.shared.terminate(nil)
             }
             .buttonStyle(.borderless)
@@ -297,11 +304,4 @@ struct MenuBarView: View {
         permissionManager.requiredPermissionsGranted
     }
 
-    private func refreshAppleIntelligenceAvailabilityIfNeeded() {
-        guard suggestionSettings.selectedEngine == .appleIntelligence else {
-            return
-        }
-
-        foundationModelAvailabilityService.refresh()
-    }
 }
