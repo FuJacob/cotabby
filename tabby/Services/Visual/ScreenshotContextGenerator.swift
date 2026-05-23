@@ -168,6 +168,9 @@ final class ScreenshotContextGenerator {
         return letterCount >= 4
     }
 
+    /// Maximum number of debug capture pairs (png + txt) kept per application folder.
+    private static let maxDebugCapturesPerApp = 20
+
     private func saveDebugScreenshot(_ image: CGImage, text: String, name: String) {
         guard let desktopURL = FileManager.default.urls(
             for: .desktopDirectory,
@@ -176,15 +179,17 @@ final class ScreenshotContextGenerator {
             return
         }
 
-        let url = desktopURL.appendingPathComponent("tabby-debug-screenshots")
-        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        let appFolderURL = desktopURL
+            .appendingPathComponent("tabby-debug-screenshots")
+            .appendingPathComponent(name)
+        try? FileManager.default.createDirectory(at: appFolderURL, withIntermediateDirectories: true)
 
         let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd_HH-mm-ss-SSS"
+        formatter.dateFormat = "MMM d, yyyy 'at' h.mm.ss a"
         let timestamp = formatter.string(from: Date())
 
-        let fileURL = url.appendingPathComponent("\(name)_\(timestamp).png")
-        let textURL = url.appendingPathComponent("\(name)_\(timestamp).txt")
+        let fileURL = appFolderURL.appendingPathComponent("\(timestamp).png")
+        let textURL = appFolderURL.appendingPathComponent("\(timestamp).txt")
 
         if let dest = CGImageDestinationCreateWithURL(
             fileURL as CFURL,
@@ -196,6 +201,38 @@ final class ScreenshotContextGenerator {
             CGImageDestinationFinalize(dest)
 
             try? text.write(to: textURL, atomically: true, encoding: .utf8)
+        }
+
+        evictOldDebugCaptures(in: appFolderURL)
+    }
+
+    /// Keeps only the newest `maxDebugCapturesPerApp` png+txt pairs per app folder,
+    /// deleting the oldest files first (by creation date).
+    private func evictOldDebugCaptures(in folderURL: URL) {
+        let fm = FileManager.default
+        guard let contents = try? fm.contentsOfDirectory(
+            at: folderURL,
+            includingPropertiesForKeys: [.creationDateKey],
+            options: .skipsHiddenFiles
+        ) else {
+            return
+        }
+
+        let pngFiles = contents
+            .filter { $0.pathExtension == "png" }
+            .sorted { lhs, rhs in
+                let lhsDate = (try? lhs.resourceValues(forKeys: [.creationDateKey]))?.creationDate ?? .distantPast
+                let rhsDate = (try? rhs.resourceValues(forKeys: [.creationDateKey]))?.creationDate ?? .distantPast
+                return lhsDate < rhsDate
+            }
+
+        let overflow = pngFiles.count - Self.maxDebugCapturesPerApp
+        guard overflow > 0 else { return }
+
+        for pngURL in pngFiles.prefix(overflow) {
+            let txtURL = pngURL.deletingPathExtension().appendingPathExtension("txt")
+            try? fm.removeItem(at: pngURL)
+            try? fm.removeItem(at: txtURL)
         }
     }
 
