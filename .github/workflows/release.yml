@@ -201,6 +201,7 @@ jobs:
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           RELEASE_VERSION: ${{ steps.metadata.outputs.release_version }}
+          BUILD_NUMBER: ${{ steps.metadata.outputs.build_number }}
         run: |
           set -euo pipefail
 
@@ -221,6 +222,7 @@ jobs:
             CODE_SIGN_IDENTITY="Developer ID Application" \
             OTHER_CODE_SIGN_FLAGS="--timestamp" \
             MARKETING_VERSION="${RELEASE_VERSION}" \
+            CURRENT_PROJECT_VERSION="${BUILD_NUMBER}" \
             archive
 
       - name: Re-sign nested code for notarization
