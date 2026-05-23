@@ -46,6 +46,34 @@ jobs:
           xcodebuild -version
           swift --version
 
+      - name: Verify Sparkle version pin
+        run: |
+          set -euo pipefail
+
+          # Sparkle must use exactVersion pinning. upToNextMajorVersion lets
+          # Xcode silently upgrade the framework, which drifts the signing
+          # tools hash and breaks releases.
+          if ! grep -q 'kind = exactVersion' tabby.xcodeproj/project.pbxproj; then
+            echo "Sparkle must use exactVersion pinning in project.pbxproj." >&2
+            exit 1
+          fi
+
+          # pbxproj and Package.resolved must agree on the version.
+          pbxproj_version="$(grep -A1 'kind = exactVersion' tabby.xcodeproj/project.pbxproj | grep 'version' | sed 's/.*= //;s/;.*//' | tr -d '[:space:]')"
+          resolved_version="$(python3 -c "
+          import json
+          resolved = json.load(open('tabby.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved'))
+          pins = {p['identity']: p for p in resolved['pins']}
+          print(pins['sparkle']['state']['version'])
+          ")"
+
+          if [[ "${pbxproj_version}" != "${resolved_version}" ]]; then
+            echo "Sparkle version mismatch: pbxproj=${pbxproj_version}, Package.resolved=${resolved_version}" >&2
+            exit 1
+          fi
+
+          echo "Sparkle pin verified: ${resolved_version}"
+
       # CODE_SIGNING_ALLOWED=NO because CI runners don't have the dev cert.
       # The project uses Automatic signing, so we can't simply strip the team
       # identifier without pbxproj surgery — disabling signing for the build
