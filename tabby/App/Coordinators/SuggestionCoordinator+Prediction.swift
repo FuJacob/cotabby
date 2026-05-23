@@ -214,7 +214,8 @@ extension SuggestionCoordinator {
             at: liveContext.caretRect,
             inputFrameRect: liveContext.inputFrameRect,
             caretQuality: liveContext.caretQuality,
-            observedCharWidth: liveContext.observedCharWidth
+            observedCharWidth: liveContext.observedCharWidth,
+            precedingText: liveContext.precedingText
         )
         logStage(
             "ready",
@@ -308,7 +309,8 @@ extension SuggestionCoordinator {
                 at: liveContext.caretRect,
                 inputFrameRect: liveContext.inputFrameRect,
                 caretQuality: liveContext.caretQuality,
-                observedCharWidth: liveContext.observedCharWidth
+                observedCharWidth: liveContext.observedCharWidth,
+                precedingText: liveContext.precedingText
             )
             if let advancement {
                 logStage(

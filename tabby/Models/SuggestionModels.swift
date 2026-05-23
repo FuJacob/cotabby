@@ -341,6 +341,9 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
     /// Average character width from AX child-frame sampling when available. Layout uses this as a
     /// cheap approximation for host-editor text width before falling back to local font metrics.
     let observedCharWidth: CGFloat?
+    /// When `true`, the text near the caret is Right-to-Left (Arabic, Hebrew, etc.) and the ghost
+    /// text overlay should appear to the left of the caret instead of the right.
+    let isRightToLeft: Bool
 }
 
 /// The overlay is intentionally modeled as data so diagnostics can reason about visibility

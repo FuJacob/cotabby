@@ -161,4 +161,99 @@ final class GhostSuggestionLayoutTests: XCTestCase {
 
         XCTAssertFalse(layout.lines.isEmpty, "Should still produce lines without an input frame")
     }
+
+    // MARK: - RTL single-line layout
+
+    func test_make_rtlSingleLineLayoutPlacesLeftOfCaret() {
+        let geometry = TabbyTestFixtures.overlayGeometry(
+            caretRect: CGRect(x: 200, y: 80, width: 2, height: 18),
+            inputFrameRect: CGRect(x: 0, y: 70, width: 400, height: 30),
+            observedCharWidth: 7,
+            isRightToLeft: true
+        )
+
+        let layout = GhostSuggestionLayout.make(
+            text: "مرحبا",
+            geometry: geometry,
+            fontSize: 14,
+            visibleFrame: CGRect(x: 0, y: 0, width: 500, height: 300)
+        )
+
+        XCTAssertEqual(layout.lines.count, 1)
+        XCTAssertTrue(layout.isRightToLeft)
+        XCTAssertEqual(layout.topLineCenterOffsetFromCaret, 0)
+        // panelOriginX is a right-edge anchor for RTL, so it should be left of the caret
+        XCTAssertLessThanOrEqual(layout.panelOriginX, geometry.caretRect.minX)
+    }
+
+    func test_panelFrame_rtlSubtractsContentWidth() {
+        let geometry = TabbyTestFixtures.overlayGeometry(
+            caretRect: CGRect(x: 200, y: 100, width: 2, height: 18),
+            inputFrameRect: CGRect(x: 0, y: 90, width: 400, height: 30),
+            observedCharWidth: 7,
+            isRightToLeft: true
+        )
+
+        let layout = GhostSuggestionLayout.make(
+            text: "مرحبا",
+            geometry: geometry,
+            fontSize: 14,
+            visibleFrame: CGRect(x: 0, y: 0, width: 500, height: 300)
+        )
+
+        let contentSize = CGSize(width: 80, height: 20)
+        let frame = layout.panelFrame(for: contentSize, caretRect: geometry.caretRect)
+
+        // RTL: actual origin.x = panelOriginX - contentSize.width
+        XCTAssertEqual(frame.origin.x, layout.panelOriginX - contentSize.width)
+        // Panel should be entirely to the left of the caret
+        XCTAssertLessThan(frame.maxX, geometry.caretRect.minX)
+    }
+
+    // MARK: - RTL multi-line layout
+
+    func test_make_rtlMultiLineWrapsCorrectly() {
+        let geometry = TabbyTestFixtures.overlayGeometry(
+            caretRect: CGRect(x: 200, y: 80, width: 2, height: 18),
+            inputFrameRect: CGRect(x: 0, y: 70, width: 300, height: 30),
+            observedCharWidth: 7,
+            isRightToLeft: true
+        )
+
+        let layout = GhostSuggestionLayout.make(
+            text: "هذا نص طويل جدا يحتاج إلى التفاف على عدة أسطر",
+            geometry: geometry,
+            fontSize: 14,
+            visibleFrame: CGRect(x: 0, y: 0, width: 500, height: 300)
+        )
+
+        XCTAssertGreaterThan(layout.lines.count, 1, "Should wrap to multiple lines in RTL")
+        XCTAssertTrue(layout.isRightToLeft)
+        XCTAssertEqual(layout.lines.last?.showsKeycap, true)
+        for line in layout.lines.dropLast() {
+            XCTAssertFalse(line.showsKeycap)
+        }
+    }
+
+    func test_make_rtlStartsBelowCaretWhenLeftBudgetTooSmall() {
+        // Caret near the left edge — no room to the left
+        let geometry = TabbyTestFixtures.overlayGeometry(
+            caretRect: CGRect(x: 15, y: 80, width: 2, height: 18),
+            inputFrameRect: CGRect(x: 0, y: 70, width: 300, height: 30),
+            observedCharWidth: 7,
+            isRightToLeft: true
+        )
+
+        let layout = GhostSuggestionLayout.make(
+            text: "نص عربي طويل يحتاج مساحة كبيرة",
+            geometry: geometry,
+            fontSize: 14,
+            visibleFrame: CGRect(x: 0, y: 0, width: 500, height: 300)
+        )
+
+        XCTAssertLessThan(
+            layout.topLineCenterOffsetFromCaret, 0,
+            "Should start below caret when left budget is too small for RTL"
+        )
+    }
 }

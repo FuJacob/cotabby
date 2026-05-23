@@ -167,20 +167,25 @@ private struct GhostSuggestionView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        let alignment: HorizontalAlignment = layout.isRightToLeft ? .trailing : .leading
+        VStack(alignment: alignment, spacing: 0) {
             ForEach(layout.lines) { line in
                 HStack(alignment: .firstTextBaseline, spacing: line.showsKeycap ? 6 : 0) {
+                    if layout.isRightToLeft && line.showsKeycap {
+                        GhostTabKeycap()
+                    }
+
                     Text(line.text)
                         .font(.system(size: fontSize))
                         .foregroundStyle(ghostColor)
                         .lineLimit(1)
                         .fixedSize(horizontal: true, vertical: true)
 
-                    if line.showsKeycap {
+                    if !layout.isRightToLeft && line.showsKeycap {
                         GhostTabKeycap()
                     }
                 }
-                .padding(.leading, line.leadingIndent)
+                .padding(layout.isRightToLeft ? .trailing : .leading, line.leadingIndent)
                 .fixedSize(horizontal: true, vertical: true)
             }
         }

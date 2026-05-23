@@ -89,18 +89,21 @@ extension SuggestionCoordinator {
             // Predict where the caret will land after the inserted chunk. This eliminates the
             // visible jump where the overlay stays at the old position then snaps rightward
             // when AX catches up 100–250ms later.
+            let isRTL = TextDirectionDetector.isRightToLeft(liveContext.precedingText)
             let predictedCaret = Self.predictedCaretRect(
                 after: acceptedChunk,
                 oldCaretRect: liveContext.caretRect,
                 caretQuality: liveContext.caretQuality,
-                observedCharWidth: liveContext.observedCharWidth
+                observedCharWidth: liveContext.observedCharWidth,
+                isRightToLeft: isRTL
             )
             presentOverlay(
                 text: advancedSession.remainingText,
                 at: predictedCaret,
                 inputFrameRect: liveContext.inputFrameRect,
                 caretQuality: liveContext.caretQuality,
-                observedCharWidth: liveContext.observedCharWidth
+                observedCharWidth: liveContext.observedCharWidth,
+                precedingText: liveContext.precedingText
             )
             // Force an early AX refresh so the real caret position corrects any prediction
             // error faster than the normal 250ms poll interval.
@@ -228,14 +231,16 @@ extension SuggestionCoordinator {
 
     // MARK: - Caret Prediction
 
-    /// Estimates the caret rect after inserting a chunk by shifting the old caret rightward.
+    /// Estimates the caret rect after inserting a chunk by shifting the old caret in the text
+    /// direction. LTR shifts right; RTL shifts left.
     /// When `observedCharWidth` is available (measured from real AX child frames), we use it
     /// directly — this matches the target app's actual font. Falls back to NSFont measurement.
     static func predictedCaretRect(
         after insertedChunk: String,
         oldCaretRect: CGRect,
         caretQuality: CaretGeometryQuality,
-        observedCharWidth: CGFloat?
+        observedCharWidth: CGFloat?,
+        isRightToLeft: Bool = false
     ) -> CGRect {
         let measuredWidth = predictedChunkWidth(
             insertedChunk: insertedChunk,
@@ -264,8 +269,9 @@ extension SuggestionCoordinator {
             )
         }
 
+        let shift = isRightToLeft ? -chunkWidth : chunkWidth
         return CGRect(
-            x: oldCaretRect.origin.x + chunkWidth,
+            x: oldCaretRect.origin.x + shift,
             y: oldCaretRect.origin.y,
             width: oldCaretRect.width,
             height: oldCaretRect.height
@@ -303,13 +309,15 @@ extension SuggestionCoordinator {
         at caretRect: CGRect,
         inputFrameRect: CGRect?,
         caretQuality: CaretGeometryQuality,
-        observedCharWidth: CGFloat?
+        observedCharWidth: CGFloat?,
+        precedingText: String = ""
     ) {
         let geometry = SuggestionOverlayGeometry(
             caretRect: caretRect,
             inputFrameRect: inputFrameRect,
             caretQuality: caretQuality,
-            observedCharWidth: observedCharWidth
+            observedCharWidth: observedCharWidth,
+            isRightToLeft: TextDirectionDetector.isRightToLeft(precedingText)
         )
         if let message = overlayPresenter.present(
             text: text,
