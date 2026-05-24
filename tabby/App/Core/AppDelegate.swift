@@ -121,6 +121,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Defers termination until the llama runtime releases native Metal/GPU resources.
     /// Without this, `exit()` triggers C++ static destructors that tear down the Metal
     /// device while llama contexts are still live, causing `ggml_metal_rsets_free` to abort.
+    ///
+    /// Returns `.terminateLater` so AppKit keeps the run loop alive while the async Task
+    /// awaits native cleanup. `reply(toApplicationShouldTerminate: true)` resumes the
+    /// quit once llama resources are freed. A 5-second timeout prevents a hung native
+    /// call (e.g. a stalled Metal command queue) from freezing the app indefinitely.
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         activationIndicatorController.hide(reason: "Activation indicator hidden because Tabby is terminating.")
         focusDebugOverlayController?.hide()
@@ -129,7 +134,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         focusModel.stop()
 
         Task {
-            await runtimeModel.stopAndWait()
+            await withTaskGroup(of: Void.self) { group in
+                group.addTask { await self.runtimeModel.stopAndWait() }
+                group.addTask {
+                    try? await Task.sleep(nanoseconds: 5_000_000_000)
+                }
+                // Returns as soon as either the shutdown or the timeout finishes.
+                await group.next()
+                group.cancelAll()
+            }
             sender.reply(toApplicationShouldTerminate: true)
         }
         return .terminateLater
