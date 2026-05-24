@@ -16,12 +16,12 @@ final class InputMonitor {
     var onEvent: ((CapturedInputEvent) -> Bool)?
     var onSuppressedSyntheticInput: (() -> Void)?
 
-    /// The key code that triggers word-by-word acceptance. Updated by the coordinator
-    /// when the user changes the keybind in Settings.
-    var acceptanceKeyCode: CGKeyCode = 48
+    /// Reads the current word-accept key code from the model at event time, avoiding
+    /// Combine delivery lag between settings changes and the event classifier.
+    var acceptanceKeyCodeProvider: @MainActor () -> CGKeyCode = { 48 }
 
-    /// The key code that triggers full-suggestion acceptance. `disabledKeyCode` means no keybind.
-    var fullAcceptanceKeyCode: CGKeyCode = CGKeyCode(UInt16.max)
+    /// Reads the current full-accept key code from the model at event time.
+    var fullAcceptanceKeyCodeProvider: @MainActor () -> CGKeyCode = { CGKeyCode(UInt16.max) }
 
     private let permissionProvider: @MainActor () -> Bool
     private let suppressionController: InputSuppressionController
@@ -147,13 +147,17 @@ final class InputMonitor {
 
         let noModifiers = flags.isDisjoint(with: [.maskCommand, .maskControl, .maskAlternate, .maskShift])
 
+        // Read key codes from the model at event time so changes are always current.
+        let fullAcceptKey = fullAcceptanceKeyCodeProvider()
+        let acceptKey = acceptanceKeyCodeProvider()
+
         // Full-suggestion acceptance takes priority so pressing the full-accept key
         // doesn't silently fall through to word-accept when both are assigned.
-        if keyCode == fullAcceptanceKeyCode, noModifiers {
+        if keyCode == fullAcceptKey, noModifiers {
             return CapturedInputEvent(kind: .fullAcceptance, keyCode: keyCode, characters: characters, flags: flags)
         }
 
-        if keyCode == acceptanceKeyCode, noModifiers {
+        if keyCode == acceptKey, noModifiers {
             return CapturedInputEvent(kind: .acceptance, keyCode: keyCode, characters: characters, flags: flags)
         }
 
