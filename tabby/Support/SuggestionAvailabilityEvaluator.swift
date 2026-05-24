@@ -60,6 +60,36 @@ enum SuggestionAvailabilityEvaluator {
         ) == nil
     }
 
+    /// Whether the environment allows visual context capture to start.
+    ///
+    /// Unlike `disabledReason`, this ignores transient field-level states (text selected,
+    /// secure field) so the OCR pipeline can start early and be ready by the time the user
+    /// types. Returns `false` only for hard environment disables: globally off, per-app
+    /// disabled, terminal apps, and missing permissions.
+    static func shouldCaptureVisualContext(
+        globallyEnabled: Bool = true,
+        disabledAppBundleIdentifiers: Set<String> = [],
+        inputMonitoringGranted: Bool,
+        screenRecordingGranted: Bool,
+        focusSnapshot: FocusSnapshot
+    ) -> Bool {
+        guard globallyEnabled else { return false }
+
+        if let bundleIdentifier = focusSnapshot.bundleIdentifier,
+           disabledAppBundleIdentifiers.contains(bundleIdentifier) {
+            return false
+        }
+
+        if TerminalAppDetector.isTerminal(bundleIdentifier: focusSnapshot.bundleIdentifier) {
+            return false
+        }
+
+        guard inputMonitoringGranted else { return false }
+        guard screenRecordingGranted else { return false }
+
+        return true
+    }
+
     static func shouldSchedulePredictionWhenVisualContextBecomesReady(
         focusSnapshot: FocusSnapshot,
         matching identity: FocusedInputIdentity
