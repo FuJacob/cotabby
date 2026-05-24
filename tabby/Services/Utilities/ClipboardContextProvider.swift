@@ -87,10 +87,10 @@ final class ClipboardContextProvider: ClipboardContextProviding {
         ]
 
         let pasteboardTypes = Set(pasteboard.types ?? [])
-        for (type, label) in knownTypes {
-            if pasteboardTypes.contains(NSPasteboard.PasteboardType(type.identifier)) {
-                return label
-            }
+        for (type, label) in knownTypes where pasteboardTypes.contains(
+            NSPasteboard.PasteboardType(type.identifier)
+        ) {
+            return label
         }
 
         return nil
