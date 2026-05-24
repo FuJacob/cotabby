@@ -199,7 +199,7 @@ final class ModelDownloadManager: ObservableObject {
     func importModel() {
         let panel = NSOpenPanel()
         panel.title = "Select a GGUF Model"
-        panel.allowedContentTypes = [.init(filenameExtension: "gguf")!]
+        panel.allowedContentTypes = [UTType(filenameExtension: "gguf") ?? .data]
         panel.allowsMultipleSelection = true
         panel.canChooseDirectories = false
 

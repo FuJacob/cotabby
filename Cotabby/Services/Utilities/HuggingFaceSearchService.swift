@@ -94,6 +94,8 @@ final class HuggingFaceSearchService: ObservableObject {
                 return
             } catch {
                 guard !Task.isCancelled else { return }
+                hasMoreResults = false
+                searchState = .failed(error.localizedDescription)
             }
         }
     }

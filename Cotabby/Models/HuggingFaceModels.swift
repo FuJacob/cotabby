@@ -37,8 +37,11 @@ struct HFRepoFile: Codable, Equatable, Identifiable {
     }
 
     func downloadURL(repoId: String) -> URL {
-        URL(
-            string: "https://huggingface.co/\(repoId)/resolve/main/\(path)?download=true"
-        )!
+        var components = URLComponents()
+        components.scheme = "https"
+        components.host = "huggingface.co"
+        components.path = "/\(repoId)/resolve/main/\(path)"
+        components.queryItems = [URLQueryItem(name: "download", value: "true")]
+        return components.url!
     }
 }
