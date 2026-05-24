@@ -1,4 +1,5 @@
 import Foundation
+import Logging
 
 /// File overview:
 /// Lifecycle entry points and user preference changes for `SuggestionCoordinator`.
@@ -8,11 +9,13 @@ extension SuggestionCoordinator {
 
     /// Reconciles coordinator state with the current permission and focus environment.
     func start() {
+        TabbyLogger.suggestion.info("Suggestion coordinator starting")
         reconcileWithCurrentEnvironment()
     }
 
     /// Cancels any pending work and detaches long-lived callbacks during shutdown.
     func stop() {
+        TabbyLogger.suggestion.info("Suggestion coordinator stopping")
         cancelPredictionWork()
         resetCachedGenerationContext()
         visualContextCoordinator.cancel(resetState: true)
@@ -27,6 +30,7 @@ extension SuggestionCoordinator {
     /// Clears any active suggestion work before the runtime swaps to a different model.
     /// This prevents stale completions from the previous model from surviving the switch.
     func prepareForRuntimeModelSwitch() {
+        TabbyLogger.suggestion.info("Preparing for runtime model switch, clearing active state")
         cancelPredictionWork()
         resetCachedGenerationContext()
         interactionState.resetAll()
@@ -46,6 +50,7 @@ extension SuggestionCoordinator {
             return
         }
 
+        TabbyLogger.suggestion.info("Settings changed, resetting suggestion state")
         let previousSnapshot = settingsSnapshot
         settingsSnapshot = snapshot
         cancelPredictionWork()

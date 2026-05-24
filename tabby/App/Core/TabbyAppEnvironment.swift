@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import Logging
 
 /// File overview:
 /// Builds Tabby's long-lived dependency graph in one place. This is the app's composition model:
@@ -30,6 +31,7 @@ final class TabbyAppEnvironment {
     private var cancellables = Set<AnyCancellable>()
 
     init() {
+        TabbyLogger.app.info("Building dependency graph")
         let configuration = SuggestionConfiguration.standard
         let permissionManager = PermissionManager()
         let permissionGuidanceController = PermissionGuidanceController(
@@ -89,15 +91,18 @@ final class TabbyAppEnvironment {
             foundationModelEngine = FoundationModelSuggestionEngine(
                 availabilityService: foundationModelAvailabilityService
             )
+            TabbyLogger.app.info("Foundation model engine available")
         } else {
             foundationModelEngine = UnavailableSuggestionEngine(
                 message: foundationModelAvailabilityService.userVisibleMessage
             )
+            TabbyLogger.app.info("Foundation model engine unavailable (macOS version)")
         }
         #else
         foundationModelEngine = UnavailableSuggestionEngine(
             message: foundationModelAvailabilityService.userVisibleMessage
         )
+        TabbyLogger.app.info("Foundation model engine unavailable (SDK)")
         #endif
 
         let suggestionEngine: any SuggestionGenerating = SuggestionEngineRouter(

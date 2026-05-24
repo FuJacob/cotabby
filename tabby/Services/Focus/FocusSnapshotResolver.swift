@@ -1,6 +1,7 @@
 import AppKit
 import ApplicationServices
 import Foundation
+import Logging
 
 /// File overview:
 /// Resolves the most usable editable candidate around the current AX focus and materializes a
@@ -506,7 +507,7 @@ struct FocusSnapshotResolver {
         dumpChildrenRecursive(of: focusedElement, into: &out, indent: "", depth: 0)
 
         out += "========== END DUMP ==========\n"
-        print(out)
+        TabbyLogger.focus.debug("\(out)")
     }
 
     private func dumpChildrenRecursive(

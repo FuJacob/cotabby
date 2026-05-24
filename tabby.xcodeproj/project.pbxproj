@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		8B6282F0C1CCA0746D96B914 /* DownloadOutcomeClassifierTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 562F89255AF340C15A0554BE /* DownloadOutcomeClassifierTests.swift */; };
+		9E25D3832FC3BE0E0069BE7B /* Logging in Frameworks */ = {isa = PBXBuildFile; productRef = A1C3E0202F90000100AAA001 /* Logging */; };
 		A1C3E0012F90000100AAA001 /* LlamaSwift in Frameworks */ = {isa = PBXBuildFile; productRef = A1C3E0002F90000100AAA001 /* LlamaSwift */; };
 		A1C3E0112F90000100AAA001 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = A1C3E0102F90000100AAA001 /* Sparkle */; };
 		A404828463CADB2ECDAE7AF3 /* LlamaPromptRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F29623C5C0A67B992D383A3C /* LlamaPromptRendererTests.swift */; };
@@ -55,13 +56,13 @@
 		C10000162F91000100BBB016 /* ModelAndPresentationValueTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ModelAndPresentationValueTests.swift; sourceTree = "<group>"; };
 		C10000172F91000100BBB017 /* SuggestionStateHelperTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SuggestionStateHelperTests.swift; sourceTree = "<group>"; };
 		D10000112F92000100CCC011 /* TerminalAppDetectorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TerminalAppDetectorTests.swift; sourceTree = "<group>"; };
-		F29623C5C0A67B992D383A3C /* LlamaPromptRendererTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LlamaPromptRendererTests.swift; sourceTree = "<group>"; };
-		F9D35DB9E86506B9FAE1CFE9 /* ModelFileValidatorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ModelFileValidatorTests.swift; sourceTree = "<group>"; };
 		E10000112F93000100DDD011 /* PromptContextSanitizerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PromptContextSanitizerTests.swift; sourceTree = "<group>"; };
 		E10000122F93000100DDD012 /* PermissionAndContextModelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PermissionAndContextModelTests.swift; sourceTree = "<group>"; };
 		E10000132F93000100DDD013 /* GhostSuggestionLayoutTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GhostSuggestionLayoutTests.swift; sourceTree = "<group>"; };
 		E10000142F93000100DDD014 /* BundledRuntimeLocatorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BundledRuntimeLocatorTests.swift; sourceTree = "<group>"; };
 		F10000112FA0000100EEE011 /* TextDirectionDetectorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TextDirectionDetectorTests.swift; sourceTree = "<group>"; };
+		F29623C5C0A67B992D383A3C /* LlamaPromptRendererTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LlamaPromptRendererTests.swift; sourceTree = "<group>"; };
+		F9D35DB9E86506B9FAE1CFE9 /* ModelFileValidatorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ModelFileValidatorTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -77,6 +78,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9E25D3832FC3BE0E0069BE7B /* Logging in Frameworks */,
 				A1C3E0012F90000100AAA001 /* LlamaSwift in Frameworks */,
 				A1C3E0112F90000100AAA001 /* Sparkle in Frameworks */,
 			);
@@ -158,6 +160,7 @@
 			packageProductDependencies = (
 				A1C3E0002F90000100AAA001 /* LlamaSwift */,
 				A1C3E0102F90000100AAA001 /* Sparkle */,
+				A1C3E0202F90000100AAA001 /* Logging */,
 			);
 			productName = tabby;
 			productReference = 193741492F81DE7000BEC04F /* tabby.app */;
@@ -208,6 +211,7 @@
 			packageReferences = (
 				A1C3E0022F90000100AAA001 /* XCRemoteSwiftPackageReference "llama" */,
 				A1C3E0122F90000100AAA001 /* XCRemoteSwiftPackageReference "Sparkle" */,
+				A1C3E0222F90000100AAA001 /* XCRemoteSwiftPackageReference "swift-log" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 1937414A2F81DE7000BEC04F /* Products */;
@@ -411,7 +415,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = G946M8K23B;
+				DEVELOPMENT_TEAM = C4BVFMK9V2;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
@@ -444,7 +448,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = G946M8K23B;
+				DEVELOPMENT_TEAM = C4BVFMK9V2;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
@@ -566,6 +570,14 @@
 				version = 2.9.1;
 			};
 		};
+		A1C3E0222F90000100AAA001 /* XCRemoteSwiftPackageReference "swift-log" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-log.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.6.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -578,6 +590,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = A1C3E0122F90000100AAA001 /* XCRemoteSwiftPackageReference "Sparkle" */;
 			productName = Sparkle;
+		};
+		A1C3E0202F90000100AAA001 /* Logging */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A1C3E0222F90000100AAA001 /* XCRemoteSwiftPackageReference "swift-log" */;
+			productName = Logging;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

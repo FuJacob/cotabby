@@ -1,6 +1,7 @@
 import AppKit
 import CoreGraphics
 import Foundation
+import Logging
 
 /// File overview:
 /// Suggestion acceptance, live-session advancement, overlay presentation, and debug logging.
@@ -182,6 +183,7 @@ extension SuggestionCoordinator {
         reason: String,
         clearDiagnostics: Bool = true
     ) {
+        TabbyLogger.suggestion.debug("Invalidating active suggestion: \(reason)")
         cancelPredictionWork()
         clearSuggestion(clearDiagnostics: clearDiagnostics)
         hideOverlay(reason: reason)

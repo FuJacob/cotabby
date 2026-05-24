@@ -1,5 +1,6 @@
 import ApplicationServices
 import Foundation
+import Logging
 
 /// File overview:
 /// Owns the global keyboard event tap used to detect typing, navigation, dismissal keys,
@@ -36,11 +37,13 @@ final class InputMonitor {
 
     /// Installs the event tap and begins listening for global keyboard activity.
     func start() {
+        TabbyLogger.app.info("Input monitor starting")
         refresh()
     }
 
     /// Removes the event tap and stops observing keyboard events.
     func stop() {
+        TabbyLogger.app.info("Input monitor stopping")
         destroyTap()
     }
 
@@ -81,8 +84,10 @@ final class InputMonitor {
             callback: callback,
             userInfo: Unmanaged.passUnretained(self).toOpaque()
         ) else {
+            TabbyLogger.app.warning("Failed to create CGEvent tap — Input Monitoring permission may be missing")
             return
         }
+        TabbyLogger.app.info("CGEvent tap installed")
 
         eventTap = tap
         let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
@@ -114,8 +119,7 @@ final class InputMonitor {
     private func handleTap(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         switch type {
         case .tapDisabledByTimeout, .tapDisabledByUserInput:
-            // macOS may disable a tap if the callback runs too slowly or during certain system events.
-            // Re-enabling keeps the monitor self-healing instead of silently dying.
+            TabbyLogger.app.warning("CGEvent tap was disabled by system, re-enabling")
             if let eventTap {
                 CGEvent.tapEnable(tap: eventTap, enable: true)
             }
