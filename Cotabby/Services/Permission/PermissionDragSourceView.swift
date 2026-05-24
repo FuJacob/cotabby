@@ -133,7 +133,9 @@ final class PermissionDragSourceView: NSView, NSDraggingSource {
     private func draggingImage() -> NSImage {
         let image = NSImage(size: rowView.bounds.size)
         image.lockFocus()
-        rowView.displayIgnoringOpacity(rowView.bounds, in: NSGraphicsContext.current!)
+        if let context = NSGraphicsContext.current {
+            rowView.displayIgnoringOpacity(rowView.bounds, in: context)
+        }
         image.unlockFocus()
         return image
     }

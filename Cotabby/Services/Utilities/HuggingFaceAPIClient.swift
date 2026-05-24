@@ -52,8 +52,11 @@ enum HuggingFaceAPIClient {
 
     /// Fetch the file tree for a repository, including exact file sizes from LFS metadata.
     static func fetchRepoFiles(repoId: String) async throws -> [HFRepoFile] {
-        let urlString = "https://huggingface.co/api/models/\(repoId)/tree/main"
-        guard let url = URL(string: urlString) else {
+        guard var components = URLComponents(string: "https://huggingface.co") else {
+            throw APIError.invalidURL
+        }
+        components.path = "/api/models/\(repoId)/tree/main"
+        guard let url = components.url else {
             throw APIError.invalidURL
         }
 
