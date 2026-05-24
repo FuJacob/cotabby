@@ -111,6 +111,7 @@ final class ModelDownloadManager: ObservableObject {
             }
         }
 
+        var keysToRemove: [String] = []
         for (filename, state) in modelStates where !catalogFilenames.contains(filename) {
             if downloadTasks[filename] != nil {
                 continue
@@ -122,9 +123,12 @@ final class ModelDownloadManager: ObservableObject {
                 if isInstalled(filename: filename) {
                     modelStates[filename] = .downloaded
                 } else {
-                    modelStates.removeValue(forKey: filename)
+                    keysToRemove.append(filename)
                 }
             }
+        }
+        for key in keysToRemove {
+            modelStates.removeValue(forKey: key)
         }
     }
 
