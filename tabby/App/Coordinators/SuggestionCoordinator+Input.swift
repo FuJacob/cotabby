@@ -90,6 +90,10 @@ extension SuggestionCoordinator {
             return acceptCurrentSuggestion()
         }
 
+        if event.kind == .fullAcceptance {
+            return acceptEntireSuggestion()
+        }
+
         if let activeSession = interactionState.activeSession {
             return handleInputEvent(event, with: activeSession)
         }
@@ -161,7 +165,7 @@ extension SuggestionCoordinator {
             state = .idle
             return false
 
-        case .other, .acceptance:
+        case .other, .acceptance, .fullAcceptance:
             return false
         }
     }

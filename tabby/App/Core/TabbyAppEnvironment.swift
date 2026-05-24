@@ -46,6 +46,7 @@ final class TabbyAppEnvironment {
             suppressionController: suppressionController
         )
         inputMonitor.acceptanceKeyCode = suggestionSettings.acceptanceKeyCode
+        inputMonitor.fullAcceptanceKeyCode = suggestionSettings.fullAcceptanceKeyCode
         let focusModel = FocusTrackingModel(
             permissionProvider: { permissionManager.accessibilityGranted },
             ignoredBundleIdentifier: Bundle.main.bundleIdentifier,
@@ -157,6 +158,13 @@ final class TabbyAppEnvironment {
             .removeDuplicates()
             .sink { [weak self] keyCode in
                 self?.inputMonitor.acceptanceKeyCode = keyCode
+            }
+            .store(in: &cancellables)
+
+        suggestionSettings.$fullAcceptanceKeyCode
+            .removeDuplicates()
+            .sink { [weak self] keyCode in
+                self?.inputMonitor.fullAcceptanceKeyCode = keyCode
             }
             .store(in: &cancellables)
     }

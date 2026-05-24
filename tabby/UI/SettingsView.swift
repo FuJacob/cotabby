@@ -25,6 +25,7 @@ struct SettingsView: View {
 
     @State private var pendingDeletionModel: RuntimeModelOption?
     @State private var isRecordingKeybind = false
+    @State private var isRecordingFullAcceptKeybind = false
 
     var body: some View {
         Form {
@@ -168,7 +169,7 @@ struct SettingsView: View {
     @ViewBuilder
     private var keybindSection: some View {
         Section("Keybind") {
-            LabeledContent("Accept Suggestion") {
+            LabeledContent("Accept Word") {
                 HStack(spacing: 8) {
                     Text(suggestionSettings.acceptanceKeyLabel)
                         .padding(.horizontal, 8)
@@ -195,12 +196,54 @@ struct SettingsView: View {
                     }
 
                     if suggestionSettings.acceptanceKeyCode != SuggestionSettingsModel.defaultAcceptanceKeyCode {
-                        Button("Reset to Default") {
+                        Button("Reset") {
                             suggestionSettings.setAcceptanceKey(
                                 keyCode: SuggestionSettingsModel.defaultAcceptanceKeyCode,
                                 label: SuggestionSettingsModel.defaultAcceptanceKeyLabel
                             )
                             isRecordingKeybind = false
+                        }
+                    }
+
+                    if suggestionSettings.acceptanceKeyCode != SuggestionSettingsModel.disabledKeyCode {
+                        Button("Clear") {
+                            suggestionSettings.clearAcceptanceKey()
+                            isRecordingKeybind = false
+                        }
+                    }
+                }
+            }
+
+            LabeledContent("Accept Entire Suggestion") {
+                HStack(spacing: 8) {
+                    Text(suggestionSettings.fullAcceptanceKeyLabel)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6)
+                                .fill(.quaternary)
+                        )
+
+                    if isRecordingFullAcceptKeybind {
+                        KeyRecorderView(
+                            onKeyRecorded: { keyCode, label in
+                                suggestionSettings.setFullAcceptanceKey(keyCode: keyCode, label: label)
+                                isRecordingFullAcceptKeybind = false
+                            },
+                            onCancelled: {
+                                isRecordingFullAcceptKeybind = false
+                            }
+                        )
+                    } else {
+                        Button("Change") {
+                            isRecordingFullAcceptKeybind = true
+                        }
+                    }
+
+                    if suggestionSettings.fullAcceptanceKeyCode != SuggestionSettingsModel.disabledKeyCode {
+                        Button("Clear") {
+                            suggestionSettings.clearFullAcceptanceKey()
+                            isRecordingFullAcceptKeybind = false
                         }
                     }
                 }

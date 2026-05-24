@@ -24,6 +24,8 @@ final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var focusPollIntervalMilliseconds: Int
     @Published private(set) var acceptanceKeyCode: CGKeyCode
     @Published private(set) var acceptanceKeyLabel: String
+    @Published private(set) var fullAcceptanceKeyCode: CGKeyCode
+    @Published private(set) var fullAcceptanceKeyLabel: String
     private let userDefaults: UserDefaults
 
     private static let isGloballyEnabledDefaultsKey = "tabbyGloballyEnabled"
@@ -40,9 +42,16 @@ final class SuggestionSettingsModel: ObservableObject {
     private static let focusPollIntervalMillisecondsDefaultsKey = "tabbyFocusPollIntervalMilliseconds"
     private static let acceptanceKeyCodeDefaultsKey = "tabbyAcceptanceKeyCode"
     private static let acceptanceKeyLabelDefaultsKey = "tabbyAcceptanceKeyLabel"
+    private static let fullAcceptanceKeyCodeDefaultsKey = "tabbyFullAcceptanceKeyCode"
+    private static let fullAcceptanceKeyLabelDefaultsKey = "tabbyFullAcceptanceKeyLabel"
 
     static let defaultAcceptanceKeyCode: CGKeyCode = 48
     static let defaultAcceptanceKeyLabel = "Tab"
+    /// A key code that will never match a real keyboard event, used to represent "no keybind".
+    static let disabledKeyCode: CGKeyCode = CGKeyCode(UInt16.max)
+    static let disabledKeyLabel = "None"
+    static let defaultFullAcceptanceKeyCode: CGKeyCode = disabledKeyCode
+    static let defaultFullAcceptanceKeyLabel = disabledKeyLabel
 
     init(
         configuration: SuggestionConfiguration,
@@ -96,6 +105,13 @@ final class SuggestionSettingsModel: ObservableObject {
         let resolvedAcceptanceKeyLabel = userDefaults.string(forKey: Self.acceptanceKeyLabelDefaultsKey)
             ?? Self.defaultAcceptanceKeyLabel
 
+        let resolvedFullAcceptanceKeyCode = CGKeyCode(
+            userDefaults.object(forKey: Self.fullAcceptanceKeyCodeDefaultsKey) as? Int
+                ?? Int(Self.defaultFullAcceptanceKeyCode)
+        )
+        let resolvedFullAcceptanceKeyLabel = userDefaults.string(forKey: Self.fullAcceptanceKeyLabelDefaultsKey)
+            ?? Self.defaultFullAcceptanceKeyLabel
+
         isGloballyEnabled = resolvedGloballyEnabled
         disabledAppRules = resolvedDisabledAppRules
         showIndicator = resolvedShowIndicator
@@ -108,6 +124,8 @@ final class SuggestionSettingsModel: ObservableObject {
         focusPollIntervalMilliseconds = resolvedFocusPollIntervalMilliseconds
         acceptanceKeyCode = resolvedAcceptanceKeyCode
         acceptanceKeyLabel = resolvedAcceptanceKeyLabel
+        fullAcceptanceKeyCode = resolvedFullAcceptanceKeyCode
+        fullAcceptanceKeyLabel = resolvedFullAcceptanceKeyLabel
 
         userDefaults.set(resolvedGloballyEnabled, forKey: Self.isGloballyEnabledDefaultsKey)
         persistDisabledAppRules(resolvedDisabledAppRules)
@@ -121,6 +139,8 @@ final class SuggestionSettingsModel: ObservableObject {
         userDefaults.set(resolvedFocusPollIntervalMilliseconds, forKey: Self.focusPollIntervalMillisecondsDefaultsKey)
         userDefaults.set(Int(resolvedAcceptanceKeyCode), forKey: Self.acceptanceKeyCodeDefaultsKey)
         userDefaults.set(resolvedAcceptanceKeyLabel, forKey: Self.acceptanceKeyLabelDefaultsKey)
+        userDefaults.set(Int(resolvedFullAcceptanceKeyCode), forKey: Self.fullAcceptanceKeyCodeDefaultsKey)
+        userDefaults.set(resolvedFullAcceptanceKeyLabel, forKey: Self.fullAcceptanceKeyLabelDefaultsKey)
     }
 
     /// Legacy compatibility shim. Reads through to `showIndicator`.
@@ -308,10 +328,39 @@ final class SuggestionSettingsModel: ObservableObject {
             return
         }
 
+        // Clear the other keybind if it would conflict.
+        if keyCode != Self.disabledKeyCode, keyCode == fullAcceptanceKeyCode {
+            clearFullAcceptanceKey()
+        }
+
         acceptanceKeyCode = keyCode
         acceptanceKeyLabel = label
         userDefaults.set(Int(keyCode), forKey: Self.acceptanceKeyCodeDefaultsKey)
         userDefaults.set(label, forKey: Self.acceptanceKeyLabelDefaultsKey)
+    }
+
+    func clearAcceptanceKey() {
+        setAcceptanceKey(keyCode: Self.disabledKeyCode, label: Self.disabledKeyLabel)
+    }
+
+    func setFullAcceptanceKey(keyCode: CGKeyCode, label: String) {
+        guard fullAcceptanceKeyCode != keyCode || fullAcceptanceKeyLabel != label else {
+            return
+        }
+
+        // Clear the other keybind if it would conflict.
+        if keyCode != Self.disabledKeyCode, keyCode == acceptanceKeyCode {
+            clearAcceptanceKey()
+        }
+
+        fullAcceptanceKeyCode = keyCode
+        fullAcceptanceKeyLabel = label
+        userDefaults.set(Int(keyCode), forKey: Self.fullAcceptanceKeyCodeDefaultsKey)
+        userDefaults.set(label, forKey: Self.fullAcceptanceKeyLabelDefaultsKey)
+    }
+
+    func clearFullAcceptanceKey() {
+        setFullAcceptanceKey(keyCode: Self.disabledKeyCode, label: Self.disabledKeyLabel)
     }
 
     private func persistSelectedEngine(_ engine: SuggestionEngineKind) {
