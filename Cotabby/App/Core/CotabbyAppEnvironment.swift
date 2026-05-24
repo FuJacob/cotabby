@@ -56,6 +56,16 @@ final class CotabbyAppEnvironment {
             ignoredBundleIdentifier: Bundle.main.bundleIdentifier,
             publishesPollingEvents: FocusDebugOverlayController.isEnabled
         )
+        inputMonitor.shouldProcessEventsProvider = { [weak focusModel] in
+            guard suggestionSettings.isGloballyEnabled else { return false }
+            guard let snapshot = focusModel?.snapshot else { return false }
+            if TerminalAppDetector.isTerminal(bundleIdentifier: snapshot.bundleIdentifier) { return false }
+            if let bundleID = snapshot.bundleIdentifier,
+               suggestionSettings.isApplicationDisabled(bundleIdentifier: bundleID) {
+                return false
+            }
+            return true
+        }
         let appUpdateManager = AppUpdateManager()
         let launchAtLoginService = LaunchAtLoginService()
         let welcomeCoordinator = WelcomeCoordinator(
