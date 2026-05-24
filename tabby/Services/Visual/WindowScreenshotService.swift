@@ -1,6 +1,7 @@
 import AppKit
 import CoreGraphics
 import Foundation
+import Logging
 import ScreenCaptureKit
 
 /// File overview:
@@ -54,6 +55,7 @@ struct WindowScreenshotService {
         let processIdentifier = pid_t(context.processIdentifier)
 
         guard CGPreflightScreenCaptureAccess() else {
+            TabbyLogger.app.warning("Screenshot blocked: Screen Recording permission missing")
             throw WindowScreenshotError.screenRecordingPermissionMissing
         }
 
@@ -67,8 +69,10 @@ struct WindowScreenshotService {
             })
 
         guard let matchingWindow else {
+            TabbyLogger.app.debug("No visible window for pid \(processIdentifier)")
             throw WindowScreenshotError.noVisibleWindowForProcess(processIdentifier)
         }
+        TabbyLogger.app.trace("Capturing window: \(matchingWindow.title ?? "untitled") (\(Int(matchingWindow.frame.width))x\(Int(matchingWindow.frame.height)))")
 
         let sourceRect = snapshotRect(
             around: context,

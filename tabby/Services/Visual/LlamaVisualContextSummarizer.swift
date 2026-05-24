@@ -1,4 +1,5 @@
 import Foundation
+import Logging
 
 /// Converts OCR text into a compact prompt-safe visual context summary.
 ///
@@ -24,6 +25,7 @@ final class LlamaVisualContextSummarizer: VisualContextSummarizing {
     }
 
     func summarize(text: String, applicationName: String) async throws -> String {
+        TabbyLogger.app.debug("Summarizing visual context for \(applicationName): \(text.count) chars input")
         // Deduplicate repeated lines before sending to the model. OCR from screens showing
         // chatbot output (e.g. "Final Answer\nFinal Answer\n...") teaches the model to loop
         // that pattern verbatim in its output. Collapsing consecutive duplicates removes the
@@ -76,10 +78,15 @@ final class LlamaVisualContextSummarizer: VisualContextSummarizing {
         do {
             result = try await generationTask.value
         } catch {
-            // Real error (model not loaded, etc.) — no partial text available.
+            TabbyLogger.app.warning("Visual context summarization failed: \(error.localizedDescription)")
             result = ""
         }
         timeoutTask.cancel()
+        if result.isEmpty {
+            TabbyLogger.app.debug("Summarization produced empty result")
+        } else {
+            TabbyLogger.app.debug("Summarization produced \(result.count) chars")
+        }
 
         return result
     }

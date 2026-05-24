@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import Logging
 
 #if canImport(FoundationModels)
 import FoundationModels
@@ -54,7 +55,11 @@ final class FoundationModelAvailabilityService: ObservableObject {
     /// Availability can change at runtime if the user enables Apple Intelligence or if the model
     /// finishes downloading in the background.
     func refresh() {
+        let previousState = state
         state = provider.refresh()
+        if state != previousState {
+            TabbyLogger.runtime.info("Foundation model availability changed: \(self.state.summary)")
+        }
     }
 
     var isAvailable: Bool {

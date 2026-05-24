@@ -1,5 +1,6 @@
 import CoreGraphics
 import Foundation
+import Logging
 @preconcurrency import Vision
 
 /// File overview:
@@ -147,7 +148,7 @@ struct ScreenTextExtractor {
     }
 
     private func log(_ message: String) {
-        _ = message
+        TabbyLogger.app.debug("\(message)")
     }
 
     private func preview(_ text: String) -> String {
