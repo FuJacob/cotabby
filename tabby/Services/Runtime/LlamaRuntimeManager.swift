@@ -119,8 +119,6 @@ final class LlamaRuntimeManager: ObservableObject {
         }
     }
 
-    /// Clears the native prompt KV cache without unloading the model.
-
     /// Generates a short summary using an ephemeral context so the autocomplete cache is unaffected.
     func summarize(
         prompt: String,
@@ -152,23 +150,29 @@ final class LlamaRuntimeManager: ObservableObject {
         }
     }
 
+    /// Clears the native prompt KV cache without unloading the model.
     func resetPromptCache() {
         core.resetPromptCache()
     }
 
     /// Cancels any retained prepared runtime and releases backend resources.
+    /// Shutdown runs on a detached thread so it does not block the main actor.
     func stop() {
         TabbyLogger.runtime.info("Runtime stop requested")
         prepareForStop()
-        core.shutdown()
+        Task.detached { [core] in
+            core.shutdown()
+        }
     }
 
     /// Cancels runtime work and waits until native llama resources are released.
     /// Destructive flows such as uninstall need this stronger guarantee before deleting model files
     /// that may have been memory-mapped by the runtime.
-    func stopAndWait() {
+    func stopAndWait() async {
         prepareForStop()
-        core.shutdown()
+        await Task.detached { [core] in
+            core.shutdown()
+        }.value
     }
 
     private func prepareForStop() {

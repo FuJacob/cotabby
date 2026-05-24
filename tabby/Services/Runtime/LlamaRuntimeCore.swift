@@ -10,7 +10,8 @@ import TabbyInference
 /// `@unchecked Sendable` rather than an `actor` so that `generate()` (autocomplete) and
 /// `summarize()` (visual context) can run on separate sequences concurrently.
 /// `autocompleteLock` serializes autocomplete-specific KV cache state; summary uses
-/// ephemeral sequences with no shared state.
+/// ephemeral sequences with no shared state. A separate `lifecycleCondition` prevents
+/// `shutdown()` from unloading the model while any operation is still in flight.
 
 /// Immutable runtime metadata captured after a model has been successfully prepared.
 struct PreparedLlamaRuntime: Sendable {
@@ -31,6 +32,13 @@ final class LlamaRuntimeCore: @unchecked Sendable {
     private var autocompletePromptBytes: [UInt8] = []
     private var autocompletePromptTokens: [Int32] = []
     private var autocompleteSamplingFingerprint: SamplingFingerprint?
+
+    /// Coordinates model lifecycle with in-flight operations. `generate()` and `summarize()`
+    /// increment the active count on entry and decrement on exit. `shutdown()` sets the
+    /// shutting-down flag and blocks until all active operations finish before unloading.
+    private let lifecycleCondition = NSCondition()
+    private var activeOperationCount = 0
+    private var isShuttingDown = false
 
     // MARK: - Model lifecycle
 
@@ -84,6 +92,21 @@ final class LlamaRuntimeCore: @unchecked Sendable {
     ) throws -> String {
         guard let preparedRuntime else {
             throw LlamaRuntimeError.unavailable("The llama model is not loaded.")
+        }
+
+        lifecycleCondition.lock()
+        guard !isShuttingDown else {
+            lifecycleCondition.unlock()
+            throw LlamaRuntimeError.unavailable("The runtime is shutting down.")
+        }
+        activeOperationCount += 1
+        lifecycleCondition.unlock()
+
+        defer {
+            lifecycleCondition.lock()
+            activeOperationCount -= 1
+            lifecycleCondition.broadcast()
+            lifecycleCondition.unlock()
         }
 
         let promptBytes = Array(prompt.utf8)
@@ -152,13 +175,28 @@ final class LlamaRuntimeCore: @unchecked Sendable {
     // MARK: - Summary generation (concurrent with autocomplete)
 
     /// Generates a summary using an ephemeral sequence so the autocomplete cache is unaffected.
-    /// No lock is needed because the summary operates on its own sequence.
+    /// The lifecycle guard prevents `shutdown()` from unloading the model while sampling is active.
     func summarize(
         prompt: String,
         options: LlamaGenerationOptions
     ) throws -> String {
         guard let preparedRuntime else {
             throw LlamaRuntimeError.unavailable("The llama model is not loaded.")
+        }
+
+        lifecycleCondition.lock()
+        guard !isShuttingDown else {
+            lifecycleCondition.unlock()
+            throw LlamaRuntimeError.unavailable("The runtime is shutting down.")
+        }
+        activeOperationCount += 1
+        lifecycleCondition.unlock()
+
+        defer {
+            lifecycleCondition.lock()
+            activeOperationCount -= 1
+            lifecycleCondition.broadcast()
+            lifecycleCondition.unlock()
         }
 
         let allPromptTokens = tokenize(prompt)
@@ -214,11 +252,24 @@ final class LlamaRuntimeCore: @unchecked Sendable {
         autocompleteSamplingFingerprint = nil
     }
 
-    /// Frees all sequences and the loaded model.
+    /// Waits for all in-flight `generate()` and `summarize()` calls to finish, then frees all
+    /// sequences and the loaded model. Blocking is intentional: callers should dispatch this off
+    /// the main thread via `Task.detached` when UI responsiveness matters.
     func shutdown() {
+        lifecycleCondition.lock()
+        isShuttingDown = true
+        while activeOperationCount > 0 {
+            lifecycleCondition.wait()
+        }
+        lifecycleCondition.unlock()
+
         resetPromptCache()
         engine.unloadModel()
         preparedRuntime = nil
+
+        lifecycleCondition.lock()
+        isShuttingDown = false
+        lifecycleCondition.unlock()
     }
 
     // MARK: - Private: autocomplete sequence management
