@@ -25,6 +25,7 @@ final class CotabbyAppEnvironment {
     let clipboardContextProvider: ClipboardContextProvider
     let suggestionCoordinator: SuggestionCoordinator
     let welcomeCoordinator: WelcomeCoordinator
+    let huggingFaceSearchService: HuggingFaceSearchService
     let settingsCoordinator: SettingsCoordinator
     let activationIndicatorController: ActivationIndicatorController
     let focusDebugOverlayController: FocusDebugOverlayController?
@@ -66,6 +67,7 @@ final class CotabbyAppEnvironment {
             suggestionSettings: suggestionSettings,
             foundationModelAvailabilityService: foundationModelAvailabilityService
         )
+        let huggingFaceSearchService = HuggingFaceSearchService()
         let settingsCoordinator = SettingsCoordinator(
             appUpdateManager: appUpdateManager,
             launchAtLoginService: launchAtLoginService,
@@ -75,6 +77,7 @@ final class CotabbyAppEnvironment {
             runtimeModel: runtimeModel,
             mlxRuntimeManager: mlxRuntimeManager,
             modelDownloadManager: modelDownloadManager,
+            huggingFaceSearchService: huggingFaceSearchService,
             onShowWelcome: { [weak welcomeCoordinator] in
                 welcomeCoordinator?.showWelcome()
             }
@@ -151,6 +154,7 @@ final class CotabbyAppEnvironment {
         self.clipboardContextProvider = clipboardContextProvider
         self.suggestionCoordinator = suggestionCoordinator
         self.welcomeCoordinator = welcomeCoordinator
+        self.huggingFaceSearchService = huggingFaceSearchService
         self.settingsCoordinator = settingsCoordinator
         self.activationIndicatorController = activationIndicatorController
         self.focusDebugOverlayController = FocusDebugOverlayController.isEnabled

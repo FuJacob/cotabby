@@ -94,6 +94,8 @@ final class ModelDownloadManager: ObservableObject {
     }
 
     func refreshModelStates() {
+        let catalogFilenames = Set(models.map(\.filename))
+
         for model in models {
             if downloadTasks[model.filename] != nil {
                 if case .downloading(let progress) = modelStates[model.filename] {
@@ -107,6 +109,26 @@ final class ModelDownloadManager: ObservableObject {
                 modelStates[model.filename] = .idle
             }
         }
+
+        for (filename, state) in modelStates where !catalogFilenames.contains(filename) {
+            if downloadTasks[filename] != nil {
+                continue
+            }
+            switch state {
+            case .downloading:
+                break
+            case .downloaded, .idle, .failed:
+                if isInstalled(filename: filename) {
+                    modelStates[filename] = .downloaded
+                } else {
+                    modelStates.removeValue(forKey: filename)
+                }
+            }
+        }
+    }
+
+    func isModelInstalled(filename: String) -> Bool {
+        isInstalled(filename: filename)
     }
 
     func download(_ model: DownloadableRuntimeModel) {

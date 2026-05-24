@@ -19,6 +19,7 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
     private let runtimeModel: RuntimeBootstrapModel
     private let mlxRuntimeManager: MLXRuntimeManager
     private let modelDownloadManager: ModelDownloadManager
+    private let huggingFaceSearchService: HuggingFaceSearchService
     private let onShowWelcome: () -> Void
 
     private var settingsWindowController: NSWindowController?
@@ -32,6 +33,7 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
         runtimeModel: RuntimeBootstrapModel,
         mlxRuntimeManager: MLXRuntimeManager,
         modelDownloadManager: ModelDownloadManager,
+        huggingFaceSearchService: HuggingFaceSearchService,
         onShowWelcome: @escaping () -> Void
     ) {
         self.appUpdateManager = appUpdateManager
@@ -42,6 +44,7 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
         self.runtimeModel = runtimeModel
         self.mlxRuntimeManager = mlxRuntimeManager
         self.modelDownloadManager = modelDownloadManager
+        self.huggingFaceSearchService = huggingFaceSearchService
         self.onShowWelcome = onShowWelcome
     }
 
@@ -65,6 +68,7 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
                 runtimeModel: runtimeModel,
                 mlxRuntimeManager: mlxRuntimeManager,
                 modelDownloadManager: modelDownloadManager,
+                huggingFaceSearchService: huggingFaceSearchService,
                 onShowWelcome: onShowWelcome
             )
         )
