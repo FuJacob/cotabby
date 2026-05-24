@@ -25,29 +25,43 @@ final class HuggingFaceSearchService: ObservableObject {
     @Published var searchQuery: String = ""
     @Published private(set) var searchState: SearchState = .idle
     @Published private(set) var detailState: DetailState = .idle
+    @Published private(set) var hasMoreResults: Bool = false
+    @Published private(set) var isLoadingMore: Bool = false
+
+    @Published private(set) var selectedRepoId: String?
 
     private var searchTask: Task<Void, Never>?
     private var detailTask: Task<Void, Never>?
+    private var loadMoreTask: Task<Void, Never>?
+    private var accumulatedResults: [HFModelSearchResult] = []
+
+    private static let pageSize = 20
 
     func search() {
         let query = searchQuery.trimmingCharacters(in: .whitespaces)
         guard !query.isEmpty else { return }
 
         searchTask?.cancel()
+        loadMoreTask?.cancel()
         detailState = .idle
+        accumulatedResults = []
 
         searchTask = Task {
             searchState = .searching
 
             do {
-                try await Task.sleep(nanoseconds: 400_000_000)
-                let results = try await HuggingFaceAPIClient.searchModels(query: query)
+                let results = try await HuggingFaceAPIClient.searchModels(
+                    query: query, limit: Self.pageSize, offset: 0
+                )
                 guard !Task.isCancelled else { return }
 
                 if results.isEmpty {
                     searchState = .noResults
+                    hasMoreResults = false
                 } else {
+                    accumulatedResults = results
                     searchState = .results(results)
+                    hasMoreResults = results.count >= Self.pageSize
                 }
             } catch is CancellationError {
                 return
@@ -58,8 +72,35 @@ final class HuggingFaceSearchService: ObservableObject {
         }
     }
 
+    func loadMore() {
+        let query = searchQuery.trimmingCharacters(in: .whitespaces)
+        guard !query.isEmpty, hasMoreResults, !isLoadingMore else { return }
+
+        loadMoreTask?.cancel()
+        loadMoreTask = Task {
+            isLoadingMore = true
+            defer { isLoadingMore = false }
+
+            do {
+                let nextPage = try await HuggingFaceAPIClient.searchModels(
+                    query: query, limit: Self.pageSize, offset: accumulatedResults.count
+                )
+                guard !Task.isCancelled else { return }
+
+                accumulatedResults.append(contentsOf: nextPage)
+                searchState = .results(accumulatedResults)
+                hasMoreResults = nextPage.count >= Self.pageSize
+            } catch is CancellationError {
+                return
+            } catch {
+                guard !Task.isCancelled else { return }
+            }
+        }
+    }
+
     func fetchFiles(for repoId: String) {
         detailTask?.cancel()
+        selectedRepoId = repoId
 
         detailTask = Task {
             detailState = .loading
@@ -86,12 +127,23 @@ final class HuggingFaceSearchService: ObservableObject {
         }
     }
 
+    func collapseDetail() {
+        detailTask?.cancel()
+        detailState = .idle
+        selectedRepoId = nil
+    }
+
     func reset() {
         searchTask?.cancel()
         detailTask?.cancel()
+        loadMoreTask?.cancel()
         searchQuery = ""
         searchState = .idle
         detailState = .idle
+        selectedRepoId = nil
+        hasMoreResults = false
+        isLoadingMore = false
+        accumulatedResults = []
     }
 
     func makeDownloadableModel(from file: HFRepoFile, repoId: String) -> DownloadableRuntimeModel {

@@ -15,7 +15,6 @@ struct HuggingFaceModelBrowserView: View {
             VStack(alignment: .leading, spacing: 10) {
                 searchBar
                 searchResultsContent
-                detailContent
             }
             .padding(.top, 4)
         }
@@ -65,74 +64,102 @@ struct HuggingFaceModelBrowserView: View {
 
         case .results(let models):
             ForEach(models) { model in
-                HFSearchResultRow(
-                    model: model,
-                    isSelected: isRepoSelected(model.id),
-                    onSelect: {
-                        searchService.fetchFiles(for: model.id)
+                VStack(alignment: .leading, spacing: 0) {
+                    HFSearchResultRow(
+                        model: model,
+                        isSelected: isRepoSelected(model.id),
+                        onSelect: {
+                            if isRepoSelected(model.id) {
+                                searchService.collapseDetail()
+                            } else {
+                                searchService.fetchFiles(for: model.id)
+                            }
+                        }
+                    )
+                    inlineDetailContent(for: model.id)
+                }
+            }
+
+            if searchService.hasMoreResults {
+                Button {
+                    searchService.loadMore()
+                } label: {
+                    if searchService.isLoadingMore {
+                        HStack(spacing: 6) {
+                            ProgressView()
+                                .controlSize(.small)
+                            Text("Loading…")
+                                .font(.caption)
+                        }
+                    } else {
+                        Text("Load More")
+                            .font(.caption)
                     }
-                )
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(searchService.isLoadingMore)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.top, 4)
             }
         }
     }
 
     @ViewBuilder
-    private var detailContent: some View {
-        switch searchService.detailState {
-        case .idle:
-            EmptyView()
-
-        case .loading:
-            HStack(spacing: 6) {
-                ProgressView()
-                    .controlSize(.small)
-                Text("Loading files…")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-        case .failed(let message):
-            Label(message, systemImage: "exclamationmark.triangle.fill")
-                .font(.caption)
-                .foregroundStyle(.red)
-
-        case .loaded(let repoId, let ggufFiles):
-            VStack(alignment: .leading, spacing: 6) {
-                Text("GGUF files in \(repoId)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                ForEach(ggufFiles) { file in
-                    HFFileRow(
-                        file: file,
-                        repoId: repoId,
-                        state: modelDownloadManager.state(
-                            for: searchService.makeDownloadableModel(from: file, repoId: repoId)
-                        ),
-                        isInstalled: modelDownloadManager.isModelInstalled(filename: file.path),
-                        onDownload: {
-                            let model = searchService.makeDownloadableModel(
-                                from: file, repoId: repoId
-                            )
-                            modelDownloadManager.download(model)
-                        },
-                        onCancel: {
-                            modelDownloadManager.cancel(filename: file.path)
-                        }
-                    )
+    private func inlineDetailContent(for repoId: String) -> some View {
+        if isRepoSelected(repoId) {
+            switch searchService.detailState {
+            case .loading:
+                HStack(spacing: 6) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("Loading files…")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
+                .padding(.leading, 16)
+                .padding(.top, 4)
+
+            case .failed(let message):
+                Label(message, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .padding(.leading, 16)
+                    .padding(.top, 4)
+
+            case .loaded(let loadedRepoId, let ggufFiles) where loadedRepoId == repoId:
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(ggufFiles) { file in
+                        HFFileRow(
+                            file: file,
+                            repoId: repoId,
+                            state: modelDownloadManager.state(
+                                for: searchService.makeDownloadableModel(from: file, repoId: repoId)
+                            ),
+                            isInstalled: modelDownloadManager.isModelInstalled(filename: file.path),
+                            onDownload: {
+                                let model = searchService.makeDownloadableModel(
+                                    from: file, repoId: repoId
+                                )
+                                modelDownloadManager.download(model)
+                            },
+                            onCancel: {
+                                modelDownloadManager.cancel(filename: file.path)
+                            }
+                        )
+                    }
+                }
+                .padding(.leading, 16)
+                .padding(.top, 4)
+
+            default:
+                EmptyView()
             }
         }
     }
 
     private func isRepoSelected(_ repoId: String) -> Bool {
-        if case .loaded(let loadedId, _) = searchService.detailState, loadedId == repoId {
-            return true
-        }
-        if case .loading = searchService.detailState {
-            return false
-        }
-        return false
+        searchService.selectedRepoId == repoId
     }
 }
 

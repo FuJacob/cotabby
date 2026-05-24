@@ -2,6 +2,7 @@ import AppKit
 import Combine
 import Foundation
 import Logging
+import UniformTypeIdentifiers
 
 /// One model's current install/download lifecycle state in local storage.
 enum ModelDownloadState: Equatable {
@@ -193,6 +194,38 @@ final class ModelDownloadManager: ObservableObject {
         }
 
         NSWorkspace.shared.open(runtimeDirectoryURL)
+    }
+
+    func importModel() {
+        let panel = NSOpenPanel()
+        panel.title = "Select a GGUF Model"
+        panel.allowedContentTypes = [.init(filenameExtension: "gguf")!]
+        panel.allowsMultipleSelection = true
+        panel.canChooseDirectories = false
+
+        guard panel.runModal() == .OK else { return }
+
+        do {
+            try ensureRuntimeDirectoryExists()
+        } catch {
+            return
+        }
+
+        let fileManager = FileManager.default
+        for sourceURL in panel.urls {
+            let destinationURL = runtimeDirectoryURL.appendingPathComponent(
+                sourceURL.lastPathComponent, isDirectory: false
+            )
+            if fileManager.fileExists(atPath: destinationURL.path) { continue }
+            do {
+                try fileManager.copyItem(at: sourceURL, to: destinationURL)
+            } catch {
+                print("Failed to import \(sourceURL.lastPathComponent): \(error.localizedDescription)")
+            }
+        }
+
+        refreshModelStates()
+        onModelDirectoryChanged?()
     }
 
     /// Returns `true` only when the model lives in Cotabby's user-writable model directory.

@@ -365,6 +365,16 @@ struct SettingsView: View {
                 }
             }
 
+            if !runtimeModel.availableModels.isEmpty {
+                Text("Installed Models")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                ForEach(runtimeModel.availableModels) { model in
+                    installedModelRow(model)
+                }
+            }
+
             DownloadableModelCatalogView(
                 modelDownloadManager: modelDownloadManager,
                 onRefreshModels: refreshModels
@@ -376,41 +386,22 @@ struct SettingsView: View {
                 onRefreshModels: refreshModels
             )
 
-            LabeledContent("Folder") {
-                VStack(alignment: .trailing, spacing: 8) {
-                    Text(modelDownloadManager.modelsDirectoryPath)
-                        .font(.callout.monospaced())
-                        .textSelection(.enabled)
-                        .multilineTextAlignment(.trailing)
-
-                    HStack(spacing: 8) {
-                        let lmStudioURL = FileManager.default.homeDirectoryForCurrentUser
-                            .appendingPathComponent(".lmstudio/models")
-                        Button("LM Studio Folder") {
-                            NSWorkspace.shared.open(lmStudioURL)
-                        }
-                        .disabled(
-                            !FileManager.default.fileExists(atPath: lmStudioURL.path)
-                        )
-
-                        Button("Open Folder") {
-                            modelDownloadManager.openModelsDirectory()
-                        }
-
-                        Button("Refresh") {
-                            refreshModels()
-                        }
-                    }
+            HStack(spacing: 8) {
+                Button("Open Folder") {
+                    modelDownloadManager.openModelsDirectory()
                 }
-            }
 
-            if !runtimeModel.availableModels.isEmpty {
-                Text("Installed")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                let lmStudioURL = FileManager.default.homeDirectoryForCurrentUser
+                    .appendingPathComponent(".lmstudio/models")
+                Button("LM Studio Folder") {
+                    NSWorkspace.shared.open(lmStudioURL)
+                }
+                .disabled(
+                    !FileManager.default.fileExists(atPath: lmStudioURL.path)
+                )
 
-                ForEach(runtimeModel.availableModels) { model in
-                    installedModelRow(model)
+                Button("Refresh") {
+                    refreshModels()
                 }
             }
         }

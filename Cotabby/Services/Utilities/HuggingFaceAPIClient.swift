@@ -26,7 +26,7 @@ enum HuggingFaceAPIClient {
     }
 
     /// Search for GGUF model repositories sorted by download count.
-    static func searchModels(query: String, limit: Int = 20) async throws -> [HFModelSearchResult] {
+    static func searchModels(query: String, limit: Int = 20, offset: Int = 0) async throws -> [HFModelSearchResult] {
         guard var components = URLComponents(string: "https://huggingface.co/api/models") else {
             throw APIError.invalidURL
         }
@@ -35,7 +35,8 @@ enum HuggingFaceAPIClient {
             URLQueryItem(name: "search", value: query),
             URLQueryItem(name: "sort", value: "downloads"),
             URLQueryItem(name: "direction", value: "-1"),
-            URLQueryItem(name: "limit", value: String(limit))
+            URLQueryItem(name: "limit", value: String(limit)),
+            URLQueryItem(name: "offset", value: String(offset))
         ]
         guard let url = components.url else {
             throw APIError.invalidURL
@@ -67,6 +68,7 @@ enum HuggingFaceAPIClient {
     private static func performRequest(url: URL) async throws -> Data {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
+        configuration.timeoutIntervalForRequest = 15
         let session = URLSession(configuration: configuration)
         defer { session.finishTasksAndInvalidate() }
 
