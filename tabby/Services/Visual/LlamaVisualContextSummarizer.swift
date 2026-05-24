@@ -120,14 +120,14 @@ final class LlamaVisualContextSummarizer: VisualContextSummarizing {
             .filter { !$0.isEmpty }
         guard lines.count >= 4 else { return lines.joined(separator: "\n") }
 
-        for i in 0 ..< lines.count {
-            let maxBlockSize = (lines.count - i) / 2
+        for lineIndex in 0 ..< lines.count {
+            let maxBlockSize = (lines.count - lineIndex) / 2
             guard maxBlockSize >= 1 else { continue }
             for blockSize in 1 ... maxBlockSize {
-                let repeatStart = i + blockSize
+                let repeatStart = lineIndex + blockSize
                 let repeatEnd = repeatStart + blockSize
                 guard repeatEnd <= lines.count else { continue }
-                if Array(lines[i ..< repeatStart]) == Array(lines[repeatStart ..< repeatEnd]) {
+                if Array(lines[lineIndex ..< repeatStart]) == Array(lines[repeatStart ..< repeatEnd]) {
                     return Array(lines[0 ..< repeatStart]).joined(separator: "\n")
                 }
             }

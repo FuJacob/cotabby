@@ -55,22 +55,7 @@ final class ScreenshotContextGenerator {
         for context: FocusedInputSnapshot,
         onStatusChange: (@Sendable (VisualContextStatus) async -> Void)? = nil
     ) async throws -> VisualContextExcerpt {
-        await onStatusChange?(.capturing)
-
-        TabbyLogger.app.debug("Capturing screenshot for \(context.applicationName)")
-        let screenshot: CapturedWindowScreenshot
-        do {
-            screenshot = try await screenshotService.captureSnapshot(
-                around: context,
-                snapshotDimension: configuration.snapshotDimension
-            )
-        } catch let error as WindowScreenshotError {
-            TabbyLogger.app.warning("Screenshot unavailable: \(error.localizedDescription)")
-            throw ScreenshotContextGenerationError.unavailable(error.localizedDescription)
-        } catch {
-            TabbyLogger.app.error("Screenshot failed: \(error.localizedDescription)")
-            throw ScreenshotContextGenerationError.failed(error.localizedDescription)
-        }
+        let screenshot = try await captureScreenshot(for: context, onStatusChange: onStatusChange)
 
         await onStatusChange?(.extractingText)
 
@@ -139,6 +124,23 @@ final class ScreenshotContextGenerator {
         return VisualContextExcerpt(
             text: finalContextText
         )
+    }
+
+    private func captureScreenshot(
+        for context: FocusedInputSnapshot,
+        onStatusChange: (@Sendable (VisualContextStatus) async -> Void)?
+    ) async throws -> CapturedWindowScreenshot {
+        await onStatusChange?(.capturing)
+        do {
+            return try await screenshotService.captureSnapshot(
+                around: context,
+                snapshotDimension: configuration.snapshotDimension
+            )
+        } catch let error as WindowScreenshotError {
+            throw ScreenshotContextGenerationError.unavailable(error.localizedDescription)
+        } catch {
+            throw ScreenshotContextGenerationError.failed(error.localizedDescription)
+        }
     }
 
     /// OCR is noisy by nature. We normalize line whitespace, strip short-token noise from UI

@@ -107,7 +107,7 @@ protocol FoundationModelAvailabilityProviding {
 /// objects while still giving the rest of the app a clear user-facing reason; `refresh()` is
 /// intentionally constant because unsupported runtime state cannot become available in-process.
 @MainActor
-private struct UnsupportedFoundationModelAvailabilityProvider: FoundationModelAvailabilityProviding {
+private struct UnsupportedAvailabilityProvider: FoundationModelAvailabilityProviding {
     let currentState: FoundationModelAvailabilityState
 
     init(reason: String) {
@@ -127,11 +127,11 @@ extension FoundationModelAvailabilityService {
     private static func makeDefaultProvider() -> any FoundationModelAvailabilityProviding {
         #if canImport(FoundationModels)
         if #available(macOS 26.0, *) {
-            return SystemFoundationModelAvailabilityProvider()
+            return SystemAvailabilityProvider()
         }
         #endif
 
-        return UnsupportedFoundationModelAvailabilityProvider(
+        return UnsupportedAvailabilityProvider(
             reason: "Apple Intelligence requires macOS 26 or later. Use Open Source on this Mac."
         )
     }
@@ -141,11 +141,11 @@ extension FoundationModelAvailabilityService {
 @available(macOS 26.0, *)
 extension FoundationModelAvailabilityService {
     var systemLanguageModel: SystemLanguageModel? {
-        // In production, `.available` can only come from `SystemFoundationModelAvailabilityProvider`,
+        // In production, `.available` can only come from `SystemAvailabilityProvider`,
         // the provider installed by `makeDefaultProvider` on macOS 26+. The optional keeps tests and
         // future injected providers from accidentally relying on a FoundationModels instance they
         // do not own.
-        (provider as? SystemFoundationModelAvailabilityProvider)?.model
+        (provider as? SystemAvailabilityProvider)?.model
     }
 }
 
@@ -157,7 +157,7 @@ extension FoundationModelAvailabilityService {
 /// app-level availability state before engines or UI read it.
 @available(macOS 26.0, *)
 @MainActor
-private final class SystemFoundationModelAvailabilityProvider: FoundationModelAvailabilityProviding {
+private final class SystemAvailabilityProvider: FoundationModelAvailabilityProviding {
     let model: SystemLanguageModel
 
     init() {
