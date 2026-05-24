@@ -62,9 +62,16 @@ extension SuggestionCoordinator {
             latestStageMessage = "Updated autocomplete settings."
         }
 
-        // Cancel any obsolete context, then restart it if focus is still active.
+        // Cancel any obsolete context, then restart only when the subsystem is not disabled.
         visualContextCoordinator.cancel(resetState: true)
-        if let focusedSnapshot = focusModel.snapshot.context {
+        if let focusedSnapshot = focusModel.snapshot.context,
+           SuggestionAvailabilityEvaluator.shouldCaptureVisualContext(
+               globallyEnabled: settingsSnapshot.isGloballyEnabled,
+               disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
+               inputMonitoringGranted: permissionManager.inputMonitoringGranted,
+               screenRecordingGranted: permissionManager.screenRecordingGranted,
+               focusSnapshot: focusModel.snapshot
+           ) {
             visualContextCoordinator.startSessionIfNeeded(for: focusedSnapshot)
         }
 
