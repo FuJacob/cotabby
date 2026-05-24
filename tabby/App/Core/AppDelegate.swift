@@ -118,14 +118,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         welcomeCoordinator.presentPermissionReminderIfNeeded()
     }
 
-    /// Stops long-lived services before process exit so timers and runtime resources detach cleanly.
-    func applicationWillTerminate(_ notification: Notification) {
+    /// Defers termination until the llama runtime releases native Metal/GPU resources.
+    /// Without this, `exit()` triggers C++ static destructors that tear down the Metal
+    /// device while llama contexts are still live, causing `ggml_metal_rsets_free` to abort.
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         activationIndicatorController.hide(reason: "Activation indicator hidden because Tabby is terminating.")
         focusDebugOverlayController?.hide()
         suggestionCoordinator.stop()
         inputMonitor.stop()
         focusModel.stop()
-        runtimeModel.stop()
+
+        Task {
+            await runtimeModel.stopAndWait()
+            sender.reply(toApplicationShouldTerminate: true)
+        }
+        return .terminateLater
     }
 
     /// Shows or hides the field-edge tabby icon based on focus state, global enable, per-app
