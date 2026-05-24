@@ -12,7 +12,8 @@ enum SuggestionAvailabilityEvaluator {
         disabledAppBundleIdentifiers: Set<String> = [],
         inputMonitoringGranted: Bool,
         screenRecordingGranted: Bool,
-        focusSnapshot: FocusSnapshot
+        focusSnapshot: FocusSnapshot,
+        checkCapability: Bool = true
     ) -> String? {
         guard globallyEnabled else {
             return "Tabby is turned off."
@@ -34,6 +35,10 @@ enum SuggestionAvailabilityEvaluator {
         guard screenRecordingGranted else {
             return "Screen Recording permission is required before Tabby can build visual context "
                 + "for autocomplete."
+        }
+
+        guard checkCapability else {
+            return nil
         }
 
         switch focusSnapshot.capability {
@@ -62,10 +67,9 @@ enum SuggestionAvailabilityEvaluator {
 
     /// Whether the environment allows visual context capture to start.
     ///
-    /// Unlike `disabledReason`, this ignores transient field-level states (text selected,
-    /// secure field) so the OCR pipeline can start early and be ready by the time the user
-    /// types. Returns `false` only for hard environment disables: globally off, per-app
-    /// disabled, terminal apps, and missing permissions.
+    /// Delegates to `disabledReason` with capability checking disabled so transient field
+    /// states (text selected, secure field) are intentionally ignored — OCR should start
+    /// early in those cases and be ready by the time the user begins typing.
     static func shouldCaptureVisualContext(
         globallyEnabled: Bool = true,
         disabledAppBundleIdentifiers: Set<String> = [],
@@ -73,21 +77,14 @@ enum SuggestionAvailabilityEvaluator {
         screenRecordingGranted: Bool,
         focusSnapshot: FocusSnapshot
     ) -> Bool {
-        guard globallyEnabled else { return false }
-
-        if let bundleIdentifier = focusSnapshot.bundleIdentifier,
-           disabledAppBundleIdentifiers.contains(bundleIdentifier) {
-            return false
-        }
-
-        if TerminalAppDetector.isTerminal(bundleIdentifier: focusSnapshot.bundleIdentifier) {
-            return false
-        }
-
-        guard inputMonitoringGranted else { return false }
-        guard screenRecordingGranted else { return false }
-
-        return true
+        disabledReason(
+            globallyEnabled: globallyEnabled,
+            disabledAppBundleIdentifiers: disabledAppBundleIdentifiers,
+            inputMonitoringGranted: inputMonitoringGranted,
+            screenRecordingGranted: screenRecordingGranted,
+            focusSnapshot: focusSnapshot,
+            checkCapability: false
+        ) == nil
     }
 
     static func shouldSchedulePredictionWhenVisualContextBecomesReady(
