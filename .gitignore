@@ -11,6 +11,7 @@ build/
 # Swift Package Manager
 .build/
 .swiftpm/
+**/xcshareddata/swiftpm/Package.resolved
 
 # macOS
 .DS_Store
@@ -27,6 +28,10 @@ venv/
 launch.txt
 posts.txt
 
+# Claude Code
+.claude/worktrees/
+
 # Large model files — keep out of git
 *.gguf
 *.bin
+.rocketride/
