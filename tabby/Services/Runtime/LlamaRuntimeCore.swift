@@ -151,6 +151,8 @@ actor LlamaRuntimeCore {
 
         let allPromptTokens = try tokenize(prompt, vocab: vocab)
 
+        // Reserve space for generation and trim from the front if needed. The tail of the prompt
+        // is closest to the caret and matters most for completion quality.
         let maxPromptTokens = max(1, preparedRuntime.contextWindowTokens - options.maxPredictionTokens)
         let promptTokens: [llama_token]
         let adjustedCachedPrefixBytes: Int?
@@ -159,6 +161,7 @@ actor LlamaRuntimeCore {
                 "Prompt trimmed: \(allPromptTokens.count) tokens → \(maxPromptTokens)"
             )
             promptTokens = Array(allPromptTokens.suffix(maxPromptTokens))
+            // Front-trimming invalidates any byte-level prefix overlap with the cache.
             adjustedCachedPrefixBytes = nil
         } else {
             promptTokens = allPromptTokens

@@ -192,6 +192,8 @@ final class LlamaRuntimeManager: ObservableObject {
             return cachedRuntime
         }
 
+        // Deduplicate concurrent prepare calls for the same selected model, but cancel and
+        // replace the task if the requested model changed while startup was already in flight.
         if let startupTask {
             if startupModelFilename == requestedModelFilename {
                 TabbyLogger.runtime.debug("Reusing in-flight startup for \(requestedModelFilename)")
