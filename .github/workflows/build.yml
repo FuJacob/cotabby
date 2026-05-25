@@ -63,9 +63,12 @@ jobs:
           # pbxproj and Package.resolved must agree on the version.
           pbxproj_version="$(echo "${sparkle_block}" | grep -A1 'kind = exactVersion' | grep 'version' | sed 's/.*= //;s/;.*//' | tr -d '[:space:]')"
           resolved_version="$(python3 -c "
-          import json
+          import json, sys
           resolved = json.load(open('tabby.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved'))
           pins = {p['identity']: p for p in resolved['pins']}
+          if 'sparkle' not in pins:
+              print('sparkle not found in Package.resolved. Available: ' + ', '.join(sorted(pins.keys())), file=sys.stderr)
+              sys.exit(1)
           print(pins['sparkle']['state']['version'])
           ")"
 
