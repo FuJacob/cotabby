@@ -10,6 +10,7 @@
 		194B33B32FC3F33B00DF6F60 /* InMemoryLogging in Frameworks */ = {isa = PBXBuildFile; productRef = 194B33B22FC3F33B00DF6F60 /* InMemoryLogging */; };
 		194B33B52FC3F33B00DF6F60 /* Logging in Frameworks */ = {isa = PBXBuildFile; productRef = 194B33B42FC3F33B00DF6F60 /* Logging */; };
 		19E177EA2FC1B7890067E267 /* CotabbyInference in Frameworks */ = {isa = PBXBuildFile; productRef = 19E177E92FC1B7890067E267 /* CotabbyInference */; };
+		7A1E3B0C2FC8A00100CARET1 /* AXTextGeometryResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1E3B0D2FC8A00100CARET2 /* AXTextGeometryResolverTests.swift */; };
 		8B6282F0C1CCA0746D96B914 /* DownloadOutcomeClassifierTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 562F89255AF340C15A0554BE /* DownloadOutcomeClassifierTests.swift */; };
 		A1C3E0112F90000100AAA001 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = A1C3E0102F90000100AAA001 /* Sparkle */; };
 		A404828463CADB2ECDAE7AF3 /* LlamaPromptRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F29623C5C0A67B992D383A3C /* LlamaPromptRendererTests.swift */; };
@@ -47,6 +48,7 @@
 		193741492F81DE7000BEC04F /* Cotabby.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Cotabby.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		3FBFA92FA44AA317135426FB /* CotabbyTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CotabbyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		562F89255AF340C15A0554BE /* DownloadOutcomeClassifierTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DownloadOutcomeClassifierTests.swift; sourceTree = "<group>"; };
+		7A1E3B0D2FC8A00100CARET2 /* AXTextGeometryResolverTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AXTextGeometryResolverTests.swift; sourceTree = "<group>"; };
 		5A39EC1A44E9160E13E2AE77 /* SuggestionAvailabilityEvaluatorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SuggestionAvailabilityEvaluatorTests.swift; sourceTree = "<group>"; };
 		8B1121FFDAD30C7F62E15289 /* SuggestionRequestFactoryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SuggestionRequestFactoryTests.swift; sourceTree = "<group>"; };
 		BAAEE25772008D75883F2655 /* DownloadFileRescuerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DownloadFileRescuerTests.swift; sourceTree = "<group>"; };
@@ -120,6 +122,7 @@
 			isa = PBXGroup;
 			children = (
 				C10000112F91000100BBB011 /* CotabbyTestFixtures.swift */,
+				7A1E3B0D2FC8A00100CARET2 /* AXTextGeometryResolverTests.swift */,
 				F29623C5C0A67B992D383A3C /* LlamaPromptRendererTests.swift */,
 				C10000152F91000100BBB015 /* PromptPolicyTests.swift */,
 				5A39EC1A44E9160E13E2AE77 /* SuggestionAvailabilityEvaluatorTests.swift */,
@@ -279,6 +282,7 @@
 				E10000042F93000100DDD004 /* BundledRuntimeLocatorTests.swift in Sources */,
 				E10000052F93000100DDD005 /* DisplayCoordinateConverterTests.swift in Sources */,
 				F10000012FA0000100EEE001 /* TextDirectionDetectorTests.swift in Sources */,
+				7A1E3B0C2FC8A00100CARET1 /* AXTextGeometryResolverTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
