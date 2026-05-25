@@ -1,6 +1,6 @@
 import CoreGraphics
 import XCTest
-@testable import tabby
+@testable import Cotabby
 
 final class DisplayCoordinateConverterTests: XCTestCase {
     func test_appKitRect_flipsWithinOwningDisplayAbovePrimary() {
