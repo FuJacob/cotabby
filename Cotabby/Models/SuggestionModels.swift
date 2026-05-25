@@ -353,6 +353,26 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
     /// When `true`, the text near the caret is Right-to-Left (Arabic, Hebrew, etc.) and the ghost
     /// text overlay should appear to the left of the caret instead of the right.
     let isRightToLeft: Bool
+    /// Identifies the focus session that produced this geometry. `OverlayController` keys its
+    /// per-session font-size stabilization on this value, so a field switch (or focus loss) starts
+    /// a fresh size baseline. Defaults to 0 for tests that do not exercise session-scoped behavior.
+    let focusChangeSequence: UInt64
+
+    init(
+        caretRect: CGRect,
+        inputFrameRect: CGRect?,
+        caretQuality: CaretGeometryQuality,
+        observedCharWidth: CGFloat?,
+        isRightToLeft: Bool,
+        focusChangeSequence: UInt64 = 0
+    ) {
+        self.caretRect = caretRect
+        self.inputFrameRect = inputFrameRect
+        self.caretQuality = caretQuality
+        self.observedCharWidth = observedCharWidth
+        self.isRightToLeft = isRightToLeft
+        self.focusChangeSequence = focusChangeSequence
+    }
 }
 
 /// The overlay is intentionally modeled as data so diagnostics can reason about visibility

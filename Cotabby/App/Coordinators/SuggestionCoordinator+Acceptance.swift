@@ -108,9 +108,7 @@ extension SuggestionCoordinator {
             presentOverlay(
                 text: advancedSession.remainingText,
                 at: predictedCaret,
-                inputFrameRect: liveContext.inputFrameRect,
-                caretQuality: liveContext.caretQuality,
-                observedCharWidth: liveContext.observedCharWidth,
+                context: liveContext,
                 isRightToLeft: isRTL
             )
             schedulePostInsertionRefresh()
@@ -170,9 +168,7 @@ extension SuggestionCoordinator {
         presentOverlay(
             text: advancedSession.remainingText,
             at: session.baseContext.caretRect,
-            inputFrameRect: session.baseContext.inputFrameRect,
-            caretQuality: session.baseContext.caretQuality,
-            observedCharWidth: session.baseContext.observedCharWidth
+            context: session.baseContext
         )
         logStage(
             "typed-match-advanced",
@@ -314,17 +310,16 @@ extension SuggestionCoordinator {
     func presentOverlay(
         text: String,
         at caretRect: CGRect,
-        inputFrameRect: CGRect?,
-        caretQuality: CaretGeometryQuality,
-        observedCharWidth: CGFloat?,
+        context: FocusedInputContext,
         isRightToLeft: Bool = false
     ) {
         let geometry = SuggestionOverlayGeometry(
             caretRect: caretRect,
-            inputFrameRect: inputFrameRect,
-            caretQuality: caretQuality,
-            observedCharWidth: observedCharWidth,
-            isRightToLeft: isRightToLeft
+            inputFrameRect: context.inputFrameRect,
+            caretQuality: context.caretQuality,
+            observedCharWidth: context.observedCharWidth,
+            isRightToLeft: isRightToLeft,
+            focusChangeSequence: context.focusChangeSequence
         )
         if let message = overlayPresenter.present(
             text: text,

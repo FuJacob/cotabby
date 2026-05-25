@@ -30,6 +30,7 @@
 		E10000012F93000100DDD001 /* PromptContextSanitizerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000112F93000100DDD011 /* PromptContextSanitizerTests.swift */; };
 		E10000022F93000100DDD002 /* PermissionAndContextModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000122F93000100DDD012 /* PermissionAndContextModelTests.swift */; };
 		E10000032F93000100DDD003 /* GhostSuggestionLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000132F93000100DDD013 /* GhostSuggestionLayoutTests.swift */; };
+		E10000992F93000100DDD099 /* GhostFontSizeStabilizerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000A92F93000100DDD0A9 /* GhostFontSizeStabilizerTests.swift */; };
 		E10000042F93000100DDD004 /* BundledRuntimeLocatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000142F93000100DDD014 /* BundledRuntimeLocatorTests.swift */; };
 		E10000052F93000100DDD005 /* DisplayCoordinateConverterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000152F93000100DDD015 /* DisplayCoordinateConverterTests.swift */; };
 		F10000012FA0000100EEE001 /* TextDirectionDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000112FA0000100EEE011 /* TextDirectionDetectorTests.swift */; };
@@ -69,6 +70,7 @@
 		E10000112F93000100DDD011 /* PromptContextSanitizerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PromptContextSanitizerTests.swift; sourceTree = "<group>"; };
 		E10000122F93000100DDD012 /* PermissionAndContextModelTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PermissionAndContextModelTests.swift; sourceTree = "<group>"; };
 		E10000132F93000100DDD013 /* GhostSuggestionLayoutTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GhostSuggestionLayoutTests.swift; sourceTree = "<group>"; };
+		E10000A92F93000100DDD0A9 /* GhostFontSizeStabilizerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GhostFontSizeStabilizerTests.swift; sourceTree = "<group>"; };
 		E10000142F93000100DDD014 /* BundledRuntimeLocatorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BundledRuntimeLocatorTests.swift; sourceTree = "<group>"; };
 		E10000152F93000100DDD015 /* DisplayCoordinateConverterTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DisplayCoordinateConverterTests.swift; sourceTree = "<group>"; };
 		F10000112FA0000100EEE011 /* TextDirectionDetectorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TextDirectionDetectorTests.swift; sourceTree = "<group>"; };
@@ -151,6 +153,7 @@
 				E10000112F93000100DDD011 /* PromptContextSanitizerTests.swift */,
 				E10000122F93000100DDD012 /* PermissionAndContextModelTests.swift */,
 				E10000132F93000100DDD013 /* GhostSuggestionLayoutTests.swift */,
+				E10000A92F93000100DDD0A9 /* GhostFontSizeStabilizerTests.swift */,
 				E10000142F93000100DDD014 /* BundledRuntimeLocatorTests.swift */,
 				E10000152F93000100DDD015 /* DisplayCoordinateConverterTests.swift */,
 				F10000112FA0000100EEE011 /* TextDirectionDetectorTests.swift */,
@@ -296,6 +299,7 @@
 				E10000012F93000100DDD001 /* PromptContextSanitizerTests.swift in Sources */,
 				E10000022F93000100DDD002 /* PermissionAndContextModelTests.swift in Sources */,
 				E10000032F93000100DDD003 /* GhostSuggestionLayoutTests.swift in Sources */,
+				E10000992F93000100DDD099 /* GhostFontSizeStabilizerTests.swift in Sources */,
 				E10000042F93000100DDD004 /* BundledRuntimeLocatorTests.swift in Sources */,
 				E10000052F93000100DDD005 /* DisplayCoordinateConverterTests.swift in Sources */,
 				F10000012FA0000100EEE001 /* TextDirectionDetectorTests.swift in Sources */,

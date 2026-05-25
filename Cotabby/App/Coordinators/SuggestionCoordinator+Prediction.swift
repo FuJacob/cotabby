@@ -224,9 +224,7 @@ extension SuggestionCoordinator {
         presentOverlay(
             text: session.remainingText,
             at: liveContext.caretRect,
-            inputFrameRect: liveContext.inputFrameRect,
-            caretQuality: liveContext.caretQuality,
-            observedCharWidth: liveContext.observedCharWidth,
+            context: liveContext,
             isRightToLeft: TextDirectionDetector.isRightToLeft(liveContext.precedingText)
         )
         logStage(
@@ -319,9 +317,7 @@ extension SuggestionCoordinator {
             presentOverlay(
                 text: reconciledSession.remainingText,
                 at: liveContext.caretRect,
-                inputFrameRect: liveContext.inputFrameRect,
-                caretQuality: liveContext.caretQuality,
-                observedCharWidth: liveContext.observedCharWidth,
+                context: liveContext,
                 isRightToLeft: TextDirectionDetector.isRightToLeft(liveContext.precedingText)
             )
             if let advancement {
