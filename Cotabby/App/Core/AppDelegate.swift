@@ -1,7 +1,6 @@
 import AppKit
 import Combine
 import Logging
-import os
 
 /// File overview:
 /// Starts the long-lived services that power permissions, focus tracking, suggestion generation,
@@ -128,48 +127,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         TabbyLogger.app.info("All services started")
     }
 
-    /// Defers termination until the llama runtime releases native Metal/GPU resources.
-    /// Without this, `exit()` triggers C++ static destructors that tear down the Metal
-    /// device while llama contexts are still live, causing `ggml_metal_rsets_free` to abort.
+    /// Synchronously releases native runtime resources before AppKit calls `exit()`.
     ///
-    /// Returns `.terminateLater` so AppKit keeps the run loop alive while the async Task
-    /// awaits native cleanup. `reply(toApplicationShouldTerminate: true)` resumes the
-    /// quit once llama resources are freed. A 5-second timeout prevents a hung native
-    /// call (e.g. a stalled Metal command queue) from freezing the app indefinitely.
+    /// `exit()` runs C++ static destructors that tear down the Metal device. If llama contexts
+    /// are still live at that point, `ggml_metal_rsets_free` aborts. We MUST release them first
+    /// — but we cannot use `.terminateLater` to do it: a deferred reply leaves the app alive
+    /// long enough that macOS's "Quit & Reopen" TCC handshake (after a permission grant) does
+    /// not propagate the new grant to the relaunched process, leaving users stuck on the
+    /// permission reminder forever.
     ///
-    /// `stopAndWait()` runs in a detached task so it is never implicitly awaited — if the
-    /// native C call ignores Swift cancellation, the timeout still fires and replies.
-    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+    /// The compromise: stop new work synchronously, then call `shutdownSync` which blocks up to
+    /// ~1.5s for in-flight `generate()` calls to drain before forcing `engine.unloadModel()`.
+    /// In the common case (no autocomplete mid-flight) this returns in milliseconds. If a
+    /// generation is genuinely stuck, we accept the small risk of the original ggml crash over
+    /// the larger UX bug of a broken permission flow.
+    func applicationWillTerminate(_ notification: Notification) {
+        TabbyLogger.app.info("Cotabby terminating, releasing services")
         activationIndicatorController.hide(reason: "Activation indicator hidden because Cotabby is terminating.")
         focusDebugOverlayController?.hide()
         suggestionCoordinator.stop()
         inputMonitor.stop()
         focusModel.stop()
 
-        let didReply = OSAllocatedUnfairLock(initialState: false)
+        runtimeModel.shutdownSync(timeoutSeconds: 1.5)
 
-        func replyOnce() {
-            let alreadyReplied = didReply.withLock { replied -> Bool in
-                let was = replied
-                replied = true
-                return was
-            }
-            guard !alreadyReplied else { return }
-            sender.reply(toApplicationShouldTerminate: true)
-        }
-
-        Task.detached {
-            await self.runtimeModel.stopAndWait()
-            await self.mlxRuntimeManager.stopAndWait()
-            await MainActor.run { replyOnce() }
-        }
-
-        Task {
-            try? await Task.sleep(nanoseconds: 5_000_000_000)
-            replyOnce()
-        }
-
-        return .terminateLater
+        // MLX is actor-isolated so we cannot block on it synchronously. Setting `loadedModel = nil`
+        // is fast and ARC-driven; on the rare termination where MLX is mid-generation we fall back
+        // to the OS reclaiming GPU resources during `exit()`. MLX has not been reported to hit the
+        // same Metal teardown crash as llama.cpp.
+        mlxRuntimeManager.stop()
     }
 
     /// Shows or hides the field-edge Cotabby icon based on focus state, global enable, per-app

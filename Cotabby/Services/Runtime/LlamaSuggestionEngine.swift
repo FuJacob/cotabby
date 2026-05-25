@@ -44,7 +44,12 @@ final class LlamaSuggestionEngine {
             promptCacheHintTracker.recordSuccessfulRequest(request)
             let normalizedSuggestion = SuggestionTextNormalizer.normalize(rawSuggestion, for: request)
             let latency = Date().timeIntervalSince(startTime)
-            TabbyLogger.suggestion.debug("Llama generated: raw=\(rawSuggestion.count) chars, normalized=\(normalizedSuggestion.count) chars, latency=\(Int(latency * 1000))ms")
+            let rawChars = rawSuggestion.count
+            let normalizedChars = normalizedSuggestion.count
+            let latencyMs = Int(latency * 1000)
+            TabbyLogger.suggestion.debug(
+                "Llama generated: raw=\(rawChars) chars, normalized=\(normalizedChars) chars, latency=\(latencyMs)ms"
+            )
             return SuggestionResult(
                 generation: request.generation,
                 rawText: rawSuggestion,
