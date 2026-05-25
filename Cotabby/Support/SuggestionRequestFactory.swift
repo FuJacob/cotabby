@@ -65,7 +65,8 @@ enum SuggestionRequestFactory {
             generation: context.generation,
             maxPredictionTokens: activeMaxPredictionTokens(
                 configuration: configuration,
-                wordCountPreset: settings.selectedWordCountPreset
+                wordCountPreset: settings.selectedWordCountPreset,
+                isMultiLineEnabled: settings.isMultiLineEnabled
             ),
             temperature: configuration.temperature,
             topK: configuration.topK,
@@ -77,7 +78,8 @@ enum SuggestionRequestFactory {
             completionLengthInstruction: completionLengthInstruction,
             userName: userName,
             clipboardContext: boundedClipboardContext,
-            visualContextSummary: boundedVisualContextSummary
+            visualContextSummary: boundedVisualContextSummary,
+            isMultiLineEnabled: settings.isMultiLineEnabled
         )
 
         return SuggestionRequestBuildResult(
@@ -155,9 +157,11 @@ enum SuggestionRequestFactory {
 
     private static func activeMaxPredictionTokens(
         configuration: SuggestionConfiguration,
-        wordCountPreset: SuggestionWordCountPreset
+        wordCountPreset: SuggestionWordCountPreset,
+        isMultiLineEnabled: Bool
     ) -> Int {
-        max(configuration.maxPredictionTokens, wordCountPreset.suggestedPredictionTokenBudget)
+        let base = max(configuration.maxPredictionTokens, wordCountPreset.suggestedPredictionTokenBudget)
+        return isMultiLineEnabled ? min(base * 2, 60) : base
     }
 
     private static func promptPreview(

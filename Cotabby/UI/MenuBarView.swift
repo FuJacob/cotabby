@@ -122,6 +122,10 @@ struct MenuBarView: View {
                 .labelsHidden()
                 .pickerStyle(.menu)
             }
+
+            Toggle("Multi-line", isOn: multiLineEnabledBinding)
+                .toggleStyle(.switch)
+                .controlSize(.small)
         }
         .padding(.bottom, 12)
     }
@@ -264,6 +268,13 @@ struct MenuBarView: View {
             set: { engine in
                 suggestionSettings.selectEngine(engine)
             }
+        )
+    }
+
+    private var multiLineEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.isMultiLineEnabled },
+            set: { suggestionSettings.setMultiLineEnabled($0) }
         )
     }
 
