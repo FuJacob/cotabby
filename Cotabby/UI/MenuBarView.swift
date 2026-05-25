@@ -119,6 +119,21 @@ struct MenuBarView: View {
                     .foregroundStyle(.orange)
             }
 
+            if suggestionSettings.selectedInteractionMode == .compose,
+               suggestionSettings.selectedEngine != .llamaOpenSource {
+                Text("Compose requires the Open Source engine.")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
+
+            if suggestionSettings.selectedInteractionMode == .compose,
+               suggestionSettings.selectedEngine == .llamaOpenSource,
+               !runtimeModel.isComposeRequiredModelInstalled {
+                Text("Compose requires \(RuntimeModelCatalog.composeRequiredFilename). Add it to the models folder.")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
+
             if suggestionSettings.selectedEngine.supportsLocalModelManagement {
                 modelRow
             }
@@ -338,6 +353,11 @@ struct MenuBarView: View {
     }
 
     private var runtimePickerDisabled: Bool {
+        // Compose Mode pins the runtime to `tabby-depth-1`, so user-driven model selection is
+        // disabled while Compose is active to prevent half-supported configurations.
+        if suggestionSettings.selectedInteractionMode == .compose {
+            return true
+        }
         switch runtimeModel.state {
         case .starting, .loading:
             return true

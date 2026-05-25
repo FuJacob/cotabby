@@ -67,7 +67,19 @@ extension SuggestionCoordinator {
             state = .idle
         }
 
-        if interactionState.activeSession != nil {
+        // Compose's preview is field-scoped: if the user clicked a different field or app while
+        // the draft was visible, drop the session immediately. Same-field updates are a no-op
+        // because Compose does not reconcile against typing the way autocomplete does.
+        if let composeSession = interactionState.activeComposeSession {
+            let processChanged = composeSession.baseContext.processIdentifier != focusedContext.processIdentifier
+            let elementChanged = composeSession.baseContext.elementIdentifier != focusedContext.elementIdentifier
+            if processChanged || elementChanged {
+                cancelComposeWork(reason: "Compose cancelled because the focused field changed.")
+            }
+            return
+        }
+
+        if interactionState.activeAutocompleteSession != nil {
             reconcileActiveSession(with: snapshot)
             return
         }
@@ -96,6 +108,13 @@ extension SuggestionCoordinator {
         ) {
             disablePredictions(reason: disabledReason)
             return false
+        }
+
+        // Compose has a deliberate two-step Tab flow and never participates in inline-autocomplete
+        // session reconciliation or per-keystroke prediction debouncing. Fork the event handling
+        // here so the autocomplete branch below can keep assuming "this is autocomplete state".
+        if settingsSnapshot.selectedInteractionMode == .compose {
+            return handleComposeInputEvent(event)
         }
 
         if event.kind == .acceptance {

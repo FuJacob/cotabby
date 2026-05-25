@@ -19,6 +19,10 @@ final class RuntimeBootstrapModel: ObservableObject {
     private let userDefaults: UserDefaults
     private var cancellables = Set<AnyCancellable>()
     private var runtimeTask: Task<Void, Never>?
+    /// The model the user had selected before Compose Mode auto-switched to `tabby-depth-1`.
+    /// Persisted only in memory because the Compose round-trip is a within-session feature; if the
+    /// app relaunches in Compose Mode we re-select the required model on the next entry anyway.
+    private var preComposeAutocompleteModelFilename: String?
 
     /// Called immediately before the runtime begins switching models so suggestion state can reset.
     var onWillReloadModel: (() -> Void)?
@@ -129,6 +133,41 @@ final class RuntimeBootstrapModel: ObservableObject {
         }
 
         await runtimeTask?.value
+    }
+
+    /// Whether the Compose Mode required local model is currently discovered.
+    /// Read by UI so it can offer a clear "Compose needs tabby-depth-1" message without each view
+    /// duplicating the catalog lookup.
+    var isComposeRequiredModelInstalled: Bool {
+        availableModels.contains { $0.filename == RuntimeModelCatalog.composeRequiredFilename }
+    }
+
+    /// Switches the runtime to `tabby-depth-1` for Compose Mode, remembering the prior selection so
+    /// returning to Autocomplete restores it. No-op when the required model is missing, when it is
+    /// already selected, or when a runtime task is in flight (the next entry will retry).
+    func prepareForComposeMode() async {
+        let required = RuntimeModelCatalog.composeRequiredFilename
+        guard isComposeRequiredModelInstalled else {
+            TabbyLogger.runtime.info("Compose Mode required model \(required) is not installed; leaving selection unchanged.")
+            return
+        }
+        guard selectedModelFilename != required else { return }
+        guard runtimeTask == nil else { return }
+
+        preComposeAutocompleteModelFilename = selectedModelFilename
+        await selectModel(required)
+    }
+
+    /// Restores the user's pre-Compose model selection. No-op when no prior selection was saved
+    /// or when the saved model is no longer available.
+    func restoreAutocompleteModel() async {
+        guard let previous = preComposeAutocompleteModelFilename else { return }
+        preComposeAutocompleteModelFilename = nil
+        guard availableModels.contains(where: { $0.filename == previous }) else { return }
+        guard selectedModelFilename != previous else { return }
+        guard runtimeTask == nil else { return }
+
+        await selectModel(previous)
     }
 
     /// Cancels pending startup work and forwards shutdown to the underlying runtime manager.

@@ -184,6 +184,26 @@ final class CotabbyAppEnvironment {
             }
             .store(in: &cancellables)
 
+        // Compose Mode requires `tabby-depth-1`. Auto-switch on entry / restore on exit lives here
+        // (not on `RuntimeBootstrapModel`) because the runtime model intentionally does not know
+        // about interaction modes. `dropFirst()` ignores the initial publish; `removeDuplicates`
+        // avoids redundant work when other settings change.
+        suggestionSettings.$selectedInteractionMode
+            .removeDuplicates()
+            .dropFirst()
+            .sink { [weak runtimeModel] mode in
+                guard let runtimeModel else { return }
+                Task { @MainActor in
+                    switch mode {
+                    case .compose:
+                        await runtimeModel.prepareForComposeMode()
+                    case .autocomplete:
+                        await runtimeModel.restoreAutocompleteModel()
+                    }
+                }
+            }
+            .store(in: &cancellables)
+
         // Key code changes reach InputMonitor through closures that read from the model
         // at event time (set above), so no Combine subscription is needed here.
     }

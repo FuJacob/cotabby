@@ -106,7 +106,6 @@ struct SuggestionSettingsSnapshot: Equatable, Sendable {
     let focusPollIntervalMilliseconds: Int
     let isMultiLineEnabled: Bool
 
-    // swiftlint:disable:next function_parameter_count
     init(
         isGloballyEnabled: Bool,
         disabledAppBundleIdentifiers: Set<String>,

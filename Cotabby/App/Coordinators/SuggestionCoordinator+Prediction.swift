@@ -8,8 +8,10 @@ extension SuggestionCoordinator {
     // MARK: - Prediction Pipeline
 
     func schedulePrediction() {
+        // Compose Mode is Tab-driven, not typing-driven. Returning here keeps Tabby quiet while
+        // the user types into the field without surfacing a misleading "disabled" state — the
+        // explicit Compose path lives in `SuggestionCoordinator+Compose.swift`.
         guard settingsSnapshot.selectedInteractionMode == .autocomplete else {
-            disablePredictionsPreservingVisualContext(reason: composeModePendingReason)
             return
         }
 
@@ -38,8 +40,9 @@ extension SuggestionCoordinator {
 
     /// Refreshes focus after debounce, materializes a stable context, and starts generation.
     func generateFromCurrentFocus(workID: UInt64) async {
+        // Mode may have flipped to Compose while this debounced task was sleeping. Bail silently
+        // — the Compose path is driven from `handleComposeInputEvent`, not from this debounce.
         guard settingsSnapshot.selectedInteractionMode == .autocomplete else {
-            disablePredictionsPreservingVisualContext(reason: composeModePendingReason)
             return
         }
 
@@ -453,7 +456,4 @@ extension SuggestionCoordinator {
         schedulePrediction()
     }
 
-    private var composeModePendingReason: String {
-        "Compose Mode is selected. Draft generation will be enabled after the Compose request pipeline is installed."
-    }
 }

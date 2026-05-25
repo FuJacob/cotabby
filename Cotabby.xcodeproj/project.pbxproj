@@ -36,6 +36,10 @@
 		F10000012FA0000100EEE001 /* TextDirectionDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000112FA0000100EEE011 /* TextDirectionDetectorTests.swift */; };
 		G10000012FB0000100FFF001 /* WordCountFormatterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = G10000112FB0000100FFF011 /* WordCountFormatterTests.swift */; };
 		H10000012FC0000100GGG001 /* ComposeContextNormalizerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = H10000112FC0000100GGG011 /* ComposeContextNormalizerTests.swift */; };
+		H20000012FC0000100GGG002 /* ComposePromptRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = H20000112FC0000100GGG012 /* ComposePromptRendererTests.swift */; };
+		H30000012FC0000100GGG003 /* ComposeTextNormalizerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = H30000112FC0000100GGG013 /* ComposeTextNormalizerTests.swift */; };
+		H40000012FC0000100GGG004 /* ComposeRequestFactoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = H40000112FC0000100GGG014 /* ComposeRequestFactoryTests.swift */; };
+		H50000012FC0000100GGG005 /* SuggestionCoordinatorComposeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = H50000112FC0000100GGG015 /* SuggestionCoordinatorComposeTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -75,6 +79,10 @@
 		F9D35DB9E86506B9FAE1CFE9 /* ModelFileValidatorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ModelFileValidatorTests.swift; sourceTree = "<group>"; };
 		G10000112FB0000100FFF011 /* WordCountFormatterTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WordCountFormatterTests.swift; sourceTree = "<group>"; };
 		H10000112FC0000100GGG011 /* ComposeContextNormalizerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ComposeContextNormalizerTests.swift; sourceTree = "<group>"; };
+		H20000112FC0000100GGG012 /* ComposePromptRendererTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ComposePromptRendererTests.swift; sourceTree = "<group>"; };
+		H30000112FC0000100GGG013 /* ComposeTextNormalizerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ComposeTextNormalizerTests.swift; sourceTree = "<group>"; };
+		H40000112FC0000100GGG014 /* ComposeRequestFactoryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ComposeRequestFactoryTests.swift; sourceTree = "<group>"; };
+		H50000112FC0000100GGG015 /* SuggestionCoordinatorComposeTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SuggestionCoordinatorComposeTests.swift; sourceTree = "<group>"; };
 
 /* End PBXFileReference section */
 
@@ -153,6 +161,10 @@
 				G10000122FB0000100FFF012 /* ClipboardContentDistillerTests.swift */,
 				G10000112FB0000100FFF011 /* WordCountFormatterTests.swift */,
 				H10000112FC0000100GGG011 /* ComposeContextNormalizerTests.swift */,
+				H20000112FC0000100GGG012 /* ComposePromptRendererTests.swift */,
+				H30000112FC0000100GGG013 /* ComposeTextNormalizerTests.swift */,
+				H40000112FC0000100GGG014 /* ComposeRequestFactoryTests.swift */,
+				H50000112FC0000100GGG015 /* SuggestionCoordinatorComposeTests.swift */,
 			);
 			path = CotabbyTests;
 			sourceTree = "<group>";
@@ -297,6 +309,10 @@
 				G10000022FB0000100FFF002 /* ClipboardContentDistillerTests.swift in Sources */,
 				G10000012FB0000100FFF001 /* WordCountFormatterTests.swift in Sources */,
 				H10000012FC0000100GGG001 /* ComposeContextNormalizerTests.swift in Sources */,
+				H20000012FC0000100GGG002 /* ComposePromptRendererTests.swift in Sources */,
+				H30000012FC0000100GGG003 /* ComposeTextNormalizerTests.swift in Sources */,
+				H40000012FC0000100GGG004 /* ComposeRequestFactoryTests.swift in Sources */,
+				H50000012FC0000100GGG005 /* SuggestionCoordinatorComposeTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
