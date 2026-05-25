@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		19E177EA2FC1B7890067E267 /* TabbyInference in Frameworks */ = {isa = PBXBuildFile; productRef = 19E177E92FC1B7890067E267 /* TabbyInference */; };
+		19E177EA2FC1B7890067E267 /* CotabbyInference in Frameworks */ = {isa = PBXBuildFile; productRef = 19E177E92FC1B7890067E267 /* CotabbyInference */; };
 		8B6282F0C1CCA0746D96B914 /* DownloadOutcomeClassifierTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 562F89255AF340C15A0554BE /* DownloadOutcomeClassifierTests.swift */; };
 		A1C3E0112F90000100AAA001 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = A1C3E0102F90000100AAA001 /* Sparkle */; };
 		A404828463CADB2ECDAE7AF3 /* LlamaPromptRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F29623C5C0A67B992D383A3C /* LlamaPromptRendererTests.swift */; };
@@ -80,7 +80,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A1C3E0112F90000100AAA001 /* Sparkle in Frameworks */,
-				19E177EA2FC1B7890067E267 /* TabbyInference in Frameworks */,
+				19E177EA2FC1B7890067E267 /* CotabbyInference in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -160,7 +160,7 @@
 			name = Cotabby;
 			packageProductDependencies = (
 				A1C3E0102F90000100AAA001 /* Sparkle */,
-				19E177E92FC1B7890067E267 /* TabbyInference */,
+				19E177E92FC1B7890067E267 /* CotabbyInference */,
 			);
 			productName = Cotabby;
 			productReference = 193741492F81DE7000BEC04F /* Cotabby.app */;
@@ -412,10 +412,11 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = C4BVFMK9V2;
+				DEVELOPMENT_TEAM = G946M8K23B;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
@@ -446,10 +447,11 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = C4BVFMK9V2;
+				DEVELOPMENT_TEAM = G946M8K23B;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
@@ -573,30 +575,17 @@
 				version = 2.9.1;
 			};
 		};
-		A1C3E0222F90000100AAA001 /* XCRemoteSwiftPackageReference "swift-log" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/apple/swift-log.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 1.6.0;
-			};
-		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		19E177E92FC1B7890067E267 /* TabbyInference */ = {
+		19E177E92FC1B7890067E267 /* CotabbyInference */ = {
 			isa = XCSwiftPackageProductDependency;
-			productName = TabbyInference;
+			productName = CotabbyInference;
 		};
 		A1C3E0102F90000100AAA001 /* Sparkle */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = A1C3E0122F90000100AAA001 /* XCRemoteSwiftPackageReference "Sparkle" */;
 			productName = Sparkle;
-		};
-		A1C3E0202F90000100AAA001 /* Logging */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = A1C3E0222F90000100AAA001 /* XCRemoteSwiftPackageReference "swift-log" */;
-			productName = Logging;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

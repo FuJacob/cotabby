@@ -1,5 +1,5 @@
 import Foundation
-import TabbyInference
+import CotabbyInference
 
 /// File overview:
 /// Owns the C++ inference engine and manages the autocomplete KV cache lifecycle. This is the
@@ -24,7 +24,7 @@ struct PreparedLlamaRuntime: Sendable {
 }
 
 final class LlamaRuntimeCore: @unchecked Sendable {
-    private var engine = TabbyInferenceEngine()
+    private var engine = CotabbyInferenceEngine()
     private var preparedRuntime: PreparedLlamaRuntime?
 
     private let autocompleteLock = NSLock()
@@ -65,7 +65,7 @@ final class LlamaRuntimeCore: @unchecked Sendable {
 
         guard status == .ok else {
             throw LlamaRuntimeError.unavailable(
-                "Unable to load \(resolvedRuntime.modelDisplayName) with TabbyInferenceEngine."
+                "Unable to load \(resolvedRuntime.modelDisplayName) with CotabbyInferenceEngine."
             )
         }
 
@@ -75,7 +75,7 @@ final class LlamaRuntimeCore: @unchecked Sendable {
             batchSize: Int(engine.getBatchSize()),
             threadCount: Int(engine.getThreadCount()),
             gpuLayerCount: Int(engine.getGPULayerCount()),
-            backendName: "TabbyInferenceEngine (llama.cpp in-process)"
+            backendName: "CotabbyInferenceEngine (llama.cpp in-process)"
         )
         self.preparedRuntime = result
         return result
