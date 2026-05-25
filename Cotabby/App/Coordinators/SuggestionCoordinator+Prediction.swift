@@ -72,9 +72,15 @@ extension SuggestionCoordinator {
 
         let context = interactionState.materializeContext(from: rawContext)
         let visualContextSummary = visualContextCoordinator.excerpt(for: context)
-        let clipboardContext = settingsSnapshot.isClipboardContextEnabled
+        let rawClipboard = settingsSnapshot.isClipboardContextEnabled
             ? clipboardContextProvider.currentContext()
             : nil
+        let clipboardContext = clipboardRelevanceFilter.filter(
+            clipboard: rawClipboard,
+            pasteboardChangeCount: clipboardContextProvider.currentChangeCount,
+            currentBundleIdentifier: rawContext.bundleIdentifier,
+            precedingText: rawContext.precedingText
+        )
         let requestBuildResult = SuggestionRequestFactory.buildRequest(
             context: context,
             settings: settingsSnapshot,

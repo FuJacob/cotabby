@@ -83,6 +83,7 @@ final class CotabbyAppEnvironment {
         let overlayController = OverlayController(suggestionSettings: suggestionSettings)
         let activationIndicatorController = ActivationIndicatorController()
         let clipboardContextProvider = ClipboardContextProvider()
+        let clipboardRelevanceFilter = ClipboardRelevanceFilter()
         let summarizer = LlamaVisualContextSummarizer(runtimeManager: runtimeManager)
         let screenshotContextGenerator = ScreenshotContextGenerator(summarizer: summarizer)
         let visualContextCoordinator = VisualContextCoordinator(
@@ -131,6 +132,7 @@ final class CotabbyAppEnvironment {
             suggestionEngine: suggestionEngine,
             suggestionSettings: suggestionSettings,
             clipboardContextProvider: clipboardContextProvider,
+            clipboardRelevanceFilter: clipboardRelevanceFilter,
             visualContextCoordinator: visualContextCoordinator,
             interactionState: interactionState,
             workController: workController,

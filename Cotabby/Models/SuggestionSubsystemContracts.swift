@@ -53,6 +53,7 @@ protocol SuggestionSettingsProviding: AnyObject {
 @MainActor
 protocol ClipboardContextProviding: AnyObject {
     func currentContext() -> String?
+    var currentChangeCount: Int { get }
 }
 
 @MainActor
