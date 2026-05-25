@@ -208,6 +208,8 @@ struct SuggestionRequest: Equatable, Sendable {
     let clipboardContext: String?
     /// Ephemeral screen context summary injected only when available for the active text field.
     let visualContextSummary: String?
+    /// When enabled, the normalizer keeps multiple lines instead of truncating to the first line.
+    let isMultiLineEnabled: Bool
 }
 
 /// The engine's normalized response, including raw model text for debugging.

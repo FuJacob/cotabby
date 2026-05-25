@@ -72,7 +72,10 @@ struct WindowScreenshotService {
             TabbyLogger.app.debug("No visible window for pid \(processIdentifier)")
             throw WindowScreenshotError.noVisibleWindowForProcess(processIdentifier)
         }
-        TabbyLogger.app.trace("Capturing window: \(matchingWindow.title ?? "untitled") (\(Int(matchingWindow.frame.width))x\(Int(matchingWindow.frame.height)))")
+        let windowTitle = matchingWindow.title ?? "untitled"
+        let windowWidth = Int(matchingWindow.frame.width)
+        let windowHeight = Int(matchingWindow.frame.height)
+        TabbyLogger.app.trace("Capturing window: \(windowTitle) (\(windowWidth)x\(windowHeight))")
 
         let sourceRect = snapshotRect(
             around: context,

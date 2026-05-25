@@ -106,9 +106,10 @@ final class ScreenshotContextGenerator {
                     applicationName: context.applicationName
                 )
             } catch {
-                throw ScreenshotContextGenerationError.failed(
-                    "Summarization failed: \(error.localizedDescription)"
-                )
+                // Summarization can fail when no GGUF model is available (e.g. the user
+                // hasn't downloaded one yet, or is using Apple Intelligence). Fall back to
+                // the raw OCR text so visual context still reaches the prompt.
+                generatedContextText = normalizedText
             }
         } else {
             generatedContextText = normalizedText

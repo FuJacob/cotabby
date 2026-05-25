@@ -22,6 +22,7 @@ final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var userName: String
     @Published private(set) var debounceMilliseconds: Int
     @Published private(set) var focusPollIntervalMilliseconds: Int
+    @Published private(set) var isMultiLineEnabled: Bool
     @Published private(set) var acceptanceKeyCode: CGKeyCode
     @Published private(set) var acceptanceKeyLabel: String
     @Published private(set) var fullAcceptanceKeyCode: CGKeyCode
@@ -40,6 +41,7 @@ final class SuggestionSettingsModel: ObservableObject {
     private static let userNameDefaultsKey = "tabbyUserName"
     private static let debounceMillisecondsDefaultsKey = "tabbyDebounceMilliseconds"
     private static let focusPollIntervalMillisecondsDefaultsKey = "tabbyFocusPollIntervalMilliseconds"
+    private static let multiLineEnabledDefaultsKey = "tabbyMultiLineEnabled"
     private static let acceptanceKeyCodeDefaultsKey = "tabbyAcceptanceKeyCode"
     private static let acceptanceKeyLabelDefaultsKey = "tabbyAcceptanceKeyLabel"
     private static let fullAcceptanceKeyCodeDefaultsKey = "tabbyFullAcceptanceKeyCode"
@@ -98,6 +100,8 @@ final class SuggestionSettingsModel: ObservableObject {
             return max(10, min(500, raw))
         }()
 
+        let resolvedMultiLineEnabled = userDefaults.object(forKey: Self.multiLineEnabledDefaultsKey) as? Bool ?? false
+
         let resolvedAcceptanceKeyCode = CGKeyCode(
             userDefaults.object(forKey: Self.acceptanceKeyCodeDefaultsKey) as? Int
                 ?? Int(Self.defaultAcceptanceKeyCode)
@@ -122,6 +126,7 @@ final class SuggestionSettingsModel: ObservableObject {
         userName = resolvedUserName
         debounceMilliseconds = resolvedDebounceMilliseconds
         focusPollIntervalMilliseconds = resolvedFocusPollIntervalMilliseconds
+        isMultiLineEnabled = resolvedMultiLineEnabled
         acceptanceKeyCode = resolvedAcceptanceKeyCode
         acceptanceKeyLabel = resolvedAcceptanceKeyLabel
         fullAcceptanceKeyCode = resolvedFullAcceptanceKeyCode
@@ -137,6 +142,7 @@ final class SuggestionSettingsModel: ObservableObject {
         persistUserName(resolvedUserName)
         userDefaults.set(resolvedDebounceMilliseconds, forKey: Self.debounceMillisecondsDefaultsKey)
         userDefaults.set(resolvedFocusPollIntervalMilliseconds, forKey: Self.focusPollIntervalMillisecondsDefaultsKey)
+        userDefaults.set(resolvedMultiLineEnabled, forKey: Self.multiLineEnabledDefaultsKey)
         userDefaults.set(Int(resolvedAcceptanceKeyCode), forKey: Self.acceptanceKeyCodeDefaultsKey)
         userDefaults.set(resolvedAcceptanceKeyLabel, forKey: Self.acceptanceKeyLabelDefaultsKey)
         userDefaults.set(Int(resolvedFullAcceptanceKeyCode), forKey: Self.fullAcceptanceKeyCodeDefaultsKey)
@@ -157,7 +163,8 @@ final class SuggestionSettingsModel: ObservableObject {
             isClipboardContextEnabled: isClipboardContextEnabled,
             userName: userName,
             debounceMilliseconds: debounceMilliseconds,
-            focusPollIntervalMilliseconds: focusPollIntervalMilliseconds
+            focusPollIntervalMilliseconds: focusPollIntervalMilliseconds,
+            isMultiLineEnabled: isMultiLineEnabled
         )
     }
 
@@ -186,6 +193,14 @@ final class SuggestionSettingsModel: ObservableObject {
 
         isClipboardContextEnabled = enabled
         persistClipboardContextEnabled(enabled)
+    }
+
+    func setMultiLineEnabled(_ enabled: Bool) {
+        guard isMultiLineEnabled != enabled else {
+            return
+        }
+        isMultiLineEnabled = enabled
+        userDefaults.set(enabled, forKey: Self.multiLineEnabledDefaultsKey)
     }
 
     func setDebounceMilliseconds(_ value: Int) {
@@ -497,11 +512,11 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
             ),
             $isClipboardContextEnabled,
             $userName,
-            Publishers.CombineLatest($debounceMilliseconds, $focusPollIntervalMilliseconds)
+            Publishers.CombineLatest3($debounceMilliseconds, $focusPollIntervalMilliseconds, $isMultiLineEnabled)
         )
         .map { combinedSettings, clipboardContextEnabled, userName, timing in
             let (globallyEnabled, disabledAppRules, engine, wordCountPreset) = combinedSettings
-            let (debounce, focusPoll) = timing
+            let (debounce, focusPoll, multiLine) = timing
             return SuggestionSettingsSnapshot(
                 isGloballyEnabled: globallyEnabled,
                 disabledAppBundleIdentifiers: Set(disabledAppRules.map(\.bundleIdentifier)),
@@ -510,7 +525,8 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                 isClipboardContextEnabled: clipboardContextEnabled,
                 userName: userName,
                 debounceMilliseconds: debounce,
-                focusPollIntervalMilliseconds: focusPoll
+                focusPollIntervalMilliseconds: focusPoll,
+                isMultiLineEnabled: multiLine
             )
         }
         .removeDuplicates()

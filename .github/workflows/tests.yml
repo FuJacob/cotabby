@@ -34,7 +34,7 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       # Same Xcode pin policy as the Build workflow. Drift between these two
       # would let a test-only cert mismatch turn into spooky green-red

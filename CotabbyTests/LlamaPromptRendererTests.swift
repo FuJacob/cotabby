@@ -231,7 +231,8 @@ final class LlamaPromptRendererTests: XCTestCase {
             completionLengthInstruction: "Return only the next few words.",
             userName: nil,
             clipboardContext: nil,
-            visualContextSummary: nil
+            visualContextSummary: nil,
+            isMultiLineEnabled: false
         )
     }
 }

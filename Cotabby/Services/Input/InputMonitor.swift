@@ -24,6 +24,11 @@ final class InputMonitor {
     /// Reads the current full-accept key code from the model at event time.
     var fullAcceptanceKeyCodeProvider: @MainActor () -> CGKeyCode = { CGKeyCode(UInt16.max) }
 
+    /// When false, the tap passes keystrokes through without classifying or notifying the
+    /// coordinator. This eliminates per-keystroke overhead in apps where Tabby will never act
+    /// (terminals, globally disabled, per-app disabled).
+    var shouldProcessEventsProvider: @MainActor () -> Bool = { true }
+
     private let permissionProvider: @MainActor () -> Bool
     private let suppressionController: InputSuppressionController
 
@@ -131,6 +136,14 @@ final class InputMonitor {
         case .keyDown:
             if suppressionController.consumeIfNeeded() {
                 onSuppressedSyntheticInput?()
+                return Unmanaged.passUnretained(event)
+            }
+
+            // Short-circuit before classification when Tabby won't act on events for the
+            // current app (terminals, globally disabled, per-app disabled). The tap callback
+            // runs synchronously before macOS delivers the keystroke, so any work here adds
+            // latency the user feels in the target app.
+            guard shouldProcessEventsProvider() else {
                 return Unmanaged.passUnretained(event)
             }
 

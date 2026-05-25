@@ -147,6 +147,15 @@ final class RuntimeBootstrapModel: ObservableObject {
         await runtimeManager.stopAndWait()
     }
 
+    /// Synchronously releases the runtime on the calling thread, bounded by `timeoutSeconds`.
+    /// Used by `applicationWillTerminate` so llama Metal resources are torn down before `exit()`
+    /// runs C++ static destructors. See `LlamaRuntimeManager.shutdownSync` for rationale.
+    func shutdownSync(timeoutSeconds: TimeInterval) {
+        runtimeTask?.cancel()
+        runtimeTask = nil
+        runtimeManager.shutdownSync(timeoutSeconds: timeoutSeconds)
+    }
+
     /// Returns the selected model when present, otherwise falls back to the first discovered option.
     private static func initialSelectedModelFilename(
         _ persistedFilename: String?,

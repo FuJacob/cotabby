@@ -58,4 +58,5 @@ struct SuggestionSettingsSnapshot: Equatable, Sendable {
     let userName: String
     let debounceMilliseconds: Int
     let focusPollIntervalMilliseconds: Int
+    let isMultiLineEnabled: Bool
 }

@@ -15,6 +15,8 @@ final class ClipboardContextProvider: ClipboardContextProviding {
         self.pasteboard = pasteboard
     }
 
+    var currentChangeCount: Int { pasteboard.changeCount }
+
     func currentContext() -> String? {
         if let text = normalizedText(pasteboard.string(forType: .string)) {
             return text

@@ -53,9 +53,18 @@ enum SuggestionTextNormalizer {
         // continuation that followed.
         normalized = normalized.trimmingCharacters(in: .newlines)
 
-        // Inline autocomplete should only surface the immediate continuation, not a paragraph.
-        if let firstLine = normalized.split(separator: "\n", maxSplits: 1).first {
-            normalized = String(firstLine)
+        if request.isMultiLineEnabled {
+            // Multi-line mode: keep content up to the first blank-line boundary (double newline)
+            // to prevent runaway paragraph generation while still allowing multi-line completions.
+            if let blankLine = normalized.range(of: "\n\n") {
+                normalized = String(normalized[..<blankLine.lowerBound])
+            }
+            normalized = normalized.trimmingCharacters(in: .whitespacesAndNewlines)
+        } else {
+            // Single-line mode: only surface the immediate continuation line.
+            if let firstLine = normalized.split(separator: "\n", maxSplits: 1).first {
+                normalized = String(firstLine)
+            }
         }
 
         // If the model starts by repeating text that already exists after the caret, we treat the

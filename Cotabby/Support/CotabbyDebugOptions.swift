@@ -32,13 +32,19 @@ enum CotabbyDebugOptions {
 
 /// Provides subsystem-scoped loggers for the entire app.
 ///
-/// All loggers route through `OSLogHandler`, so messages appear in Console.app
-/// with the subsystem as a filterable column. Open Console.app and filter by
-/// process "tabby" or subsystem "com.tabby.*" to see structured output.
+/// All loggers route through `OSLogHandler` so messages appear in Console.app with the
+/// subsystem as a filterable column. When the `-cotabby-debug` launch argument is set we
+/// additionally fan out to `FileLogHandler`, which writes JSONL to
+/// `~/Library/Logs/Cotabby/cotabby.jsonl` for AI-assisted debugging without copy-paste.
 enum TabbyLogger {
     private static let bootstrapOnce: Void = {
+        // The debug-flag check happens once, at bootstrap time. Toggling it requires a relaunch,
+        // which matches how every other launch-arg in the app behaves.
+        let installFileHandler = CotabbyDebugOptions.isEnabled
         LoggingSystem.bootstrap { label in
-            OSLogHandler(label: label)
+            let osHandler = OSLogHandler(label: label)
+            guard installFileHandler else { return osHandler }
+            return MultiplexLogHandler([osHandler, FileLogHandler(label: label)])
         }
     }()
 
