@@ -9,7 +9,7 @@
   </p>
   
 <p align="center">
-  <a href="https://cotabbyapp.dev"><strong>Visit the landing page →</strong></a>
+  <a href="https://cotabby.app"><strong>Visit the landing page →</strong></a>
 </p>
 
 <p align="center">

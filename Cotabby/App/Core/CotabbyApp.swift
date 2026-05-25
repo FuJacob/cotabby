@@ -26,7 +26,7 @@ struct CotabbyApp: App {
                     appDelegate.settingsCoordinator.showSettings()
                 },
                 onReportFeedback: {
-                    if let feedbackURL = URL(string: "https://www.cotabbyapp.dev/feedback") {
+                    if let feedbackURL = URL(string: "https://www.cotabby.app/feedback") {
                         NSWorkspace.shared.open(feedbackURL)
                     }
                 }
