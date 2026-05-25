@@ -43,7 +43,7 @@ final class LlamaRuntimeCore: @unchecked Sendable {
     // MARK: - Model lifecycle
 
     /// Loads the requested model once and records the runtime characteristics needed for diagnostics.
-    func prepare(
+    nonisolated func prepare(
         resolvedRuntime: ResolvedLlamaRuntime,
         configuration: LlamaRuntimeConfiguration
     ) throws -> PreparedLlamaRuntime {
@@ -85,7 +85,7 @@ final class LlamaRuntimeCore: @unchecked Sendable {
 
     /// Prepares the prompt context, reusing cached KV state when safe, then samples a short completion.
     /// Holds `autocompleteLock` for the full call to prevent concurrent KV cache mutation.
-    func generate(
+    nonisolated func generate(
         prompt: String,
         cachedPrefixBytes: Int? = nil,
         options: LlamaGenerationOptions
@@ -176,7 +176,7 @@ final class LlamaRuntimeCore: @unchecked Sendable {
 
     /// Generates a summary using an ephemeral sequence so the autocomplete cache is unaffected.
     /// The lifecycle guard prevents `shutdown()` from unloading the model while sampling is active.
-    func summarize(
+    nonisolated func summarize(
         prompt: String,
         options: LlamaGenerationOptions
     ) throws -> String {
@@ -239,7 +239,7 @@ final class LlamaRuntimeCore: @unchecked Sendable {
     // MARK: - Cache and lifecycle
 
     /// Drops the reusable autocomplete sequence while keeping the loaded model alive.
-    func resetPromptCache() {
+    nonisolated func resetPromptCache() {
         autocompleteLock.lock()
         defer { autocompleteLock.unlock() }
 
@@ -255,7 +255,7 @@ final class LlamaRuntimeCore: @unchecked Sendable {
     /// Waits for all in-flight `generate()` and `summarize()` calls to finish, then frees all
     /// sequences and the loaded model. Blocking is intentional: callers should dispatch this off
     /// the main thread via `Task.detached` when UI responsiveness matters.
-    func shutdown() {
+    nonisolated func shutdown() {
         lifecycleCondition.lock()
         isShuttingDown = true
         while activeOperationCount > 0 {
@@ -383,7 +383,7 @@ final class LlamaRuntimeCore: @unchecked Sendable {
     }
 
     /// Inline autocomplete cares about visible suggestion text, not formatting-only tokens.
-    private static func isVisibleOutputScalar(_ scalar: UnicodeScalar) -> Bool {
+    nonisolated private static func isVisibleOutputScalar(_ scalar: UnicodeScalar) -> Bool {
         if CharacterSet.controlCharacters.contains(scalar) { return false }
         return !CharacterSet.whitespacesAndNewlines.contains(scalar)
     }

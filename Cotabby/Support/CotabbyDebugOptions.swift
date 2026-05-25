@@ -80,17 +80,9 @@ struct OSLogHandler: LogHandler {
         set { metadata[key] = newValue }
     }
 
-    func log(
-        level: Logging.Logger.Level,
-        message: Logging.Logger.Message,
-        metadata: Logging.Logger.Metadata?,
-        source: String,
-        file: String,
-        function: String,
-        line: UInt
-    ) {
-        let text = "\(message)"
-        switch level {
+    func log(event: borrowing Logging.LogEvent) {
+        let text = "\(event.message)"
+        switch event.level {
         case .trace:
             osLogger.trace("\(text, privacy: .public)")
         case .debug:
