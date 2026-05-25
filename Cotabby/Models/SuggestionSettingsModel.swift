@@ -52,8 +52,11 @@ final class SuggestionSettingsModel: ObservableObject {
     /// A key code that will never match a real keyboard event, used to represent "no keybind".
     static let disabledKeyCode: CGKeyCode = CGKeyCode(UInt16.max)
     static let disabledKeyLabel = "None"
-    static let defaultFullAcceptanceKeyCode: CGKeyCode = disabledKeyCode
-    static let defaultFullAcceptanceKeyLabel = disabledKeyLabel
+    /// `kVK_ANSI_Grave` — the `~`/`` ` `` key in the keyboard's top-left corner. Out-of-box default
+    /// because Tab partial-acceptance is awkward when the user wants the whole continuation, and
+    /// `` ` `` is rarely used in prose so the binding doesn't fight normal typing.
+    static let defaultFullAcceptanceKeyCode: CGKeyCode = 50
+    static let defaultFullAcceptanceKeyLabel = "`"
 
     init(
         configuration: SuggestionConfiguration,
