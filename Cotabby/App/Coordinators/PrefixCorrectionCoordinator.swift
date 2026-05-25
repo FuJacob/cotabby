@@ -148,7 +148,7 @@ final class PrefixCorrectionCoordinator {
         } catch SuggestionClientError.cancelled {
             return
         } catch {
-            TabbyLogger.suggestion.debug("Prefix-correction engine error: \(error.localizedDescription)")
+            CotabbyLogger.suggestion.debug("Prefix-correction engine error: \(error.localizedDescription)")
             return
         }
 
@@ -170,7 +170,7 @@ final class PrefixCorrectionCoordinator {
             original: originalPrefix,
             proposed: proposal
         ) else {
-            TabbyLogger.suggestion.debug("Prefix-correction filter rejected proposal")
+            CotabbyLogger.suggestion.debug("Prefix-correction filter rejected proposal")
             return
         }
 

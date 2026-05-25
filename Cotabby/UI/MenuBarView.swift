@@ -75,10 +75,6 @@ struct MenuBarView: View {
                 .toggleStyle(.switch)
                 .controlSize(.small)
 
-            Toggle("Include Clipboard Context", isOn: clipboardContextEnabledBinding)
-                .toggleStyle(.switch)
-                .controlSize(.small)
-
             Toggle("Auto-Correct Typos", isOn: prefixAutoCorrectEnabledBinding)
                 .toggleStyle(.switch)
                 .controlSize(.small)
@@ -104,7 +100,15 @@ struct MenuBarView: View {
                 }
             }
 
-            Toggle("Show Indicator", isOn: showIndicatorBinding)
+            Toggle("Include Clipboard Context", isOn: clipboardContextEnabledBinding)
+                .toggleStyle(.switch)
+                .controlSize(.small)
+
+            Toggle("Show Cotabby Indicator", isOn: showIndicatorBinding)
+                .toggleStyle(.switch)
+                .controlSize(.small)
+
+            Toggle("Allow Multi-line Suggestions", isOn: multiLineEnabledBinding)
                 .toggleStyle(.switch)
                 .controlSize(.small)
 
@@ -140,10 +144,6 @@ struct MenuBarView: View {
                 .labelsHidden()
                 .pickerStyle(.menu)
             }
-
-            Toggle("Multi-line", isOn: multiLineEnabledBinding)
-                .toggleStyle(.switch)
-                .controlSize(.small)
         }
         .padding(.bottom, 12)
     }

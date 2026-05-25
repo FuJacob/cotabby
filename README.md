@@ -1,5 +1,17 @@
 # Cotabby
 
+---
+
+<p align="center">
+  <sub>If Cotabby is useful to you, consider supporting development:</sub>
+</p>
+
+<p align="center">
+  <a href='https://ko-fi.com/I2F22066MI' target='_blank'><img height='36' style='border:0px;height:36px;' src='https://storage.ko-fi.com/cdn/kofi6.png?v=6' border='0' alt='Buy Me a Coffee at ko-fi.com' /></a>
+</p>
+
+---
+
 <p align="center">
   <img width="128" alt="Cotabby logo" src="https://github.com/user-attachments/assets/8a67095e-4d03-4055-8d4c-8871335152dd" />
 </p>

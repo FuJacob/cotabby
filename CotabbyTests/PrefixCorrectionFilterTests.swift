@@ -147,7 +147,7 @@ final class PrefixCorrectionFilterTests: XCTestCase {
     }
 
     func test_donutToDoughnut_isRejected() {
-        // Real word change, not a typo. Distance 3, threshold for length-5 word is 2.
+        // Real word change, not a typo. Distance 3, threshold = max(2, max(5,8)/3) = 2.
         XCTAssertNil(PrefixCorrectionFilter.acceptedCorrection(
             original: "donut shop",
             proposed: "doughnut shop"

@@ -34,7 +34,7 @@ final class FoundationModelPrefixCorrectionEngine {
         availabilityService.refresh()
         guard availabilityService.isAvailable else {
             let message = availabilityService.userVisibleMessage
-            TabbyLogger.suggestion.debug("Prefix-correction unavailable: \(message)")
+            CotabbyLogger.suggestion.debug("Prefix-correction unavailable: \(message)")
             return nil
         }
         guard let model = availabilityService.systemLanguageModel else {
@@ -63,19 +63,19 @@ final class FoundationModelPrefixCorrectionEngine {
             let raw = response.content
             let cleaned = strippedResponse(raw)
             let latencyMs = Int(Date().timeIntervalSince(startTime) * 1000)
-            TabbyLogger.suggestion.debug(
+            CotabbyLogger.suggestion.debug(
                 "Prefix-correction: in=\(prefix.count) chars, out=\(cleaned.count) chars, latency=\(latencyMs)ms"
             )
             return cleaned.isEmpty ? nil : cleaned
         } catch is CancellationError {
             throw SuggestionClientError.cancelled
         } catch let error as LanguageModelSession.GenerationError {
-            TabbyLogger.suggestion.debug("Prefix-correction generation error: \(error.localizedDescription)")
+            CotabbyLogger.suggestion.debug("Prefix-correction generation error: \(error.localizedDescription)")
             // Swallow into nil rather than throwing — a failed correction should be invisible to
             // the user, not surfaced as an autocomplete error.
             return nil
         } catch {
-            TabbyLogger.suggestion.debug("Prefix-correction unexpected error: \(error.localizedDescription)")
+            CotabbyLogger.suggestion.debug("Prefix-correction unexpected error: \(error.localizedDescription)")
             return nil
         }
     }
@@ -99,7 +99,7 @@ final class FoundationModelPrefixCorrectionEngine {
     /// the text appreciably. Anything longer is already suspicious and the safety filter will
     /// reject it, but a tighter budget also lets us cut off runaway generation.
     private func tokenBudget(for prefix: String) -> Int {
-        // ~4 chars per token, generous upward rounding plus 16 tokens of slack.
+        // ~3 chars per token, generous upward rounding plus 16 tokens of slack.
         max(32, prefix.count / 3 + 16)
     }
 

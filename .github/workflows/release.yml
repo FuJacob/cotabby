@@ -46,7 +46,7 @@ env:
   PROJECT_PATH: Cotabby.xcodeproj
   SCHEME: Cotabby
   CONFIGURATION: Release
-  PAGES_CUSTOM_DOMAIN: updates.tabbyapp.dev
+  PAGES_CUSTOM_DOMAIN: updates.cotabby.app
   NOTARIZATION_TIMEOUT_SECONDS: 3300
   NOTARIZATION_POLL_INTERVAL_SECONDS: 60
   # SHA-256 of the Sparkle release tarball used for signing tools. Update

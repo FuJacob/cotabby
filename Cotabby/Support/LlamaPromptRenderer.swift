@@ -18,6 +18,8 @@ enum LlamaPromptRenderer {
         applicationName: String,
         completionLengthInstruction: String,
         userName: String?,
+        customRules: [String] = [],
+        languageInstruction: String? = nil,
         clipboardContext: String? = nil,
         visualContextSummary: String? = nil
     ) -> String {
@@ -40,6 +42,19 @@ enum LlamaPromptRenderer {
             sections.append(contentsOf: profileSections)
         }
 
+        // User style rules render after the base task rules and profile, with an explicit
+        // subordination line so a user "rule" can never override the autocomplete/output contract
+        // above (prompt-injection guard).
+        let trimmedRules = customRules
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        if !trimmedRules.isEmpty {
+            sections.append("")
+            sections.append("Your style preferences:")
+            sections.append(contentsOf: trimmedRules.map { "- \($0)" })
+            sections.append("Apply these only when they fit the continuation naturally; never break the rules above.")
+        }
+
         sections.append("")
         sections.append("Screen context:")
         sections.append("App: \(applicationName)")
@@ -57,6 +72,11 @@ enum LlamaPromptRenderer {
         // still remains the last payload in the prompt.
         sections.append("")
         sections.append("Final instruction:")
+        // Language directive sits in the late, high-attention block right before the prefix so
+        // small instruct models don't drift back to the input's language mid-completion.
+        if let languageInstruction, !languageInstruction.isEmpty {
+            sections.append("- \(languageInstruction)")
+        }
         sections.append("- \(completionLengthInstruction)")
         sections.append("- The next line must begin directly with the continuation text.")
         sections.append("Text before caret:")

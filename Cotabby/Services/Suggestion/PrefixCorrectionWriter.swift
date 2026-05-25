@@ -28,7 +28,7 @@ final class PrefixCorrectionWriter {
     func replacePrefix(originalLength: Int, with correctedPrefix: String) -> Bool {
         let normalized = correctedPrefix.replacingOccurrences(of: "\r", with: "")
         guard originalLength > 0, !normalized.isEmpty else {
-            TabbyLogger.suggestion.warning("Prefix-correction write skipped: empty input")
+            CotabbyLogger.suggestion.warning("Prefix-correction write skipped: empty input")
             return false
         }
 
@@ -39,17 +39,17 @@ final class PrefixCorrectionWriter {
 
         for _ in 0..<originalLength {
             guard postBackspace() else {
-                TabbyLogger.suggestion.error("Prefix-correction write aborted: backspace event creation failed")
+                CotabbyLogger.suggestion.error("Prefix-correction write aborted: backspace event creation failed")
                 return false
             }
         }
 
         guard postUnicodeString(normalized) else {
-            TabbyLogger.suggestion.error("Prefix-correction write aborted: unicode event creation failed")
+            CotabbyLogger.suggestion.error("Prefix-correction write aborted: unicode event creation failed")
             return false
         }
 
-        TabbyLogger.suggestion.debug(
+        CotabbyLogger.suggestion.debug(
             "Prefix-correction wrote: deleted=\(originalLength) chars, typed=\(normalized.count) chars"
         )
         return true

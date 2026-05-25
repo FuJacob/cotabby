@@ -32,14 +32,14 @@ final class FoundationModelSuggestionEngine {
 
         guard availabilityService.isAvailable else {
             let message = availabilityService.userVisibleMessage
-            TabbyLogger.suggestion.debug("Foundation model unavailable: \(message)")
+            CotabbyLogger.suggestion.debug("Foundation model unavailable: \(message)")
             throw SuggestionClientError.unavailable(message)
         }
 
         do {
             let promptBytes = request.prompt.count
             let maxTokens = request.maxPredictionTokens
-            TabbyLogger.suggestion.debug("Foundation model generating: prompt=\(promptBytes) bytes, max_tokens=\(maxTokens)")
+            CotabbyLogger.suggestion.debug("Foundation model generating: prompt=\(promptBytes) bytes, max_tokens=\(maxTokens)")
             let startTime = Date()
             let prompt = FoundationModelPromptRenderer.prompt(for: request)
             // In production, `isAvailable == true` implies `systemLanguageModel` is non-nil because
@@ -73,7 +73,7 @@ final class FoundationModelSuggestionEngine {
             let rawChars = rawSuggestion.count
             let normalizedChars = normalizedSuggestion.count
             let latencyMs = Int(latency * 1000)
-            TabbyLogger.suggestion.debug(
+            CotabbyLogger.suggestion.debug(
                 "Foundation model generated: raw=\(rawChars) chars, normalized=\(normalizedChars) chars, latency=\(latencyMs)ms"
             )
             return SuggestionResult(
@@ -83,15 +83,15 @@ final class FoundationModelSuggestionEngine {
                 latency: latency
             )
         } catch is CancellationError {
-            TabbyLogger.suggestion.debug("Foundation model generation cancelled")
+            CotabbyLogger.suggestion.debug("Foundation model generation cancelled")
             throw SuggestionClientError.cancelled
         } catch let error as LanguageModelSession.GenerationError {
-            TabbyLogger.suggestion.error("Foundation model generation error: \(error.localizedDescription)")
+            CotabbyLogger.suggestion.error("Foundation model generation error: \(error.localizedDescription)")
             throw mapGenerationError(error)
         } catch let error as SuggestionClientError {
             throw error
         } catch {
-            TabbyLogger.suggestion.error("Foundation model unexpected error: \(error.localizedDescription)")
+            CotabbyLogger.suggestion.error("Foundation model unexpected error: \(error.localizedDescription)")
             throw SuggestionClientError.generationFailed(error.localizedDescription)
         }
     }

@@ -45,14 +45,14 @@ final class LlamaRuntimeManager: ObservableObject {
     func refreshAvailableModels() {
         availableModels = runtimeLocator.availableModels(configuration: configuration)
         selectedModelFilename = normalizedModelFilename(selectedModelFilename)
-        TabbyLogger.runtime.info("Discovered \(self.availableModels.count) model(s)")
+        CotabbyLogger.runtime.info("Discovered \(self.availableModels.count) model(s)")
     }
 
     /// Records which discovered model should be loaded when preparation starts.
     /// This keeps persisted UI state separate from the runtime loading lifecycle.
     func configureSelectedModel(filename: String?) {
         selectedModelFilename = normalizedModelFilename(filename)
-        TabbyLogger.runtime.info("Configured selected model: \(self.selectedModelFilename ?? "none")")
+        CotabbyLogger.runtime.info("Configured selected model: \(self.selectedModelFilename ?? "none")")
     }
 
     /// Ensures the selected local model is resolved and prepared before any generation requests run.
@@ -63,7 +63,7 @@ final class LlamaRuntimeManager: ObservableObject {
     /// Reloads the runtime in place with a newly selected local model.
     /// The manager instance stays alive; only the loaded model changes.
     func selectModel(filename: String) async throws {
-        TabbyLogger.runtime.info("Selecting model: \(filename)")
+        CotabbyLogger.runtime.info("Selecting model: \(filename)")
         guard let normalizedFilename = normalizedModelFilename(filename) else {
             let error = LlamaRuntimeError.unavailable(
                 "The selected model \(filename) is unavailable.")
@@ -105,14 +105,14 @@ final class LlamaRuntimeManager: ObservableObject {
                 )
             }.value
         } catch is CancellationError {
-            TabbyLogger.runtime.debug("Generation cancelled")
+            CotabbyLogger.runtime.debug("Generation cancelled")
             throw LlamaRuntimeError.cancelled
         } catch let error as LlamaRuntimeError {
-            TabbyLogger.runtime.error("Generation runtime error: \(error.localizedDescription)")
+            CotabbyLogger.runtime.error("Generation runtime error: \(error.localizedDescription)")
             diagnostics.lastError = error.localizedDescription
             throw error
         } catch {
-            TabbyLogger.runtime.error("Generation failed: \(error.localizedDescription)")
+            CotabbyLogger.runtime.error("Generation failed: \(error.localizedDescription)")
             let runtimeError = LlamaRuntimeError.generationFailed(error.localizedDescription)
             diagnostics.lastError = runtimeError.localizedDescription
             throw runtimeError
@@ -159,7 +159,7 @@ final class LlamaRuntimeManager: ObservableObject {
     /// Cancels any retained prepared runtime and releases backend resources.
     /// Shutdown runs on a detached thread so it does not block the main actor.
     func stop() {
-        TabbyLogger.runtime.info("Runtime stop requested")
+        CotabbyLogger.runtime.info("Runtime stop requested")
         prepareForStop()
         Task.detached { [core] in
             core.shutdown()
@@ -204,7 +204,7 @@ final class LlamaRuntimeManager: ObservableObject {
 
         if let cachedRuntime,
             cachedRuntime.resolvedRuntime.modelFileURL == resolvedRuntime.modelFileURL {
-            TabbyLogger.runtime.trace("Using cached runtime for \(requestedModelFilename)")
+            CotabbyLogger.runtime.trace("Using cached runtime for \(requestedModelFilename)")
             return cachedRuntime
         }
 
@@ -212,11 +212,11 @@ final class LlamaRuntimeManager: ObservableObject {
         // replace the task if the requested model changed while startup was already in flight.
         if let startupTask {
             if startupModelFilename == requestedModelFilename {
-                TabbyLogger.runtime.debug("Reusing in-flight startup for \(requestedModelFilename)")
+                CotabbyLogger.runtime.debug("Reusing in-flight startup for \(requestedModelFilename)")
                 return try await awaitPreparedRuntime(startupTask)
             }
 
-            TabbyLogger.runtime.info("Model changed to \(requestedModelFilename), cancelling previous startup")
+            CotabbyLogger.runtime.info("Model changed to \(requestedModelFilename), cancelling previous startup")
             startupTask.cancel()
             self.startupTask = nil
             startupModelFilename = nil
@@ -236,7 +236,7 @@ final class LlamaRuntimeManager: ObservableObject {
         }
         self.startupTask = startupTask
         startupModelFilename = requestedModelFilename
-        TabbyLogger.runtime.info("Loading \(resolvedRuntime.modelDisplayName) into memory")
+        CotabbyLogger.runtime.info("Loading \(resolvedRuntime.modelDisplayName) into memory")
         state = .loading("Loading \(resolvedRuntime.modelDisplayName) into memory.")
 
         return try await awaitPreparedRuntime(startupTask)
@@ -315,7 +315,7 @@ final class LlamaRuntimeManager: ObservableObject {
     private func apply(_ preparedRuntime: PreparedLlamaRuntime) {
         let model = preparedRuntime.resolvedRuntime.modelDisplayName
         let ctx = preparedRuntime.contextWindowTokens
-        TabbyLogger.runtime.info(
+        CotabbyLogger.runtime.info(
             "Runtime ready: model=\(model) ctx=\(ctx) threads=\(preparedRuntime.threadCount) gpu=\(preparedRuntime.gpuLayerCount)"
         )
         diagnostics.runtimeDirectoryPath = preparedRuntime.resolvedRuntime.runtimeDirectoryURL.path
