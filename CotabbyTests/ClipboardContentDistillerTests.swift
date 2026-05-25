@@ -20,7 +20,7 @@ final class ClipboardContentDistillerTests: XCTestCase {
         let clipboard = [
             "import Foundation",
             "import UIKit",
-            "func deployServer() {",
+            "func deploy() {",
             "    print(\"starting deploy\")",
             "}"
         ].joined(separator: "\n")
@@ -30,7 +30,7 @@ final class ClipboardContentDistillerTests: XCTestCase {
             prefixText: "the deploy is running"
         )
         XCTAssertEqual(result, [
-            "func deployServer() {",
+            "func deploy() {",
             "    print(\"starting deploy\")"
         ].joined(separator: "\n"))
     }
