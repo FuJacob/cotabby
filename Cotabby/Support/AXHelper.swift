@@ -350,10 +350,8 @@ enum AXHelper {
         for scaledFlipped in DisplayCoordinateConverter.appKitRectsFromPixelRect(
             textRect,
             displays: displays
-        ) {
-            if expandedAnchor.contains(CGPoint(x: scaledFlipped.midX, y: scaledFlipped.midY)) {
-                return scaledFlipped
-            }
+        ) where expandedAnchor.contains(CGPoint(x: scaledFlipped.midX, y: scaledFlipped.midY)) {
+            return scaledFlipped
         }
 
         // Neither candidate landed near the anchor. Return unscaled as best-effort.

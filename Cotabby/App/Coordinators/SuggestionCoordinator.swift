@@ -42,6 +42,7 @@ final class SuggestionCoordinator: ObservableObject {
     let suggestionEngine: any SuggestionGenerating
     let suggestionSettings: any SuggestionSettingsProviding
     let clipboardContextProvider: any ClipboardContextProviding
+    let clipboardRelevanceFilter: any ClipboardRelevanceFiltering
     let visualContextCoordinator: any VisualContextCoordinating
     let interactionState: SuggestionInteractionState
     let workController: SuggestionWorkController
@@ -50,7 +51,7 @@ final class SuggestionCoordinator: ObservableObject {
     let overlayPresenter: SuggestionOverlayPresenter
     let logger: SuggestionDebugLogger
 
-    static let totalTabAcceptedWordCountDefaultsKey = "totalTabAcceptedWordCount"
+    static let totalTabAcceptedWordCountDefaultsKey = "cotabbyTotalAcceptedWordCount"
 
     // Combine subscriptions are the coordinator's remaining direct mutable bookkeeping.
     // Async work and active-session storage now live in dedicated collaborators below.
@@ -70,6 +71,7 @@ final class SuggestionCoordinator: ObservableObject {
         suggestionEngine: any SuggestionGenerating,
         suggestionSettings: any SuggestionSettingsProviding,
         clipboardContextProvider: any ClipboardContextProviding,
+        clipboardRelevanceFilter: any ClipboardRelevanceFiltering,
         visualContextCoordinator: any VisualContextCoordinating,
         interactionState: SuggestionInteractionState,
         workController: SuggestionWorkController,
@@ -87,6 +89,7 @@ final class SuggestionCoordinator: ObservableObject {
         self.suggestionEngine = suggestionEngine
         self.suggestionSettings = suggestionSettings
         self.clipboardContextProvider = clipboardContextProvider
+        self.clipboardRelevanceFilter = clipboardRelevanceFilter
         self.visualContextCoordinator = visualContextCoordinator
         self.interactionState = interactionState
         self.workController = workController

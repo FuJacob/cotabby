@@ -107,12 +107,10 @@ final class SuggestionEngineRouterTests: XCTestCase {
             )
         )
         let openSourceEngine = StubSuggestionEngine(behavior: .success(fallbackResult))
-        let mlxEngine = StubSuggestionEngine(behavior: .success(fallbackResult))
         let router = SuggestionEngineRouter(
             suggestionSettings: settings,
             foundationModelEngine: appleEngine,
-            llamaEngine: openSourceEngine,
-            mlxEngine: mlxEngine
+            llamaEngine: openSourceEngine
         )
 
         let result = try await router.generateSuggestion(for: request)

@@ -75,10 +75,6 @@ struct MenuBarView: View {
                 .toggleStyle(.switch)
                 .controlSize(.small)
 
-            Toggle("Include Clipboard Context", isOn: clipboardContextEnabledBinding)
-                .toggleStyle(.switch)
-                .controlSize(.small)
-
             if let application = focusModel.latestExternalApplication,
                !TerminalAppDetector.isTerminal(bundleIdentifier: application.bundleIdentifier) {
                 Toggle("Enable in \(application.applicationName)", isOn: appEnabledBinding(for: application))
@@ -86,7 +82,15 @@ struct MenuBarView: View {
                     .controlSize(.small)
             }
 
-            Toggle("Show Indicator", isOn: showIndicatorBinding)
+            Toggle("Include Clipboard Context", isOn: clipboardContextEnabledBinding)
+                .toggleStyle(.switch)
+                .controlSize(.small)
+
+            Toggle("Show Cotabby Indicator", isOn: showIndicatorBinding)
+                .toggleStyle(.switch)
+                .controlSize(.small)
+
+            Toggle("Allow Multi-line Suggestions", isOn: multiLineEnabledBinding)
                 .toggleStyle(.switch)
                 .controlSize(.small)
 
@@ -126,7 +130,11 @@ struct MenuBarView: View {
         .padding(.bottom, 12)
     }
 
-    /// Model selector with folder shortcut — only visible when local llama engine is active.
+    /// Model selector with folder + refresh shortcuts — only visible when local llama engine is active.
+    /// The picker is constrained to fill remaining row width so long filenames truncate inside the
+    /// NSPopUpButton label instead of pushing the trailing icons off-row. Per-item `.lineLimit` /
+    /// `.truncationMode` modifiers are unreliable here because AppKit's native popup ignores them
+    /// for the selected-value label.
     @ViewBuilder
     private var modelRow: some View {
         MenuBarPickerRow(title: "Model") {
@@ -144,6 +152,7 @@ struct MenuBarView: View {
                     }
                     .labelsHidden()
                     .pickerStyle(.menu)
+                    .frame(maxWidth: .infinity)
                     .disabled(runtimePickerDisabled)
                 }
 
@@ -155,6 +164,16 @@ struct MenuBarView: View {
                 .buttonStyle(.borderless)
                 .controlSize(.small)
                 .help("Open Models Folder")
+
+                Button {
+                    modelDownloadManager.refreshModelStates()
+                    runtimeModel.refreshAvailableModels()
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .buttonStyle(.borderless)
+                .controlSize(.small)
+                .help("Refresh Available Models")
             }
         }
     }
@@ -264,6 +283,13 @@ struct MenuBarView: View {
             set: { engine in
                 suggestionSettings.selectEngine(engine)
             }
+        )
+    }
+
+    private var multiLineEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.isMultiLineEnabled },
+            set: { suggestionSettings.setMultiLineEnabled($0) }
         )
     }
 

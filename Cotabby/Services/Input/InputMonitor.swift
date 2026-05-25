@@ -24,6 +24,11 @@ final class InputMonitor {
     /// Reads the current full-accept key code from the model at event time.
     var fullAcceptanceKeyCodeProvider: @MainActor () -> CGKeyCode = { CGKeyCode(UInt16.max) }
 
+    /// When false, the tap passes keystrokes through without classifying or notifying the
+    /// coordinator. This eliminates per-keystroke overhead in apps where Tabby will never act
+    /// (terminals, globally disabled, per-app disabled).
+    var shouldProcessEventsProvider: @MainActor () -> Bool = { true }
+
     private let permissionProvider: @MainActor () -> Bool
     private let suppressionController: InputSuppressionController
 
@@ -40,13 +45,13 @@ final class InputMonitor {
 
     /// Installs the event tap and begins listening for global keyboard activity.
     func start() {
-        TabbyLogger.app.info("Input monitor starting")
+        CotabbyLogger.app.info("Input monitor starting")
         refresh()
     }
 
     /// Removes the event tap and stops observing keyboard events.
     func stop() {
-        TabbyLogger.app.info("Input monitor stopping")
+        CotabbyLogger.app.info("Input monitor stopping")
         destroyTap()
     }
 
@@ -87,10 +92,10 @@ final class InputMonitor {
             callback: callback,
             userInfo: Unmanaged.passUnretained(self).toOpaque()
         ) else {
-            TabbyLogger.app.warning("Failed to create CGEvent tap — Input Monitoring permission may be missing")
+            CotabbyLogger.app.warning("Failed to create CGEvent tap — Input Monitoring permission may be missing")
             return
         }
-        TabbyLogger.app.info("CGEvent tap installed")
+        CotabbyLogger.app.info("CGEvent tap installed")
 
         eventTap = tap
         let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
@@ -122,7 +127,7 @@ final class InputMonitor {
     private func handleTap(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         switch type {
         case .tapDisabledByTimeout, .tapDisabledByUserInput:
-            TabbyLogger.app.warning("CGEvent tap was disabled by system, re-enabling")
+            CotabbyLogger.app.warning("CGEvent tap was disabled by system, re-enabling")
             if let eventTap {
                 CGEvent.tapEnable(tap: eventTap, enable: true)
             }
@@ -131,6 +136,14 @@ final class InputMonitor {
         case .keyDown:
             if suppressionController.consumeIfNeeded() {
                 onSuppressedSyntheticInput?()
+                return Unmanaged.passUnretained(event)
+            }
+
+            // Short-circuit before classification when Tabby won't act on events for the
+            // current app (terminals, globally disabled, per-app disabled). The tap callback
+            // runs synchronously before macOS delivers the keystroke, so any work here adds
+            // latency the user feels in the target app.
+            guard shouldProcessEventsProvider() else {
                 return Unmanaged.passUnretained(event)
             }
 

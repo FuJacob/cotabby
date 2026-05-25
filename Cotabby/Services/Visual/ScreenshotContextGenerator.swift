@@ -90,7 +90,7 @@ final class ScreenshotContextGenerator {
             )
         }
 
-        TabbyLogger.app.debug("OCR extracted \(normalizedText.count) chars from screenshot")
+        CotabbyLogger.app.debug("OCR extracted \(normalizedText.count) chars from screenshot")
         guard hasMeaningfulSignal(normalizedText) else {
             throw ScreenshotContextGenerationError.unavailable(
                 "The screenshot did not contain enough visible text to build prompt context."
@@ -106,9 +106,10 @@ final class ScreenshotContextGenerator {
                     applicationName: context.applicationName
                 )
             } catch {
-                throw ScreenshotContextGenerationError.failed(
-                    "Summarization failed: \(error.localizedDescription)"
-                )
+                // Summarization can fail when no GGUF model is available (e.g. the user
+                // hasn't downloaded one yet, or is using Apple Intelligence). Fall back to
+                // the raw OCR text so visual context still reaches the prompt.
+                generatedContextText = normalizedText
             }
         } else {
             generatedContextText = normalizedText

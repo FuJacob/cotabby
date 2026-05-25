@@ -23,7 +23,7 @@ final class RuntimeBootstrapModel: ObservableObject {
     /// Called immediately before the runtime begins switching models so suggestion state can reset.
     var onWillReloadModel: (() -> Void)?
 
-    private static let selectedModelDefaultsKey = "selectedRuntimeModelFilename"
+    private static let selectedModelDefaultsKey = "cotabbySelectedModelFilename"
 
     init(
         runtimeManager: LlamaRuntimeManager,
@@ -88,7 +88,7 @@ final class RuntimeBootstrapModel: ObservableObject {
             do {
                 try await self.runtimeManager.prepare()
             } catch {
-                TabbyLogger.runtime.error("Runtime startup failed: \(error.localizedDescription)")
+                CotabbyLogger.runtime.error("Runtime startup failed: \(error.localizedDescription)")
             }
         }
     }
@@ -124,7 +124,7 @@ final class RuntimeBootstrapModel: ObservableObject {
             do {
                 try await self.runtimeManager.selectModel(filename: filename)
             } catch {
-                TabbyLogger.runtime.error("Runtime model switch failed: \(error.localizedDescription)")
+                CotabbyLogger.runtime.error("Runtime model switch failed: \(error.localizedDescription)")
             }
         }
 
@@ -145,6 +145,15 @@ final class RuntimeBootstrapModel: ObservableObject {
         runtimeTask?.cancel()
         runtimeTask = nil
         await runtimeManager.stopAndWait()
+    }
+
+    /// Synchronously releases the runtime on the calling thread, bounded by `timeoutSeconds`.
+    /// Used by `applicationWillTerminate` so llama Metal resources are torn down before `exit()`
+    /// runs C++ static destructors. See `LlamaRuntimeManager.shutdownSync` for rationale.
+    func shutdownSync(timeoutSeconds: TimeInterval) {
+        runtimeTask?.cancel()
+        runtimeTask = nil
+        runtimeManager.shutdownSync(timeoutSeconds: timeoutSeconds)
     }
 
     /// Returns the selected model when present, otherwise falls back to the first discovered option.

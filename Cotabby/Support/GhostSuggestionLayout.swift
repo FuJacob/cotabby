@@ -79,7 +79,7 @@ struct GhostSuggestionLayout: Equatable {
             usableFrame.width - Metrics.estimatedKeycapAndSpacingWidth
         )
 
-        let singleLineFits = measuredWidth(
+        let singleLineFits = !normalizedText.contains("\n") && measuredWidth(
             of: normalizedText,
             fontSize: fontSize,
             observedCharWidth: geometry.observedCharWidth
@@ -222,13 +222,14 @@ struct GhostSuggestionLayout: Equatable {
     }
 
     private static func normalizedDisplayText(_ text: String) -> String {
-        let words = text.split(whereSeparator: \.isWhitespace).map(String.init)
-        guard !words.isEmpty else {
-            return text
+        let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
+        let normalizedLines = lines.map { line -> String in
+            let words = line.split(whereSeparator: \.isWhitespace).map(String.init)
+            guard !words.isEmpty else { return "" }
+            let joined = words.joined(separator: " ")
+            return line.first?.isWhitespace == true ? " \(joined)" : joined
         }
-
-        let joined = words.joined(separator: " ")
-        return text.first?.isWhitespace == true ? " \(joined)" : joined
+        return normalizedLines.joined(separator: "\n")
     }
 
     private static func splitPrefix(
@@ -243,6 +244,36 @@ struct GhostSuggestionLayout: Equatable {
         }
 
         let safeMaxWidth = max(maxWidth, Metrics.minimumLineWidth)
+
+        // Explicit newline: force a line break at the first one.
+        if let newlineIndex = source.firstIndex(of: "\n") {
+            let segment = String(source[..<newlineIndex]).trimmingCharacters(in: .whitespaces)
+            let afterIndex = source.index(after: newlineIndex)
+            let afterNewline = afterIndex < source.endIndex
+                ? String(source[afterIndex...]).trimmingCharacters(in: .whitespaces)
+                : ""
+
+            guard !segment.isEmpty else {
+                return splitPrefix(from: afterNewline, maxWidth: maxWidth, fontSize: fontSize, observedCharWidth: observedCharWidth)
+            }
+
+            if measuredWidth(of: segment, fontSize: fontSize, observedCharWidth: observedCharWidth) <= safeMaxWidth {
+                return (segment, afterNewline)
+            }
+
+            // Segment before newline is too wide — width-wrap it, keep post-newline as remainder.
+            let widthSplit = splitPrefix(from: segment, maxWidth: maxWidth, fontSize: fontSize, observedCharWidth: observedCharWidth)
+            let combined: String
+            if widthSplit.remainder.isEmpty {
+                combined = afterNewline
+            } else if afterNewline.isEmpty {
+                combined = widthSplit.remainder
+            } else {
+                combined = widthSplit.remainder + "\n" + afterNewline
+            }
+            return (widthSplit.line, combined)
+        }
+
         if measuredWidth(of: source, fontSize: fontSize, observedCharWidth: observedCharWidth) <= safeMaxWidth {
             return (source, "")
         }

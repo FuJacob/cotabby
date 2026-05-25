@@ -59,6 +59,13 @@ enum PromptContextSanitizer {
         return bounded.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    /// Extracts lowercased tokens of at least `minimumLength` characters, splitting on
+    /// non-alphanumeric boundaries. Used by clipboard relevance and distillation logic.
+    static func significantTokens(from text: String, minimumLength: Int = 3) -> Set<String> {
+        let words = text.lowercased().components(separatedBy: .alphanumerics.inverted)
+        return Set(words.filter { $0.count >= minimumLength })
+    }
+
     static func containsAlphanumericSignal(_ text: String) -> Bool {
         text.unicodeScalars.contains { CharacterSet.alphanumerics.contains($0) }
     }
