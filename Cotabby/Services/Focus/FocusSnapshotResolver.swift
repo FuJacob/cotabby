@@ -12,14 +12,9 @@ struct FocusSnapshotResolver {
     private let geometryResolver: AXTextGeometryResolver
 
     // MARK: - Debug AX tree dump (temporary — remove after caret placement is fixed)
-    /// When true, the resolver writes the AX tree (on focus change) and the caret-resolution
-    /// summary (every snapshot) to `dumpFilePath`. The file is truncated on first write per
-    /// process, so each app launch starts with an empty log and the file never accumulates
-    /// across rebuilds.
+    /// Set to true to print the AX tree every time focus changes. Check Xcode console.
     private static let dumpAXTree = false
     private static var lastDumpedElementID: String?
-    private static let dumpFilePath = "\(NSHomeDirectory())/Desktop/cotabby-ax-dump.log"
-    private static var hasTruncatedDumpFile = false
 
     init(geometryResolver: AXTextGeometryResolver? = nil) {
         self.geometryResolver = geometryResolver ?? AXTextGeometryResolver()
@@ -139,37 +134,12 @@ struct FocusSnapshotResolver {
                 cocoaAnchorFrame: resolvedCandidate.inputFrameRect
             )
 
-        let caretRect: CGRect
-        let caretSource: String
-        let caretQuality: CaretGeometryQuality
-        let observedCharWidth: CGFloat?
-        if let primary = resolvedCandidate.caretRect, resolvedCandidate.caretQuality == .exact {
-            caretRect = primary
-            caretSource = "exact primary"
-            caretQuality = .exact
-            observedCharWidth = resolvedCandidate.observedCharWidth
-        } else if let deep = deepResult, deep.quality == .exact {
-            caretRect = deep.rect
-            caretSource = "exact deep"
-            caretQuality = .exact
-            observedCharWidth = deep.observedCharWidth
-        } else if let primary = resolvedCandidate.caretRect,
-                  resolvedCandidate.caretQuality == .derived {
-            caretRect = primary
-            caretSource = "derived primary"
-            caretQuality = .derived
-            observedCharWidth = resolvedCandidate.observedCharWidth
-        } else if let deep = deepResult {
-            caretRect = deep.rect
-            caretSource = "\(deep.quality.label) deep"
-            caretQuality = deep.quality
-            observedCharWidth = deep.observedCharWidth
-        } else if let primary = resolvedCandidate.caretRect {
-            caretRect = primary
-            caretSource = "\(resolvedCandidate.caretQuality?.label ?? "unknown") primary-fallback"
-            caretQuality = resolvedCandidate.caretQuality ?? .estimated
-            observedCharWidth = resolvedCandidate.observedCharWidth
-        } else {
+        guard let caret = Self.selectCaretGeometry(
+            primaryRect: resolvedCandidate.caretRect,
+            primaryQuality: resolvedCandidate.caretQuality,
+            primaryObservedCharWidth: resolvedCandidate.observedCharWidth,
+            deepResult: deepResult
+        ) else {
             return FocusSnapshot(
                 applicationName: applicationName,
                 bundleIdentifier: bundleIdentifier,
@@ -178,25 +148,10 @@ struct FocusSnapshotResolver {
                 inspection: inspection
             )
         }
-
-        if Self.dumpAXTree {
-            var summary = "\n---------- CARET RESOLUTION [\(Self.dumpTimestamp())] ----------\n"
-            summary += "App: \(applicationName) (\(bundleIdentifier))\n"
-            summary += "Selection: loc=\(selection.location) len=\(selection.length)\n"
-            summary += "Resolved candidate: role=\(resolvedCandidate.role)"
-            if let subrole = resolvedCandidate.subrole {
-                summary += " subrole=\(subrole)"
-            }
-            summary += "\n  id=\(resolvedCandidate.elementIdentifier)\n"
-            summary += "  primary caretRect: \(resolvedCandidate.caretRect.map { fmt($0) } ?? "nil")\n"
-            summary += "  primary caretQuality: \(resolvedCandidate.caretQuality?.label ?? "nil")\n"
-            summary += "  anchor (inputFrameRect): \(resolvedCandidate.inputFrameRect.map { fmt($0) } ?? "nil")\n"
-            summary += "=> Final caretRect: \(fmt(caretRect))\n"
-            summary += "=> Final caretQuality: \(caretQuality.label)\n"
-            summary += "=> Final caretSource: \(caretSource)\n"
-            summary += "----------------------------------------------------------------\n"
-            Self.appendToDumpFile(summary)
-        }
+        let caretRect = caret.rect
+        let caretSource = caret.source
+        let caretQuality = caret.quality
+        let observedCharWidth = caret.observedCharWidth
 
         let nsValue = value as NSString
         let safeSelectionLocation = min(selection.location, nsValue.length)
@@ -294,6 +249,61 @@ struct FocusSnapshotResolver {
         }
 
         return ordered
+    }
+
+    /// Chooses the caret geometry to ship from the primary candidate and the optional deep-tree
+    /// result, following a fixed precedence (see the call site). Pulled out of `resolveSnapshot`
+    /// so that method stays under the cyclomatic-complexity limit; returns `nil` when neither
+    /// source produced a rect, which the caller maps to an unsupported snapshot.
+    ///
+    /// Precedence: primary `.exact` → deep `.exact` (beats primary `.derived`, escaping Chrome's
+    /// union-rect trap) → primary `.derived` → deep (any) → primary (any, fallback).
+    private struct SelectedCaretGeometry {
+        let rect: CGRect
+        let source: String
+        let quality: CaretGeometryQuality
+        let observedCharWidth: CGFloat?
+    }
+
+    private static func selectCaretGeometry(
+        primaryRect: CGRect?,
+        primaryQuality: CaretGeometryQuality?,
+        primaryObservedCharWidth: CGFloat?,
+        deepResult: CaretGeometryResult?
+    ) -> SelectedCaretGeometry? {
+        if let primary = primaryRect, primaryQuality == .exact {
+            return SelectedCaretGeometry(
+                rect: primary, source: "exact primary", quality: .exact,
+                observedCharWidth: primaryObservedCharWidth
+            )
+        }
+        if let deep = deepResult, deep.quality == .exact {
+            return SelectedCaretGeometry(
+                rect: deep.rect, source: "exact deep", quality: .exact,
+                observedCharWidth: deep.observedCharWidth
+            )
+        }
+        if let primary = primaryRect, primaryQuality == .derived {
+            return SelectedCaretGeometry(
+                rect: primary, source: "derived primary", quality: .derived,
+                observedCharWidth: primaryObservedCharWidth
+            )
+        }
+        if let deep = deepResult {
+            return SelectedCaretGeometry(
+                rect: deep.rect, source: "\(deep.quality.label) deep", quality: deep.quality,
+                observedCharWidth: deep.observedCharWidth
+            )
+        }
+        if let primary = primaryRect {
+            return SelectedCaretGeometry(
+                rect: primary,
+                source: "\(primaryQuality?.label ?? "unknown") primary-fallback",
+                quality: primaryQuality ?? .estimated,
+                observedCharWidth: primaryObservedCharWidth
+            )
+        }
+        return nil
     }
 
     /// Runs deep geometry search from the resolved editable candidate first, then falls back to
@@ -528,7 +538,7 @@ struct FocusSnapshotResolver {
     // MARK: - Debug AX tree dump
 
     private func printAXTreeDump(focusedElement: AXUIElement, app: String, bundle: String) {
-        var out = "\n========== AX TREE DUMP [\(Self.dumpTimestamp())] ==========\n"
+        var out = "\n========== AX TREE DUMP ==========\n"
         out += "App: \(app) (\(bundle))\n\n"
 
         out += "-- Focused + ancestors --\n"
@@ -549,38 +559,6 @@ struct FocusSnapshotResolver {
 
         out += "========== END DUMP ==========\n"
         CotabbyLogger.focus.debug("\(out)")
-        Self.appendToDumpFile(out)
-    }
-
-    /// Best-effort file sink for the AX dump. Truncates the log on the first write of the
-    /// current process so each app launch starts clean (which is what the operator means by
-    /// "always cleaned up after rebuilding"). All errors are swallowed — this is debug-only.
-    private static func appendToDumpFile(_ text: String) {
-        let url = URL(fileURLWithPath: dumpFilePath)
-
-        if !hasTruncatedDumpFile {
-            hasTruncatedDumpFile = true
-            try? Data().write(to: url)
-        }
-
-        guard let handle = FileHandle(forWritingAtPath: dumpFilePath) else {
-            return
-        }
-        defer { try? handle.close() }
-        do {
-            try handle.seekToEnd()
-            if let data = text.data(using: .utf8) {
-                try handle.write(contentsOf: data)
-            }
-        } catch {
-            // Ignored — debug-only sink, never block resolver flow on disk failure.
-        }
-    }
-
-    private static func dumpTimestamp() -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "HH:mm:ss.SSS"
-        return formatter.string(from: Date())
     }
 
     private func dumpChildrenRecursive(

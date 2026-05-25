@@ -305,7 +305,10 @@ struct AXTextGeometryResolver {
     /// Returns `true` when no anchor is supplied (cannot validate, preserve legacy behavior) or
     /// when the rect's midpoint sits inside the anchor expanded by an 80pt halo — the same
     /// tolerance `AXHelper.validatedCocoaTextRect` uses to decide between coordinate systems.
-    private func rectIsNearAnchor(_ cocoaRect: CGRect, anchor: CGRect?) -> Bool {
+    ///
+    /// Internal (not private) so tests can exercise the accept/reject boundary directly, without
+    /// needing a live AX element that returns a controllable rect.
+    func rectIsNearAnchor(_ cocoaRect: CGRect, anchor: CGRect?) -> Bool {
         guard let anchor, !anchor.isEmpty else {
             return true
         }
