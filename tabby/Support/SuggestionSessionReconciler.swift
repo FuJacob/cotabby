@@ -256,7 +256,7 @@ enum SuggestionSessionReconciler {
             return "Overlay hidden because caret navigation invalidated the current suggestion."
         case .dismissal:
             return "Overlay hidden because a dismissal key was pressed."
-        case .acceptance, .other:
+        case .acceptance, .fullAcceptance, .other:
             return "Overlay hidden."
         }
     }

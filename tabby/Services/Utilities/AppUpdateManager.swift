@@ -1,4 +1,5 @@
 import Foundation
+import Logging
 import Sparkle
 
 /// File overview:
@@ -93,6 +94,6 @@ final class AppUpdateManager {
     }
 
     private func log(_ message: String) {
-        print("[AppUpdateManager] \(message)")
+        TabbyLogger.updates.info("\(message)")
     }
 }

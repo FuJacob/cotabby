@@ -2,6 +2,7 @@ import AppKit
 import ApplicationServices
 import Combine
 import CoreGraphics
+import Logging
 
 /// File overview:
 /// Polls and exposes the three system permissions Tabby depends on: Accessibility for reading
@@ -43,14 +44,17 @@ final class PermissionManager: ObservableObject {
         // `@Published` notifies on assignment, even when the value is unchanged. Compare first so
         // the 2-second poll does not redraw SwiftUI surfaces that already have the right state.
         if accessibilityGranted != latestAccessibilityGranted {
+            TabbyLogger.app.info("Accessibility permission changed: \(latestAccessibilityGranted)")
             accessibilityGranted = latestAccessibilityGranted
         }
 
         if inputMonitoringGranted != latestInputMonitoringGranted {
+            TabbyLogger.app.info("Input Monitoring permission changed: \(latestInputMonitoringGranted)")
             inputMonitoringGranted = latestInputMonitoringGranted
         }
 
         if screenRecordingGranted != latestScreenRecordingGranted {
+            TabbyLogger.app.info("Screen Recording permission changed: \(latestScreenRecordingGranted)")
             screenRecordingGranted = latestScreenRecordingGranted
         }
     }

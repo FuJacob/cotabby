@@ -1,5 +1,6 @@
 import ApplicationServices
 import Foundation
+import Logging
 
 /// File overview:
 /// Owns the global keyboard event tap used to detect typing, navigation, dismissal keys,
@@ -16,9 +17,12 @@ final class InputMonitor {
     var onEvent: ((CapturedInputEvent) -> Bool)?
     var onSuppressedSyntheticInput: (() -> Void)?
 
-    /// The key code that triggers suggestion acceptance. Updated by the coordinator
-    /// when the user changes the keybind in Settings.
-    var acceptanceKeyCode: CGKeyCode = 48
+    /// Reads the current word-accept key code from the model at event time, avoiding
+    /// Combine delivery lag between settings changes and the event classifier.
+    var acceptanceKeyCodeProvider: @MainActor () -> CGKeyCode = { 48 }
+
+    /// Reads the current full-accept key code from the model at event time.
+    var fullAcceptanceKeyCodeProvider: @MainActor () -> CGKeyCode = { CGKeyCode(UInt16.max) }
 
     private let permissionProvider: @MainActor () -> Bool
     private let suppressionController: InputSuppressionController
@@ -36,11 +40,13 @@ final class InputMonitor {
 
     /// Installs the event tap and begins listening for global keyboard activity.
     func start() {
+        TabbyLogger.app.info("Input monitor starting")
         refresh()
     }
 
     /// Removes the event tap and stops observing keyboard events.
     func stop() {
+        TabbyLogger.app.info("Input monitor stopping")
         destroyTap()
     }
 
@@ -81,8 +87,10 @@ final class InputMonitor {
             callback: callback,
             userInfo: Unmanaged.passUnretained(self).toOpaque()
         ) else {
+            TabbyLogger.app.warning("Failed to create CGEvent tap — Input Monitoring permission may be missing")
             return
         }
+        TabbyLogger.app.info("CGEvent tap installed")
 
         eventTap = tap
         let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
@@ -114,8 +122,7 @@ final class InputMonitor {
     private func handleTap(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         switch type {
         case .tapDisabledByTimeout, .tapDisabledByUserInput:
-            // macOS may disable a tap if the callback runs too slowly or during certain system events.
-            // Re-enabling keeps the monitor self-healing instead of silently dying.
+            TabbyLogger.app.warning("CGEvent tap was disabled by system, re-enabling")
             if let eventTap {
                 CGEvent.tapEnable(tap: eventTap, enable: true)
             }
@@ -142,9 +149,19 @@ final class InputMonitor {
         let flags = event.flags
         let characters = event.unicodeString
 
-        // Matches the user-configured acceptance key (default: Tab, key code 48).
-        if keyCode == acceptanceKeyCode,
-           flags.isDisjoint(with: [.maskCommand, .maskControl, .maskAlternate, .maskShift]) {
+        let noModifiers = flags.isDisjoint(with: [.maskCommand, .maskControl, .maskAlternate, .maskShift])
+
+        // Read key codes from the model at event time so changes are always current.
+        let fullAcceptKey = fullAcceptanceKeyCodeProvider()
+        let acceptKey = acceptanceKeyCodeProvider()
+
+        // Full-suggestion acceptance takes priority so pressing the full-accept key
+        // doesn't silently fall through to word-accept when both are assigned.
+        if keyCode == fullAcceptKey, noModifiers {
+            return CapturedInputEvent(kind: .fullAcceptance, keyCode: keyCode, characters: characters, flags: flags)
+        }
+
+        if keyCode == acceptKey, noModifiers {
             return CapturedInputEvent(kind: .acceptance, keyCode: keyCode, characters: characters, flags: flags)
         }
 

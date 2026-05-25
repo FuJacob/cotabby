@@ -1,5 +1,6 @@
 import AppKit
 import Combine
+import Logging
 import os
 
 /// File overview:
@@ -34,6 +35,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var cancellables = Set<AnyCancellable>()
 
     override init() {
+        TabbyLogger.bootstrap()
+
         // Build the dependency graph once up front so every scene/view observes the same
         // long-lived objects for the entire app session. `TabbyAppEnvironment` is a composition
         // helper here; the app delegate retains the root objects it needs directly.
@@ -112,6 +115,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Starts runtime and polling services once AppKit reports that app launch finished.
     func applicationDidFinishLaunching(_ notification: Notification) {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
+        TabbyLogger.app.info("Tabby \(version) (build \(build)) launching on macOS \(ProcessInfo.processInfo.operatingSystemVersionString)")
         startRuntimeIfPreferredEngineRequiresIt()
         focusModel.start()
         inputMonitor.start()
@@ -119,6 +125,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         suggestionCoordinator.start()
         welcomeCoordinator.presentIfNeeded()
         welcomeCoordinator.presentPermissionReminderIfNeeded()
+        TabbyLogger.app.info("All services started")
     }
 
     /// Defers termination until the llama runtime releases native Metal/GPU resources.
@@ -133,6 +140,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// `stopAndWait()` runs in a detached task so it is never implicitly awaited — if the
     /// native C call ignores Swift cancellation, the timeout still fires and replies.
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        TabbyLogger.app.info("Tabby terminating, stopping services")
         activationIndicatorController.hide(reason: "Activation indicator hidden because Tabby is terminating.")
         focusDebugOverlayController?.hide()
         suggestionCoordinator.stop()

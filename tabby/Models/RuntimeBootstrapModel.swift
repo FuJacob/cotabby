@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import Logging
 
 /// File overview:
 /// Owns app-facing runtime lifecycle state and republishes diagnostics from the in-process
@@ -87,7 +88,7 @@ final class RuntimeBootstrapModel: ObservableObject {
             do {
                 try await self.runtimeManager.prepare()
             } catch {
-                print("Runtime startup failed: \(error.localizedDescription)")
+                TabbyLogger.runtime.error("Runtime startup failed: \(error.localizedDescription)")
             }
         }
     }
@@ -123,7 +124,7 @@ final class RuntimeBootstrapModel: ObservableObject {
             do {
                 try await self.runtimeManager.selectModel(filename: filename)
             } catch {
-                print("Runtime model switch failed: \(error.localizedDescription)")
+                TabbyLogger.runtime.error("Runtime model switch failed: \(error.localizedDescription)")
             }
         }
 

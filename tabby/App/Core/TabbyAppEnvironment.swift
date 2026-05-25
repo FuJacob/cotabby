@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import Logging
 
 /// File overview:
 /// Builds Tabby's long-lived dependency graph in one place. This is the app's composition model:
@@ -31,6 +32,7 @@ final class TabbyAppEnvironment {
     private var cancellables = Set<AnyCancellable>()
 
     init() {
+        TabbyLogger.app.info("Building dependency graph")
         let configuration = SuggestionConfiguration.standard
         let permissionManager = PermissionManager()
         let permissionGuidanceController = PermissionGuidanceController(
@@ -47,7 +49,8 @@ final class TabbyAppEnvironment {
             permissionProvider: { permissionManager.inputMonitoringGranted },
             suppressionController: suppressionController
         )
-        inputMonitor.acceptanceKeyCode = suggestionSettings.acceptanceKeyCode
+        inputMonitor.acceptanceKeyCodeProvider = { suggestionSettings.acceptanceKeyCode }
+        inputMonitor.fullAcceptanceKeyCodeProvider = { suggestionSettings.fullAcceptanceKeyCode }
         let focusModel = FocusTrackingModel(
             permissionProvider: { permissionManager.accessibilityGranted },
             ignoredBundleIdentifier: Bundle.main.bundleIdentifier,
@@ -92,15 +95,18 @@ final class TabbyAppEnvironment {
             foundationModelEngine = FoundationModelSuggestionEngine(
                 availabilityService: foundationModelAvailabilityService
             )
+            TabbyLogger.app.info("Foundation model engine available")
         } else {
             foundationModelEngine = UnavailableSuggestionEngine(
                 message: foundationModelAvailabilityService.userVisibleMessage
             )
+            TabbyLogger.app.info("Foundation model engine unavailable (macOS version)")
         }
         #else
         foundationModelEngine = UnavailableSuggestionEngine(
             message: foundationModelAvailabilityService.userVisibleMessage
         )
+        TabbyLogger.app.info("Foundation model engine unavailable (SDK)")
         #endif
 
         let mlxEngine: any SuggestionGenerating = MLXSuggestionEngine(
@@ -159,14 +165,7 @@ final class TabbyAppEnvironment {
             }
             .store(in: &cancellables)
 
-        // Push acceptance key changes from settings into the event classifier.
-        // Captures `self` weakly — capturing the local `inputMonitor` variable would create a
-        // dangling weak ref once init() returns, silently dropping all subsequent updates.
-        suggestionSettings.$acceptanceKeyCode
-            .removeDuplicates()
-            .sink { [weak self] keyCode in
-                self?.inputMonitor.acceptanceKeyCode = keyCode
-            }
-            .store(in: &cancellables)
+        // Key code changes reach InputMonitor through closures that read from the model
+        // at event time (set above), so no Combine subscription is needed here.
     }
 }

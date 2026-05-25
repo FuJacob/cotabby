@@ -28,7 +28,7 @@ struct KeyRecorderView: View {
     }
 
     private func installMonitor() {
-        guard monitor == nil else { return }
+        removeMonitor()
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [self] event in
             let keyCode = event.keyCode
 

@@ -1,6 +1,7 @@
 import CoreGraphics
 import Foundation
 import ImageIO
+import Logging
 import UniformTypeIdentifiers
 
 /// File overview:
@@ -56,6 +57,7 @@ final class ScreenshotContextGenerator {
     ) async throws -> VisualContextExcerpt {
         await onStatusChange?(.capturing)
 
+        TabbyLogger.app.debug("Capturing screenshot for \(context.applicationName)")
         let screenshot: CapturedWindowScreenshot
         do {
             screenshot = try await screenshotService.captureSnapshot(
@@ -63,8 +65,10 @@ final class ScreenshotContextGenerator {
                 snapshotDimension: configuration.snapshotDimension
             )
         } catch let error as WindowScreenshotError {
+            TabbyLogger.app.warning("Screenshot unavailable: \(error.localizedDescription)")
             throw ScreenshotContextGenerationError.unavailable(error.localizedDescription)
         } catch {
+            TabbyLogger.app.error("Screenshot failed: \(error.localizedDescription)")
             throw ScreenshotContextGenerationError.failed(error.localizedDescription)
         }
 
@@ -101,6 +105,7 @@ final class ScreenshotContextGenerator {
             )
         }
 
+        TabbyLogger.app.debug("OCR extracted \(normalizedText.count) chars from screenshot")
         guard hasMeaningfulSignal(normalizedText) else {
             throw ScreenshotContextGenerationError.unavailable(
                 "The screenshot did not contain enough visible text to build prompt context."

@@ -1,4 +1,5 @@
 import Foundation
+import Logging
 
 /// File overview:
 /// Tracks Tabby's own synthetic key events so inserted suggestions do not recursively trigger
@@ -16,6 +17,7 @@ final class InputSuppressionController {
     func registerSyntheticInsertion(expectedKeyDownCount: Int) {
         remainingKeyDownSuppressions = max(expectedKeyDownCount, 0)
         suppressionExpiry = Date().addingTimeInterval(1.0)
+        TabbyLogger.app.trace("Suppression armed for \(expectedKeyDownCount) synthetic key event(s)")
     }
 
     /// Consumes one pending suppression token if the current event still falls inside the expiry window.

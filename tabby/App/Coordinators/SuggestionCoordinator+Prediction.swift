@@ -1,4 +1,5 @@
 import Foundation
+import Logging
 
 /// File overview:
 /// Debounce, generation, stale-result handling, and visual-context-triggered rescheduling.
@@ -329,6 +330,7 @@ extension SuggestionCoordinator {
 
     /// Fully disables prediction, clears cached context, and updates UI messaging with the cause.
     func disablePredictions(reason: String) {
+        TabbyLogger.suggestion.debug("Predictions disabled: \(reason)")
         cancelPredictionWork()
         resetCachedGenerationContext()
         visualContextCoordinator.cancel(resetState: true)

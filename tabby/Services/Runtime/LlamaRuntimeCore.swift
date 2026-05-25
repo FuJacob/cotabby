@@ -1,5 +1,6 @@
 import Foundation
 import LlamaSwift
+import Logging
 
 /// File overview:
 /// Owns the raw llama.cpp lifecycle behind one serialized actor. This file is the lowest-level
@@ -85,10 +86,12 @@ actor LlamaRuntimeCore {
     ) throws -> PreparedLlamaRuntime {
         if let preparedRuntime,
            preparedRuntime.resolvedRuntime.modelFileURL == resolvedRuntime.modelFileURL {
+            TabbyLogger.runtime.trace("Model already prepared, reusing")
             return preparedRuntime
         }
 
         if preparedRuntime != nil {
+            TabbyLogger.runtime.info("Shutting down existing runtime before reload")
             shutdown()
         }
 
@@ -106,9 +109,11 @@ actor LlamaRuntimeCore {
         modelParams.use_mmap = true
         modelParams.use_mlock = false
 
+        TabbyLogger.runtime.info("Loading GGUF model: \(resolvedRuntime.modelDisplayName)")
         guard let loadedModel = resolvedRuntime.modelFileURL.path.withCString({
             llama_model_load_from_file($0, modelParams)
         }) else {
+            TabbyLogger.runtime.error("llama_model_load_from_file failed for \(resolvedRuntime.modelDisplayName)")
             throw LlamaRuntimeError.unavailable("Unable to load \(resolvedRuntime.modelDisplayName) with llama.cpp.")
         }
 
@@ -152,6 +157,9 @@ actor LlamaRuntimeCore {
         let promptTokens: [llama_token]
         let adjustedCachedPrefixBytes: Int?
         if allPromptTokens.count > maxPromptTokens {
+            TabbyLogger.runtime.debug(
+                "Prompt trimmed: \(allPromptTokens.count) tokens → \(maxPromptTokens)"
+            )
             promptTokens = Array(allPromptTokens.suffix(maxPromptTokens))
             // Front-trimming invalidates any byte-level prefix overlap with the cache.
             adjustedCachedPrefixBytes = nil
@@ -220,16 +228,19 @@ actor LlamaRuntimeCore {
             throw error
         }
 
+        TabbyLogger.runtime.debug("Generated \(generatedText.count) chars in \(position - Int32(promptTokens.count)) tokens")
         return generatedText
     }
 
     /// Drops the reusable prompt context while keeping the loaded model alive.
     func resetPromptCache() {
+        TabbyLogger.runtime.debug("Prompt cache reset")
         clearPromptCache()
     }
 
     /// Frees any loaded model/backend state owned by the actor.
     func shutdown() {
+        TabbyLogger.runtime.info("LlamaRuntimeCore shutting down")
         clearPromptCache()
 
         if let model {
@@ -259,6 +270,7 @@ actor LlamaRuntimeCore {
               let cache = promptCache,
               cache.samplingFingerprint == request.samplingFingerprint
         else {
+            TabbyLogger.runtime.debug("KV cache miss, rebuilding context")
             return try rebuildPromptContext(
                 model: model,
                 preparedRuntime: preparedRuntime,
@@ -283,6 +295,9 @@ actor LlamaRuntimeCore {
         }
 
         let commonTokenPrefix = Self.commonPrefixCount(cache.promptTokens, request.promptTokens)
+        TabbyLogger.runtime.debug(
+            "KV cache: common_prefix=\(commonTokenPrefix)/\(request.promptTokens.count) tokens"
+        )
         let reusableTokenCount = Self.reusableTokenCount(
             commonTokenPrefix: commonTokenPrefix,
             newPromptTokenCount: request.promptTokens.count

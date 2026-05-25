@@ -159,7 +159,7 @@ final class SuggestionInteractionStateTests: XCTestCase {
             }
             XCTAssertEqual(
                 reason,
-                "Tab passed through because no visible ghost text matched the ready suggestion."
+                "Key passed through because no visible ghost text matched the ready suggestion."
             )
         }
     }
