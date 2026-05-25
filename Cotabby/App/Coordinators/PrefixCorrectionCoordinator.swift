@@ -37,7 +37,6 @@ final class PrefixCorrectionCoordinator {
     private let correctionEngine: any PrefixCorrecting
     private let writer: PrefixCorrectionWriter
     private let isCorrectionEnabled: @MainActor () -> Bool
-    private let isCorrectionAllowedForBundle: @MainActor (String?) -> Bool
     private let isAutocompleteBusy: @MainActor () -> Bool
     private let settledDuration: TimeInterval
     private let minimumPrefixCharacterCount: Int
@@ -56,7 +55,6 @@ final class PrefixCorrectionCoordinator {
         correctionEngine: any PrefixCorrecting,
         writer: PrefixCorrectionWriter,
         isCorrectionEnabled: @escaping @MainActor () -> Bool,
-        isCorrectionAllowedForBundle: @escaping @MainActor (String?) -> Bool,
         isAutocompleteBusy: @escaping @MainActor () -> Bool,
         settledDuration: TimeInterval = defaultSettledDuration,
         minimumPrefixCharacterCount: Int = defaultMinimumPrefixCharacterCount,
@@ -66,7 +64,6 @@ final class PrefixCorrectionCoordinator {
         self.correctionEngine = correctionEngine
         self.writer = writer
         self.isCorrectionEnabled = isCorrectionEnabled
-        self.isCorrectionAllowedForBundle = isCorrectionAllowedForBundle
         self.isAutocompleteBusy = isAutocompleteBusy
         self.settledDuration = settledDuration
         self.minimumPrefixCharacterCount = minimumPrefixCharacterCount
@@ -191,7 +188,6 @@ final class PrefixCorrectionCoordinator {
         guard TerminalAppDetector.isTerminal(bundleIdentifier: snapshot.bundleIdentifier) == false else {
             return false
         }
-        guard isCorrectionAllowedForBundle(snapshot.bundleIdentifier) else { return false }
         guard !isAutocompleteBusy() else { return false }
         guard context.precedingText.count >= minimumPrefixCharacterCount else { return false }
         guard context.precedingText.count <= maximumPrefixCharacterCount else { return false }

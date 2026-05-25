@@ -31,6 +31,7 @@ struct MenuBarView: View {
             controlsSection
             permissionsCard
             footerSection
+            wordmarkSection
         }
         .padding(16)
         .frame(width: 340)
@@ -88,16 +89,6 @@ struct MenuBarView: View {
                 Toggle("Enable in \(application.applicationName)", isOn: appEnabledBinding(for: application))
                     .toggleStyle(.switch)
                     .controlSize(.small)
-
-                if suggestionSettings.isPrefixAutoCorrectEnabled,
-                   foundationModelAvailabilityService.isAvailable {
-                    Toggle(
-                        "Auto-Correct in \(application.applicationName)",
-                        isOn: appAutoCorrectAllowedBinding(for: application)
-                    )
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
-                }
             }
 
             Toggle("Include Clipboard Context", isOn: clipboardContextEnabledBinding)
@@ -266,6 +257,28 @@ struct MenuBarView: View {
         .font(.subheadline)
     }
 
+    // MARK: - Wordmark
+
+    /// Oversized "Cotabby" wordmark pinned to the very bottom of the panel.
+    /// It bleeds past the panel's 16pt padding to span the full width and is
+    /// clipped to roughly its top half so the letterforms run off the bottom
+    /// edge — a purely decorative flourish, not an interactive control.
+    @ViewBuilder
+    private var wordmarkSection: some View {
+        Text("Cotabby")
+            .font(.system(size: 110, weight: .heavy, design: .rounded))
+            .foregroundStyle(.tertiary)
+            .lineLimit(1)
+            .minimumScaleFactor(0.1)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity)
+            .frame(height: 52, alignment: .top)
+            .clipped()
+            .padding(.top, 8)
+            .padding(.horizontal, -16)
+            .padding(.bottom, -16)
+    }
+
     // MARK: - Bindings
 
     private var globallyEnabledBinding: Binding<Bool> {
@@ -286,25 +299,6 @@ struct MenuBarView: View {
         Binding(
             get: { suggestionSettings.isPrefixAutoCorrectEnabled },
             set: { suggestionSettings.setPrefixAutoCorrectEnabled($0) }
-        )
-    }
-
-    private func appAutoCorrectAllowedBinding(
-        for application: FocusedApplicationIdentity
-    ) -> Binding<Bool> {
-        Binding(
-            get: {
-                suggestionSettings.isApplicationAutoCorrectAllowed(
-                    bundleIdentifier: application.bundleIdentifier
-                )
-            },
-            set: { allowed in
-                suggestionSettings.setApplicationAutoCorrectAllowed(
-                    bundleIdentifier: application.bundleIdentifier,
-                    displayName: application.applicationName,
-                    allowed: allowed
-                )
-            }
         )
     }
 

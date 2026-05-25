@@ -161,9 +161,6 @@ final class CotabbyAppEnvironment {
             correctionEngine: prefixCorrectionEngine,
             writer: prefixCorrectionWriter,
             isCorrectionEnabled: { suggestionSettings.isPrefixAutoCorrectEnabled },
-            isCorrectionAllowedForBundle: { bundleIdentifier in
-                suggestionSettings.isApplicationAutoCorrectAllowed(bundleIdentifier: bundleIdentifier)
-            },
             isAutocompleteBusy: { [weak suggestionCoordinator] in
                 guard let state = suggestionCoordinator?.state else { return false }
                 switch state {
