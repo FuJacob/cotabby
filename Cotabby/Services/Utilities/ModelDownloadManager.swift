@@ -2,6 +2,7 @@ import AppKit
 import Combine
 import Foundation
 import Logging
+import UniformTypeIdentifiers
 
 /// One model's current install/download lifecycle state in local storage.
 enum ModelDownloadState: Equatable {
@@ -104,6 +105,8 @@ final class ModelDownloadManager: ObservableObject {
     }
 
     func refreshModelStates() {
+        let catalogFilenames = Set(models.map(\.filename))
+
         for model in models {
             if downloadTasks[model.filename] != nil {
                 if case .downloading(let progress) = modelStates[model.filename] {
@@ -117,6 +120,30 @@ final class ModelDownloadManager: ObservableObject {
                 modelStates[model.filename] = .idle
             }
         }
+
+        var keysToRemove: [String] = []
+        for (filename, state) in modelStates where !catalogFilenames.contains(filename) {
+            if downloadTasks[filename] != nil {
+                continue
+            }
+            switch state {
+            case .downloading:
+                break
+            case .downloaded, .idle, .failed:
+                if isInstalled(filename: filename) {
+                    modelStates[filename] = .downloaded
+                } else {
+                    keysToRemove.append(filename)
+                }
+            }
+        }
+        for key in keysToRemove {
+            modelStates.removeValue(forKey: key)
+        }
+    }
+
+    func isModelInstalled(filename: String) -> Bool {
+        isInstalled(filename: filename)
     }
 
     func download(_ model: DownloadableRuntimeModel) {
@@ -181,6 +208,46 @@ final class ModelDownloadManager: ObservableObject {
         }
 
         NSWorkspace.shared.open(runtimeDirectoryURL)
+    }
+
+    func importModel() {
+        let panel = NSOpenPanel()
+        panel.title = "Select a GGUF Model"
+        if let ggufType = UTType(filenameExtension: "gguf", conformingTo: .data) {
+            panel.allowedContentTypes = [ggufType]
+        }
+        panel.allowsMultipleSelection = true
+        panel.canChooseDirectories = false
+
+        guard panel.runModal() == .OK else { return }
+
+        do {
+            try ensureRuntimeDirectoryExists()
+        } catch {
+            return
+        }
+
+        // Copy files off the main thread so multi-gigabyte GGUFs don't freeze the UI.
+        let sourceURLs = panel.urls
+        let destinationDirectory = runtimeDirectoryURL
+        Task.detached {
+            let fileManager = FileManager.default
+            for sourceURL in sourceURLs {
+                let destinationURL = destinationDirectory.appendingPathComponent(
+                    sourceURL.lastPathComponent, isDirectory: false
+                )
+                if fileManager.fileExists(atPath: destinationURL.path) { continue }
+                do {
+                    try fileManager.copyItem(at: sourceURL, to: destinationURL)
+                } catch {
+                    print("Failed to import \(sourceURL.lastPathComponent): \(error.localizedDescription)")
+                }
+            }
+            await MainActor.run { [weak self] in
+                self?.refreshModelStates()
+                self?.onModelDirectoryChanged?()
+            }
+        }
     }
 
     /// Returns `true` only when the model lives in Cotabby's user-writable model directory.
