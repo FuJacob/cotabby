@@ -80,6 +80,14 @@ jobs:
           xcodebuild -version
           swift --version
 
+      # Package.resolved is gitignored, so SwiftPM must materialize it before
+      # the next step can read the Sparkle pin out of it (mirrors build.yml).
+      - name: Resolve Swift package dependencies
+        run: |
+          xcodebuild \
+            -project "${PROJECT_PATH}" \
+            -resolvePackageDependencies
+
       - name: Install DMG packaging dependencies
         run: |
           set -euo pipefail
