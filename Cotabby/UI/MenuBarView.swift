@@ -79,11 +79,29 @@ struct MenuBarView: View {
                 .toggleStyle(.switch)
                 .controlSize(.small)
 
+            Toggle("Auto-Correct Typos", isOn: prefixAutoCorrectEnabledBinding)
+                .toggleStyle(.switch)
+                .controlSize(.small)
+                .disabled(!foundationModelAvailabilityService.isAvailable)
+                .help(foundationModelAvailabilityService.isAvailable
+                    ? "Apple Intelligence rewrites obvious typos in the text you just typed."
+                    : "Requires Apple Intelligence: \(foundationModelAvailabilityService.userVisibleMessage)")
+
             if let application = focusModel.latestExternalApplication,
                !TerminalAppDetector.isTerminal(bundleIdentifier: application.bundleIdentifier) {
                 Toggle("Enable in \(application.applicationName)", isOn: appEnabledBinding(for: application))
                     .toggleStyle(.switch)
                     .controlSize(.small)
+
+                if suggestionSettings.isPrefixAutoCorrectEnabled,
+                   foundationModelAvailabilityService.isAvailable {
+                    Toggle(
+                        "Auto-Correct in \(application.applicationName)",
+                        isOn: appAutoCorrectAllowedBinding(for: application)
+                    )
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                }
             }
 
             Toggle("Show Indicator", isOn: showIndicatorBinding)
@@ -250,6 +268,32 @@ struct MenuBarView: View {
         Binding(
             get: { suggestionSettings.isClipboardContextEnabled },
             set: { suggestionSettings.setClipboardContextEnabled($0) }
+        )
+    }
+
+    private var prefixAutoCorrectEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.isPrefixAutoCorrectEnabled },
+            set: { suggestionSettings.setPrefixAutoCorrectEnabled($0) }
+        )
+    }
+
+    private func appAutoCorrectAllowedBinding(
+        for application: FocusedApplicationIdentity
+    ) -> Binding<Bool> {
+        Binding(
+            get: {
+                suggestionSettings.isApplicationAutoCorrectAllowed(
+                    bundleIdentifier: application.bundleIdentifier
+                )
+            },
+            set: { allowed in
+                suggestionSettings.setApplicationAutoCorrectAllowed(
+                    bundleIdentifier: application.bundleIdentifier,
+                    displayName: application.applicationName,
+                    allowed: allowed
+                )
+            }
         )
     }
 

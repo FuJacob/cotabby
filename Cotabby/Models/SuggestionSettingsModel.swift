@@ -2,6 +2,11 @@ import ApplicationServices
 import Combine
 import Foundation
 
+/// Same on-disk shape as `DisabledApplicationRule` (bundle id + display name) but used in
+/// the opposite direction: this is an explicit allowlist for the auto-correct feature, not
+/// a blocklist. Aliased for readability at call sites.
+typealias AutoCorrectAllowedApplicationRule = DisabledApplicationRule
+
 /// File overview:
 /// Owns the durable autocomplete preferences that are shared across the app:
 /// engine selection, completion length, indicator appearance, and profile
@@ -27,6 +32,10 @@ final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var acceptanceKeyLabel: String
     @Published private(set) var fullAcceptanceKeyCode: CGKeyCode
     @Published private(set) var fullAcceptanceKeyLabel: String
+    @Published private(set) var isPrefixAutoCorrectEnabled: Bool
+    /// Allowlist for prefix auto-correct. Inverted polarity from `disabledAppRules` because
+    /// auto-correct rewrites the user's text — too invasive to default-on per app.
+    @Published private(set) var prefixAutoCorrectAllowedRules: [AutoCorrectAllowedApplicationRule]
     private let userDefaults: UserDefaults
 
     private static let isGloballyEnabledDefaultsKey = "tabbyGloballyEnabled"
@@ -46,6 +55,8 @@ final class SuggestionSettingsModel: ObservableObject {
     private static let acceptanceKeyLabelDefaultsKey = "tabbyAcceptanceKeyLabel"
     private static let fullAcceptanceKeyCodeDefaultsKey = "tabbyFullAcceptanceKeyCode"
     private static let fullAcceptanceKeyLabelDefaultsKey = "tabbyFullAcceptanceKeyLabel"
+    private static let prefixAutoCorrectEnabledDefaultsKey = "tabbyPrefixAutoCorrectEnabled"
+    private static let prefixAutoCorrectAllowedRulesDefaultsKey = "tabbyPrefixAutoCorrectAllowedRules"
 
     static let defaultAcceptanceKeyCode: CGKeyCode = 48
     static let defaultAcceptanceKeyLabel = "Tab"
@@ -116,6 +127,10 @@ final class SuggestionSettingsModel: ObservableObject {
         let resolvedFullAcceptanceKeyLabel = userDefaults.string(forKey: Self.fullAcceptanceKeyLabelDefaultsKey)
             ?? Self.defaultFullAcceptanceKeyLabel
 
+        let resolvedPrefixAutoCorrectEnabled =
+            userDefaults.object(forKey: Self.prefixAutoCorrectEnabledDefaultsKey) as? Bool ?? false
+        let resolvedPrefixAutoCorrectAllowedRules = Self.loadPrefixAutoCorrectAllowedRules(from: userDefaults)
+
         isGloballyEnabled = resolvedGloballyEnabled
         disabledAppRules = resolvedDisabledAppRules
         showIndicator = resolvedShowIndicator
@@ -131,6 +146,8 @@ final class SuggestionSettingsModel: ObservableObject {
         acceptanceKeyLabel = resolvedAcceptanceKeyLabel
         fullAcceptanceKeyCode = resolvedFullAcceptanceKeyCode
         fullAcceptanceKeyLabel = resolvedFullAcceptanceKeyLabel
+        isPrefixAutoCorrectEnabled = resolvedPrefixAutoCorrectEnabled
+        prefixAutoCorrectAllowedRules = resolvedPrefixAutoCorrectAllowedRules
 
         userDefaults.set(resolvedGloballyEnabled, forKey: Self.isGloballyEnabledDefaultsKey)
         persistDisabledAppRules(resolvedDisabledAppRules)
@@ -147,6 +164,8 @@ final class SuggestionSettingsModel: ObservableObject {
         userDefaults.set(resolvedAcceptanceKeyLabel, forKey: Self.acceptanceKeyLabelDefaultsKey)
         userDefaults.set(Int(resolvedFullAcceptanceKeyCode), forKey: Self.fullAcceptanceKeyCodeDefaultsKey)
         userDefaults.set(resolvedFullAcceptanceKeyLabel, forKey: Self.fullAcceptanceKeyLabelDefaultsKey)
+        userDefaults.set(resolvedPrefixAutoCorrectEnabled, forKey: Self.prefixAutoCorrectEnabledDefaultsKey)
+        Self.persistPrefixAutoCorrectAllowedRules(resolvedPrefixAutoCorrectAllowedRules, to: userDefaults)
     }
 
     /// Legacy compatibility shim. Reads through to `showIndicator`.
@@ -307,6 +326,95 @@ final class SuggestionSettingsModel: ObservableObject {
 
         return disabledAppRules.contains {
             $0.bundleIdentifier == normalizedBundleIdentifier
+        }
+    }
+
+    // MARK: - Prefix auto-correct
+
+    func setPrefixAutoCorrectEnabled(_ enabled: Bool) {
+        guard isPrefixAutoCorrectEnabled != enabled else { return }
+        isPrefixAutoCorrectEnabled = enabled
+        userDefaults.set(enabled, forKey: Self.prefixAutoCorrectEnabledDefaultsKey)
+    }
+
+    func setApplicationAutoCorrectAllowed(
+        bundleIdentifier: String?,
+        displayName: String,
+        allowed: Bool
+    ) {
+        guard let normalizedBundleIdentifier = Self.normalizedBundleIdentifier(bundleIdentifier) else {
+            return
+        }
+        if allowed {
+            allowApplicationForAutoCorrect(
+                bundleIdentifier: normalizedBundleIdentifier,
+                displayName: displayName
+            )
+        } else {
+            removeAutoCorrectAllowedApplication(bundleIdentifier: normalizedBundleIdentifier)
+        }
+    }
+
+    func isApplicationAutoCorrectAllowed(bundleIdentifier: String?) -> Bool {
+        guard let normalizedBundleIdentifier = Self.normalizedBundleIdentifier(bundleIdentifier) else {
+            return false
+        }
+        return prefixAutoCorrectAllowedRules.contains {
+            $0.bundleIdentifier == normalizedBundleIdentifier
+        }
+    }
+
+    private func allowApplicationForAutoCorrect(bundleIdentifier: String, displayName: String) {
+        let normalizedDisplayName = Self.normalizedDisplayName(
+            displayName,
+            fallbackBundleIdentifier: bundleIdentifier
+        )
+        let rule = AutoCorrectAllowedApplicationRule(
+            bundleIdentifier: bundleIdentifier,
+            displayName: normalizedDisplayName
+        )
+        var byBundle = Dictionary(
+            uniqueKeysWithValues: prefixAutoCorrectAllowedRules.map { ($0.bundleIdentifier, $0) }
+        )
+        byBundle[bundleIdentifier] = rule
+        let updated = Self.sortedDisabledAppRules(Array(byBundle.values))
+        guard prefixAutoCorrectAllowedRules != updated else { return }
+        prefixAutoCorrectAllowedRules = updated
+        Self.persistPrefixAutoCorrectAllowedRules(updated, to: userDefaults)
+    }
+
+    private func removeAutoCorrectAllowedApplication(bundleIdentifier: String) {
+        let updated = prefixAutoCorrectAllowedRules.filter {
+            $0.bundleIdentifier != bundleIdentifier
+        }
+        guard prefixAutoCorrectAllowedRules != updated else { return }
+        prefixAutoCorrectAllowedRules = updated
+        Self.persistPrefixAutoCorrectAllowedRules(updated, to: userDefaults)
+    }
+
+    private static func loadPrefixAutoCorrectAllowedRules(
+        from userDefaults: UserDefaults
+    ) -> [AutoCorrectAllowedApplicationRule] {
+        guard let data = userDefaults.data(forKey: Self.prefixAutoCorrectAllowedRulesDefaultsKey),
+              let decoded = try? JSONDecoder().decode(
+                [AutoCorrectAllowedApplicationRule].self, from: data
+              )
+        else {
+            return []
+        }
+        return sanitizedDisabledAppRules(decoded)
+    }
+
+    private static func persistPrefixAutoCorrectAllowedRules(
+        _ rules: [AutoCorrectAllowedApplicationRule],
+        to userDefaults: UserDefaults
+    ) {
+        guard !rules.isEmpty else {
+            userDefaults.removeObject(forKey: Self.prefixAutoCorrectAllowedRulesDefaultsKey)
+            return
+        }
+        if let data = try? JSONEncoder().encode(rules) {
+            userDefaults.set(data, forKey: Self.prefixAutoCorrectAllowedRulesDefaultsKey)
         }
     }
 

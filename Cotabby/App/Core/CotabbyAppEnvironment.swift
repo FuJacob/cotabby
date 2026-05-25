@@ -24,6 +24,7 @@ final class CotabbyAppEnvironment {
     let foundationModelAvailabilityService: FoundationModelAvailabilityService
     let clipboardContextProvider: ClipboardContextProvider
     let suggestionCoordinator: SuggestionCoordinator
+    let prefixCorrectionCoordinator: PrefixCorrectionCoordinator
     let welcomeCoordinator: WelcomeCoordinator
     let settingsCoordinator: SettingsCoordinator
     let activationIndicatorController: ActivationIndicatorController
@@ -152,6 +153,37 @@ final class CotabbyAppEnvironment {
             configuration: configuration
         )
 
+        let prefixCorrectionEngine: any PrefixCorrecting = {
+            #if canImport(FoundationModels)
+            if #available(macOS 26.0, *) {
+                return FoundationModelPrefixCorrectionEngine(
+                    availabilityService: foundationModelAvailabilityService
+                )
+            }
+            #endif
+            return UnavailablePrefixCorrectionEngine()
+        }()
+        let prefixCorrectionWriter = PrefixCorrectionWriter(suppressionController: suppressionController)
+        let prefixCorrectionCoordinator = PrefixCorrectionCoordinator(
+            focusModel: focusModel,
+            correctionEngine: prefixCorrectionEngine,
+            writer: prefixCorrectionWriter,
+            isCorrectionEnabled: { suggestionSettings.isPrefixAutoCorrectEnabled },
+            isCorrectionAllowedForBundle: { bundleIdentifier in
+                suggestionSettings.isApplicationAutoCorrectAllowed(bundleIdentifier: bundleIdentifier)
+            },
+            isAutocompleteBusy: { [weak suggestionCoordinator] in
+                guard let state = suggestionCoordinator?.state else { return false }
+                switch state {
+                case .debouncing, .generating:
+                    return true
+                default:
+                    return false
+                }
+            }
+        )
+        prefixCorrectionCoordinator.start()
+
         self.permissionManager = permissionManager
         self.runtimeModel = runtimeModel
         self.mlxRuntimeManager = mlxRuntimeManager
@@ -165,6 +197,7 @@ final class CotabbyAppEnvironment {
         self.foundationModelAvailabilityService = foundationModelAvailabilityService
         self.clipboardContextProvider = clipboardContextProvider
         self.suggestionCoordinator = suggestionCoordinator
+        self.prefixCorrectionCoordinator = prefixCorrectionCoordinator
         self.welcomeCoordinator = welcomeCoordinator
         self.settingsCoordinator = settingsCoordinator
         self.activationIndicatorController = activationIndicatorController
