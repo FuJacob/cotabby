@@ -126,7 +126,8 @@ struct MenuBarView: View {
         .padding(.bottom, 12)
     }
 
-    /// Model selector with folder shortcut — only visible when local llama engine is active.
+    /// Model selector with folder + refresh shortcuts — only visible when local llama engine is active.
+    /// The picker truncates aggressively because two trailing icons compete for the same row width.
     @ViewBuilder
     private var modelRow: some View {
         MenuBarPickerRow(title: "Model") {
@@ -139,6 +140,8 @@ struct MenuBarView: View {
                     Picker("Model", selection: selectedModelBinding) {
                         ForEach(runtimeModel.availableModels) { model in
                             Text(model.displayName)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
                                 .tag(model.filename)
                         }
                     }
@@ -155,6 +158,16 @@ struct MenuBarView: View {
                 .buttonStyle(.borderless)
                 .controlSize(.small)
                 .help("Open Models Folder")
+
+                Button {
+                    modelDownloadManager.refreshModelStates()
+                    runtimeModel.refreshAvailableModels()
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .buttonStyle(.borderless)
+                .controlSize(.small)
+                .help("Refresh Available Models")
             }
         }
     }
