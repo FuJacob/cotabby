@@ -56,9 +56,12 @@ final class CotabbyAppEnvironment {
             ignoredBundleIdentifier: Bundle.main.bundleIdentifier,
             publishesPollingEvents: FocusDebugOverlayController.isEnabled
         )
+        // The snapshot is poll-based, so after a fast app switch the closure may briefly
+        // evaluate against the previous app's identity until the next AX poll fires. This
+        // is the same race the downstream evaluator already has — not a new regression.
         inputMonitor.shouldProcessEventsProvider = { [weak focusModel] in
             guard suggestionSettings.isGloballyEnabled else { return false }
-            guard let snapshot = focusModel?.snapshot else { return false }
+            guard let snapshot = focusModel?.snapshot else { return true }
             if TerminalAppDetector.isTerminal(bundleIdentifier: snapshot.bundleIdentifier) { return false }
             if let bundleID = snapshot.bundleIdentifier,
                suggestionSettings.isApplicationDisabled(bundleIdentifier: bundleID) {
