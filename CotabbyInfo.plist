@@ -31,7 +31,7 @@
 	<key>SUEnableAutomaticChecks</key>
 	<true/>
 	<key>SUFeedURL</key>
-	<string>https://updates.tabbyapp.dev/appcast.xml</string>
+	<string>https://updates.cotabby.app/appcast.xml</string>
     <key>SUPublicEDKey</key>
     <string>efJeZNfUISOs6npbxI2MLLe7sBB5tT/sVnTk9t/qBSY=</string>
 </dict>

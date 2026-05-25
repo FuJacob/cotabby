@@ -94,6 +94,6 @@ final class AppUpdateManager {
     }
 
     private func log(_ message: String) {
-        TabbyLogger.updates.info("\(message)")
+        CotabbyLogger.updates.info("\(message)")
     }
 }

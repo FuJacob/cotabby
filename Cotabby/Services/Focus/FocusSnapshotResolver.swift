@@ -16,7 +16,7 @@ struct FocusSnapshotResolver {
     /// summary (every snapshot) to `dumpFilePath`. The file is truncated on first write per
     /// process, so each app launch starts with an empty log and the file never accumulates
     /// across rebuilds.
-    private static let dumpAXTree = true
+    private static let dumpAXTree = false
     private static var lastDumpedElementID: String?
     private static let dumpFilePath = "\(NSHomeDirectory())/Desktop/cotabby-ax-dump.log"
     private static var hasTruncatedDumpFile = false
@@ -73,7 +73,7 @@ struct FocusSnapshotResolver {
         guard let resolvedCandidate = selectedCandidate,
             resolution.resolvedCandidate != nil
         else {
-            TabbyLogger.focus.trace("Focus unsupported in \(applicationName): \(resolution.unsupportedReason)")
+            CotabbyLogger.focus.trace("Focus unsupported in \(applicationName): \(resolution.unsupportedReason)")
             return FocusSnapshot(
                 applicationName: applicationName,
                 bundleIdentifier: bundleIdentifier,
@@ -548,7 +548,7 @@ struct FocusSnapshotResolver {
         dumpChildrenRecursive(of: focusedElement, into: &out, indent: "", depth: 0)
 
         out += "========== END DUMP ==========\n"
-        TabbyLogger.focus.debug("\(out)")
+        CotabbyLogger.focus.debug("\(out)")
         Self.appendToDumpFile(out)
     }
 

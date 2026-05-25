@@ -42,9 +42,14 @@ enum SuggestionRequestFactory {
         )
         let completionLengthInstruction = settings.selectedWordCountPreset.promptInstruction
         let userName = activeUserName(settings: settings)
+        // Already normalized (trimmed/deduped/capped) by SuggestionSettingsModel.setRules.
+        let customRules = settings.customRules
+        // nil for English — no forcing line needed.
+        let languageInstruction = settings.responseLanguage.promptInstruction
         let boundedClipboardContext = activeClipboardContext(
             rawContext: clipboardContext,
-            settings: settings
+            settings: settings,
+            prefixText: prefixText
         )
         let boundedVisualContextSummary = activeVisualContextSummary(
             rawSummary: visualContextSummary
@@ -54,6 +59,8 @@ enum SuggestionRequestFactory {
             applicationName: context.applicationName,
             completionLengthInstruction: completionLengthInstruction,
             userName: userName,
+            customRules: customRules,
+            languageInstruction: languageInstruction,
             clipboardContext: boundedClipboardContext,
             visualContextSummary: boundedVisualContextSummary
         )
@@ -65,7 +72,8 @@ enum SuggestionRequestFactory {
             generation: context.generation,
             maxPredictionTokens: activeMaxPredictionTokens(
                 configuration: configuration,
-                wordCountPreset: settings.selectedWordCountPreset
+                wordCountPreset: settings.selectedWordCountPreset,
+                isMultiLineEnabled: settings.isMultiLineEnabled
             ),
             temperature: configuration.temperature,
             topK: configuration.topK,
@@ -76,8 +84,11 @@ enum SuggestionRequestFactory {
             maxSuffixCharacters: configuration.maxSuffixCharacters,
             completionLengthInstruction: completionLengthInstruction,
             userName: userName,
+            customRules: customRules,
+            languageInstruction: languageInstruction,
             clipboardContext: boundedClipboardContext,
-            visualContextSummary: boundedVisualContextSummary
+            visualContextSummary: boundedVisualContextSummary,
+            isMultiLineEnabled: settings.isMultiLineEnabled
         )
 
         return SuggestionRequestBuildResult(
@@ -87,7 +98,11 @@ enum SuggestionRequestFactory {
     }
 
     /// Keep only the latest short word tail to prevent long stale context from steering output.
-    private static func truncatedPromptPrefix(
+    ///
+    /// Exposed (non-private) so the coordinator can compute the same bounded window before
+    /// calling the relevance filter, ensuring the filter and the downstream distiller evaluate
+    /// token overlap against an identical prefix.
+    static func truncatedPromptPrefix(
         from precedingText: String,
         configuration: SuggestionConfiguration
     ) -> String {
@@ -109,7 +124,8 @@ enum SuggestionRequestFactory {
 
     private static func activeClipboardContext(
         rawContext: String?,
-        settings: SuggestionSettingsSnapshot
+        settings: SuggestionSettingsSnapshot,
+        prefixText: String
     ) -> String? {
         guard settings.isClipboardContextEnabled,
               let rawContext
@@ -124,7 +140,11 @@ enum SuggestionRequestFactory {
             return nil
         }
 
-        return clippedText(sanitizedContext, maxCharacters: maxClipboardContextCharacters)
+        let distilled = ClipboardContentDistiller.distill(
+            clipboard: sanitizedContext,
+            prefixText: prefixText
+        )
+        return clippedText(distilled, maxCharacters: maxClipboardContextCharacters)
     }
 
     private static func activeVisualContextSummary(rawSummary: String?) -> String? {
@@ -155,9 +175,11 @@ enum SuggestionRequestFactory {
 
     private static func activeMaxPredictionTokens(
         configuration: SuggestionConfiguration,
-        wordCountPreset: SuggestionWordCountPreset
+        wordCountPreset: SuggestionWordCountPreset,
+        isMultiLineEnabled: Bool
     ) -> Int {
-        max(configuration.maxPredictionTokens, wordCountPreset.suggestedPredictionTokenBudget)
+        let base = max(configuration.maxPredictionTokens, wordCountPreset.suggestedPredictionTokenBudget)
+        return isMultiLineEnabled ? min(base * 2, 60) : base
     }
 
     private static func promptPreview(
@@ -167,7 +189,7 @@ enum SuggestionRequestFactory {
         switch selectedEngine {
         case .appleIntelligence:
             return FoundationModelPromptRenderer.promptPreview(for: request)
-        case .llamaOpenSource, .mlxSwift:
+        case .llamaOpenSource:
             return request.prompt
         }
     }

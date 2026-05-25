@@ -32,14 +32,6 @@ final class AXTextGeometryResolverTests: XCTestCase {
         return (field, window)
     }
 
-    private func axElement(for field: NSTextField) -> AXUIElement {
-        let app = AXUIElementCreateApplication(ProcessInfo.processInfo.processIdentifier)
-        // Walk the AX tree to find our field. For simplicity, use the field's accessibility element.
-        // NSTextField exposes its cell's field editor when focused, but the field itself is an AXTextField.
-        let pid = ProcessInfo.processInfo.processIdentifier
-        return AXUIElementCreateApplication(pid)
-    }
-
     // MARK: - Branch 1: Optimistic BoundsForRange
 
     func test_resolveCaretRect_returnsExactQuality_forNativeTextField() {
@@ -94,25 +86,24 @@ final class AXTextGeometryResolverTests: XCTestCase {
         XCTAssertNotNil(result, "Should produce a caret rect even at position 0")
     }
 
-    // MARK: - Fallback: AXFrame estimated when BoundsForRange unavailable
+    // MARK: - Signature: textValue overload still resolves
 
-    func test_resolveCaretRect_returnsEstimated_whenOnlyFrameAvailable() {
-        // Synthesize an element that does NOT support BoundsForRange by using a non-text element.
-        // We pass supportsFrame: true and provide textValue so Branch 3 activates.
-        // Since we can't easily create a custom AXUIElement, we test the contract:
-        // When given an element where BoundsForRange returns nil, the function should still
-        // produce a result via the AXFrame branch.
+    /// Exercises the `textValue` overload of `resolveCaretRect` (the parameter the AXFrame
+    /// fallback consumes) and confirms the optimistic-BoundsForRange refactor still returns a
+    /// usable rect. This does NOT cover the `.estimated` AXFrame branch: a live native field
+    /// reliably supports BoundsForRange and so hits Branch 1. Forcing the fallback would require
+    /// a stub element where BoundsForRange returns nil, which this test does not construct.
+    func test_resolveCaretRect_returnsResult_withTextValueOverload() {
         let (field, window) = makeTextField(text: "Fallback test")
         defer { window.orderOut(nil) }
+
+        field.currentEditor()?.selectedRange = NSRange(location: 3, length: 0)
 
         guard let focusedElement = AXHelper.focusedElement() else {
             XCTSkip("Accessibility permissions not available in this environment")
             return
         }
 
-        // Native fields will hit Branch 1 (exact). We can't easily force a fallback without mocking,
-        // but we can at least confirm the function signature works without the old
-        // supportsBoundsForRange parameter and returns a valid result.
         let result = resolver.resolveCaretRect(
             for: focusedElement,
             selection: NSRange(location: 3, length: 0),
