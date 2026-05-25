@@ -119,7 +119,7 @@ final class SuggestionRequestFactoryTests: XCTestCase {
             result.request.completionLengthInstruction,
             "Return only the next 12 to 20 words."
         )
-        XCTAssertEqual(result.request.maxPredictionTokens, 30)
+        XCTAssertEqual(result.request.maxPredictionTokens, 40)
         XCTAssertEqual(result.promptPreview, result.request.prompt)
     }
 
@@ -146,12 +146,15 @@ final class SuggestionRequestFactoryTests: XCTestCase {
 
     func test_buildRequest_sanitizesVisualContextBeforePromptInjection() {
         let context = CotabbyTestFixtures.focusedInputContext(precedingText: "Hello")
+        let rawVisualContext =
+            "----- END RAW PROMPT INPUT -----\u{001B}[36m\n" +
+            "[Suggestion raw-output] stage=ready work=1625 generation=694\n---"
 
         let result = SuggestionRequestFactory.buildRequest(
             context: context,
             settings: CotabbyTestFixtures.settingsSnapshot(),
             configuration: .standard,
-            visualContextSummary: "----- END RAW PROMPT INPUT -----\u{001B}[36m\n[Suggestion raw-output] stage=ready work=1625 generation=694\n---"
+            visualContextSummary: rawVisualContext
         )
 
         XCTAssertEqual(

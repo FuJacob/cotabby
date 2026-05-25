@@ -17,8 +17,7 @@ enum SuggestionTextNormalizer {
 
         // Some runtimes echo the prompt or include chat-template control markers in the response.
         // Removing them here keeps the UI layer independent from backend-specific formatting.
-        normalized = normalized.replacingOccurrences(of: "<|im_end|>", with: "")
-        normalized = normalized.replacingOccurrences(of: "<|im_start|>", with: "")
+        normalized = stripKnownControlTokens(from: normalized)
 
         // Thinking-capable models may emit <think>…</think> reasoning blocks. Strip complete
         // blocks first, then any trailing open tag left when generation hit the token limit.
@@ -134,5 +133,26 @@ enum SuggestionTextNormalizer {
         let lastEchoedWord = suggestionWords[bestOverlap - 1]
         let afterLastEchoed = lastEchoedWord.endIndex
         return String(suggestion[afterLastEchoed...])
+    }
+
+    /// Local models from llama.cpp, MLX repos, and Foundation Models can expose different template
+    /// residue. This list intentionally stays here instead of in a runtime adapter because the UI
+    /// contract is the same no matter which backend leaked the marker: ghost text must be user text.
+    private static func stripKnownControlTokens(from text: String) -> String {
+        [
+            "<|im_end|>",
+            "<|im_start|>",
+            "<|endoftext|>",
+            "<|end_of_text|>",
+            "<|eot_id|>",
+            "<|begin_of_text|>",
+            "<end_of_turn>",
+            "<s>",
+            "</s>",
+            "[INST]",
+            "[/INST]"
+        ].reduce(text) { partial, token in
+            partial.replacingOccurrences(of: token, with: "")
+        }
     }
 }
