@@ -12,7 +12,13 @@ import Logging
 /// mutable native pointers that must never be touched concurrently.
 nonisolated private let llamaSilencedLogCallback: ggml_log_callback = { _, _, _ in }
 
-final class LlamaBackendRegistry: @unchecked Sendable {
+/// Process-wide llama backend lifetime coordinator.
+///
+/// `LlamaRuntimeCore` actors are still the owners of model and context pointers, but llama.cpp's
+/// global backend state is shared below those actors. The registry keeps backend initialization
+/// idempotent across multiple runtime cores and deliberately does not free the global Metal backend
+/// at process exit, where dyld teardown ordering can make llama.cpp's allocator cleanup unsafe.
+nonisolated final class LlamaBackendRegistry: @unchecked Sendable {
     static let shared = LlamaBackendRegistry(
         initBackend: {
             llama_log_set(llamaSilencedLogCallback, nil)
@@ -732,8 +738,6 @@ actor LlamaRuntimeCore {
 }
 
 extension LlamaRuntimeCore {
-    static let summarizeContextWindowCap = 2048
-
     /// Generates a summary without reading or modifying the global KV prompt cache.
     func summarize(
         prompt: String,
@@ -749,22 +753,16 @@ extension LlamaRuntimeCore {
             throw LlamaRuntimeError.generationFailed("Unable to access the model vocabulary.")
         }
 
-        let summarizeContextWindow = min(
-            preparedRuntime.contextWindowTokens,
-            Self.summarizeContextWindowCap
-        )
-        let summarizeBatchSize = min(preparedRuntime.batchSize, summarizeContextWindow)
-
         let allPromptTokens = try tokenize(prompt, vocab: vocab)
-        let maxPromptTokens = max(1, summarizeContextWindow - options.maxPredictionTokens)
+        let maxPromptTokens = max(1, preparedRuntime.contextWindowTokens - options.maxPredictionTokens)
         let promptTokens = allPromptTokens.count > maxPromptTokens
             ? Array(allPromptTokens.suffix(maxPromptTokens))
             : allPromptTokens
 
         let context = try makeContext(
             model: model,
-            contextWindowTokens: summarizeContextWindow,
-            batchSize: summarizeBatchSize,
+            contextWindowTokens: preparedRuntime.contextWindowTokens,
+            batchSize: preparedRuntime.batchSize,
             threadCount: preparedRuntime.threadCount
         )
         defer { llama_free(context) }
@@ -773,7 +771,7 @@ extension LlamaRuntimeCore {
             promptTokens,
             startingAt: 0,
             in: context,
-            batchCapacity: summarizeBatchSize
+            batchCapacity: preparedRuntime.batchSize
         )
 
         let sampler = try makeSampler(options: options)
