@@ -14,10 +14,29 @@ final class FoundationModelPromptRendererTests: XCTestCase {
 
         let instructions = FoundationModelPromptRenderer.sessionInstructions(for: request)
 
-        XCTAssertTrue(instructions.contains("inline autocomplete engine"))
+        XCTAssertTrue(instructions.contains("text-continuation engine"))
         XCTAssertTrue(instructions.contains("UNIQUE_LENGTH_POLICY"))
-        XCTAssertTrue(instructions.contains("UNIQUE_PROFILE_NAME"))
         XCTAssertTrue(instructions.contains("Do not repeat or quote the existing text."))
+    }
+
+    /// The user's name is deliberately withheld from Apple's chat-tuned model: a stated name is the
+    /// main trigger for breaking character ("Jacob, how are you"). Personalization stays on llama.
+    func test_sessionInstructions_omitTheUserName() {
+        let request = CotabbyTestFixtures.suggestionRequest(userName: "UNIQUE_PROFILE_NAME")
+
+        let instructions = FoundationModelPromptRenderer.sessionInstructions(for: request)
+
+        XCTAssertFalse(instructions.contains("UNIQUE_PROFILE_NAME"))
+    }
+
+    /// Few-shot examples are the primary anti-drift mechanism, so guard their presence.
+    func test_sessionInstructions_includeContinuationExamples() {
+        let request = CotabbyTestFixtures.suggestionRequest()
+
+        let instructions = FoundationModelPromptRenderer.sessionInstructions(for: request)
+
+        XCTAssertTrue(instructions.contains("Examples ("))
+        XCTAssertTrue(instructions.contains("Continuation:"))
     }
 
     func test_prompt_includesApplicationNameAndPreservesPrefixText() {

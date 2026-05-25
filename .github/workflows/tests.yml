@@ -54,9 +54,13 @@ jobs:
       # it, xcodebuild would refuse to embed the test xctest bundle into the
       # host app's Contents/PlugIns for loading.
       - name: Run tests
+        # FoundationModelDriftEvalTests is excluded here: it drives the real on-device Apple
+        # Intelligence model (absent on CI runners) and is non-deterministic. It self-skips via
+        # RUN_FM_EVAL too, but skipping it explicitly keeps the CI intent visible.
         run: |
           xcodebuild test \
             -project Cotabby.xcodeproj \
             -scheme Cotabby \
             -destination 'platform=macOS' \
+            -skip-testing:CotabbyTests/FoundationModelDriftEvalTests \
             CODE_SIGNING_ALLOWED=NO
