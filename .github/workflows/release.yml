@@ -576,8 +576,10 @@ jobs:
             --archive-filename "${DMG_NAME}" \
             --output "build/appcast.xml" \
             --sign-update-tool "${SIGN_UPDATE_TOOL}" \
-            --ed-key-file "${SPARKLE_KEY_FILE}" \
-            --release-notes-base-url "https://cotabby.app/release-notes"
+            --ed-key-file "${SPARKLE_KEY_FILE}"
+          # Release-notes base URL is intentionally omitted: the script's
+          # DEFAULT_RELEASE_NOTES_BASE_URL is the single source of truth. Pass
+          # --release-notes-base-url here only to override for a fork/staging host.
 
           grep -q 'sparkle:edSignature="' build/appcast.xml
           grep -q 'length="' build/appcast.xml
