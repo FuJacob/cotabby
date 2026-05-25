@@ -23,7 +23,7 @@ final class RuntimeBootstrapModel: ObservableObject {
     /// Called immediately before the runtime begins switching models so suggestion state can reset.
     var onWillReloadModel: (() -> Void)?
 
-    private static let selectedModelDefaultsKey = "selectedRuntimeModelFilename"
+    private static let selectedModelDefaultsKey = "cotabbySelectedModelFilename"
 
     init(
         runtimeManager: LlamaRuntimeManager,

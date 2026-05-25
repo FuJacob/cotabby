@@ -46,6 +46,14 @@ jobs:
           xcodebuild -version
           swift --version
 
+      # Package.resolved is gitignored, so SwiftPM must materialize it before
+      # the Sparkle pin check can compare against it.
+      - name: Resolve Swift package dependencies
+        run: |
+          xcodebuild \
+            -project Cotabby.xcodeproj \
+            -resolvePackageDependencies
+
       - name: Verify Sparkle version pin
         run: |
           set -euo pipefail
@@ -53,7 +61,7 @@ jobs:
           # Sparkle must use exactVersion pinning. upToNextMajorVersion lets
           # Xcode silently upgrade the framework, which drifts the signing
           # tools hash and breaks releases.
-          sparkle_block="$(sed -n '/XCRemoteSwiftPackageReference "Sparkle" \*\/ = {/,/};/p' tabby.xcodeproj/project.pbxproj)"
+          sparkle_block="$(sed -n '/XCRemoteSwiftPackageReference "Sparkle" \*\/ = {/,/};/p' Cotabby.xcodeproj/project.pbxproj)"
 
           if ! echo "${sparkle_block}" | grep -q 'kind = exactVersion'; then
             echo "Sparkle must use exactVersion pinning in project.pbxproj." >&2
@@ -64,7 +72,7 @@ jobs:
           pbxproj_version="$(echo "${sparkle_block}" | grep -A1 'kind = exactVersion' | grep 'version' | sed 's/.*= //;s/;.*//' | tr -d '[:space:]')"
           resolved_version="$(python3 -c "
           import json, sys
-          resolved = json.load(open('tabby.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved'))
+          resolved = json.load(open('Cotabby.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved'))
           pins = {p['identity']: p for p in resolved['pins']}
           if 'sparkle' not in pins:
               print('sparkle not found in Package.resolved. Available: ' + ', '.join(sorted(pins.keys())), file=sys.stderr)

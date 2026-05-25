@@ -58,16 +58,13 @@ final class ModelDownloadManager: ObservableObject {
     var onModelDirectoryChanged: (() -> Void)?
 
     private let runtimeDirectoryURL: URL
-    private let mlxRuntimeDirectoryURL: URL
     private var runtimeSearchDirectories: [URL]
     private var downloadTasks: [String: Task<Void, Never>] = [:]
 
-    init(runtimeDirectoryURL: URL? = nil, mlxRuntimeDirectoryURL: URL? = nil) {
+    init(runtimeDirectoryURL: URL? = nil) {
         let primaryDirectoryURL =
             runtimeDirectoryURL ?? BundledRuntimeLocator.userRuntimeDirectoryURL()
         self.runtimeDirectoryURL = primaryDirectoryURL
-        self.mlxRuntimeDirectoryURL =
-            mlxRuntimeDirectoryURL ?? BundledRuntimeLocator.mlxRuntimeDirectoryURL()
 
         var directories = [primaryDirectoryURL]
         for directoryURL in BundledRuntimeLocator.runtimeSearchDirectories() {
@@ -187,28 +184,13 @@ final class ModelDownloadManager: ObservableObject {
     }
 
     /// Returns `true` only when the model lives in Cotabby's user-writable model directory.
-    /// GGUF models are single files; MLX models are subdirectories.
-    func canDeleteModel(filename: String, format: ModelFormat = .gguf) -> Bool {
-        switch format {
-        case .gguf:
-            return FileManager.default.fileExists(atPath: modelFileURL(filename: filename).path)
-        case .mlx:
-            return FileManager.default.fileExists(
-                atPath: mlxModelDirectoryURL(dirname: filename).path
-            )
-        }
+    func canDeleteModel(filename: String) -> Bool {
+        FileManager.default.fileExists(atPath: modelFileURL(filename: filename).path)
     }
 
     /// Removes one model from the user-managed runtime directory.
-    /// GGUF: deletes a single file. MLX: deletes an entire directory.
-    func deleteModel(filename: String, format: ModelFormat = .gguf) {
-        let targetURL: URL
-        switch format {
-        case .gguf:
-            targetURL = modelFileURL(filename: filename)
-        case .mlx:
-            targetURL = mlxModelDirectoryURL(dirname: filename)
-        }
+    func deleteModel(filename: String) {
+        let targetURL = modelFileURL(filename: filename)
 
         guard FileManager.default.fileExists(atPath: targetURL.path) else {
             return
@@ -229,12 +211,7 @@ final class ModelDownloadManager: ObservableObject {
         }
 
         do {
-            switch model.artifact {
-            case .singleFile(let url):
-                try await performSingleFileDownload(model, url: url)
-            case .multiFile(let files):
-                try await performMultiFileDownload(model, files: files)
-            }
+            try await performSingleFileDownload(model, url: model.downloadURL)
 
             TabbyLogger.models.info("Download complete for \(model.filename)")
             modelStates[model.filename] = .downloaded
@@ -290,72 +267,6 @@ final class ModelDownloadManager: ObservableObject {
         try fileManager.moveItem(at: stagingURL, to: destinationURL)
     }
 
-    private func performMultiFileDownload(
-        _ model: DownloadableRuntimeModel, files: [RemoteModelFile]
-    ) async throws {
-        try ensureMLXRuntimeDirectoryExists()
-        let fileManager = FileManager.default
-        let stagingDirName = "\(model.filename).staging-\(UUID().uuidString)"
-        let stagingURL = mlxRuntimeDirectoryURL.appendingPathComponent(
-            stagingDirName, isDirectory: true
-        )
-        try fileManager.createDirectory(at: stagingURL, withIntermediateDirectories: true)
-
-        do {
-            var completedFiles = 0
-            let totalFiles = files.count
-
-            for file in files {
-                try Task.checkCancellation()
-
-                let delegate = ModelDownloadSessionDelegate { [weak self] fileProgress in
-                    Task { @MainActor [weak self] in
-                        guard let self, self.downloadTasks[model.filename] != nil else { return }
-                        let baseProgress = Double(completedFiles) / Double(totalFiles)
-                        let fileContribution = (fileProgress ?? 0) / Double(totalFiles)
-                        self.modelStates[model.filename] = .downloading(
-                            progress: baseProgress + fileContribution
-                        )
-                    }
-                }
-
-                let result = try await delegate.download(from: file.url)
-                try validate(response: result.response)
-
-                let fileDestination = stagingURL.appendingPathComponent(file.relativePath)
-                let parentDir = fileDestination.deletingLastPathComponent()
-                if !fileManager.fileExists(atPath: parentDir.path) {
-                    try fileManager.createDirectory(
-                        at: parentDir, withIntermediateDirectories: true
-                    )
-                }
-                try fileManager.moveItem(at: result.temporaryURL, to: fileDestination)
-
-                if let expectedBytes = file.expectedSizeBytes {
-                    try ModelFileValidator.validateSize(
-                        of: fileDestination, expectedBytes: expectedBytes
-                    )
-                }
-                if let sha256 = file.sha256 {
-                    try ModelFileValidator.validateSHA256(
-                        of: fileDestination, expectedSHA256: sha256
-                    )
-                }
-
-                completedFiles += 1
-            }
-        } catch {
-            try? fileManager.removeItem(at: stagingURL)
-            throw error
-        }
-
-        let destinationURL = mlxModelDirectoryURL(dirname: model.filename)
-        if fileManager.fileExists(atPath: destinationURL.path) {
-            try fileManager.removeItem(at: destinationURL)
-        }
-        try fileManager.moveItem(at: stagingURL, to: destinationURL)
-    }
-
     private func validate(response: URLResponse) throws {
         guard let httpResponse = response as? HTTPURLResponse else {
             return
@@ -374,28 +285,12 @@ final class ModelDownloadManager: ObservableObject {
         )
     }
 
-    private func ensureMLXRuntimeDirectoryExists() throws {
-        try FileManager.default.createDirectory(
-            at: mlxRuntimeDirectoryURL,
-            withIntermediateDirectories: true
-        )
-    }
-
     private func modelFileURL(filename: String) -> URL {
         runtimeDirectoryURL.appendingPathComponent(filename, isDirectory: false)
     }
 
-    private func mlxModelDirectoryURL(dirname: String) -> URL {
-        mlxRuntimeDirectoryURL.appendingPathComponent(dirname, isDirectory: true)
-    }
-
     private func isInstalled(model: DownloadableRuntimeModel) -> Bool {
-        switch model.format {
-        case .gguf:
-            return model.allKnownFilenames.contains(where: isInstalled(filename:))
-        case .mlx:
-            return isMLXModelInstalled(dirname: model.filename)
-        }
+        model.allKnownFilenames.contains(where: isInstalled(filename:))
     }
 
     private func isInstalled(filename: String) -> Bool {
@@ -405,11 +300,6 @@ final class ModelDownloadManager: ObservableObject {
         }
     }
 
-    private func isMLXModelInstalled(dirname: String) -> Bool {
-        let dirURL = mlxModelDirectoryURL(dirname: dirname)
-        let configURL = dirURL.appendingPathComponent("config.json")
-        return FileManager.default.fileExists(atPath: configURL.path)
-    }
 }
 
 /// Bridges `URLSessionDownloadDelegate` callbacks into one async result plus incremental progress

@@ -16,7 +16,6 @@ import Logging
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let permissionManager: PermissionManager
     let runtimeModel: RuntimeBootstrapModel
-    let mlxRuntimeManager: MLXRuntimeManager
     let modelDownloadManager: ModelDownloadManager
     let focusModel: FocusTrackingModel
     let inputMonitor: InputMonitor
@@ -42,7 +41,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let environment = CotabbyAppEnvironment()
         permissionManager = environment.permissionManager
         runtimeModel = environment.runtimeModel
-        mlxRuntimeManager = environment.mlxRuntimeManager
         modelDownloadManager = environment.modelDownloadManager
         focusModel = environment.focusModel
         inputMonitor = environment.inputMonitor
@@ -150,12 +148,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         focusModel.stop()
 
         runtimeModel.shutdownSync(timeoutSeconds: 1.5)
-
-        // MLX is actor-isolated so we cannot block on it synchronously. Setting `loadedModel = nil`
-        // is fast and ARC-driven; on the rare termination where MLX is mid-generation we fall back
-        // to the OS reclaiming GPU resources during `exit()`. MLX has not been reported to hit the
-        // same Metal teardown crash as llama.cpp.
-        mlxRuntimeManager.stop()
     }
 
     /// Shows or hides the field-edge Cotabby icon based on focus state, global enable, per-app
@@ -183,8 +175,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         switch suggestionSettings.selectedEngine {
         case .llamaOpenSource:
             runtimeModel.startIfNeeded()
-        case .mlxSwift:
-            Task { try? await mlxRuntimeManager.prepare() }
         case .appleIntelligence:
             break
         }
