@@ -174,6 +174,8 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
 
     // MARK: - Summary generation (concurrent with autocomplete)
 
+    private static let summarizeContextWindowCap = 2048
+
     /// Generates a summary using an ephemeral sequence so the autocomplete cache is unaffected.
     /// The lifecycle guard prevents `shutdown()` from unloading the model while sampling is active.
     func summarize(
@@ -204,7 +206,15 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
             throw LlamaRuntimeError.generationFailed("Tokenization returned no prompt tokens.")
         }
 
-        let maxPromptTokens = max(1, preparedRuntime.contextWindowTokens - options.maxPredictionTokens)
+        // Summary generation is auxiliary visual-context work, so keep its temporary context
+        // smaller than autocomplete's main KV cache. That lets autocomplete use a larger default
+        // window without doubling peak memory when summarization runs alongside it.
+        let summarizeContextWindow = min(
+            preparedRuntime.contextWindowTokens,
+            Self.summarizeContextWindowCap
+        )
+
+        let maxPromptTokens = max(1, summarizeContextWindow - options.maxPredictionTokens)
         let promptTokens = allPromptTokens.count > maxPromptTokens
             ? Array(allPromptTokens.suffix(maxPromptTokens))
             : allPromptTokens
