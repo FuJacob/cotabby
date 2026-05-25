@@ -27,7 +27,7 @@ struct CustomRulesEditor: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 14) {
             HStack {
                 Text("Rules")
                     .font(.system(size: 13, weight: .medium))
@@ -47,7 +47,7 @@ struct CustomRulesEditor: View {
                 .foregroundStyle(.secondary)
 
             if !rules.isEmpty {
-                RulesFlowLayout(spacing: 8) {
+                RulesFlowLayout(spacing: 10) {
                     ForEach(rules, id: \.self) { rule in
                         RuleChip(text: rule) {
                             suggestionSettings.removeRule(rule)
@@ -75,7 +75,7 @@ struct CustomRulesEditor: View {
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.tertiary)
 
-                RulesFlowLayout(spacing: 8) {
+                RulesFlowLayout(spacing: 10) {
                     ForEach(availableSuggestions, id: \.self) { suggestion in
                         SuggestionChip(text: suggestion) {
                             suggestionSettings.addRule(suggestion)
@@ -115,8 +115,8 @@ private struct RuleChip: View {
             .buttonStyle(.plain)
             .opacity(isHovering ? 1.0 : 0.6)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 4)
+        .padding(.horizontal, 11)
+        .padding(.vertical, 6)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(.tertiary.opacity(0.3))
