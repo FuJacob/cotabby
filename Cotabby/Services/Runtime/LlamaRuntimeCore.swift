@@ -148,7 +148,6 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         }
 
         var generatedText = ""
-        var hasVisibleContent = false
 
         for _ in 0 ..< options.maxPredictionTokens {
             let result = engine.sampleNext(sequenceID)
@@ -159,14 +158,6 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
 
             let piece = Self.extractPiece(result)
             generatedText += piece
-
-            // Allow leading formatting noise but stop once a newline appears after visible content.
-            if piece.unicodeScalars.contains(where: Self.isVisibleOutputScalar) {
-                hasVisibleContent = true
-            }
-            if hasVisibleContent && generatedText.contains("\n") {
-                break
-            }
         }
 
         return generatedText
@@ -392,12 +383,6 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
             repetition_penalty: Float(options.repetitionPenalty),
             seed: options.seed ?? 0
         )
-    }
-
-    /// Inline autocomplete cares about visible suggestion text, not formatting-only tokens.
-    private static func isVisibleOutputScalar(_ scalar: UnicodeScalar) -> Bool {
-        if CharacterSet.controlCharacters.contains(scalar) { return false }
-        return !CharacterSet.whitespacesAndNewlines.contains(scalar)
     }
 
     private static func reusableTokenCount(commonTokenPrefix: Int, newPromptTokenCount: Int) -> Int {

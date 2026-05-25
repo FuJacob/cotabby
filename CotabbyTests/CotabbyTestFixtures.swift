@@ -96,7 +96,8 @@ enum CotabbyTestFixtures {
         completionLengthInstruction: String = "Return only the next few words.",
         userName: String? = nil,
         clipboardContext: String? = nil,
-        visualContextSummary: String? = nil
+        visualContextSummary: String? = nil,
+        isMultiLineEnabled: Bool = false
     ) -> SuggestionRequest {
         let resolvedPrecedingText = precedingText ?? prefixText
         let context = focusedInputContext(
@@ -121,7 +122,8 @@ enum CotabbyTestFixtures {
             completionLengthInstruction: completionLengthInstruction,
             userName: userName,
             clipboardContext: clipboardContext,
-            visualContextSummary: visualContextSummary
+            visualContextSummary: visualContextSummary,
+            isMultiLineEnabled: isMultiLineEnabled
         )
     }
 
@@ -209,7 +211,8 @@ enum CotabbyTestFixtures {
         isClipboardContextEnabled: Bool = true,
         userName: String = "",
         debounceMilliseconds: Int = 50,
-        focusPollIntervalMilliseconds: Int = 50
+        focusPollIntervalMilliseconds: Int = 50,
+        isMultiLineEnabled: Bool = false
     ) -> SuggestionSettingsSnapshot {
         SuggestionSettingsSnapshot(
             isGloballyEnabled: isGloballyEnabled,
@@ -219,7 +222,8 @@ enum CotabbyTestFixtures {
             isClipboardContextEnabled: isClipboardContextEnabled,
             userName: userName,
             debounceMilliseconds: debounceMilliseconds,
-            focusPollIntervalMilliseconds: focusPollIntervalMilliseconds
+            focusPollIntervalMilliseconds: focusPollIntervalMilliseconds,
+            isMultiLineEnabled: isMultiLineEnabled
         )
     }
 }

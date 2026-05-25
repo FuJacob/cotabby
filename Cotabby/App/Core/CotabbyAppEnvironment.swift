@@ -56,6 +56,19 @@ final class CotabbyAppEnvironment {
             ignoredBundleIdentifier: Bundle.main.bundleIdentifier,
             publishesPollingEvents: FocusDebugOverlayController.isEnabled
         )
+        // The snapshot is poll-based, so after a fast app switch the closure may briefly
+        // evaluate against the previous app's identity until the next AX poll fires. This
+        // is the same race the downstream evaluator already has — not a new regression.
+        inputMonitor.shouldProcessEventsProvider = { [weak focusModel] in
+            guard suggestionSettings.isGloballyEnabled else { return false }
+            guard let snapshot = focusModel?.snapshot else { return true }
+            if TerminalAppDetector.isTerminal(bundleIdentifier: snapshot.bundleIdentifier) { return false }
+            if let bundleID = snapshot.bundleIdentifier,
+               suggestionSettings.isApplicationDisabled(bundleIdentifier: bundleID) {
+                return false
+            }
+            return true
+        }
         let appUpdateManager = AppUpdateManager()
         let launchAtLoginService = LaunchAtLoginService()
         let welcomeCoordinator = WelcomeCoordinator(
@@ -83,6 +96,7 @@ final class CotabbyAppEnvironment {
         let overlayController = OverlayController(suggestionSettings: suggestionSettings)
         let activationIndicatorController = ActivationIndicatorController()
         let clipboardContextProvider = ClipboardContextProvider()
+        let clipboardRelevanceFilter = ClipboardRelevanceFilter()
         let summarizer = LlamaVisualContextSummarizer(runtimeManager: runtimeManager)
         let screenshotContextGenerator = ScreenshotContextGenerator(summarizer: summarizer)
         let visualContextCoordinator = VisualContextCoordinator(
@@ -134,6 +148,7 @@ final class CotabbyAppEnvironment {
             suggestionEngine: suggestionEngine,
             suggestionSettings: suggestionSettings,
             clipboardContextProvider: clipboardContextProvider,
+            clipboardRelevanceFilter: clipboardRelevanceFilter,
             visualContextCoordinator: visualContextCoordinator,
             composeContextCollector: composeContextCollector,
             interactionState: interactionState,

@@ -104,7 +104,9 @@ struct SuggestionSettingsSnapshot: Equatable, Sendable {
     let userTags: [String]
     let debounceMilliseconds: Int
     let focusPollIntervalMilliseconds: Int
+    let isMultiLineEnabled: Bool
 
+    // swiftlint:disable:next function_parameter_count
     init(
         isGloballyEnabled: Bool,
         disabledAppBundleIdentifiers: Set<String>,
@@ -115,7 +117,8 @@ struct SuggestionSettingsSnapshot: Equatable, Sendable {
         userName: String,
         userTags: [String] = [],
         debounceMilliseconds: Int,
-        focusPollIntervalMilliseconds: Int
+        focusPollIntervalMilliseconds: Int,
+        isMultiLineEnabled: Bool = false
     ) {
         self.isGloballyEnabled = isGloballyEnabled
         self.disabledAppBundleIdentifiers = disabledAppBundleIdentifiers
@@ -127,5 +130,6 @@ struct SuggestionSettingsSnapshot: Equatable, Sendable {
         self.userTags = userTags
         self.debounceMilliseconds = debounceMilliseconds
         self.focusPollIntervalMilliseconds = focusPollIntervalMilliseconds
+        self.isMultiLineEnabled = isMultiLineEnabled
     }
 }

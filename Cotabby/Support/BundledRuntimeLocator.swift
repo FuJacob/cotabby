@@ -71,10 +71,30 @@ struct BundledRuntimeLocator {
             .appendingPathComponent(Self.mlxRuntimeFolderName, isDirectory: true)
     }
 
+    private static let customModelDirectoryKey = "customModelDirectoryPath"
+
+    /// Returns the user-configured custom model directory, if one is set.
+    static func customModelDirectoryURL() -> URL? {
+        guard let path = UserDefaults.standard.string(forKey: customModelDirectoryKey),
+              !path.isEmpty
+        else { return nil }
+        return URL(fileURLWithPath: path, isDirectory: true)
+    }
+
+    /// Persists (or clears) a custom model directory that is searched before the default path.
+    static func setCustomModelDirectory(_ url: URL?) {
+        UserDefaults.standard.set(url?.path, forKey: customModelDirectoryKey)
+    }
+
     /// Ordered runtime search directories used to discover GGUF files.
     /// This mirrors runtime resolution order and is shared by model-install status checks.
     static func runtimeSearchDirectories(bundle: Bundle = .main) -> [URL] {
-        [userRuntimeDirectoryURL(bundle: bundle)]
+        var directories: [URL] = []
+        if let custom = customModelDirectoryURL() {
+            directories.append(custom)
+        }
+        directories.append(userRuntimeDirectoryURL(bundle: bundle))
+        return directories
     }
 
     /// Search directories for MLX model discovery.
@@ -146,6 +166,7 @@ struct BundledRuntimeLocator {
 
     /// Enumerates runtime directories. By default we only load from the user-managed model directory.
     /// An explicit `runtimeDirectoryPath` can override this for tests or advanced local setups.
+    /// A user-configured custom directory (e.g. LM Studio) is searched before the default.
     private func runtimeCandidates(for configuration: LlamaRuntimeConfiguration)
         -> [RuntimeCandidate] {
         if let runtimeDirectoryPath = configuration.runtimeDirectoryPath,
@@ -159,13 +180,23 @@ struct BundledRuntimeLocator {
             ]
         }
 
-        let userRuntimeDirectoryURL = Self.userRuntimeDirectoryURL(bundle: bundle)
-        return [
-            RuntimeCandidate(
-                runtimeDirectoryURL: userRuntimeDirectoryURL,
-                modelDirectoryURL: userRuntimeDirectoryURL
+        var candidates: [RuntimeCandidate] = []
+        if let custom = Self.customModelDirectoryURL() {
+            candidates.append(
+                RuntimeCandidate(
+                    runtimeDirectoryURL: custom,
+                    modelDirectoryURL: custom
+                )
             )
-        ]
+        }
+        let userDir = Self.userRuntimeDirectoryURL(bundle: bundle)
+        candidates.append(
+            RuntimeCandidate(
+                runtimeDirectoryURL: userDir,
+                modelDirectoryURL: userDir
+            )
+        )
+        return candidates
     }
 
     /// Enumerates and orders all GGUF models for one runtime candidate.
