@@ -1,5 +1,17 @@
 # Cotabby
 
+---
+
+<p align="center">
+  <sub>If Cotabby is useful to you, consider supporting development:</sub>
+</p>
+
+<p align="center">
+  <a href="https://buymeacoffee.com/cotabby" target="_blank"><img src="https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png" alt="Buy Me A Coffee" style="height: 41px !important;width: 174px !important;box-shadow: 0px 3px 2px 0px rgba(190, 190, 190, 0.5) !important;-webkit-box-shadow: 0px 3px 2px 0px rgba(190, 190, 190, 0.5) !important;" ></a>
+</p>
+
+---
+
 <p align="center">
   <img width="128" alt="Cotabby logo" src="https://github.com/user-attachments/assets/8a67095e-4d03-4055-8d4c-8871335152dd" />
 </p>
@@ -129,12 +141,6 @@ Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, bui
 - The Hugging Face community for hosting and distributing GGUF model weights
 - Swift, SwiftUI, and AppKit, which together make the menu bar app, overlays, and settings UI possible
 - Everyone who has filed issues, tested prereleases, and contributed pull requests
-
-## Support
-
-If Cotabby is useful to you, consider buying us a coffee:
-
-<a href="https://buymeacoffee.com/cotabby" target="_blank"><img src="https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png" alt="Buy Me A Coffee" style="height: 41px !important;width: 174px !important;box-shadow: 0px 3px 2px 0px rgba(190, 190, 190, 0.5) !important;-webkit-box-shadow: 0px 3px 2px 0px rgba(190, 190, 190, 0.5) !important;" ></a>
 
 ## Built by
 
