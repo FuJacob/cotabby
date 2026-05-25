@@ -216,7 +216,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				A1C3E0122F90000100AAA001 /* XCRemoteSwiftPackageReference "Sparkle" */,
-				19E177E82FC1B7890067E267 /* XCLocalSwiftPackageReference "../LlamaMiddleware" */,
+				19E177E82FC1B7890067E267 /* XCRemoteSwiftPackageReference "cotabbyinference" */,
 				194B33B12FC3F33B00DF6F60 /* XCRemoteSwiftPackageReference "swift-log" */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -566,14 +566,15 @@
 		};
 /* End XCConfigurationList section */
 
-/* Begin XCLocalSwiftPackageReference section */
-		19E177E82FC1B7890067E267 /* XCLocalSwiftPackageReference "../LlamaMiddleware" */ = {
-			isa = XCLocalSwiftPackageReference;
-			relativePath = ../LlamaMiddleware;
-		};
-/* End XCLocalSwiftPackageReference section */
-
 /* Begin XCRemoteSwiftPackageReference section */
+		19E177E82FC1B7890067E267 /* XCRemoteSwiftPackageReference "cotabbyinference" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/FuJacob/cotabbyinference.git";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
 		194B33B12FC3F33B00DF6F60 /* XCRemoteSwiftPackageReference "swift-log" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/apple/swift-log.git";
@@ -605,6 +606,7 @@
 		};
 		19E177E92FC1B7890067E267 /* CotabbyInference */ = {
 			isa = XCSwiftPackageProductDependency;
+			package = 19E177E82FC1B7890067E267 /* XCRemoteSwiftPackageReference "cotabbyinference" */;
 			productName = CotabbyInference;
 		};
 		A1C3E0102F90000100AAA001 /* Sparkle */ = {
