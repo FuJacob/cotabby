@@ -52,8 +52,8 @@
 		193741492F81DE7000BEC04F /* Cotabby.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Cotabby.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		3FBFA92FA44AA317135426FB /* CotabbyTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CotabbyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		562F89255AF340C15A0554BE /* DownloadOutcomeClassifierTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DownloadOutcomeClassifierTests.swift; sourceTree = "<group>"; };
-		7A1E3B0D2FC8A00100CARET2 /* AXTextGeometryResolverTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AXTextGeometryResolverTests.swift; sourceTree = "<group>"; };
 		5A39EC1A44E9160E13E2AE77 /* SuggestionAvailabilityEvaluatorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SuggestionAvailabilityEvaluatorTests.swift; sourceTree = "<group>"; };
+		7A1E3B0D2FC8A00100CARET2 /* AXTextGeometryResolverTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AXTextGeometryResolverTests.swift; sourceTree = "<group>"; };
 		8B1121FFDAD30C7F62E15289 /* SuggestionRequestFactoryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SuggestionRequestFactoryTests.swift; sourceTree = "<group>"; };
 		BAAEE25772008D75883F2655 /* DownloadFileRescuerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DownloadFileRescuerTests.swift; sourceTree = "<group>"; };
 		C10000112F91000100BBB011 /* CotabbyTestFixtures.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CotabbyTestFixtures.swift; sourceTree = "<group>"; };
@@ -439,7 +439,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
@@ -474,7 +474,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
