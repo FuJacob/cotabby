@@ -108,11 +108,12 @@ private enum WelcomeStep: Int, Comparable {
 extension WelcomeView {
     fileprivate var welcomeStep: some View {
         VStack(spacing: 24) {
-            Image("CotabbyLogo")
+            Image("MenuBarCatIcon")
+                .renderingMode(.template)
                 .resizable()
                 .scaledToFit()
                 .frame(width: 72, height: 72)
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .foregroundStyle(.white)
 
             VStack(spacing: 8) {
                 Text("Welcome to Cotabby")
