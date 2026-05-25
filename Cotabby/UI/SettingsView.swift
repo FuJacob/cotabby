@@ -72,15 +72,11 @@ struct SettingsView: View {
     private var settingsHeader: some View {
         Section {
             HStack(spacing: 10) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(Color.primary.opacity(0.06))
-
-                    Image(systemName: "pawprint.fill")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(.primary)
-                }
-                .frame(width: 32, height: 32)
+                Image("CotabbyLogo")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 32, height: 32)
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Cotabby")
