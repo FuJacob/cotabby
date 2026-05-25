@@ -192,7 +192,7 @@ extension WelcomeView {
 
         return EngineCard(
             artworkName: "apple_intelligence",
-            title: "Apple Intelligence [BETA]",
+            title: "Apple Intelligence",
             subtitle: isAvailable
                 ? "Built into macOS. No download needed."
                 : "Requires Apple Silicon and macOS 26.",

@@ -85,7 +85,7 @@ Everything runs on-device. No hosted API, no cloud round-trip.
 
 ## Engines
 
-**Apple Intelligence [EXPERIMENTAL]**: uses Apple's on-device `FoundationModels` runtime on macOS 26 or later, no download required. Currently does not perform as well as the Open Source models. We're actively working on improving it.
+**Apple Intelligence**: uses Apple's on-device `FoundationModels` runtime on macOS 26 or later, no download required.
 
 **Open Source**: runs local GGUF models in-process through llama.cpp via `llama.swift`. Built-in downloadable models suggested for use:
 

@@ -30,20 +30,23 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
+            // Header keeps the app identity and the (important, frequently-checked) update
+            // control pinned at the very top; Support stays directly beneath it.
             settingsHeader
             supportSection
-            updatesSection
-            uninstallSection
+            // Surfaces broken state (missing permission / unavailable engine) high up so the
+            // user doesn't have to scroll to discover why autocomplete isn't working.
+            attentionBanner
             generalSection
-            autocompleteSection
-            keybindSection
+            modelEngineSection
+            writingSection
+            shortcutsSection
             // performanceSection — hidden until these controls are productized.
             // Both suggestion delay and focus poll interval are developer-facing
             // tuning knobs that invite misconfiguration for end users.
-            disabledAppsSection
-            profileSection
+            appsSection
             permissionsSection
-            localModelsSection
+            uninstallSection
         }
         .formStyle(.grouped)
         .frame(minWidth: 620, minHeight: 560)
@@ -87,13 +90,67 @@ struct SettingsView: View {
                         .font(.system(size: 11, design: .rounded))
                         .foregroundStyle(.secondary)
                 }
+
+                Spacer(minLength: 12)
+
+                // Updates are important enough to stay visible without scrolling, but compact
+                // enough to ride along in the title bar instead of owning a whole section.
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text(appVersionText)
+                        .font(.system(size: 11, design: .rounded))
+                        .foregroundStyle(.secondary)
+
+                    Button("Check for Updates") {
+                        appUpdateManager.checkForUpdates()
+                    }
+                    .controlSize(.small)
+                }
             }
         }
     }
 
+    /// Conditional banner that only renders when something is preventing autocomplete from
+    /// working. Detailed remediation still lives in the Permissions / Model sections below;
+    /// this just makes the problem impossible to miss.
+    @ViewBuilder
+    private var attentionBanner: some View {
+        if !permissionManager.requiredPermissionsGranted {
+            attentionRow("Cotabby needs more access to run. See Permissions below to grant it.")
+        } else if suggestionSettings.selectedEngine == .appleIntelligence,
+                  !foundationModelAvailabilityService.isAvailable {
+            attentionRow(foundationModelAvailabilityService.userVisibleMessage)
+        } else if suggestionSettings.selectedEngine == .llamaOpenSource,
+                  case .failed(let detail) = runtimeModel.state {
+            attentionRow("\(detail) See Model & Engine below.")
+        }
+    }
+
+    @ViewBuilder
+    private func attentionRow(_ message: String) -> some View {
+        Section {
+            HStack(spacing: 10) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+
+                Text(message)
+                    .font(.callout)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    /// Everyday on/off behavior the user reaches for most often, plus the onboarding re-entry.
     @ViewBuilder
     private var generalSection: some View {
         Section("General") {
+            Toggle("Enable Globally", isOn: globallyEnabledBinding)
+
+            Toggle("Show Indicator", isOn: showIndicatorBinding)
+
+            Toggle("Allow Multi-line Suggestions", isOn: multiLineEnabledBinding)
+
+            Toggle("Include Clipboard Context", isOn: clipboardContextEnabledBinding)
+
             // Open at Login is hidden until the quarantine/SMAppService issue is resolved.
             // The toggle reports .notFound for quarantined apps and apps outside /Applications,
             // making it appear broken for most users. See LaunchAtLoginService for details.
@@ -106,36 +163,11 @@ struct SettingsView: View {
         }
     }
 
+    /// Which brain runs (engine + availability) and the local model files it uses. Merged so the
+    /// engine choice and the models that back it are no longer separated by unrelated sections.
     @ViewBuilder
-    private var autocompleteSection: some View {
-        Section("Autocomplete") {
-            Toggle("Enable Globally", isOn: globallyEnabledBinding)
-
-            Toggle("Include Clipboard Context", isOn: clipboardContextEnabledBinding)
-
-            Toggle("Show Indicator", isOn: showIndicatorBinding)
-
-            // TODO: Re-enable ghost text color customization once the inline overlay is stable.
-            // LabeledContent("Ghost Text Color") {
-            //     HStack(spacing: 8) {
-            //         ColorPicker(
-            //             "Ghost Text Color",
-            //             selection: customSuggestionTextColorBinding,
-            //             supportsOpacity: false
-            //         )
-            //         .labelsHidden()
-            //
-            //         Button("Use Automatic") {
-            //             suggestionSettings.setCustomSuggestionTextColorHex(nil)
-            //         }
-            //         .disabled(suggestionSettings.customSuggestionTextColorHex == nil)
-            //     }
-            // }
-            //
-            // Text(ghostTextColorDescription)
-            //     .font(.caption)
-            //     .foregroundStyle(.secondary)
-
+    private var modelEngineSection: some View {
+        Section("Model & Engine") {
             Picker("Engine", selection: selectedEngineBinding) {
                 ForEach(SuggestionEngineKind.allCases) { engine in
                     Text(engine.displayLabel)
@@ -156,6 +188,16 @@ struct SettingsView: View {
                 }
             }
 
+            if suggestionSettings.selectedEngine.supportsLocalModelManagement {
+                localModelControls
+            }
+        }
+    }
+
+    /// How the completion reads: length, language, custom directives, and who the user is.
+    @ViewBuilder
+    private var writingSection: some View {
+        Section("Writing") {
             Picker("Length", selection: selectedWordCountPresetBinding) {
                 ForEach(SuggestionWordCountPreset.allCases) { preset in
                     Text(preset.displayLabel)
@@ -169,12 +211,32 @@ struct SettingsView: View {
                         .tag(language)
                 }
             }
+
+            VStack(alignment: .leading, spacing: 16) {
+                Text("This information is passed to the AI to help personalize your completions.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Name")
+                        .font(.system(size: 13, weight: .medium))
+
+                    TextField("What should Cotabby call you?", text: Binding(
+                        get: { suggestionSettings.userName },
+                        set: { suggestionSettings.setUserName($0) }
+                    ))
+                    .textFieldStyle(.roundedBorder)
+                }
+
+                CustomRulesEditor(suggestionSettings: suggestionSettings)
+            }
+            .padding(.vertical, 4)
         }
     }
 
     @ViewBuilder
-    private var keybindSection: some View {
-        Section("Keybind") {
+    private var shortcutsSection: some View {
+        Section("Shortcuts") {
             LabeledContent("Accept Word") {
                 HStack(spacing: 8) {
                     Text(suggestionSettings.acceptanceKeyLabel)
@@ -279,8 +341,8 @@ struct SettingsView: View {
     }
 
     @ViewBuilder
-    private var disabledAppsSection: some View {
-        Section("Disabled Apps") {
+    private var appsSection: some View {
+        Section("Apps") {
             if suggestionSettings.disabledAppRules.isEmpty {
                 Text("No apps are disabled. Apps you turn off from the menu bar will appear here.")
                     .font(.caption)
@@ -290,31 +352,6 @@ struct SettingsView: View {
                     disabledAppRuleRow(rule)
                 }
             }
-        }
-    }
-
-    @ViewBuilder
-    private var profileSection: some View {
-        Section("Profile") {
-            VStack(alignment: .leading, spacing: 16) {
-                Text("This information is passed to the AI to help personalize your completions.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Name")
-                        .font(.system(size: 13, weight: .medium))
-
-                    TextField("What should Cotabby call you?", text: Binding(
-                        get: { suggestionSettings.userName },
-                        set: { suggestionSettings.setUserName($0) }
-                    ))
-                    .textFieldStyle(.roundedBorder)
-                }
-
-                CustomRulesEditor(suggestionSettings: suggestionSettings)
-            }
-            .padding(.vertical, 4)
         }
     }
 
@@ -345,9 +382,11 @@ struct SettingsView: View {
         }
     }
 
+    /// Local model rows nested inside the Model & Engine section (no `Section` wrapper of its
+    /// own). Only shown for engines that manage local GGUF files.
     @ViewBuilder
-    private var localModelsSection: some View {
-        Section("Local Models") {
+    private var localModelControls: some View {
+        Group {
             Text(localModelsDescription)
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -441,22 +480,6 @@ struct SettingsView: View {
                 )
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var updatesSection: some View {
-        Section("Updates") {
-            LabeledContent("Version", value: appVersionText)
-
-            LabeledContent {
-                Button("Check for Updates") {
-                    appUpdateManager.checkForUpdates()
-                }
-            } label: {
-                Text("Check GitHub Releases for updates.")
-                    .foregroundStyle(.secondary)
             }
         }
     }
@@ -600,6 +623,13 @@ struct SettingsView: View {
         Binding(
             get: { suggestionSettings.showIndicator },
             set: { suggestionSettings.setShowIndicator($0) }
+        )
+    }
+
+    private var multiLineEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.isMultiLineEnabled },
+            set: { suggestionSettings.setMultiLineEnabled($0) }
         )
     }
 
