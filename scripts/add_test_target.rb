@@ -1,6 +1,6 @@
 #!/usr/bin/env ruby
-# Adds a `tabbyTests` unit-test target to tabby.xcodeproj and wires the
-# existing Swift files in `tabbyTests/` into it. Idempotent — safe to re-run.
+# Adds a `CotabbyTests` unit-test target to Cotabby.xcodeproj and wires the
+# existing Swift files in `CotabbyTests/` into it. Idempotent — safe to re-run.
 #
 # Why a script instead of clicking through Xcode:
 #  - Xcode's target template is opaque; running it on every contributor's box
@@ -17,12 +17,12 @@
 
 require 'xcodeproj'
 
-PROJECT_PATH      = 'tabby.xcodeproj'
-HOST_TARGET_NAME  = 'tabby'
-TEST_TARGET_NAME  = 'tabbyTests'
+PROJECT_PATH      = 'Cotabby.xcodeproj'
+HOST_TARGET_NAME  = 'Cotabby'
+TEST_TARGET_NAME  = 'CotabbyTests'
 DEPLOYMENT_TARGET = '26.0'
-TEST_BUNDLE_ID    = 'com.jacobfu.tabby.tabbyTests'
-TESTS_DIR         = 'tabbyTests'
+TEST_BUNDLE_ID    = 'com.jacobfu.cotabby.CotabbyTests'
+TESTS_DIR         = 'CotabbyTests'
 
 project = Xcodeproj::Project.open(PROJECT_PATH)
 
@@ -45,7 +45,7 @@ end
 
 # --- 2. Build settings ------------------------------------------------------
 # TEST_HOST + BUNDLE_LOADER let the test bundle load the app's symbols at
-# test time; this is what makes `@testable import tabby` actually resolve.
+# test time; this is what makes `@testable import Cotabby` actually resolve.
 # We intentionally disable code signing for the test bundle so CI runners
 # without the dev cert can still run `xcodebuild test`.
 test_target.build_configurations.each do |config|
@@ -56,7 +56,7 @@ test_target.build_configurations.each do |config|
     # predictable name.
     'PRODUCT_NAME'                 => '$(TARGET_NAME)',
     'PRODUCT_MODULE_NAME'          => '$(TARGET_NAME)',
-    'TEST_HOST'                    => '$(BUILT_PRODUCTS_DIR)/tabby.app/Contents/MacOS/tabby',
+    'TEST_HOST'                    => '$(BUILT_PRODUCTS_DIR)/Cotabby.app/Contents/MacOS/Cotabby',
     'BUNDLE_LOADER'                => '$(TEST_HOST)',
     'PRODUCT_BUNDLE_IDENTIFIER'    => TEST_BUNDLE_ID,
     'SWIFT_VERSION'                => '5.0',
@@ -120,7 +120,7 @@ test_files.each do |path|
 end
 
 # --- 5. Scheme: add the test target to the Test action ----------------------
-# Without this, `xcodebuild test -scheme tabby` has nothing to run.
+# Without this, `xcodebuild test -scheme Cotabby` has nothing to run.
 scheme_path = File.join(PROJECT_PATH, 'xcshareddata', 'xcschemes', "#{HOST_TARGET_NAME}.xcscheme")
 scheme = Xcodeproj::XCScheme.new(scheme_path)
 

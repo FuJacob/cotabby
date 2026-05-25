@@ -1,7 +1,7 @@
-# tabby
+# Cotabby
 
 <p align="center">
-  <img width="128" alt="tabby logo" src="https://github.com/user-attachments/assets/8a67095e-4d03-4055-8d4c-8871335152dd" />
+  <img width="128" alt="Cotabby logo" src="https://github.com/user-attachments/assets/8a67095e-4d03-4055-8d4c-8871335152dd" />
 </p>
 
 <p align="center">
@@ -9,16 +9,16 @@
   </p>
   
 <p align="center">
-  <a href="https://tabbyapp.dev"><strong>Visit the landing page →</strong></a>
+  <a href="https://cotabbyapp.dev"><strong>Visit the landing page →</strong></a>
 </p>
 
 <p align="center">
   <a href="LICENSE"><img alt="License: AGPL v3" src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" /></a>
-  <a href="https://github.com/FuJacob/tabby/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/FuJacob/tabby" /></a>
-  <a href="https://github.com/FuJacob/tabby/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/FuJacob/tabby/total" /></a>
-  <a href="https://github.com/FuJacob/tabby/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/FuJacob/tabby?style=flat" /></a>
+  <a href="https://github.com/FuJacob/Cotabby/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/FuJacob/Cotabby" /></a>
+  <a href="https://github.com/FuJacob/Cotabby/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/FuJacob/Cotabby/total" /></a>
+  <a href="https://github.com/FuJacob/Cotabby/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/FuJacob/Cotabby?style=flat" /></a>
   <img alt="Platform" src="https://img.shields.io/badge/platform-macOS%2015%2B-lightgrey" />
-  <img alt="Visitors" src="https://visitor-badge.laobi.icu/badge?page_id=FuJacob.tabby" />
+  <img alt="Visitors" src="https://visitor-badge.laobi.icu/badge?page_id=FuJacob.Cotabby" />
 </p>
 
 ---
@@ -32,24 +32,24 @@
 <table align="center" width="100%">
   <tr>
     <td align="center" valign="top" width="50%">
-      <img src=".github/assets/readme/demo-email.png" alt="tabby autocomplete in Email" width="100%" />
+      <img src=".github/assets/readme/demo-email.png" alt="Cotabby autocomplete in Email" width="100%" />
       <br />
       <sub><b>Email</b></sub>
     </td>
     <td align="center" valign="top" width="50%">
-      <img src="https://github.com/user-attachments/assets/05c04d09-e658-478b-b10e-25c6a0d1b4ee" alt="tabby autocomplete in Slack" width="100%" />
+      <img src="https://github.com/user-attachments/assets/05c04d09-e658-478b-b10e-25c6a0d1b4ee" alt="Cotabby autocomplete in Slack" width="100%" />
       <br />
       <sub><b>Slack</b></sub>
     </td>
   </tr>
   <tr>
     <td align="center" valign="top" width="50%">
-      <img src="https://github.com/user-attachments/assets/7d16957f-e2bd-487a-9910-757286b445ea" alt="tabby autocomplete in Notes" width="100%" />
+      <img src="https://github.com/user-attachments/assets/7d16957f-e2bd-487a-9910-757286b445ea" alt="Cotabby autocomplete in Notes" width="100%" />
       <br />
       <sub><b>Notes</b></sub>
     </td>
     <td align="center" valign="top" width="50%">
-      <img src="https://github.com/user-attachments/assets/407ccd42-b0fb-414d-9bd2-9ce05119777e" alt="tabby autocomplete in iMessage" width="100%" />
+      <img src="https://github.com/user-attachments/assets/407ccd42-b0fb-414d-9bd2-9ce05119777e" alt="Cotabby autocomplete in iMessage" width="100%" />
       <br />
       <sub><b>iMessage</b></sub>
     </td>
@@ -59,7 +59,7 @@
 
 ## What It Does
 
-tabby is a menu bar app that brings inline autocomplete to the text field you're already using. Keep typing in your host app: tabby watches the focused field, generates a continuation, and renders it as ghost text next to your caret. Press `Tab` to accept a chunk, keep pressing to advance, or just keep typing to diverge.
+Cotabby is a menu bar app that brings inline autocomplete to the text field you're already using. Keep typing in your host app: Cotabby watches the focused field, generates a continuation, and renders it as ghost text next to your caret. Press `Tab` to accept a chunk, keep pressing to advance, or just keep typing to diverge.
 
 Everything runs on-device. No hosted API, no cloud round-trip.
 
@@ -79,20 +79,20 @@ Everything runs on-device. No hosted API, no cloud round-trip.
 
 | Model              | File                            | Size    |
 | ------------------ | ------------------------------- | ------- |
-| `tabby-fast-1`     | `Qwen3-0.6B-Q4_K_M.gguf`       | ~0.4 GB |
-| `tabby-balanced-1` | `gemma-3-1b-it-Q4_K_M.gguf`    | ~0.8 GB |
+| `Cotabby-fast-1`     | `Qwen3-0.6B-Q4_K_M.gguf`       | ~0.4 GB |
+| `Cotabby-balanced-1` | `gemma-3-1b-it-Q4_K_M.gguf`    | ~0.8 GB |
 
-You can also drop your own `.gguf` files into tabby's models folder and refresh the model list.
+You can also drop your own `.gguf` files into Cotabby's models folder and refresh the model list.
 
 ## Install
 
-1. Download the latest `tabby.dmg` from GitHub Releases.
-2. Drag `tabby.app` into `Applications` and launch it.
+1. Download the latest `Cotabby.dmg` from GitHub Releases.
+2. Drag `Cotabby.app` into `Applications` and launch it.
 3. Grant **Accessibility**, **Input Monitoring**, and **Screen Recording** when prompted.
 4. Pick an engine. Apple Intelligence if available, otherwise Open Source plus a model.
 5. Start typing in any supported editable field.
 
-If macOS blocks first launch, right-click `tabby.app` → `Open`, or allow it in `System Settings → Privacy & Security`.
+If macOS blocks first launch, right-click `Cotabby.app` → `Open`, or allow it in `System Settings → Privacy & Security`.
 
 ### Why those permissions?
 
@@ -107,9 +107,9 @@ If macOS blocks first launch, right-click `tabby.app` → `Open`, or allow it in
 Requires Xcode and Command Line Tools. Apple Silicon is strongly recommended for local model performance. For setup, build, test, and contribution workflow details, start with [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ```bash
-git clone https://github.com/FuJacob/tabby.git
-cd tabby
-open tabby.xcodeproj
+git clone https://github.com/FuJacob/Cotabby.git
+cd Cotabby
+open Cotabby.xcodeproj
 ```
 
 If you want to understand the runtime and suggestion pipeline before contributing, read [ARCHITECTURE.md](ARCHITECTURE.md).
@@ -125,7 +125,7 @@ Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, bui
 - [Sparkle](https://github.com/sparkle-project/Sparkle): in-app update framework
 - Apple's [FoundationModels](https://developer.apple.com/documentation/foundationmodels) framework: on-device Apple Intelligence runtime
 - Apple's Accessibility (AX) APIs: focused-field discovery and caret geometry
-- The [Qwen](https://github.com/QwenLM) and [Gemma](https://ai.google.dev/gemma) model teams for the open-weight models Tabby ships with
+- The [Qwen](https://github.com/QwenLM) and [Gemma](https://ai.google.dev/gemma) model teams for the open-weight models Cotabby ships with
 - The Hugging Face community for hosting and distributing GGUF model weights
 - Swift, SwiftUI, and AppKit, which together make the menu bar app, overlays, and settings UI possible
 - Everyone who has filed issues, tested prereleases, and contributed pull requests
@@ -136,4 +136,4 @@ Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, bui
 
 ## License
 
-tabby is licensed under the [GNU Affero General Public License v3.0](LICENSE). The AGPL's network-use clause means any modified version made available to users over a network must also be source-available under the same terms.
+Cotabby is licensed under the [GNU Affero General Public License v3.0](LICENSE). The AGPL's network-use clause means any modified version made available to users over a network must also be source-available under the same terms.

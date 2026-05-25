@@ -1,4 +1,4 @@
-# Tag-driven release pipeline for tabby.
+# Tag-driven release pipeline for Cotabby.
 #
 # Release ordering matters:
 # 1. build and Developer ID sign the app
@@ -41,12 +41,12 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  APP_NAME: tabby
-  DMG_NAME: tabby.dmg
-  PROJECT_PATH: tabby.xcodeproj
-  SCHEME: tabby
+  APP_NAME: Cotabby
+  DMG_NAME: Cotabby.dmg
+  PROJECT_PATH: Cotabby.xcodeproj
+  SCHEME: Cotabby
   CONFIGURATION: Release
-  PAGES_CUSTOM_DOMAIN: updates.tabbyapp.dev
+  PAGES_CUSTOM_DOMAIN: updates.cotabbyapp.dev
   NOTARIZATION_TIMEOUT_SECONDS: 3300
   NOTARIZATION_POLL_INTERVAL_SECONDS: 60
   # SHA-256 of the Sparkle release tarball used for signing tools. Update
@@ -94,7 +94,7 @@ jobs:
 
           sparkle_version="$(python3 -c "
           import json, sys
-          resolved = json.load(open('tabby.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved'))
+          resolved = json.load(open('Cotabby.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved'))
           pins = {p['identity']: p for p in resolved['pins']}
           if 'sparkle' not in pins:
               print('Sparkle not found in Package.resolved', file=sys.stderr)
@@ -174,11 +174,11 @@ jobs:
 
           expected_public_key="$(/usr/libexec/PlistBuddy \
             -c 'Print :SUPublicEDKey' \
-            TabbyInfo.plist)"
+            CotabbyInfo.plist)"
           actual_public_key="$("${GENERATE_KEYS_TOOL}" -p)"
 
           if [[ "${actual_public_key}" != "${expected_public_key}" ]]; then
-            echo "Sparkle private key does not match SUPublicEDKey in TabbyInfo.plist." >&2
+            echo "Sparkle private key does not match SUPublicEDKey in CotabbyInfo.plist." >&2
             exit 1
           fi
 
@@ -257,7 +257,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          keychain_path="${RUNNER_TEMP}/tabby-release.keychain-db"
+          keychain_path="${RUNNER_TEMP}/cotabby-release.keychain-db"
           keychain_password="$(uuidgen)"
           certificate_path="${RUNNER_TEMP}/developer-id-application.p12"
 
@@ -287,7 +287,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          xcrun notarytool store-credentials "tabby-notarytool-profile" \
+          xcrun notarytool store-credentials "cotabby-notarytool-profile" \
             --apple-id "${APPLE_ID}" \
             --team-id "${APPLE_TEAM_ID}" \
             --password "${APPLE_APP_SPECIFIC_PASSWORD}"
@@ -400,7 +400,7 @@ jobs:
             --output-path "${dmg_path}" \
             --background-path "assets/release/dmg_background.png" \
             --background-2x-path "assets/release/dmg_background@2x.png" \
-            --volume-name "Tabby"
+            --volume-name "Cotabby"
 
           codesign \
             --force \
@@ -472,7 +472,7 @@ jobs:
             # Apple only returns a useful log once processing has completed. This
             # best-effort call still captures stderr when the log is unavailable.
             xcrun notarytool log "${submission_id}" \
-              --keychain-profile "tabby-notarytool-profile" \
+              --keychain-profile "cotabby-notarytool-profile" \
               "${log_json}" \
               > "${log_stdout}" \
               2> "${log_stderr}" || true
@@ -481,7 +481,7 @@ jobs:
           trap write_summary EXIT
 
           if ! xcrun notarytool submit "${dmg_path}" \
-            --keychain-profile "tabby-notarytool-profile" \
+            --keychain-profile "cotabby-notarytool-profile" \
             --output-format json \
             > "${submit_json}" \
             2> "${submit_stderr}"; then
@@ -506,7 +506,7 @@ jobs:
             timestamp="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
 
             if xcrun notarytool info "${submission_id}" \
-              --keychain-profile "tabby-notarytool-profile" \
+              --keychain-profile "cotabby-notarytool-profile" \
               --output-format json \
               > "${info_json}" \
               2> "${info_stderr}"; then
@@ -620,7 +620,7 @@ jobs:
           fi
 
           gh release create "${RELEASE_TAG}" "build/${DMG_NAME}" \
-            --title "tabby ${RELEASE_VERSION}" \
+            --title "Cotabby ${RELEASE_VERSION}" \
             --generate-notes \
             "${release_flags[@]}"
 
@@ -650,9 +650,9 @@ jobs:
         run: |
           set -euo pipefail
 
-          mkdir -p build/pages/tabby
+          mkdir -p build/pages/Cotabby
           cp build/appcast.xml build/pages/appcast.xml
-          cp build/appcast.xml build/pages/tabby/appcast.xml
+          cp build/appcast.xml build/pages/Cotabby/appcast.xml
           printf '%s\n' "${PAGES_CUSTOM_DOMAIN}" > build/pages/CNAME
 
       - name: Configure GitHub Pages

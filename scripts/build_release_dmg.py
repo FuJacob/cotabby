@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build a styled release DMG for Tabby.
+"""Build a styled release DMG for Cotabby.
 
 This script owns the DMG packaging policy so the GitHub Actions workflow can
 stay focused on orchestration. The workflow decides *when* to package, while
@@ -42,17 +42,17 @@ def parse_args() -> argparse.Namespace:
     """Parse the small CLI contract used by local releases and CI."""
 
     parser = argparse.ArgumentParser(
-        description="Build a styled Tabby release DMG with dmgbuild."
+        description="Build a styled Cotabby release DMG with dmgbuild."
     )
     parser.add_argument(
         "--app-path",
         required=True,
-        help="Path to the signed Tabby.app bundle that should be packaged.",
+        help="Path to the signed Cotabby.app bundle that should be packaged.",
     )
     parser.add_argument(
         "--output-path",
         required=True,
-        help="Path where the final Tabby.dmg should be written.",
+        help="Path where the final Cotabby.dmg should be written.",
     )
     parser.add_argument(
         "--background-path",
@@ -67,7 +67,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--volume-name",
         required=True,
-        help="Mounted volume name shown by Finder, for example Tabby.",
+        help="Mounted volume name shown by Finder, for example Cotabby.",
     )
     return parser.parse_args()
 
@@ -285,7 +285,7 @@ def main() -> int:
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    with tempfile.TemporaryDirectory(prefix="tabby-dmgbuild-") as temporary_root:
+    with tempfile.TemporaryDirectory(prefix="Cotabby-dmgbuild-") as temporary_root:
         temporary_root_path = Path(temporary_root)
         staging_root = temporary_root_path / "staging-root"
         staging_root.mkdir()
