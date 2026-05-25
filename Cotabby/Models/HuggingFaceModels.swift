@@ -36,12 +36,13 @@ struct HFRepoFile: Codable, Equatable, Identifiable {
         return String(format: "%.0f MB", megabytes)
     }
 
-    func downloadURL(repoId: String) -> URL {
+    func downloadURL(repoId: String) -> URL? {
+        let encodedPath = path.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? path
         var components = URLComponents()
         components.scheme = "https"
         components.host = "huggingface.co"
-        components.path = "/\(repoId)/resolve/main/\(path)"
+        components.path = "/\(repoId)/resolve/main/\(encodedPath)"
         components.queryItems = [URLQueryItem(name: "download", value: "true")]
-        return components.url!
+        return components.url
     }
 }

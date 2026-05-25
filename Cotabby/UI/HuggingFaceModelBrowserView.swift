@@ -130,23 +130,20 @@ struct HuggingFaceModelBrowserView: View {
             case .loaded(let loadedRepoId, let ggufFiles) where loadedRepoId == repoId:
                 VStack(alignment: .leading, spacing: 6) {
                     ForEach(ggufFiles) { file in
-                        HFFileRow(
-                            file: file,
-                            repoId: repoId,
-                            state: modelDownloadManager.state(
-                                for: searchService.makeDownloadableModel(from: file, repoId: repoId)
-                            ),
-                            isInstalled: modelDownloadManager.isModelInstalled(filename: file.path),
-                            onDownload: {
-                                let model = searchService.makeDownloadableModel(
-                                    from: file, repoId: repoId
-                                )
-                                modelDownloadManager.download(model)
-                            },
-                            onCancel: {
-                                modelDownloadManager.cancel(filename: file.path)
-                            }
-                        )
+                        if let model = searchService.makeDownloadableModel(from: file, repoId: repoId) {
+                            HFFileRow(
+                                file: file,
+                                repoId: repoId,
+                                state: modelDownloadManager.state(for: model),
+                                isInstalled: modelDownloadManager.isModelInstalled(filename: model.filename),
+                                onDownload: {
+                                    modelDownloadManager.download(model)
+                                },
+                                onCancel: {
+                                    modelDownloadManager.cancel(filename: model.filename)
+                                }
+                            )
+                        }
                     }
                 }
                 .padding(.leading, 16)

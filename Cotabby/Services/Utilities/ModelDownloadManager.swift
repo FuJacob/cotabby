@@ -203,7 +203,9 @@ final class ModelDownloadManager: ObservableObject {
     func importModel() {
         let panel = NSOpenPanel()
         panel.title = "Select a GGUF Model"
-        panel.allowedContentTypes = [UTType(filenameExtension: "gguf") ?? .data]
+        if let ggufType = UTType(filenameExtension: "gguf", conformingTo: .data) {
+            panel.allowedContentTypes = [ggufType]
+        }
         panel.allowsMultipleSelection = true
         panel.canChooseDirectories = false
 
@@ -215,21 +217,27 @@ final class ModelDownloadManager: ObservableObject {
             return
         }
 
-        let fileManager = FileManager.default
-        for sourceURL in panel.urls {
-            let destinationURL = runtimeDirectoryURL.appendingPathComponent(
-                sourceURL.lastPathComponent, isDirectory: false
-            )
-            if fileManager.fileExists(atPath: destinationURL.path) { continue }
-            do {
-                try fileManager.copyItem(at: sourceURL, to: destinationURL)
-            } catch {
-                print("Failed to import \(sourceURL.lastPathComponent): \(error.localizedDescription)")
+        // Copy files off the main thread so multi-gigabyte GGUFs don't freeze the UI.
+        let sourceURLs = panel.urls
+        let destinationDirectory = runtimeDirectoryURL
+        Task.detached {
+            let fileManager = FileManager.default
+            for sourceURL in sourceURLs {
+                let destinationURL = destinationDirectory.appendingPathComponent(
+                    sourceURL.lastPathComponent, isDirectory: false
+                )
+                if fileManager.fileExists(atPath: destinationURL.path) { continue }
+                do {
+                    try fileManager.copyItem(at: sourceURL, to: destinationURL)
+                } catch {
+                    print("Failed to import \(sourceURL.lastPathComponent): \(error.localizedDescription)")
+                }
+            }
+            await MainActor.run { [weak self] in
+                self?.refreshModelStates()
+                self?.onModelDirectoryChanged?()
             }
         }
-
-        refreshModelStates()
-        onModelDirectoryChanged?()
     }
 
     /// Returns `true` only when the model lives in Cotabby's user-writable model directory.
