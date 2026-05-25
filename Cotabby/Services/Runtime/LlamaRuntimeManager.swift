@@ -23,6 +23,10 @@ final class LlamaRuntimeManager: ObservableObject {
     private var cachedRuntime: PreparedLlamaRuntime?
     private var selectedModelFilename: String?
 
+    var selectedModelSupportsCompose: Bool {
+        RuntimeModelCatalog.supportsCompose(filename: selectedModelFilename)
+    }
+
     convenience init() {
         self.init(
             configuration: .default,
@@ -132,6 +136,34 @@ final class LlamaRuntimeManager: ObservableObject {
             maxPredictionTokens: maxPredictionTokens,
             temperature: temperature
         )
+        do {
+            return try await Task.detached {
+                try core.summarize(
+                    prompt: prompt,
+                    options: options
+                )
+            }.value
+        } catch is CancellationError {
+            throw LlamaRuntimeError.cancelled
+        } catch let error as LlamaRuntimeError {
+            diagnostics.lastError = error.localizedDescription
+            throw error
+        } catch {
+            let runtimeError = LlamaRuntimeError.generationFailed(error.localizedDescription)
+            diagnostics.lastError = runtimeError.localizedDescription
+            throw runtimeError
+        }
+    }
+
+    /// Generates a longer uncached response. Compose uses this so its larger drafts cannot pollute
+    /// the autocomplete KV cache that `generate(prompt:cachedPrefixBytes:options:)` reuses.
+    func generateUncached(
+        prompt: String,
+        options: LlamaGenerationOptions
+    ) async throws -> String {
+        _ = try await preparedRuntime()
+
+        let core = self.core
         do {
             return try await Task.detached {
                 try core.summarize(

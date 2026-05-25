@@ -14,10 +14,18 @@ final class InputSuppressionController {
     private var suppressionExpiry = Date.distantPast
 
     /// Arms a short-lived suppression window for the synthetic keydown events Cotabby is about to post.
-    func registerSyntheticInsertion(expectedKeyDownCount: Int) {
-        remainingKeyDownSuppressions = max(expectedKeyDownCount, 0)
-        suppressionExpiry = Date().addingTimeInterval(1.0)
-        TabbyLogger.app.trace("Suppression armed for \(expectedKeyDownCount) synthetic key event(s)")
+    ///
+    /// The keydown count accumulates so multi-chunk Compose typing can rearm suppression mid-flight
+    /// without losing the in-flight chunk. The expiry only moves forward; a longer caller-supplied
+    /// window covers chunked typing without shortening another caller's suppression.
+    func registerSyntheticInsertion(
+        expectedKeyDownCount: Int,
+        duration: TimeInterval = 1.0
+    ) {
+        let added = max(expectedKeyDownCount, 0)
+        remainingKeyDownSuppressions += added
+        suppressionExpiry = max(suppressionExpiry, Date().addingTimeInterval(duration))
+        TabbyLogger.app.trace("Suppression armed for \(added) synthetic key event(s)")
     }
 
     /// Consumes one pending suppression token if the current event still falls inside the expiry window.

@@ -159,5 +159,9 @@ private final class StubSuggestionEngine: SuggestionGenerating {
         }
     }
 
+    func generateCompose(for request: ComposeRequest) async throws -> ComposeResult {
+        throw SuggestionClientError.unavailable("Compose is not exercised in PromptPolicyTests.")
+    }
+
     func resetCachedGenerationContext() async {}
 }

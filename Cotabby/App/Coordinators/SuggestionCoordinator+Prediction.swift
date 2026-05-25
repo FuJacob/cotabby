@@ -8,6 +8,11 @@ extension SuggestionCoordinator {
     // MARK: - Prediction Pipeline
 
     func schedulePrediction() {
+        guard settingsSnapshot.selectedInteractionMode == .autocomplete else {
+            disablePredictionsPreservingVisualContext(reason: composeModePendingReason)
+            return
+        }
+
         if let disabledReason = SuggestionAvailabilityEvaluator.disabledReason(
             globallyEnabled: settingsSnapshot.isGloballyEnabled,
             disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
@@ -33,6 +38,11 @@ extension SuggestionCoordinator {
 
     /// Refreshes focus after debounce, materializes a stable context, and starts generation.
     func generateFromCurrentFocus(workID: UInt64) async {
+        guard settingsSnapshot.selectedInteractionMode == .autocomplete else {
+            disablePredictionsPreservingVisualContext(reason: composeModePendingReason)
+            return
+        }
+
         guard workController.isCurrent(workID) else {
             return
         }
@@ -276,7 +286,7 @@ extension SuggestionCoordinator {
     /// This is the heart of partial acceptance: a text change is not automatically "stale" anymore.
     /// It may instead mean "the user consumed the next expected part of the suggestion."
     func reconcileActiveSession(with snapshot: FocusSnapshot) {
-        guard interactionState.activeSession != nil else {
+        guard interactionState.activeAutocompleteSession != nil else {
             if overlayState.isVisible {
                 hideOverlay(reason: "Overlay hidden because no ready suggestion remains.")
             }
@@ -426,6 +436,10 @@ extension SuggestionCoordinator {
     /// Once screenshot context becomes ready, regenerate only if the user is still in the same
     /// field and there is enough typed text for a real inline completion request.
     func schedulePredictionForCurrentFocusIfPossible(matching identity: FocusedInputIdentity) {
+        guard settingsSnapshot.selectedInteractionMode == .autocomplete else {
+            return
+        }
+
         focusModel.refreshNow()
         let snapshot = focusModel.snapshot
 
@@ -437,5 +451,9 @@ extension SuggestionCoordinator {
         }
 
         schedulePrediction()
+    }
+
+    private var composeModePendingReason: String {
+        "Compose Mode is selected. Draft generation will be enabled after the Compose request pipeline is installed."
     }
 }

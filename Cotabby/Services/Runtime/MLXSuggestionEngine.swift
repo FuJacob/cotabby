@@ -42,6 +42,12 @@ final class MLXSuggestionEngine {
         }
     }
 
+    func generateCompose(for request: ComposeRequest) async throws -> ComposeResult {
+        throw SuggestionClientError.unavailable(
+            "Compose Mode is only available with the local open-source runtime in this version."
+        )
+    }
+
     func resetCachedGenerationContext() async {
         // MLX does not maintain a KV cache across requests currently.
     }

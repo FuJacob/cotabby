@@ -96,6 +96,12 @@ final class FoundationModelSuggestionEngine {
         }
     }
 
+    func generateCompose(for request: ComposeRequest) async throws -> ComposeResult {
+        throw SuggestionClientError.unavailable(
+            "Compose Mode uses the local open-source runtime in this version."
+        )
+    }
+
     /// Foundation Models sessions are already one-shot, so there is no backend context to clear.
     func resetCachedGenerationContext() async {}
 

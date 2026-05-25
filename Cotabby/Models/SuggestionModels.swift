@@ -2,8 +2,8 @@ import CoreGraphics
 import Foundation
 
 /// File overview:
-/// Defines the pure value types that describe Cotabby's autocomplete domain:
-/// configuration, generation requests, normalized model output, active suggestion sessions,
+/// Defines the pure value types that describe Cotabby's suggestion domain:
+/// configuration, generation requests, normalized model output, active generation sessions,
 /// and overlay visibility.
 ///
 /// This file is intentionally free of AppKit, AX, and runtime side effects so maintainers can
@@ -220,6 +220,36 @@ struct SuggestionResult: Equatable, Sendable {
     let latency: TimeInterval
 }
 
+/// Compose Mode request data. Unlike autocomplete, this asks the model for a complete draft from
+/// broad surrounding context and preserves multiline output.
+struct ComposeRequest: Equatable, Sendable {
+    let context: FocusedInputContext
+    let typedPrefix: String
+    let trailingText: String
+    let surroundingContext: String
+    let visualContextSummary: String?
+    let clipboardContext: String?
+    let applicationName: String
+    let generation: UInt64
+    let maxPredictionTokens: Int
+    let temperature: Double
+    let topK: Int
+    let topP: Double
+    let minP: Double
+    let repetitionPenalty: Double
+    let randomSeed: UInt32?
+    let userName: String?
+    let userTags: [String]?
+}
+
+/// The engine's normalized Compose draft, including raw model text for diagnostics.
+struct ComposeResult: Equatable, Sendable {
+    let generation: UInt64
+    let rawText: String
+    let text: String
+    let latency: TimeInterval
+}
+
 /// Represents one active inline-completion session after the model has produced a suggestion.
 /// The key architectural shift is that a suggestion is no longer "fire once and forget."
 /// Instead, it becomes durable interaction state that can be partially consumed over time.
@@ -289,12 +319,27 @@ struct ActiveSuggestionSession: Equatable, Sendable {
     }
 }
 
+/// A ready Compose draft is accepted as one deliberate write, not as an autocomplete tail.
+struct ActiveComposeSession: Equatable, Sendable {
+    let baseContext: FocusedInputContext
+    let fullText: String
+    let latency: TimeInterval
+}
+
+/// A single active-generation slot prevents autocomplete and Compose sessions from both appearing
+/// valid after mode switches, focus races, or delayed runtime results.
+enum ActiveGenerationSession: Equatable, Sendable {
+    case autocomplete(ActiveSuggestionSession)
+    case compose(ActiveComposeSession)
+}
+
 /// High-level suggestion states surfaced to the menu and overlay logic.
 enum SuggestionDebugState: Equatable {
     case idle
     case disabled(String)
     case debouncing
     case generating
+    case typing
     case ready(text: String, latency: TimeInterval)
     case failed(String)
 
@@ -308,6 +353,8 @@ enum SuggestionDebugState: Equatable {
             return "Debouncing"
         case .generating:
             return "Generating"
+        case .typing:
+            return "Typing"
         case .ready:
             return "Ready"
         case .failed:
@@ -325,6 +372,8 @@ enum SuggestionDebugState: Equatable {
             return "Waiting for typing to settle."
         case .generating:
             return "Requesting a completion from the active suggestion backend."
+        case .typing:
+            return "Typing the accepted Compose draft into the focused field."
         case .ready:
             return "Ready means Cotabby has buffered a non-empty normalized completion for this field and can render it as ghost text."
         }
@@ -353,12 +402,13 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
 enum OverlayState: Equatable {
     case hidden(reason: String)
     case visible(text: String, geometry: SuggestionOverlayGeometry)
+    case composePreview(text: String, geometry: SuggestionOverlayGeometry)
 
     var shortLabel: String {
         switch self {
         case .hidden:
             return "Hidden"
-        case .visible:
+        case .visible, .composePreview:
             return "Visible"
         }
     }
@@ -371,23 +421,28 @@ enum OverlayState: Equatable {
             return "Showing \(text.count) characters near " +
                 "(\(Int(geometry.caretRect.minX)), \(Int(geometry.caretRect.minY))) " +
                 "using \(geometry.caretQuality.label) caret geometry."
+        case let .composePreview(text, geometry):
+            return "Showing Compose preview with \(text.count) characters near " +
+                "(\(Int(geometry.caretRect.minX)), \(Int(geometry.caretRect.minY)))."
         }
     }
 
     var isVisible: Bool {
-        if case .visible = self {
+        switch self {
+        case .visible, .composePreview:
             return true
+        case .hidden:
+            return false
         }
-
-        return false
     }
 
     var visibleText: String? {
-        guard case let .visible(text, _) = self else {
+        switch self {
+        case let .visible(text, _), let .composePreview(text, _):
+            return text
+        case .hidden:
             return nil
         }
-
-        return text
     }
 }
 

@@ -3,8 +3,8 @@ import Foundation
 import Logging
 
 /// File overview:
-/// Wraps the raw llama runtime with prompt/result normalization that is specific to inline
-/// completion. This is where raw generated text becomes a short suggestion Cotabby can safely show.
+/// Wraps the raw llama runtime with prompt/result normalization for Cotabby's local suggestion
+/// modes. This is where raw generated text becomes either a short inline tail or a full Compose draft.
 ///
 /// Keeps prompt normalization separate from the raw llama runtime.
 /// That separation matters because prompt strategy changes far more often than model lifecycle code.
@@ -70,6 +70,52 @@ final class LlamaSuggestionEngine {
         } catch {
             TabbyLogger.suggestion.error("Unexpected generation error, resetting cache: \(error.localizedDescription)")
             await resetCachedGenerationContext()
+            throw SuggestionClientError.generationFailed(error.localizedDescription)
+        }
+    }
+
+    func generateCompose(for request: ComposeRequest) async throws -> ComposeResult {
+        guard runtimeManager.selectedModelSupportsCompose else {
+            throw SuggestionClientError.unavailable(
+                "Compose Mode requires tabby-depth-1. Select or download \(RuntimeModelCatalog.composeRequiredFilename)."
+            )
+        }
+
+        do {
+            let startTime = Date()
+            let prompt = ComposePromptRenderer.prompt(for: request)
+            let rawDraft = try await runtimeManager.generateUncached(
+                prompt: prompt,
+                options: LlamaGenerationOptions(
+                    maxPredictionTokens: request.maxPredictionTokens,
+                    temperature: request.temperature,
+                    topK: request.topK,
+                    topP: request.topP,
+                    minP: request.minP,
+                    repetitionPenalty: request.repetitionPenalty,
+                    seed: request.randomSeed
+                )
+            )
+            try Task.checkCancellation()
+
+            let normalizedDraft = ComposeTextNormalizer.normalize(
+                rawDraft,
+                prompt: prompt,
+                request: request
+            )
+            return ComposeResult(
+                generation: request.generation,
+                rawText: rawDraft,
+                text: normalizedDraft,
+                latency: Date().timeIntervalSince(startTime)
+            )
+        } catch is CancellationError {
+            throw SuggestionClientError.cancelled
+        } catch let error as LlamaRuntimeError {
+            throw SuggestionClientError.unavailable(error.localizedDescription)
+        } catch let error as SuggestionClientError {
+            throw error
+        } catch {
             throw SuggestionClientError.generationFailed(error.localizedDescription)
         }
     }

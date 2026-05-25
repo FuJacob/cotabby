@@ -86,6 +86,17 @@ struct MenuBarView: View {
                     .controlSize(.small)
             }
 
+            MenuBarPickerRow(title: "Mode") {
+                Picker("Mode", selection: selectedInteractionModeBinding) {
+                    ForEach(SuggestionInteractionMode.allCases) { mode in
+                        Text(mode.displayLabel)
+                            .tag(mode)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+            }
+
             Toggle("Show Indicator", isOn: showIndicatorBinding)
                 .toggleStyle(.switch)
                 .controlSize(.small)
@@ -274,6 +285,15 @@ struct MenuBarView: View {
         Binding(
             get: { suggestionSettings.showIndicator },
             set: { suggestionSettings.setShowIndicator($0) }
+        )
+    }
+
+    private var selectedInteractionModeBinding: Binding<SuggestionInteractionMode> {
+        Binding(
+            get: { suggestionSettings.selectedInteractionMode },
+            set: { mode in
+                suggestionSettings.selectInteractionMode(mode)
+            }
         )
     }
 

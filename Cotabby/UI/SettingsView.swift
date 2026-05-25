@@ -111,10 +111,21 @@ struct SettingsView: View {
 
     @ViewBuilder
     private var autocompleteSection: some View {
-        Section("Autocomplete") {
+        Section("Writing") {
             Toggle("Enable Globally", isOn: globallyEnabledBinding)
 
             Toggle("Include Clipboard Context", isOn: clipboardContextEnabledBinding)
+
+            Picker("Interaction Mode", selection: selectedInteractionModeBinding) {
+                ForEach(SuggestionInteractionMode.allCases) { mode in
+                    Text(mode.displayLabel)
+                        .tag(mode)
+                }
+            }
+
+            Text("Compose prepares a full draft. Autocomplete predicts a short continuation.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
 
             Toggle("Show Indicator", isOn: showIndicatorBinding)
 
@@ -574,6 +585,15 @@ struct SettingsView: View {
         Binding(
             get: { suggestionSettings.showIndicator },
             set: { suggestionSettings.setShowIndicator($0) }
+        )
+    }
+
+    private var selectedInteractionModeBinding: Binding<SuggestionInteractionMode> {
+        Binding(
+            get: { suggestionSettings.selectedInteractionMode },
+            set: { mode in
+                suggestionSettings.selectInteractionMode(mode)
+            }
         )
     }
 

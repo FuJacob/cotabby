@@ -103,6 +103,8 @@ final class CotabbyAppEnvironment {
             screenshotContextGenerator: screenshotContextGenerator,
             screenRecordingPermissionProvider: { permissionManager.screenRecordingGranted }
         )
+        let composeContextCollector = ComposeContextCollector()
+
         let foundationModelEngine: any SuggestionGenerating
         #if canImport(FoundationModels)
         if #available(macOS 26.0, *) {
@@ -123,6 +125,7 @@ final class CotabbyAppEnvironment {
         TabbyLogger.app.info("Foundation model engine unavailable (SDK)")
         #endif
 
+        let llamaEngine = LlamaSuggestionEngine(runtimeManager: runtimeManager)
         let mlxEngine: any SuggestionGenerating = MLXSuggestionEngine(
             runtimeManager: mlxRuntimeManager
         )
@@ -130,7 +133,7 @@ final class CotabbyAppEnvironment {
         let suggestionEngine: any SuggestionGenerating = SuggestionEngineRouter(
             suggestionSettings: suggestionSettings,
             foundationModelEngine: foundationModelEngine,
-            llamaEngine: LlamaSuggestionEngine(runtimeManager: runtimeManager),
+            llamaEngine: llamaEngine,
             mlxEngine: mlxEngine
         )
 
@@ -147,6 +150,7 @@ final class CotabbyAppEnvironment {
             clipboardContextProvider: clipboardContextProvider,
             clipboardRelevanceFilter: clipboardRelevanceFilter,
             visualContextCoordinator: visualContextCoordinator,
+            composeContextCollector: composeContextCollector,
             interactionState: interactionState,
             workController: workController,
             configuration: configuration

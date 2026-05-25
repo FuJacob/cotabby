@@ -138,6 +138,12 @@ struct RemoteModelFile: Equatable, Hashable, Sendable {
 }
 
 enum RuntimeModelCatalog {
+    static let composeRequiredFilename = "gemma-3n-E4B-it-Q4_K_M.gguf"
+
+    static func supportsCompose(filename: String?) -> Bool {
+        filename == composeRequiredFilename
+    }
+
     static func displayName(for filename: String) -> String {
         switch filename {
         case "Qwen3-0.6B-Q4_K_M.gguf":

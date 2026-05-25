@@ -10,6 +10,7 @@ enum SuggestionAvailabilityEvaluator {
     static func disabledReason(
         globallyEnabled: Bool = true,
         disabledAppBundleIdentifiers: Set<String> = [],
+        interactionMode: SuggestionInteractionMode = .autocomplete,
         inputMonitoringGranted: Bool,
         screenRecordingGranted: Bool,
         focusSnapshot: FocusSnapshot,
@@ -32,9 +33,13 @@ enum SuggestionAvailabilityEvaluator {
             return "Input Monitoring permission is required before Cotabby can react to typing."
         }
 
-        guard screenRecordingGranted else {
-            return "Screen Recording permission is required before Cotabby can build visual context "
-                + "for autocomplete."
+        // Compose only needs the AX tree by default. Autocomplete still uses optional screenshot/OCR
+        // context, so the Screen Recording prompt only fires in autocomplete mode.
+        if interactionMode == .autocomplete {
+            guard screenRecordingGranted else {
+                return "Screen Recording permission is required before Cotabby can build visual context "
+                    + "for autocomplete."
+            }
         }
 
         guard checkCapability else {
@@ -52,6 +57,7 @@ enum SuggestionAvailabilityEvaluator {
     static func shouldSchedulePrediction(
         globallyEnabled: Bool = true,
         disabledAppBundleIdentifiers: Set<String> = [],
+        interactionMode: SuggestionInteractionMode = .autocomplete,
         inputMonitoringGranted: Bool,
         screenRecordingGranted: Bool,
         focusSnapshot: FocusSnapshot
@@ -59,6 +65,7 @@ enum SuggestionAvailabilityEvaluator {
         disabledReason(
             globallyEnabled: globallyEnabled,
             disabledAppBundleIdentifiers: disabledAppBundleIdentifiers,
+            interactionMode: interactionMode,
             inputMonitoringGranted: inputMonitoringGranted,
             screenRecordingGranted: screenRecordingGranted,
             focusSnapshot: focusSnapshot

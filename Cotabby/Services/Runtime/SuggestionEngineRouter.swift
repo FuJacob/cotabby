@@ -45,6 +45,25 @@ final class SuggestionEngineRouter {
         }
     }
 
+    /// Compose currently only ships behind the local llama runtime. Other engines surface an
+    /// unavailable state instead of forwarding so users see a clear "Compose needs llama" message
+    /// rather than a generic prompt failure from a backend that does not implement the contract.
+    func generateCompose(for request: ComposeRequest) async throws -> ComposeResult {
+        switch suggestionSettings.selectedEngine {
+        case .appleIntelligence:
+            throw SuggestionClientError.unavailable(
+                "Compose Mode is only available with the local open-source runtime in this version."
+            )
+        case .llamaOpenSource:
+            TabbyLogger.suggestion.debug("Routing Compose request to open-source llama engine")
+            return try await llamaEngine.generateCompose(for: request)
+        case .mlxSwift:
+            throw SuggestionClientError.unavailable(
+                "Compose Mode is only available with the local open-source runtime in this version."
+            )
+        }
+    }
+
     /// Clears backend-local continuation state when the coordinator knows the editing context is
     /// no longer continuous. The router fans this out so switching engines cannot leave stale
     /// state behind.
@@ -88,6 +107,11 @@ final class UnavailableSuggestionEngine: SuggestionGenerating {
 
     func generateSuggestion(for request: SuggestionRequest) async throws -> SuggestionResult {
         TabbyLogger.suggestion.warning("Engine unavailable: \(self.message)")
+        throw SuggestionClientError.unavailable(message)
+    }
+
+    func generateCompose(for request: ComposeRequest) async throws -> ComposeResult {
+        TabbyLogger.suggestion.warning("Engine unavailable for Compose: \(self.message)")
         throw SuggestionClientError.unavailable(message)
     }
 

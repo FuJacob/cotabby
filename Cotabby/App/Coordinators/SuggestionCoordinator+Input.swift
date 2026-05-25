@@ -14,6 +14,7 @@ extension SuggestionCoordinator {
         if SuggestionAvailabilityEvaluator.shouldSchedulePrediction(
             globallyEnabled: settingsSnapshot.isGloballyEnabled,
             disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
+            interactionMode: settingsSnapshot.selectedInteractionMode,
             inputMonitoringGranted: permissionManager.inputMonitoringGranted,
             screenRecordingGranted: permissionManager.screenRecordingGranted,
             focusSnapshot: focusModel.snapshot
@@ -42,6 +43,7 @@ extension SuggestionCoordinator {
         if let disabledReason = SuggestionAvailabilityEvaluator.disabledReason(
             globallyEnabled: settingsSnapshot.isGloballyEnabled,
             disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
+            interactionMode: settingsSnapshot.selectedInteractionMode,
             inputMonitoringGranted: permissionManager.inputMonitoringGranted,
             screenRecordingGranted: permissionManager.screenRecordingGranted,
             focusSnapshot: snapshot
@@ -87,6 +89,7 @@ extension SuggestionCoordinator {
         if let disabledReason = SuggestionAvailabilityEvaluator.disabledReason(
             globallyEnabled: settingsSnapshot.isGloballyEnabled,
             disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
+            interactionMode: settingsSnapshot.selectedInteractionMode,
             inputMonitoringGranted: permissionManager.inputMonitoringGranted,
             screenRecordingGranted: permissionManager.screenRecordingGranted,
             focusSnapshot: focusModel.snapshot
@@ -103,7 +106,7 @@ extension SuggestionCoordinator {
             return acceptEntireSuggestion()
         }
 
-        if let activeSession = interactionState.activeSession {
+        if let activeSession = interactionState.activeAutocompleteSession {
             return handleInputEvent(event, with: activeSession)
         }
 

@@ -108,7 +108,7 @@ final class SuggestionInteractionStateTests: XCTestCase {
                 latency: 0.2
             )
 
-            XCTAssertEqual(state.activeSession, session)
+            XCTAssertEqual(state.activeAutocompleteSession, session)
             XCTAssertNil(state.pendingInsertionConsumedCount)
             XCTAssertFalse(state.isAwaitingPostInsertionSync)
         }
@@ -208,7 +208,7 @@ final class SuggestionInteractionStateTests: XCTestCase {
             XCTAssertEqual(generation, 7)
             XCTAssertEqual(advancedSession.acceptedText, " world")
             XCTAssertEqual(advancedSession.remainingText, " again")
-            XCTAssertEqual(state.activeSession, advancedSession)
+            XCTAssertEqual(state.activeAutocompleteSession, advancedSession)
             XCTAssertEqual(state.pendingInsertionConsumedCount, 6)
             XCTAssertTrue(state.isAwaitingPostInsertionSync)
         }
@@ -231,7 +231,7 @@ final class SuggestionInteractionStateTests: XCTestCase {
                 return
             }
             XCTAssertEqual(generation, 4)
-            XCTAssertNil(state.activeSession)
+            XCTAssertNil(state.activeAutocompleteSession)
             XCTAssertNil(state.pendingInsertionConsumedCount)
         }
     }
@@ -251,7 +251,7 @@ final class SuggestionInteractionStateTests: XCTestCase {
                 return
             }
             XCTAssertEqual(session.remainingText, " again")
-            XCTAssertEqual(state.activeSession?.remainingText, " again")
+            XCTAssertEqual(state.activeAutocompleteSession?.remainingText, " again")
             XCTAssertEqual(advancement?.actionSummary, "Suggestion tail advanced from live editor state.")
         }
     }
@@ -275,7 +275,7 @@ final class SuggestionInteractionStateTests: XCTestCase {
                 expectedSession: storedSession
             )
             XCTAssertEqual(advanced?.remainingText, " again")
-            XCTAssertEqual(state.activeSession?.remainingText, " again")
+            XCTAssertEqual(state.activeAutocompleteSession?.remainingText, " again")
         }
     }
 
@@ -556,6 +556,14 @@ private final class FakeOverlayController: SuggestionOverlayControlling {
         lastShownCaretRect = geometry.caretRect
         lastShownGeometry = geometry
         state = .visible(text: text, geometry: geometry)
+        onStateChange?(state)
+    }
+
+    func showComposePreview(
+        _ text: String,
+        geometry: SuggestionOverlayGeometry
+    ) {
+        state = .composePreview(text: text, geometry: geometry)
         onStateChange?(state)
     }
 
