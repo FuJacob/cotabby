@@ -89,4 +89,42 @@ final class CustomRulesTests: XCTestCase {
 
         XCTAssertFalse(prompt.contains("Keep a casual tone"))
     }
+
+    // MARK: - language
+
+    func test_language_englishEmitsNoInstruction() {
+        XCTAssertNil(SuggestionLanguage.english.promptInstruction)
+    }
+
+    func test_language_nonEnglishEmitsForcingInstruction() {
+        let instruction = SuggestionLanguage.spanish.promptInstruction
+        XCTAssertNotNil(instruction)
+        XCTAssertTrue(instruction?.contains("Spanish") == true)
+    }
+
+    func test_llamaRenderer_includesLanguageInstructionBeforeLengthCue() {
+        let prompt = LlamaPromptRenderer.prompt(
+            prefixText: "Hola",
+            applicationName: "Notes",
+            completionLengthInstruction: "UNIQUE_LENGTH_CUE",
+            userName: nil,
+            languageInstruction: SuggestionLanguage.spanish.promptInstruction
+        )
+
+        guard let langRange = prompt.range(of: "Spanish"),
+              let lenRange = prompt.range(of: "UNIQUE_LENGTH_CUE") else {
+            XCTFail("Expected language directive and length cue in the prompt")
+            return
+        }
+        XCTAssertLessThan(langRange.lowerBound, lenRange.lowerBound)
+    }
+
+    func test_foundationModelInstructions_includeLanguageOverride() {
+        let request = CotabbyTestFixtures.suggestionRequest(
+            languageInstruction: SuggestionLanguage.japanese.promptInstruction
+        )
+        let instructions = FoundationModelPromptRenderer.sessionInstructions(for: request)
+
+        XCTAssertTrue(instructions.contains("Japanese"))
+    }
 }

@@ -21,6 +21,7 @@ final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var isClipboardContextEnabled: Bool
     @Published private(set) var userName: String
     @Published private(set) var customRules: [String]
+    @Published private(set) var responseLanguage: SuggestionLanguage
     @Published private(set) var debounceMilliseconds: Int
     @Published private(set) var focusPollIntervalMilliseconds: Int
     @Published private(set) var isMultiLineEnabled: Bool
@@ -40,6 +41,7 @@ final class SuggestionSettingsModel: ObservableObject {
     private static let clipboardContextEnabledDefaultsKey = "cotabbyClipboardContextEnabled"
     private static let userNameDefaultsKey = "cotabbyUserName"
     private static let customRulesDefaultsKey = "cotabbyCustomRules"
+    private static let responseLanguageDefaultsKey = "cotabbyResponseLanguage"
     private static let debounceMillisecondsDefaultsKey = "cotabbyDebounceMilliseconds"
     private static let focusPollIntervalMillisecondsDefaultsKey = "cotabbyFocusPollIntervalMilliseconds"
     private static let multiLineEnabledDefaultsKey = "cotabbyMultiLineEnabled"
@@ -101,6 +103,10 @@ final class SuggestionSettingsModel: ObservableObject {
             CustomRulesCatalog.normalize(userDefaults.stringArray(forKey: Self.customRulesDefaultsKey) ?? [])
         }
 
+        let resolvedResponseLanguage = userDefaults.string(forKey: Self.responseLanguageDefaultsKey)
+            .flatMap(SuggestionLanguage.init(rawValue:))
+            ?? .default
+
         let resolvedDebounceMilliseconds: Int = {
             let raw = userDefaults.object(forKey: Self.debounceMillisecondsDefaultsKey) as? Int
                 ?? configuration.debounceMilliseconds
@@ -137,6 +143,7 @@ final class SuggestionSettingsModel: ObservableObject {
         isClipboardContextEnabled = resolvedClipboardContextEnabled
         userName = resolvedUserName
         customRules = resolvedCustomRules
+        responseLanguage = resolvedResponseLanguage
         debounceMilliseconds = resolvedDebounceMilliseconds
         focusPollIntervalMilliseconds = resolvedFocusPollIntervalMilliseconds
         isMultiLineEnabled = resolvedMultiLineEnabled
@@ -154,6 +161,7 @@ final class SuggestionSettingsModel: ObservableObject {
         persistClipboardContextEnabled(resolvedClipboardContextEnabled)
         persistUserName(resolvedUserName)
         persistCustomRules(resolvedCustomRules)
+        userDefaults.set(resolvedResponseLanguage.rawValue, forKey: Self.responseLanguageDefaultsKey)
         userDefaults.set(resolvedDebounceMilliseconds, forKey: Self.debounceMillisecondsDefaultsKey)
         userDefaults.set(resolvedFocusPollIntervalMilliseconds, forKey: Self.focusPollIntervalMillisecondsDefaultsKey)
         userDefaults.set(resolvedMultiLineEnabled, forKey: Self.multiLineEnabledDefaultsKey)
@@ -177,6 +185,7 @@ final class SuggestionSettingsModel: ObservableObject {
             isClipboardContextEnabled: isClipboardContextEnabled,
             userName: userName,
             customRules: customRules,
+            responseLanguage: responseLanguage,
             debounceMilliseconds: debounceMilliseconds,
             focusPollIntervalMilliseconds: focusPollIntervalMilliseconds,
             isMultiLineEnabled: isMultiLineEnabled
@@ -377,6 +386,15 @@ final class SuggestionSettingsModel: ObservableObject {
         setRules(CustomRulesCatalog.defaultRules)
     }
 
+    func setResponseLanguage(_ language: SuggestionLanguage) {
+        guard responseLanguage != language else {
+            return
+        }
+
+        responseLanguage = language
+        userDefaults.set(language.rawValue, forKey: Self.responseLanguageDefaultsKey)
+    }
+
     func setAcceptanceKey(keyCode: CGKeyCode, label: String) {
         guard acceptanceKeyCode != keyCode || acceptanceKeyLabel != label else {
             return
@@ -554,12 +572,12 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                 $selectedWordCountPreset
             ),
             $isClipboardContextEnabled,
-            Publishers.CombineLatest($userName, $customRules),
+            Publishers.CombineLatest3($userName, $customRules, $responseLanguage),
             Publishers.CombineLatest3($debounceMilliseconds, $focusPollIntervalMilliseconds, $isMultiLineEnabled)
         )
         .map { combinedSettings, clipboardContextEnabled, profile, timing in
             let (globallyEnabled, disabledAppRules, engine, wordCountPreset) = combinedSettings
-            let (userName, customRules) = profile
+            let (userName, customRules, responseLanguage) = profile
             let (debounce, focusPoll, multiLine) = timing
             return SuggestionSettingsSnapshot(
                 isGloballyEnabled: globallyEnabled,
@@ -569,6 +587,7 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                 isClipboardContextEnabled: clipboardContextEnabled,
                 userName: userName,
                 customRules: customRules,
+                responseLanguage: responseLanguage,
                 debounceMilliseconds: debounce,
                 focusPollIntervalMilliseconds: focusPoll,
                 isMultiLineEnabled: multiLine

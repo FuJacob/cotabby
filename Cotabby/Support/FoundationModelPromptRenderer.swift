@@ -28,6 +28,12 @@ enum FoundationModelPromptRenderer {
             "Use plain text only with no labels, bullets, markdown, or explanation."
         ]
 
+        // A language override supersedes the "match the existing language" base rule above, so it
+        // goes right after the base block where the instructions channel weights it heavily.
+        if let languageInstruction = request.languageInstruction, !languageInstruction.isEmpty {
+            lines.append(languageInstruction)
+        }
+
         var profileSections: [String] = []
         if let name = request.userName, !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             profileSections.append("The user's name is \(name).")

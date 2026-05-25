@@ -96,6 +96,7 @@ enum CotabbyTestFixtures {
         completionLengthInstruction: String = "Return only the next few words.",
         userName: String? = nil,
         customRules: [String] = [],
+        languageInstruction: String? = nil,
         clipboardContext: String? = nil,
         visualContextSummary: String? = nil,
         isMultiLineEnabled: Bool = false
@@ -123,6 +124,7 @@ enum CotabbyTestFixtures {
             completionLengthInstruction: completionLengthInstruction,
             userName: userName,
             customRules: customRules,
+            languageInstruction: languageInstruction,
             clipboardContext: clipboardContext,
             visualContextSummary: visualContextSummary,
             isMultiLineEnabled: isMultiLineEnabled
@@ -213,6 +215,7 @@ enum CotabbyTestFixtures {
         isClipboardContextEnabled: Bool = true,
         userName: String = "",
         customRules: [String] = [],
+        responseLanguage: SuggestionLanguage = .default,
         debounceMilliseconds: Int = 50,
         focusPollIntervalMilliseconds: Int = 50,
         isMultiLineEnabled: Bool = false
@@ -225,6 +228,7 @@ enum CotabbyTestFixtures {
             isClipboardContextEnabled: isClipboardContextEnabled,
             userName: userName,
             customRules: customRules,
+            responseLanguage: responseLanguage,
             debounceMilliseconds: debounceMilliseconds,
             focusPollIntervalMilliseconds: focusPollIntervalMilliseconds,
             isMultiLineEnabled: isMultiLineEnabled

@@ -19,6 +19,7 @@ enum LlamaPromptRenderer {
         completionLengthInstruction: String,
         userName: String?,
         customRules: [String] = [],
+        languageInstruction: String? = nil,
         clipboardContext: String? = nil,
         visualContextSummary: String? = nil
     ) -> String {
@@ -71,6 +72,11 @@ enum LlamaPromptRenderer {
         // still remains the last payload in the prompt.
         sections.append("")
         sections.append("Final instruction:")
+        // Language directive sits in the late, high-attention block right before the prefix so
+        // small instruct models don't drift back to the input's language mid-completion.
+        if let languageInstruction, !languageInstruction.isEmpty {
+            sections.append("- \(languageInstruction)")
+        }
         sections.append("- \(completionLengthInstruction)")
         sections.append("- The next line must begin directly with the continuation text.")
         sections.append("Text before caret:")

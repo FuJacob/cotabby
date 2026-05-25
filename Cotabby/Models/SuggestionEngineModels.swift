@@ -59,6 +59,8 @@ struct SuggestionSettingsSnapshot: Equatable, Sendable {
     /// User-authored style rules, carried in the snapshot so generation uses the same value the
     /// Settings UI shows.
     let customRules: [String]
+    /// Forces the completion language. English emits no prompt directive.
+    let responseLanguage: SuggestionLanguage
     let debounceMilliseconds: Int
     let focusPollIntervalMilliseconds: Int
     let isMultiLineEnabled: Bool
