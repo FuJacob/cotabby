@@ -31,6 +31,7 @@
 		E10000042F93000100DDD004 /* BundledRuntimeLocatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000142F93000100DDD014 /* BundledRuntimeLocatorTests.swift */; };
 		E10000052F93000100DDD005 /* DisplayCoordinateConverterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000152F93000100DDD015 /* DisplayCoordinateConverterTests.swift */; };
 		F10000012FA0000100EEE001 /* TextDirectionDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000112FA0000100EEE011 /* TextDirectionDetectorTests.swift */; };
+		G10000012FB0000100FFF001 /* WordCountFormatterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = G10000112FB0000100FFF011 /* WordCountFormatterTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -66,6 +67,8 @@
 		F10000112FA0000100EEE011 /* TextDirectionDetectorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TextDirectionDetectorTests.swift; sourceTree = "<group>"; };
 		F29623C5C0A67B992D383A3C /* LlamaPromptRendererTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LlamaPromptRendererTests.swift; sourceTree = "<group>"; };
 		F9D35DB9E86506B9FAE1CFE9 /* ModelFileValidatorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ModelFileValidatorTests.swift; sourceTree = "<group>"; };
+		G10000112FB0000100FFF011 /* WordCountFormatterTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WordCountFormatterTests.swift; sourceTree = "<group>"; };
+
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -139,6 +142,7 @@
 				E10000142F93000100DDD014 /* BundledRuntimeLocatorTests.swift */,
 				E10000152F93000100DDD015 /* DisplayCoordinateConverterTests.swift */,
 				F10000112FA0000100EEE011 /* TextDirectionDetectorTests.swift */,
+				G10000112FB0000100FFF011 /* WordCountFormatterTests.swift */,
 			);
 			path = CotabbyTests;
 			sourceTree = "<group>";
@@ -279,6 +283,7 @@
 				E10000042F93000100DDD004 /* BundledRuntimeLocatorTests.swift in Sources */,
 				E10000052F93000100DDD005 /* DisplayCoordinateConverterTests.swift in Sources */,
 				F10000012FA0000100EEE001 /* TextDirectionDetectorTests.swift in Sources */,
+				G10000012FB0000100FFF001 /* WordCountFormatterTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
