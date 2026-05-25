@@ -46,6 +46,14 @@ jobs:
           xcodebuild -version
           swift --version
 
+      # Package.resolved is gitignored, so SwiftPM must materialize it before
+      # the Sparkle pin check can compare against it.
+      - name: Resolve Swift package dependencies
+        run: |
+          xcodebuild \
+            -project Cotabby.xcodeproj \
+            -resolvePackageDependencies
+
       - name: Verify Sparkle version pin
         run: |
           set -euo pipefail
