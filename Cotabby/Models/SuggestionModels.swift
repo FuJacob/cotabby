@@ -403,12 +403,16 @@ enum OverlayState: Equatable {
     case hidden(reason: String)
     case visible(text: String, geometry: SuggestionOverlayGeometry)
     case composePreview(text: String, geometry: SuggestionOverlayGeometry)
+    /// Transient "Drafting…" indicator shown near the caret while Compose is gathering context and
+    /// waiting on the first streamed token. It disappears as soon as text starts landing in the
+    /// field, so it exists only to prove to the user that the Tab press registered.
+    case composeProgress(label: String, geometry: SuggestionOverlayGeometry)
 
     var shortLabel: String {
         switch self {
         case .hidden:
             return "Hidden"
-        case .visible, .composePreview:
+        case .visible, .composePreview, .composeProgress:
             return "Visible"
         }
     }
@@ -424,12 +428,15 @@ enum OverlayState: Equatable {
         case let .composePreview(text, geometry):
             return "Showing Compose preview with \(text.count) characters near " +
                 "(\(Int(geometry.caretRect.minX)), \(Int(geometry.caretRect.minY)))."
+        case let .composeProgress(label, geometry):
+            return "Showing Compose \"\(label)\" indicator near " +
+                "(\(Int(geometry.caretRect.minX)), \(Int(geometry.caretRect.minY)))."
         }
     }
 
     var isVisible: Bool {
         switch self {
-        case .visible, .composePreview:
+        case .visible, .composePreview, .composeProgress:
             return true
         case .hidden:
             return false
@@ -440,7 +447,7 @@ enum OverlayState: Equatable {
         switch self {
         case let .visible(text, _), let .composePreview(text, _):
             return text
-        case .hidden:
+        case .composeProgress, .hidden:
             return nil
         }
     }

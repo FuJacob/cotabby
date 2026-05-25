@@ -175,6 +175,13 @@ struct SettingsView: View {
                 }
             }
 
+            if suggestionSettings.selectedInteractionMode == .compose,
+               suggestionSettings.selectedEngine != .llamaOpenSource {
+                Text("Compose requires the Open Source engine. Switch to it to draft full responses.")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
+
             Picker("Length", selection: selectedWordCountPresetBinding) {
                 ForEach(SuggestionWordCountPreset.allCases) { preset in
                     Text(preset.displayLabel)

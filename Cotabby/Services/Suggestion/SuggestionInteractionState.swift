@@ -278,6 +278,24 @@ final class SuggestionInteractionState {
         activeSession = nil
         pendingInsertionConsumedCount = nil
     }
+
+    /// Returns a new active compose session with the accumulated streaming text. No-op if the
+    /// previous session is no longer the active one (cancellation may have replaced it).
+    @discardableResult
+    func updateComposeSession(
+        _ previous: ActiveComposeSession,
+        fullText: String,
+        latency: TimeInterval
+    ) -> ActiveComposeSession? {
+        guard activeComposeSession == previous else { return nil }
+        let updated = ActiveComposeSession(
+            baseContext: previous.baseContext,
+            fullText: fullText,
+            latency: latency
+        )
+        activeSession = .compose(updated)
+        return updated
+    }
 }
 
 /// Wraps reconciliation results with the live buffered context the coordinator needs for UI updates.

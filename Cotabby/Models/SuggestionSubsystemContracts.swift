@@ -40,9 +40,27 @@ protocol SuggestionInputMonitoring: AnyObject {
 protocol SuggestionGenerating: AnyObject {
     func generateSuggestion(for request: SuggestionRequest) async throws -> SuggestionResult
     func generateCompose(for request: ComposeRequest) async throws -> ComposeResult
+    /// Streaming variant: yields each generated piece through an async stream so the coordinator
+    /// can type tokens into the focused field as the model produces them. Engines that cannot
+    /// stream natively get the one-shot fallback in the extension below.
+    func generateComposeStreaming(for request: ComposeRequest) async throws -> AsyncThrowingStream<String, Error>
     /// Clears backend-local continuation state when the focused editing context is no longer
     /// continuous. Stateless engines may implement this as a no-op.
     func resetCachedGenerationContext() async
+}
+
+extension SuggestionGenerating {
+    /// One-shot fallback: run `generateCompose`, then emit the full draft as a single chunk.
+    /// Engines that can stream natively (Llama) override this to actually emit per token.
+    func generateComposeStreaming(for request: ComposeRequest) async throws -> AsyncThrowingStream<String, Error> {
+        let result = try await generateCompose(for: request)
+        return AsyncThrowingStream { continuation in
+            if !result.text.isEmpty {
+                continuation.yield(result.text)
+            }
+            continuation.finish()
+        }
+    }
 }
 
 @MainActor
@@ -88,6 +106,7 @@ protocol SuggestionOverlayControlling: AnyObject {
 
     func showSuggestion(_ text: String, geometry: SuggestionOverlayGeometry)
     func showComposePreview(_ text: String, geometry: SuggestionOverlayGeometry)
+    func showComposeProgress(_ label: String, geometry: SuggestionOverlayGeometry)
     func hide(reason: String)
 }
 
@@ -101,4 +120,37 @@ protocol VisualContextCoordinating: AnyObject {
     func startSessionIfNeeded(for snapshotContext: FocusedInputSnapshot)
     func cancel(resetState: Bool)
     func excerpt(for context: FocusedInputContext) -> String?
+}
+
+/// Behavior-shaped contract for Compose Mode AX context collection.
+///
+/// The coordinator only needs "collect a normalized surrounding context for this focused field";
+/// keeping the contract narrow lets tests substitute a deterministic fake without standing up the
+/// real AX tree, while production code still uses the bounded DFS in `ComposeContextCollector`.
+@MainActor
+protocol ComposeContextCollecting: AnyObject {
+    func collect(for context: FocusedInputContext) async throws -> ComposeContextCollectionResult
+}
+
+/// What a Compose context collector returns.
+///
+/// This sits next to the protocol (not on the concrete collector) so test fakes can construct
+/// results without depending on the real collector's nested types.
+struct ComposeContextCollectionResult: Equatable, Sendable {
+    let text: String
+    let visitedNodeCount: Int
+    let retainedTextCount: Int
+    let droppedTextCount: Int
+
+    init(
+        text: String,
+        visitedNodeCount: Int = 0,
+        retainedTextCount: Int = 0,
+        droppedTextCount: Int = 0
+    ) {
+        self.text = text
+        self.visitedNodeCount = visitedNodeCount
+        self.retainedTextCount = retainedTextCount
+        self.droppedTextCount = droppedTextCount
+    }
 }

@@ -119,6 +119,13 @@ struct MenuBarView: View {
                     .foregroundStyle(.orange)
             }
 
+            if suggestionSettings.selectedInteractionMode == .compose,
+               suggestionSettings.selectedEngine != .llamaOpenSource {
+                Text("Compose requires the Open Source engine.")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
+
             if suggestionSettings.selectedEngine.supportsLocalModelManagement {
                 modelRow
             }

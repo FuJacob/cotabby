@@ -45,6 +45,21 @@ final class SuggestionEngineRouter {
         }
     }
 
+    /// Streaming Compose, llama-only. The protocol's default `generateComposeStreaming` falls back
+    /// to `generateCompose`, so non-llama engines route through the same "unavailable" path below
+    /// without us having to fork the routing decision twice.
+    func generateComposeStreaming(for request: ComposeRequest) async throws -> AsyncThrowingStream<String, Error> {
+        switch suggestionSettings.selectedEngine {
+        case .llamaOpenSource:
+            TabbyLogger.suggestion.debug("Streaming Compose request through open-source llama engine")
+            return try await llamaEngine.generateComposeStreaming(for: request)
+        case .appleIntelligence, .mlxSwift:
+            throw SuggestionClientError.unavailable(
+                "Compose Mode is only available with the local open-source runtime in this version."
+            )
+        }
+    }
+
     /// Compose currently only ships behind the local llama runtime. Other engines surface an
     /// unavailable state instead of forwarding so users see a clear "Compose needs llama" message
     /// rather than a generic prompt failure from a backend that does not implement the contract.

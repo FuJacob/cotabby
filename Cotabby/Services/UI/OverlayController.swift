@@ -147,6 +147,43 @@ final class OverlayController: SuggestionOverlayControlling {
         state = .composePreview(text: previewText, geometry: geometry)
     }
 
+    /// Shows the small "Drafting…" pill near the caret while Compose waits on its first token.
+    /// Sized tighter than the preview box so it reads as a status chip, not content.
+    func showComposeProgress(_ label: String, geometry: SuggestionOverlayGeometry) {
+        let contentView: NSHostingView<AnyView>
+        let rootView = AnyView(ComposeProgressView(label: label))
+        if let existing = hostingView {
+            existing.rootView = rootView
+            contentView = existing
+        } else {
+            let fresh = NSHostingView(rootView: rootView)
+            hostingView = fresh
+            panel.contentView = fresh
+            contentView = fresh
+        }
+        contentView.layoutSubtreeIfNeeded()
+
+        let visibleFrame = targetScreenVisibleFrame(for: geometry.caretRect)
+        let contentSize = contentView.fittingSize
+        let width = min(max(contentSize.width, 96), min(220, visibleFrame.width - 32))
+        let height = min(max(contentSize.height, 28), 48)
+        let originX = min(
+            max(geometry.caretRect.maxX + 8, visibleFrame.minX + 16),
+            visibleFrame.maxX - width - 16
+        )
+        let preferredOriginY = geometry.caretRect.minY - height - 8
+        let originY = preferredOriginY >= visibleFrame.minY + 16
+            ? preferredOriginY
+            : min(geometry.caretRect.maxY + 8, visibleFrame.maxY - height - 16)
+
+        panel.setFrame(
+            CGRect(x: originX, y: originY, width: width, height: height).integral,
+            display: true
+        )
+        panel.orderFrontRegardless()
+        state = .composeProgress(label: label, geometry: geometry)
+    }
+
     /// Hides the floating panel and records why the overlay is no longer visible.
     func hide(reason: String) {
         panel.orderOut(nil)
@@ -272,6 +309,30 @@ private struct ComposePreviewView: View {
                 .stroke(.quaternary, lineWidth: 1)
         )
         .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+/// Compact "Drafting…" status pill shown while Compose waits on its first streamed token.
+private struct ComposeProgressView: View {
+    let label: String
+
+    var body: some View {
+        HStack(spacing: 7) {
+            ProgressView()
+                .controlSize(.small)
+                .scaleEffect(0.7)
+
+            Text(label)
+                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: true)
+        }
+        .padding(.horizontal, 11)
+        .padding(.vertical, 6)
+        .background(.regularMaterial, in: Capsule())
+        .overlay(Capsule().stroke(.quaternary, lineWidth: 1))
+        .fixedSize(horizontal: true, vertical: true)
     }
 }
 

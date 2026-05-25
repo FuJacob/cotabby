@@ -227,6 +227,73 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         return generatedText
     }
 
+    /// Streaming sibling of `summarize`. Same ephemeral-sequence semantics (autocomplete KV cache
+    /// stays clean), but emits each sampled piece through `onToken` before the loop continues so
+    /// callers can observe generation in real time. Returns the accumulated text for diagnostics.
+    ///
+    /// `onToken` is `@Sendable` and runs on the detached sampling thread; callers that need to
+    /// touch UI must hop back to the main actor.
+    func summarizeStreaming(
+        prompt: String,
+        options: LlamaGenerationOptions,
+        onToken: @Sendable (String) -> Void
+    ) throws -> String {
+        guard let preparedRuntime else {
+            throw LlamaRuntimeError.unavailable("The llama model is not loaded.")
+        }
+
+        lifecycleCondition.lock()
+        guard !isShuttingDown else {
+            lifecycleCondition.unlock()
+            throw LlamaRuntimeError.unavailable("The runtime is shutting down.")
+        }
+        activeOperationCount += 1
+        lifecycleCondition.unlock()
+
+        defer {
+            lifecycleCondition.lock()
+            activeOperationCount -= 1
+            lifecycleCondition.broadcast()
+            lifecycleCondition.unlock()
+        }
+
+        let allPromptTokens = tokenize(prompt)
+        guard !allPromptTokens.isEmpty else {
+            throw LlamaRuntimeError.generationFailed("Tokenization returned no prompt tokens.")
+        }
+
+        let maxPromptTokens = max(1, preparedRuntime.contextWindowTokens - options.maxPredictionTokens)
+        let promptTokens = allPromptTokens.count > maxPromptTokens
+            ? Array(allPromptTokens.suffix(maxPromptTokens))
+            : allPromptTokens
+
+        let config = Self.samplingConfig(from: options)
+        let seqID = engine.createSequence(config)
+        guard seqID >= 0 else {
+            throw LlamaRuntimeError.generationFailed("Unable to create streaming sequence.")
+        }
+        defer { engine.destroySequence(seqID) }
+
+        var tokens = promptTokens
+        let status = engine.decodePrompt(seqID, &tokens, Int32(tokens.count), 0)
+        guard status == .ok else {
+            throw LlamaRuntimeError.generationFailed("Streaming prompt decoding failed.")
+        }
+
+        var generatedText = ""
+        for _ in 0 ..< options.maxPredictionTokens {
+            if Task.isCancelled { break }
+            let result = engine.sampleNext(seqID)
+            if result.is_eos || result.was_cancelled { break }
+            let piece = Self.extractPiece(result)
+            guard !piece.isEmpty else { continue }
+            generatedText += piece
+            onToken(piece)
+        }
+
+        return generatedText
+    }
+
     // MARK: - Cache and lifecycle
 
     /// Drops the reusable autocomplete sequence while keeping the loaded model alive.

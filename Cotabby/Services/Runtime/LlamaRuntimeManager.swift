@@ -23,10 +23,6 @@ final class LlamaRuntimeManager: ObservableObject {
     private var cachedRuntime: PreparedLlamaRuntime?
     private var selectedModelFilename: String?
 
-    var selectedModelSupportsCompose: Bool {
-        RuntimeModelCatalog.supportsCompose(filename: selectedModelFilename)
-    }
-
     convenience init() {
         self.init(
             configuration: .default,
@@ -180,6 +176,42 @@ final class LlamaRuntimeManager: ObservableObject {
             let runtimeError = LlamaRuntimeError.generationFailed(error.localizedDescription)
             diagnostics.lastError = runtimeError.localizedDescription
             throw runtimeError
+        }
+    }
+
+    /// Streaming variant of `generateUncached`: kicks off generation on a detached thread and
+    /// yields each sampled piece through an `AsyncThrowingStream`. Cancelling the consuming task
+    /// terminates the stream and cancels the underlying detached sampling task.
+    ///
+    /// `preparedRuntime()` runs on the main actor before we hand control to the stream so the
+    /// caller can `await` once and then iterate; that keeps the AsyncStream's setup cheap.
+    func streamUncached(
+        prompt: String,
+        options: LlamaGenerationOptions
+    ) async throws -> AsyncThrowingStream<String, Error> {
+        _ = try await preparedRuntime()
+
+        let core = self.core
+        return AsyncThrowingStream { continuation in
+            let task = Task.detached {
+                do {
+                    _ = try core.summarizeStreaming(
+                        prompt: prompt,
+                        options: options,
+                        onToken: { piece in
+                            continuation.yield(piece)
+                        }
+                    )
+                    continuation.finish()
+                } catch is CancellationError {
+                    continuation.finish(throwing: LlamaRuntimeError.cancelled)
+                } catch let error as LlamaRuntimeError {
+                    continuation.finish(throwing: error)
+                } catch {
+                    continuation.finish(throwing: LlamaRuntimeError.generationFailed(error.localizedDescription))
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
         }
     }
 

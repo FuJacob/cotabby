@@ -7,7 +7,7 @@ import Foundation
 /// side-effectful macOS boundary with app-specific failure modes. The coordinator should ask for a
 /// bounded, normalized context string; it should not own traversal budgets or Core Foundation reads.
 @MainActor
-final class ComposeContextCollector {
+final class ComposeContextCollector: ComposeContextCollecting {
     struct Limits: Equatable, Sendable {
         let maxAncestorDepth: Int
         let maxDFSDepth: Int
@@ -22,13 +22,6 @@ final class ComposeContextCollector {
             maxRawContextCharacters: 30_000,
             normalizerLimits: .standard
         )
-    }
-
-    struct Result: Equatable, Sendable {
-        let text: String
-        let visitedNodeCount: Int
-        let retainedTextCount: Int
-        let droppedTextCount: Int
     }
 
     enum CollectionError: LocalizedError, Equatable {
@@ -74,7 +67,7 @@ final class ComposeContextCollector {
         self.limits = limits
     }
 
-    func collect(for context: FocusedInputContext) async throws -> Result {
+    func collect(for context: FocusedInputContext) async throws -> ComposeContextCollectionResult {
         try Task.checkCancellation()
 
         guard let focusedElement = AXHelper.focusedElement() else {
@@ -147,7 +140,7 @@ final class ComposeContextCollector {
             limits: limits.normalizerLimits
         )
 
-        return Result(
+        return ComposeContextCollectionResult(
             text: normalizedText,
             visitedNodeCount: visitedNodeCount,
             retainedTextCount: retainedTextCount,
