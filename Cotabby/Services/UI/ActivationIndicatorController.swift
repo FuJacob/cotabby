@@ -145,7 +145,7 @@ private struct FieldEdgeIconIndicatorView: View {
         colorScheme == .dark ? Color(white: 0.15) : Color(white: 0.92)
     }
 
-    private var pawColor: Color {
+    private var iconColor: Color {
         colorScheme == .dark ? .white : Color(white: 0.25)
     }
 
@@ -153,9 +153,12 @@ private struct FieldEdgeIconIndicatorView: View {
         ZStack {
             RoundedRectangle(cornerRadius: 5, style: .continuous)
                 .fill(bgColor)
-            Image(systemName: "pawprint.fill")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(pawColor)
+            Image("MenuBarCatIcon")
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .frame(height: 13)
+                .foregroundStyle(iconColor)
         }
         .frame(width: 20, height: 20)
         .shadow(color: .black.opacity(0.12), radius: 2, y: 1)
