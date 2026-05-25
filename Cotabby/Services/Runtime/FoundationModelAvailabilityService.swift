@@ -58,7 +58,7 @@ final class FoundationModelAvailabilityService: ObservableObject {
         let previousState = state
         state = provider.refresh()
         if state != previousState {
-            TabbyLogger.runtime.info("Foundation model availability changed: \(self.state.summary)")
+            CotabbyLogger.runtime.info("Foundation model availability changed: \(self.state.summary)")
         }
     }
 

@@ -68,7 +68,7 @@ struct FocusSnapshotResolver {
         guard let resolvedCandidate = selectedCandidate,
             resolution.resolvedCandidate != nil
         else {
-            TabbyLogger.focus.trace("Focus unsupported in \(applicationName): \(resolution.unsupportedReason)")
+            CotabbyLogger.focus.trace("Focus unsupported in \(applicationName): \(resolution.unsupportedReason)")
             return FocusSnapshot(
                 applicationName: applicationName,
                 bundleIdentifier: bundleIdentifier,
@@ -508,7 +508,7 @@ struct FocusSnapshotResolver {
         dumpChildrenRecursive(of: focusedElement, into: &out, indent: "", depth: 0)
 
         out += "========== END DUMP ==========\n"
-        TabbyLogger.focus.debug("\(out)")
+        CotabbyLogger.focus.debug("\(out)")
     }
 
     private func dumpChildrenRecursive(

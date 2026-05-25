@@ -33,6 +33,7 @@ struct WelcomeProfileStepView: View {
                     .controlSize(.large)
                 }
 
+                CustomRulesEditor(suggestionSettings: suggestionSettings)
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 4)

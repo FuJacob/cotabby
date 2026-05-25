@@ -72,9 +72,20 @@ extension SuggestionCoordinator {
 
         let context = interactionState.materializeContext(from: rawContext)
         let visualContextSummary = visualContextCoordinator.excerpt(for: context)
-        let clipboardContext = settingsSnapshot.isClipboardContextEnabled
+        let rawClipboard = settingsSnapshot.isClipboardContextEnabled
             ? clipboardContextProvider.currentContext()
             : nil
+        // Same bounded window the downstream distiller sees, so the relevance gate and the
+        // per-line filter can't disagree about what "shares tokens with the prefix" means.
+        let truncatedPrefix = SuggestionRequestFactory.truncatedPromptPrefix(
+            from: rawContext.precedingText,
+            configuration: configuration
+        )
+        let clipboardContext = clipboardRelevanceFilter.filter(
+            clipboard: rawClipboard,
+            pasteboardChangeCount: clipboardContextProvider.currentChangeCount,
+            precedingText: truncatedPrefix
+        )
         let requestBuildResult = SuggestionRequestFactory.buildRequest(
             context: context,
             settings: settingsSnapshot,
@@ -330,7 +341,7 @@ extension SuggestionCoordinator {
 
     /// Fully disables prediction, clears cached context, and updates UI messaging with the cause.
     func disablePredictions(reason: String) {
-        TabbyLogger.suggestion.debug("Predictions disabled: \(reason)")
+        CotabbyLogger.suggestion.debug("Predictions disabled: \(reason)")
         cancelPredictionWork()
         resetCachedGenerationContext()
         visualContextCoordinator.cancel(resetState: true)

@@ -46,7 +46,7 @@ env:
   PROJECT_PATH: Cotabby.xcodeproj
   SCHEME: Cotabby
   CONFIGURATION: Release
-  PAGES_CUSTOM_DOMAIN: updates.tabbyapp.dev
+  PAGES_CUSTOM_DOMAIN: updates.cotabby.app
   NOTARIZATION_TIMEOUT_SECONDS: 3300
   NOTARIZATION_POLL_INTERVAL_SECONDS: 60
   # SHA-256 of the Sparkle release tarball used for signing tools. Update
@@ -63,7 +63,7 @@ jobs:
       url: ${{ steps.deploy-pages.outputs.page_url }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Select Xcode
         uses: maxim-lobanov/setup-xcode@v1
@@ -71,7 +71,7 @@ jobs:
           xcode-version: latest-stable
 
       - name: Select Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.13"
 
@@ -661,18 +661,18 @@ jobs:
 
       - name: Upload GitHub Pages artifact
         if: steps.metadata.outputs.publish == 'true'
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: build/pages
 
       - name: Deploy GitHub Pages
         if: steps.metadata.outputs.publish == 'true'
         id: deploy-pages
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
 
       - name: Upload local release artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: release-artifacts
           path: |
