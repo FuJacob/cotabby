@@ -52,9 +52,18 @@ enum SuggestionTextNormalizer {
         // continuation that followed.
         normalized = normalized.trimmingCharacters(in: .newlines)
 
-        // Inline autocomplete should only surface the immediate continuation, not a paragraph.
-        if let firstLine = normalized.split(separator: "\n", maxSplits: 1).first {
-            normalized = String(firstLine)
+        if request.isMultiLineEnabled {
+            // Multi-line mode: keep content up to the first blank-line boundary (double newline)
+            // to prevent runaway paragraph generation while still allowing multi-line completions.
+            if let blankLine = normalized.range(of: "\n\n") {
+                normalized = String(normalized[..<blankLine.lowerBound])
+            }
+            normalized = normalized.trimmingCharacters(in: .whitespacesAndNewlines)
+        } else {
+            // Single-line mode: only surface the immediate continuation line.
+            if let firstLine = normalized.split(separator: "\n", maxSplits: 1).first {
+                normalized = String(firstLine)
+            }
         }
 
         // If the model starts by repeating text that already exists after the caret, we treat the
@@ -139,20 +148,33 @@ enum SuggestionTextNormalizer {
     /// residue. This list intentionally stays here instead of in a runtime adapter because the UI
     /// contract is the same no matter which backend leaked the marker: ghost text must be user text.
     private static func stripKnownControlTokens(from text: String) -> String {
-        [
+        // These delimiters are vanishingly unlikely to appear in real prose, so it is safe to
+        // strip every occurrence wherever the runtime leaked them.
+        var result = [
             "<|im_end|>",
             "<|im_start|>",
             "<|endoftext|>",
             "<|end_of_text|>",
             "<|eot_id|>",
             "<|begin_of_text|>",
-            "<end_of_turn>",
-            "<s>",
-            "</s>",
-            "[INST]",
-            "[/INST]"
+            "<end_of_turn>"
         ].reduce(text) { partial, token in
             partial.replacingOccurrences(of: token, with: "")
         }
+
+        // These have legitimate meaning in user content: `<s>`/`</s>` are HTML strikethrough and
+        // `[INST]`/`[/INST]` show up in prompt-template docs. A leaked BOS/EOS or instruction
+        // delimiter only ever appears at the boundary of the response, so only strip there to
+        // avoid silently mangling a correct mid-completion that happens to use these tokens.
+        for token in ["<s>", "</s>", "[INST]", "[/INST]"] {
+            if result.hasPrefix(token) {
+                result.removeFirst(token.count)
+            }
+            if result.hasSuffix(token) {
+                result.removeLast(token.count)
+            }
+        }
+
+        return result
     }
 }
