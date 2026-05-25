@@ -17,6 +17,7 @@ struct SettingsView: View {
     @ObservedObject var suggestionSettings: SuggestionSettingsModel
     @ObservedObject var foundationModelAvailabilityService: FoundationModelAvailabilityService
     @ObservedObject var runtimeModel: RuntimeBootstrapModel
+    @ObservedObject var mlxRuntimeManager: MLXRuntimeManager
     @ObservedObject var modelDownloadManager: ModelDownloadManager
 
     let onShowWelcome: () -> Void
@@ -145,14 +146,20 @@ struct SettingsView: View {
                 }
             }
 
-            if suggestionSettings.selectedEngine == .appleIntelligence {
+            switch suggestionSettings.selectedEngine {
+            case .appleIntelligence:
                 LabeledContent("Availability") {
                     Text(foundationModelAvailabilityService.userVisibleMessage)
                         .foregroundStyle(.secondary)
                 }
-            } else {
+            case .llamaOpenSource:
                 LabeledContent("Runtime") {
                     Text(runtimeModel.state.summary)
+                        .foregroundStyle(.secondary)
+                }
+            case .mlxSwift:
+                LabeledContent("Runtime") {
+                    Text(mlxRuntimeManager.state.summary)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -647,11 +654,14 @@ struct SettingsView: View {
     }
 
     private var localModelsDescription: String {
-        if suggestionSettings.selectedEngine == .llamaOpenSource {
+        switch suggestionSettings.selectedEngine {
+        case .llamaOpenSource:
             return "Download a model or add your own below. Models are stored locally on your Mac."
+        case .mlxSwift:
+            return "Download an MLX model below. Models are stored locally on your Mac."
+        case .appleIntelligence:
+            return "These models are used when Engine is set to Open Source or MLX."
         }
-
-        return "These models are used when Engine is set to Open Source."
     }
 
     private var launchAtLoginMessage: String? {

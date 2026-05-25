@@ -167,7 +167,7 @@ enum SuggestionRequestFactory {
         switch selectedEngine {
         case .appleIntelligence:
             return FoundationModelPromptRenderer.promptPreview(for: request)
-        case .llamaOpenSource:
+        case .llamaOpenSource, .mlxSwift:
             return request.prompt
         }
     }

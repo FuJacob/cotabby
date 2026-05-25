@@ -10,15 +10,18 @@ final class SuggestionEngineRouter {
     private let suggestionSettings: SuggestionSettingsModel
     private let foundationModelEngine: any SuggestionGenerating
     private let llamaEngine: any SuggestionGenerating
+    private let mlxEngine: any SuggestionGenerating
 
     init(
         suggestionSettings: SuggestionSettingsModel,
         foundationModelEngine: any SuggestionGenerating,
-        llamaEngine: any SuggestionGenerating
+        llamaEngine: any SuggestionGenerating,
+        mlxEngine: any SuggestionGenerating
     ) {
         self.suggestionSettings = suggestionSettings
         self.foundationModelEngine = foundationModelEngine
         self.llamaEngine = llamaEngine
+        self.mlxEngine = mlxEngine
     }
 
     func generateSuggestion(for request: SuggestionRequest) async throws -> SuggestionResult {
@@ -37,15 +40,18 @@ final class SuggestionEngineRouter {
         case .llamaOpenSource:
             TabbyLogger.suggestion.debug("Routing to open-source llama engine")
             return try await llamaEngine.generateSuggestion(for: request)
+        case .mlxSwift:
+            return try await mlxEngine.generateSuggestion(for: request)
         }
     }
 
     /// Clears backend-local continuation state when the coordinator knows the editing context is
     /// no longer continuous. The router fans this out so switching engines cannot leave stale
-    /// llama KV state behind.
+    /// state behind.
     func resetCachedGenerationContext() async {
         await foundationModelEngine.resetCachedGenerationContext()
         await llamaEngine.resetCachedGenerationContext()
+        await mlxEngine.resetCachedGenerationContext()
     }
 
     /// Apple Intelligence can reject a request after global availability reports success because
