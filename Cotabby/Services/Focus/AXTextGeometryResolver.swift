@@ -56,7 +56,11 @@ struct AXTextGeometryResolver {
     ) -> CaretGeometryResult? {
         // Branch 1: Zero-length BoundsForRange at the caret position — ideal case.
         // We try this unconditionally because many apps support BoundsForRange without
-        // advertising it in parameterizedAttributeNames. The call returns nil on failure.
+        // advertising it in parameterizedAttributeNames. Without the old gate, though, some
+        // AX nodes (deep Chrome leaves, ancestors with inherited selections) respond non-nil
+        // with rects that belong to an unrelated range. Anchor validation rejects those so we
+        // fall through to TextMarker / child runs / AXFrame instead of locking in garbage as
+        // `.exact` and overriding the primary candidate via the deep-tree search.
         if let rect = AXHelper.parameterizedRectValue(
             for: kAXBoundsForRangeParameterizedAttribute as CFString,
             range: NSRange(location: selection.location, length: 0),
@@ -66,10 +70,12 @@ struct AXTextGeometryResolver {
                 fromAccessibilityRect: rect,
                 anchorFrame: cocoaAnchorFrame
             )
-            return CaretGeometryResult(
-                rect: normalizedCaretRect(fromZeroLengthRangeRect: cocoaRect),
-                quality: .exact
-            )
+            if rectIsNearAnchor(cocoaRect, anchor: cocoaAnchorFrame) {
+                return CaretGeometryResult(
+                    rect: normalizedCaretRect(fromZeroLengthRangeRect: cocoaRect),
+                    quality: .exact
+                )
+            }
         }
 
         // Branch 1.5: Chromium / WebKit AXTextMarker fallback.
@@ -87,6 +93,8 @@ struct AXTextGeometryResolver {
         }
 
         // Branch 2: BoundsForRange on the character before the caret, then shift to its trailing edge.
+        // Same anchor validation as Branch 1 — the optimistic call can return rects for ranges
+        // that don't belong to this element.
         if selection.location > 0,
             let rect = AXHelper.parameterizedRectValue(
                 for: kAXBoundsForRangeParameterizedAttribute as CFString,
@@ -97,11 +105,13 @@ struct AXTextGeometryResolver {
                 fromAccessibilityRect: rect,
                 anchorFrame: cocoaAnchorFrame
             )
-            return CaretGeometryResult(
-                rect: CGRect(
-                    x: cocoaRect.maxX, y: cocoaRect.minY, width: 2, height: cocoaRect.height),
-                quality: .derived
-            )
+            if rectIsNearAnchor(cocoaRect, anchor: cocoaAnchorFrame) {
+                return CaretGeometryResult(
+                    rect: CGRect(
+                        x: cocoaRect.maxX, y: cocoaRect.minY, width: 2, height: cocoaRect.height),
+                    quality: .derived
+                )
+            }
         }
 
         // Branch 2.5: Child text-run proportional estimation.
@@ -281,6 +291,27 @@ struct AXTextGeometryResolver {
         }
 
         return runs
+    }
+
+    /// Confirms a BoundsForRange result actually belongs to the focused field's neighborhood.
+    ///
+    /// `AXHelper.validatedCocoaTextRect` falls back to a best-effort flipped rect when neither
+    /// coordinate-system candidate lands inside the anchor — fine when only known-good elements
+    /// could even reach that helper (the old `supportsBoundsForRange` gate), but unsafe now that
+    /// any AX node may respond non-nil. We treat the same anchor halo as a hard accept/reject
+    /// boundary so the resolver falls through to the next branch instead of trusting a rect
+    /// whose midpoint lies nowhere near where the user is typing.
+    ///
+    /// Returns `true` when no anchor is supplied (cannot validate, preserve legacy behavior) or
+    /// when the rect's midpoint sits inside the anchor expanded by an 80pt halo — the same
+    /// tolerance `AXHelper.validatedCocoaTextRect` uses to decide between coordinate systems.
+    private func rectIsNearAnchor(_ cocoaRect: CGRect, anchor: CGRect?) -> Bool {
+        guard let anchor, !anchor.isEmpty else {
+            return true
+        }
+        let tolerance: CGFloat = 80
+        let expanded = anchor.insetBy(dx: -tolerance, dy: -tolerance)
+        return expanded.contains(CGPoint(x: cocoaRect.midX, y: cocoaRect.midY))
     }
 
     /// Some browser-based editors return a full line fragment for a zero-length range instead of

@@ -12,9 +12,14 @@ struct FocusSnapshotResolver {
     private let geometryResolver: AXTextGeometryResolver
 
     // MARK: - Debug AX tree dump (temporary — remove after caret placement is fixed)
-    /// Set to true to print the AX tree every time focus changes. Check Xcode console.
-    private static let dumpAXTree = false
+    /// When true, the resolver writes the AX tree (on focus change) and the caret-resolution
+    /// summary (every snapshot) to `dumpFilePath`. The file is truncated on first write per
+    /// process, so each app launch starts with an empty log and the file never accumulates
+    /// across rebuilds.
+    private static let dumpAXTree = true
     private static var lastDumpedElementID: String?
+    private static let dumpFilePath = "\(NSHomeDirectory())/Desktop/cotabby-ax-dump.log"
+    private static var hasTruncatedDumpFile = false
 
     init(geometryResolver: AXTextGeometryResolver? = nil) {
         self.geometryResolver = geometryResolver ?? AXTextGeometryResolver()
@@ -112,29 +117,53 @@ struct FocusSnapshotResolver {
         }
 
         // The input target and the geometry source don't need to be the same element.
-        // Native AppKit apps give exact caret rects on the input target itself. But Chrome
-        // nests precise geometry on deep AXStaticText leaf nodes while the parent text entry
-        // area only produces a coarse AXFrame estimate. When the primary candidate's geometry
-        // is weak, search deeper for a leaf with exact caret data.
+        // Native AppKit apps give exact caret rects on the input target itself. Chrome's
+        // AXTextArea, by contrast, answers BoundsForRange(loc-1, 1) with a multi-line union
+        // rect — labeled `.derived` here but actually unusable. The leaf AXStaticText holding
+        // the active line carries its own zero-length selection range and
+        // AXSelectedTextMarkerRange, so the deep BFS in `resolveDeepGeometrySource` can
+        // synthesize a real `.exact` rect via Branch 1.5 (TextMarker) on that leaf.
+        //
+        // Precedence:
+        //   1. primary `.exact`   (single API call, perfect — no walk needed)
+        //   2. deep `.exact`      (beats primary `.derived` so we escape Chrome's union-rect trap)
+        //   3. primary `.derived`
+        //   4. deep `.derived`
+        //   5. primary `.estimated` / unknown fallback
+        // The walk is skipped entirely when primary is already `.exact` to avoid wasted IPC.
+        let deepResult: CaretGeometryResult? = (resolvedCandidate.caretQuality == .exact)
+            ? nil
+            : resolveDeepGeometrySource(
+                focusedElement: focusedElement,
+                resolvedElement: resolvedCandidate.element,
+                cocoaAnchorFrame: resolvedCandidate.inputFrameRect
+            )
+
         let caretRect: CGRect
         let caretSource: String
         let caretQuality: CaretGeometryQuality
         let observedCharWidth: CGFloat?
-        if let primary = resolvedCandidate.caretRect,
-            resolvedCandidate.caretQuality == .exact || resolvedCandidate.caretQuality == .derived {
+        if let primary = resolvedCandidate.caretRect, resolvedCandidate.caretQuality == .exact {
             caretRect = primary
-            caretSource = "\(resolvedCandidate.caretQuality!.label) primary"
-            caretQuality = resolvedCandidate.caretQuality!
+            caretSource = "exact primary"
+            caretQuality = .exact
             observedCharWidth = resolvedCandidate.observedCharWidth
-        } else if let deepResult = resolveDeepGeometrySource(
-            focusedElement: focusedElement,
-            resolvedElement: resolvedCandidate.element,
-            cocoaAnchorFrame: resolvedCandidate.inputFrameRect
-        ) {
-            caretRect = deepResult.rect
-            caretSource = "\(deepResult.quality.label) deep"
-            caretQuality = deepResult.quality
-            observedCharWidth = deepResult.observedCharWidth
+        } else if let deep = deepResult, deep.quality == .exact {
+            caretRect = deep.rect
+            caretSource = "exact deep"
+            caretQuality = .exact
+            observedCharWidth = deep.observedCharWidth
+        } else if let primary = resolvedCandidate.caretRect,
+                  resolvedCandidate.caretQuality == .derived {
+            caretRect = primary
+            caretSource = "derived primary"
+            caretQuality = .derived
+            observedCharWidth = resolvedCandidate.observedCharWidth
+        } else if let deep = deepResult {
+            caretRect = deep.rect
+            caretSource = "\(deep.quality.label) deep"
+            caretQuality = deep.quality
+            observedCharWidth = deep.observedCharWidth
         } else if let primary = resolvedCandidate.caretRect {
             caretRect = primary
             caretSource = "\(resolvedCandidate.caretQuality?.label ?? "unknown") primary-fallback"
@@ -148,6 +177,25 @@ struct FocusSnapshotResolver {
                 context: nil,
                 inspection: inspection
             )
+        }
+
+        if Self.dumpAXTree {
+            var summary = "\n---------- CARET RESOLUTION [\(Self.dumpTimestamp())] ----------\n"
+            summary += "App: \(applicationName) (\(bundleIdentifier))\n"
+            summary += "Selection: loc=\(selection.location) len=\(selection.length)\n"
+            summary += "Resolved candidate: role=\(resolvedCandidate.role)"
+            if let subrole = resolvedCandidate.subrole {
+                summary += " subrole=\(subrole)"
+            }
+            summary += "\n  id=\(resolvedCandidate.elementIdentifier)\n"
+            summary += "  primary caretRect: \(resolvedCandidate.caretRect.map { fmt($0) } ?? "nil")\n"
+            summary += "  primary caretQuality: \(resolvedCandidate.caretQuality?.label ?? "nil")\n"
+            summary += "  anchor (inputFrameRect): \(resolvedCandidate.inputFrameRect.map { fmt($0) } ?? "nil")\n"
+            summary += "=> Final caretRect: \(fmt(caretRect))\n"
+            summary += "=> Final caretQuality: \(caretQuality.label)\n"
+            summary += "=> Final caretSource: \(caretSource)\n"
+            summary += "----------------------------------------------------------------\n"
+            Self.appendToDumpFile(summary)
         }
 
         let nsValue = value as NSString
@@ -480,7 +528,7 @@ struct FocusSnapshotResolver {
     // MARK: - Debug AX tree dump
 
     private func printAXTreeDump(focusedElement: AXUIElement, app: String, bundle: String) {
-        var out = "\n========== AX TREE DUMP ==========\n"
+        var out = "\n========== AX TREE DUMP [\(Self.dumpTimestamp())] ==========\n"
         out += "App: \(app) (\(bundle))\n\n"
 
         out += "-- Focused + ancestors --\n"
@@ -501,6 +549,38 @@ struct FocusSnapshotResolver {
 
         out += "========== END DUMP ==========\n"
         TabbyLogger.focus.debug("\(out)")
+        Self.appendToDumpFile(out)
+    }
+
+    /// Best-effort file sink for the AX dump. Truncates the log on the first write of the
+    /// current process so each app launch starts clean (which is what the operator means by
+    /// "always cleaned up after rebuilding"). All errors are swallowed — this is debug-only.
+    private static func appendToDumpFile(_ text: String) {
+        let url = URL(fileURLWithPath: dumpFilePath)
+
+        if !hasTruncatedDumpFile {
+            hasTruncatedDumpFile = true
+            try? Data().write(to: url)
+        }
+
+        guard let handle = FileHandle(forWritingAtPath: dumpFilePath) else {
+            return
+        }
+        defer { try? handle.close() }
+        do {
+            try handle.seekToEnd()
+            if let data = text.data(using: .utf8) {
+                try handle.write(contentsOf: data)
+            }
+        } catch {
+            // Ignored — debug-only sink, never block resolver flow on disk failure.
+        }
+    }
+
+    private static func dumpTimestamp() -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm:ss.SSS"
+        return formatter.string(from: Date())
     }
 
     private func dumpChildrenRecursive(
@@ -524,7 +604,6 @@ struct FocusSnapshotResolver {
         let role = AXHelper.stringValue(for: kAXRoleAttribute as CFString, on: element) ?? "?"
         let subrole = AXHelper.stringValue(for: kAXSubroleAttribute as CFString, on: element)
         let attributes = Set(AXHelper.attributeNames(on: element))
-        let parameterizedAttributes = Set(AXHelper.parameterizedAttributeNames(on: element))
 
         var summary = "\(indent)\(role)"
         if let subrole { summary += " (\(subrole))" }
@@ -546,17 +625,17 @@ struct FocusSnapshotResolver {
         if let range = AXHelper.rangeValue(for: kAXSelectedTextRangeAttribute as CFString, on: element) {
             summary += "\(indent)  selection: loc=\(range.location) len=\(range.length)\n"
 
-            if parameterizedAttributes.contains(kAXBoundsForRangeParameterizedAttribute as String) {
-                let boundsRect = AXHelper.parameterizedRectValue(
-                    for: kAXBoundsForRangeParameterizedAttribute as CFString,
-                    range: NSRange(location: range.location, length: 0),
-                    on: element
-                )
-                if let boundsRect, !boundsRect.isEmpty {
-                    summary += "\(indent)  BoundsForRange(loc,0): \(fmt(boundsRect))\n"
-                } else {
-                    summary += "\(indent)  BoundsForRange(loc,0): FAILED\n"
-                }
+            // Try BoundsForRange unconditionally so the dump reflects what the production resolver
+            // actually sees on Electron/WebKit elements that don't advertise the attribute.
+            let boundsRect = AXHelper.parameterizedRectValue(
+                for: kAXBoundsForRangeParameterizedAttribute as CFString,
+                range: NSRange(location: range.location, length: 0),
+                on: element
+            )
+            if let boundsRect, !boundsRect.isEmpty {
+                summary += "\(indent)  BoundsForRange(loc,0): \(fmt(boundsRect))\n"
+            } else {
+                summary += "\(indent)  BoundsForRange(loc,0): FAILED\n"
             }
         }
 
