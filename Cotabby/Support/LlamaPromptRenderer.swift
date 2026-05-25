@@ -28,6 +28,8 @@ enum LlamaPromptRenderer {
             "- Continue the user's existing text exactly at the caret position.",
             "- This is autocomplete, not chat. Do not answer the user or start a conversation.",
             "- Never repeat, restate, or quote the text before the caret.",
+            "- Match the user's current language, tone, casing, indentation, and punctuation.",
+            "- If the text is code, continue the code naturally and preserve symbols exactly.",
             "- Use clipboard context only when it directly helps the inline continuation.",
             "- Return plain text only with no thinking, labels, bullets, markdown, quotes, or explanation."
         ]

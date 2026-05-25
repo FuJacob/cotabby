@@ -22,6 +22,20 @@ final class SuggestionTextNormalizerTests: XCTestCase {
         XCTAssertEqual(normalized, " useful continuation")
     }
 
+    func test_normalize_removesMLXAndHuggingFaceControlTokens() {
+        let request = CotabbyTestFixtures.suggestionRequest(
+            prefixText: "Hello",
+            precedingText: "Hello"
+        )
+
+        let normalized = SuggestionTextNormalizer.normalize(
+            "<s>[INST] useful continuation[/INST]<|eot_id|></s>",
+            for: request
+        )
+
+        XCTAssertEqual(normalized, " useful continuation")
+    }
+
     func test_normalize_removesPrefixEchoWhenPromptWasNotEchoed() {
         let request = CotabbyTestFixtures.suggestionRequest(
             prefixText: "Hello world",

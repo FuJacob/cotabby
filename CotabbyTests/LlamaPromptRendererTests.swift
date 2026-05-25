@@ -73,6 +73,14 @@ final class LlamaPromptRendererTests: XCTestCase {
 
         XCTAssertTrue(prompt.contains("Task:"), "instruction prompt should include Task section")
         XCTAssertTrue(
+            prompt.contains("Match the user's current language, tone, casing, indentation, and punctuation."),
+            "instruction prompt should preserve the local writing style"
+        )
+        XCTAssertTrue(
+            prompt.contains("If the text is code, continue the code naturally and preserve symbols exactly."),
+            "instruction prompt should give code-shaped text explicit continuation guidance"
+        )
+        XCTAssertTrue(
             prompt.contains("Screen context:"),
             "instruction prompt should include Screen context section"
         )

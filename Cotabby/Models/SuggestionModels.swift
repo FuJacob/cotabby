@@ -39,16 +39,17 @@ enum SuggestionWordCountPreset: String, CaseIterable, Equatable, Hashable, Senda
         }
     }
 
-    /// Token budget sized at ~1.5x the upper word bound. Tight enough to enforce the word cap
-    /// while leaving room for multi-token words (contractions, proper nouns, punctuation).
+    /// Token budget sized at ~2x the upper word bound. Tight enough to enforce the word cap
+    /// while leaving room for modern subword tokenizers where punctuation, spaces, and short
+    /// words can each consume separate tokens.
     var suggestedPredictionTokenBudget: Int {
         switch self {
         case .threeToSeven:
-            return 11
+            return 14
         case .sevenToTwelve:
-            return 18
+            return 24
         case .twelveToTwenty:
-            return 30
+            return 40
         }
     }
 }
@@ -88,8 +89,9 @@ struct SuggestionConfiguration: Equatable, Sendable {
     /// The configuration shipped by the app today.
     /// These are product defaults, not temporary debug overrides.
     static let standard = SuggestionConfiguration(
-        // Keep completions short so ghost text stays fast and easy to accept.
-        maxPredictionTokens: 8,
+        // Keep completions short enough for inline UI, but leave room for modern tokenizers where
+        // punctuation, spaces, and short words can each consume separate tokens.
+        maxPredictionTokens: 16,
         // Aggressive debounce: 50ms is enough for most apps to publish AX state. The KV cache
         // reuse path handles prefix changes gracefully if AX is occasionally one char stale.
         debounceMilliseconds: 50,
@@ -100,10 +102,10 @@ struct SuggestionConfiguration: Equatable, Sendable {
         minP: 0.08,
         repetitionPenalty: 1.05,
         randomSeed: nil,
-        maxPrefixWords: 50,
-        // Prompt windows should stay small. Sending an entire editor buffer hurts latency with
-        // little quality gain because Cotabby is only completing the immediate local continuation.
-        maxPrefixCharacters: 1000,
+        maxPrefixWords: 90,
+        // Keep a larger local tail than the original prototype so code, email threads, and
+        // structured notes preserve enough style and naming context without sending full documents.
+        maxPrefixCharacters: 2000,
         maxSuffixCharacters: 192,
         // Seed the profile settings with lightweight defaults on first launch.
         defaultUserName: "Jacob",
