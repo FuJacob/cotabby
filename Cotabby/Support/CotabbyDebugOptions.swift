@@ -26,19 +26,25 @@ enum CotabbyDebugOptions {
             return
         }
 
-        TabbyLogger.debug.debug("\(message())")
+        CotabbyLogger.debug.debug("\(message())")
     }
 }
 
 /// Provides subsystem-scoped loggers for the entire app.
 ///
-/// All loggers route through `OSLogHandler`, so messages appear in Console.app
-/// with the subsystem as a filterable column. Open Console.app and filter by
-/// process "tabby" or subsystem "com.tabby.*" to see structured output.
-enum TabbyLogger {
+/// All loggers route through `OSLogHandler` so messages appear in Console.app with the
+/// subsystem as a filterable column. When the `-cotabby-debug` launch argument is set we
+/// additionally fan out to `FileLogHandler`, which writes JSONL to
+/// `~/Library/Logs/Cotabby/cotabby.jsonl` for AI-assisted debugging without copy-paste.
+enum CotabbyLogger {
     private static let bootstrapOnce: Void = {
+        // The debug-flag check happens once, at bootstrap time. Toggling it requires a relaunch,
+        // which matches how every other launch-arg in the app behaves.
+        let installFileHandler = CotabbyDebugOptions.isEnabled
         LoggingSystem.bootstrap { label in
-            OSLogHandler(label: label)
+            let osHandler = OSLogHandler(label: label)
+            guard installFileHandler else { return osHandler }
+            return MultiplexLogHandler([osHandler, FileLogHandler(label: label)])
         }
     }()
 
@@ -47,13 +53,13 @@ enum TabbyLogger {
         _ = bootstrapOnce
     }
 
-    static let app = Logger(label: "com.tabby.app")
-    static let debug = Logger(label: "com.tabby.debug")
-    static let runtime = Logger(label: "com.tabby.runtime")
-    static let focus = Logger(label: "com.tabby.focus")
-    static let updates = Logger(label: "com.tabby.updates")
-    static let models = Logger(label: "com.tabby.models")
-    static let suggestion = Logger(label: "com.tabby.suggestion")
+    static let app = Logger(label: "com.cotabby.app")
+    static let debug = Logger(label: "com.cotabby.debug")
+    static let runtime = Logger(label: "com.cotabby.runtime")
+    static let focus = Logger(label: "com.cotabby.focus")
+    static let updates = Logger(label: "com.cotabby.updates")
+    static let models = Logger(label: "com.cotabby.models")
+    static let suggestion = Logger(label: "com.cotabby.suggestion")
 }
 
 /// Bridges swift-log into Apple's Unified Logging so every log line appears in Console.app
@@ -67,7 +73,7 @@ struct OSLogHandler: LogHandler {
     /// Apple's convention: `subsystem` is the app-wide identifier (constant for all loggers),
     /// `category` is the per-component label. This way Console.app can filter all Tabby output
     /// with one subsystem while still distinguishing components by category.
-    private static let subsystem = "com.tabby.app"
+    private static let subsystem = "com.cotabby.app"
 
     init(label: String) {
         let parts = label.split(separator: ".", maxSplits: 2)

@@ -28,6 +28,12 @@ enum FoundationModelPromptRenderer {
             "Use plain text only with no labels, bullets, markdown, or explanation."
         ]
 
+        // A language override supersedes the "match the existing language" base rule above, so it
+        // goes right after the base block where the instructions channel weights it heavily.
+        if let languageInstruction = request.languageInstruction, !languageInstruction.isEmpty {
+            lines.append(languageInstruction)
+        }
+
         var profileSections: [String] = []
         if let name = request.userName, !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             profileSections.append("The user's name is \(name).")
@@ -36,6 +42,18 @@ enum FoundationModelPromptRenderer {
             lines.append("User Profile Context:")
             lines.append(contentsOf: profileSections)
             lines.append("Use this context only when it fits naturally into the continuation.")
+        }
+
+        // Style rules live in the high-priority instructions channel like the base rules, but are
+        // appended last with an explicit subordination line so they cannot override the output
+        // contract above.
+        let trimmedRules = request.customRules
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        if !trimmedRules.isEmpty {
+            lines.append("Your style preferences:")
+            lines.append(contentsOf: trimmedRules.map { "- \($0)" })
+            lines.append("Apply these only when they fit the continuation naturally; never break the rules above.")
         }
 
         return lines.joined(separator: "\n")

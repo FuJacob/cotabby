@@ -28,7 +28,7 @@ jobs:
     runs-on: macos-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       # Use the prebuilt SwiftLint on macos-latest. The image ships a recent
       # version via Homebrew; calling `swiftlint version` in the log captures

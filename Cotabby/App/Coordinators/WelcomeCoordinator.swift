@@ -26,7 +26,7 @@ final class WelcomeCoordinator: NSObject, NSWindowDelegate {
     private var welcomeWindowController: NSWindowController?
     private var permissionReminderWindowController: NSWindowController?
 
-    private static let onboardingCompletedDefaultsKey = "onboardingCompleted"
+    private static let onboardingCompletedDefaultsKey = "cotabbyOnboardingCompleted"
 
     init(
         permissionManager: PermissionManager,
