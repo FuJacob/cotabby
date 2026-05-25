@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		194B33B32FC3F33B00DF6F60 /* InMemoryLogging in Frameworks */ = {isa = PBXBuildFile; productRef = 194B33B22FC3F33B00DF6F60 /* InMemoryLogging */; };
+		194B33B52FC3F33B00DF6F60 /* Logging in Frameworks */ = {isa = PBXBuildFile; productRef = 194B33B42FC3F33B00DF6F60 /* Logging */; };
 		19E177EA2FC1B7890067E267 /* CotabbyInference in Frameworks */ = {isa = PBXBuildFile; productRef = 19E177E92FC1B7890067E267 /* CotabbyInference */; };
 		8B6282F0C1CCA0746D96B914 /* DownloadOutcomeClassifierTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 562F89255AF340C15A0554BE /* DownloadOutcomeClassifierTests.swift */; };
 		A1C3E0112F90000100AAA001 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = A1C3E0102F90000100AAA001 /* Sparkle */; };
@@ -80,6 +82,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				A1C3E0112F90000100AAA001 /* Sparkle in Frameworks */,
+				194B33B32FC3F33B00DF6F60 /* InMemoryLogging in Frameworks */,
+				194B33B52FC3F33B00DF6F60 /* Logging in Frameworks */,
 				19E177EA2FC1B7890067E267 /* CotabbyInference in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -161,6 +165,8 @@
 			packageProductDependencies = (
 				A1C3E0102F90000100AAA001 /* Sparkle */,
 				19E177E92FC1B7890067E267 /* CotabbyInference */,
+				194B33B22FC3F33B00DF6F60 /* InMemoryLogging */,
+				194B33B42FC3F33B00DF6F60 /* Logging */,
 			);
 			productName = Cotabby;
 			productReference = 193741492F81DE7000BEC04F /* Cotabby.app */;
@@ -211,6 +217,7 @@
 			packageReferences = (
 				A1C3E0122F90000100AAA001 /* XCRemoteSwiftPackageReference "Sparkle" */,
 				19E177E82FC1B7890067E267 /* XCLocalSwiftPackageReference "../LlamaMiddleware" */,
+				194B33B12FC3F33B00DF6F60 /* XCRemoteSwiftPackageReference "swift-log" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 1937414A2F81DE7000BEC04F /* Products */;
@@ -567,6 +574,14 @@
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		194B33B12FC3F33B00DF6F60 /* XCRemoteSwiftPackageReference "swift-log" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/apple/swift-log.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.12.1;
+			};
+		};
 		A1C3E0122F90000100AAA001 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/sparkle-project/Sparkle";
@@ -578,6 +593,16 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		194B33B22FC3F33B00DF6F60 /* InMemoryLogging */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 194B33B12FC3F33B00DF6F60 /* XCRemoteSwiftPackageReference "swift-log" */;
+			productName = InMemoryLogging;
+		};
+		194B33B42FC3F33B00DF6F60 /* Logging */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 194B33B12FC3F33B00DF6F60 /* XCRemoteSwiftPackageReference "swift-log" */;
+			productName = Logging;
+		};
 		19E177E92FC1B7890067E267 /* CotabbyInference */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = CotabbyInference;
