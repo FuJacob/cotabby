@@ -85,7 +85,7 @@ jobs:
 
       - name: Deploy GitHub Pages
         id: deploy
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
 
       - name: Summary
         run: |

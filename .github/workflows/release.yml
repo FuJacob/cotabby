@@ -668,7 +668,7 @@ jobs:
       - name: Deploy GitHub Pages
         if: steps.metadata.outputs.publish == 'true'
         id: deploy-pages
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
 
       - name: Upload local release artifacts
         if: always()
