@@ -38,6 +38,45 @@ final class SuggestionCoordinatorComposeTests: XCTestCase {
         XCTAssertNil(env.coordinator.interactionState.activeComposeSession)
     }
 
+    func test_firstTab_showsDraftingIndicatorThenHidesItOnceTokensArrive() async {
+        let env = makeEnvironment(
+            mode: .compose,
+            engineBehavior: .blocked(initialPieces: [])
+        )
+
+        _ = env.coordinator.handleInputEvent(CotabbyTestFixtures.inputEvent(kind: .acceptance))
+        for _ in 0..<5 { await Task.yield() }
+
+        // Before any token, the "Drafting…" pill is visible.
+        XCTAssertEqual(env.overlayController.composeProgressLabels, ["Drafting…"])
+        if case .composeProgress = env.overlayController.state {
+            // expected
+        } else {
+            XCTFail("Expected composeProgress overlay state, got \(env.overlayController.state)")
+        }
+    }
+
+    func test_draftingIndicatorIsHiddenOnceTheFirstTokenLands() async {
+        let finishedExpectation = expectation(description: "stream finished")
+        let env = makeEnvironment(
+            mode: .compose,
+            engineBehavior: .success(pieces: ["Hello"]),
+            onStreamFinished: { finishedExpectation.fulfill() }
+        )
+
+        _ = env.coordinator.handleInputEvent(CotabbyTestFixtures.inputEvent(kind: .acceptance))
+        await fulfillment(of: [finishedExpectation], timeout: 1.0)
+        await Task.yield()
+
+        XCTAssertEqual(env.overlayController.composeProgressLabels, ["Drafting…"])
+        // After streaming completes the overlay is hidden, not stuck on the indicator.
+        if case .hidden = env.overlayController.state {
+            // expected
+        } else {
+            XCTFail("Expected hidden overlay after stream, got \(env.overlayController.state)")
+        }
+    }
+
     func test_firstTab_inComposeMode_returnsTrueToConsumeTab() {
         let env = makeEnvironment(
             mode: .compose,
@@ -355,6 +394,14 @@ private final class FakeOverlayController: SuggestionOverlayControlling {
     func showComposePreview(_ text: String, geometry: SuggestionOverlayGeometry) {
         composePreviewText = text
         state = .composePreview(text: text, geometry: geometry)
+        onStateChange?(state)
+    }
+
+    private(set) var composeProgressLabels: [String] = []
+
+    func showComposeProgress(_ label: String, geometry: SuggestionOverlayGeometry) {
+        composeProgressLabels.append(label)
+        state = .composeProgress(label: label, geometry: geometry)
         onStateChange?(state)
     }
 

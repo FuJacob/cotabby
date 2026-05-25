@@ -106,6 +106,7 @@ protocol SuggestionOverlayControlling: AnyObject {
 
     func showSuggestion(_ text: String, geometry: SuggestionOverlayGeometry)
     func showComposePreview(_ text: String, geometry: SuggestionOverlayGeometry)
+    func showComposeProgress(_ label: String, geometry: SuggestionOverlayGeometry)
     func hide(reason: String)
 }
 

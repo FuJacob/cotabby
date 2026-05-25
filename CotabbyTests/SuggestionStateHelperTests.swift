@@ -567,6 +567,14 @@ private final class FakeOverlayController: SuggestionOverlayControlling {
         onStateChange?(state)
     }
 
+    func showComposeProgress(
+        _ label: String,
+        geometry: SuggestionOverlayGeometry
+    ) {
+        state = .composeProgress(label: label, geometry: geometry)
+        onStateChange?(state)
+    }
+
     func hide(reason: String) {
         hideReasons.append(reason)
         state = .hidden(reason: reason)

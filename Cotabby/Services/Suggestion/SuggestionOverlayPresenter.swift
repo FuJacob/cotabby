@@ -75,6 +75,20 @@ struct SuggestionOverlayPresenter {
         return "Displayed Compose draft preview near the caret."
     }
 
+    /// Shows the transient "Drafting…" indicator. Idempotent: re-presenting the same label and
+    /// geometry returns `nil` so the coordinator does not log a redundant overlay change.
+    func presentComposeProgress(
+        label: String,
+        geometry: SuggestionOverlayGeometry,
+        previousState: OverlayState
+    ) -> String? {
+        guard previousState != .composeProgress(label: label, geometry: geometry) else {
+            return nil
+        }
+        overlayController.showComposeProgress(label, geometry: geometry)
+        return "Displayed Compose \"\(label)\" indicator near the caret."
+    }
+
     func hide(reason: String) -> String {
         overlayController.hide(reason: reason)
         return reason

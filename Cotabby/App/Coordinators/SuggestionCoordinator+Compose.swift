@@ -89,6 +89,9 @@ extension SuggestionCoordinator {
         latestGenerationNumber = context.generation
         latestRawModelOutput = nil
         state = .generating
+        // Instant feedback: the context walk + model warm-up can take a beat before the first
+        // token lands, so show a "Drafting…" pill at the caret the moment Tab registers.
+        presentComposeProgress(label: "Drafting…", for: context)
         logStage(
             "compose-streaming-start",
             workID: workID,
@@ -173,6 +176,12 @@ extension SuggestionCoordinator {
                 guard !Task.isCancelled, workController.isCurrent(workID) else { break }
                 guard composeStreamShouldContinue(matching: session) else { break }
                 guard !piece.isEmpty else { continue }
+
+                // First real token: tear down the "Drafting…" pill — the field is now showing
+                // the draft itself, so the status indicator would just overlap real content.
+                if accumulatedText.isEmpty {
+                    hideOverlay(reason: "Compose draft started streaming into the field.")
+                }
 
                 accumulatedText += piece
                 latestRawModelOutput = SuggestionDebugLogger.debugPreview(accumulatedText)
@@ -314,6 +323,26 @@ extension SuggestionCoordinator {
             return true
         case .idle, .disabled, .debouncing, .ready, .failed:
             return false
+        }
+    }
+
+    // MARK: - Overlay
+
+    /// Shows the transient "Drafting…" pill at the caret while we wait on the first token.
+    private func presentComposeProgress(label: String, for context: FocusedInputContext) {
+        let geometry = SuggestionOverlayGeometry(
+            caretRect: context.caretRect,
+            inputFrameRect: context.inputFrameRect,
+            caretQuality: context.caretQuality,
+            observedCharWidth: context.observedCharWidth,
+            isRightToLeft: TextDirectionDetector.isRightToLeft(context.precedingText)
+        )
+        if let message = overlayPresenter.presentComposeProgress(
+            label: label,
+            geometry: geometry,
+            previousState: overlayState
+        ) {
+            latestOverlayMessage = message
         }
     }
 }
