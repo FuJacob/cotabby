@@ -1,8 +1,8 @@
-# Tabby Codex Instructions
+# Cotabby Codex Instructions
 
 ## Project Identity
 
-Tabby is a macOS menu bar app for on-device inline autocomplete. The core loop is:
+Cotabby is a macOS menu bar app for on-device inline autocomplete. The core loop is:
 
 1. Track the currently focused editable field through Accessibility.
 2. Monitor global keyboard input without stealing focus.
@@ -42,17 +42,17 @@ When adding a `struct`, `class`, `enum`, actor, or protocol, explain:
 
 ## Repository Map
 
-- `tabby/App/`: app entrypoint, composition root, lifecycle wiring, and coordinators.
-- `tabby/UI/`: SwiftUI/AppKit presentation: settings, onboarding, menu views, overlays, and
+- `Cotabby/App/`: app entrypoint, composition root, lifecycle wiring, and coordinators.
+- `Cotabby/UI/`: SwiftUI/AppKit presentation: settings, onboarding, menu views, overlays, and
   visual affordances.
-- `tabby/Services/`: side-effectful boundaries: Accessibility, input monitoring, text insertion,
+- `Cotabby/Services/`: side-effectful boundaries: Accessibility, input monitoring, text insertion,
   screenshots/OCR, visual context, llama runtime, permissions, downloads, updates, and launch
   services.
-- `tabby/Models/`: shared value types, settings snapshots, states, domain models, and protocol
+- `Cotabby/Models/`: shared value types, settings snapshots, states, domain models, and protocol
   contracts.
-- `tabby/Support/`: pure helper logic, prompt rendering, availability rules, normalization,
+- `Cotabby/Support/`: pure helper logic, prompt rendering, availability rules, normalization,
   reconciliation, geometry helpers, and low-level bridging utilities.
-- `tabbyTests/`: unit and microbench tests. Prefer testing pure `Support/` and `Models/` logic
+- `CotabbyTests/`: unit and microbench tests. Prefer testing pure `Support/` and `Models/` logic
   when possible.
 - `LlamaRuntime/`: local llama.swift / llama.cpp integration artifacts.
 
@@ -60,11 +60,11 @@ When adding a `struct`, `class`, `enum`, actor, or protocol, explain:
 
 Start here when you need to understand lifecycle:
 
-1. `tabby/App/Core/TabbyApp.swift`
-2. `tabby/App/Core/AppDelegate.swift`
-3. `tabby/App/Core/TabbyAppEnvironment.swift`
+1. `Cotabby/App/Core/CotabbyApp.swift`
+2. `Cotabby/App/Core/AppDelegate.swift`
+3. `Cotabby/App/Core/CotabbyAppEnvironment.swift`
 
-`TabbyAppEnvironment` builds the long-lived dependency graph once. `AppDelegate` starts, stops,
+`CotabbyAppEnvironment` builds the long-lived dependency graph once. `AppDelegate` starts, stops,
 and wires cross-subsystem subscriptions. SwiftUI views should observe objects from that graph
 rather than creating services directly.
 
@@ -75,11 +75,11 @@ reload races, and mismatched settings state.
 
 Read the coordinator in this order:
 
-1. `tabby/App/Coordinators/SuggestionCoordinator.swift`
-2. `tabby/App/Coordinators/SuggestionCoordinator+Lifecycle.swift`
-3. `tabby/App/Coordinators/SuggestionCoordinator+Input.swift`
-4. `tabby/App/Coordinators/SuggestionCoordinator+Prediction.swift`
-5. `tabby/App/Coordinators/SuggestionCoordinator+Acceptance.swift`
+1. `Cotabby/App/Coordinators/SuggestionCoordinator.swift`
+2. `Cotabby/App/Coordinators/SuggestionCoordinator+Lifecycle.swift`
+3. `Cotabby/App/Coordinators/SuggestionCoordinator+Input.swift`
+4. `Cotabby/App/Coordinators/SuggestionCoordinator+Prediction.swift`
+5. `Cotabby/App/Coordinators/SuggestionCoordinator+Acceptance.swift`
 
 The coordinator owns orchestration and user-facing state. It should not absorb every rule. Prefer:
 
@@ -98,7 +98,7 @@ about than coordinator mutations.
 Focus and geometry live in:
 
 - `FocusTracker`: observes focus/value/selection changes and publishes snapshots.
-- `FocusSnapshotResolver`: reduces raw AX elements into Tabby-supported focus snapshots.
+- `FocusSnapshotResolver`: reduces raw AX elements into Cotabby-supported focus snapshots.
 - `AXTextGeometryResolver`: resolves caret and input geometry.
 - `AXHelper`: low-level Accessibility/Core Foundation helper calls.
 - `FocusModels`: pure focus values, identities, capabilities, and debug inspection data.
@@ -192,8 +192,8 @@ Use the narrowest meaningful validation first, then broaden if the change touche
 Common commands:
 
 ```bash
-xcodebuild -project tabby.xcodeproj -scheme tabby -destination 'platform=macOS' build
-xcodebuild -project tabby.xcodeproj -scheme tabby -destination 'platform=macOS' build-for-testing
+xcodebuild -project Cotabby.xcodeproj -scheme Cotabby -destination 'platform=macOS' build
+xcodebuild -project Cotabby.xcodeproj -scheme Cotabby -destination 'platform=macOS' build-for-testing
 ```
 
 Run targeted tests for changed pure logic when available. If `xcodebuild test` fails locally because

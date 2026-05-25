@@ -1,6 +1,6 @@
 ---
 name: Bug report
-about: Report a reproducible Tabby bug
+about: Report a reproducible Cotabby bug
 title: "[Bug] "
 labels: bug
 assignees: ""
@@ -14,10 +14,11 @@ Describe the bug in one or two sentences.
 
 - macOS version:
 - Host app:
-- Tabby engine: Apple Intelligence / Open Source
+- Cotabby engine: Apple Intelligence / Open Source
 - Model name (if Open Source):
 - Accessibility permission granted: yes / no
 - Input Monitoring permission granted: yes / no
+- Screen Recording permission granted: yes / no
 
 ## Steps to reproduce
 
@@ -27,7 +28,7 @@ Describe the bug in one or two sentences.
 
 ## Expected behavior
 
-Describe what you expected Tabby to do.
+Describe what you expected Cotabby to do.
 
 ## Actual behavior
 

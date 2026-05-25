@@ -30,7 +30,7 @@ jobs:
     runs-on: macos-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       # Pin Xcode explicitly. GitHub-hosted runner images drift their default
       # Xcode without notice, which surfaces as false-red or false-green
@@ -53,8 +53,8 @@ jobs:
       - name: Build
         run: |
           xcodebuild \
-            -project tabby.xcodeproj \
-            -scheme tabby \
+            -project Cotabby.xcodeproj \
+            -scheme Cotabby \
             -configuration Debug \
             -destination 'platform=macOS' \
             CODE_SIGNING_ALLOWED=NO \

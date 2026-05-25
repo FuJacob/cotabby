@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Generate a Sparkle appcast entry for a notarized Tabby DMG.
+"""Generate a Sparkle appcast entry for a notarized Cotabby DMG.
 
-This script intentionally does not depend on Sparkle's `generate_appcast` helper because Tabby's
+This script intentionally does not depend on Sparkle's `generate_appcast` helper because Cotabby's
 release flow is small and predictable:
-1. a notarized `Tabby.dmg` is uploaded to GitHub Releases
+1. a notarized `Cotabby.dmg` is uploaded to GitHub Releases
 2. `sign_update` produces the EdDSA enclosure signature and archive length
 3. this script renders one `appcast.xml` from a checked-in template
 
@@ -25,15 +25,15 @@ import sys
 
 
 DEFAULT_OWNER = "FuJacob"
-DEFAULT_REPOSITORY = "tabby"
+DEFAULT_REPOSITORY = "Cotabby"
 SIGNATURE_PATTERN = re.compile(r'sparkle:edSignature="([^"]+)"\s+length="([^"]+)"')
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Generate Tabby's Sparkle appcast XML.")
+    parser = argparse.ArgumentParser(description="Generate Cotabby's Sparkle appcast XML.")
     parser.add_argument("--release-version", required=True, help="Marketing version, eg. 1.0.0")
     parser.add_argument("--build-number", required=True, help="CURRENT_PROJECT_VERSION value")
-    parser.add_argument("--archive", required=True, help="Path to the notarized Tabby.dmg")
+    parser.add_argument("--archive", required=True, help="Path to the notarized Cotabby.dmg")
     parser.add_argument(
         "--output",
         default="build/appcast.xml",
@@ -56,6 +56,11 @@ def parse_args() -> argparse.Namespace:
             "Optional path to the Sparkle Ed25519 private key file. "
             "Useful in CI where the key is supplied from a repository secret."
         ),
+    )
+    parser.add_argument(
+        "--archive-filename",
+        default=None,
+        help="Filename in the GitHub Release download URL. Defaults to basename of --archive.",
     )
     parser.add_argument(
         "--github-owner",
@@ -200,7 +205,8 @@ def main() -> int:
     repository_url = f"https://github.com/{args.github_owner}/{args.github_repository}"
     release_tag = f"v{args.release_version}"
     release_page_url = f"{repository_url}/releases/tag/{release_tag}"
-    archive_url = f"{repository_url}/releases/download/{release_tag}/Tabby.dmg"
+    archive_filename = args.archive_filename or archive.name
+    archive_url = f"{repository_url}/releases/download/{release_tag}/{archive_filename}"
 
     rendered_appcast = render_appcast(
         template_path=template_path,

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build a styled release DMG for Tabby.
+"""Build a styled release DMG for Cotabby.
 
 This script owns the DMG packaging policy so the GitHub Actions workflow can
 stay focused on orchestration. The workflow decides *when* to package, while
@@ -29,38 +29,45 @@ from pathlib import Path
 from textwrap import dedent
 
 
-WINDOW_WIDTH = 960
-WINDOW_HEIGHT = 640
+# The committed background art is authored at 2x. Finder window dimensions use point-sized
+# coordinates so the mounted DMG opens compactly without scrollbars while preserving crisp art.
+WINDOW_WIDTH = 540
+WINDOW_HEIGHT = 760
 ICON_SIZE = 128
-APP_ICON_LOCATION = (237, 303)
-APPLICATIONS_ICON_LOCATION = (714, 303)
+APP_ICON_LOCATION = (270, 280)
+APPLICATIONS_ICON_LOCATION = (270, 635)
 
 
 def parse_args() -> argparse.Namespace:
     """Parse the small CLI contract used by local releases and CI."""
 
     parser = argparse.ArgumentParser(
-        description="Build a styled Tabby release DMG with dmgbuild."
+        description="Build a styled Cotabby release DMG with dmgbuild."
     )
     parser.add_argument(
         "--app-path",
         required=True,
-        help="Path to the signed Tabby.app bundle that should be packaged.",
+        help="Path to the signed Cotabby.app bundle that should be packaged.",
     )
     parser.add_argument(
         "--output-path",
         required=True,
-        help="Path where the final Tabby.dmg should be written.",
+        help="Path where the final Cotabby.dmg should be written.",
     )
     parser.add_argument(
         "--background-path",
         required=True,
-        help="Path to the committed DMG background PNG source asset.",
+        help="Path to the committed 1x DMG background PNG source asset.",
+    )
+    parser.add_argument(
+        "--background-2x-path",
+        required=True,
+        help="Path to the committed @2x DMG background PNG source asset.",
     )
     parser.add_argument(
         "--volume-name",
         required=True,
-        help="Mounted volume name shown by Finder, for example Tabby.",
+        help="Mounted volume name shown by Finder, for example Cotabby.",
     )
     return parser.parse_args()
 
@@ -146,21 +153,25 @@ def resolve_app_icon_path(app_path: Path) -> Path | None:
     return None
 
 
-def normalize_background_image(source_path: Path, destination_path: Path) -> None:
-    """Resize the committed art to the Finder window size with macOS tooling.
+def normalize_background_image(
+    source_1x_path: Path,
+    source_2x_path: Path,
+    destination_path: Path,
+) -> None:
+    """Combine 1x and @2x PNGs into a multi-rep TIFF for Finder.
 
-    We use `sips` instead of a third-party Python imaging dependency because
-    release CI already runs on macOS. That keeps the packaging stack smaller and
-    avoids teaching the workflow about another runtime requirement.
+    A single PNG can't carry multiple resolutions, and DPI-tagging tricks are
+    fragile across macOS versions. A multi-image TIFF (the same format Apple's
+    own installers use) lets Finder pick the right rep per display.
     """
 
-    shutil.copy2(source_path, destination_path)
     run_command(
         [
-            "sips",
-            "--resampleHeightWidth",
-            str(WINDOW_HEIGHT),
-            str(WINDOW_WIDTH),
+            "tiffutil",
+            "-cathidpicheck",
+            str(source_1x_path),
+            str(source_2x_path),
+            "-out",
             str(destination_path),
         ]
     )
@@ -261,24 +272,31 @@ def main() -> int:
     args = parse_args()
     ensure_dmgbuild_available()
     app_path = require_existing_path(Path(args.app_path), kind="App bundle")
-    background_path = require_existing_path(Path(args.background_path), kind="Background asset")
+    background_1x_path = require_existing_path(Path(args.background_path), kind="Background asset (1x)")
+    background_2x_path = require_existing_path(Path(args.background_2x_path), kind="Background asset (@2x)")
     output_path = Path(args.output_path).resolve()
 
     if app_path.suffix != ".app":
         raise ValueError(f"Expected a .app bundle, got {app_path}")
-    if background_path.suffix.lower() != ".png":
-        raise ValueError(f"Expected a PNG background asset, got {background_path}")
+    if background_1x_path.suffix.lower() != ".png":
+        raise ValueError(f"Expected a PNG background asset, got {background_1x_path}")
+    if background_2x_path.suffix.lower() != ".png":
+        raise ValueError(f"Expected a PNG background asset, got {background_2x_path}")
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    with tempfile.TemporaryDirectory(prefix="tabby-dmgbuild-") as temporary_root:
+    with tempfile.TemporaryDirectory(prefix="Cotabby-dmgbuild-") as temporary_root:
         temporary_root_path = Path(temporary_root)
         staging_root = temporary_root_path / "staging-root"
         staging_root.mkdir()
 
         staged_app_path = stage_release_root(app_path, staging_root)
-        normalized_background_path = temporary_root_path / "dmg-background.png"
-        normalize_background_image(background_path, normalized_background_path)
+        normalized_background_path = temporary_root_path / "dmg-background.tiff"
+        normalize_background_image(
+            background_1x_path,
+            background_2x_path,
+            normalized_background_path,
+        )
 
         badge_icon_path = resolve_app_icon_path(app_path)
 

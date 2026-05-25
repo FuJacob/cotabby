@@ -1,14 +1,17 @@
-# Claude Instructions for Tabby
+# Claude Instructions for Cotabby
 
-Tabby is a macOS menu bar app that provides on-device inline autocomplete in the
-text field the user is already editing. It watches Accessibility focus, monitors
-global input, generates a local continuation through Apple Intelligence or
-llama.cpp, renders ghost text near the caret, and inserts accepted text when the
-user presses `Tab`.
+Cotabby is a community-driven open-source macOS menu bar app that provides
+on-device inline autocomplete in any text field. It watches Accessibility focus,
+monitors global input, generates a local continuation through Apple Intelligence
+or llama.cpp, renders ghost text near the caret, and inserts accepted text when
+the user presses `Tab`.
+
+This is a production app with real users and external contributors. Treat every
+change as shipping to end users, not as an exercise.
 
 ## How To Work In This Repo
 
-- Read the relevant subsystem before editing. Tabby is stateful, permission-heavy,
+- Read the relevant subsystem before editing. Cotabby is stateful, permission-heavy,
   and tied to macOS Accessibility behavior, so guessing usually creates regressions.
 - Talk through architecture before coding when ownership, lifecycle, or async
   cancellation is unclear.
@@ -20,21 +23,21 @@ user presses `Tab`.
 
 ## Project Map
 
-- `tabby/App/`: app lifecycle, dependency construction, and coordinators.
-- `tabby/UI/`: SwiftUI/AppKit presentation such as settings, onboarding, overlays,
+- `Cotabby/App/`: app lifecycle, dependency construction, and coordinators.
+- `Cotabby/UI/`: SwiftUI/AppKit presentation such as settings, onboarding, overlays,
   and menu-facing state.
-- `tabby/Services/`: side-effectful boundaries: Accessibility, input monitoring,
+- `Cotabby/Services/`: side-effectful boundaries: Accessibility, input monitoring,
   screenshots/OCR, llama runtime, permissions, downloads, updates, and insertion.
-- `tabby/Models/`: shared value types, settings snapshots, state machines, and
+- `Cotabby/Models/`: shared value types, settings snapshots, state machines, and
   protocol contracts.
-- `tabby/Support/`: pure rules and low-level helper logic that should be easy to
+- `Cotabby/Support/`: pure rules and low-level helper logic that should be easy to
   test.
-- `tabbyTests/`: focused tests for prompt rendering, request building, availability,
+- `CotabbyTests/`: focused tests for prompt rendering, request building, availability,
   runtime behavior, and pure state transitions.
 
 ## Key Subsystems
 
-- App ownership starts in `TabbyAppEnvironment` and `AppDelegate`. These construct
+- App ownership starts in `CotabbyAppEnvironment` and `AppDelegate`. These construct
   and retain the long-lived services. SwiftUI views should observe this graph,
   not recreate service objects.
 - The suggestion state machine lives in `SuggestionCoordinator` plus its extension
@@ -49,15 +52,36 @@ user presses `Tab`.
   `FoundationModelSuggestionEngine`, `LlamaSuggestionEngine`,
   `LlamaRuntimeManager`, and the serialized `LlamaRuntimeCore` actor.
 
-## Teaching Comments
+## Comments
 
-- Comments should teach, not narrate. Explain why a design exists, which invariant
-  it protects, or which macOS/Swift pitfall it avoids.
+- Comments should explain why, not what. Explain which invariant a design
+  protects or which macOS/Swift pitfall it avoids.
 - Prefer file-level and type-level `///` comments for new important files/types.
 - Add targeted inline comments for tricky lifecycle, `@MainActor`, `Task`,
   cancellation, Accessibility/Core Foundation bridging, unsafe pointer work, and
   llama.cpp runtime state.
 - Avoid comments that merely restate the next line of code.
+
+## Contributing Workflow
+
+- External contributors open PRs against `main`. Greptile reviews automatically.
+- New test files in `CotabbyTests/` must be manually registered in
+  `Cotabby.xcodeproj/project.pbxproj` (the `Cotabby/` source group auto-discovers
+  files, but `CotabbyTests/` uses manual PBXGroup entries).
+- Run SwiftLint before pushing: `swiftlint lint --quiet`. The project config is
+  in `.swiftlint.yml` (line length 140/200, trailing commas disallowed).
+- Wiki lives at https://github.com/FuJacob/Cotabby/wiki for contributor onboarding.
+
+## GitHub Automation Rules
+
+- **No Co-Authored-By lines.** Never add `Co-Authored-By` trailers to commits.
+- **PRs must use the repo template.** When creating a pull request, read
+  `.github/PULL_REQUEST_TEMPLATE.md` and fill in every section (Summary,
+  Validation, Linked issues, Risk / rollout notes). Do not invent your own
+  format or use a generic body.
+- **Issues must use the repo templates.** When opening an issue, read the
+  matching template in `.github/ISSUE_TEMPLATE/` (bug_report.md or
+  feature_request.md) and fill in every field. Do not invent your own format.
 
 ## Swift And macOS Expectations
 
@@ -76,8 +100,8 @@ Prefer the narrowest useful validation first, then broaden when the change touch
 shared behavior:
 
 ```bash
-xcodebuild -project tabby.xcodeproj -scheme tabby -destination 'platform=macOS' build
-xcodebuild -project tabby.xcodeproj -scheme tabby -destination 'platform=macOS' build-for-testing
+xcodebuild -project Cotabby.xcodeproj -scheme Cotabby -destination 'platform=macOS' build
+xcodebuild -project Cotabby.xcodeproj -scheme Cotabby -destination 'platform=macOS' build-for-testing
 ```
 
 Run targeted tests when possible. If app-hosted tests fail because of local signing

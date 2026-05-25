@@ -1,4 +1,4 @@
-# Tag-driven release pipeline for Tabby.
+# Tag-driven release pipeline for Cotabby.
 #
 # Release ordering matters:
 # 1. build and Developer ID sign the app
@@ -14,8 +14,11 @@ name: Release
 
 on:
   push:
+    # Strict glob: matches v1.2.3 and v1.2.3-beta but NOT vv1.2.3, v0.0.0.0, or test.
+    # Defense in depth — the metadata step also enforces a SemVer regex below.
     tags:
-      - "v*"
+      - "v[0-9]+.[0-9]+.[0-9]+"
+      - "v[0-9]+.[0-9]+.[0-9]+-*"
   workflow_dispatch:
     inputs:
       release_version:
@@ -38,14 +41,17 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  APP_NAME: tabby
-  DMG_NAME: Tabby.dmg
-  PROJECT_PATH: tabby.xcodeproj
-  SCHEME: tabby
+  APP_NAME: Cotabby
+  DMG_NAME: Cotabby.dmg
+  PROJECT_PATH: Cotabby.xcodeproj
+  SCHEME: Cotabby
   CONFIGURATION: Release
-  PAGES_CUSTOM_DOMAIN: tabbyapp.dev
+  PAGES_CUSTOM_DOMAIN: updates.tabbyapp.dev
   NOTARIZATION_TIMEOUT_SECONDS: 3300
   NOTARIZATION_POLL_INTERVAL_SECONDS: 60
+  # SHA-256 of the Sparkle release tarball used for signing tools. Update
+  # this hash whenever Sparkle is bumped in Package.resolved.
+  SPARKLE_SHA256: c0dde519fd2a43ddfc6a1eb76aec284d7d888fe281414f9177de3164d98ba4c7
 
 jobs:
   release:
@@ -57,7 +63,7 @@ jobs:
       url: ${{ steps.deploy-pages.outputs.page_url }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Select Xcode
         uses: maxim-lobanov/setup-xcode@v1
@@ -65,7 +71,7 @@ jobs:
           xcode-version: latest-stable
 
       - name: Select Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.13"
 
@@ -80,6 +86,101 @@ jobs:
 
           python3 -m pip install --upgrade pip
           python3 -m pip install "dmgbuild[badge_icons]==1.6.7"
+
+      - name: Resolve Sparkle version
+        id: sparkle-version
+        run: |
+          set -euo pipefail
+
+          sparkle_version="$(python3 -c "
+          import json, sys
+          resolved = json.load(open('Cotabby.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved'))
+          pins = {p['identity']: p for p in resolved['pins']}
+          if 'sparkle' not in pins:
+              print('Sparkle not found in Package.resolved', file=sys.stderr)
+              sys.exit(1)
+          print(pins['sparkle']['state']['version'])
+          ")"
+
+          if [[ -z "${sparkle_version}" ]]; then
+            echo "Failed to resolve Sparkle version from Package.resolved." >&2
+            exit 1
+          fi
+
+          echo "sparkle_version=${sparkle_version}" >> "$GITHUB_OUTPUT"
+          echo "Resolved Sparkle version: ${sparkle_version}"
+
+      - name: Download Sparkle tools
+        id: sparkle-tools
+        env:
+          SPARKLE_VERSION: ${{ steps.sparkle-version.outputs.sparkle_version }}
+        run: |
+          set -euo pipefail
+
+          # Download the official Sparkle release tarball directly rather than
+          # scavenging DerivedData, where SPM artifact extraction is
+          # non-deterministic.
+          sparkle_dir="${RUNNER_TEMP}/sparkle-tools"
+          mkdir -p "${sparkle_dir}"
+
+          curl -fsSL \
+            "https://github.com/sparkle-project/Sparkle/releases/download/${SPARKLE_VERSION}/Sparkle-${SPARKLE_VERSION}.tar.xz" \
+            -o "${sparkle_dir}/Sparkle.tar.xz"
+
+          echo "${SPARKLE_SHA256}  ${sparkle_dir}/Sparkle.tar.xz" | shasum -a 256 --check
+
+          tar -xf "${sparkle_dir}/Sparkle.tar.xz" -C "${sparkle_dir}"
+
+          sign_update="${sparkle_dir}/bin/sign_update"
+          generate_keys="${sparkle_dir}/bin/generate_keys"
+
+          if [[ ! -x "${sign_update}" || ! -x "${generate_keys}" ]]; then
+            echo "Sparkle ${SPARKLE_VERSION} archive did not contain expected tools." >&2
+            ls -la "${sparkle_dir}/bin/" >&2 || true
+            exit 1
+          fi
+
+          echo "sign_update=${sign_update}" >> "$GITHUB_OUTPUT"
+          echo "generate_keys=${generate_keys}" >> "$GITHUB_OUTPUT"
+
+      - name: Write Sparkle private key
+        id: sparkle-key
+        env:
+          SPARKLE_ED25519_PRIVATE_KEY: ${{ secrets.SPARKLE_ED25519_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${SPARKLE_ED25519_PRIVATE_KEY}" ]]; then
+            echo "SPARKLE_ED25519_PRIVATE_KEY is not configured — skipping." >&2
+            echo "has_key=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          sparkle_key_file="${RUNNER_TEMP}/sparkle-ed25519-private-key.txt"
+          printf '%s' "${SPARKLE_ED25519_PRIVATE_KEY}" > "${sparkle_key_file}"
+          chmod 600 "${sparkle_key_file}"
+
+          echo "SPARKLE_KEY_FILE=${sparkle_key_file}" >> "$GITHUB_ENV"
+          echo "has_key=true" >> "$GITHUB_OUTPUT"
+
+      - name: Verify Sparkle key matches Info.plist
+        if: steps.sparkle-key.outputs.has_key == 'true'
+        env:
+          GENERATE_KEYS_TOOL: ${{ steps.sparkle-tools.outputs.generate_keys }}
+        run: |
+          set -euo pipefail
+
+          "${GENERATE_KEYS_TOOL}" -f "${SPARKLE_KEY_FILE}"
+
+          expected_public_key="$(/usr/libexec/PlistBuddy \
+            -c 'Print :SUPublicEDKey' \
+            CotabbyInfo.plist)"
+          actual_public_key="$("${GENERATE_KEYS_TOOL}" -p)"
+
+          if [[ "${actual_public_key}" != "${expected_public_key}" ]]; then
+            echo "Sparkle private key does not match SUPublicEDKey in CotabbyInfo.plist." >&2
+            exit 1
+          fi
 
       - name: Resolve release metadata
         id: metadata
@@ -99,22 +200,42 @@ jobs:
             publish="${INPUT_PUBLISH:-false}"
           fi
 
-          if [[ -z "${release_version}" || "${release_version}" == "${release_tag}" ]]; then
-            echo "Release version must not be empty and must not include the leading v." >&2
+          # Reject malformed tags before we spend ~30 minutes signing and notarizing.
+          # The push-trigger glob filters most of this, but workflow_dispatch and
+          # any future trigger broadening should still hit this gate. Accepted forms:
+          #   v1.2.3
+          #   v1.2.3-beta, v1.2.3-beta.1, v1.2.3-rc.2, v1.2.3-alpha.10+build.5
+          semver_re='^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?(\+[0-9A-Za-z.-]+)?$'
+          if [[ ! "${release_tag}" =~ ${semver_re} ]]; then
+            echo "Release tag ${release_tag} is not valid SemVer (expected v1.2.3 or v1.2.3-beta)." >&2
+            echo "If you pushed a tag, delete it locally and on origin, then retag." >&2
             exit 1
           fi
 
-          build_number="$(xcodebuild \
-            -project "${PROJECT_PATH}" \
-            -scheme "${SCHEME}" \
-            -configuration "${CONFIGURATION}" \
-            -showBuildSettings |
-            awk -F '= ' '/CURRENT_PROJECT_VERSION/ { print $2; exit }')"
+          # Anything after the patch hyphen marks this as a prerelease channel.
+          if [[ "${release_version}" == *-* ]]; then
+            is_prerelease="true"
+          else
+            is_prerelease="false"
+          fi
+
+          # Use the workflow run number as the build number. It auto-increments
+          # per workflow run, is always positive, and requires no formulas or
+          # edge-case handling. Sparkle only needs build numbers to increase
+          # monotonically — it doesn't care about gaps or specific values.
+          build_number="${{ github.run_number }}"
 
           echo "release_tag=${release_tag}" >> "$GITHUB_OUTPUT"
           echo "release_version=${release_version}" >> "$GITHUB_OUTPUT"
           echo "build_number=${build_number}" >> "$GITHUB_OUTPUT"
           echo "publish=${publish}" >> "$GITHUB_OUTPUT"
+          echo "is_prerelease=${is_prerelease}" >> "$GITHUB_OUTPUT"
+
+      - name: Require Sparkle key for publishing
+        if: steps.metadata.outputs.publish == 'true' && steps.sparkle-key.outputs.has_key != 'true'
+        run: |
+          echo "Cannot publish a release without SPARKLE_ED25519_PRIVATE_KEY." >&2
+          exit 1
 
       - name: Ensure release does not already exist
         if: steps.metadata.outputs.publish == 'true'
@@ -136,7 +257,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          keychain_path="${RUNNER_TEMP}/tabby-release.keychain-db"
+          keychain_path="${RUNNER_TEMP}/cotabby-release.keychain-db"
           keychain_password="$(uuidgen)"
           certificate_path="${RUNNER_TEMP}/developer-id-application.p12"
 
@@ -166,7 +287,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          xcrun notarytool store-credentials "tabby-notarytool-profile" \
+          xcrun notarytool store-credentials "cotabby-notarytool-profile" \
             --apple-id "${APPLE_ID}" \
             --team-id "${APPLE_TEAM_ID}" \
             --password "${APPLE_APP_SPECIFIC_PASSWORD}"
@@ -174,11 +295,15 @@ jobs:
       - name: Archive signed app
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          RELEASE_VERSION: ${{ steps.metadata.outputs.release_version }}
+          BUILD_NUMBER: ${{ steps.metadata.outputs.build_number }}
         run: |
           set -euo pipefail
 
           mkdir -p build
 
+          # "0.0.1-beta" is kept as-is so users see the full version
+          # string including the channel tag.
           xcodebuild archive \
             -project "${PROJECT_PATH}" \
             -scheme "${SCHEME}" \
@@ -190,7 +315,24 @@ jobs:
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY="Developer ID Application" \
             OTHER_CODE_SIGN_FLAGS="--timestamp" \
+            MARKETING_VERSION="${RELEASE_VERSION}" \
+            CURRENT_PROJECT_VERSION="${BUILD_NUMBER}" \
             archive
+
+      - name: Verify build number in archive
+        env:
+          BUILD_NUMBER: ${{ steps.metadata.outputs.build_number }}
+        run: |
+          set -euo pipefail
+
+          info_plist="build/${APP_NAME}.xcarchive/Products/Applications/${APP_NAME}.app/Contents/Info.plist"
+          actual="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "${info_plist}")"
+          if [[ "${actual}" != "${BUILD_NUMBER}" ]]; then
+            echo "CFBundleVersion is '${actual}', expected '${BUILD_NUMBER}'." >&2
+            echo "xcodebuild silently ignored the CURRENT_PROJECT_VERSION override." >&2
+            exit 1
+          fi
+          echo "Verified CFBundleVersion: ${actual}"
 
       - name: Re-sign nested code for notarization
         run: |
@@ -226,6 +368,19 @@ jobs:
 
           codesign --verify --deep --strict --verbose=4 "${app_path}"
 
+          # Catch any executable inside Sparkle.framework that the hardcoded
+          # list above missed. If Sparkle reorganizes its internals in a future
+          # version, this prevents shipping unsigned code that Apple will reject.
+          # Uses BSD find's -perm +111 (macOS runners only).
+          unsigned="$(find "${app_path}/Contents/Frameworks/Sparkle.framework" \
+            -type f -perm +111 \
+            -exec sh -c 'codesign -dvv "$1" 2>&1 | grep -q "Developer ID" || echo "$1"' _ {} \;)"
+          if [[ -n "${unsigned}" ]]; then
+            echo "Unsigned binaries found inside Sparkle.framework — update the re-sign list:" >&2
+            echo "${unsigned}" >&2
+            exit 1
+          fi
+
       - name: Package DMG
         run: |
           set -euo pipefail
@@ -243,8 +398,9 @@ jobs:
           python3 scripts/build_release_dmg.py \
             --app-path "${app_path}" \
             --output-path "${dmg_path}" \
-            --background-path "assets/release/dmg-background.png" \
-            --volume-name "Tabby"
+            --background-path "assets/release/dmg_background.png" \
+            --background-2x-path "assets/release/dmg_background@2x.png" \
+            --volume-name "Cotabby"
 
           codesign \
             --force \
@@ -316,7 +472,7 @@ jobs:
             # Apple only returns a useful log once processing has completed. This
             # best-effort call still captures stderr when the log is unavailable.
             xcrun notarytool log "${submission_id}" \
-              --keychain-profile "tabby-notarytool-profile" \
+              --keychain-profile "cotabby-notarytool-profile" \
               "${log_json}" \
               > "${log_stdout}" \
               2> "${log_stderr}" || true
@@ -325,7 +481,7 @@ jobs:
           trap write_summary EXIT
 
           if ! xcrun notarytool submit "${dmg_path}" \
-            --keychain-profile "tabby-notarytool-profile" \
+            --keychain-profile "cotabby-notarytool-profile" \
             --output-format json \
             > "${submit_json}" \
             2> "${submit_stderr}"; then
@@ -350,7 +506,7 @@ jobs:
             timestamp="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
 
             if xcrun notarytool info "${submission_id}" \
-              --keychain-profile "tabby-notarytool-profile" \
+              --keychain-profile "cotabby-notarytool-profile" \
               --output-format json \
               > "${info_json}" \
               2> "${info_stderr}"; then
@@ -404,69 +560,8 @@ jobs:
           xcrun stapler staple "${dmg_path}"
           xcrun stapler validate "${dmg_path}"
 
-      - name: Locate Sparkle tools
-        id: sparkle-tools
-        run: |
-          set -euo pipefail
-
-          sign_update="$(find build/DerivedData "$HOME/Library/Developer/Xcode/DerivedData" \
-            -type f \
-            -path '*/Sparkle/bin/sign_update' \
-            -print \
-            2>/dev/null |
-            head -n 1)"
-
-          generate_keys="$(find build/DerivedData "$HOME/Library/Developer/Xcode/DerivedData" \
-            -type f \
-            -path '*/Sparkle/bin/generate_keys' \
-            -print \
-            2>/dev/null |
-            head -n 1)"
-
-          if [[ -z "${sign_update}" || -z "${generate_keys}" ]]; then
-            echo "Could not locate Sparkle sign_update and generate_keys tools." >&2
-            exit 1
-          fi
-
-          echo "sign_update=${sign_update}" >> "$GITHUB_OUTPUT"
-          echo "generate_keys=${generate_keys}" >> "$GITHUB_OUTPUT"
-
-      - name: Write Sparkle private key
-        env:
-          SPARKLE_ED25519_PRIVATE_KEY: ${{ secrets.SPARKLE_ED25519_PRIVATE_KEY }}
-        run: |
-          set -euo pipefail
-
-          if [[ -z "${SPARKLE_ED25519_PRIVATE_KEY}" ]]; then
-            echo "SPARKLE_ED25519_PRIVATE_KEY is not configured." >&2
-            exit 1
-          fi
-
-          sparkle_key_file="${RUNNER_TEMP}/sparkle-ed25519-private-key.txt"
-          printf '%s' "${SPARKLE_ED25519_PRIVATE_KEY}" > "${sparkle_key_file}"
-          chmod 600 "${sparkle_key_file}"
-
-          echo "SPARKLE_KEY_FILE=${sparkle_key_file}" >> "$GITHUB_ENV"
-
-      - name: Verify Sparkle key matches Info.plist
-        env:
-          GENERATE_KEYS_TOOL: ${{ steps.sparkle-tools.outputs.generate_keys }}
-        run: |
-          set -euo pipefail
-
-          "${GENERATE_KEYS_TOOL}" -f "${SPARKLE_KEY_FILE}"
-
-          expected_public_key="$(/usr/libexec/PlistBuddy \
-            -c 'Print :SUPublicEDKey' \
-            TabbyInfo.plist)"
-          actual_public_key="$("${GENERATE_KEYS_TOOL}" -p)"
-
-          if [[ "${actual_public_key}" != "${expected_public_key}" ]]; then
-            echo "Sparkle private key does not match SUPublicEDKey in TabbyInfo.plist." >&2
-            exit 1
-          fi
-
       - name: Generate signed appcast
+        if: steps.sparkle-key.outputs.has_key == 'true'
         env:
           SIGN_UPDATE_TOOL: ${{ steps.sparkle-tools.outputs.sign_update }}
           RELEASE_VERSION: ${{ steps.metadata.outputs.release_version }}
@@ -478,6 +573,7 @@ jobs:
             --release-version "${RELEASE_VERSION}" \
             --build-number "${BUILD_NUMBER}" \
             --archive "build/${DMG_NAME}" \
+            --archive-filename "${DMG_NAME}" \
             --output "build/appcast.xml" \
             --sign-update-tool "${SIGN_UPDATE_TOOL}" \
             --ed-key-file "${SPARKLE_KEY_FILE}"
@@ -486,6 +582,7 @@ jobs:
           grep -q 'length="' build/appcast.xml
 
       - name: Verify Sparkle signature against final DMG
+        if: steps.sparkle-key.outputs.has_key == 'true'
         env:
           SIGN_UPDATE_TOOL: ${{ steps.sparkle-tools.outputs.sign_update }}
         run: |
@@ -509,21 +606,53 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ steps.metadata.outputs.release_tag }}
           RELEASE_VERSION: ${{ steps.metadata.outputs.release_version }}
+          IS_PRERELEASE: ${{ steps.metadata.outputs.is_prerelease }}
         run: |
           set -euo pipefail
 
+          # Prereleases must not become "Latest" on the GitHub release page —
+          # otherwise beta DMGs get surfaced to users browsing the repo.
+          release_flags=()
+          if [[ "${IS_PRERELEASE}" == "true" ]]; then
+            release_flags=(--prerelease)
+          else
+            release_flags=(--latest)
+          fi
+
           gh release create "${RELEASE_TAG}" "build/${DMG_NAME}" \
-            --title "Tabby ${RELEASE_VERSION}" \
-            --generate-notes
+            --title "Cotabby ${RELEASE_VERSION}" \
+            --generate-notes \
+            "${release_flags[@]}"
+
+      - name: Release summary
+        if: always() && steps.metadata.outputs.release_version != ''
+        env:
+          RELEASE_TAG: ${{ steps.metadata.outputs.release_tag }}
+          RELEASE_VERSION: ${{ steps.metadata.outputs.release_version }}
+          BUILD_NUMBER: ${{ steps.metadata.outputs.build_number }}
+          IS_PRERELEASE: ${{ steps.metadata.outputs.is_prerelease }}
+          PUBLISH: ${{ steps.metadata.outputs.publish }}
+        run: |
+          {
+            echo "### Release"
+            echo "| Field | Value |"
+            echo "|-------|-------|"
+            echo "| Version | ${RELEASE_VERSION} |"
+            echo "| Tag | ${RELEASE_TAG} |"
+            echo "| Build number | ${BUILD_NUMBER} |"
+            echo "| Prerelease | ${IS_PRERELEASE} |"
+            echo "| Published | ${PUBLISH} |"
+            echo "| Appcast URL | https://${PAGES_CUSTOM_DOMAIN}/appcast.xml |"
+          } >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Prepare Pages artifact
         if: steps.metadata.outputs.publish == 'true'
         run: |
           set -euo pipefail
 
-          mkdir -p build/pages/tabby
+          mkdir -p build/pages/Cotabby
           cp build/appcast.xml build/pages/appcast.xml
-          cp build/appcast.xml build/pages/tabby/appcast.xml
+          cp build/appcast.xml build/pages/Cotabby/appcast.xml
           printf '%s\n' "${PAGES_CUSTOM_DOMAIN}" > build/pages/CNAME
 
       - name: Configure GitHub Pages
@@ -532,18 +661,18 @@ jobs:
 
       - name: Upload GitHub Pages artifact
         if: steps.metadata.outputs.publish == 'true'
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: build/pages
 
       - name: Deploy GitHub Pages
         if: steps.metadata.outputs.publish == 'true'
         id: deploy-pages
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
 
       - name: Upload local release artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: release-artifacts
           path: |

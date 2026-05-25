@@ -1,9 +1,9 @@
-# Contributing To Tabby
+# Contributing To Cotabby
 
-Thanks for helping improve Tabby. This guide is the contributor entry point for local setup,
+Thanks for helping improve Cotabby. This guide is the contributor entry point for local setup,
 validation, and codebase orientation.
 
-Tabby is a macOS menu bar app that provides on-device inline autocomplete in other apps. The repo
+Cotabby is a macOS menu bar app that provides on-device inline autocomplete in other apps. The repo
 is split by responsibility so contributors can make small, reviewable changes without spreading
 platform-specific behavior across unrelated layers.
 
@@ -15,12 +15,19 @@ Please read and follow the [Code of Conduct](CODE_OF_CONDUCT.md) before particip
 - Read [ARCHITECTURE.md](ARCHITECTURE.md) before changing the suggestion pipeline, runtime
   lifecycle, or Accessibility behavior.
 - Check for an existing issue or open one before starting substantial work.
+- Prefer small, atomic PRs with a single clear objective. Large mixed-purpose changes are harder to
+review, validate, and revert safely.
+- Before implementing a change, make sure you can clearly explain:
+   1. The problem being solved
+   2. Why the current behavior is insufficient
+   3. Why the proposed approach fits the existing architecture
 
 ## Development Prerequisites
 
 You need:
 
-- macOS 26.0 or later for running the app and tests.
+- macOS 15.0 or later for running the app and tests. Apple Intelligence runtime work requires
+  macOS 26 or later.
 - Xcode with Command Line Tools installed.
 - A local Apple development team configured in Xcode if you want to launch the signed app from the
   IDE.
@@ -33,23 +40,23 @@ Apple Silicon is strongly recommended for local model-runtime work.
 Clone the repo and open the project:
 
 ```sh
-git clone https://github.com/FuJacob/tabby.git
-cd tabby
-open tabby.xcodeproj
+git clone https://github.com/FuJacob/Cotabby.git
+cd Cotabby
+open Cotabby.xcodeproj
 ```
 
-In Xcode, select the `tabby` scheme. If you run from Xcode, set your signing team under
+In Xcode, select the `Cotabby` scheme. If you run from Xcode, set your signing team under
 `Signing & Capabilities`.
 
 ## How To Navigate The Repo
 
 Start with these boundaries:
 
-- `tabby/App/`: app lifecycle, composition root, and top-level coordinators
-- `tabby/UI/`: SwiftUI presentation and menu/settings surfaces
-- `tabby/Services/`: OS integrations, async work, permissions, and runtime boundaries
-- `tabby/Models/`: shared value types, state snapshots, and protocol contracts
-- `tabby/Support/`: pure rules, prompt helpers, normalization, and low-level utilities
+- `Cotabby/App/`: app lifecycle, composition root, and top-level coordinators
+- `Cotabby/UI/`: SwiftUI presentation and menu/settings surfaces
+- `Cotabby/Services/`: OS integrations, async work, permissions, and runtime boundaries
+- `Cotabby/Models/`: shared value types, state snapshots, and protocol contracts
+- `Cotabby/Support/`: pure rules, prompt helpers, normalization, and low-level utilities
 
 If you are changing behavior, prefer this order:
 
@@ -66,8 +73,8 @@ For a local compile check:
 
 ```sh
 xcodebuild \
-  -project tabby.xcodeproj \
-  -scheme tabby \
+  -project Cotabby.xcodeproj \
+  -scheme Cotabby \
   -configuration Debug \
   -destination 'platform=macOS' \
   CODE_SIGNING_ALLOWED=NO \
@@ -82,7 +89,7 @@ locally.
 
 From Xcode:
 
-1. Select the `tabby` scheme.
+1. Select the `Cotabby` scheme.
 2. Choose your Mac as the run destination.
 3. Build and run.
 4. Complete onboarding.
@@ -99,13 +106,14 @@ Run the unit test suite:
 
 ```sh
 xcodebuild test \
-  -project tabby.xcodeproj \
-  -scheme tabby \
+  -project Cotabby.xcodeproj \
+  -scheme Cotabby \
   -destination 'platform=macOS' \
   CODE_SIGNING_ALLOWED=NO
 ```
 
-The CI test workflow runs on a macOS 26 runner because the app deployment target is macOS 26.0.
+The CI test workflow uses the same macOS deployment target as the app, so tests should not require
+a macOS 26 runner unless a future change raises the app baseline again.
 
 ## Lint
 
@@ -117,6 +125,20 @@ swiftlint --reporter github-actions-logging
 
 The current CI lint gate is warnings-only. Treat warnings as cleanup work, but avoid bundling
 unrelated style rewrites into functional PRs.
+
+## Debugging
+
+The shared Xcode scheme passes `-cotabby-debug` by default in Debug builds. This enables
+developer-only diagnostics:
+
+- **Focus debug overlay**: translucent panels showing caret geometry, element bounds, focus
+  polling events, and visual-context pipeline status.
+- **Suggestion debug logger**: color-coded console output for each generation cycle: prompt sent,
+  raw model response, and normalized output.
+- **Screenshot capture**: saves OCR debug screenshots to disk when the visual-context pipeline
+  runs.
+
+To disable it, uncheck `-cotabby-debug` in the scheme's Run → Arguments tab.
 
 ## Pull Requests
 

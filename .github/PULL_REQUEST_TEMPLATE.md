@@ -8,10 +8,10 @@ The diff already shows what; this section should explain why.
 ## Validation
 
 <!--
-What you actually ran and what you actually saw — not what you intended to run.
+What you actually ran and what you actually saw, not what you intended to run.
 Examples:
 
-  xcodebuild test -project tabby.xcodeproj -scheme tabby \
+  xcodebuild test -project Cotabby.xcodeproj -scheme Cotabby \
     -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO
   # ** TEST SUCCEEDED **  N tests, 0 failures
 

@@ -1,0 +1,99 @@
+# Manually republish the Sparkle appcast to GitHub Pages.
+#
+# Use this when the Pages custom domain changes or when you need to redeploy
+# without cutting a new release. It downloads the appcast.xml from the latest
+# GitHub Release and publishes it to Pages with the configured CNAME.
+
+name: Republish Pages
+
+on:
+  workflow_dispatch:
+    inputs:
+      custom_domain:
+        description: "Custom domain for the CNAME file (e.g. updates.tabbyapp.dev)"
+        required: true
+        default: "updates.tabbyapp.dev"
+        type: string
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  republish:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Download appcast.xml from latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          # Find the latest release that has an appcast in its artifacts.
+          # The release workflow uploads appcast.xml inside the release-artifacts bundle,
+          # but it also publishes appcast.xml to Pages. We can reconstruct it from the
+          # release assets or fall back to the repo's existing Pages deployment.
+
+          # Try downloading from the latest release artifacts
+          LATEST_RUN=$(gh run list \
+            --repo "${{ github.repository }}" \
+            --workflow release.yml \
+            --status success \
+            --limit 1 \
+            --json databaseId \
+            --jq '.[0].databaseId')
+
+          if [ -n "$LATEST_RUN" ]; then
+            echo "Downloading appcast from release run $LATEST_RUN"
+            gh run download "$LATEST_RUN" \
+              --repo "${{ github.repository }}" \
+              --name release-artifacts \
+              --dir artifacts/ || true
+          fi
+
+          if [ -f artifacts/appcast.xml ]; then
+            echo "Found appcast.xml from release artifacts"
+            cp artifacts/appcast.xml appcast.xml
+          else
+            echo "::error::No appcast.xml found in latest release artifacts. Run a full release first."
+            exit 1
+          fi
+
+      - name: Prepare Pages artifact
+        run: |
+          set -euo pipefail
+          mkdir -p pages/Cotabby
+          cp appcast.xml pages/appcast.xml
+          cp appcast.xml pages/Cotabby/appcast.xml
+          printf '%s\n' "${{ inputs.custom_domain }}" > pages/CNAME
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload GitHub Pages artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: pages
+
+      - name: Deploy GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v5
+
+      - name: Summary
+        run: |
+          {
+            echo "### Pages Republished"
+            echo "| Field | Value |"
+            echo "|-------|-------|"
+            echo "| Custom domain | ${{ inputs.custom_domain }} |"
+            echo "| Appcast URL | https://${{ inputs.custom_domain }}/appcast.xml |"
+            echo "| Pages URL | ${{ steps.deploy.outputs.page_url }} |"
+          } >> "${GITHUB_STEP_SUMMARY}"
