@@ -47,13 +47,15 @@ final class FileLogWriter: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
 
-        guard let handle else { return }
-
         // Wiping when *already over* the cap means the line that pushes us past gets stored
         // in the new file rather than the old one. That keeps the file's tail readable.
+        // The wipe replaces `self.handle`, so we must read it AFTER the check — binding it
+        // before would write the first post-cap line into a closed descriptor and drop it.
         if currentByteOffset >= effectiveCap {
             wipeLocked()
         }
+
+        guard let handle else { return }
 
         do {
             try handle.write(contentsOf: data)
