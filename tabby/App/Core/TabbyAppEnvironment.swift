@@ -59,6 +59,7 @@ final class TabbyAppEnvironment {
             permissionManager: permissionManager,
             permissionGuidanceController: permissionGuidanceController,
             runtimeModel: runtimeModel,
+            mlxRuntimeManager: mlxRuntimeManager,
             modelDownloadManager: modelDownloadManager,
             suggestionSettings: suggestionSettings,
             foundationModelAvailabilityService: foundationModelAvailabilityService

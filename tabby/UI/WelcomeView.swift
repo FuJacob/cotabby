@@ -11,6 +11,7 @@ import SwiftUI
 struct WelcomeView: View {
     @ObservedObject var permissionManager: PermissionManager
     @ObservedObject var runtimeModel: RuntimeBootstrapModel
+    @ObservedObject var mlxRuntimeManager: MLXRuntimeManager
     @ObservedObject var modelDownloadManager: ModelDownloadManager
     @ObservedObject var suggestionSettings: SuggestionSettingsModel
     @ObservedObject var foundationModelAvailabilityService: FoundationModelAvailabilityService
@@ -255,8 +256,10 @@ extension WelcomeView {
         switch suggestionSettings.selectedEngine {
         case .appleIntelligence:
             return foundationModelAvailabilityService.isAvailable
-        case .llamaOpenSource, .mlxSwift:
+        case .llamaOpenSource:
             return hasAtLeastOneModel
+        case .mlxSwift:
+            return !mlxRuntimeManager.availableModels.isEmpty
         }
     }
 

@@ -21,8 +21,6 @@ struct PreparedMLXRuntime: Equatable, Sendable {
 }
 
 actor MLXRuntimeCore {
-    private var isShutdown = false
-
     #if canImport(MLX)
     private var loadedModel: MLXLMCommon.ModelContainer?
     #endif
@@ -30,7 +28,6 @@ actor MLXRuntimeCore {
     /// Loads an MLX model from a local directory containing config.json and safetensors weights.
     func prepare(modelDirectoryURL: URL) async throws -> PreparedMLXRuntime {
         #if canImport(MLX)
-        isShutdown = false
         let modelName = modelDirectoryURL.lastPathComponent
 
         let configuration = ModelConfiguration(directory: modelDirectoryURL)
@@ -93,7 +90,6 @@ actor MLXRuntimeCore {
 
     /// Releases the loaded model and frees GPU/unified memory.
     func shutdown() {
-        isShutdown = true
         #if canImport(MLX)
         loadedModel = nil
         #endif

@@ -18,6 +18,7 @@ final class WelcomeCoordinator: NSObject, NSWindowDelegate {
     private let permissionManager: PermissionManager
     private let permissionGuidanceController: PermissionGuidanceController
     private let runtimeModel: RuntimeBootstrapModel
+    private let mlxRuntimeManager: MLXRuntimeManager
     private let modelDownloadManager: ModelDownloadManager
     private let suggestionSettings: SuggestionSettingsModel
     private let foundationModelAvailabilityService: FoundationModelAvailabilityService
@@ -32,6 +33,7 @@ final class WelcomeCoordinator: NSObject, NSWindowDelegate {
         permissionManager: PermissionManager,
         permissionGuidanceController: PermissionGuidanceController,
         runtimeModel: RuntimeBootstrapModel,
+        mlxRuntimeManager: MLXRuntimeManager,
         modelDownloadManager: ModelDownloadManager,
         suggestionSettings: SuggestionSettingsModel,
         foundationModelAvailabilityService: FoundationModelAvailabilityService,
@@ -40,6 +42,7 @@ final class WelcomeCoordinator: NSObject, NSWindowDelegate {
         self.permissionManager = permissionManager
         self.permissionGuidanceController = permissionGuidanceController
         self.runtimeModel = runtimeModel
+        self.mlxRuntimeManager = mlxRuntimeManager
         self.modelDownloadManager = modelDownloadManager
         self.suggestionSettings = suggestionSettings
         self.foundationModelAvailabilityService = foundationModelAvailabilityService
@@ -96,6 +99,7 @@ final class WelcomeCoordinator: NSObject, NSWindowDelegate {
             rootView: WelcomeView(
                 permissionManager: permissionManager,
                 runtimeModel: runtimeModel,
+                mlxRuntimeManager: mlxRuntimeManager,
                 modelDownloadManager: modelDownloadManager,
                 suggestionSettings: suggestionSettings,
                 foundationModelAvailabilityService: foundationModelAvailabilityService,
