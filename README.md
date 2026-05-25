@@ -1,4 +1,4 @@
-# Cotabby
+# Cotabby [beta]
 
 <sub>If Cotabby is useful to you, consider supporting development:</sub>
 
@@ -7,11 +7,11 @@
 ---
 
 <p align="center">
-  <img width="128" alt="Cotabby logo" src="https://github.com/user-attachments/assets/8a67095e-4d03-4055-8d4c-8871335152dd" />
+  <img width="128" alt="Cotabby logo" src="https://github.com/user-attachments/assets/1e223e72-770c-417b-82e5-83f18cd5a3b2" />
 </p>
 
 <p align="center">
-  <em>Open-source, local-first AI autocomplete for macOS. [beta]</em>
+  <em>Open-source, local-first AI autocomplete for macOS.</em>
   </p>
   
 <p align="center">
