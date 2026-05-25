@@ -128,14 +128,15 @@ final class LlamaRuntimeManager: ObservableObject {
         _ = try await preparedRuntime()
 
         let core = self.core
+        let options = LlamaGenerationOptions.summary(
+            maxPredictionTokens: maxPredictionTokens,
+            temperature: temperature
+        )
         do {
             return try await Task.detached {
                 try core.summarize(
                     prompt: prompt,
-                    options: .summary(
-                        maxPredictionTokens: maxPredictionTokens,
-                        temperature: temperature
-                    )
+                    options: options
                 )
             }.value
         } catch is CancellationError {
