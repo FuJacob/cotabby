@@ -30,6 +30,7 @@ struct SettingsView: View {
     var body: some View {
         Form {
             settingsHeader
+            supportSection
             updatesSection
             uninstallSection
             generalSection
@@ -409,6 +410,18 @@ struct SettingsView: View {
                 ForEach(runtimeModel.availableModels) { model in
                     installedModelRow(model)
                 }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var supportSection: some View {
+        Section("Support") {
+            LabeledContent {
+                Link("Buy Me a Coffee", destination: URL(string: "https://buymeacoffee.com/cotabby")!)
+            } label: {
+                Text("Cotabby is free and open source. If it's useful to you, consider supporting development.")
+                    .foregroundStyle(.secondary)
             }
         }
     }
