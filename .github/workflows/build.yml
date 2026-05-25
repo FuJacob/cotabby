@@ -60,11 +60,20 @@ jobs:
             exit 1
           fi
 
-          # pbxproj and Package.resolved must agree on the version.
           pbxproj_version="$(echo "${sparkle_block}" | grep -A1 'kind = exactVersion' | grep 'version' | sed 's/.*= //;s/;.*//' | tr -d '[:space:]')"
-          resolved_version="$(python3 -c "
+
+          if [[ -z "${pbxproj_version}" ]]; then
+            echo "Could not extract Sparkle version from pbxproj." >&2
+            exit 1
+          fi
+
+          # If a resolved file is present locally, keep it in sync with the project pin.
+          # CI checkouts do not include it because Package.resolved is gitignored.
+          resolved_path="Cotabby.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"
+          if [[ -f "${resolved_path}" ]]; then
+            resolved_version="$(python3 -c "
           import json, sys
-          resolved = json.load(open('Cotabby.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved'))
+          resolved = json.load(open('${resolved_path}'))
           pins = {p['identity']: p for p in resolved['pins']}
           if 'sparkle' not in pins:
               print('sparkle not found in Package.resolved. Available: ' + ', '.join(sorted(pins.keys())), file=sys.stderr)
@@ -72,17 +81,13 @@ jobs:
           print(pins['sparkle']['state']['version'])
           ")"
 
-          if [[ -z "${pbxproj_version}" ]]; then
-            echo "Could not extract Sparkle version from pbxproj." >&2
-            exit 1
+            if [[ "${pbxproj_version}" != "${resolved_version}" ]]; then
+              echo "Sparkle version mismatch: pbxproj=${pbxproj_version}, Package.resolved=${resolved_version}" >&2
+              exit 1
+            fi
           fi
 
-          if [[ "${pbxproj_version}" != "${resolved_version}" ]]; then
-            echo "Sparkle version mismatch: pbxproj=${pbxproj_version}, Package.resolved=${resolved_version}" >&2
-            exit 1
-          fi
-
-          echo "Sparkle pin verified: ${resolved_version}"
+          echo "Sparkle pin verified: ${pbxproj_version}"
 
       # CODE_SIGNING_ALLOWED=NO because CI runners don't have the dev cert.
       # The project uses Automatic signing, so we can't simply strip the team
