@@ -57,6 +57,19 @@ protocol ClipboardContextProviding: AnyObject {
 }
 
 @MainActor
+protocol ClipboardRelevanceFiltering: AnyObject {
+    /// Returns `clipboard` when it should be injected into the prompt, or `nil` to drop it.
+    ///
+    /// `precedingText` should be the same bounded window the downstream distiller will see,
+    /// so the relevance gate and per-line distillation evaluate overlap consistently.
+    func filter(
+        clipboard: String?,
+        pasteboardChangeCount: Int,
+        precedingText: String
+    ) -> String?
+}
+
+@MainActor
 protocol SuggestionInserting: AnyObject {
     var lastErrorMessage: String? { get }
 

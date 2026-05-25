@@ -75,11 +75,16 @@ extension SuggestionCoordinator {
         let rawClipboard = settingsSnapshot.isClipboardContextEnabled
             ? clipboardContextProvider.currentContext()
             : nil
+        // Same bounded window the downstream distiller sees, so the relevance gate and the
+        // per-line filter can't disagree about what "shares tokens with the prefix" means.
+        let truncatedPrefix = SuggestionRequestFactory.truncatedPromptPrefix(
+            from: rawContext.precedingText,
+            configuration: configuration
+        )
         let clipboardContext = clipboardRelevanceFilter.filter(
             clipboard: rawClipboard,
             pasteboardChangeCount: clipboardContextProvider.currentChangeCount,
-            currentBundleIdentifier: rawContext.bundleIdentifier,
-            precedingText: rawContext.precedingText
+            precedingText: truncatedPrefix
         )
         let requestBuildResult = SuggestionRequestFactory.buildRequest(
             context: context,

@@ -42,7 +42,7 @@ final class SuggestionCoordinator: ObservableObject {
     let suggestionEngine: any SuggestionGenerating
     let suggestionSettings: any SuggestionSettingsProviding
     let clipboardContextProvider: any ClipboardContextProviding
-    let clipboardRelevanceFilter: ClipboardRelevanceFilter
+    let clipboardRelevanceFilter: any ClipboardRelevanceFiltering
     let visualContextCoordinator: any VisualContextCoordinating
     let interactionState: SuggestionInteractionState
     let workController: SuggestionWorkController
@@ -71,7 +71,7 @@ final class SuggestionCoordinator: ObservableObject {
         suggestionEngine: any SuggestionGenerating,
         suggestionSettings: any SuggestionSettingsProviding,
         clipboardContextProvider: any ClipboardContextProviding,
-        clipboardRelevanceFilter: ClipboardRelevanceFilter,
+        clipboardRelevanceFilter: any ClipboardRelevanceFiltering,
         visualContextCoordinator: any VisualContextCoordinating,
         interactionState: SuggestionInteractionState,
         workController: SuggestionWorkController,

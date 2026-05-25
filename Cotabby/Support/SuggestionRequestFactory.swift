@@ -88,7 +88,11 @@ enum SuggestionRequestFactory {
     }
 
     /// Keep only the latest short word tail to prevent long stale context from steering output.
-    private static func truncatedPromptPrefix(
+    ///
+    /// Exposed (non-private) so the coordinator can compute the same bounded window before
+    /// calling the relevance filter, ensuring the filter and the downstream distiller evaluate
+    /// token overlap against an identical prefix.
+    static func truncatedPromptPrefix(
         from precedingText: String,
         configuration: SuggestionConfiguration
     ) -> String {
