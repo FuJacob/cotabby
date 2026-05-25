@@ -524,7 +524,6 @@ struct FocusSnapshotResolver {
         let role = AXHelper.stringValue(for: kAXRoleAttribute as CFString, on: element) ?? "?"
         let subrole = AXHelper.stringValue(for: kAXSubroleAttribute as CFString, on: element)
         let attributes = Set(AXHelper.attributeNames(on: element))
-        let parameterizedAttributes = Set(AXHelper.parameterizedAttributeNames(on: element))
 
         var summary = "\(indent)\(role)"
         if let subrole { summary += " (\(subrole))" }
@@ -546,17 +545,19 @@ struct FocusSnapshotResolver {
         if let range = AXHelper.rangeValue(for: kAXSelectedTextRangeAttribute as CFString, on: element) {
             summary += "\(indent)  selection: loc=\(range.location) len=\(range.length)\n"
 
-            if parameterizedAttributes.contains(kAXBoundsForRangeParameterizedAttribute as String) {
-                let boundsRect = AXHelper.parameterizedRectValue(
-                    for: kAXBoundsForRangeParameterizedAttribute as CFString,
-                    range: NSRange(location: range.location, length: 0),
-                    on: element
-                )
-                if let boundsRect, !boundsRect.isEmpty {
-                    summary += "\(indent)  BoundsForRange(loc,0): \(fmt(boundsRect))\n"
-                } else {
-                    summary += "\(indent)  BoundsForRange(loc,0): FAILED\n"
-                }
+            // Probe BoundsForRange unconditionally: some apps (Electron, certain
+            // NSTextView subclasses) support it without advertising it in their
+            // parameterized attribute list, so gating on that list would hide the
+            // exact case this diagnostic is meant to surface.
+            let boundsRect = AXHelper.parameterizedRectValue(
+                for: kAXBoundsForRangeParameterizedAttribute as CFString,
+                range: NSRange(location: range.location, length: 0),
+                on: element
+            )
+            if let boundsRect, !boundsRect.isEmpty {
+                summary += "\(indent)  BoundsForRange(loc,0): \(fmt(boundsRect))\n"
+            } else {
+                summary += "\(indent)  BoundsForRange(loc,0): FAILED\n"
             }
         }
 
