@@ -10,9 +10,9 @@ on:
   workflow_dispatch:
     inputs:
       custom_domain:
-        description: "Custom domain for the CNAME file (e.g. updates.tabbyapp.dev)"
+        description: "Custom domain for the CNAME file (e.g. updates.cotabby.app)"
         required: true
-        default: "updates.tabbyapp.dev"
+        default: "updates.cotabby.app"
         type: string
 
 permissions:

@@ -139,23 +139,16 @@ private final class ActivationIndicatorPanel: NSPanel {
 }
 
 private struct FieldEdgeIconIndicatorView: View {
-    @Environment(\.colorScheme) private var colorScheme
-
-    private var bgColor: Color {
-        colorScheme == .dark ? Color(white: 0.15) : Color(white: 0.92)
-    }
-
-    private var pawColor: Color {
-        colorScheme == .dark ? .white : Color(white: 0.25)
-    }
-
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 5, style: .continuous)
-                .fill(bgColor)
-            Image(systemName: "pawprint.fill")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(pawColor)
+                .fill(Color(red: 0.18, green: 0.19, blue: 0.21))
+            Image("MenuBarCatIcon")
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .frame(height: 13)
+                .foregroundStyle(.white)
         }
         .frame(width: 20, height: 20)
         .shadow(color: .black.opacity(0.12), radius: 2, y: 1)

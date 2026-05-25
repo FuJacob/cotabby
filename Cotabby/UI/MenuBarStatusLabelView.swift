@@ -12,9 +12,11 @@ struct MenuBarStatusLabelView: View {
 
     var body: some View {
         HStack(spacing: 2) {
-            Image(systemName: "pawprint.fill")
-                .symbolRenderingMode(.monochrome)
-                .font(.system(size: 13, weight: .semibold))
+            Image("MenuBarCatIcon")
+                .renderingMode(.template)
+                .resizable()
+                .scaledToFit()
+                .frame(height: 16)
 
             if let label = WordCountFormatter.compactLabel(
                 for: suggestionCoordinator.totalTabAcceptedWordCount

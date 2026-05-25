@@ -23,14 +23,14 @@ final class SuggestionInserter {
         let normalized = suggestion.replacingOccurrences(of: "\r", with: "")
         guard !normalized.isEmpty else {
             lastErrorMessage = "Suggestion was empty."
-            TabbyLogger.suggestion.warning("Insertion skipped: suggestion was empty after normalization")
+            CotabbyLogger.suggestion.warning("Insertion skipped: suggestion was empty after normalization")
             return false
         }
 
         guard let keyDownEvent = CGEvent(keyboardEventSource: nil, virtualKey: 0, keyDown: true),
               let keyUpEvent = CGEvent(keyboardEventSource: nil, virtualKey: 0, keyDown: false) else {
             lastErrorMessage = "Unable to create a synthetic keyboard event."
-            TabbyLogger.suggestion.error("Failed to create synthetic keyboard events for insertion")
+            CotabbyLogger.suggestion.error("Failed to create synthetic keyboard events for insertion")
             return false
         }
 
@@ -41,7 +41,7 @@ final class SuggestionInserter {
         keyDownEvent.post(tap: .cghidEventTap)
         keyUpEvent.post(tap: .cghidEventTap)
         lastErrorMessage = nil
-        TabbyLogger.suggestion.debug("Inserted \(normalized.count) characters via synthetic keystroke")
+        CotabbyLogger.suggestion.debug("Inserted \(normalized.count) characters via synthetic keystroke")
         return true
     }
 }

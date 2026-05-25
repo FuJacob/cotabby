@@ -51,7 +51,7 @@ final class SuggestionCoordinator: ObservableObject {
     let overlayPresenter: SuggestionOverlayPresenter
     let logger: SuggestionDebugLogger
 
-    static let totalTabAcceptedWordCountDefaultsKey = "totalTabAcceptedWordCount"
+    static let totalTabAcceptedWordCountDefaultsKey = "cotabbyTotalAcceptedWordCount"
 
     // Combine subscriptions are the coordinator's remaining direct mutable bookkeeping.
     // Async work and active-session storage now live in dedicated collaborators below.

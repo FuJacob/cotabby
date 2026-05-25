@@ -23,7 +23,7 @@ final class RuntimeBootstrapModel: ObservableObject {
     /// Called immediately before the runtime begins switching models so suggestion state can reset.
     var onWillReloadModel: (() -> Void)?
 
-    private static let selectedModelDefaultsKey = "selectedRuntimeModelFilename"
+    private static let selectedModelDefaultsKey = "cotabbySelectedModelFilename"
 
     init(
         runtimeManager: LlamaRuntimeManager,
@@ -88,7 +88,7 @@ final class RuntimeBootstrapModel: ObservableObject {
             do {
                 try await self.runtimeManager.prepare()
             } catch {
-                TabbyLogger.runtime.error("Runtime startup failed: \(error.localizedDescription)")
+                CotabbyLogger.runtime.error("Runtime startup failed: \(error.localizedDescription)")
             }
         }
     }
@@ -124,7 +124,7 @@ final class RuntimeBootstrapModel: ObservableObject {
             do {
                 try await self.runtimeManager.selectModel(filename: filename)
             } catch {
-                TabbyLogger.runtime.error("Runtime model switch failed: \(error.localizedDescription)")
+                CotabbyLogger.runtime.error("Runtime model switch failed: \(error.localizedDescription)")
             }
         }
 

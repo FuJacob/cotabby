@@ -16,7 +16,6 @@ import Logging
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let permissionManager: PermissionManager
     let runtimeModel: RuntimeBootstrapModel
-    let mlxRuntimeManager: MLXRuntimeManager
     let modelDownloadManager: ModelDownloadManager
     let focusModel: FocusTrackingModel
     let inputMonitor: InputMonitor
@@ -34,7 +33,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var cancellables = Set<AnyCancellable>()
 
     override init() {
-        TabbyLogger.bootstrap()
+        CotabbyLogger.bootstrap()
 
         // Build the dependency graph once up front so every scene/view observes the same
         // long-lived objects for the entire app session. `CotabbyAppEnvironment` is a composition
@@ -42,7 +41,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let environment = CotabbyAppEnvironment()
         permissionManager = environment.permissionManager
         runtimeModel = environment.runtimeModel
-        mlxRuntimeManager = environment.mlxRuntimeManager
         modelDownloadManager = environment.modelDownloadManager
         focusModel = environment.focusModel
         inputMonitor = environment.inputMonitor
@@ -116,7 +114,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
-        TabbyLogger.app.info("Tabby \(version) (build \(build)) launching on macOS \(ProcessInfo.processInfo.operatingSystemVersionString)")
+        CotabbyLogger.app.info("Cotabby \(version) (build \(build)) launching on macOS \(ProcessInfo.processInfo.operatingSystemVersionString)")
         startRuntimeIfPreferredEngineRequiresIt()
         focusModel.start()
         inputMonitor.start()
@@ -124,7 +122,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         suggestionCoordinator.start()
         welcomeCoordinator.presentIfNeeded()
         welcomeCoordinator.presentPermissionReminderIfNeeded()
-        TabbyLogger.app.info("All services started")
+        CotabbyLogger.app.info("All services started")
     }
 
     /// Synchronously releases native runtime resources before AppKit calls `exit()`.
@@ -142,7 +140,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// generation is genuinely stuck, we accept the small risk of the original ggml crash over
     /// the larger UX bug of a broken permission flow.
     func applicationWillTerminate(_ notification: Notification) {
-        TabbyLogger.app.info("Cotabby terminating, releasing services")
+        CotabbyLogger.app.info("Cotabby terminating, releasing services")
         activationIndicatorController.hide(reason: "Activation indicator hidden because Cotabby is terminating.")
         focusDebugOverlayController?.hide()
         suggestionCoordinator.stop()
@@ -150,12 +148,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         focusModel.stop()
 
         runtimeModel.shutdownSync(timeoutSeconds: 1.5)
-
-        // MLX is actor-isolated so we cannot block on it synchronously. Setting `loadedModel = nil`
-        // is fast and ARC-driven; on the rare termination where MLX is mid-generation we fall back
-        // to the OS reclaiming GPU resources during `exit()`. MLX has not been reported to hit the
-        // same Metal teardown crash as llama.cpp.
-        mlxRuntimeManager.stop()
     }
 
     /// Shows or hides the field-edge Cotabby icon based on focus state, global enable, per-app
@@ -183,8 +175,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         switch suggestionSettings.selectedEngine {
         case .llamaOpenSource:
             runtimeModel.startIfNeeded()
-        case .mlxSwift:
-            Task { try? await mlxRuntimeManager.prepare() }
         case .appleIntelligence:
             break
         }

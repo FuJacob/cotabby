@@ -7,7 +7,7 @@ import Logging
 /// directly without copy-pasting from Console.app.
 ///
 /// The handler is only installed when `-cotabby-debug` is passed at launch (see
-/// `TabbyLogger.bootstrap`). When the file grows past `sizeCapBytes` it is wiped to zero
+/// `CotabbyLogger.bootstrap`). When the file grows past `sizeCapBytes` it is wiped to zero
 /// and a fresh tail begins — the user opted into "everything since the last cap" semantics
 /// rather than rotation, which is simpler to reason about and to ingest.
 
@@ -166,7 +166,7 @@ struct FileLogHandler: LogHandler {
         writer.write(json + "\n")
     }
 
-    /// `com.tabby.runtime` → `runtime`. Matches `OSLogHandler`'s category convention so the
+    /// `com.cotabby.runtime` → `runtime`. Matches `OSLogHandler`'s category convention so the
     /// JSON `category` field lines up with what Console.app shows.
     private static func category(from label: String) -> String {
         let parts = label.split(separator: ".", maxSplits: 2)

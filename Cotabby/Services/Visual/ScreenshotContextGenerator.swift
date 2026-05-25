@@ -90,7 +90,7 @@ final class ScreenshotContextGenerator {
             )
         }
 
-        TabbyLogger.app.debug("OCR extracted \(normalizedText.count) chars from screenshot")
+        CotabbyLogger.app.debug("OCR extracted \(normalizedText.count) chars from screenshot")
         guard hasMeaningfulSignal(normalizedText) else {
             throw ScreenshotContextGenerationError.unavailable(
                 "The screenshot did not contain enough visible text to build prompt context."
