@@ -33,6 +33,25 @@ struct WelcomeProfileStepView: View {
                     .controlSize(.large)
                 }
 
+                // Language
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Language")
+                        .font(.system(size: 13, weight: .medium))
+
+                    Picker("Language", selection: Binding(
+                        get: { suggestionSettings.responseLanguage },
+                        set: { suggestionSettings.setResponseLanguage($0) }
+                    )) {
+                        ForEach(SuggestionLanguage.allCases) { language in
+                            Text(language.displayLabel)
+                                .tag(language)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .controlSize(.large)
+                }
+
                 CustomRulesEditor(suggestionSettings: suggestionSettings)
             }
             .padding(.horizontal, 8)

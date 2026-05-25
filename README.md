@@ -29,6 +29,12 @@
 
 ---
 
+## What It Does
+
+Cotabby is a menu bar app that brings inline autocomplete to the text field you're already using. Keep typing in your host app: Cotabby watches the focused field, generates a continuation, and renders it as ghost text next to your caret. Press `Tab` to accept a chunk, keep pressing to advance, or just keep typing to diverge.
+
+Everything runs on-device. No hosted API, no cloud round-trip.
+
 ## Demo
 
 <p align="center">
@@ -61,13 +67,6 @@
     </td>
   </tr>
 </table>
-
-
-## What It Does
-
-Cotabby is a menu bar app that brings inline autocomplete to the text field you're already using. Keep typing in your host app: Cotabby watches the focused field, generates a continuation, and renders it as ghost text next to your caret. Press `Tab` to accept a chunk, keep pressing to advance, or just keep typing to diverge.
-
-Everything runs on-device. No hosted API, no cloud round-trip.
 
 ## Features
 
