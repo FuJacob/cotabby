@@ -303,7 +303,6 @@ struct FocusSnapshotResolver {
             if let range = AXHelper.rangeValue(
                 for: kAXSelectedTextRangeAttribute as CFString, on: element
             ), range.length == 0 {
-                let paramAttrs = Set(AXHelper.parameterizedAttributeNames(on: element))
                 let attrs = Set(AXHelper.attributeNames(on: element))
                 let textValue =
                     attrs.contains(kAXValueAttribute as String)
@@ -312,9 +311,6 @@ struct FocusSnapshotResolver {
                 let result = geometryResolver.resolveCaretRect(
                     for: element,
                     selection: range,
-                    supportsBoundsForRange: paramAttrs.contains(
-                        kAXBoundsForRangeParameterizedAttribute as String
-                    ),
                     supportsFrame: attrs.contains("AXFrame"),
                     cocoaAnchorFrame: cocoaAnchorFrame,
                     textValue: textValue
@@ -376,8 +372,6 @@ struct FocusSnapshotResolver {
         let role = AXHelper.stringValue(for: kAXRoleAttribute as CFString, on: element) ?? "Unknown"
         let subrole = AXHelper.stringValue(for: kAXSubroleAttribute as CFString, on: element)
         let supportedAttributes = Set(AXHelper.attributeNames(on: element))
-        let supportedParameterizedAttributes = Set(
-            AXHelper.parameterizedAttributeNames(on: element))
         let explicitEditableFlag =
             supportedAttributes.contains("AXEditable")
             ? AXHelper.boolValue(for: "AXEditable" as CFString, on: element)
@@ -426,8 +420,6 @@ struct FocusSnapshotResolver {
             geometryResolver.resolveCaretRect(
                 for: element,
                 selection: $0,
-                supportsBoundsForRange: supportedParameterizedAttributes.contains(
-                    kAXBoundsForRangeParameterizedAttribute as String),
                 supportsFrame: supportedAttributes.contains("AXFrame"),
                 cocoaAnchorFrame: inputFrameRect,
                 textValue: textValue
