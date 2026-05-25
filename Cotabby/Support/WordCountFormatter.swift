@@ -6,7 +6,7 @@ enum WordCountFormatter {
     ///
     /// - 0 → `nil` (hide the badge)
     /// - 1–999 → `"1"` … `"999"`
-    /// - 1,000–9,999 → `"1.0K"` … `"9.9K"`
+    /// - 1,000–9,949 → `"1.0K"` … `"9.9K"`; 9,950–9,999 rounds up to `"10.0K"`
     /// - 10,000+ → `"10K"` … `"999K"` … `"1.0M"` etc.
     static func compactLabel(for count: Int) -> String? {
         guard count > 0 else { return nil }
