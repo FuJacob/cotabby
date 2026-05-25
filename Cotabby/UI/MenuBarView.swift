@@ -53,7 +53,6 @@ struct MenuBarView: View {
         HStack(alignment: .center) {
             Text("Cotabby")
                 .font(.headline)
-            
 
             Spacer(minLength: 0)
 
