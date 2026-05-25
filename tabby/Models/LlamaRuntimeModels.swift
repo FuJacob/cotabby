@@ -4,6 +4,13 @@ import Foundation
 /// Shared value types for runtime bootstrap, model selection, diagnostics, and runtime errors.
 /// These types keep runtime state serializable, testable, and separate from the service layer.
 ///
+/// Distinguishes the on-disk layout so discovery, download, and runtime loading
+/// can branch on format without inspecting file contents.
+enum ModelFormat: String, Sendable, Equatable, Hashable {
+    case gguf
+    case mlx
+}
+
 /// Human-readable lifecycle states surfaced to the UI during runtime bootstrap.
 enum RuntimeBootstrapState: Equatable, Sendable {
     case idle
@@ -31,6 +38,7 @@ enum RuntimeBootstrapState: Equatable, Sendable {
 struct RuntimeModelOption: Equatable, Hashable, Sendable, Identifiable {
     let filename: String
     let url: URL
+    let format: ModelFormat
 
     var id: String { filename }
     var displayName: String { RuntimeModelCatalog.displayName(for: filename) }
@@ -42,7 +50,8 @@ struct RuntimeModelOption: Equatable, Hashable, Sendable, Identifiable {
 struct DownloadableRuntimeModel: Equatable, Hashable, Sendable, Identifiable {
     let filename: String
     let displayName: String
-    let downloadURL: URL
+    let format: ModelFormat
+    let artifact: ModelArtifactKind
     let approximateSizeInGigabytes: Double
     /// Exact byte count of the served file. Optional so future catalog entries
     /// can land while metadata is still being filled in. When non-nil, the
@@ -63,6 +72,15 @@ struct DownloadableRuntimeModel: Equatable, Hashable, Sendable, Identifiable {
         [filename] + alternateFilenames
     }
 
+    /// Returns the download URL for single-file artifacts.
+    var downloadURL: URL? {
+        switch artifact {
+        case .singleFile(let url): return url
+        case .multiFile: return nil
+        }
+    }
+
+    /// Convenience initializer for single-file GGUF models (preserves existing call sites).
     init(
         filename: String,
         displayName: String,
@@ -74,12 +92,49 @@ struct DownloadableRuntimeModel: Equatable, Hashable, Sendable, Identifiable {
     ) {
         self.filename = filename
         self.displayName = displayName
-        self.downloadURL = downloadURL
+        self.format = .gguf
+        self.artifact = .singleFile(url: downloadURL)
         self.approximateSizeInGigabytes = approximateSizeInGigabytes
         self.expectedSizeBytes = expectedSizeBytes
         self.sha256 = sha256
         self.alternateFilenames = alternateFilenames
     }
+
+    init(
+        filename: String,
+        displayName: String,
+        format: ModelFormat,
+        artifact: ModelArtifactKind,
+        approximateSizeInGigabytes: Double,
+        expectedSizeBytes: Int64? = nil,
+        sha256: String? = nil,
+        alternateFilenames: [String] = []
+    ) {
+        self.filename = filename
+        self.displayName = displayName
+        self.format = format
+        self.artifact = artifact
+        self.approximateSizeInGigabytes = approximateSizeInGigabytes
+        self.expectedSizeBytes = expectedSizeBytes
+        self.sha256 = sha256
+        self.alternateFilenames = alternateFilenames
+    }
+}
+
+/// Describes how a model's files are fetched from a remote source.
+enum ModelArtifactKind: Equatable, Hashable, Sendable {
+    /// A single file download (e.g. one .gguf file).
+    case singleFile(url: URL)
+    /// Multiple files downloaded into a named directory (e.g. MLX model repos).
+    case multiFile(files: [RemoteModelFile])
+}
+
+/// One file within a multi-file model artifact.
+struct RemoteModelFile: Equatable, Hashable, Sendable {
+    let url: URL
+    let relativePath: String
+    let expectedSizeBytes: Int64?
+    let sha256: String?
 }
 
 enum RuntimeModelCatalog {
@@ -89,16 +144,16 @@ enum RuntimeModelCatalog {
             return "tabby-fast-1"
         case "gemma-3-1b-it-Q4_K_M.gguf":
             return "tabby-balanced-1"
-        // case "Qwen3.5-0.8B-Q4_K_M.gguf":
-        //     return "tabby-fast"
-        // case "gemma-4-E2B-it-Q4_K_M.gguf":
-        //     return "tabby-quality"
+        case "Qwen2.5-0.5B-Instruct-4bit":
+            return "tabby-mlx-fast"
+        case "gemma-3-1b-it-4bit":
+            return "tabby-mlx-balanced"
         default:
             return filename
         }
     }
 
-    /// Canonical downloadable model list shown in Welcome and menu UI.
+    /// Canonical downloadable GGUF model list shown in Welcome and menu UI.
     ///
     /// `expectedSizeBytes` and `sha256` were captured from HuggingFace's CDN
     /// response headers (`x-linked-size` and `x-linked-etag` respectively).
@@ -128,24 +183,90 @@ enum RuntimeModelCatalog {
             expectedSizeBytes: 806_058_272,
             sha256: "8270790f3ab69fdfe860b7b64008d9a19986d8df7e407bb018184caa08798ebd"
         )
-        // Newer models — commented out pending further testing:
-        // DownloadableRuntimeModel(
-        //     filename: "Qwen3.5-0.8B-Q4_K_M.gguf",
-        //     displayName: "tabby-fast",
-        //     downloadURL: URL(string: "https://huggingface.co/unsloth/Qwen3.5-0.8B-GGUF/resolve/main/Qwen3.5-0.8B-Q4_K_M.gguf?download=true")!,
-        //     approximateSizeInGigabytes: 0.5,
-        //     expectedSizeBytes: 532_517_120,
-        //     sha256: "bd258782e35f7f458f8aced1adc053e6e92e89bc735ba3be89d38a06121dc517"
-        // ),
-        // DownloadableRuntimeModel(
-        //     filename: "gemma-4-E2B-it-Q4_K_M.gguf",
-        //     displayName: "tabby-quality",
-        //     downloadURL: URL(string: "https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF/resolve/main/gemma-4-E2B-it-Q4_K_M.gguf?download=true")!,
-        //     approximateSizeInGigabytes: 3.1,
-        //     expectedSizeBytes: 3_106_736_256,
-        //     sha256: "9378bc471710229ef165709b62e34bfb62231420ddaf6d729e727305b5b8672d"
-        // )
     ]
+
+    // swiftlint:disable function_body_length
+    /// Canonical downloadable MLX model list. Each model is a directory of files
+    /// downloaded from HuggingFace's mlx-community organization.
+    static let downloadableMLXModels: [DownloadableRuntimeModel] = [
+        DownloadableRuntimeModel(
+            filename: "Qwen2.5-0.5B-Instruct-4bit",
+            displayName: displayName(for: "Qwen2.5-0.5B-Instruct-4bit"),
+            format: .mlx,
+            artifact: .multiFile(files: [
+                RemoteModelFile(
+                    url: URL(string: "https://huggingface.co/mlx-community/Qwen2.5-0.5B-Instruct-4bit/resolve/main/config.json")!,
+                    relativePath: "config.json",
+                    expectedSizeBytes: 783,
+                    sha256: nil
+                ),
+                RemoteModelFile(
+                    url: URL(string: "https://huggingface.co/mlx-community/Qwen2.5-0.5B-Instruct-4bit/resolve/main/model.safetensors")!,
+                    relativePath: "model.safetensors",
+                    expectedSizeBytes: 278_064_920,
+                    sha256: nil
+                ),
+                RemoteModelFile(
+                    url: URL(string: "https://huggingface.co/mlx-community/Qwen2.5-0.5B-Instruct-4bit/resolve/main/tokenizer.json")!,
+                    relativePath: "tokenizer.json",
+                    expectedSizeBytes: 7_031_673,
+                    sha256: nil
+                ),
+                RemoteModelFile(
+                    url: URL(string: "https://huggingface.co/mlx-community/Qwen2.5-0.5B-Instruct-4bit/resolve/main/tokenizer_config.json")!,
+                    relativePath: "tokenizer_config.json",
+                    expectedSizeBytes: 7_308,
+                    sha256: nil
+                ),
+                RemoteModelFile(
+                    url: URL(string: "https://huggingface.co/mlx-community/Qwen2.5-0.5B-Instruct-4bit/resolve/main/special_tokens_map.json")!,
+                    relativePath: "special_tokens_map.json",
+                    expectedSizeBytes: 613,
+                    sha256: nil
+                )
+            ]),
+            approximateSizeInGigabytes: 0.3
+        ),
+        DownloadableRuntimeModel(
+            filename: "gemma-3-1b-it-4bit",
+            displayName: displayName(for: "gemma-3-1b-it-4bit"),
+            format: .mlx,
+            artifact: .multiFile(files: [
+                RemoteModelFile(
+                    url: URL(string: "https://huggingface.co/mlx-community/gemma-3-1b-it-4bit/resolve/main/config.json")!,
+                    relativePath: "config.json",
+                    expectedSizeBytes: 1_098,
+                    sha256: nil
+                ),
+                RemoteModelFile(
+                    url: URL(string: "https://huggingface.co/mlx-community/gemma-3-1b-it-4bit/resolve/main/model.safetensors")!,
+                    relativePath: "model.safetensors",
+                    expectedSizeBytes: 732_577_304,
+                    sha256: nil
+                ),
+                RemoteModelFile(
+                    url: URL(string: "https://huggingface.co/mlx-community/gemma-3-1b-it-4bit/resolve/main/tokenizer.json")!,
+                    relativePath: "tokenizer.json",
+                    expectedSizeBytes: 33_384_568,
+                    sha256: nil
+                ),
+                RemoteModelFile(
+                    url: URL(string: "https://huggingface.co/mlx-community/gemma-3-1b-it-4bit/resolve/main/tokenizer_config.json")!,
+                    relativePath: "tokenizer_config.json",
+                    expectedSizeBytes: 1_156_999,
+                    sha256: nil
+                ),
+                RemoteModelFile(
+                    url: URL(string: "https://huggingface.co/mlx-community/gemma-3-1b-it-4bit/resolve/main/special_tokens_map.json")!,
+                    relativePath: "special_tokens_map.json",
+                    expectedSizeBytes: 662,
+                    sha256: nil
+                )
+            ]),
+            approximateSizeInGigabytes: 0.7
+        )
+    ]
+    // swiftlint:enable function_body_length
 }
 
 /// Startup configuration that controls which GGUF model to load and how large the runtime should be.

@@ -19,9 +19,12 @@ struct GhostSuggestionLayout: Equatable {
     }
 
     let lines: [Line]
+    /// For LTR, the left edge of the panel. For RTL, the right-edge anchor — `panelFrame()`
+    /// subtracts the content width to derive the actual AppKit origin.
     let panelOriginX: CGFloat
     let lineHeight: CGFloat
     let topLineCenterOffsetFromCaret: CGFloat
+    let isRightToLeft: Bool
 
     private enum Metrics {
         static let caretGap: CGFloat = 6
@@ -40,18 +43,37 @@ struct GhostSuggestionLayout: Equatable {
     ) -> GhostSuggestionLayout {
         let normalizedText = normalizedDisplayText(text)
         let lineHeight = ceil(fontSize * Metrics.lineHeightMultiplier)
+        let isRTL = geometry.isRightToLeft
         let usableFrame = usableTextFrame(
             geometry: geometry,
             visibleFrame: visibleFrame
         )
-        let firstLineX = min(
-            max(geometry.caretRect.maxX + Metrics.caretGap, usableFrame.minX),
-            usableFrame.maxX
-        )
-        let firstLineBudget = max(
-            0,
-            usableFrame.maxX - firstLineX - Metrics.estimatedKeycapAndSpacingWidth
-        )
+
+        // Direction-dependent anchor and budget.
+        // LTR: anchor at the right edge of the caret, budget extends rightward.
+        // RTL: anchor at the left edge of the caret, budget extends leftward.
+        let firstLineAnchor: CGFloat
+        let firstLineBudget: CGFloat
+        if isRTL {
+            firstLineAnchor = min(
+                max(geometry.caretRect.minX - Metrics.caretGap, usableFrame.minX),
+                usableFrame.maxX
+            )
+            firstLineBudget = max(
+                0,
+                firstLineAnchor - usableFrame.minX - Metrics.estimatedKeycapAndSpacingWidth
+            )
+        } else {
+            firstLineAnchor = min(
+                max(geometry.caretRect.maxX + Metrics.caretGap, usableFrame.minX),
+                usableFrame.maxX
+            )
+            firstLineBudget = max(
+                0,
+                usableFrame.maxX - firstLineAnchor - Metrics.estimatedKeycapAndSpacingWidth
+            )
+        }
+
         let overflowBudget = max(
             Metrics.minimumLineWidth,
             usableFrame.width - Metrics.estimatedKeycapAndSpacingWidth
@@ -68,13 +90,16 @@ struct GhostSuggestionLayout: Equatable {
                 lines: [
                     Line(index: 0, text: normalizedText, leadingIndent: 0, showsKeycap: true)
                 ],
-                panelOriginX: firstLineX,
+                panelOriginX: firstLineAnchor,
                 lineHeight: lineHeight,
-                topLineCenterOffsetFromCaret: 0
+                topLineCenterOffsetFromCaret: 0,
+                isRightToLeft: isRTL
             )
         }
 
-        let panelOriginX = usableFrame.minX
+        // Multi-line wrapping. The panel spans the full usable width so overflow lines can
+        // use the entire field. The first line is indented to stay aligned with the caret.
+        let panelOriginX = isRTL ? usableFrame.maxX : usableFrame.minX
         var remainingText = normalizedText
         var rawLines: [(text: String, leadingIndent: CGFloat)] = []
         var startsBelowCaret = false
@@ -87,7 +112,13 @@ struct GhostSuggestionLayout: Equatable {
                 observedCharWidth: geometry.observedCharWidth
             )
             if !split.line.isEmpty {
-                rawLines.append((split.line, firstLineX - panelOriginX))
+                let indent: CGFloat
+                if isRTL {
+                    indent = panelOriginX - firstLineAnchor
+                } else {
+                    indent = firstLineAnchor - panelOriginX
+                }
+                rawLines.append((split.line, indent))
                 remainingText = split.remainder
             } else {
                 startsBelowCaret = true
@@ -129,16 +160,18 @@ struct GhostSuggestionLayout: Equatable {
             lines: finalLines,
             panelOriginX: panelOriginX,
             lineHeight: lineHeight,
-            topLineCenterOffsetFromCaret: startsBelowCaret ? -lineHeight : 0
+            topLineCenterOffsetFromCaret: startsBelowCaret ? -lineHeight : 0,
+            isRightToLeft: isRTL
         )
     }
 
     func panelFrame(for contentSize: CGSize, caretRect: CGRect) -> CGRect {
         let topLineCenterY = caretRect.midY + topLineCenterOffsetFromCaret
         let originY = topLineCenterY - contentSize.height + (lineHeight / 2)
+        let originX = isRightToLeft ? panelOriginX - contentSize.width : panelOriginX
 
         return CGRect(
-            origin: CGPoint(x: panelOriginX, y: originY),
+            origin: CGPoint(x: originX, y: originY),
             size: contentSize
         )
     }
@@ -147,39 +180,44 @@ struct GhostSuggestionLayout: Equatable {
         geometry: SuggestionOverlayGeometry,
         visibleFrame: CGRect
     ) -> CGRect {
-        let fallbackMinX = geometry.caretRect.maxX + Metrics.caretGap
-        let fallbackMaxX = visibleFrame.maxX - Metrics.fallbackScreenMargin
-        let fallbackFrame = CGRect(
+        if let inputFrame = geometry.inputFrameRect?.standardized,
+           inputFrame.width > Metrics.minimumLineWidth {
+            let minX = max(
+                inputFrame.minX + Metrics.inputHorizontalPadding,
+                visibleFrame.minX + Metrics.fallbackScreenMargin
+            )
+            let maxX = min(
+                inputFrame.maxX - Metrics.inputHorizontalPadding,
+                visibleFrame.maxX - Metrics.fallbackScreenMargin
+            )
+
+            if maxX - minX > Metrics.minimumLineWidth {
+                return CGRect(
+                    x: minX,
+                    y: inputFrame.minY,
+                    width: maxX - minX,
+                    height: inputFrame.height
+                )
+            }
+        }
+
+        // Fallback when no input frame is available. For LTR, use the area to the right
+        // of the caret. For RTL, use the area to the left.
+        let fallbackMinX: CGFloat
+        let fallbackMaxX: CGFloat
+        if geometry.isRightToLeft {
+            fallbackMinX = visibleFrame.minX + Metrics.fallbackScreenMargin
+            fallbackMaxX = geometry.caretRect.minX - Metrics.caretGap
+        } else {
+            fallbackMinX = geometry.caretRect.maxX + Metrics.caretGap
+            fallbackMaxX = visibleFrame.maxX - Metrics.fallbackScreenMargin
+        }
+
+        return CGRect(
             x: fallbackMinX,
             y: geometry.caretRect.minY,
             width: max(Metrics.minimumLineWidth, fallbackMaxX - fallbackMinX),
             height: geometry.caretRect.height
-        )
-
-        guard let inputFrame = geometry.inputFrameRect?.standardized,
-              inputFrame.width > Metrics.minimumLineWidth
-        else {
-            return fallbackFrame
-        }
-
-        let minX = max(
-            inputFrame.minX + Metrics.inputHorizontalPadding,
-            visibleFrame.minX + Metrics.fallbackScreenMargin
-        )
-        let maxX = min(
-            inputFrame.maxX - Metrics.inputHorizontalPadding,
-            visibleFrame.maxX - Metrics.fallbackScreenMargin
-        )
-
-        guard maxX - minX > Metrics.minimumLineWidth else {
-            return fallbackFrame
-        }
-
-        return CGRect(
-            x: minX,
-            y: inputFrame.minY,
-            width: maxX - minX,
-            height: inputFrame.height
         )
     }
 

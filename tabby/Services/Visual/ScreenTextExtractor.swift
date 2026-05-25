@@ -1,5 +1,6 @@
 import CoreGraphics
 import Foundation
+import Logging
 @preconcurrency import Vision
 
 /// File overview:
@@ -147,7 +148,9 @@ struct ScreenTextExtractor {
     }
 
     private func log(_ message: String) {
-        _ = message
+        // OCR log messages include preview text from the user's screen. Route them through
+        // the debug gate so they only appear when the developer explicitly opts in.
+        TabbyDebugOptions.log(message)
     }
 
     private func preview(_ text: String) -> String {

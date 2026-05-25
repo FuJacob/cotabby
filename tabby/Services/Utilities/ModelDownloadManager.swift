@@ -1,6 +1,7 @@
 import AppKit
 import Combine
 import Foundation
+import Logging
 
 /// One model's current install/download lifecycle state in local storage.
 enum ModelDownloadState: Equatable {
@@ -57,13 +58,16 @@ final class ModelDownloadManager: ObservableObject {
     var onModelDirectoryChanged: (() -> Void)?
 
     private let runtimeDirectoryURL: URL
+    private let mlxRuntimeDirectoryURL: URL
     private let runtimeSearchDirectories: [URL]
     private var downloadTasks: [String: Task<Void, Never>] = [:]
 
-    init(runtimeDirectoryURL: URL? = nil) {
+    init(runtimeDirectoryURL: URL? = nil, mlxRuntimeDirectoryURL: URL? = nil) {
         let primaryDirectoryURL =
             runtimeDirectoryURL ?? BundledRuntimeLocator.userRuntimeDirectoryURL()
         self.runtimeDirectoryURL = primaryDirectoryURL
+        self.mlxRuntimeDirectoryURL =
+            mlxRuntimeDirectoryURL ?? BundledRuntimeLocator.mlxRuntimeDirectoryURL()
 
         var directories = [primaryDirectoryURL]
         for directoryURL in BundledRuntimeLocator.runtimeSearchDirectories() {
@@ -107,14 +111,17 @@ final class ModelDownloadManager: ObservableObject {
 
     func download(_ model: DownloadableRuntimeModel) {
         guard downloadTasks[model.filename] == nil else {
+            TabbyLogger.models.debug("Download already in progress for \(model.filename)")
             return
         }
 
         if isInstalled(model: model) {
+            TabbyLogger.models.debug("Model \(model.filename) already installed, skipping download")
             modelStates[model.filename] = .downloaded
             return
         }
 
+        TabbyLogger.models.info("Starting download for \(model.filename)")
         modelStates[model.filename] = .downloading(progress: 0)
         let task = Task { [weak self] in
             guard let self else {
@@ -166,28 +173,40 @@ final class ModelDownloadManager: ObservableObject {
         NSWorkspace.shared.open(runtimeDirectoryURL)
     }
 
-    /// Returns `true` only when the concrete GGUF file lives in Tabby's user-writable model
-    /// directory. This is the boundary we use for destructive actions so settings never offers
-    /// "delete" for assets outside the app-managed local model directory.
-    func canDeleteModel(filename: String) -> Bool {
-        FileManager.default.fileExists(atPath: modelFileURL(filename: filename).path)
+    /// Returns `true` only when the model lives in Tabby's user-writable model directory.
+    /// GGUF models are single files; MLX models are subdirectories.
+    func canDeleteModel(filename: String, format: ModelFormat = .gguf) -> Bool {
+        switch format {
+        case .gguf:
+            return FileManager.default.fileExists(atPath: modelFileURL(filename: filename).path)
+        case .mlx:
+            return FileManager.default.fileExists(
+                atPath: mlxModelDirectoryURL(dirname: filename).path
+            )
+        }
     }
 
-    /// Removes one concrete GGUF file from the user-managed runtime directory.
-    /// The caller decides whether deletion should be offered; this method only enforces the storage
-    /// boundary and refreshes observers after a successful removal.
-    func deleteModel(filename: String) {
-        let fileURL = modelFileURL(filename: filename)
-        guard FileManager.default.fileExists(atPath: fileURL.path) else {
+    /// Removes one model from the user-managed runtime directory.
+    /// GGUF: deletes a single file. MLX: deletes an entire directory.
+    func deleteModel(filename: String, format: ModelFormat = .gguf) {
+        let targetURL: URL
+        switch format {
+        case .gguf:
+            targetURL = modelFileURL(filename: filename)
+        case .mlx:
+            targetURL = mlxModelDirectoryURL(dirname: filename)
+        }
+
+        guard FileManager.default.fileExists(atPath: targetURL.path) else {
             return
         }
 
         do {
-            try FileManager.default.removeItem(at: fileURL)
+            try FileManager.default.removeItem(at: targetURL)
             refreshModelStates()
             onModelDirectoryChanged?()
         } catch {
-            print("Failed to delete model \(filename): \(error.localizedDescription)")
+            TabbyLogger.models.error("Failed to delete model \(filename): \(error.localizedDescription)")
         }
     }
 
@@ -197,72 +216,131 @@ final class ModelDownloadManager: ObservableObject {
         }
 
         do {
-            try ensureRuntimeDirectoryExists()
-            let destinationURL = modelFileURL(filename: model.filename)
-            let delegate = ModelDownloadSessionDelegate { [weak self] progress in
-                Task { @MainActor [weak self] in
-                    guard let self, self.downloadTasks[model.filename] != nil else {
-                        return
-                    }
-
-                    self.modelStates[model.filename] = .downloading(progress: progress)
-                }
-            }
-            let downloadResult = try await delegate.download(from: model.downloadURL)
-            try Task.checkCancellation()
-            try validate(response: downloadResult.response)
-
-            let fileManager = FileManager.default
-
-            // Stage-validate-swap so a corrupt download can't take out a
-            // working previous install. If validation throws, the staged
-            // file is removed and the existing destinationURL (if any)
-            // stays untouched.
-            let stagingURL = runtimeDirectoryURL.appendingPathComponent(
-                "\(model.filename).staging-\(UUID().uuidString)",
-                isDirectory: false
-            )
-            try fileManager.moveItem(at: downloadResult.temporaryURL, to: stagingURL)
-
-            do {
-                try ModelFileValidator.validateSize(
-                    of: stagingURL,
-                    expectedBytes: model.expectedSizeBytes
-                )
-                try ModelFileValidator.validateSHA256(
-                    of: stagingURL,
-                    expectedSHA256: model.sha256
-                )
-            } catch {
-                // Don't leave a partial or corrupt file in the runtime
-                // directory where the locator might pick it up later.
-                try? fileManager.removeItem(at: stagingURL)
-                throw error
+            switch model.artifact {
+            case .singleFile(let url):
+                try await performSingleFileDownload(model, url: url)
+            case .multiFile(let files):
+                try await performMultiFileDownload(model, files: files)
             }
 
-            // Validation passed — atomically swap the new file in. The
-            // existing copy is removed only at this point, so any failure
-            // before here leaves the prior install intact.
-            if fileManager.fileExists(atPath: destinationURL.path) {
-                try fileManager.removeItem(at: destinationURL)
-            }
-            try fileManager.moveItem(at: stagingURL, to: destinationURL)
-
+            TabbyLogger.models.info("Download complete for \(model.filename)")
             modelStates[model.filename] = .downloaded
             onModelDirectoryChanged?()
         } catch {
-            // A user-initiated cancel surfaces here as either CancellationError
-            // (cancelled before URLSession ran) or URLError.cancelled
-            // (cancelled while in flight). Both should restore the prior
-            // visible state, not show a failure — the user already knows what
-            // they did. DownloadOutcomeClassifier owns the discrimination so
-            // the rule is unit-tested in isolation.
             if DownloadOutcomeClassifier.isUserCancellation(error) {
+                TabbyLogger.models.info("Download cancelled by user for \(model.filename)")
                 modelStates[model.filename] = isInstalled(model: model) ? .downloaded : .idle
             } else {
+                TabbyLogger.models.error("Download failed for \(model.filename): \(error.localizedDescription)")
                 modelStates[model.filename] = .failed(error.localizedDescription)
             }
         }
+    }
+
+    private func performSingleFileDownload(
+        _ model: DownloadableRuntimeModel, url: URL
+    ) async throws {
+        try ensureRuntimeDirectoryExists()
+        let destinationURL = modelFileURL(filename: model.filename)
+        let delegate = ModelDownloadSessionDelegate { [weak self] progress in
+            Task { @MainActor [weak self] in
+                guard let self, self.downloadTasks[model.filename] != nil else { return }
+                self.modelStates[model.filename] = .downloading(progress: progress)
+            }
+        }
+        let downloadResult = try await delegate.download(from: url)
+        try Task.checkCancellation()
+        try validate(response: downloadResult.response)
+
+        let fileManager = FileManager.default
+        let stagingURL = runtimeDirectoryURL.appendingPathComponent(
+            "\(model.filename).staging-\(UUID().uuidString)",
+            isDirectory: false
+        )
+        try fileManager.moveItem(at: downloadResult.temporaryURL, to: stagingURL)
+
+        do {
+            try ModelFileValidator.validateSize(
+                of: stagingURL, expectedBytes: model.expectedSizeBytes
+            )
+            try ModelFileValidator.validateSHA256(
+                of: stagingURL, expectedSHA256: model.sha256
+            )
+        } catch {
+            try? fileManager.removeItem(at: stagingURL)
+            throw error
+        }
+
+        if fileManager.fileExists(atPath: destinationURL.path) {
+            try fileManager.removeItem(at: destinationURL)
+        }
+        try fileManager.moveItem(at: stagingURL, to: destinationURL)
+    }
+
+    private func performMultiFileDownload(
+        _ model: DownloadableRuntimeModel, files: [RemoteModelFile]
+    ) async throws {
+        try ensureMLXRuntimeDirectoryExists()
+        let fileManager = FileManager.default
+        let stagingDirName = "\(model.filename).staging-\(UUID().uuidString)"
+        let stagingURL = mlxRuntimeDirectoryURL.appendingPathComponent(
+            stagingDirName, isDirectory: true
+        )
+        try fileManager.createDirectory(at: stagingURL, withIntermediateDirectories: true)
+
+        do {
+            var completedFiles = 0
+            let totalFiles = files.count
+
+            for file in files {
+                try Task.checkCancellation()
+
+                let delegate = ModelDownloadSessionDelegate { [weak self] fileProgress in
+                    Task { @MainActor [weak self] in
+                        guard let self, self.downloadTasks[model.filename] != nil else { return }
+                        let baseProgress = Double(completedFiles) / Double(totalFiles)
+                        let fileContribution = (fileProgress ?? 0) / Double(totalFiles)
+                        self.modelStates[model.filename] = .downloading(
+                            progress: baseProgress + fileContribution
+                        )
+                    }
+                }
+
+                let result = try await delegate.download(from: file.url)
+                try validate(response: result.response)
+
+                let fileDestination = stagingURL.appendingPathComponent(file.relativePath)
+                let parentDir = fileDestination.deletingLastPathComponent()
+                if !fileManager.fileExists(atPath: parentDir.path) {
+                    try fileManager.createDirectory(
+                        at: parentDir, withIntermediateDirectories: true
+                    )
+                }
+                try fileManager.moveItem(at: result.temporaryURL, to: fileDestination)
+
+                if let expectedBytes = file.expectedSizeBytes {
+                    try ModelFileValidator.validateSize(
+                        of: fileDestination, expectedBytes: expectedBytes
+                    )
+                }
+                if let sha256 = file.sha256 {
+                    try ModelFileValidator.validateSHA256(
+                        of: fileDestination, expectedSHA256: sha256
+                    )
+                }
+
+                completedFiles += 1
+            }
+        } catch {
+            try? fileManager.removeItem(at: stagingURL)
+            throw error
+        }
+
+        let destinationURL = mlxModelDirectoryURL(dirname: model.filename)
+        if fileManager.fileExists(atPath: destinationURL.path) {
+            try fileManager.removeItem(at: destinationURL)
+        }
+        try fileManager.moveItem(at: stagingURL, to: destinationURL)
     }
 
     private func validate(response: URLResponse) throws {
@@ -283,12 +361,28 @@ final class ModelDownloadManager: ObservableObject {
         )
     }
 
+    private func ensureMLXRuntimeDirectoryExists() throws {
+        try FileManager.default.createDirectory(
+            at: mlxRuntimeDirectoryURL,
+            withIntermediateDirectories: true
+        )
+    }
+
     private func modelFileURL(filename: String) -> URL {
         runtimeDirectoryURL.appendingPathComponent(filename, isDirectory: false)
     }
 
+    private func mlxModelDirectoryURL(dirname: String) -> URL {
+        mlxRuntimeDirectoryURL.appendingPathComponent(dirname, isDirectory: true)
+    }
+
     private func isInstalled(model: DownloadableRuntimeModel) -> Bool {
-        model.allKnownFilenames.contains(where: isInstalled(filename:))
+        switch model.format {
+        case .gguf:
+            return model.allKnownFilenames.contains(where: isInstalled(filename:))
+        case .mlx:
+            return isMLXModelInstalled(dirname: model.filename)
+        }
     }
 
     private func isInstalled(filename: String) -> Bool {
@@ -296,6 +390,12 @@ final class ModelDownloadManager: ObservableObject {
             let fileURL = directoryURL.appendingPathComponent(filename, isDirectory: false)
             return FileManager.default.fileExists(atPath: fileURL.path)
         }
+    }
+
+    private func isMLXModelInstalled(dirname: String) -> Bool {
+        let dirURL = mlxModelDirectoryURL(dirname: dirname)
+        let configURL = dirURL.appendingPathComponent("config.json")
+        return FileManager.default.fileExists(atPath: configURL.path)
     }
 }
 

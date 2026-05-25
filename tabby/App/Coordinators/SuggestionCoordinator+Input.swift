@@ -1,4 +1,5 @@
 import Foundation
+import Logging
 
 /// File overview:
 /// Focus, permission, and keyboard-event entry points for `SuggestionCoordinator`.
@@ -7,6 +8,7 @@ extension SuggestionCoordinator {
     // MARK: - Environment and Input Handling
 
     func handlePermissionChange() {
+        TabbyLogger.suggestion.debug("Permission state changed, reconciling")
         reconcileWithCurrentEnvironment()
 
         if SuggestionAvailabilityEvaluator.shouldSchedulePrediction(
@@ -21,12 +23,19 @@ extension SuggestionCoordinator {
     }
 
     func handleFocusSnapshotChange(_ snapshot: FocusSnapshot) {
+        TabbyLogger.suggestion.trace("Focus snapshot changed: app=\(snapshot.applicationName ?? "nil") capability=\(snapshot.capability.shortLabel)")
         // Start capturing visual context for a newly focused input even when predictions are
-        // temporarily disabled (e.g., "text is selected" or "secure field"). The OCR pipeline
-        // is field-scoped and should start as early as possible so context is ready by the
-        // time the user starts typing. Without this, switching between fields can leave the
-        // visual context coordinator dormant if the snapshot is transiently unsupported.
-        if let context = snapshot.context {
+        // temporarily disabled by transient field states (e.g., "text is selected" or "secure
+        // field"). Skip capture entirely when the subsystem is hard-disabled (globally off,
+        // per-app disabled, terminal apps, or missing permissions) to avoid wasted compute.
+        if let context = snapshot.context,
+           SuggestionAvailabilityEvaluator.shouldCaptureVisualContext(
+               globallyEnabled: settingsSnapshot.isGloballyEnabled,
+               disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
+               inputMonitoringGranted: permissionManager.inputMonitoringGranted,
+               screenRecordingGranted: permissionManager.screenRecordingGranted,
+               focusSnapshot: snapshot
+           ) {
             visualContextCoordinator.startSessionIfNeeded(for: context)
         }
 
@@ -86,8 +95,12 @@ extension SuggestionCoordinator {
             return false
         }
 
-        if event.kind == .tab {
+        if event.kind == .acceptance {
             return acceptCurrentSuggestion()
+        }
+
+        if event.kind == .fullAcceptance {
+            return acceptEntireSuggestion()
         }
 
         if let activeSession = interactionState.activeSession {
@@ -161,7 +174,7 @@ extension SuggestionCoordinator {
             state = .idle
             return false
 
-        case .other, .tab:
+        case .other, .acceptance, .fullAcceptance:
             return false
         }
     }

@@ -108,34 +108,73 @@ final class SuggestionInteractionState {
         from snapshot: FocusedInputSnapshot,
         overlayState: OverlayState
     ) -> SuggestionAcceptancePreparation {
+        let validated = validateSessionForAcceptance(from: snapshot, overlayState: overlayState)
+        guard let (liveContext, session) = validated.session else {
+            return .invalid(validated.failureReason ?? "Key passed through.")
+        }
+
+        let chunk = SuggestionSessionReconciler.nextAcceptanceChunk(from: session.remainingText)
+        guard !chunk.isEmpty else {
+            return .invalid("Key passed through because no remaining suggestion chunk was available.")
+        }
+        return .ready(liveContext: liveContext, session: session, acceptedChunk: chunk)
+    }
+
+    func prepareFullAcceptance(
+        from snapshot: FocusedInputSnapshot,
+        overlayState: OverlayState
+    ) -> SuggestionAcceptancePreparation {
+        let validated = validateSessionForAcceptance(from: snapshot, overlayState: overlayState)
+        guard let (liveContext, session) = validated.session else {
+            return .invalid(validated.failureReason ?? "Key passed through.")
+        }
+
+        let chunk = session.remainingText
+        guard !chunk.isEmpty else {
+            return .invalid("Key passed through because no remaining suggestion text was available.")
+        }
+        return .ready(liveContext: liveContext, session: session, acceptedChunk: chunk)
+    }
+
+    /// Shared validation for both word-by-word and full acceptance.
+    private struct SessionValidation {
+        let session: (FocusedInputContext, ActiveSuggestionSession)?
+        let failureReason: String?
+    }
+
+    private func validateSessionForAcceptance(
+        from snapshot: FocusedInputSnapshot,
+        overlayState: OverlayState
+    ) -> SessionValidation {
         guard let activeSession else {
-            return .invalid("Tab passed through because no valid suggestion was ready.")
+            return SessionValidation(session: nil, failureReason: "Key passed through because no valid suggestion was ready.")
         }
 
         guard snapshot.selection.length == 0 else {
-            return .invalid("Tab passed through because text is currently selected.")
+            return SessionValidation(session: nil, failureReason: "Key passed through because text is currently selected.")
         }
 
         guard SuggestionSessionReconciler.overlayAllowsAcceptance(
             of: activeSession.remainingText,
             overlayState: overlayState
         ) else {
-            return .invalid("Tab passed through because no visible ghost text matched the ready suggestion.")
+            return SessionValidation(
+                session: nil,
+                failureReason: "Key passed through because no visible ghost text matched the ready suggestion."
+            )
         }
 
         let liveContext = contextBuffer.materialize(from: snapshot)
         let sessionForAcceptance: ActiveSuggestionSession
 
         if overlayState.isVisible {
-            // A visible overlay means AX has already caught up to the current caret/text state,
-            // so we can insist that live editor state and session state agree before accepting.
             switch SuggestionSessionReconciler.reconcile(
                 session: activeSession,
                 with: liveContext,
                 pendingInsertionConsumedCount: pendingInsertionConsumedCount
             ) {
             case .invalid(let reason):
-                return .invalid(reason)
+                return SessionValidation(session: nil, failureReason: reason)
 
             case let .valid(reconciledSession, _, nextPendingInsertionConsumedCount):
                 self.activeSession = reconciledSession
@@ -143,30 +182,21 @@ final class SuggestionInteractionState {
                 sessionForAcceptance = reconciledSession
             }
         } else {
-            // We intentionally allow acceptance while the overlay is temporarily hidden.
-            // That hidden state usually means "waiting for host app caret sync" after a prior
-            // partial acceptance, not "there is no active suggestion anymore."
             guard liveContext.processIdentifier == activeSession.baseContext.processIdentifier else {
-                return .invalid("Tab passed through because the focused field changed.")
+                return SessionValidation(session: nil, failureReason: "Key passed through because the focused field changed.")
             }
 
             sessionForAcceptance = activeSession
         }
 
         guard !sessionForAcceptance.isExhausted else {
-            return .invalid("Tab passed through because no remaining suggestion text was available.")
+            return SessionValidation(
+                session: nil,
+                failureReason: "Key passed through because no remaining suggestion text was available."
+            )
         }
 
-        let acceptedChunk = SuggestionSessionReconciler.nextAcceptanceChunk(from: sessionForAcceptance.remainingText)
-        guard !acceptedChunk.isEmpty else {
-            return .invalid("Tab passed through because no remaining suggestion chunk was available.")
-        }
-
-        return .ready(
-            liveContext: liveContext,
-            session: sessionForAcceptance,
-            acceptedChunk: acceptedChunk
-        )
+        return SessionValidation(session: (liveContext, sessionForAcceptance), failureReason: nil)
     }
 
     /// Advances the active session after a successful insertion and updates the AX-lag sentinel.

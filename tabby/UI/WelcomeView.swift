@@ -20,6 +20,8 @@ struct WelcomeView: View {
     let onDismiss: () -> Void
 
     @State private var step: WelcomeStep = .welcome
+    @State private var isRecordingOnboardingKeybind = false
+    @State private var isRecordingOnboardingFullAcceptKeybind = false
 
     /// The window should follow the active screen instead of staying pinned to the tallest step.
     /// This keeps small steps like "You're all set" feeling intentional rather than like empty
@@ -41,6 +43,8 @@ struct WelcomeView: View {
                 permissionsStep
             case .chooseModel:
                 chooseModelStep
+            case .keybind:
+                keybindStep
             case .done:
                 doneStep
             }
@@ -67,6 +71,7 @@ private enum WelcomeStep: Int, Comparable {
     case profile
     case permissions
     case chooseModel
+    case keybind
     case done
 
     static func < (lhs: WelcomeStep, rhs: WelcomeStep) -> Bool {
@@ -90,6 +95,8 @@ private enum WelcomeStep: Int, Comparable {
             }
 
             return NSSize(width: 540, height: 360)
+        case .keybind:
+            return NSSize(width: 540, height: 500)
         case .done:
             return NSSize(width: 500, height: 340)
         }
@@ -174,7 +181,7 @@ extension WelcomeView {
                 canContinue: canContinueFromModelStep,
                 disabledHint: modelStepDisabledHint,
                 onBack: { step = .permissions },
-                onContinue: { step = .done }
+                onContinue: { step = .keybind }
             )
         }
     }
@@ -249,7 +256,7 @@ extension WelcomeView {
         switch suggestionSettings.selectedEngine {
         case .appleIntelligence:
             return foundationModelAvailabilityService.isAvailable
-        case .llamaOpenSource:
+        case .llamaOpenSource, .mlxSwift:
             return hasAtLeastOneModel
         }
     }
@@ -258,7 +265,7 @@ extension WelcomeView {
         switch suggestionSettings.selectedEngine {
         case .appleIntelligence:
             return "Apple Intelligence is not available on this Mac."
-        case .llamaOpenSource:
+        case .llamaOpenSource, .mlxSwift:
             return "Add or download at least one model to continue."
         }
     }
@@ -270,7 +277,116 @@ extension WelcomeView {
     }
 }
 
-// MARK: - Step 4: Done
+// MARK: - Step 5: Keybind
+
+extension WelcomeView {
+    fileprivate var keybindStep: some View {
+        VStack(spacing: 24) {
+            Image(systemName: "keyboard")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 56, height: 56)
+                .foregroundStyle(.secondary)
+
+            VStack(spacing: 8) {
+                Text("Keybinds")
+                    .font(.system(size: 24, weight: .semibold, design: .rounded))
+
+                Text("Choose keys to accept suggestions.\nYou can change these later in Settings.")
+                    .font(.system(size: 14, design: .rounded))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+
+            VStack(spacing: 16) {
+                keybindRow(
+                    title: "Accept Word",
+                    keyLabel: suggestionSettings.acceptanceKeyLabel,
+                    isRecording: $isRecordingOnboardingKeybind,
+                    onKeyRecorded: { keyCode, label in
+                        suggestionSettings.setAcceptanceKey(keyCode: keyCode, label: label)
+                    },
+                    onReset: suggestionSettings.acceptanceKeyCode != SuggestionSettingsModel.defaultAcceptanceKeyCode ? {
+                        suggestionSettings.setAcceptanceKey(
+                            keyCode: SuggestionSettingsModel.defaultAcceptanceKeyCode,
+                            label: SuggestionSettingsModel.defaultAcceptanceKeyLabel
+                        )
+                    } : nil
+                )
+
+                keybindRow(
+                    title: "Accept Entire Suggestion",
+                    keyLabel: suggestionSettings.fullAcceptanceKeyLabel,
+                    isRecording: $isRecordingOnboardingFullAcceptKeybind,
+                    onKeyRecorded: { keyCode, label in
+                        suggestionSettings.setFullAcceptanceKey(keyCode: keyCode, label: label)
+                    },
+                    onReset: suggestionSettings.fullAcceptanceKeyCode != SuggestionSettingsModel.defaultFullAcceptanceKeyCode ? {
+                        suggestionSettings.clearFullAcceptanceKey()
+                    } : nil
+                )
+            }
+
+            WelcomeNavigation(
+                canGoBack: true,
+                canContinue: true,
+                onBack: { step = .chooseModel },
+                onContinue: { step = .done }
+            )
+        }
+    }
+
+    @ViewBuilder
+    fileprivate func keybindRow(
+        title: String,
+        keyLabel: String,
+        isRecording: Binding<Bool>,
+        onKeyRecorded: @escaping (CGKeyCode, String) -> Void,
+        onReset: (() -> Void)? = nil
+    ) -> some View {
+        VStack(spacing: 6) {
+            Text(title)
+                .font(.system(size: 13, weight: .medium, design: .rounded))
+                .foregroundStyle(.secondary)
+
+            HStack(spacing: 12) {
+                Text(keyLabel)
+                    .font(.system(size: 18, weight: .medium, design: .rounded))
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(.quaternary)
+                    )
+
+                if isRecording.wrappedValue {
+                    KeyRecorderView(
+                        onKeyRecorded: { keyCode, label in
+                            onKeyRecorded(keyCode, label)
+                            isRecording.wrappedValue = false
+                        },
+                        onCancelled: {
+                            isRecording.wrappedValue = false
+                        }
+                    )
+                } else {
+                    Button("Change") {
+                        isRecording.wrappedValue = true
+                    }
+                }
+
+                if let onReset {
+                    Button("Reset") {
+                        onReset()
+                        isRecording.wrappedValue = false
+                    }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Step 6: Done
 
 extension WelcomeView {
     fileprivate var doneStep: some View {
@@ -290,7 +406,7 @@ extension WelcomeView {
                 Text("You're all set")
                     .font(.system(size: 28, weight: .semibold, design: .rounded))
 
-                Text("Start typing anywhere.\nPress Tab to accept.")
+                Text(doneStepSubtitle)
                     .font(.system(size: 15, design: .rounded))
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -310,6 +426,17 @@ extension WelcomeView {
             }
             .padding(.top, 4)
         }
+    }
+
+    private var doneStepSubtitle: String {
+        let wordKey = suggestionSettings.acceptanceKeyLabel
+        let fullKey = suggestionSettings.fullAcceptanceKeyLabel
+        let hasFullAccept = suggestionSettings.fullAcceptanceKeyCode != SuggestionSettingsModel.disabledKeyCode
+
+        if hasFullAccept {
+            return "Start typing anywhere.\nPress \(wordKey) to accept a word, \(fullKey) for the full suggestion."
+        }
+        return "Start typing anywhere.\nPress \(wordKey) to accept."
     }
 }
 

@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import Logging
 
 /// File overview:
 /// Builds Tabby's long-lived dependency graph in one place. This is the app's composition model:
@@ -12,6 +13,7 @@ import Foundation
 final class TabbyAppEnvironment {
     let permissionManager: PermissionManager
     let runtimeModel: RuntimeBootstrapModel
+    let mlxRuntimeManager: MLXRuntimeManager
     let modelDownloadManager: ModelDownloadManager
     let focusModel: FocusTrackingModel
     let inputMonitor: InputMonitor
@@ -30,6 +32,7 @@ final class TabbyAppEnvironment {
     private var cancellables = Set<AnyCancellable>()
 
     init() {
+        TabbyLogger.app.info("Building dependency graph")
         let configuration = SuggestionConfiguration.standard
         let permissionManager = PermissionManager()
         let permissionGuidanceController = PermissionGuidanceController(
@@ -37,6 +40,7 @@ final class TabbyAppEnvironment {
         )
         let runtimeManager = LlamaRuntimeManager()
         let runtimeModel = RuntimeBootstrapModel(runtimeManager: runtimeManager)
+        let mlxRuntimeManager = MLXRuntimeManager()
         let modelDownloadManager = ModelDownloadManager()
         let suggestionSettings = SuggestionSettingsModel(configuration: configuration)
         let foundationModelAvailabilityService = FoundationModelAvailabilityService()
@@ -45,6 +49,8 @@ final class TabbyAppEnvironment {
             permissionProvider: { permissionManager.inputMonitoringGranted },
             suppressionController: suppressionController
         )
+        inputMonitor.acceptanceKeyCodeProvider = { suggestionSettings.acceptanceKeyCode }
+        inputMonitor.fullAcceptanceKeyCodeProvider = { suggestionSettings.fullAcceptanceKeyCode }
         let focusModel = FocusTrackingModel(
             permissionProvider: { permissionManager.accessibilityGranted },
             ignoredBundleIdentifier: Bundle.main.bundleIdentifier,
@@ -67,6 +73,7 @@ final class TabbyAppEnvironment {
             suggestionSettings: suggestionSettings,
             foundationModelAvailabilityService: foundationModelAvailabilityService,
             runtimeModel: runtimeModel,
+            mlxRuntimeManager: mlxRuntimeManager,
             modelDownloadManager: modelDownloadManager,
             onShowWelcome: { [weak welcomeCoordinator] in
                 welcomeCoordinator?.showWelcome()
@@ -88,21 +95,29 @@ final class TabbyAppEnvironment {
             foundationModelEngine = FoundationModelSuggestionEngine(
                 availabilityService: foundationModelAvailabilityService
             )
+            TabbyLogger.app.info("Foundation model engine available")
         } else {
             foundationModelEngine = UnavailableSuggestionEngine(
                 message: foundationModelAvailabilityService.userVisibleMessage
             )
+            TabbyLogger.app.info("Foundation model engine unavailable (macOS version)")
         }
         #else
         foundationModelEngine = UnavailableSuggestionEngine(
             message: foundationModelAvailabilityService.userVisibleMessage
         )
+        TabbyLogger.app.info("Foundation model engine unavailable (SDK)")
         #endif
+
+        let mlxEngine: any SuggestionGenerating = MLXSuggestionEngine(
+            runtimeManager: mlxRuntimeManager
+        )
 
         let suggestionEngine: any SuggestionGenerating = SuggestionEngineRouter(
             suggestionSettings: suggestionSettings,
             foundationModelEngine: foundationModelEngine,
-            llamaEngine: LlamaSuggestionEngine(runtimeManager: runtimeManager)
+            llamaEngine: LlamaSuggestionEngine(runtimeManager: runtimeManager),
+            mlxEngine: mlxEngine
         )
 
         let interactionState = SuggestionInteractionState()
@@ -124,6 +139,7 @@ final class TabbyAppEnvironment {
 
         self.permissionManager = permissionManager
         self.runtimeModel = runtimeModel
+        self.mlxRuntimeManager = mlxRuntimeManager
         self.modelDownloadManager = modelDownloadManager
         self.focusModel = focusModel
         self.inputMonitor = inputMonitor
@@ -148,5 +164,8 @@ final class TabbyAppEnvironment {
                 focusModel?.updatePollInterval(milliseconds: milliseconds)
             }
             .store(in: &cancellables)
+
+        // Key code changes reach InputMonitor through closures that read from the model
+        // at event time (set above), so no Combine subscription is needed here.
     }
 }

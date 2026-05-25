@@ -10,7 +10,8 @@ struct CapturedInputEvent: Equatable {
     /// This enum is intentionally smaller than the raw CGEvent universe.
     /// A reduced vocabulary keeps the suggestion state machine easier to reason about and test.
     enum Kind: String, Equatable {
-        case tab
+        case acceptance
+        case fullAcceptance
         case textMutation
         case navigation
         case shortcutMutation
@@ -36,7 +37,7 @@ struct CapturedInputEvent: Equatable {
         switch kind {
         case .textMutation, .navigation, .shortcutMutation, .dismissal:
             return true
-        case .tab, .other:
+        case .acceptance, .fullAcceptance, .other:
             return false
         }
     }

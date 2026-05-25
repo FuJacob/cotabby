@@ -1,4 +1,5 @@
 import Foundation
+import Logging
 
 /// File overview:
 /// Owns the screenshot-derived prompt-augmentation lifecycle for the currently focused input.
@@ -54,6 +55,7 @@ final class VisualContextCoordinator {
 
         cancel(resetState: false)
 
+        TabbyLogger.app.debug("Starting visual context session for element \(snapshotContext.elementIdentifier)")
         let hasPermission = screenRecordingPermissionProvider()
         let initialStatus: VisualContextStatus =
             hasPermission
@@ -98,10 +100,13 @@ final class VisualContextCoordinator {
                     identity: snapshotContext.identity
                 )
             } catch is CancellationError {
+                TabbyLogger.app.debug("Visual context generation cancelled")
                 return
             } catch let error as ScreenshotContextGenerationError {
+                TabbyLogger.app.warning("Visual context generation error: \(error.localizedDescription)")
                 setStatus(errorStatus(for: error), for: session.sessionID)
             } catch {
+                TabbyLogger.app.error("Visual context generation failed: \(error.localizedDescription)")
                 setStatus(.failed(error.localizedDescription), for: session.sessionID)
             }
         }
@@ -166,6 +171,7 @@ final class VisualContextCoordinator {
         activeAugmentationSession?.excerpt = excerpt
         status = .ready
         latestExcerpt = excerpt.text
+        TabbyLogger.app.debug("Visual context ready: \(excerpt.text.count) chars")
         publishState()
         onInjectedContextReady?(identity)
     }

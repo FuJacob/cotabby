@@ -1,6 +1,7 @@
 import CoreGraphics
 import Foundation
 import ImageIO
+import Logging
 import UniformTypeIdentifiers
 
 /// File overview:
@@ -56,6 +57,7 @@ final class ScreenshotContextGenerator {
     ) async throws -> VisualContextExcerpt {
         await onStatusChange?(.capturing)
 
+        TabbyLogger.app.debug("Capturing screenshot for \(context.applicationName)")
         let screenshot: CapturedWindowScreenshot
         do {
             screenshot = try await screenshotService.captureSnapshot(
@@ -63,8 +65,10 @@ final class ScreenshotContextGenerator {
                 snapshotDimension: configuration.snapshotDimension
             )
         } catch let error as WindowScreenshotError {
+            TabbyLogger.app.warning("Screenshot unavailable: \(error.localizedDescription)")
             throw ScreenshotContextGenerationError.unavailable(error.localizedDescription)
         } catch {
+            TabbyLogger.app.error("Screenshot failed: \(error.localizedDescription)")
             throw ScreenshotContextGenerationError.failed(error.localizedDescription)
         }
 
@@ -101,6 +105,7 @@ final class ScreenshotContextGenerator {
             )
         }
 
+        TabbyLogger.app.debug("OCR extracted \(normalizedText.count) chars from screenshot")
         guard hasMeaningfulSignal(normalizedText) else {
             throw ScreenshotContextGenerationError.unavailable(
                 "The screenshot did not contain enough visible text to build prompt context."
@@ -168,6 +173,9 @@ final class ScreenshotContextGenerator {
         return letterCount >= 4
     }
 
+    /// Maximum number of debug capture pairs (png + txt) kept per application folder.
+    private static let maxDebugCapturesPerApp = 20
+
     private func saveDebugScreenshot(_ image: CGImage, text: String, name: String) {
         guard let desktopURL = FileManager.default.urls(
             for: .desktopDirectory,
@@ -176,15 +184,18 @@ final class ScreenshotContextGenerator {
             return
         }
 
-        let url = desktopURL.appendingPathComponent("tabby-debug-screenshots")
-        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        let appFolderURL = desktopURL
+            .appendingPathComponent("tabby-debug-screenshots")
+            .appendingPathComponent(name)
+        try? FileManager.default.createDirectory(at: appFolderURL, withIntermediateDirectories: true)
 
         let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd_HH-mm-ss-SSS"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "MMM d, yyyy 'at' h.mm.ss.SSS a"
         let timestamp = formatter.string(from: Date())
 
-        let fileURL = url.appendingPathComponent("\(name)_\(timestamp).png")
-        let textURL = url.appendingPathComponent("\(name)_\(timestamp).txt")
+        let fileURL = appFolderURL.appendingPathComponent("\(timestamp).png")
+        let textURL = appFolderURL.appendingPathComponent("\(timestamp).txt")
 
         if let dest = CGImageDestinationCreateWithURL(
             fileURL as CFURL,
@@ -193,9 +204,40 @@ final class ScreenshotContextGenerator {
             nil
         ) {
             CGImageDestinationAddImage(dest, image, nil)
-            CGImageDestinationFinalize(dest)
+            if CGImageDestinationFinalize(dest) {
+                try? text.write(to: textURL, atomically: true, encoding: .utf8)
+                evictOldDebugCaptures(in: appFolderURL)
+            }
+        }
+    }
 
-            try? text.write(to: textURL, atomically: true, encoding: .utf8)
+    /// Keeps only the newest `maxDebugCapturesPerApp` png+txt pairs per app folder,
+    /// deleting the oldest files first (by creation date).
+    private func evictOldDebugCaptures(in folderURL: URL) {
+        let fm = FileManager.default
+        guard let contents = try? fm.contentsOfDirectory(
+            at: folderURL,
+            includingPropertiesForKeys: [.creationDateKey],
+            options: .skipsHiddenFiles
+        ) else {
+            return
+        }
+
+        let pngFiles = contents
+            .filter { $0.pathExtension == "png" }
+            .sorted { lhs, rhs in
+                let lhsDate = (try? lhs.resourceValues(forKeys: [.creationDateKey]))?.creationDate ?? .distantPast
+                let rhsDate = (try? rhs.resourceValues(forKeys: [.creationDateKey]))?.creationDate ?? .distantPast
+                return lhsDate < rhsDate
+            }
+
+        let overflow = pngFiles.count - Self.maxDebugCapturesPerApp
+        guard overflow > 0 else { return }
+
+        for pngURL in pngFiles.prefix(overflow) {
+            let txtURL = pngURL.deletingPathExtension().appendingPathExtension("txt")
+            try? fm.removeItem(at: pngURL)
+            try? fm.removeItem(at: txtURL)
         }
     }
 

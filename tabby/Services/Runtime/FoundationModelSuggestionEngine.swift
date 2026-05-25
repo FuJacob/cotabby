@@ -1,4 +1,5 @@
 import Foundation
+import Logging
 
 #if canImport(FoundationModels)
 import FoundationModels
@@ -30,10 +31,12 @@ final class FoundationModelSuggestionEngine {
         availabilityService.refresh()
 
         guard availabilityService.isAvailable else {
+            TabbyLogger.suggestion.debug("Foundation model unavailable: \(self.availabilityService.userVisibleMessage)")
             throw SuggestionClientError.unavailable(availabilityService.userVisibleMessage)
         }
 
         do {
+            TabbyLogger.suggestion.debug("Foundation model generating: prompt=\(request.prompt.count) bytes, max_tokens=\(request.maxPredictionTokens)")
             let startTime = Date()
             let prompt = FoundationModelPromptRenderer.prompt(for: request)
             // In production, `isAvailable == true` implies `systemLanguageModel` is non-nil because
@@ -63,19 +66,24 @@ final class FoundationModelSuggestionEngine {
                 promptEchoCandidates: [prompt]
             )
 
+            let latency = Date().timeIntervalSince(startTime)
+            TabbyLogger.suggestion.debug("Foundation model generated: raw=\(rawSuggestion.count) chars, normalized=\(normalizedSuggestion.count) chars, latency=\(Int(latency * 1000))ms")
             return SuggestionResult(
                 generation: request.generation,
                 rawText: rawSuggestion,
                 text: normalizedSuggestion,
-                latency: Date().timeIntervalSince(startTime)
+                latency: latency
             )
         } catch is CancellationError {
+            TabbyLogger.suggestion.debug("Foundation model generation cancelled")
             throw SuggestionClientError.cancelled
         } catch let error as LanguageModelSession.GenerationError {
+            TabbyLogger.suggestion.error("Foundation model generation error: \(error.localizedDescription)")
             throw mapGenerationError(error)
         } catch let error as SuggestionClientError {
             throw error
         } catch {
+            TabbyLogger.suggestion.error("Foundation model unexpected error: \(error.localizedDescription)")
             throw SuggestionClientError.generationFailed(error.localizedDescription)
         }
     }

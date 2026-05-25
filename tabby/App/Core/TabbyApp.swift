@@ -21,12 +21,14 @@ struct TabbyApp: App {
                 permissionGuidanceController: appDelegate.permissionGuidanceController,
                 suggestionSettings: appDelegate.suggestionSettings,
                 foundationModelAvailabilityService: appDelegate.foundationModelAvailabilityService,
-                suggestionCoordinator: appDelegate.suggestionCoordinator,
+                appUpdateManager: appDelegate.appUpdateManager,
                 onOpenSettings: {
                     appDelegate.settingsCoordinator.showSettings()
                 },
-                onCheckForUpdates: {
-                    appDelegate.appUpdateManager.checkForUpdates()
+                onReportFeedback: {
+                    if let feedbackURL = URL(string: "https://www.tabbyapp.dev/feedback") {
+                        NSWorkspace.shared.open(feedbackURL)
+                    }
                 }
             )
         } label: {

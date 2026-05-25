@@ -1,6 +1,7 @@
 import AppKit
 import CoreGraphics
 import Foundation
+import Logging
 
 /// File overview:
 /// Suggestion acceptance, live-session advancement, overlay presentation, and debug logging.
@@ -8,12 +9,22 @@ import Foundation
 extension SuggestionCoordinator {
     // MARK: - Acceptance and Session Reconciliation
 
-    /// Accepts the current suggestion only if the field, generation, and visible overlay still match.
+    /// Accepts the next word of the current suggestion.
     func acceptCurrentSuggestion() -> Bool {
+        acceptSuggestion(fullText: false, keyName: "Tab")
+    }
+
+    /// Accepts the entire remaining suggestion at once.
+    func acceptEntireSuggestion() -> Bool {
+        acceptSuggestion(fullText: true, keyName: "full-accept")
+    }
+
+    /// Shared acceptance path used by both word-by-word and full acceptance.
+    private func acceptSuggestion(fullText: Bool, keyName: String) -> Bool {
         let snapshot = focusModel.snapshot
 
         guard permissionManager.inputMonitoringGranted else {
-            return passTabThrough(reason: "Input Monitoring permission is required before Tabby can accept Tab.")
+            return passTabThrough(reason: "Input Monitoring permission is required before Tabby can accept suggestions.")
         }
 
         guard case .supported = snapshot.capability, let rawContext = snapshot.context else {
@@ -21,17 +32,17 @@ extension SuggestionCoordinator {
         }
 
         guard case .ready = state else {
-            return passTabThrough(reason: "Tab passed through because no valid suggestion was ready.")
+            return passTabThrough(reason: "Key passed through because no valid suggestion was ready.")
         }
 
-        let acceptancePreparation = interactionState.prepareAcceptance(
-            from: rawContext,
-            overlayState: overlayState
-        )
+        let preparation = fullText
+            ? interactionState.prepareFullAcceptance(from: rawContext, overlayState: overlayState)
+            : interactionState.prepareAcceptance(from: rawContext, overlayState: overlayState)
+
         let liveContext: FocusedInputContext
         let sessionForAcceptance: ActiveSuggestionSession
         let acceptedChunk: String
-        switch acceptancePreparation {
+        switch preparation {
         case let .ready(preparedLiveContext, preparedSession, preparedAcceptedChunk):
             liveContext = preparedLiveContext
             sessionForAcceptance = preparedSession
@@ -69,11 +80,11 @@ extension SuggestionCoordinator {
         case .exhausted:
             latestGenerationNumber = liveContext.generation
             clearSuggestion(clearDiagnostics: false)
-            hideOverlay(reason: "Overlay hidden because Tab accepted the final suggestion chunk.")
-            latestAcceptanceAction = "Accepted final chunk with Tab."
+            hideOverlay(reason: "Overlay hidden because \(keyName) accepted the final suggestion chunk.")
+            latestAcceptanceAction = "Accepted final chunk with \(keyName)."
             state = .idle
             logStage(
-                "tab-accepted-final-chunk",
+                "\(keyName)-accepted-final-chunk",
                 workID: currentWorkID,
                 generation: liveContext.generation,
                 message: "Inserted the final suggestion chunk and queued a refresh.",
@@ -84,29 +95,27 @@ extension SuggestionCoordinator {
 
         case let .advanced(advancedSession, _):
             latestGenerationNumber = liveContext.generation
-            applySessionDiagnostics(advancedSession, acceptanceAction: "Accepted next chunk with Tab.")
+            applySessionDiagnostics(advancedSession, acceptanceAction: "Accepted next chunk with \(keyName).")
             state = .ready(text: advancedSession.remainingText, latency: advancedSession.latency)
-            // Predict where the caret will land after the inserted chunk. This eliminates the
-            // visible jump where the overlay stays at the old position then snaps rightward
-            // when AX catches up 100–250ms later.
+            let isRTL = TextDirectionDetector.isRightToLeft(liveContext.precedingText)
             let predictedCaret = Self.predictedCaretRect(
                 after: acceptedChunk,
                 oldCaretRect: liveContext.caretRect,
                 caretQuality: liveContext.caretQuality,
-                observedCharWidth: liveContext.observedCharWidth
+                observedCharWidth: liveContext.observedCharWidth,
+                isRightToLeft: isRTL
             )
             presentOverlay(
                 text: advancedSession.remainingText,
                 at: predictedCaret,
                 inputFrameRect: liveContext.inputFrameRect,
                 caretQuality: liveContext.caretQuality,
-                observedCharWidth: liveContext.observedCharWidth
+                observedCharWidth: liveContext.observedCharWidth,
+                isRightToLeft: isRTL
             )
-            // Force an early AX refresh so the real caret position corrects any prediction
-            // error faster than the normal 250ms poll interval.
             schedulePostInsertionRefresh()
             logStage(
-                "tab-accepted-chunk",
+                "\(keyName)-accepted-chunk",
                 workID: currentWorkID,
                 generation: liveContext.generation,
                 message: "Inserted the next suggestion chunk and kept the remaining tail active.",
@@ -179,6 +188,7 @@ extension SuggestionCoordinator {
         reason: String,
         clearDiagnostics: Bool = true
     ) {
+        TabbyLogger.suggestion.debug("Invalidating active suggestion: \(reason)")
         cancelPredictionWork()
         clearSuggestion(clearDiagnostics: clearDiagnostics)
         hideOverlay(reason: reason)
@@ -228,14 +238,16 @@ extension SuggestionCoordinator {
 
     // MARK: - Caret Prediction
 
-    /// Estimates the caret rect after inserting a chunk by shifting the old caret rightward.
+    /// Estimates the caret rect after inserting a chunk by shifting the old caret in the text
+    /// direction. LTR shifts right; RTL shifts left.
     /// When `observedCharWidth` is available (measured from real AX child frames), we use it
     /// directly — this matches the target app's actual font. Falls back to NSFont measurement.
     static func predictedCaretRect(
         after insertedChunk: String,
         oldCaretRect: CGRect,
         caretQuality: CaretGeometryQuality,
-        observedCharWidth: CGFloat?
+        observedCharWidth: CGFloat?,
+        isRightToLeft: Bool = false
     ) -> CGRect {
         let measuredWidth = predictedChunkWidth(
             insertedChunk: insertedChunk,
@@ -264,8 +276,9 @@ extension SuggestionCoordinator {
             )
         }
 
+        let shift = isRightToLeft ? -chunkWidth : chunkWidth
         return CGRect(
-            x: oldCaretRect.origin.x + chunkWidth,
+            x: oldCaretRect.origin.x + shift,
             y: oldCaretRect.origin.y,
             width: oldCaretRect.width,
             height: oldCaretRect.height
@@ -303,13 +316,15 @@ extension SuggestionCoordinator {
         at caretRect: CGRect,
         inputFrameRect: CGRect?,
         caretQuality: CaretGeometryQuality,
-        observedCharWidth: CGFloat?
+        observedCharWidth: CGFloat?,
+        isRightToLeft: Bool = false
     ) {
         let geometry = SuggestionOverlayGeometry(
             caretRect: caretRect,
             inputFrameRect: inputFrameRect,
             caretQuality: caretQuality,
-            observedCharWidth: observedCharWidth
+            observedCharWidth: observedCharWidth,
+            isRightToLeft: isRightToLeft
         )
         if let message = overlayPresenter.present(
             text: text,

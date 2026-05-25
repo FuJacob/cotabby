@@ -287,7 +287,7 @@ enum AXHelper {
 
     // MARK: - Coordinate Conversion
 
-    /// Converts raw Accessibility coordinates into global AppKit points via a simple Y-flip.
+    /// Converts raw Accessibility coordinates into global AppKit points via a per-display Y-flip.
     /// Use this for element-level rects (AXFrame) that are reliably in Cocoa points.
     /// For text-range rects (BoundsForRange, TextMarker), use `validatedCocoaTextRect` instead.
     static func cocoaRect(fromAccessibilityRect rect: CGRect) -> CGRect {
@@ -295,17 +295,15 @@ enum AXHelper {
             return rect
         }
 
-        let desktopBounds = desktopUnionFrame()
-        guard !desktopBounds.isNull else {
-            return rect
+        let displays = displayGeometries()
+        if let converted = DisplayCoordinateConverter.appKitRect(
+            fromCoreGraphicsRect: rect,
+            displays: displays
+        ) {
+            return converted
         }
 
-        return CGRect(
-            x: rect.origin.x,
-            y: desktopBounds.maxY - rect.origin.y - rect.height,
-            width: rect.width,
-            height: rect.height
-        )
+        return legacyDesktopUnionFlip(rect)
     }
 
     /// Converts a text-range AX rect to Cocoa coordinates, using the element's AXFrame (already
@@ -322,18 +320,16 @@ enum AXHelper {
             return textRect
         }
 
-        let desktopBounds = desktopUnionFrame()
-        guard !desktopBounds.isNull else {
+        let displays = displayGeometries()
+        guard !displays.isEmpty else {
             return textRect
         }
 
         // Candidate A: plain Y-flip, assuming the AX rect is already in Cocoa points.
-        let flipped = CGRect(
-            x: textRect.origin.x,
-            y: desktopBounds.maxY - textRect.origin.y - textRect.height,
-            width: textRect.width,
-            height: textRect.height
-        )
+        let flipped = DisplayCoordinateConverter.appKitRect(
+            fromCoreGraphicsRect: textRect,
+            displays: displays
+        ) ?? legacyDesktopUnionFlip(textRect)
 
         guard let anchor = cocoaAnchorFrame, !anchor.isEmpty else {
             // No anchor available — plain Y-flip is the safest default.
@@ -348,41 +344,55 @@ enum AXHelper {
             return flipped
         }
 
-        // Candidate B: divide by backing scale factor first (Chromium pixel-space workaround),
-        // then Y-flip. Some apps return physical pixels for text ranges on Retina.
-        let fallbackScale = NSScreen.main?.backingScaleFactor ?? 2.0
-        let scale: CGFloat = NSScreen.screens.first(where: {
-            $0.frame.contains(CGPoint(
-                x: textRect.origin.x / fallbackScale,
-                y: $0.frame.maxY - (textRect.origin.y / fallbackScale)
-            ))
-        })?.backingScaleFactor ?? fallbackScale
-
-        let scaled = CGRect(
-            x: textRect.origin.x / scale,
-            y: textRect.origin.y / scale,
-            width: textRect.width / scale,
-            height: textRect.height / scale
-        )
-        let scaledFlipped = CGRect(
-            x: scaled.origin.x,
-            y: desktopBounds.maxY - scaled.origin.y - scaled.height,
-            width: scaled.width,
-            height: scaled.height
-        )
-
-        if expandedAnchor.contains(CGPoint(x: scaledFlipped.midX, y: scaledFlipped.midY)) {
-            return scaledFlipped
+        // Candidate B: some apps report text-range bounds in physical pixels on Retina screens.
+        // Scale relative to the owning display's origin; dividing global coordinates directly
+        // breaks when an external monitor has a non-zero or negative origin.
+        for scaledFlipped in DisplayCoordinateConverter.appKitRectsFromPixelRect(
+            textRect,
+            displays: displays
+        ) {
+            if expandedAnchor.contains(CGPoint(x: scaledFlipped.midX, y: scaledFlipped.midY)) {
+                return scaledFlipped
+            }
         }
 
         // Neither candidate landed near the anchor. Return unscaled as best-effort.
         return flipped
     }
 
-    /// Union of all connected screen frames — used for AX top-left → Cocoa bottom-left conversion.
-    private static func desktopUnionFrame() -> CGRect {
-        NSScreen.screens
+    private static func displayGeometries() -> [DisplayGeometry] {
+        NSScreen.screens.compactMap { screen in
+            guard let number = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")]
+                as? NSNumber
+            else {
+                return nil
+            }
+
+            let displayID = CGDirectDisplayID(number.uint32Value)
+            return DisplayGeometry(
+                appKitFrame: screen.frame,
+                visibleFrame: screen.visibleFrame,
+                coreGraphicsBounds: CGDisplayBounds(displayID),
+                backingScaleFactor: screen.backingScaleFactor
+            )
+        }
+    }
+
+    /// Last-resort fallback for unusual virtual displays where AppKit cannot expose a display ID.
+    private static func legacyDesktopUnionFlip(_ rect: CGRect) -> CGRect {
+        let desktopBounds = NSScreen.screens
             .map(\.frame)
             .reduce(into: CGRect.null) { $0 = $0.union($1) }
+
+        guard !desktopBounds.isNull else {
+            return rect
+        }
+
+        return CGRect(
+            x: rect.origin.x,
+            y: desktopBounds.maxY - rect.origin.y - rect.height,
+            width: rect.width,
+            height: rect.height
+        )
     }
 }

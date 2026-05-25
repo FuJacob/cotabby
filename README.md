@@ -5,16 +5,11 @@
 </p>
 
 <p align="center">
-  <em>Open-source, local-first AI autocomplete for macOS.</em>
+  <em>Open-source, local-first AI autocomplete for macOS. [beta]</em>
   </p>
   
-  <p align="center">
-  <em>[currently in beta]</em>
-  </p>
 <p align="center">
   <a href="https://tabbyapp.dev"><strong>Visit the landing page →</strong></a>
-  &nbsp;|&nbsp;
-  <a href="https://discord.gg/qBq5RHcruX"><strong>Join the Discord →</strong></a>
 </p>
 
 <p align="center">

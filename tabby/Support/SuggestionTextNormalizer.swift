@@ -66,21 +66,22 @@ enum SuggestionTextNormalizer {
             return ""
         }
 
-        // Deterministic space management: the user owns the word boundary, not the model.
-        // If the preceding text already ends with whitespace, strip any leading whitespace
-        // the model added to prevent double-spacing. If it doesn't, the model's leading
-        // space (or lack of one) passes through untouched — it's either a correct mid-word
-        // completion or a natural word break the model chose.
+        // Echo suppression: strip any leading words that repeat the tail of the preceding text.
+        // Small models sometimes regurgitate the prompt suffix instead of continuing from it.
+        // Word-by-word suffix–prefix overlap catches "hello world " → "world is great" and
+        // strips "world" so the ghost text shows only " is great".
+        normalized = stripEchoPrefix(normalized, precedingText: request.context.precedingText)
+
+        // Deterministic space management runs AFTER echo suppression because stripping echoed
+        // words can expose a leading space (e.g. "world is" → " is"). If the preceding text
+        // already ends with whitespace we strip the leading space to prevent double-spacing.
+        // When preceding text does NOT end with whitespace, the model's leading space (or the
+        // inter-word space exposed by echo suppression) passes through — it's the word boundary
+        // the user needs.
         if let lastScalar = request.context.precedingText.unicodeScalars.last,
            CharacterSet.whitespaces.contains(lastScalar) {
             normalized = String(normalized.drop(while: { $0.isWhitespace }))
         }
-
-        // Echo suppression: strip any leading words that repeat the tail of the preceding text.
-        // Small models sometimes regurgitate the prompt suffix instead of continuing from it.
-        // Word-by-word suffix–prefix overlap catches "hello world " → "world is great" and
-        // strips "world" so the ghost text shows only "is great".
-        normalized = stripEchoPrefix(normalized, precedingText: request.context.precedingText)
 
         return normalized
     }
@@ -128,6 +129,10 @@ enum SuggestionTextNormalizer {
             return ""
         }
 
-        return suggestionWords.dropFirst(bestOverlap).joined(separator: " ")
+        // Slice the original string at the character position where the last echoed word ends,
+        // preserving the original whitespace that follows it (typically the space between words).
+        let lastEchoedWord = suggestionWords[bestOverlap - 1]
+        let afterLastEchoed = lastEchoedWord.endIndex
+        return String(suggestion[afterLastEchoed...])
     }
 }

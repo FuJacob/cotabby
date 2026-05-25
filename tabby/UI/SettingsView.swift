@@ -17,6 +17,7 @@ struct SettingsView: View {
     @ObservedObject var suggestionSettings: SuggestionSettingsModel
     @ObservedObject var foundationModelAvailabilityService: FoundationModelAvailabilityService
     @ObservedObject var runtimeModel: RuntimeBootstrapModel
+    @ObservedObject var mlxRuntimeManager: MLXRuntimeManager
     @ObservedObject var modelDownloadManager: ModelDownloadManager
 
     let onShowWelcome: () -> Void
@@ -24,6 +25,8 @@ struct SettingsView: View {
     @Environment(\.colorScheme) private var colorScheme
 
     @State private var pendingDeletionModel: RuntimeModelOption?
+    @State private var isRecordingKeybind = false
+    @State private var isRecordingFullAcceptKeybind = false
 
     var body: some View {
         Form {
@@ -32,6 +35,7 @@ struct SettingsView: View {
             uninstallSection
             generalSection
             autocompleteSection
+            keybindSection
             // performanceSection — hidden until these controls are productized.
             // Both suggestion delay and focus poll interval are developer-facing
             // tuning knobs that invite misconfiguration for end users.
@@ -142,14 +146,20 @@ struct SettingsView: View {
                 }
             }
 
-            if suggestionSettings.selectedEngine == .appleIntelligence {
+            switch suggestionSettings.selectedEngine {
+            case .appleIntelligence:
                 LabeledContent("Availability") {
                     Text(foundationModelAvailabilityService.userVisibleMessage)
                         .foregroundStyle(.secondary)
                 }
-            } else {
+            case .llamaOpenSource:
                 LabeledContent("Runtime") {
                     Text(runtimeModel.state.summary)
+                        .foregroundStyle(.secondary)
+                }
+            case .mlxSwift:
+                LabeledContent("Runtime") {
+                    Text(mlxRuntimeManager.state.summary)
                         .foregroundStyle(.secondary)
                 }
             }
@@ -158,6 +168,91 @@ struct SettingsView: View {
                 ForEach(SuggestionWordCountPreset.allCases) { preset in
                     Text(preset.displayLabel)
                         .tag(preset)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var keybindSection: some View {
+        Section("Keybind") {
+            LabeledContent("Accept Word") {
+                HStack(spacing: 8) {
+                    Text(suggestionSettings.acceptanceKeyLabel)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6)
+                                .fill(.quaternary)
+                        )
+
+                    if isRecordingKeybind {
+                        KeyRecorderView(
+                            onKeyRecorded: { keyCode, label in
+                                suggestionSettings.setAcceptanceKey(keyCode: keyCode, label: label)
+                                isRecordingKeybind = false
+                            },
+                            onCancelled: {
+                                isRecordingKeybind = false
+                            }
+                        )
+                    } else {
+                        Button("Change") {
+                            isRecordingKeybind = true
+                        }
+                    }
+
+                    if suggestionSettings.acceptanceKeyCode != SuggestionSettingsModel.defaultAcceptanceKeyCode {
+                        Button("Reset") {
+                            suggestionSettings.setAcceptanceKey(
+                                keyCode: SuggestionSettingsModel.defaultAcceptanceKeyCode,
+                                label: SuggestionSettingsModel.defaultAcceptanceKeyLabel
+                            )
+                            isRecordingKeybind = false
+                        }
+                    }
+
+                    if suggestionSettings.acceptanceKeyCode != SuggestionSettingsModel.disabledKeyCode {
+                        Button("Clear") {
+                            suggestionSettings.clearAcceptanceKey()
+                            isRecordingKeybind = false
+                        }
+                    }
+                }
+            }
+
+            LabeledContent("Accept Entire Suggestion") {
+                HStack(spacing: 8) {
+                    Text(suggestionSettings.fullAcceptanceKeyLabel)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6)
+                                .fill(.quaternary)
+                        )
+
+                    if isRecordingFullAcceptKeybind {
+                        KeyRecorderView(
+                            onKeyRecorded: { keyCode, label in
+                                suggestionSettings.setFullAcceptanceKey(keyCode: keyCode, label: label)
+                                isRecordingFullAcceptKeybind = false
+                            },
+                            onCancelled: {
+                                isRecordingFullAcceptKeybind = false
+                            }
+                        )
+                    } else {
+                        Button("Change") {
+                            isRecordingFullAcceptKeybind = true
+                        }
+                    }
+
+                    if suggestionSettings.fullAcceptanceKeyCode != SuggestionSettingsModel.disabledKeyCode {
+                        Button("Clear") {
+                            suggestionSettings.clearFullAcceptanceKey()
+                            isRecordingFullAcceptKeybind = false
+                        }
+                    }
                 }
             }
         }
@@ -282,6 +377,15 @@ struct SettingsView: View {
                         .multilineTextAlignment(.trailing)
 
                     HStack(spacing: 8) {
+                        let lmStudioURL = FileManager.default.homeDirectoryForCurrentUser
+                            .appendingPathComponent(".lmstudio/models")
+                        Button("LM Studio Folder") {
+                            NSWorkspace.shared.open(lmStudioURL)
+                        }
+                        .disabled(
+                            !FileManager.default.fileExists(atPath: lmStudioURL.path)
+                        )
+
                         Button("Open Folder") {
                             modelDownloadManager.openModelsDirectory()
                         }
@@ -550,11 +654,14 @@ struct SettingsView: View {
     }
 
     private var localModelsDescription: String {
-        if suggestionSettings.selectedEngine == .llamaOpenSource {
+        switch suggestionSettings.selectedEngine {
+        case .llamaOpenSource:
             return "Download a model or add your own below. Models are stored locally on your Mac."
+        case .mlxSwift:
+            return "Download an MLX model below. Models are stored locally on your Mac."
+        case .appleIntelligence:
+            return "These models are used when Engine is set to Open Source or MLX."
         }
-
-        return "These models are used when Engine is set to Open Source."
     }
 
     private var launchAtLoginMessage: String? {

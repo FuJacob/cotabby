@@ -18,6 +18,7 @@ Describe the bug in one or two sentences.
 - Model name (if Open Source):
 - Accessibility permission granted: yes / no
 - Input Monitoring permission granted: yes / no
+- Screen Recording permission granted: yes / no
 
 ## Steps to reproduce
 

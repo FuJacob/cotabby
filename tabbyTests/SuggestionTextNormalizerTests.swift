@@ -102,7 +102,29 @@ final class SuggestionTextNormalizerTests: XCTestCase {
             for: request
         )
 
-        XCTAssertEqual(normalized, "matcha in the morning")
+        XCTAssertEqual(normalized, " matcha in the morning")
+    }
+
+    func test_normalize_preservesSpaceAfterEchoStrippingWhenPrecedingTextLacksTrailingSpace() {
+        let request = TabbyTestFixtures.suggestionRequest(precedingText: "hello world")
+
+        let normalized = SuggestionTextNormalizer.normalize(
+            "world is great",
+            for: request
+        )
+
+        XCTAssertEqual(normalized, " is great")
+    }
+
+    func test_normalize_stripsSpaceAfterEchoStrippingWhenPrecedingTextEndsWithSpace() {
+        let request = TabbyTestFixtures.suggestionRequest(precedingText: "hello world ")
+
+        let normalized = SuggestionTextNormalizer.normalize(
+            "world is great",
+            for: request
+        )
+
+        XCTAssertEqual(normalized, "is great")
     }
 
     func test_normalize_returnsEmptyWhenSuggestionIsOnlyAnEchoedTailWord() {

@@ -1,5 +1,6 @@
 import CoreGraphics
 import Foundation
+import Logging
 
 /// File overview:
 /// Wraps the raw llama runtime with prompt/result normalization that is specific to inline
@@ -21,6 +22,10 @@ final class LlamaSuggestionEngine {
         do {
             let startTime = Date()
             let cachedPrefixBytes = promptCacheHintTracker.cachedPrefixBytes(for: request)
+            let hintDesc = cachedPrefixBytes.map(String.init) ?? "none"
+            TabbyLogger.suggestion.debug(
+                "Llama generating: prompt=\(request.prompt.count)B cache_hint=\(hintDesc) max_tokens=\(request.maxPredictionTokens)"
+            )
             let rawSuggestion = try await runtimeManager.generate(
                 prompt: request.prompt,
                 cachedPrefixBytes: cachedPrefixBytes,
@@ -38,21 +43,27 @@ final class LlamaSuggestionEngine {
 
             promptCacheHintTracker.recordSuccessfulRequest(request)
             let normalizedSuggestion = SuggestionTextNormalizer.normalize(rawSuggestion, for: request)
+            let latency = Date().timeIntervalSince(startTime)
+            TabbyLogger.suggestion.debug("Llama generated: raw=\(rawSuggestion.count) chars, normalized=\(normalizedSuggestion.count) chars, latency=\(Int(latency * 1000))ms")
             return SuggestionResult(
                 generation: request.generation,
                 rawText: rawSuggestion,
                 text: normalizedSuggestion,
-                latency: Date().timeIntervalSince(startTime)
+                latency: latency
             )
         } catch is CancellationError {
+            TabbyLogger.suggestion.debug("Llama generation cancelled")
             throw SuggestionClientError.cancelled
         } catch let error as LlamaRuntimeError {
+            TabbyLogger.suggestion.error("Llama runtime error, resetting cache: \(error.localizedDescription)")
             await resetCachedGenerationContext()
             throw SuggestionClientError.unavailable(error.localizedDescription)
         } catch let error as SuggestionClientError {
+            TabbyLogger.suggestion.error("Suggestion client error, resetting cache: \(error.localizedDescription)")
             await resetCachedGenerationContext()
             throw error
         } catch {
+            TabbyLogger.suggestion.error("Unexpected generation error, resetting cache: \(error.localizedDescription)")
             await resetCachedGenerationContext()
             throw SuggestionClientError.generationFailed(error.localizedDescription)
         }

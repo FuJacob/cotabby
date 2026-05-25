@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import Logging
 
 /// File overview:
 /// Polls the Accessibility tree on a fixed timer and publishes the latest `FocusSnapshot`.
@@ -50,6 +51,7 @@ final class FocusTracker {
             return
         }
 
+        TabbyLogger.focus.info("Focus polling started at \(Int(self.pollInterval * 1000))ms interval")
         refreshNow()
 
         let timer = Timer(timeInterval: pollInterval, repeats: true) { [weak self] _ in
@@ -63,6 +65,7 @@ final class FocusTracker {
 
     /// Stops polling while leaving the most recent snapshot available to callers.
     func stop() {
+        TabbyLogger.focus.info("Focus polling stopped")
         timer?.invalidate()
         timer = nil
     }
@@ -73,6 +76,7 @@ final class FocusTracker {
             return
         }
 
+        TabbyLogger.focus.info("Focus poll interval changed to \(Int(interval * 1000))ms")
         pollInterval = interval
 
         // Only restart if a timer is already running.

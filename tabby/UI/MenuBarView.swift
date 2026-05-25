@@ -20,9 +20,9 @@ struct MenuBarView: View {
     let permissionGuidanceController: PermissionGuidanceController
     @ObservedObject var suggestionSettings: SuggestionSettingsModel
     @ObservedObject var foundationModelAvailabilityService: FoundationModelAvailabilityService
-    @ObservedObject var suggestionCoordinator: SuggestionCoordinator
+    let appUpdateManager: AppUpdateManager
     let onOpenSettings: () -> Void
-    let onCheckForUpdates: () -> Void
+    let onReportFeedback: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -57,9 +57,9 @@ struct MenuBarView: View {
 
             Spacer(minLength: 0)
 
-            Text("\(suggestionCoordinator.totalTabAcceptedWordCount) words accepted")
+            Button("Report Bug / Feedback", action: onReportFeedback)
+                .buttonStyle(.borderless)
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
         }
         .padding(.bottom, 12)
     }
@@ -199,15 +199,17 @@ struct MenuBarView: View {
             .padding(.bottom, 10)
 
         HStack {
-            Button("Settings…", action: onOpenSettings)
+            Button("Settings", action: onOpenSettings)
                 .buttonStyle(.borderless)
 
-            Button("Check for Updates…", action: onCheckForUpdates)
-                .buttonStyle(.borderless)
+            Button("Check for Updates") {
+                appUpdateManager.checkForUpdates()
+            }
+            .buttonStyle(.borderless)
 
             Spacer(minLength: 0)
 
-            Button("Quit tabby") {
+            Button("Quit") {
                 NSApplication.shared.terminate(nil)
             }
             .buttonStyle(.borderless)
