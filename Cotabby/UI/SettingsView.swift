@@ -379,12 +379,22 @@ struct SettingsView: View {
                     HStack(spacing: 8) {
                         let lmStudioURL = FileManager.default.homeDirectoryForCurrentUser
                             .appendingPathComponent(".lmstudio/models")
-                        Button("LM Studio Folder") {
-                            NSWorkspace.shared.open(lmStudioURL)
+                        let isUsingCustomPath = BundledRuntimeLocator.customModelDirectoryURL() != nil
+                        Button("Use LM Studio") {
+                            BundledRuntimeLocator.setCustomModelDirectory(lmStudioURL)
+                            modelDownloadManager.refreshSearchDirectories()
+                            refreshModels()
                         }
                         .disabled(
                             !FileManager.default.fileExists(atPath: lmStudioURL.path)
                         )
+
+                        Button("Reset Path") {
+                            BundledRuntimeLocator.setCustomModelDirectory(nil)
+                            modelDownloadManager.refreshSearchDirectories()
+                            refreshModels()
+                        }
+                        .disabled(!isUsingCustomPath)
 
                         Button("Open Folder") {
                             modelDownloadManager.openModelsDirectory()

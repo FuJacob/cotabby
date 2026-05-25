@@ -59,7 +59,7 @@ final class ModelDownloadManager: ObservableObject {
 
     private let runtimeDirectoryURL: URL
     private let mlxRuntimeDirectoryURL: URL
-    private let runtimeSearchDirectories: [URL]
+    private var runtimeSearchDirectories: [URL]
     private var downloadTasks: [String: Task<Void, Never>] = [:]
 
     init(runtimeDirectoryURL: URL? = nil, mlxRuntimeDirectoryURL: URL? = nil) {
@@ -86,7 +86,20 @@ final class ModelDownloadManager: ObservableObject {
     }
 
     var modelsDirectoryPath: String {
-        runtimeDirectoryURL.path
+        BundledRuntimeLocator.customModelDirectoryURL()?.path ?? runtimeDirectoryURL.path
+    }
+
+    /// Re-reads the current search directories (including any custom path) and refreshes model states.
+    func refreshSearchDirectories() {
+        var directories = [runtimeDirectoryURL]
+        for directoryURL in BundledRuntimeLocator.runtimeSearchDirectories() {
+            let normalizedPath = directoryURL.standardizedFileURL.path
+            if !directories.contains(where: { $0.standardizedFileURL.path == normalizedPath }) {
+                directories.append(directoryURL)
+            }
+        }
+        runtimeSearchDirectories = directories
+        refreshModelStates()
     }
 
     func state(for model: DownloadableRuntimeModel) -> ModelDownloadState {
