@@ -195,7 +195,7 @@ No `tabby.xcodeproj/` directory remains in the working tree.
 
 | Service | Account / Identifier | Status |
 |---------|---------------------|--------|
-| GitHub repo | `FuJacob/tabby` | Not yet renamed to `FuJacob/Cotabby` |
+| GitHub repo | `FuJacob/cotabby` | Renamed; `FuJacob/tabby` 301-redirects |
 | GitHub Pages | `updates.cotabby.app` | Live, serving appcast |
 | DNS redirect | `updates.tabbyapp.dev` → `updates.cotabby.app` | Live (Cloudflare 301) |
 | Buy Me a Coffee | `cotabbyapp` | Verify account exists |
