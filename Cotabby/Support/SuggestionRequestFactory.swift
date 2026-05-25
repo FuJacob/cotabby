@@ -42,6 +42,8 @@ enum SuggestionRequestFactory {
         )
         let completionLengthInstruction = settings.selectedWordCountPreset.promptInstruction
         let userName = activeUserName(settings: settings)
+        // Already normalized (trimmed/deduped/capped) by SuggestionSettingsModel.setRules.
+        let customRules = settings.customRules
         let boundedClipboardContext = activeClipboardContext(
             rawContext: clipboardContext,
             settings: settings,
@@ -55,6 +57,7 @@ enum SuggestionRequestFactory {
             applicationName: context.applicationName,
             completionLengthInstruction: completionLengthInstruction,
             userName: userName,
+            customRules: customRules,
             clipboardContext: boundedClipboardContext,
             visualContextSummary: boundedVisualContextSummary
         )
@@ -78,6 +81,7 @@ enum SuggestionRequestFactory {
             maxSuffixCharacters: configuration.maxSuffixCharacters,
             completionLengthInstruction: completionLengthInstruction,
             userName: userName,
+            customRules: customRules,
             clipboardContext: boundedClipboardContext,
             visualContextSummary: boundedVisualContextSummary,
             isMultiLineEnabled: settings.isMultiLineEnabled

@@ -20,6 +20,7 @@ final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var selectedWordCountPreset: SuggestionWordCountPreset
     @Published private(set) var isClipboardContextEnabled: Bool
     @Published private(set) var userName: String
+    @Published private(set) var customRules: [String]
     @Published private(set) var debounceMilliseconds: Int
     @Published private(set) var focusPollIntervalMilliseconds: Int
     @Published private(set) var isMultiLineEnabled: Bool
@@ -38,6 +39,7 @@ final class SuggestionSettingsModel: ObservableObject {
     private static let selectedWordCountPresetDefaultsKey = "cotabbySelectedWordCountPreset"
     private static let clipboardContextEnabledDefaultsKey = "cotabbyClipboardContextEnabled"
     private static let userNameDefaultsKey = "cotabbyUserName"
+    private static let customRulesDefaultsKey = "cotabbyCustomRules"
     private static let debounceMillisecondsDefaultsKey = "cotabbyDebounceMilliseconds"
     private static let focusPollIntervalMillisecondsDefaultsKey = "cotabbyFocusPollIntervalMilliseconds"
     private static let multiLineEnabledDefaultsKey = "cotabbyMultiLineEnabled"
@@ -91,6 +93,14 @@ final class SuggestionSettingsModel: ObservableObject {
             userDefaults.string(forKey: Self.userNameDefaultsKey) ?? ""
         }
 
+        // Absent key means a fresh install: seed the default-on rules. A present (even empty) value
+        // means the user has touched their rules — including clearing them — so we honor it verbatim.
+        let resolvedCustomRules: [String] = if userDefaults.object(forKey: Self.customRulesDefaultsKey) == nil {
+            CustomRulesCatalog.defaultRules
+        } else {
+            CustomRulesCatalog.normalize(userDefaults.stringArray(forKey: Self.customRulesDefaultsKey) ?? [])
+        }
+
         let resolvedDebounceMilliseconds: Int = {
             let raw = userDefaults.object(forKey: Self.debounceMillisecondsDefaultsKey) as? Int
                 ?? configuration.debounceMilliseconds
@@ -126,6 +136,7 @@ final class SuggestionSettingsModel: ObservableObject {
         selectedWordCountPreset = resolvedWordCountPreset
         isClipboardContextEnabled = resolvedClipboardContextEnabled
         userName = resolvedUserName
+        customRules = resolvedCustomRules
         debounceMilliseconds = resolvedDebounceMilliseconds
         focusPollIntervalMilliseconds = resolvedFocusPollIntervalMilliseconds
         isMultiLineEnabled = resolvedMultiLineEnabled
@@ -142,6 +153,7 @@ final class SuggestionSettingsModel: ObservableObject {
         persistSelectedWordCountPreset(resolvedWordCountPreset)
         persistClipboardContextEnabled(resolvedClipboardContextEnabled)
         persistUserName(resolvedUserName)
+        persistCustomRules(resolvedCustomRules)
         userDefaults.set(resolvedDebounceMilliseconds, forKey: Self.debounceMillisecondsDefaultsKey)
         userDefaults.set(resolvedFocusPollIntervalMilliseconds, forKey: Self.focusPollIntervalMillisecondsDefaultsKey)
         userDefaults.set(resolvedMultiLineEnabled, forKey: Self.multiLineEnabledDefaultsKey)
@@ -164,6 +176,7 @@ final class SuggestionSettingsModel: ObservableObject {
             selectedWordCountPreset: selectedWordCountPreset,
             isClipboardContextEnabled: isClipboardContextEnabled,
             userName: userName,
+            customRules: customRules,
             debounceMilliseconds: debounceMilliseconds,
             focusPollIntervalMilliseconds: focusPollIntervalMilliseconds,
             isMultiLineEnabled: isMultiLineEnabled
@@ -340,6 +353,30 @@ final class SuggestionSettingsModel: ObservableObject {
         persistUserName(name)
     }
 
+    /// All rule mutations funnel through here so storage stays normalized (trimmed, deduped, capped).
+    func setRules(_ rules: [String]) {
+        let normalized = CustomRulesCatalog.normalize(rules)
+        guard customRules != normalized else {
+            return
+        }
+
+        customRules = normalized
+        persistCustomRules(normalized)
+    }
+
+    func addRule(_ rule: String) {
+        setRules(customRules + [rule])
+    }
+
+    func removeRule(_ rule: String) {
+        setRules(customRules.filter { $0 != rule })
+    }
+
+    /// Restores the default-on rule set. "Reset" means "back to defaults," not "clear to empty."
+    func resetRules() {
+        setRules(CustomRulesCatalog.defaultRules)
+    }
+
     func setAcceptanceKey(keyCode: CGKeyCode, label: String) {
         guard acceptanceKeyCode != keyCode || acceptanceKeyLabel != label else {
             return
@@ -491,6 +528,10 @@ final class SuggestionSettingsModel: ObservableObject {
         userDefaults.set(name, forKey: Self.userNameDefaultsKey)
     }
 
+    private func persistCustomRules(_ rules: [String]) {
+        userDefaults.set(rules, forKey: Self.customRulesDefaultsKey)
+    }
+
     private func persistDisabledAppRules(_ rules: [DisabledApplicationRule]) {
         guard !rules.isEmpty else {
             userDefaults.removeObject(forKey: Self.disabledAppRulesDefaultsKey)
@@ -513,11 +554,12 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                 $selectedWordCountPreset
             ),
             $isClipboardContextEnabled,
-            $userName,
+            Publishers.CombineLatest($userName, $customRules),
             Publishers.CombineLatest3($debounceMilliseconds, $focusPollIntervalMilliseconds, $isMultiLineEnabled)
         )
-        .map { combinedSettings, clipboardContextEnabled, userName, timing in
+        .map { combinedSettings, clipboardContextEnabled, profile, timing in
             let (globallyEnabled, disabledAppRules, engine, wordCountPreset) = combinedSettings
+            let (userName, customRules) = profile
             let (debounce, focusPoll, multiLine) = timing
             return SuggestionSettingsSnapshot(
                 isGloballyEnabled: globallyEnabled,
@@ -526,6 +568,7 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                 selectedWordCountPreset: wordCountPreset,
                 isClipboardContextEnabled: clipboardContextEnabled,
                 userName: userName,
+                customRules: customRules,
                 debounceMilliseconds: debounce,
                 focusPollIntervalMilliseconds: focusPoll,
                 isMultiLineEnabled: multiLine

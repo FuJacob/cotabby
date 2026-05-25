@@ -56,6 +56,9 @@ struct SuggestionSettingsSnapshot: Equatable, Sendable {
     /// User-authored profile data for Cotabby's single instruction-rendered completion prompt.
     /// This travels in the snapshot so generation uses the same value the Settings UI shows.
     let userName: String
+    /// User-authored style rules, carried in the snapshot so generation uses the same value the
+    /// Settings UI shows.
+    let customRules: [String]
     let debounceMilliseconds: Int
     let focusPollIntervalMilliseconds: Int
     let isMultiLineEnabled: Bool

@@ -38,6 +38,18 @@ enum FoundationModelPromptRenderer {
             lines.append("Use this context only when it fits naturally into the continuation.")
         }
 
+        // Style rules live in the high-priority instructions channel like the base rules, but are
+        // appended last with an explicit subordination line so they cannot override the output
+        // contract above.
+        let trimmedRules = request.customRules
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        if !trimmedRules.isEmpty {
+            lines.append("Your style preferences:")
+            lines.append(contentsOf: trimmedRules.map { "- \($0)" })
+            lines.append("Apply these only when they fit the continuation naturally; never break the rules above.")
+        }
+
         return lines.joined(separator: "\n")
     }
 
