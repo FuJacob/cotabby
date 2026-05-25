@@ -6,11 +6,10 @@ import Foundation
 ///
 /// The important architectural distinction is:
 /// - a local GGUF file is a model option inside the llama runtime
-/// - Apple Intelligence vs. local llama vs. MLX is an engine choice above the runtime layer
+/// - Apple Intelligence vs. local llama is an engine choice above the runtime layer
 enum SuggestionEngineKind: String, CaseIterable, Equatable, Hashable, Sendable, Identifiable {
     case appleIntelligence
     case llamaOpenSource
-    case mlxSwift
 
     var id: String { rawValue }
 
@@ -20,8 +19,6 @@ enum SuggestionEngineKind: String, CaseIterable, Equatable, Hashable, Sendable, 
             return "Apple Intelligence [BETA]"
         case .llamaOpenSource:
             return "Open Source"
-        case .mlxSwift:
-            return "MLX (Apple Silicon)"
         }
     }
 
@@ -29,21 +26,11 @@ enum SuggestionEngineKind: String, CaseIterable, Equatable, Hashable, Sendable, 
         switch self {
         case .appleIntelligence:
             return false
-        case .llamaOpenSource, .mlxSwift:
+        case .llamaOpenSource:
             return true
         }
     }
 
-    var modelFormat: ModelFormat? {
-        switch self {
-        case .appleIntelligence:
-            return nil
-        case .llamaOpenSource:
-            return .gguf
-        case .mlxSwift:
-            return .mlx
-        }
-    }
 }
 
 /// A user-authored app blocklist entry.

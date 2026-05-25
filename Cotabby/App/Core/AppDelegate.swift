@@ -17,7 +17,6 @@ import os
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let permissionManager: PermissionManager
     let runtimeModel: RuntimeBootstrapModel
-    let mlxRuntimeManager: MLXRuntimeManager
     let modelDownloadManager: ModelDownloadManager
     let focusModel: FocusTrackingModel
     let inputMonitor: InputMonitor
@@ -43,7 +42,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let environment = CotabbyAppEnvironment()
         permissionManager = environment.permissionManager
         runtimeModel = environment.runtimeModel
-        mlxRuntimeManager = environment.mlxRuntimeManager
         modelDownloadManager = environment.modelDownloadManager
         focusModel = environment.focusModel
         inputMonitor = environment.inputMonitor
@@ -160,7 +158,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         Task.detached {
             await self.runtimeModel.stopAndWait()
-            await self.mlxRuntimeManager.stopAndWait()
             await MainActor.run { replyOnce() }
         }
 
@@ -197,8 +194,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         switch suggestionSettings.selectedEngine {
         case .llamaOpenSource:
             runtimeModel.startIfNeeded()
-        case .mlxSwift:
-            Task { try? await mlxRuntimeManager.prepare() }
         case .appleIntelligence:
             break
         }
