@@ -17,7 +17,6 @@ struct SettingsView: View {
     @ObservedObject var suggestionSettings: SuggestionSettingsModel
     @ObservedObject var foundationModelAvailabilityService: FoundationModelAvailabilityService
     @ObservedObject var runtimeModel: RuntimeBootstrapModel
-    @ObservedObject var mlxRuntimeManager: MLXRuntimeManager
     @ObservedObject var modelDownloadManager: ModelDownloadManager
 
     let onShowWelcome: () -> Void
@@ -31,6 +30,7 @@ struct SettingsView: View {
     var body: some View {
         Form {
             settingsHeader
+            supportSection
             updatesSection
             uninstallSection
             generalSection
@@ -72,21 +72,17 @@ struct SettingsView: View {
     private var settingsHeader: some View {
         Section {
             HStack(spacing: 10) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .fill(Color.primary.opacity(0.06))
-
-                    Image(systemName: "pawprint.fill")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(.primary)
-                }
-                .frame(width: 32, height: 32)
+                Image("CotabbyLogo")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 32, height: 32)
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Cotabby")
                         .font(.system(size: 15, weight: .semibold, design: .rounded))
 
-                    Text("Local AI Autocomplete")
+                    Text("Local macOS AI Autocomplete")
                         .font(.system(size: 11, design: .rounded))
                         .foregroundStyle(.secondary)
                 }
@@ -157,17 +153,19 @@ struct SettingsView: View {
                     Text(runtimeModel.state.summary)
                         .foregroundStyle(.secondary)
                 }
-            case .mlxSwift:
-                LabeledContent("Runtime") {
-                    Text(mlxRuntimeManager.state.summary)
-                        .foregroundStyle(.secondary)
-                }
             }
 
             Picker("Length", selection: selectedWordCountPresetBinding) {
                 ForEach(SuggestionWordCountPreset.allCases) { preset in
                     Text(preset.displayLabel)
                         .tag(preset)
+                }
+            }
+
+            Picker("Language", selection: selectedLanguageBinding) {
+                ForEach(SuggestionLanguage.allCases) { language in
+                    Text(language.displayLabel)
+                        .tag(language)
                 }
             }
         }
@@ -313,6 +311,7 @@ struct SettingsView: View {
                     .textFieldStyle(.roundedBorder)
                 }
 
+                CustomRulesEditor(suggestionSettings: suggestionSettings)
             }
             .padding(.vertical, 4)
         }
@@ -379,12 +378,22 @@ struct SettingsView: View {
                     HStack(spacing: 8) {
                         let lmStudioURL = FileManager.default.homeDirectoryForCurrentUser
                             .appendingPathComponent(".lmstudio/models")
-                        Button("LM Studio Folder") {
-                            NSWorkspace.shared.open(lmStudioURL)
+                        let isUsingCustomPath = BundledRuntimeLocator.customModelDirectoryURL() != nil
+                        Button("Use LM Studio") {
+                            BundledRuntimeLocator.setCustomModelDirectory(lmStudioURL)
+                            modelDownloadManager.refreshSearchDirectories()
+                            refreshModels()
                         }
                         .disabled(
                             !FileManager.default.fileExists(atPath: lmStudioURL.path)
                         )
+
+                        Button("Reset Path") {
+                            BundledRuntimeLocator.setCustomModelDirectory(nil)
+                            modelDownloadManager.refreshSearchDirectories()
+                            refreshModels()
+                        }
+                        .disabled(!isUsingCustomPath)
 
                         Button("Open Folder") {
                             modelDownloadManager.openModelsDirectory()
@@ -405,6 +414,26 @@ struct SettingsView: View {
                 ForEach(runtimeModel.availableModels) { model in
                     installedModelRow(model)
                 }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var supportSection: some View {
+        Section("Support") {
+            LabeledContent {
+                Link(destination: URL(string: "https://ko-fi.com/cotabby")!) {
+                    Text("Buy Us a Coffee")
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.blue)
+            } label: {
+                Text(
+                    "Cotabby is free and open source, maintained by two university students. "
+                    + "If it's useful to you, consider supporting development."
+                )
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
@@ -624,6 +653,15 @@ struct SettingsView: View {
         )
     }
 
+    private var selectedLanguageBinding: Binding<SuggestionLanguage> {
+        Binding(
+            get: { suggestionSettings.responseLanguage },
+            set: { language in
+                suggestionSettings.setResponseLanguage(language)
+            }
+        )
+    }
+
     private var selectedModelBinding: Binding<String> {
         Binding(
             get: {
@@ -657,10 +695,8 @@ struct SettingsView: View {
         switch suggestionSettings.selectedEngine {
         case .llamaOpenSource:
             return "Download a model or add your own below. Models are stored locally on your Mac."
-        case .mlxSwift:
-            return "Download an MLX model below. Models are stored locally on your Mac."
         case .appleIntelligence:
-            return "These models are used when Engine is set to Open Source or MLX."
+            return "These models are used when Engine is set to Open Source."
         }
     }
 

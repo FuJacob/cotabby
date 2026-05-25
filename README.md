@@ -1,5 +1,17 @@
 # Cotabby
 
+---
+
+<p align="center">
+  <sub>If Cotabby is useful to you, consider supporting development:</sub>
+</p>
+
+<p align="center">
+  <a href='https://ko-fi.com/I2F22066MI' target='_blank'><img height='36' style='border:0px;height:36px;' src='https://storage.ko-fi.com/cdn/kofi6.png?v=6' border='0' alt='Buy Me a Coffee at ko-fi.com' /></a>
+</p>
+
+---
+
 <p align="center">
   <img width="128" alt="Cotabby logo" src="https://github.com/user-attachments/assets/8a67095e-4d03-4055-8d4c-8871335152dd" />
 </p>
@@ -14,11 +26,11 @@
 
 <p align="center">
   <a href="LICENSE"><img alt="License: AGPL v3" src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" /></a>
-  <a href="https://github.com/FuJacob/Cotabby/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/FuJacob/Cotabby" /></a>
-  <a href="https://github.com/FuJacob/Cotabby/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/FuJacob/Cotabby/total" /></a>
-  <a href="https://github.com/FuJacob/Cotabby/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/FuJacob/Cotabby?style=flat" /></a>
+  <a href="https://github.com/FuJacob/tabby/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/FuJacob/tabby" /></a>
+  <a href="https://github.com/FuJacob/tabby/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/FuJacob/tabby/total" /></a>
+  <a href="https://github.com/FuJacob/tabby/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/FuJacob/tabby?style=flat" /></a>
   <img alt="Platform" src="https://img.shields.io/badge/platform-macOS%2015%2B-lightgrey" />
-  <img alt="Visitors" src="https://visitor-badge.laobi.icu/badge?page_id=FuJacob.Cotabby" />
+  <img alt="Visitors" src="https://visitor-badge.laobi.icu/badge?page_id=FuJacob.tabby" />
 </p>
 
 ---
@@ -107,7 +119,7 @@ If macOS blocks first launch, right-click `Cotabby.app` → `Open`, or allow it 
 Requires Xcode and Command Line Tools. Apple Silicon is strongly recommended for local model performance. For setup, build, test, and contribution workflow details, start with [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ```bash
-git clone https://github.com/FuJacob/Cotabby.git
+git clone https://github.com/FuJacob/tabby.git Cotabby
 cd Cotabby
 open Cotabby.xcodeproj
 ```

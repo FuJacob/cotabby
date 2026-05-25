@@ -148,7 +148,6 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         }
 
         var generatedText = ""
-        var hasVisibleContent = false
 
         for _ in 0 ..< options.maxPredictionTokens {
             let result = engine.sampleNext(sequenceID)
@@ -159,14 +158,6 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
 
             let piece = Self.extractPiece(result)
             generatedText += piece
-
-            // Allow leading formatting noise but stop once a newline appears after visible content.
-            if piece.unicodeScalars.contains(where: Self.isVisibleOutputScalar) {
-                hasVisibleContent = true
-            }
-            if hasVisibleContent && generatedText.contains("\n") {
-                break
-            }
         }
 
         return generatedText
@@ -265,11 +256,23 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
     /// Waits for all in-flight `generate()` and `summarize()` calls to finish, then frees all
     /// sequences and the loaded model. Blocking is intentional: callers should dispatch this off
     /// the main thread via `Task.detached` when UI responsiveness matters.
-    func shutdown() {
+    ///
+    /// `timeoutSeconds` caps the wait for in-flight work to drain. On timeout we still proceed
+    /// with `engine.unloadModel()` so the caller (typically `applicationWillTerminate`) does not
+    /// hang the main thread on a runaway generation. A nil timeout waits indefinitely.
+    func shutdown(timeoutSeconds: TimeInterval? = nil) {
         lifecycleCondition.lock()
         isShuttingDown = true
-        while activeOperationCount > 0 {
-            lifecycleCondition.wait()
+
+        if let timeoutSeconds {
+            let deadline = Date(timeIntervalSinceNow: timeoutSeconds)
+            while activeOperationCount > 0 {
+                if !lifecycleCondition.wait(until: deadline) { break }
+            }
+        } else {
+            while activeOperationCount > 0 {
+                lifecycleCondition.wait()
+            }
         }
         lifecycleCondition.unlock()
 
@@ -390,12 +393,6 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
             repetition_penalty: Float(options.repetitionPenalty),
             seed: options.seed ?? 0
         )
-    }
-
-    /// Inline autocomplete cares about visible suggestion text, not formatting-only tokens.
-    private static func isVisibleOutputScalar(_ scalar: UnicodeScalar) -> Bool {
-        if CharacterSet.controlCharacters.contains(scalar) { return false }
-        return !CharacterSet.whitespacesAndNewlines.contains(scalar)
     }
 
     private static func reusableTokenCount(commonTokenPrefix: Int, newPromptTokenCount: Int) -> Int {

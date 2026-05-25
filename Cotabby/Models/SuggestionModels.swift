@@ -204,10 +204,18 @@ struct SuggestionRequest: Equatable, Sendable {
     /// Optional user-provided profile context. We keep this separate from base product behavior so
     /// future settings/personalization work can evolve independently from prompt safety rules.
     let userName: String?
+    /// User-authored style rules rendered as additional prompt directives, subordinate to the base
+    /// autocomplete/safety rules. Empty when the user has none.
+    let customRules: [String]
+    /// Pre-rendered directive forcing the output language (e.g. "Always write the continuation in
+    /// Spanish…"). `nil` for English, where no override is needed.
+    let languageInstruction: String?
     /// Ephemeral clipboard context captured only when the user has enabled clipboard prompting.
     let clipboardContext: String?
     /// Ephemeral screen context summary injected only when available for the active text field.
     let visualContextSummary: String?
+    /// When enabled, the normalizer keeps multiple lines instead of truncating to the first line.
+    let isMultiLineEnabled: Bool
 }
 
 /// The engine's normalized response, including raw model text for debugging.

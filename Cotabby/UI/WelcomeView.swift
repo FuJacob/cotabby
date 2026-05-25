@@ -108,11 +108,11 @@ private enum WelcomeStep: Int, Comparable {
 extension WelcomeView {
     fileprivate var welcomeStep: some View {
         VStack(spacing: 24) {
-            Image(systemName: "pawprint.fill")
+            Image("CotabbyLogo")
                 .resizable()
                 .scaledToFit()
                 .frame(width: 72, height: 72)
-                .foregroundStyle(.white)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
 
             VStack(spacing: 8) {
                 Text("Welcome to Cotabby")
@@ -256,7 +256,7 @@ extension WelcomeView {
         switch suggestionSettings.selectedEngine {
         case .appleIntelligence:
             return foundationModelAvailabilityService.isAvailable
-        case .llamaOpenSource, .mlxSwift:
+        case .llamaOpenSource:
             return hasAtLeastOneModel
         }
     }
@@ -265,7 +265,7 @@ extension WelcomeView {
         switch suggestionSettings.selectedEngine {
         case .appleIntelligence:
             return "Apple Intelligence is not available on this Mac."
-        case .llamaOpenSource, .mlxSwift:
+        case .llamaOpenSource:
             return "Add or download at least one model to continue."
         }
     }
