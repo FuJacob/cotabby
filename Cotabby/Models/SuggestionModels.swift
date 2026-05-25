@@ -39,16 +39,17 @@ enum SuggestionWordCountPreset: String, CaseIterable, Equatable, Hashable, Senda
         }
     }
 
-    /// Token budget sized at ~1.5x the upper word bound. Tight enough to enforce the word cap
-    /// while leaving room for multi-token words (contractions, proper nouns, punctuation).
+    /// Token budget bumped 50% above the prior ~1.5x-upper-word-bound sizing, giving the
+    /// token-cap-only path (no in-prompt word range for the local model) room to land a clean
+    /// stopping point instead of hard-truncating mid-thought.
     var suggestedPredictionTokenBudget: Int {
         switch self {
         case .threeToSeven:
-            return 11
+            return 17
         case .sevenToTwelve:
-            return 18
+            return 27
         case .twelveToTwenty:
-            return 30
+            return 45
         }
     }
 }
