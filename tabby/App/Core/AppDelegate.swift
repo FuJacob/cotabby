@@ -1,5 +1,6 @@
 import AppKit
 import Combine
+import os
 
 /// File overview:
 /// Starts the long-lived services that power permissions, focus tracking, suggestion generation,
@@ -126,6 +127,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// awaits native cleanup. `reply(toApplicationShouldTerminate: true)` resumes the
     /// quit once llama resources are freed. A 5-second timeout prevents a hung native
     /// call (e.g. a stalled Metal command queue) from freezing the app indefinitely.
+    ///
+    /// `stopAndWait()` runs in a detached task so it is never implicitly awaited — if the
+    /// native C call ignores Swift cancellation, the timeout still fires and replies.
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         activationIndicatorController.hide(reason: "Activation indicator hidden because Tabby is terminating.")
         focusDebugOverlayController?.hide()
@@ -133,18 +137,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         inputMonitor.stop()
         focusModel.stop()
 
-        Task {
-            await withTaskGroup(of: Void.self) { group in
-                group.addTask { await self.runtimeModel.stopAndWait() }
-                group.addTask {
-                    try? await Task.sleep(nanoseconds: 5_000_000_000)
-                }
-                // Returns as soon as either the shutdown or the timeout finishes.
-                await group.next()
-                group.cancelAll()
+        let didReply = OSAllocatedUnfairLock(initialState: false)
+
+        func replyOnce() {
+            let alreadyReplied = didReply.withLock { replied -> Bool in
+                let was = replied
+                replied = true
+                return was
             }
+            guard !alreadyReplied else { return }
             sender.reply(toApplicationShouldTerminate: true)
         }
+
+        Task.detached {
+            await self.runtimeModel.stopAndWait()
+            await MainActor.run { replyOnce() }
+        }
+
+        Task {
+            try? await Task.sleep(nanoseconds: 5_000_000_000)
+            replyOnce()
+        }
+
         return .terminateLater
     }
 
