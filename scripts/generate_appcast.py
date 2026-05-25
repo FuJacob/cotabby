@@ -26,6 +26,11 @@ import sys
 
 DEFAULT_OWNER = "FuJacob"
 DEFAULT_REPOSITORY = "Cotabby"
+# Sparkle's <releaseNotesLink> is fetched by the update alert's embedded WKWebView.
+# Point it at the dedicated slim route on the landing site rather than GitHub's
+# full release page, which pulls in GitHub's chrome and is unreadable in the small
+# alert window. Override per-environment via --release-notes-base-url.
+DEFAULT_RELEASE_NOTES_BASE_URL = "https://cotabby.app/release-notes"
 SIGNATURE_PATTERN = re.compile(r'sparkle:edSignature="([^"]+)"\s+length="([^"]+)"')
 
 
@@ -71,6 +76,15 @@ def parse_args() -> argparse.Namespace:
         "--github-repository",
         default=DEFAULT_REPOSITORY,
         help="GitHub repository name used to build release and repository URLs",
+    )
+    parser.add_argument(
+        "--release-notes-base-url",
+        default=DEFAULT_RELEASE_NOTES_BASE_URL,
+        help=(
+            "Base URL prepended to the git tag to form sparkle:releaseNotesLink. "
+            "Defaults to the landing-site Route Handler that renders one release "
+            "as a Sparkle-friendly self-contained HTML page."
+        ),
     )
     return parser.parse_args()
 
@@ -204,7 +218,10 @@ def main() -> int:
 
     repository_url = f"https://github.com/{args.github_owner}/{args.github_repository}"
     release_tag = f"v{args.release_version}"
-    release_page_url = f"{repository_url}/releases/tag/{release_tag}"
+    # Strip any trailing slash from the base so the joined URL is canonical
+    # regardless of how the caller wrote the flag.
+    release_notes_base = args.release_notes_base_url.rstrip("/")
+    release_page_url = f"{release_notes_base}/{release_tag}"
     archive_filename = args.archive_filename or archive.name
     archive_url = f"{repository_url}/releases/download/{release_tag}/{archive_filename}"
 
