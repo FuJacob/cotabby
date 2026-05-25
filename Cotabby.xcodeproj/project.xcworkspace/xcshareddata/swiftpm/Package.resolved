@@ -1,6 +1,15 @@
 {
-  "originHash" : "e721da7f9826abdffcb6185e886155efa2514bd6234475f1afa893e29eb258d6",
+  "originHash" : "dfbef96c9ccb6fc980019b21409455a3e84749fe126d55007d466295385a203d",
   "pins" : [
+    {
+      "identity" : "cotabbyinference",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/FuJacob/cotabbyinference",
+      "state" : {
+        "branch" : "main",
+        "revision" : "662df9f1b71b900231629171572181806bd2fa36"
+      }
+    },
     {
       "identity" : "sparkle",
       "kind" : "remoteSourceControl",

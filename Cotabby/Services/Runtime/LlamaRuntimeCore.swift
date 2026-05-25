@@ -1,5 +1,5 @@
 import Foundation
-import TabbyInference
+import CotabbyInference
 
 /// File overview:
 /// Owns the C++ inference engine and manages the autocomplete KV cache lifecycle. This is the
@@ -24,7 +24,7 @@ struct PreparedLlamaRuntime: Sendable {
 }
 
 final class LlamaRuntimeCore: @unchecked Sendable {
-    private var engine = TabbyInferenceEngine()
+    private var engine = CotabbyInferenceEngine()
     private var preparedRuntime: PreparedLlamaRuntime?
 
     private let autocompleteLock = NSLock()
@@ -43,17 +43,33 @@ final class LlamaRuntimeCore: @unchecked Sendable {
     // MARK: - Model lifecycle
 
     /// Loads the requested model once and records the runtime characteristics needed for diagnostics.
+    /// Participates in the lifecycle guard so `shutdown()` cannot unload the model mid-prepare.
     func prepare(
         resolvedRuntime: ResolvedLlamaRuntime,
         configuration: LlamaRuntimeConfiguration
     ) throws -> PreparedLlamaRuntime {
+        lifecycleCondition.lock()
+        guard !isShuttingDown else {
+            lifecycleCondition.unlock()
+            throw LlamaRuntimeError.unavailable("The runtime is shutting down.")
+        }
+        activeOperationCount += 1
+        lifecycleCondition.unlock()
+
+        defer {
+            lifecycleCondition.lock()
+            activeOperationCount -= 1
+            lifecycleCondition.broadcast()
+            lifecycleCondition.unlock()
+        }
+
         if let preparedRuntime,
            preparedRuntime.resolvedRuntime.modelFileURL == resolvedRuntime.modelFileURL {
             return preparedRuntime
         }
 
         if preparedRuntime != nil {
-            shutdown()
+            shutdownEngine()
         }
 
         let status = engine.loadModel(
@@ -65,7 +81,7 @@ final class LlamaRuntimeCore: @unchecked Sendable {
 
         guard status == .ok else {
             throw LlamaRuntimeError.unavailable(
-                "Unable to load \(resolvedRuntime.modelDisplayName) with TabbyInferenceEngine."
+                "Unable to load \(resolvedRuntime.modelDisplayName) with CotabbyInferenceEngine."
             )
         }
 
@@ -75,7 +91,7 @@ final class LlamaRuntimeCore: @unchecked Sendable {
             batchSize: Int(engine.getBatchSize()),
             threadCount: Int(engine.getThreadCount()),
             gpuLayerCount: Int(engine.getGPULayerCount()),
-            backendName: "TabbyInferenceEngine (llama.cpp in-process)"
+            backendName: "CotabbyInferenceEngine (llama.cpp in-process)"
         )
         self.preparedRuntime = result
         return result
@@ -263,13 +279,20 @@ final class LlamaRuntimeCore: @unchecked Sendable {
         }
         lifecycleCondition.unlock()
 
-        resetPromptCache()
-        engine.unloadModel()
-        preparedRuntime = nil
+        shutdownEngine()
 
         lifecycleCondition.lock()
         isShuttingDown = false
         lifecycleCondition.unlock()
+    }
+
+    /// Tears down sequences and the loaded model without lifecycle coordination.
+    /// Called by `shutdown()` after draining in-flight ops, and by `prepare()` when switching
+    /// models (which already holds the lifecycle count).
+    private func shutdownEngine() {
+        resetPromptCache()
+        engine.unloadModel()
+        preparedRuntime = nil
     }
 
     // MARK: - Private: autocomplete sequence management
@@ -378,6 +401,7 @@ final class LlamaRuntimeCore: @unchecked Sendable {
             top_p: Float(options.topP),
             min_p: Float(options.minP),
             repetition_penalty: Float(options.repetitionPenalty),
+            // The C++ engine treats seed 0 as "generate a random seed internally."
             seed: options.seed ?? 0
         )
     }

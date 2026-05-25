@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		19E177EA2FC1B7890067E267 /* TabbyInference in Frameworks */ = {isa = PBXBuildFile; productRef = 19E177E92FC1B7890067E267 /* TabbyInference */; };
+		19E177EA2FC1B7890067E267 /* CotabbyInference in Frameworks */ = {isa = PBXBuildFile; productRef = 19E177E92FC1B7890067E267 /* CotabbyInference */; };
 		8B6282F0C1CCA0746D96B914 /* DownloadOutcomeClassifierTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 562F89255AF340C15A0554BE /* DownloadOutcomeClassifierTests.swift */; };
 		A1C3E0112F90000100AAA001 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = A1C3E0102F90000100AAA001 /* Sparkle */; };
 		A404828463CADB2ECDAE7AF3 /* LlamaPromptRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F29623C5C0A67B992D383A3C /* LlamaPromptRendererTests.swift */; };
@@ -78,7 +78,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A1C3E0112F90000100AAA001 /* Sparkle in Frameworks */,
-				19E177EA2FC1B7890067E267 /* TabbyInference in Frameworks */,
+				19E177EA2FC1B7890067E267 /* CotabbyInference in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -157,7 +157,7 @@
 			name = Cotabby;
 			packageProductDependencies = (
 				A1C3E0102F90000100AAA001 /* Sparkle */,
-				19E177E92FC1B7890067E267 /* TabbyInference */,
+				19E177E92FC1B7890067E267 /* CotabbyInference */,
 			);
 			productName = Cotabby;
 			productReference = 193741492F81DE7000BEC04F /* Cotabby.app */;
@@ -207,7 +207,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				A1C3E0122F90000100AAA001 /* XCRemoteSwiftPackageReference "Sparkle" */,
-				19E177E82FC1B7890067E267 /* XCLocalSwiftPackageReference "../LlamaMiddleware" */,
+				19E177E82FC1B7890067E267 /* XCRemoteSwiftPackageReference "cotabbyinference" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 1937414A2F81DE7000BEC04F /* Products */;
@@ -553,14 +553,15 @@
 		};
 /* End XCConfigurationList section */
 
-/* Begin XCLocalSwiftPackageReference section */
-		19E177E82FC1B7890067E267 /* XCLocalSwiftPackageReference "../LlamaMiddleware" */ = {
-			isa = XCLocalSwiftPackageReference;
-			relativePath = ../LlamaMiddleware;
-		};
-/* End XCLocalSwiftPackageReference section */
-
 /* Begin XCRemoteSwiftPackageReference section */
+		19E177E82FC1B7890067E267 /* XCRemoteSwiftPackageReference "cotabbyinference" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/FuJacob/cotabbyinference";
+			requirement = {
+				kind = branch;
+				branch = main;
+			};
+		};
 		A1C3E0122F90000100AAA001 /* XCRemoteSwiftPackageReference "Sparkle" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/sparkle-project/Sparkle";
@@ -572,9 +573,10 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		19E177E92FC1B7890067E267 /* TabbyInference */ = {
+		19E177E92FC1B7890067E267 /* CotabbyInference */ = {
 			isa = XCSwiftPackageProductDependency;
-			productName = TabbyInference;
+			package = 19E177E82FC1B7890067E267 /* XCRemoteSwiftPackageReference "cotabbyinference" */;
+			productName = CotabbyInference;
 		};
 		A1C3E0102F90000100AAA001 /* Sparkle */ = {
 			isa = XCSwiftPackageProductDependency;

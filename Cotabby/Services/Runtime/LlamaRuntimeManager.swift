@@ -7,7 +7,7 @@ import Foundation
 /// `LlamaRuntimeCore`, which keeps pointer ownership and generation serialization in a separate file.
 ///
 /// `@MainActor` keeps the published state SwiftUI-friendly while the heavy inference work runs
-/// inside `LlamaRuntimeCore`, a thread-safe class backed by the C++ `TabbyInferenceEngine`.
+/// inside `LlamaRuntimeCore`, a thread-safe class backed by the C++ `CotabbyInferenceEngine`.
 @MainActor
 final class LlamaRuntimeManager: ObservableObject {
     @Published private(set) var state: RuntimeBootstrapState = .idle
