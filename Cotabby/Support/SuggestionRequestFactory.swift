@@ -44,7 +44,8 @@ enum SuggestionRequestFactory {
         let userName = activeUserName(settings: settings)
         let boundedClipboardContext = activeClipboardContext(
             rawContext: clipboardContext,
-            settings: settings
+            settings: settings,
+            prefixText: prefixText
         )
         let boundedVisualContextSummary = activeVisualContextSummary(
             rawSummary: visualContextSummary
@@ -109,7 +110,8 @@ enum SuggestionRequestFactory {
 
     private static func activeClipboardContext(
         rawContext: String?,
-        settings: SuggestionSettingsSnapshot
+        settings: SuggestionSettingsSnapshot,
+        prefixText: String
     ) -> String? {
         guard settings.isClipboardContextEnabled,
               let rawContext
@@ -124,7 +126,11 @@ enum SuggestionRequestFactory {
             return nil
         }
 
-        return clippedText(sanitizedContext, maxCharacters: maxClipboardContextCharacters)
+        let distilled = ClipboardContentDistiller.distill(
+            clipboard: sanitizedContext,
+            prefixText: prefixText
+        )
+        return clippedText(distilled, maxCharacters: maxClipboardContextCharacters)
     }
 
     private static func activeVisualContextSummary(rawSummary: String?) -> String? {

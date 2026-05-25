@@ -55,10 +55,7 @@ final class ClipboardRelevanceFilter {
         return clipboard
     }
 
-    // MARK: - Tokenization
-
     private static func tokens(from text: String) -> Set<String> {
-        let words = text.lowercased().components(separatedBy: .alphanumerics.inverted)
-        return Set(words.filter { $0.count >= minimumTokenLength })
+        PromptContextSanitizer.significantTokens(from: text, minimumLength: minimumTokenLength)
     }
 }

@@ -12,6 +12,7 @@
 		19E177EA2FC1B7890067E267 /* CotabbyInference in Frameworks */ = {isa = PBXBuildFile; productRef = 19E177E92FC1B7890067E267 /* CotabbyInference */; };
 		8B6282F0C1CCA0746D96B914 /* DownloadOutcomeClassifierTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 562F89255AF340C15A0554BE /* DownloadOutcomeClassifierTests.swift */; };
 		G10000012FB0000100FFF001 /* ClipboardRelevanceFilterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = G10000112FB0000100FFF011 /* ClipboardRelevanceFilterTests.swift */; };
+		G10000022FB0000100FFF002 /* ClipboardContentDistillerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = G10000122FB0000100FFF012 /* ClipboardContentDistillerTests.swift */; };
 		A1C3E0012F90000100AAA001 /* LlamaSwift in Frameworks */ = {isa = PBXBuildFile; productRef = A1C3E0002F90000100AAA001 /* LlamaSwift */; };
 		A1C3E0112F90000100AAA001 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = A1C3E0102F90000100AAA001 /* Sparkle */; };
 		A404828463CADB2ECDAE7AF3 /* LlamaPromptRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F29623C5C0A67B992D383A3C /* LlamaPromptRendererTests.swift */; };
@@ -50,6 +51,7 @@
 		3FBFA92FA44AA317135426FB /* CotabbyTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CotabbyTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		562F89255AF340C15A0554BE /* DownloadOutcomeClassifierTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DownloadOutcomeClassifierTests.swift; sourceTree = "<group>"; };
 		G10000112FB0000100FFF011 /* ClipboardRelevanceFilterTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ClipboardRelevanceFilterTests.swift; sourceTree = "<group>"; };
+		G10000122FB0000100FFF012 /* ClipboardContentDistillerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ClipboardContentDistillerTests.swift; sourceTree = "<group>"; };
 		5A39EC1A44E9160E13E2AE77 /* SuggestionAvailabilityEvaluatorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SuggestionAvailabilityEvaluatorTests.swift; sourceTree = "<group>"; };
 		8B1121FFDAD30C7F62E15289 /* SuggestionRequestFactoryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SuggestionRequestFactoryTests.swift; sourceTree = "<group>"; };
 		BAAEE25772008D75883F2655 /* DownloadFileRescuerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DownloadFileRescuerTests.swift; sourceTree = "<group>"; };
@@ -143,6 +145,7 @@
 				E10000152F93000100DDD015 /* DisplayCoordinateConverterTests.swift */,
 				F10000112FA0000100EEE011 /* TextDirectionDetectorTests.swift */,
 				G10000112FB0000100FFF011 /* ClipboardRelevanceFilterTests.swift */,
+				G10000122FB0000100FFF012 /* ClipboardContentDistillerTests.swift */,
 			);
 			path = CotabbyTests;
 			sourceTree = "<group>";
@@ -284,6 +287,7 @@
 				E10000052F93000100DDD005 /* DisplayCoordinateConverterTests.swift in Sources */,
 				F10000012FA0000100EEE001 /* TextDirectionDetectorTests.swift in Sources */,
 				G10000012FB0000100FFF001 /* ClipboardRelevanceFilterTests.swift in Sources */,
+				G10000022FB0000100FFF002 /* ClipboardContentDistillerTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
