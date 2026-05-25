@@ -322,7 +322,10 @@ extension WelcomeView {
                         suggestionSettings.setFullAcceptanceKey(keyCode: keyCode, label: label)
                     },
                     onReset: suggestionSettings.fullAcceptanceKeyCode != SuggestionSettingsModel.defaultFullAcceptanceKeyCode ? {
-                        suggestionSettings.clearFullAcceptanceKey()
+                        suggestionSettings.setFullAcceptanceKey(
+                            keyCode: SuggestionSettingsModel.defaultFullAcceptanceKeyCode,
+                            label: SuggestionSettingsModel.defaultFullAcceptanceKeyLabel
+                        )
                     } : nil
                 )
             }

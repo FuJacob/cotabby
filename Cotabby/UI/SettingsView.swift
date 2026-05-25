@@ -307,6 +307,16 @@ struct SettingsView: View {
                         }
                     }
 
+                    if suggestionSettings.fullAcceptanceKeyCode != SuggestionSettingsModel.defaultFullAcceptanceKeyCode {
+                        Button("Reset") {
+                            suggestionSettings.setFullAcceptanceKey(
+                                keyCode: SuggestionSettingsModel.defaultFullAcceptanceKeyCode,
+                                label: SuggestionSettingsModel.defaultFullAcceptanceKeyLabel
+                            )
+                            isRecordingFullAcceptKeybind = false
+                        }
+                    }
+
                     if suggestionSettings.fullAcceptanceKeyCode != SuggestionSettingsModel.disabledKeyCode {
                         Button("Clear") {
                             suggestionSettings.clearFullAcceptanceKey()
