@@ -197,15 +197,20 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
             throw LlamaRuntimeError.generationFailed("Tokenization returned no prompt tokens.")
         }
 
-        // Summary generation is auxiliary visual-context work, so keep its temporary context
-        // smaller than autocomplete's main KV cache. That lets autocomplete use a larger default
-        // window without doubling peak memory when summarization runs alongside it.
+        // Summary generation is auxiliary visual-context work, so cap the KV slot budget it may
+        // consume from the shared pool below autocomplete's full window. The KV cache is a single
+        // pool allocated once at model load; this cap keeps the summarize sequence from monopolising
+        // slots and evicting the autocomplete cache, rather than allocating any extra memory.
         let summarizeContextWindow = min(
             preparedRuntime.contextWindowTokens,
             Self.summarizeContextWindowCap
         )
 
-        let maxPromptTokens = max(1, summarizeContextWindow - options.maxPredictionTokens)
+        // Clamp prediction tokens to the capped window so prompt + generated tokens together stay
+        // within budget. The loop below shares this bound, keeping the invariant correct even if a
+        // future caller passes a maxPredictionTokens larger than the cap.
+        let maxPredictionTokens = min(options.maxPredictionTokens, summarizeContextWindow - 1)
+        let maxPromptTokens = max(1, summarizeContextWindow - maxPredictionTokens)
         let promptTokens = allPromptTokens.count > maxPromptTokens
             ? Array(allPromptTokens.suffix(maxPromptTokens))
             : allPromptTokens
@@ -224,7 +229,7 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         }
 
         var generatedText = ""
-        for _ in 0 ..< options.maxPredictionTokens {
+        for _ in 0 ..< maxPredictionTokens {
             // Cooperative cancellation: return partial text on timeout.
             if Task.isCancelled { break }
 
