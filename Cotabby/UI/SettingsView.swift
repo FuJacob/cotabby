@@ -304,6 +304,7 @@ struct SettingsView: View {
                     .textFieldStyle(.roundedBorder)
                 }
 
+                CustomRulesEditor(suggestionSettings: suggestionSettings)
             }
             .padding(.vertical, 4)
         }
