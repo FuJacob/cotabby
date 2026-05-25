@@ -10,6 +10,7 @@
 		194B33B32FC3F33B00DF6F60 /* InMemoryLogging in Frameworks */ = {isa = PBXBuildFile; productRef = 194B33B22FC3F33B00DF6F60 /* InMemoryLogging */; };
 		194B33B52FC3F33B00DF6F60 /* Logging in Frameworks */ = {isa = PBXBuildFile; productRef = 194B33B42FC3F33B00DF6F60 /* Logging */; };
 		19E177EA2FC1B7890067E267 /* CotabbyInference in Frameworks */ = {isa = PBXBuildFile; productRef = 19E177E92FC1B7890067E267 /* CotabbyInference */; };
+		7A1E3B0C2FC8A00100CARET1 /* AXTextGeometryResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A1E3B0D2FC8A00100CARET2 /* AXTextGeometryResolverTests.swift */; };
 		8B6282F0C1CCA0746D96B914 /* DownloadOutcomeClassifierTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 562F89255AF340C15A0554BE /* DownloadOutcomeClassifierTests.swift */; };
 		H10000012FC0000100FFF001 /* PrefixCorrectionFilterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = H10000112FC0000100FFF011 /* PrefixCorrectionFilterTests.swift */; };
 		A1C3E0112F90000100AAA001 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = A1C3E0102F90000100AAA001 /* Sparkle */; };
@@ -33,6 +34,7 @@
 		E10000042F93000100DDD004 /* BundledRuntimeLocatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000142F93000100DDD014 /* BundledRuntimeLocatorTests.swift */; };
 		E10000052F93000100DDD005 /* DisplayCoordinateConverterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000152F93000100DDD015 /* DisplayCoordinateConverterTests.swift */; };
 		F10000012FA0000100EEE001 /* TextDirectionDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000112FA0000100EEE011 /* TextDirectionDetectorTests.swift */; };
+		FA0000012FA4000100FFF001 /* FoundationModelDriftEvalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000112FA4000100FFF011 /* FoundationModelDriftEvalTests.swift */; };
 		G10000012FB0000100FFF001 /* WordCountFormatterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = G10000112FB0000100FFF011 /* WordCountFormatterTests.swift */; };
 		G10000022FB0000100FFF002 /* ClipboardContentDistillerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = G10000122FB0000100FFF012 /* ClipboardContentDistillerTests.swift */; };
 		G20000012FB0000100FFF001 /* ClipboardRelevanceFilterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = G20000112FB0000100FFF011 /* ClipboardRelevanceFilterTests.swift */; };
@@ -54,6 +56,7 @@
 		562F89255AF340C15A0554BE /* DownloadOutcomeClassifierTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DownloadOutcomeClassifierTests.swift; sourceTree = "<group>"; };
 		H10000112FC0000100FFF011 /* PrefixCorrectionFilterTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PrefixCorrectionFilterTests.swift; sourceTree = "<group>"; };
 		5A39EC1A44E9160E13E2AE77 /* SuggestionAvailabilityEvaluatorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SuggestionAvailabilityEvaluatorTests.swift; sourceTree = "<group>"; };
+		7A1E3B0D2FC8A00100CARET2 /* AXTextGeometryResolverTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = AXTextGeometryResolverTests.swift; sourceTree = "<group>"; };
 		8B1121FFDAD30C7F62E15289 /* SuggestionRequestFactoryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SuggestionRequestFactoryTests.swift; sourceTree = "<group>"; };
 		BAAEE25772008D75883F2655 /* DownloadFileRescuerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DownloadFileRescuerTests.swift; sourceTree = "<group>"; };
 		C10000112F91000100BBB011 /* CotabbyTestFixtures.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CotabbyTestFixtures.swift; sourceTree = "<group>"; };
@@ -73,6 +76,7 @@
 		F10000112FA0000100EEE011 /* TextDirectionDetectorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TextDirectionDetectorTests.swift; sourceTree = "<group>"; };
 		F29623C5C0A67B992D383A3C /* LlamaPromptRendererTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LlamaPromptRendererTests.swift; sourceTree = "<group>"; };
 		F9D35DB9E86506B9FAE1CFE9 /* ModelFileValidatorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ModelFileValidatorTests.swift; sourceTree = "<group>"; };
+		FA0000112FA4000100FFF011 /* FoundationModelDriftEvalTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FoundationModelDriftEvalTests.swift; sourceTree = "<group>"; };
 		G10000112FB0000100FFF011 /* WordCountFormatterTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WordCountFormatterTests.swift; sourceTree = "<group>"; };
 		G10000122FB0000100FFF012 /* ClipboardContentDistillerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ClipboardContentDistillerTests.swift; sourceTree = "<group>"; };
 		G20000112FB0000100FFF011 /* ClipboardRelevanceFilterTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ClipboardRelevanceFilterTests.swift; sourceTree = "<group>"; };
@@ -130,8 +134,10 @@
 			isa = PBXGroup;
 			children = (
 				C10000112F91000100BBB011 /* CotabbyTestFixtures.swift */,
+				7A1E3B0D2FC8A00100CARET2 /* AXTextGeometryResolverTests.swift */,
 				F29623C5C0A67B992D383A3C /* LlamaPromptRendererTests.swift */,
 				C10000302F91000100BBB030 /* CustomRulesTests.swift */,
+				FA0000112FA4000100FFF011 /* FoundationModelDriftEvalTests.swift */,
 				C10000152F91000100BBB015 /* PromptPolicyTests.swift */,
 				5A39EC1A44E9160E13E2AE77 /* SuggestionAvailabilityEvaluatorTests.swift */,
 				8B1121FFDAD30C7F62E15289 /* SuggestionRequestFactoryTests.swift */,
@@ -276,6 +282,7 @@
 			files = (
 				A404828463CADB2ECDAE7AF3 /* LlamaPromptRendererTests.swift in Sources */,
 				C10000312F91000100BBB031 /* CustomRulesTests.swift in Sources */,
+				FA0000012FA4000100FFF001 /* FoundationModelDriftEvalTests.swift in Sources */,
 				B053492719F6106E48290C32 /* SuggestionAvailabilityEvaluatorTests.swift in Sources */,
 				ADEFEE12C197DB6C990E3812 /* SuggestionRequestFactoryTests.swift in Sources */,
 				C10000022F91000100BBB002 /* SuggestionTextNormalizerTests.swift in Sources */,
@@ -295,6 +302,7 @@
 				E10000042F93000100DDD004 /* BundledRuntimeLocatorTests.swift in Sources */,
 				E10000052F93000100DDD005 /* DisplayCoordinateConverterTests.swift in Sources */,
 				F10000012FA0000100EEE001 /* TextDirectionDetectorTests.swift in Sources */,
+				7A1E3B0C2FC8A00100CARET1 /* AXTextGeometryResolverTests.swift in Sources */,
 				G20000012FB0000100FFF001 /* ClipboardRelevanceFilterTests.swift in Sources */,
 				G10000022FB0000100FFF002 /* ClipboardContentDistillerTests.swift in Sources */,
 				G10000012FB0000100FFF001 /* WordCountFormatterTests.swift in Sources */,
@@ -439,7 +447,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
@@ -450,6 +458,7 @@
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = CotabbyInfo.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
@@ -474,7 +483,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
@@ -485,6 +494,7 @@
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = CotabbyInfo.plist;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",

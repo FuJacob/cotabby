@@ -104,7 +104,7 @@ struct MenuBarView: View {
                 .toggleStyle(.switch)
                 .controlSize(.small)
 
-            Toggle("Show Cotabby Indicator", isOn: showIndicatorBinding)
+            Toggle("Show Indicator", isOn: showIndicatorBinding)
                 .toggleStyle(.switch)
                 .controlSize(.small)
 
@@ -139,6 +139,17 @@ struct MenuBarView: View {
                     ForEach(SuggestionWordCountPreset.allCases) { preset in
                         Text(preset.displayLabel)
                             .tag(preset)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+            }
+
+            MenuBarPickerRow(title: "Language") {
+                Picker("Language", selection: selectedLanguageBinding) {
+                    ForEach(SuggestionLanguage.allCases) { language in
+                        Text(language.displayLabel)
+                            .tag(language)
                     }
                 }
                 .labelsHidden()
@@ -342,6 +353,15 @@ struct MenuBarView: View {
             get: { suggestionSettings.selectedWordCountPreset },
             set: { preset in
                 suggestionSettings.selectWordCountPreset(preset)
+            }
+        )
+    }
+
+    private var selectedLanguageBinding: Binding<SuggestionLanguage> {
+        Binding(
+            get: { suggestionSettings.responseLanguage },
+            set: { language in
+                suggestionSettings.setResponseLanguage(language)
             }
         )
     }

@@ -86,9 +86,13 @@ enum RuntimeModelCatalog {
     static func displayName(for filename: String) -> String {
         switch filename {
         case "Qwen3-0.6B-Q4_K_M.gguf":
-            return "Cotabby-fast-1"
+            return "cotabby-swift-1"
+        case "Qwen3.5-0.8B-Q4_K_M.gguf":
+            return "cotabby-swift-pro-1"
         case "gemma-3-1b-it-Q4_K_M.gguf":
-            return "Cotabby-balanced-1"
+            return "cotabby-balanced-1"
+        case "gemma-4-E2B-it-Q4_K_M.gguf":
+            return "cotabby-careful-1"
         default:
             return filename
         }
@@ -114,6 +118,17 @@ enum RuntimeModelCatalog {
             sha256: "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a"
         ),
         DownloadableRuntimeModel(
+            filename: "Qwen3.5-0.8B-Q4_K_M.gguf",
+            displayName: displayName(for: "Qwen3.5-0.8B-Q4_K_M.gguf"),
+            downloadURL: URL(
+                string:
+                    "https://huggingface.co/unsloth/Qwen3.5-0.8B-GGUF/resolve/main/Qwen3.5-0.8B-Q4_K_M.gguf?download=true"
+            )!,
+            approximateSizeInGigabytes: 0.5,
+            expectedSizeBytes: 532_517_120,
+            sha256: "bd258782e35f7f458f8aced1adc053e6e92e89bc735ba3be89d38a06121dc517"
+        ),
+        DownloadableRuntimeModel(
             filename: "gemma-3-1b-it-Q4_K_M.gguf",
             displayName: displayName(for: "gemma-3-1b-it-Q4_K_M.gguf"),
             downloadURL: URL(
@@ -123,6 +138,17 @@ enum RuntimeModelCatalog {
             approximateSizeInGigabytes: 0.8,
             expectedSizeBytes: 806_058_272,
             sha256: "8270790f3ab69fdfe860b7b64008d9a19986d8df7e407bb018184caa08798ebd"
+        ),
+        DownloadableRuntimeModel(
+            filename: "gemma-4-E2B-it-Q4_K_M.gguf",
+            displayName: displayName(for: "gemma-4-E2B-it-Q4_K_M.gguf"),
+            downloadURL: URL(
+                string:
+                    "https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF/resolve/main/gemma-4-E2B-it-Q4_K_M.gguf?download=true"
+            )!,
+            approximateSizeInGigabytes: 3.1,
+            expectedSizeBytes: 3_106_736_256,
+            sha256: "9378bc471710229ef165709b62e34bfb62231420ddaf6d729e727305b5b8672d"
         )
     ]
 }

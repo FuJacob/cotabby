@@ -1,14 +1,8 @@
 # Cotabby
 
----
+<sub>If Cotabby is useful to you, consider supporting development:</sub>
 
-<p align="center">
-  <sub>If Cotabby is useful to you, consider supporting development:</sub>
-</p>
-
-<p align="center">
-  <a href='https://ko-fi.com/I2F22066MI' target='_blank'><img height='36' style='border:0px;height:36px;' src='https://storage.ko-fi.com/cdn/kofi6.png?v=6' border='0' alt='Buy Me a Coffee at ko-fi.com' /></a>
-</p>
+<a href='https://ko-fi.com/I2F22066MI' target='_blank'><img height='36' style='border:0px;height:36px;' src='https://storage.ko-fi.com/cdn/kofi6.png?v=6' border='0' alt='Buy Me a Coffee at ko-fi.com' /></a>
 
 ---
 
@@ -85,14 +79,16 @@ Everything runs on-device. No hosted API, no cloud round-trip.
 
 ## Engines
 
-**Apple Intelligence [EXPERIMENTAL]**: uses Apple's on-device `FoundationModels` runtime on macOS 26 or later, no download required. Currently does not perform as well as the Open Source models. We're actively working on improving it.
+**Apple Intelligence**: uses Apple's on-device `FoundationModels` runtime on macOS 26 or later, no download required.
 
 **Open Source**: runs local GGUF models in-process through llama.cpp via `llama.swift`. Built-in downloadable models suggested for use:
 
-| Model              | File                            | Size    |
-| ------------------ | ------------------------------- | ------- |
-| `Cotabby-fast-1`     | `Qwen3-0.6B-Q4_K_M.gguf`       | ~0.4 GB |
-| `Cotabby-balanced-1` | `gemma-3-1b-it-Q4_K_M.gguf`    | ~0.8 GB |
+| Model                | File                          | Size    |
+| -------------------- | ----------------------------- | ------- |
+| `cotabby-swift-1`     | `Qwen3-0.6B-Q4_K_M.gguf`     | ~0.4 GB |
+| `cotabby-swift-pro-1` | `Qwen3.5-0.8B-Q4_K_M.gguf`   | ~0.5 GB |
+| `cotabby-balanced-1`  | `gemma-3-1b-it-Q4_K_M.gguf`  | ~0.8 GB |
+| `cotabby-careful-1`   | `gemma-4-E2B-it-Q4_K_M.gguf` | ~3.1 GB |
 
 You can also drop your own `.gguf` files into Cotabby's models folder and refresh the model list.
 
