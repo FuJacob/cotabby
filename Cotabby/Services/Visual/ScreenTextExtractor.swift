@@ -150,7 +150,7 @@ struct ScreenTextExtractor {
     private func log(_ message: String) {
         // OCR log messages include preview text from the user's screen. Route them through
         // the debug gate so they only appear when the developer explicitly opts in.
-        TabbyDebugOptions.log(message)
+        CotabbyDebugOptions.log(message)
     }
 
     private func preview(_ text: String) -> String {
