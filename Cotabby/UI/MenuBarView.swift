@@ -86,7 +86,7 @@ struct MenuBarView: View {
                 .toggleStyle(.switch)
                 .controlSize(.small)
 
-            Toggle("Show Cotabby Indicator", isOn: showIndicatorBinding)
+            Toggle("Show Indicator", isOn: showIndicatorBinding)
                 .toggleStyle(.switch)
                 .controlSize(.small)
 
