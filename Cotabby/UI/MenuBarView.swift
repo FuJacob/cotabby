@@ -31,7 +31,6 @@ struct MenuBarView: View {
             controlsSection
             permissionsCard
             footerSection
-            wordmarkSection
         }
         .padding(16)
         .frame(width: 340)
@@ -255,28 +254,6 @@ struct MenuBarView: View {
             .keyboardShortcut("q")
         }
         .font(.subheadline)
-    }
-
-    // MARK: - Wordmark
-
-    /// Oversized "Cotabby" wordmark pinned to the very bottom of the panel.
-    /// It bleeds past the panel's 16pt padding to span the full width and is
-    /// clipped to roughly its top half so the letterforms run off the bottom
-    /// edge — a purely decorative flourish, not an interactive control.
-    @ViewBuilder
-    private var wordmarkSection: some View {
-        Text("Cotabby")
-            .font(.system(size: 110, weight: .heavy, design: .rounded))
-            .foregroundStyle(.tertiary)
-            .lineLimit(1)
-            .minimumScaleFactor(0.1)
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: .infinity)
-            .frame(height: 52, alignment: .top)
-            .clipped()
-            .padding(.top, 8)
-            .padding(.horizontal, -16)
-            .padding(.bottom, -16)
     }
 
     // MARK: - Bindings
