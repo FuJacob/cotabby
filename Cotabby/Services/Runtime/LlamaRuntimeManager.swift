@@ -176,6 +176,17 @@ final class LlamaRuntimeManager: ObservableObject {
         }.value
     }
 
+    /// Synchronously releases the llama runtime on the current thread, bounded by `timeoutSeconds`.
+    /// This is the termination-time path: C++ static destructors during `exit()` tear down the Metal
+    /// device, so llama contexts must be released first to avoid `ggml_metal_rsets_free`. Returning
+    /// quickly also keeps macOS's "Quit & Reopen" TCC handshake working after a permission grant —
+    /// the previous `.terminateLater` approach delayed exit long enough that the relaunched process
+    /// never picked up the new permission.
+    func shutdownSync(timeoutSeconds: TimeInterval) {
+        prepareForStop()
+        core.shutdown(timeoutSeconds: timeoutSeconds)
+    }
+
     private func prepareForStop() {
         startupTask?.cancel()
         startupTask = nil

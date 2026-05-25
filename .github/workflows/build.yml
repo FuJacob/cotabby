@@ -30,7 +30,7 @@ jobs:
     runs-on: macos-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       # Pin Xcode explicitly. GitHub-hosted runner images drift their default
       # Xcode without notice, which surfaces as false-red or false-green

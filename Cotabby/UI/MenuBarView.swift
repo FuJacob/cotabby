@@ -126,7 +126,11 @@ struct MenuBarView: View {
         .padding(.bottom, 12)
     }
 
-    /// Model selector with folder shortcut — only visible when local llama engine is active.
+    /// Model selector with folder + refresh shortcuts — only visible when local llama engine is active.
+    /// The picker is constrained to fill remaining row width so long filenames truncate inside the
+    /// NSPopUpButton label instead of pushing the trailing icons off-row. Per-item `.lineLimit` /
+    /// `.truncationMode` modifiers are unreliable here because AppKit's native popup ignores them
+    /// for the selected-value label.
     @ViewBuilder
     private var modelRow: some View {
         MenuBarPickerRow(title: "Model") {
@@ -144,6 +148,7 @@ struct MenuBarView: View {
                     }
                     .labelsHidden()
                     .pickerStyle(.menu)
+                    .frame(maxWidth: .infinity)
                     .disabled(runtimePickerDisabled)
                 }
 
@@ -155,6 +160,16 @@ struct MenuBarView: View {
                 .buttonStyle(.borderless)
                 .controlSize(.small)
                 .help("Open Models Folder")
+
+                Button {
+                    modelDownloadManager.refreshModelStates()
+                    runtimeModel.refreshAvailableModels()
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .buttonStyle(.borderless)
+                .controlSize(.small)
+                .help("Refresh Available Models")
             }
         }
     }

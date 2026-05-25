@@ -31,12 +31,15 @@ final class FoundationModelSuggestionEngine {
         availabilityService.refresh()
 
         guard availabilityService.isAvailable else {
-            TabbyLogger.suggestion.debug("Foundation model unavailable: \(self.availabilityService.userVisibleMessage)")
-            throw SuggestionClientError.unavailable(availabilityService.userVisibleMessage)
+            let message = availabilityService.userVisibleMessage
+            TabbyLogger.suggestion.debug("Foundation model unavailable: \(message)")
+            throw SuggestionClientError.unavailable(message)
         }
 
         do {
-            TabbyLogger.suggestion.debug("Foundation model generating: prompt=\(request.prompt.count) bytes, max_tokens=\(request.maxPredictionTokens)")
+            let promptBytes = request.prompt.count
+            let maxTokens = request.maxPredictionTokens
+            TabbyLogger.suggestion.debug("Foundation model generating: prompt=\(promptBytes) bytes, max_tokens=\(maxTokens)")
             let startTime = Date()
             let prompt = FoundationModelPromptRenderer.prompt(for: request)
             // In production, `isAvailable == true` implies `systemLanguageModel` is non-nil because
@@ -67,7 +70,12 @@ final class FoundationModelSuggestionEngine {
             )
 
             let latency = Date().timeIntervalSince(startTime)
-            TabbyLogger.suggestion.debug("Foundation model generated: raw=\(rawSuggestion.count) chars, normalized=\(normalizedSuggestion.count) chars, latency=\(Int(latency * 1000))ms")
+            let rawChars = rawSuggestion.count
+            let normalizedChars = normalizedSuggestion.count
+            let latencyMs = Int(latency * 1000)
+            TabbyLogger.suggestion.debug(
+                "Foundation model generated: raw=\(rawChars) chars, normalized=\(normalizedChars) chars, latency=\(latencyMs)ms"
+            )
             return SuggestionResult(
                 generation: request.generation,
                 rawText: rawSuggestion,
