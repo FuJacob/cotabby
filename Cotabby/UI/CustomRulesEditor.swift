@@ -3,10 +3,10 @@ import SwiftUI
 /// File overview:
 /// Editor for the user's custom autocomplete rules. Rules are short imperative style directives
 /// (e.g. "Use British spelling") shown as removable chips, added freeform or by tapping a suggested
-/// chip. A Reset restores the default-on set.
+/// chip. "Clear" removes every rule (rules are opt-in, so the baseline is empty).
 ///
 /// This is intentionally independent of `TagsInputView`: it needs suggested-chip behavior, a cap,
-/// and a reset affordance that the generic tags input does not provide.
+/// and a clear affordance that the generic tags input does not provide.
 struct CustomRulesEditor: View {
     @ObservedObject var suggestionSettings: SuggestionSettingsModel
 
@@ -34,7 +34,7 @@ struct CustomRulesEditor: View {
                 Spacer()
                 if canClear {
                     Button("Clear") {
-                        suggestionSettings.resetRules()
+                        suggestionSettings.clearRules()
                     }
                     .buttonStyle(.plain)
                     .font(.system(size: 12))

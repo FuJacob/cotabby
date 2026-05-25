@@ -5,7 +5,8 @@ import Foundation
 /// add as tags. A rule is one clause of the same shape as the prompt's built-in rules (e.g.
 /// "Never use em dashes"), so the renderers can emit each as a single bullet.
 ///
-/// `defaultRules` ship enabled and are what the Reset action restores. `suggestedPalette` is the
+/// `defaultRules` is the baseline the editor's "Clear" action restores (currently empty — rules are
+/// opt-in). `suggestedPalette` is the
 /// broader set surfaced as tappable chips so users are never staring at a blank box. `normalize`
 /// is the single chokepoint that keeps stored rules bounded and de-duplicated regardless of whether
 /// they came from onboarding, settings, the palette, or a future import path.

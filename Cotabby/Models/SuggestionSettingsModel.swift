@@ -95,8 +95,12 @@ final class SuggestionSettingsModel: ObservableObject {
             userDefaults.string(forKey: Self.userNameDefaultsKey) ?? ""
         }
 
-        // Absent key means a fresh install: seed the default-on rules. A present (even empty) value
-        // means the user has touched their rules — including clearing them — so we honor it verbatim.
+        // Absent key means a fresh install: seed the baseline rules (currently empty — rules are
+        // opt-in). A present (even empty) value means the user has touched their rules — including
+        // clearing them — so we honor it verbatim. Note: the unconditional persist below writes the
+        // seeded value back, so the absent/present distinction only matters on the very first launch;
+        // if `defaultRules` is ever made non-empty, seed before that first write or existing users
+        // (already holding `[]`) won't receive the new defaults.
         let resolvedCustomRules: [String] = if userDefaults.object(forKey: Self.customRulesDefaultsKey) == nil {
             CustomRulesCatalog.defaultRules
         } else {
@@ -381,8 +385,10 @@ final class SuggestionSettingsModel: ObservableObject {
         setRules(customRules.filter { $0 != rule })
     }
 
-    /// Restores the default-on rule set. "Reset" means "back to defaults," not "clear to empty."
-    func resetRules() {
+    /// Restores the baseline rule set, which is currently empty (rules are opt-in). See
+    /// `CustomRulesCatalog.defaultRules`. Named for the UI affordance ("Clear"): if that baseline is
+    /// ever made non-empty, revisit this name and the editor's button label together.
+    func clearRules() {
         setRules(CustomRulesCatalog.defaultRules)
     }
 
