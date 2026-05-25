@@ -18,6 +18,7 @@ struct SettingsView: View {
     @ObservedObject var foundationModelAvailabilityService: FoundationModelAvailabilityService
     @ObservedObject var runtimeModel: RuntimeBootstrapModel
     @ObservedObject var modelDownloadManager: ModelDownloadManager
+    @ObservedObject var huggingFaceSearchService: HuggingFaceSearchService
 
     let onShowWelcome: () -> Void
 
@@ -458,6 +459,12 @@ struct SettingsView: View {
             }
 
             DownloadableModelCatalogView(
+                modelDownloadManager: modelDownloadManager,
+                onRefreshModels: refreshModels
+            )
+
+            HuggingFaceModelBrowserView(
+                searchService: huggingFaceSearchService,
                 modelDownloadManager: modelDownloadManager,
                 onRefreshModels: refreshModels
             )
