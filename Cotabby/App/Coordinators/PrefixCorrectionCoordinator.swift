@@ -50,6 +50,11 @@ final class PrefixCorrectionCoordinator {
     /// with the corrected text" without burning another LLM call.
     private var lastSubmittedPrefix: [String: String] = [:]
 
+    /// Debug-only hook fired right after a correction is written, with the original prefix and the
+    /// accepted replacement. Set by app composition only when the debug overlay is active; nil
+    /// otherwise so production does no extra work.
+    var onCorrectionApplied: (@MainActor (_ original: String, _ corrected: String) -> Void)?
+
     init(
         focusModel: any SuggestionFocusProviding,
         correctionEngine: any PrefixCorrecting,
@@ -177,6 +182,7 @@ final class PrefixCorrectionCoordinator {
         lastSubmittedPrefix[bundleKey] = accepted
 
         _ = writer.replacePrefix(originalLength: originalLength, with: accepted)
+        onCorrectionApplied?(originalPrefix, accepted)
     }
 
     // MARK: - Gating

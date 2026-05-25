@@ -193,6 +193,14 @@ final class CotabbyAppEnvironment {
             ? FocusDebugOverlayController()
             : nil
 
+        // Surface prefix auto-corrections in the debug overlay when it's active. Production builds
+        // leave the hook nil so no extra work happens per correction.
+        if let focusDebugOverlayController = self.focusDebugOverlayController {
+            prefixCorrectionCoordinator.onCorrectionApplied = { [weak focusDebugOverlayController] original, corrected in
+                focusDebugOverlayController?.recordAutoCorrect(original: original, corrected: corrected)
+            }
+        }
+
         // Update the AX polling timer whenever the user changes the poll interval setting.
         suggestionSettings.$focusPollIntervalMilliseconds
             .removeDuplicates()
