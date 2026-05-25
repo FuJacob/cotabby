@@ -27,18 +27,18 @@ final class SuggestionEngineRouter {
     func generateSuggestion(for request: SuggestionRequest) async throws -> SuggestionResult {
         switch suggestionSettings.selectedEngine {
         case .appleIntelligence:
-            TabbyLogger.suggestion.debug("Routing to Apple Intelligence engine")
+            CotabbyLogger.suggestion.debug("Routing to Apple Intelligence engine")
             do {
                 return try await foundationModelEngine.generateSuggestion(for: request)
             } catch SuggestionClientError.unsupportedLanguageOrLocale(let message) {
-                TabbyLogger.suggestion.info("Apple Intelligence unsupported for locale, falling back to open-source: \(message)")
+                CotabbyLogger.suggestion.info("Apple Intelligence unsupported for locale, falling back to open-source: \(message)")
                 return try await generateOpenSourceFallback(
                     for: request,
                     appleFailureMessage: message
                 )
             }
         case .llamaOpenSource:
-            TabbyLogger.suggestion.debug("Routing to open-source llama engine")
+            CotabbyLogger.suggestion.debug("Routing to open-source llama engine")
             return try await llamaEngine.generateSuggestion(for: request)
         case .mlxSwift:
             return try await mlxEngine.generateSuggestion(for: request)
@@ -87,7 +87,7 @@ final class UnavailableSuggestionEngine: SuggestionGenerating {
     }
 
     func generateSuggestion(for request: SuggestionRequest) async throws -> SuggestionResult {
-        TabbyLogger.suggestion.warning("Engine unavailable: \(self.message)")
+        CotabbyLogger.suggestion.warning("Engine unavailable: \(self.message)")
         throw SuggestionClientError.unavailable(message)
     }
 

@@ -55,7 +55,7 @@ struct WindowScreenshotService {
         let processIdentifier = pid_t(context.processIdentifier)
 
         guard CGPreflightScreenCaptureAccess() else {
-            TabbyLogger.app.warning("Screenshot blocked: Screen Recording permission missing")
+            CotabbyLogger.app.warning("Screenshot blocked: Screen Recording permission missing")
             throw WindowScreenshotError.screenRecordingPermissionMissing
         }
 
@@ -69,13 +69,13 @@ struct WindowScreenshotService {
             })
 
         guard let matchingWindow else {
-            TabbyLogger.app.debug("No visible window for pid \(processIdentifier)")
+            CotabbyLogger.app.debug("No visible window for pid \(processIdentifier)")
             throw WindowScreenshotError.noVisibleWindowForProcess(processIdentifier)
         }
         let windowTitle = matchingWindow.title ?? "untitled"
         let windowWidth = Int(matchingWindow.frame.width)
         let windowHeight = Int(matchingWindow.frame.height)
-        TabbyLogger.app.trace("Capturing window: \(windowTitle) (\(windowWidth)x\(windowHeight))")
+        CotabbyLogger.app.trace("Capturing window: \(windowTitle) (\(windowWidth)x\(windowHeight))")
 
         let sourceRect = snapshotRect(
             around: context,

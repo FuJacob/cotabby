@@ -51,7 +51,7 @@ final class FocusTracker {
             return
         }
 
-        TabbyLogger.focus.info("Focus polling started at \(Int(self.pollInterval * 1000))ms interval")
+        CotabbyLogger.focus.info("Focus polling started at \(Int(self.pollInterval * 1000))ms interval")
         refreshNow()
 
         let timer = Timer(timeInterval: pollInterval, repeats: true) { [weak self] _ in
@@ -65,7 +65,7 @@ final class FocusTracker {
 
     /// Stops polling while leaving the most recent snapshot available to callers.
     func stop() {
-        TabbyLogger.focus.info("Focus polling stopped")
+        CotabbyLogger.focus.info("Focus polling stopped")
         timer?.invalidate()
         timer = nil
     }
@@ -76,7 +76,7 @@ final class FocusTracker {
             return
         }
 
-        TabbyLogger.focus.info("Focus poll interval changed to \(Int(interval * 1000))ms")
+        CotabbyLogger.focus.info("Focus poll interval changed to \(Int(interval * 1000))ms")
         pollInterval = interval
 
         // Only restart if a timer is already running.

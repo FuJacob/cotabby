@@ -188,7 +188,7 @@ extension SuggestionCoordinator {
         reason: String,
         clearDiagnostics: Bool = true
     ) {
-        TabbyLogger.suggestion.debug("Invalidating active suggestion: \(reason)")
+        CotabbyLogger.suggestion.debug("Invalidating active suggestion: \(reason)")
         cancelPredictionWork()
         clearSuggestion(clearDiagnostics: clearDiagnostics)
         hideOverlay(reason: reason)

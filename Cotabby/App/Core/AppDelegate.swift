@@ -34,7 +34,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var cancellables = Set<AnyCancellable>()
 
     override init() {
-        TabbyLogger.bootstrap()
+        CotabbyLogger.bootstrap()
 
         // Build the dependency graph once up front so every scene/view observes the same
         // long-lived objects for the entire app session. `CotabbyAppEnvironment` is a composition
@@ -116,7 +116,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
-        TabbyLogger.app.info("Tabby \(version) (build \(build)) launching on macOS \(ProcessInfo.processInfo.operatingSystemVersionString)")
+        CotabbyLogger.app.info("Cotabby \(version) (build \(build)) launching on macOS \(ProcessInfo.processInfo.operatingSystemVersionString)")
         startRuntimeIfPreferredEngineRequiresIt()
         focusModel.start()
         inputMonitor.start()
@@ -124,7 +124,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         suggestionCoordinator.start()
         welcomeCoordinator.presentIfNeeded()
         welcomeCoordinator.presentPermissionReminderIfNeeded()
-        TabbyLogger.app.info("All services started")
+        CotabbyLogger.app.info("All services started")
     }
 
     /// Synchronously releases native runtime resources before AppKit calls `exit()`.
@@ -142,7 +142,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// generation is genuinely stuck, we accept the small risk of the original ggml crash over
     /// the larger UX bug of a broken permission flow.
     func applicationWillTerminate(_ notification: Notification) {
-        TabbyLogger.app.info("Cotabby terminating, releasing services")
+        CotabbyLogger.app.info("Cotabby terminating, releasing services")
         activationIndicatorController.hide(reason: "Activation indicator hidden because Cotabby is terminating.")
         focusDebugOverlayController?.hide()
         suggestionCoordinator.stop()

@@ -106,12 +106,14 @@ redirect before all users have updated to a version with the new feed URL
 would silently break OTA updates. Users would never see new versions.
 
 **Future migration path (when ready):**
-1. Confirm `updates.tabbyapp.dev` → `updates.cotabby.app` redirect is live
-   (already done).
-2. Ship a release with `SUFeedURL` changed to
-   `https://updates.cotabby.app/appcast.xml` in `CotabbyInfo.plist`.
-3. Keep the `tabbyapp.dev` redirect alive for at least 6 months to catch
-   users who don't update immediately.
+1. ✅ Confirm `updates.tabbyapp.dev` → `updates.cotabby.app` redirect is live
+   (done).
+2. ✅ Ship a release with `SUFeedURL` changed to
+   `https://updates.cotabby.app/appcast.xml` in `CotabbyInfo.plist` (done — the
+   `SUFeedURL` now points at `updates.cotabby.app`; takes effect on the next
+   tagged release).
+3. ⏳ Keep the `tabbyapp.dev` redirect alive for at least 6 months to catch
+   users who don't update immediately. **Do not retire it yet.**
 4. After sufficient time, retire `updates.tabbyapp.dev`.
 
 ### Sparkle Signing Key
@@ -128,15 +130,16 @@ OTA updates for every existing install:
 Rotating this key means every previously-shipped build will reject all
 future updates as untrusted.
 
-### Logger Subsystem: `com.tabby.*`
+### Logger Subsystem: `com.tabby.*` → `com.cotabby.*` ✅ DONE
 
 The `TabbyLogger` enum and its `com.tabby.app`, `com.tabby.runtime`, etc.
-subsystem strings are still in place. These appear in Console.app as
-filterable subsystem identifiers.
+subsystem strings have been renamed to `CotabbyLogger` and `com.cotabby.*`.
+These appear in Console.app as filterable subsystem identifiers.
 
-**What would break:** Changing these is low-risk for users but would break
-any developer's Console.app saved filters. This is a candidate for a future
-rename if desired — it has no user-facing impact.
+This had no user-facing impact (the only cost was invalidating any developer's
+Console.app saved filters keyed to the old subsystem), so it was completed as
+part of the rename cleanup. `FileLogHandler.category(from:)` derives the
+category from the third dotted component, so it keeps working unchanged.
 
 ### PAGES_CUSTOM_DOMAIN: `updates.tabbyapp.dev`
 
@@ -149,48 +152,42 @@ Pages deployment.
 workflow still writes `updates.tabbyapp.dev` — this will be overwritten on
 the next release unless updated.
 
-**Action needed before next release:** Update `PAGES_CUSTOM_DOMAIN` in
-`release.yml` to `updates.cotabby.app` so the release workflow deploys
-Pages under the correct domain. This is safe because the
-`tabbyapp.dev` redirect handles old installs.
+**✅ DONE:** `PAGES_CUSTOM_DOMAIN` in `release.yml` (and the
+`republish-pages.yml` default) now point at `updates.cotabby.app`, so the
+release workflow deploys Pages under the correct domain and no longer reverts
+it. This is safe because the `tabbyapp.dev` redirect handles old installs.
 
 ---
 
-## Not Yet Renamed (Follow-Up Candidates)
+## Follow-Up Candidates
 
-These are low-priority items that could be renamed in future PRs without
-breaking anything for users.
+These are low-priority items renamed without breaking anything for users.
 
-### `TabbyLogger` → `CotabbyLogger`
+### `TabbyLogger` → `CotabbyLogger` ✅ DONE
 
-The logger factory enum is named `TabbyLogger` and is referenced across 25
-source files (86 occurrences). Renaming is purely cosmetic and can be done
-as a bulk find-and-replace.
+The logger factory enum has been renamed from `TabbyLogger` to `CotabbyLogger`
+across all source and test files. Purely cosmetic — no runtime or persistence
+impact.
 
-### `AppDelegate.swift` Log Message
+### `AppDelegate.swift` Log Message ✅ DONE
 
-Line 117 still says `"Tabby \(version) (build \(build))..."` — should say
-`"Cotabby"`.
+The launch log line now reads `"Cotabby \(version) (build \(build))..."`.
 
-### LlamaMiddleware / `TabbyInference` Package
+### LlamaMiddleware / `TabbyInference` Package ✅ DONE
 
-The local Swift package at `../LlamaMiddleware` exports a product called
-`TabbyInference`. This is a separate repository — renaming it requires:
-1. Rename the product in `LlamaMiddleware/Package.swift`
-2. Update `import TabbyInference` in `LlamaRuntimeCore.swift`
-3. Update `TabbyInference` references in `Cotabby.xcodeproj/project.pbxproj`
+The inference dependency was replaced with `CotabbyInference` (see the
+"Rename project to Cotabby and replace LlamaSwift with CotabbyInference"
+change). No remaining `TabbyInference` references exist in the app target.
 
 No user impact — this is a build-time dependency name only.
 
-### Archived Marketing Text
+### Archived Marketing Text ✅ DONE
 
-`posts.txt` and `launch.txt` in the repo root contain old "Tabby" marketing
-copy. Can be updated or deleted.
+`posts.txt` and `launch.txt` are no longer present in the repo root.
 
-### Old `tabby.xcodeproj` Skeleton
+### Old `tabby.xcodeproj` Skeleton ✅ DONE
 
-An empty `tabby.xcodeproj/` directory may remain in the working tree with
-leftover `xcuserdata/`. Safe to delete — it's not tracked by git.
+No `tabby.xcodeproj/` directory remains in the working tree.
 
 ---
 

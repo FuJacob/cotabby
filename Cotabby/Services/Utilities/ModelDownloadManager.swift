@@ -124,17 +124,17 @@ final class ModelDownloadManager: ObservableObject {
 
     func download(_ model: DownloadableRuntimeModel) {
         guard downloadTasks[model.filename] == nil else {
-            TabbyLogger.models.debug("Download already in progress for \(model.filename)")
+            CotabbyLogger.models.debug("Download already in progress for \(model.filename)")
             return
         }
 
         if isInstalled(model: model) {
-            TabbyLogger.models.debug("Model \(model.filename) already installed, skipping download")
+            CotabbyLogger.models.debug("Model \(model.filename) already installed, skipping download")
             modelStates[model.filename] = .downloaded
             return
         }
 
-        TabbyLogger.models.info("Starting download for \(model.filename)")
+        CotabbyLogger.models.info("Starting download for \(model.filename)")
         modelStates[model.filename] = .downloading(progress: 0)
         let task = Task { [weak self] in
             guard let self else {
@@ -219,7 +219,7 @@ final class ModelDownloadManager: ObservableObject {
             refreshModelStates()
             onModelDirectoryChanged?()
         } catch {
-            TabbyLogger.models.error("Failed to delete model \(filename): \(error.localizedDescription)")
+            CotabbyLogger.models.error("Failed to delete model \(filename): \(error.localizedDescription)")
         }
     }
 
@@ -236,15 +236,15 @@ final class ModelDownloadManager: ObservableObject {
                 try await performMultiFileDownload(model, files: files)
             }
 
-            TabbyLogger.models.info("Download complete for \(model.filename)")
+            CotabbyLogger.models.info("Download complete for \(model.filename)")
             modelStates[model.filename] = .downloaded
             onModelDirectoryChanged?()
         } catch {
             if DownloadOutcomeClassifier.isUserCancellation(error) {
-                TabbyLogger.models.info("Download cancelled by user for \(model.filename)")
+                CotabbyLogger.models.info("Download cancelled by user for \(model.filename)")
                 modelStates[model.filename] = isInstalled(model: model) ? .downloaded : .idle
             } else {
-                TabbyLogger.models.error("Download failed for \(model.filename): \(error.localizedDescription)")
+                CotabbyLogger.models.error("Download failed for \(model.filename): \(error.localizedDescription)")
                 modelStates[model.filename] = .failed(error.localizedDescription)
             }
         }
