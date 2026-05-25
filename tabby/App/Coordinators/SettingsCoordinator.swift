@@ -17,6 +17,7 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
     private let suggestionSettings: SuggestionSettingsModel
     private let foundationModelAvailabilityService: FoundationModelAvailabilityService
     private let runtimeModel: RuntimeBootstrapModel
+    private let mlxRuntimeManager: MLXRuntimeManager
     private let modelDownloadManager: ModelDownloadManager
     private let onShowWelcome: () -> Void
 
@@ -29,6 +30,7 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
         suggestionSettings: SuggestionSettingsModel,
         foundationModelAvailabilityService: FoundationModelAvailabilityService,
         runtimeModel: RuntimeBootstrapModel,
+        mlxRuntimeManager: MLXRuntimeManager,
         modelDownloadManager: ModelDownloadManager,
         onShowWelcome: @escaping () -> Void
     ) {
@@ -38,6 +40,7 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
         self.suggestionSettings = suggestionSettings
         self.foundationModelAvailabilityService = foundationModelAvailabilityService
         self.runtimeModel = runtimeModel
+        self.mlxRuntimeManager = mlxRuntimeManager
         self.modelDownloadManager = modelDownloadManager
         self.onShowWelcome = onShowWelcome
     }
@@ -60,6 +63,7 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
                 suggestionSettings: suggestionSettings,
                 foundationModelAvailabilityService: foundationModelAvailabilityService,
                 runtimeModel: runtimeModel,
+                mlxRuntimeManager: mlxRuntimeManager,
                 modelDownloadManager: modelDownloadManager,
                 onShowWelcome: onShowWelcome
             )

@@ -1,7 +1,8 @@
 import Foundation
 
 /// File overview:
-/// Resolves which GGUF assets Tabby should load from user-managed local storage.
+/// Resolves which local model assets Tabby should load from user-managed storage.
+/// Supports both single-file GGUF models and directory-based MLX models.
 /// This keeps startup deterministic while ensuring large model files are never required in the app bundle.
 ///
 enum BundledRuntimeLocatorError: LocalizedError {
@@ -21,9 +22,9 @@ enum BundledRuntimeLocatorError: LocalizedError {
     }
 }
 
-/// Resolves locally installed GGUF assets from user-writable runtime directories.
-/// The folder name is still `LlamaRuntime` for now, but it is model storage only.
-/// Tabby links llama.cpp in-process through `llama.swift`; it no longer launches a server.
+/// Resolves locally installed model assets from user-writable runtime directories.
+/// GGUF models are single files in `LlamaRuntime/`; MLX models are subdirectories
+/// in `MLXRuntime/` containing `config.json` and `.safetensors` weight files.
 struct BundledRuntimeLocator {
     private struct RuntimeCandidate {
         let runtimeDirectoryURL: URL
@@ -31,6 +32,7 @@ struct BundledRuntimeLocator {
     }
 
     static let runtimeFolderName = "LlamaRuntime"
+    static let mlxRuntimeFolderName = "MLXRuntime"
 
     let bundle: Bundle
 
@@ -54,10 +56,30 @@ struct BundledRuntimeLocator {
             .appendingPathComponent(Self.runtimeFolderName, isDirectory: true)
     }
 
+    /// Returns the user-writable directory for MLX model storage.
+    static func mlxRuntimeDirectoryURL(bundle: Bundle = .main) -> URL {
+        let appSupportRoot =
+            FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
+            .appendingPathComponent("Library", isDirectory: true)
+            .appendingPathComponent("Application Support", isDirectory: true)
+        let appFolderName =
+            (bundle.object(forInfoDictionaryKey: "CFBundleName") as? String) ?? "Tabby"
+        return
+            appSupportRoot
+            .appendingPathComponent(appFolderName, isDirectory: true)
+            .appendingPathComponent(Self.mlxRuntimeFolderName, isDirectory: true)
+    }
+
     /// Ordered runtime search directories used to discover GGUF files.
     /// This mirrors runtime resolution order and is shared by model-install status checks.
     static func runtimeSearchDirectories(bundle: Bundle = .main) -> [URL] {
         [userRuntimeDirectoryURL(bundle: bundle)]
+    }
+
+    /// Search directories for MLX model discovery.
+    static func mlxRuntimeSearchDirectories(bundle: Bundle = .main) -> [URL] {
+        [mlxRuntimeDirectoryURL(bundle: bundle)]
     }
 
     /// Finds the first preferred local model that exists and returns the fully resolved runtime asset paths.
@@ -188,7 +210,8 @@ struct BundledRuntimeLocator {
             uniqueKeysWithValues: discoveredModelURLs.map { modelURL in
                 let option = RuntimeModelOption(
                     filename: modelURL.lastPathComponent,
-                    url: modelURL
+                    url: modelURL,
+                    format: .gguf
                 )
                 return (option.filename, option)
             })
@@ -213,7 +236,8 @@ struct BundledRuntimeLocator {
             .map { modelURL in
                 RuntimeModelOption(
                     filename: modelURL.lastPathComponent,
-                    url: modelURL
+                    url: modelURL,
+                    format: .gguf
                 )
             }
             .sorted { lhs, rhs in
@@ -246,5 +270,80 @@ struct BundledRuntimeLocator {
             modelFileURL: modelOption.url,
             modelDisplayName: modelOption.displayName
         )
+    }
+
+    // MARK: - MLX Model Discovery
+
+    /// Discovers MLX models installed as subdirectories containing `config.json`
+    /// and at least one `.safetensors` weight file.
+    func availableMLXModels(preferredModelNames: [String] = []) -> [RuntimeModelOption] {
+        let directoryURL = Self.mlxRuntimeDirectoryURL(bundle: bundle)
+        let fileManager = FileManager.default
+        var isDirectory = ObjCBool(false)
+
+        guard
+            fileManager.fileExists(atPath: directoryURL.path, isDirectory: &isDirectory),
+            isDirectory.boolValue
+        else {
+            return []
+        }
+
+        guard
+            let contents = try? fileManager.contentsOfDirectory(
+                at: directoryURL,
+                includingPropertiesForKeys: [.isDirectoryKey],
+                options: [.skipsHiddenFiles]
+            )
+        else {
+            return []
+        }
+
+        let validModelDirs = contents.filter { url in
+            var isDirFlag = ObjCBool(false)
+            guard fileManager.fileExists(atPath: url.path, isDirectory: &isDirFlag),
+                isDirFlag.boolValue
+            else {
+                return false
+            }
+            let configExists = fileManager.fileExists(
+                atPath: url.appendingPathComponent("config.json").path
+            )
+            let hasSafetensors = (try? fileManager.contentsOfDirectory(
+                at: url, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]
+            ))?.contains { $0.pathExtension == "safetensors" } ?? false
+            return configExists && hasSafetensors
+        }
+
+        guard !validModelDirs.isEmpty else { return [] }
+
+        let optionsByName = Dictionary(
+            uniqueKeysWithValues: validModelDirs.map { dirURL in
+                let option = RuntimeModelOption(
+                    filename: dirURL.lastPathComponent,
+                    url: dirURL,
+                    format: .mlx
+                )
+                return (option.filename, option)
+            }
+        )
+
+        var ordered: [RuntimeModelOption] = []
+        var seen = Set<String>()
+
+        for name in preferredModelNames {
+            if let option = optionsByName[name], seen.insert(name).inserted {
+                ordered.append(option)
+            }
+        }
+
+        let sorted = validModelDirs
+            .map { RuntimeModelOption(filename: $0.lastPathComponent, url: $0, format: .mlx) }
+            .sorted { $0.filename.localizedCaseInsensitiveCompare($1.filename) == .orderedAscending }
+
+        for option in sorted where seen.insert(option.filename).inserted {
+            ordered.append(option)
+        }
+
+        return ordered
     }
 }

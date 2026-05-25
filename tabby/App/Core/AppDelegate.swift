@@ -16,6 +16,7 @@ import os
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let permissionManager: PermissionManager
     let runtimeModel: RuntimeBootstrapModel
+    let mlxRuntimeManager: MLXRuntimeManager
     let modelDownloadManager: ModelDownloadManager
     let focusModel: FocusTrackingModel
     let inputMonitor: InputMonitor
@@ -39,6 +40,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let environment = TabbyAppEnvironment()
         permissionManager = environment.permissionManager
         runtimeModel = environment.runtimeModel
+        mlxRuntimeManager = environment.mlxRuntimeManager
         modelDownloadManager = environment.modelDownloadManager
         focusModel = environment.focusModel
         inputMonitor = environment.inputMonitor
@@ -151,6 +153,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         Task.detached {
             await self.runtimeModel.stopAndWait()
+            await self.mlxRuntimeManager.stopAndWait()
             await MainActor.run { replyOnce() }
         }
 
@@ -181,14 +184,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
     }
 
-    /// Warm the local runtime only when the user is actually on the open-source engine path.
+    /// Warm the local runtime only when the user is actually on a local engine path.
     /// This avoids noisy startup failures and wasted work for Apple Intelligence users.
     private func startRuntimeIfPreferredEngineRequiresIt() {
-        guard suggestionSettings.selectedEngine == .llamaOpenSource else {
-            return
+        switch suggestionSettings.selectedEngine {
+        case .llamaOpenSource:
+            runtimeModel.startIfNeeded()
+        case .mlxSwift:
+            Task { try? await mlxRuntimeManager.prepare() }
+        case .appleIntelligence:
+            break
         }
-
-        runtimeModel.startIfNeeded()
     }
 
     /// Model availability can change after downloads or manual file drops. Re-scan first, then
