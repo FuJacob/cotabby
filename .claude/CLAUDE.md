@@ -1,6 +1,6 @@
-# Claude Instructions for Tabby
+# Claude Instructions for Cotabby
 
-Tabby is a community-driven open-source macOS menu bar app that provides
+Cotabby is a community-driven open-source macOS menu bar app that provides
 on-device inline autocomplete in any text field. It watches Accessibility focus,
 monitors global input, generates a local continuation through Apple Intelligence
 or llama.cpp, renders ghost text near the caret, and inserts accepted text when
@@ -11,7 +11,7 @@ change as shipping to end users, not as an exercise.
 
 ## How To Work In This Repo
 
-- Read the relevant subsystem before editing. Tabby is stateful, permission-heavy,
+- Read the relevant subsystem before editing. Cotabby is stateful, permission-heavy,
   and tied to macOS Accessibility behavior, so guessing usually creates regressions.
 - Talk through architecture before coding when ownership, lifecycle, or async
   cancellation is unclear.
@@ -23,21 +23,21 @@ change as shipping to end users, not as an exercise.
 
 ## Project Map
 
-- `tabby/App/`: app lifecycle, dependency construction, and coordinators.
-- `tabby/UI/`: SwiftUI/AppKit presentation such as settings, onboarding, overlays,
+- `Cotabby/App/`: app lifecycle, dependency construction, and coordinators.
+- `Cotabby/UI/`: SwiftUI/AppKit presentation such as settings, onboarding, overlays,
   and menu-facing state.
-- `tabby/Services/`: side-effectful boundaries: Accessibility, input monitoring,
+- `Cotabby/Services/`: side-effectful boundaries: Accessibility, input monitoring,
   screenshots/OCR, llama runtime, permissions, downloads, updates, and insertion.
-- `tabby/Models/`: shared value types, settings snapshots, state machines, and
+- `Cotabby/Models/`: shared value types, settings snapshots, state machines, and
   protocol contracts.
-- `tabby/Support/`: pure rules and low-level helper logic that should be easy to
+- `Cotabby/Support/`: pure rules and low-level helper logic that should be easy to
   test.
-- `tabbyTests/`: focused tests for prompt rendering, request building, availability,
+- `CotabbyTests/`: focused tests for prompt rendering, request building, availability,
   runtime behavior, and pure state transitions.
 
 ## Key Subsystems
 
-- App ownership starts in `TabbyAppEnvironment` and `AppDelegate`. These construct
+- App ownership starts in `CotabbyAppEnvironment` and `AppDelegate`. These construct
   and retain the long-lived services. SwiftUI views should observe this graph,
   not recreate service objects.
 - The suggestion state machine lives in `SuggestionCoordinator` plus its extension
@@ -65,12 +65,12 @@ change as shipping to end users, not as an exercise.
 ## Contributing Workflow
 
 - External contributors open PRs against `main`. Greptile reviews automatically.
-- New test files in `tabbyTests/` must be manually registered in
-  `tabby.xcodeproj/project.pbxproj` (the `tabby/` source group auto-discovers
-  files, but `tabbyTests/` uses manual PBXGroup entries).
+- New test files in `CotabbyTests/` must be manually registered in
+  `Cotabby.xcodeproj/project.pbxproj` (the `Cotabby/` source group auto-discovers
+  files, but `CotabbyTests/` uses manual PBXGroup entries).
 - Run SwiftLint before pushing: `swiftlint lint --quiet`. The project config is
   in `.swiftlint.yml` (line length 140/200, trailing commas disallowed).
-- Wiki lives at https://github.com/FuJacob/tabby/wiki for contributor onboarding.
+- Wiki lives at https://github.com/FuJacob/Cotabby/wiki for contributor onboarding.
 
 ## GitHub Automation Rules
 
@@ -100,8 +100,8 @@ Prefer the narrowest useful validation first, then broaden when the change touch
 shared behavior:
 
 ```bash
-xcodebuild -project tabby.xcodeproj -scheme tabby -destination 'platform=macOS' build
-xcodebuild -project tabby.xcodeproj -scheme tabby -destination 'platform=macOS' build-for-testing
+xcodebuild -project Cotabby.xcodeproj -scheme Cotabby -destination 'platform=macOS' build
+xcodebuild -project Cotabby.xcodeproj -scheme Cotabby -destination 'platform=macOS' build-for-testing
 ```
 
 Run targeted tests when possible. If app-hosted tests fail because of local signing

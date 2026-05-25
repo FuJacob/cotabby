@@ -4,12 +4,12 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-DERIVED_DATA="/tmp/TabbyDerivedData"
-APP_PATH="$DERIVED_DATA/Build/Products/Debug/tabby.app"
-OUTPUT_PATH="/tmp/tabby-test.dmg"
+DERIVED_DATA="/tmp/CotabbyDerivedData"
+APP_PATH="$DERIVED_DATA/Build/Products/Debug/Cotabby.app"
+OUTPUT_PATH="/tmp/Cotabby-test.dmg"
 BACKGROUND="$REPO_ROOT/assets/release/dmg_background.png"
 BACKGROUND_2X="$REPO_ROOT/assets/release/dmg_background@2x.png"
-VENV_DIR="/tmp/tabby-dmg-venv"
+VENV_DIR="/tmp/Cotabby-dmg-venv"
 VENV_PY="$VENV_DIR/bin/python3"
 
 # Ensure dmgbuild is available in an isolated venv.
@@ -27,10 +27,10 @@ fi
 
 # Build the app if the bundle is missing.
 if [ ! -d "$APP_PATH" ]; then
-    echo "tabby.app not found, building..."
+    echo "Cotabby.app not found, building..."
     xcodebuild \
-        -project "$REPO_ROOT/tabby.xcodeproj" \
-        -scheme tabby \
+        -project "$REPO_ROOT/Cotabby.xcodeproj" \
+        -scheme Cotabby \
         -configuration Debug \
         -derivedDataPath "$DERIVED_DATA" \
         build
@@ -43,12 +43,12 @@ echo "Stripping quarantine and ad-hoc signing..."
 xattr -cr "$APP_PATH"
 codesign --force --deep --sign - "$APP_PATH"
 
-# Eject any stale tabby volumes before building so the DMG mounts cleanly.
-# The DS_Store background path is absolute: if it mounts as /Volumes/tabby 2/
+# Eject any stale Cotabby volumes before building so the DMG mounts cleanly.
+# The DS_Store background path is absolute: if it mounts as /Volumes/Cotabby 2/
 # the background reference breaks and Finder shows a blank window.
 while IFS= read -r vol; do
     hdiutil detach "$vol" -quiet 2>/dev/null && echo "Ejected $vol"
-done < <(ls /Volumes/ 2>/dev/null | grep -i "^tabby" | sed 's|^|/Volumes/|')
+done < <(ls /Volumes/ 2>/dev/null | grep -i "^Cotabby" | sed 's|^|/Volumes/|')
 
 echo "Building DMG..."
 "$VENV_PY" "$REPO_ROOT/scripts/build_release_dmg.py" \
@@ -56,7 +56,7 @@ echo "Building DMG..."
     --output-path "$OUTPUT_PATH" \
     --background-path "$BACKGROUND" \
     --background-2x-path "$BACKGROUND_2X" \
-    --volume-name "tabby"
+    --volume-name "Cotabby"
 
 # Strip quarantine from the output DMG itself.
 xattr -cr "$OUTPUT_PATH"

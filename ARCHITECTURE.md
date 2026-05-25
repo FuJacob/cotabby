@@ -1,6 +1,6 @@
-# tabby Architecture
+# Cotabby Architecture
 
-This document is the maintainer map for tabby. Read this before making changes to the suggestion
+This document is the maintainer map for Cotabby. Read this before making changes to the suggestion
 pipeline, Accessibility integration, or runtime lifecycle.
 
 If you are new to Swift or macOS APIs, treat this file as the system-level map and follow the
@@ -8,7 +8,7 @@ linked source files in order rather than hunting through the project tree at ran
 
 ## System Shape
 
-tabby is a macOS menu bar app with one long-lived dependency graph and one main product loop:
+Cotabby is a macOS menu bar app with one long-lived dependency graph and one main product loop:
 
 1. Resolve the currently focused editable field through Accessibility.
 2. Watch keyboard input globally.
@@ -20,21 +20,21 @@ tabby is a macOS menu bar app with one long-lived dependency graph and one main 
 
 The key design rule is separation by responsibility:
 
-- `tabby/App/`: lifecycle owners and composition root.
-- `tabby/UI/`: SwiftUI presentation only.
-- `tabby/Services/`: side effects, async work, and OS/runtime boundaries.
-- `tabby/Models/`: shared value types and contracts.
-- `tabby/Support/`: pure rules and low-level bridging helpers.
+- `Cotabby/App/`: lifecycle owners and composition root.
+- `Cotabby/UI/`: SwiftUI presentation only.
+- `Cotabby/Services/`: side effects, async work, and OS/runtime boundaries.
+- `Cotabby/Models/`: shared value types and contracts.
+- `Cotabby/Support/`: pure rules and low-level bridging helpers.
 
 ## Lifecycle Ownership
 
 Start with these files in order:
 
-1. `tabby/App/Core/TabbyApp.swift`
-2. `tabby/App/Core/AppDelegate.swift`
-3. `tabby/App/Core/TabbyAppEnvironment.swift`
+1. `Cotabby/App/Core/CotabbyApp.swift`
+2. `Cotabby/App/Core/AppDelegate.swift`
+3. `Cotabby/App/Core/CotabbyAppEnvironment.swift`
 
-`TabbyAppEnvironment` builds the long-lived object graph once. `AppDelegate` owns app lifecycle and cross-subsystem subscriptions. SwiftUI views observe those objects; they do not create them.
+`CotabbyAppEnvironment` builds the long-lived object graph once. `AppDelegate` owns app lifecycle and cross-subsystem subscriptions. SwiftUI views observe those objects; they do not create them.
 
 This is similar to a React app with a root provider tree plus a small top-level controller that wires subscriptions and startup behavior.
 
@@ -44,11 +44,11 @@ The suggestion subsystem is centered on `SuggestionCoordinator`, but it is no lo
 
 Read the coordinator in this order:
 
-1. `tabby/App/Coordinators/SuggestionCoordinator.swift`
-2. `tabby/App/Coordinators/SuggestionCoordinator+Lifecycle.swift`
-3. `tabby/App/Coordinators/SuggestionCoordinator+Input.swift`
-4. `tabby/App/Coordinators/SuggestionCoordinator+Prediction.swift`
-5. `tabby/App/Coordinators/SuggestionCoordinator+Acceptance.swift`
+1. `Cotabby/App/Coordinators/SuggestionCoordinator.swift`
+2. `Cotabby/App/Coordinators/SuggestionCoordinator+Lifecycle.swift`
+3. `Cotabby/App/Coordinators/SuggestionCoordinator+Input.swift`
+4. `Cotabby/App/Coordinators/SuggestionCoordinator+Prediction.swift`
+5. `Cotabby/App/Coordinators/SuggestionCoordinator+Acceptance.swift`
 
 The coordinator owns:
 
@@ -60,11 +60,11 @@ The coordinator owns:
 
 The coordinator should not own pure decision rules or low-level OS logic. Those live elsewhere:
 
-- `tabby/Support/SuggestionRequestFactory.swift`: pure request building
-- `tabby/Support/SuggestionSessionReconciler.swift`: pure session and acceptance rules
-- `tabby/Support/SuggestionAvailabilityEvaluator.swift`: pure gating logic
-- `tabby/Services/Visual/VisualContextCoordinator.swift`: legacy screenshot/OCR lifecycle (deprecated during context rebuild)
-- `tabby/Services/Runtime/LlamaSuggestionEngine.swift`: prompt/result normalization over the runtime
+- `Cotabby/Support/SuggestionRequestFactory.swift`: pure request building
+- `Cotabby/Support/SuggestionSessionReconciler.swift`: pure session and acceptance rules
+- `Cotabby/Support/SuggestionAvailabilityEvaluator.swift`: pure gating logic
+- `Cotabby/Services/Visual/VisualContextCoordinator.swift`: legacy screenshot/OCR lifecycle (deprecated during context rebuild)
+- `Cotabby/Services/Runtime/LlamaSuggestionEngine.swift`: prompt/result normalization over the runtime
 
 ## Focus And Accessibility
 
@@ -75,7 +75,7 @@ Focus detection is a small pipeline of its own:
 3. `AXTextGeometryResolver` computes caret and text geometry.
 4. `AXHelper` contains the low-level Core Foundation / Accessibility bridging.
 
-If the issue is “tabby does not recognize this field” or “the ghost text is in the wrong place,” start in those files before touching the coordinator.
+If the issue is “Cotabby does not recognize this field” or “the ghost text is in the wrong place,” start in those files before touching the coordinator.
 
 ## Runtime And Models
 

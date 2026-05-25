@@ -1,4 +1,4 @@
-# Initial SwiftLint ruleset for Tabby.
+# Initial SwiftLint ruleset for Cotabby.
 #
 # Deliberately conservative. The goal of the first ruleset is not to enforce
 # a style — it's to catch real footguns (force-unwraps in production code,
@@ -11,16 +11,16 @@
 # every file.
 
 included:
-  - tabby
+  - Cotabby
 
 excluded:
   - .build
   - DerivedData
-  - tabby.xcodeproj
-  - tabby/Resources
+  - Cotabby.xcodeproj
+  - Cotabby/Resources
 
 disabled_rules:
-  # Tabby has a handful of legitimately long files (coordinators, prompt
+  # Cotabby has a handful of legitimately long files (coordinators, prompt
   # renderers). Enforcing a cap is a fight with the architecture, not a
   # stylistic win.
   - file_length

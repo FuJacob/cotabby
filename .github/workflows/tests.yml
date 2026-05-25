@@ -1,6 +1,6 @@
 # PR-time test runner.
 #
-# Runs `xcodebuild test` against the tabby scheme on every PR into main and on
+# Runs `xcodebuild test` against the Cotabby scheme on every PR into main and on
 # every push to main. Fails the check on any test failure. Sibling to the
 # Build and Lint workflows; kept as a separate file so each gate has one
 # clear failure mode.
@@ -56,7 +56,7 @@ jobs:
       - name: Run tests
         run: |
           xcodebuild test \
-            -project tabby.xcodeproj \
-            -scheme tabby \
+            -project Cotabby.xcodeproj \
+            -scheme Cotabby \
             -destination 'platform=macOS' \
             CODE_SIGNING_ALLOWED=NO

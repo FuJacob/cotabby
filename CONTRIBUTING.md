@@ -1,9 +1,9 @@
-# Contributing To tabby
+# Contributing To Cotabby
 
-Thanks for helping improve tabby. This guide is the contributor entry point for local setup,
+Thanks for helping improve Cotabby. This guide is the contributor entry point for local setup,
 validation, and codebase orientation.
 
-tabby is a macOS menu bar app that provides on-device inline autocomplete in other apps. The repo
+Cotabby is a macOS menu bar app that provides on-device inline autocomplete in other apps. The repo
 is split by responsibility so contributors can make small, reviewable changes without spreading
 platform-specific behavior across unrelated layers.
 
@@ -40,23 +40,23 @@ Apple Silicon is strongly recommended for local model-runtime work.
 Clone the repo and open the project:
 
 ```sh
-git clone https://github.com/FuJacob/tabby.git
-cd tabby
-open tabby.xcodeproj
+git clone https://github.com/FuJacob/Cotabby.git
+cd Cotabby
+open Cotabby.xcodeproj
 ```
 
-In Xcode, select the `tabby` scheme. If you run from Xcode, set your signing team under
+In Xcode, select the `Cotabby` scheme. If you run from Xcode, set your signing team under
 `Signing & Capabilities`.
 
 ## How To Navigate The Repo
 
 Start with these boundaries:
 
-- `tabby/App/`: app lifecycle, composition root, and top-level coordinators
-- `tabby/UI/`: SwiftUI presentation and menu/settings surfaces
-- `tabby/Services/`: OS integrations, async work, permissions, and runtime boundaries
-- `tabby/Models/`: shared value types, state snapshots, and protocol contracts
-- `tabby/Support/`: pure rules, prompt helpers, normalization, and low-level utilities
+- `Cotabby/App/`: app lifecycle, composition root, and top-level coordinators
+- `Cotabby/UI/`: SwiftUI presentation and menu/settings surfaces
+- `Cotabby/Services/`: OS integrations, async work, permissions, and runtime boundaries
+- `Cotabby/Models/`: shared value types, state snapshots, and protocol contracts
+- `Cotabby/Support/`: pure rules, prompt helpers, normalization, and low-level utilities
 
 If you are changing behavior, prefer this order:
 
@@ -73,8 +73,8 @@ For a local compile check:
 
 ```sh
 xcodebuild \
-  -project tabby.xcodeproj \
-  -scheme tabby \
+  -project Cotabby.xcodeproj \
+  -scheme Cotabby \
   -configuration Debug \
   -destination 'platform=macOS' \
   CODE_SIGNING_ALLOWED=NO \
@@ -89,7 +89,7 @@ locally.
 
 From Xcode:
 
-1. Select the `tabby` scheme.
+1. Select the `Cotabby` scheme.
 2. Choose your Mac as the run destination.
 3. Build and run.
 4. Complete onboarding.
@@ -106,8 +106,8 @@ Run the unit test suite:
 
 ```sh
 xcodebuild test \
-  -project tabby.xcodeproj \
-  -scheme tabby \
+  -project Cotabby.xcodeproj \
+  -scheme Cotabby \
   -destination 'platform=macOS' \
   CODE_SIGNING_ALLOWED=NO
 ```
@@ -128,7 +128,7 @@ unrelated style rewrites into functional PRs.
 
 ## Debugging
 
-The shared Xcode scheme passes `-tabby-debug` by default in Debug builds. This enables
+The shared Xcode scheme passes `-cotabby-debug` by default in Debug builds. This enables
 developer-only diagnostics:
 
 - **Focus debug overlay**: translucent panels showing caret geometry, element bounds, focus
@@ -138,7 +138,7 @@ developer-only diagnostics:
 - **Screenshot capture**: saves OCR debug screenshots to disk when the visual-context pipeline
   runs.
 
-To disable it, uncheck `-tabby-debug` in the scheme's Run → Arguments tab.
+To disable it, uncheck `-cotabby-debug` in the scheme's Run → Arguments tab.
 
 ## Pull Requests
 
