@@ -89,10 +89,12 @@ Everything runs on-device. No hosted API, no cloud round-trip.
 
 **Open Source**: runs local GGUF models in-process through llama.cpp via `llama.swift`. Built-in downloadable models suggested for use:
 
-| Model              | File                            | Size    |
-| ------------------ | ------------------------------- | ------- |
-| `Cotabby-fast-1`     | `Qwen3-0.6B-Q4_K_M.gguf`       | ~0.4 GB |
-| `Cotabby-balanced-1` | `gemma-3-1b-it-Q4_K_M.gguf`    | ~0.8 GB |
+| Model                | File                          | Size    |
+| -------------------- | ----------------------------- | ------- |
+| `Cotabby-fast-1`     | `Qwen3-0.6B-Q4_K_M.gguf`      | ~0.4 GB |
+| `Cotabby-fast-2`     | `Qwen3.5-0.8B-Q4_K_M.gguf`    | ~0.5 GB |
+| `Cotabby-balanced-1` | `gemma-3-1b-it-Q4_K_M.gguf`   | ~0.8 GB |
+| `Cotabby-quality-1`  | `gemma-4-E2B-it-Q4_K_M.gguf`  | ~3.1 GB |
 
 You can also drop your own `.gguf` files into Cotabby's models folder and refresh the model list.
 
