@@ -82,7 +82,7 @@ struct SettingsView: View {
                     Text("Cotabby")
                         .font(.system(size: 15, weight: .semibold, design: .rounded))
 
-                    Text("Local AI Autocomplete")
+                    Text("Local macOS AI Autocomplete")
                         .font(.system(size: 11, design: .rounded))
                         .foregroundStyle(.secondary)
                 }
@@ -414,10 +414,18 @@ struct SettingsView: View {
     private var supportSection: some View {
         Section("Support") {
             LabeledContent {
-                Link("Buy Me a Coffee", destination: URL(string: "https://buymeacoffee.com/cotabby")!)
+                Link(destination: URL(string: "https://buymeacoffee.com/cotabby")!) {
+                    Text("Support Us")
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.blue)
             } label: {
-                Text("Cotabby is free and open source. If it's useful to you, consider supporting development.")
-                    .foregroundStyle(.secondary)
+                Text(
+                    "Cotabby is free and open source, maintained by two university students. "
+                    + "If it's useful to you, consider supporting development."
+                )
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
