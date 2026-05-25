@@ -144,6 +144,12 @@ struct SettingsView: View {
         Section("General") {
             Toggle("Enable Globally", isOn: globallyEnabledBinding)
 
+            Toggle("Auto-Correct Typos", isOn: prefixAutoCorrectEnabledBinding)
+                .disabled(!foundationModelAvailabilityService.isAvailable)
+                .help(foundationModelAvailabilityService.isAvailable
+                    ? "Apple Intelligence rewrites obvious typos in the text you just typed."
+                    : "Requires Apple Intelligence: \(foundationModelAvailabilityService.userVisibleMessage)")
+
             Toggle("Show Indicator", isOn: showIndicatorBinding)
 
             Toggle("Allow Multi-line Suggestions", isOn: multiLineEnabledBinding)
@@ -623,6 +629,13 @@ struct SettingsView: View {
         Binding(
             get: { suggestionSettings.isMultiLineEnabled },
             set: { suggestionSettings.setMultiLineEnabled($0) }
+        )
+    }
+
+    private var prefixAutoCorrectEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.isPrefixAutoCorrectEnabled },
+            set: { suggestionSettings.setPrefixAutoCorrectEnabled($0) }
         )
     }
 
