@@ -112,35 +112,34 @@ struct FocusSnapshotResolver {
         }
 
         // The input target and the geometry source don't need to be the same element.
-        // Native AppKit apps give exact caret rects on the input target itself. But Chrome
-        // nests precise geometry on deep AXStaticText leaf nodes while the parent text entry
-        // area only produces a coarse AXFrame estimate. When the primary candidate's geometry
-        // is weak, search deeper for a leaf with exact caret data.
-        let caretRect: CGRect
-        let caretSource: String
-        let caretQuality: CaretGeometryQuality
-        let observedCharWidth: CGFloat?
-        if let primary = resolvedCandidate.caretRect,
-            resolvedCandidate.caretQuality == .exact || resolvedCandidate.caretQuality == .derived {
-            caretRect = primary
-            caretSource = "\(resolvedCandidate.caretQuality!.label) primary"
-            caretQuality = resolvedCandidate.caretQuality!
-            observedCharWidth = resolvedCandidate.observedCharWidth
-        } else if let deepResult = resolveDeepGeometrySource(
-            focusedElement: focusedElement,
-            resolvedElement: resolvedCandidate.element,
-            cocoaAnchorFrame: resolvedCandidate.inputFrameRect
-        ) {
-            caretRect = deepResult.rect
-            caretSource = "\(deepResult.quality.label) deep"
-            caretQuality = deepResult.quality
-            observedCharWidth = deepResult.observedCharWidth
-        } else if let primary = resolvedCandidate.caretRect {
-            caretRect = primary
-            caretSource = "\(resolvedCandidate.caretQuality?.label ?? "unknown") primary-fallback"
-            caretQuality = resolvedCandidate.caretQuality ?? .estimated
-            observedCharWidth = resolvedCandidate.observedCharWidth
-        } else {
+        // Native AppKit apps give exact caret rects on the input target itself. Chrome's
+        // AXTextArea, by contrast, answers BoundsForRange(loc-1, 1) with a multi-line union
+        // rect — labeled `.derived` here but actually unusable. The leaf AXStaticText holding
+        // the active line carries its own zero-length selection range and
+        // AXSelectedTextMarkerRange, so the deep BFS in `resolveDeepGeometrySource` can
+        // synthesize a real `.exact` rect via Branch 1.5 (TextMarker) on that leaf.
+        //
+        // Precedence:
+        //   1. primary `.exact`   (single API call, perfect — no walk needed)
+        //   2. deep `.exact`      (beats primary `.derived` so we escape Chrome's union-rect trap)
+        //   3. primary `.derived`
+        //   4. deep `.derived`
+        //   5. primary `.estimated` / unknown fallback
+        // The walk is skipped entirely when primary is already `.exact` to avoid wasted IPC.
+        let deepResult: CaretGeometryResult? = (resolvedCandidate.caretQuality == .exact)
+            ? nil
+            : resolveDeepGeometrySource(
+                focusedElement: focusedElement,
+                resolvedElement: resolvedCandidate.element,
+                cocoaAnchorFrame: resolvedCandidate.inputFrameRect
+            )
+
+        guard let caret = Self.selectCaretGeometry(
+            primaryRect: resolvedCandidate.caretRect,
+            primaryQuality: resolvedCandidate.caretQuality,
+            primaryObservedCharWidth: resolvedCandidate.observedCharWidth,
+            deepResult: deepResult
+        ) else {
             return FocusSnapshot(
                 applicationName: applicationName,
                 bundleIdentifier: bundleIdentifier,
@@ -149,6 +148,10 @@ struct FocusSnapshotResolver {
                 inspection: inspection
             )
         }
+        let caretRect = caret.rect
+        let caretSource = caret.source
+        let caretQuality = caret.quality
+        let observedCharWidth = caret.observedCharWidth
 
         let nsValue = value as NSString
         let safeSelectionLocation = min(selection.location, nsValue.length)
@@ -248,6 +251,61 @@ struct FocusSnapshotResolver {
         return ordered
     }
 
+    /// Chooses the caret geometry to ship from the primary candidate and the optional deep-tree
+    /// result, following a fixed precedence (see the call site). Pulled out of `resolveSnapshot`
+    /// so that method stays under the cyclomatic-complexity limit; returns `nil` when neither
+    /// source produced a rect, which the caller maps to an unsupported snapshot.
+    ///
+    /// Precedence: primary `.exact` → deep `.exact` (beats primary `.derived`, escaping Chrome's
+    /// union-rect trap) → primary `.derived` → deep (any) → primary (any, fallback).
+    private struct SelectedCaretGeometry {
+        let rect: CGRect
+        let source: String
+        let quality: CaretGeometryQuality
+        let observedCharWidth: CGFloat?
+    }
+
+    private static func selectCaretGeometry(
+        primaryRect: CGRect?,
+        primaryQuality: CaretGeometryQuality?,
+        primaryObservedCharWidth: CGFloat?,
+        deepResult: CaretGeometryResult?
+    ) -> SelectedCaretGeometry? {
+        if let primary = primaryRect, primaryQuality == .exact {
+            return SelectedCaretGeometry(
+                rect: primary, source: "exact primary", quality: .exact,
+                observedCharWidth: primaryObservedCharWidth
+            )
+        }
+        if let deep = deepResult, deep.quality == .exact {
+            return SelectedCaretGeometry(
+                rect: deep.rect, source: "exact deep", quality: .exact,
+                observedCharWidth: deep.observedCharWidth
+            )
+        }
+        if let primary = primaryRect, primaryQuality == .derived {
+            return SelectedCaretGeometry(
+                rect: primary, source: "derived primary", quality: .derived,
+                observedCharWidth: primaryObservedCharWidth
+            )
+        }
+        if let deep = deepResult {
+            return SelectedCaretGeometry(
+                rect: deep.rect, source: "\(deep.quality.label) deep", quality: deep.quality,
+                observedCharWidth: deep.observedCharWidth
+            )
+        }
+        if let primary = primaryRect {
+            return SelectedCaretGeometry(
+                rect: primary,
+                source: "\(primaryQuality?.label ?? "unknown") primary-fallback",
+                quality: primaryQuality ?? .estimated,
+                observedCharWidth: primaryObservedCharWidth
+            )
+        }
+        return nil
+    }
+
     /// Runs deep geometry search from the resolved editable candidate first, then falls back to
     /// the raw focused node when those are different branches of the same local AX neighborhood.
     private func resolveDeepGeometrySource(
@@ -303,7 +361,6 @@ struct FocusSnapshotResolver {
             if let range = AXHelper.rangeValue(
                 for: kAXSelectedTextRangeAttribute as CFString, on: element
             ), range.length == 0 {
-                let paramAttrs = Set(AXHelper.parameterizedAttributeNames(on: element))
                 let attrs = Set(AXHelper.attributeNames(on: element))
                 let textValue =
                     attrs.contains(kAXValueAttribute as String)
@@ -312,9 +369,6 @@ struct FocusSnapshotResolver {
                 let result = geometryResolver.resolveCaretRect(
                     for: element,
                     selection: range,
-                    supportsBoundsForRange: paramAttrs.contains(
-                        kAXBoundsForRangeParameterizedAttribute as String
-                    ),
                     supportsFrame: attrs.contains("AXFrame"),
                     cocoaAnchorFrame: cocoaAnchorFrame,
                     textValue: textValue
@@ -376,8 +430,6 @@ struct FocusSnapshotResolver {
         let role = AXHelper.stringValue(for: kAXRoleAttribute as CFString, on: element) ?? "Unknown"
         let subrole = AXHelper.stringValue(for: kAXSubroleAttribute as CFString, on: element)
         let supportedAttributes = Set(AXHelper.attributeNames(on: element))
-        let supportedParameterizedAttributes = Set(
-            AXHelper.parameterizedAttributeNames(on: element))
         let explicitEditableFlag =
             supportedAttributes.contains("AXEditable")
             ? AXHelper.boolValue(for: "AXEditable" as CFString, on: element)
@@ -426,8 +478,6 @@ struct FocusSnapshotResolver {
             geometryResolver.resolveCaretRect(
                 for: element,
                 selection: $0,
-                supportsBoundsForRange: supportedParameterizedAttributes.contains(
-                    kAXBoundsForRangeParameterizedAttribute as String),
                 supportsFrame: supportedAttributes.contains("AXFrame"),
                 cocoaAnchorFrame: inputFrameRect,
                 textValue: textValue
@@ -532,7 +582,6 @@ struct FocusSnapshotResolver {
         let role = AXHelper.stringValue(for: kAXRoleAttribute as CFString, on: element) ?? "?"
         let subrole = AXHelper.stringValue(for: kAXSubroleAttribute as CFString, on: element)
         let attributes = Set(AXHelper.attributeNames(on: element))
-        let parameterizedAttributes = Set(AXHelper.parameterizedAttributeNames(on: element))
 
         var summary = "\(indent)\(role)"
         if let subrole { summary += " (\(subrole))" }
@@ -554,17 +603,17 @@ struct FocusSnapshotResolver {
         if let range = AXHelper.rangeValue(for: kAXSelectedTextRangeAttribute as CFString, on: element) {
             summary += "\(indent)  selection: loc=\(range.location) len=\(range.length)\n"
 
-            if parameterizedAttributes.contains(kAXBoundsForRangeParameterizedAttribute as String) {
-                let boundsRect = AXHelper.parameterizedRectValue(
-                    for: kAXBoundsForRangeParameterizedAttribute as CFString,
-                    range: NSRange(location: range.location, length: 0),
-                    on: element
-                )
-                if let boundsRect, !boundsRect.isEmpty {
-                    summary += "\(indent)  BoundsForRange(loc,0): \(fmt(boundsRect))\n"
-                } else {
-                    summary += "\(indent)  BoundsForRange(loc,0): FAILED\n"
-                }
+            // Try BoundsForRange unconditionally so the dump reflects what the production resolver
+            // actually sees on Electron/WebKit elements that don't advertise the attribute.
+            let boundsRect = AXHelper.parameterizedRectValue(
+                for: kAXBoundsForRangeParameterizedAttribute as CFString,
+                range: NSRange(location: range.location, length: 0),
+                on: element
+            )
+            if let boundsRect, !boundsRect.isEmpty {
+                summary += "\(indent)  BoundsForRange(loc,0): \(fmt(boundsRect))\n"
+            } else {
+                summary += "\(indent)  BoundsForRange(loc,0): FAILED\n"
             }
         }
 
