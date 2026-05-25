@@ -102,7 +102,9 @@ final class CustomRulesTests: XCTestCase {
         XCTAssertTrue(instruction?.contains("Spanish") == true)
     }
 
-    func test_llamaRenderer_includesLanguageInstructionBeforeLengthCue() {
+    func test_llamaRenderer_includesLanguageInstructionInFinalBlock() {
+        // The length cue is no longer rendered (token-budget-only experiment), so this guards that
+        // the language directive still lands in the late, high-attention final-instruction block.
         let prompt = LlamaPromptRenderer.prompt(
             prefixText: "Hola",
             applicationName: "Notes",
@@ -111,12 +113,14 @@ final class CustomRulesTests: XCTestCase {
             languageInstruction: SuggestionLanguage.spanish.promptInstruction
         )
 
-        guard let langRange = prompt.range(of: "Spanish"),
-              let lenRange = prompt.range(of: "UNIQUE_LENGTH_CUE") else {
-            XCTFail("Expected language directive and length cue in the prompt")
+        XCTAssertFalse(prompt.contains("UNIQUE_LENGTH_CUE"))
+
+        guard let finalRange = prompt.range(of: "Final instruction:"),
+              let langRange = prompt.range(of: "Spanish") else {
+            XCTFail("Expected final instruction header and language directive in the prompt")
             return
         }
-        XCTAssertLessThan(langRange.lowerBound, lenRange.lowerBound)
+        XCTAssertLessThan(finalRange.lowerBound, langRange.lowerBound)
     }
 
     func test_foundationModelInstructions_includeLanguageOverride() {

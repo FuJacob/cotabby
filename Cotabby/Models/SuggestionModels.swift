@@ -39,16 +39,17 @@ enum SuggestionWordCountPreset: String, CaseIterable, Equatable, Hashable, Senda
         }
     }
 
-    /// Token budget sized at ~1.5x the upper word bound. Tight enough to enforce the word cap
-    /// while leaving room for multi-token words (contractions, proper nouns, punctuation).
+    /// Token budget bumped 50% above the prior ~1.5x-upper-word-bound sizing, giving the
+    /// token-cap-only path (no in-prompt word range for the local model) room to land a clean
+    /// stopping point instead of hard-truncating mid-thought.
     var suggestedPredictionTokenBudget: Int {
         switch self {
         case .threeToSeven:
-            return 11
+            return 17
         case .sevenToTwelve:
-            return 18
+            return 27
         case .twelveToTwenty:
-            return 30
+            return 45
         }
     }
 }
@@ -352,6 +353,26 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
     /// When `true`, the text near the caret is Right-to-Left (Arabic, Hebrew, etc.) and the ghost
     /// text overlay should appear to the left of the caret instead of the right.
     let isRightToLeft: Bool
+    /// Identifies the focus session that produced this geometry. `OverlayController` keys its
+    /// per-session font-size stabilization on this value, so a field switch (or focus loss) starts
+    /// a fresh size baseline. Defaults to 0 for tests that do not exercise session-scoped behavior.
+    let focusChangeSequence: UInt64
+
+    init(
+        caretRect: CGRect,
+        inputFrameRect: CGRect?,
+        caretQuality: CaretGeometryQuality,
+        observedCharWidth: CGFloat?,
+        isRightToLeft: Bool,
+        focusChangeSequence: UInt64 = 0
+    ) {
+        self.caretRect = caretRect
+        self.inputFrameRect = inputFrameRect
+        self.caretQuality = caretQuality
+        self.observedCharWidth = observedCharWidth
+        self.isRightToLeft = isRightToLeft
+        self.focusChangeSequence = focusChangeSequence
+    }
 }
 
 /// The overlay is intentionally modeled as data so diagnostics can reason about visibility

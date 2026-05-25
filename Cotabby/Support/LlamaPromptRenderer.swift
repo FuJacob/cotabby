@@ -77,7 +77,11 @@ enum LlamaPromptRenderer {
         if let languageInstruction, !languageInstruction.isEmpty {
             sections.append("- \(languageInstruction)")
         }
-        sections.append("- \(completionLengthInstruction)")
+        // Experiment: the explicit word-range line (`completionLengthInstruction`) is intentionally
+        // omitted from the local-model prompt so length is governed purely by the token budget
+        // (`SuggestionWordCountPreset.suggestedPredictionTokenBudget`). The parameter stays wired so
+        // re-enabling the in-prompt cue is a one-line change. Apple Intelligence still gets the cue.
+        _ = completionLengthInstruction
         sections.append("- The next line must begin directly with the continuation text.")
         sections.append("Text before caret:")
         sections.append(prefixText)

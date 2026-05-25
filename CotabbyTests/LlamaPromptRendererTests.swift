@@ -95,10 +95,12 @@ final class LlamaPromptRendererTests: XCTestCase {
         XCTAssertTrue(prompt.contains("My prefix text here"))
     }
 
-    /// The completion-length instruction is chosen from the user's word-count
-    /// preset. It must reach the prompt verbatim so the model sees the exact
-    /// guidance the UI showed the user.
-    func test_instructionPrompt_includesCompletionLengthInstructionNearPrefix() {
+    /// Length is enforced by the token budget, not by an in-prompt word range, so the
+    /// completion-length cue must never reach the local-model prompt even if a caller passes one.
+    func test_instructionPrompt_omitsCompletionLengthInstruction() {
+        // Experiment: the local-model prompt no longer carries the word-range cue; length is
+        // governed solely by the token budget. The cue must not leak into the prompt even when a
+        // caller still passes one.
         let prompt = LlamaPromptRenderer.prompt(
             prefixText: "PREFIX_BODY_XYZ",
             applicationName: "App",
@@ -106,17 +108,15 @@ final class LlamaPromptRendererTests: XCTestCase {
             userName: nil
         )
 
-        XCTAssertTrue(prompt.contains("UNIQUE_LENGTH_MARKER_7_TO_12_WORDS"))
+        XCTAssertFalse(prompt.contains("UNIQUE_LENGTH_MARKER_7_TO_12_WORDS"))
 
         guard let finalInstructionRange = prompt.range(of: "Final instruction:"),
-              let lengthRange = prompt.range(of: "UNIQUE_LENGTH_MARKER_7_TO_12_WORDS"),
               let prefixRange = prompt.range(of: "PREFIX_BODY_XYZ") else {
-            XCTFail("Expected final instruction header, length marker, and prefix in the prompt")
+            XCTFail("Expected final instruction header and prefix in the prompt")
             return
         }
 
-        XCTAssertLessThan(finalInstructionRange.lowerBound, lengthRange.lowerBound)
-        XCTAssertLessThan(lengthRange.lowerBound, prefixRange.lowerBound)
+        XCTAssertLessThan(finalInstructionRange.lowerBound, prefixRange.lowerBound)
     }
 
     func test_instructionPrompt_includesProfileContextWhenProvided() {

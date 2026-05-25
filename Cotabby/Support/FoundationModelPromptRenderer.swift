@@ -33,7 +33,9 @@ enum FoundationModelPromptRenderer {
                 + "that exact phrase and you are finishing it.",
             "Continue the existing sentence or thought — extend it, never restart it.",
             "Return exactly one continuation fragment.",
-            request.completionLengthInstruction,
+            // Experiment: the explicit word-range cue (`request.completionLengthInstruction`) is
+            // omitted here too, matching the local-model path. Length is governed solely by the
+            // shared token budget (`maximumResponseTokens` ← `request.maxPredictionTokens`).
             "Do not repeat or quote the existing text.",
             "Match the existing tone, language, casing, and punctuation.",
             "Use clipboard and screen context only when it directly helps the inline continuation.",

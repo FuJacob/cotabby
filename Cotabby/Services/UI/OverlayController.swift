@@ -32,6 +32,11 @@ final class OverlayController: SuggestionOverlayControlling {
     /// instead of a full view rebuild + layout pass.
     private var hostingView: NSHostingView<GhostSuggestionView>?
 
+    /// Per-focus-session floor for caret-derived font size. Caret height flickers between the real
+    /// line height and the coarse field-height fallback from poll to poll; stabilizing keeps ghost
+    /// text from ballooning when the fallback wins. See `GhostFontSizeStabilizer`.
+    private var ghostFontStabilizer = GhostFontSizeStabilizer()
+
     init(suggestionSettings: SuggestionSettingsModel) {
         self.suggestionSettings = suggestionSettings
     }
@@ -66,8 +71,12 @@ final class OverlayController: SuggestionOverlayControlling {
             return
         }
 
+        let stabilizedCaretHeight = ghostFontStabilizer.stabilizedCaretHeight(
+            geometry.caretRect.height,
+            focusSessionKey: geometry.focusChangeSequence
+        )
         let fontSize = resolvedGhostFontSize(
-            for: geometry.caretRect,
+            forCaretHeight: stabilizedCaretHeight,
             caretQuality: geometry.caretQuality
         )
         let layout = GhostSuggestionLayout.make(
@@ -118,14 +127,15 @@ final class OverlayController: SuggestionOverlayControlling {
     /// Exact and derived caret rects usually reflect the real text line height, so they may scale
     /// up in larger editors. Estimated rects are much less trustworthy because some apps only
     /// expose the full field frame; the extra ceiling prevents one bad estimate from rendering
-    /// comically oversized ghost text.
+    /// comically oversized ghost text. `caretHeight` is already floored to the per-session minimum
+    /// by `ghostFontStabilizer`, so this only applies the static floor and quality ceilings.
     private func resolvedGhostFontSize(
-        for caretRect: CGRect,
+        forCaretHeight caretHeight: CGFloat,
         caretQuality: CaretGeometryQuality
     ) -> CGFloat {
         let proposedSize = max(
             Layout.minimumGhostFontSize,
-            caretRect.height * Layout.fontToLineHeightRatio
+            caretHeight * Layout.fontToLineHeightRatio
         )
         let qualityCap = caretQuality == .estimated
             ? Layout.maximumEstimatedGhostFontSize
