@@ -127,7 +127,10 @@ struct MenuBarView: View {
     }
 
     /// Model selector with folder + refresh shortcuts — only visible when local llama engine is active.
-    /// The picker truncates aggressively because two trailing icons compete for the same row width.
+    /// The picker is constrained to fill remaining row width so long filenames truncate inside the
+    /// NSPopUpButton label instead of pushing the trailing icons off-row. Per-item `.lineLimit` /
+    /// `.truncationMode` modifiers are unreliable here because AppKit's native popup ignores them
+    /// for the selected-value label.
     @ViewBuilder
     private var modelRow: some View {
         MenuBarPickerRow(title: "Model") {
@@ -140,13 +143,12 @@ struct MenuBarView: View {
                     Picker("Model", selection: selectedModelBinding) {
                         ForEach(runtimeModel.availableModels) { model in
                             Text(model.displayName)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
                                 .tag(model.filename)
                         }
                     }
                     .labelsHidden()
                     .pickerStyle(.menu)
+                    .frame(maxWidth: .infinity)
                     .disabled(runtimePickerDisabled)
                 }
 
