@@ -40,9 +40,27 @@ protocol SuggestionInputMonitoring: AnyObject {
 protocol SuggestionGenerating: AnyObject {
     func generateSuggestion(for request: SuggestionRequest) async throws -> SuggestionResult
     func generateCompose(for request: ComposeRequest) async throws -> ComposeResult
+    /// Streaming variant: yields each generated piece through an async stream so the coordinator
+    /// can type tokens into the focused field as the model produces them. Engines that cannot
+    /// stream natively get the one-shot fallback in the extension below.
+    func generateComposeStreaming(for request: ComposeRequest) async throws -> AsyncThrowingStream<String, Error>
     /// Clears backend-local continuation state when the focused editing context is no longer
     /// continuous. Stateless engines may implement this as a no-op.
     func resetCachedGenerationContext() async
+}
+
+extension SuggestionGenerating {
+    /// One-shot fallback: run `generateCompose`, then emit the full draft as a single chunk.
+    /// Engines that can stream natively (Llama) override this to actually emit per token.
+    func generateComposeStreaming(for request: ComposeRequest) async throws -> AsyncThrowingStream<String, Error> {
+        let result = try await generateCompose(for: request)
+        return AsyncThrowingStream { continuation in
+            if !result.text.isEmpty {
+                continuation.yield(result.text)
+            }
+            continuation.finish()
+        }
+    }
 }
 
 @MainActor

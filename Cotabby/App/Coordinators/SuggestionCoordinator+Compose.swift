@@ -4,16 +4,15 @@ import Logging
 
 /// File overview:
 /// Compose Mode entry points for `SuggestionCoordinator`.
-/// This is the deliberate two-step Tab flow: first Tab gathers context, generates a full draft,
-/// and shows a preview; second Tab types the draft into the focused field. Autocomplete continues
-/// to live in the sibling extension files and is untouched by this path.
 ///
-/// State invariants this file protects:
-/// - Only one Compose generation is in flight per `currentWorkID`; later Tabs cancel earlier work.
-/// - The `ActiveComposeSession` is never accepted against a focused field whose process/identity
-///   has changed since the draft was generated.
-/// - Synthetic typing is rearmed against `InputSuppressionController` per chunk via the
-///   `SuggestionInserter.typeDraft` contract.
+/// Interaction model (single-Tab streaming):
+/// - First Tab → gather AX context, build request, open a streaming generation against llama.
+///   Each sampled piece is typed straight into the focused field via `SuggestionInserter.insert`.
+/// - Escape, focus change, app/global disable, or the user typing → cancel the stream. Already-
+///   typed characters stay in the field; the cancellation simply stops the next piece from
+///   landing.
+/// - Subsequent Tabs while streaming are absorbed so the user does not pile a second draft onto
+///   the first.
 extension SuggestionCoordinator {
     // MARK: - Tab Routing
 
@@ -22,8 +21,10 @@ extension SuggestionCoordinator {
     func handleComposeInputEvent(_ event: CapturedInputEvent) -> Bool {
         switch event.kind {
         case .acceptance, .fullAcceptance:
-            if interactionState.activeComposeSession != nil {
-                return acceptComposeDraft()
+            // Already streaming? Swallow the Tab so it does not start a second stream and does
+            // not reach the host app while we are typing into it.
+            if interactionState.activeComposeSession != nil || isAnyComposeWorkInFlight {
+                return true
             }
             return startComposeGeneration()
 
@@ -32,16 +33,17 @@ extension SuggestionCoordinator {
             return false
 
         case .navigation:
-            // Arrow keys, page navigation, etc. — drop any in-flight draft because the field
-            // context the user originally asked Tabby to draft against has moved.
+            // Arrow keys, page navigation, etc. — drop in-flight streams because the field the
+            // user originally asked Tabby to draft into has moved.
             if interactionState.activeComposeSession != nil || isAnyComposeWorkInFlight {
                 cancelComposeWork(reason: "Compose cancelled because the caret moved.")
             }
             return false
 
         case .textMutation, .shortcutMutation:
-            // Typing or paste during preview invalidates the draft. Compose is "ask, review, type";
-            // mid-stream edits mean the user has stopped reviewing.
+            // Real user typing during streaming → stop. Tabby's own synthetic key events are
+            // absorbed by `InputSuppressionController` before they reach this handler, so the
+            // stream's own characters never trigger this path.
             if interactionState.activeComposeSession != nil || isAnyComposeWorkInFlight {
                 cancelComposeWork(reason: "Compose cancelled because the focused text changed.")
             }
@@ -54,8 +56,7 @@ extension SuggestionCoordinator {
 
     // MARK: - Generation
 
-    /// First-Tab handler: kick off Compose generation against the current focused field.
-    /// Returns `true` to consume the Tab so the host app does not receive it.
+    /// Streams a Compose draft into the currently focused field. Returns `true` to consume the Tab.
     @discardableResult
     func startComposeGeneration() -> Bool {
         guard permissionManager.inputMonitoringGranted else {
@@ -83,12 +84,13 @@ extension SuggestionCoordinator {
         // Reuse the debounced-work plumbing with a zero delay so cancellation and stale-work guards
         // are identical to the autocomplete path. Compose has no real debounce — Tab is explicit.
         let workID = workController.replaceDebouncedWork(delayMilliseconds: 0) { [weak self] workID in
-            await self?.runComposeGeneration(for: context, workID: workID)
+            await self?.runComposeStreaming(for: context, workID: workID)
         }
         latestGenerationNumber = context.generation
+        latestRawModelOutput = nil
         state = .generating
         logStage(
-            "compose-generating",
+            "compose-streaming-start",
             workID: workID,
             generation: context.generation,
             message: "Gathering Compose context for \(context.elementIdentifier) in \(context.applicationName)."
@@ -96,8 +98,7 @@ extension SuggestionCoordinator {
         return true
     }
 
-    // swiftlint:disable:next cyclomatic_complexity
-    private func runComposeGeneration(for context: FocusedInputContext, workID: UInt64) async {
+    private func runComposeStreaming(for context: FocusedInputContext, workID: UInt64) async {
         guard workController.isCurrent(workID) else { return }
         await awaitCachedGenerationContextResetIfNeeded()
         guard workController.isCurrent(workID) else { return }
@@ -129,105 +130,134 @@ extension SuggestionCoordinator {
             visualContextSummary: visualContextSummary
         )
         latestPromptPreview = buildResult.promptPreview
-        latestRawModelOutput = nil
         let request = buildResult.request
+
+        // The active session represents "we are streaming into this field". The full text is
+        // appended to as pieces arrive so logs and diagnostics can describe what was typed.
+        let initialSession = interactionState.startComposeSession(
+            fullText: "",
+            liveContext: context,
+            latency: 0
+        )
+        state = .typing
+        logStage(
+            "compose-streaming-begin",
+            workID: workID,
+            generation: context.generation,
+            message: "Streaming Compose draft into \(context.applicationName).",
+            prompt: buildResult.promptPreview
+        )
 
         workController.replaceGenerationWork(for: workID) { [weak self] in
             guard let self else { return }
-            do {
-                let result = try await self.suggestionEngine.generateCompose(for: request)
-                guard !Task.isCancelled, self.workController.isCurrent(workID) else { return }
-                await self.applyComposeResult(result, workID: workID)
-            } catch SuggestionClientError.cancelled {
-                return
-            } catch {
-                guard self.workController.isCurrent(workID) else { return }
-                await self.applyComposeFailure(error.localizedDescription, workID: workID)
-            }
+            await self.consumeComposeStream(
+                request: request,
+                workID: workID,
+                initialSession: initialSession
+            )
         }
     }
 
-    /// Stale-result guard mirrors the autocomplete path: we re-read focus before showing anything,
-    /// and bail if the field's generation or process no longer matches what we asked the model for.
-    private func applyComposeResult(_ result: ComposeResult, workID: UInt64) async {
+    private func consumeComposeStream(
+        request: ComposeRequest,
+        workID: UInt64,
+        initialSession: ActiveComposeSession
+    ) async {
+        let startTime = Date()
+        var accumulatedText = ""
+        var session = initialSession
+
+        do {
+            let stream = try await suggestionEngine.generateComposeStreaming(for: request)
+            for try await piece in stream {
+                guard !Task.isCancelled, workController.isCurrent(workID) else { break }
+                guard composeStreamShouldContinue(matching: session) else { break }
+                guard !piece.isEmpty else { continue }
+
+                accumulatedText += piece
+                latestRawModelOutput = SuggestionDebugLogger.debugPreview(accumulatedText)
+                _ = suggestionInserter.insert(piece)
+                session = interactionState.updateComposeSession(
+                    session,
+                    fullText: accumulatedText,
+                    latency: Date().timeIntervalSince(startTime)
+                ) ?? session
+
+                // Yield once per piece so cancellation tasks queued on the main actor (focus
+                // changes, Esc) can run between samples instead of getting starved by the loop.
+                await Task.yield()
+            }
+        } catch is CancellationError {
+            // Treat cancellation as a normal stop — partial text stays in the field.
+            await finishComposeStream(
+                accumulated: accumulatedText,
+                latency: Date().timeIntervalSince(startTime),
+                workID: workID,
+                session: session,
+                outcome: ComposeStreamOutcome(
+                    stage: "compose-streaming-cancelled",
+                    stageMessage: "Compose stream cancelled."
+                )
+            )
+            return
+        } catch {
+            await applyComposeFailure(error.localizedDescription, workID: workID)
+            return
+        }
+
+        await finishComposeStream(
+            accumulated: accumulatedText,
+            latency: Date().timeIntervalSince(startTime),
+            workID: workID,
+            session: session,
+            outcome: ComposeStreamOutcome(
+                stage: "compose-streaming-done",
+                stageMessage: "Compose stream finished."
+            )
+        )
+    }
+
+    private struct ComposeStreamOutcome {
+        let stage: String
+        let stageMessage: String
+    }
+
+    private func finishComposeStream(
+        accumulated: String,
+        latency: TimeInterval,
+        workID: UInt64,
+        session: ActiveComposeSession,
+        outcome: ComposeStreamOutcome
+    ) async {
         guard workController.isCurrent(workID) else { return }
 
-        focusModel.refreshNow()
-        let snapshot = focusModel.snapshot
+        latestLatencyMilliseconds = Int(latency * 1000)
+        latestRawModelOutput = SuggestionDebugLogger.debugPreview(accumulated)
+        latestAcceptanceAction = accumulated.isEmpty
+            ? "Compose stream produced no text."
+            : "Compose draft streamed into the field."
 
-        guard case .supported = snapshot.capability, let rawContext = snapshot.context else {
-            disablePredictions(reason: snapshot.capability.summary)
-            return
+        if interactionState.activeComposeSession == session {
+            interactionState.clearComposeSession(session)
         }
-        let liveContext = interactionState.materializeContext(from: rawContext)
-
-        guard liveContext.generation == result.generation else {
-            latestRawModelOutput = SuggestionDebugLogger.debugPreview(result.rawText)
-            logStage(
-                "compose-stale-drop",
-                workID: workID,
-                generation: result.generation,
-                message: "Dropped stale Compose draft because live generation is \(liveContext.generation).",
-                rawOutput: result.rawText,
-                normalizedOutput: result.text
-            )
-            hideOverlay(reason: "Overlay hidden because the focused field changed before the draft was ready.")
-            return
-        }
-
-        latestRawModelOutput = SuggestionDebugLogger.debugPreview(result.rawText)
-        latestLatencyMilliseconds = Int(result.latency * 1000)
-        latestGenerationNumber = liveContext.generation
-
-        let trimmed = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            interactionState.clearSuggestion()
-            hideOverlay(reason: "Overlay hidden because Compose returned an empty draft.")
-            state = .idle
-            logStage(
-                "compose-empty",
-                workID: workID,
-                generation: result.generation,
-                message: "Compose draft was empty after normalization.",
-                rawOutput: result.rawText,
-                normalizedOutput: result.text
-            )
-            return
-        }
-
-        let session = interactionState.startComposeSession(
-            fullText: result.text,
-            liveContext: liveContext,
-            latency: result.latency
-        )
-        latestSuggestionPreview = session.fullText
-        latestFullSuggestionPreview = session.fullText
-        latestRemainingSuggestionPreview = session.fullText
-        latestAcceptedCharacterCount = 0
-        latestRemainingCharacterCount = session.fullText.count
-        state = .ready(text: session.fullText, latency: session.latency)
-
-        presentComposePreview(
-            text: session.fullText,
-            at: liveContext.caretRect,
-            inputFrameRect: liveContext.inputFrameRect,
-            caretQuality: liveContext.caretQuality,
-            observedCharWidth: liveContext.observedCharWidth,
-            isRightToLeft: TextDirectionDetector.isRightToLeft(liveContext.precedingText)
-        )
+        hideOverlay(reason: outcome.stageMessage)
+        state = .idle
         logStage(
-            "compose-ready",
+            outcome.stage,
             workID: workID,
-            generation: result.generation,
-            message: "Compose draft ready for review.",
-            rawOutput: result.rawText,
-            normalizedOutput: result.text
+            generation: session.baseContext.generation,
+            message: outcome.stageMessage,
+            normalizedOutput: accumulated
         )
     }
 
     private func applyComposeFailure(_ message: String, workID: UInt64) async {
         guard workController.isCurrent(workID) else { return }
-        interactionState.clearSuggestion()
+        if let session = interactionState.activeComposeSession {
+            interactionState.clearComposeSession(session)
+        } else {
+            interactionState.clearSuggestion()
+        }
         hideOverlay(reason: "Overlay hidden because Compose generation failed.")
         state = .failed(message)
         logStage(
@@ -238,92 +268,10 @@ extension SuggestionCoordinator {
         )
     }
 
-    // MARK: - Acceptance
-
-    /// Second-Tab handler: type the active Compose draft into the focused field via
-    /// `SuggestionInserter.typeDraft`. Each chunk re-checks focus identity before posting.
-    @discardableResult
-    func acceptComposeDraft() -> Bool {
-        guard let session = interactionState.activeComposeSession else {
-            return passTabThrough(reason: "Key passed through because no Compose draft was ready.")
-        }
-
-        focusModel.refreshNow()
-        let snapshot = focusModel.snapshot
-        guard case .supported = snapshot.capability, let rawContext = snapshot.context else {
-            cancelComposeWork(reason: snapshot.capability.summary)
-            return passTabThrough(reason: snapshot.capability.summary)
-        }
-        let liveContext = interactionState.materializeContext(from: rawContext)
-        guard liveContext.identity == session.baseContext.identity,
-              liveContext.processIdentifier == session.baseContext.processIdentifier else {
-            cancelComposeWork(reason: "Compose cancelled because the focused field changed before typing began.")
-            return passTabThrough(reason: "Key passed through because the focused field changed.")
-        }
-        guard liveContext.selection.length == 0 else {
-            cancelComposeWork(reason: "Compose cancelled because text is selected.")
-            return passTabThrough(reason: "Key passed through because text is selected.")
-        }
-
-        state = .typing
-        recordAcceptedWords(from: session.fullText)
-        logStage(
-            "compose-accepting",
-            workID: currentWorkID,
-            generation: liveContext.generation,
-            message: "Typing Compose draft (\(session.fullText.count) characters) into \(liveContext.applicationName).",
-            normalizedOutput: session.fullText
-        )
-
-        let typingSession = session
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            let didType = await self.suggestionInserter.typeDraft(typingSession.fullText) { [weak self] in
-                self?.composeTypingShouldContinue(matching: typingSession) ?? false
-            }
-
-            // The session may have already been cleared by a cancellation path (focus change,
-            // mode change, Esc). If so, don't reset state again.
-            guard let active = self.interactionState.activeComposeSession, active == typingSession else {
-                return
-            }
-
-            if didType {
-                self.interactionState.clearComposeSession(typingSession)
-                self.hideOverlay(reason: "Overlay hidden after Compose draft was typed into the field.")
-                self.state = .idle
-                self.latestAcceptanceAction = "Compose draft typed into the field."
-                self.logStage(
-                    "compose-typed",
-                    workID: self.currentWorkID,
-                    generation: typingSession.baseContext.generation,
-                    message: "Compose draft fully typed into the focused field.",
-                    normalizedOutput: typingSession.fullText
-                )
-            } else {
-                let message = self.suggestionInserter.lastErrorMessage
-                    ?? "Compose typing stopped before the draft was complete."
-                self.interactionState.clearComposeSession(typingSession)
-                self.hideOverlay(reason: "Overlay hidden because Compose typing did not complete.")
-                self.state = .failed(message)
-                self.logStage(
-                    "compose-type-aborted",
-                    workID: self.currentWorkID,
-                    generation: typingSession.baseContext.generation,
-                    message: message,
-                    normalizedOutput: typingSession.fullText
-                )
-            }
-        }
-        return true
-    }
-
-    /// Focus-identity guard checked between every synthetic key chunk. Bailing here lets the
-    /// inserter stop posting mid-draft when the user switches apps or fields.
-    private func composeTypingShouldContinue(matching session: ActiveComposeSession) -> Bool {
-        guard let active = interactionState.activeComposeSession, active == session else {
-            return false
-        }
+    /// Focus-identity guard checked before posting each streamed piece. Returns false when the
+    /// session has been cleared or the focused field has changed, which halts the for-await loop.
+    private func composeStreamShouldContinue(matching session: ActiveComposeSession) -> Bool {
+        guard interactionState.activeComposeSession == session else { return false }
         let snapshot = focusModel.snapshot
         guard case .supported = snapshot.capability, let rawContext = snapshot.context else {
             return false
@@ -335,8 +283,9 @@ extension SuggestionCoordinator {
 
     // MARK: - Cancellation
 
-    /// Cancels any in-flight Compose work and clears the active session. Safe to call when nothing
-    /// is in flight; the underlying controllers are no-op in that case.
+    /// Cancels any in-flight Compose work and clears the active session. Already-typed characters
+    /// remain in the focused field — Compose's stream is fire-and-forget per piece, so we cannot
+    /// (and should not) try to undo what the host app has already accepted.
     func cancelComposeWork(reason: String) {
         let hadActiveSession = interactionState.activeComposeSession != nil
         let hadInflightWork = isAnyComposeWorkInFlight
@@ -358,9 +307,7 @@ extension SuggestionCoordinator {
         )
     }
 
-    /// True when a Compose generation or typing task could still emit results. We treat any state
-    /// other than `.idle` / `.disabled` as "could still emit" because the work controller only
-    /// surfaces task identity, not status.
+    /// True when a Compose generation or streaming task could still emit output.
     var isAnyComposeWorkInFlight: Bool {
         switch state {
         case .generating, .typing:
@@ -369,33 +316,4 @@ extension SuggestionCoordinator {
             return false
         }
     }
-
-    // MARK: - Overlay
-
-    // swiftlint:disable function_parameter_count
-    /// Sibling of `presentOverlay` for the multiline Compose preview surface.
-    private func presentComposePreview(
-        text: String,
-        at caretRect: CGRect,
-        inputFrameRect: CGRect?,
-        caretQuality: CaretGeometryQuality,
-        observedCharWidth: CGFloat?,
-        isRightToLeft: Bool
-    ) {
-        let geometry = SuggestionOverlayGeometry(
-            caretRect: caretRect,
-            inputFrameRect: inputFrameRect,
-            caretQuality: caretQuality,
-            observedCharWidth: observedCharWidth,
-            isRightToLeft: isRightToLeft
-        )
-        if let message = overlayPresenter.presentComposePreview(
-            text: text,
-            geometry: geometry,
-            previousState: overlayState
-        ) {
-            latestOverlayMessage = message
-        }
-    }
-    // swiftlint:enable function_parameter_count
 }

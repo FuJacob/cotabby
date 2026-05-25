@@ -114,6 +114,25 @@ final class LlamaSuggestionEngine {
         }
     }
 
+    /// Streaming variant — yields each sampled piece through an `AsyncThrowingStream` so the
+    /// coordinator can type into the focused field as the model generates. We deliberately skip
+    /// `ComposeTextNormalizer` here because that normalizer is whole-text shaped; streaming pieces
+    /// belong to the user's field immediately and any wrapper cleanup would have to happen against
+    /// already-typed characters, which is more harm than help.
+    func generateComposeStreaming(for request: ComposeRequest) async throws -> AsyncThrowingStream<String, Error> {
+        let prompt = ComposePromptRenderer.prompt(for: request)
+        let options = LlamaGenerationOptions(
+            maxPredictionTokens: request.maxPredictionTokens,
+            temperature: request.temperature,
+            topK: request.topK,
+            topP: request.topP,
+            minP: request.minP,
+            repetitionPenalty: request.repetitionPenalty,
+            seed: request.randomSeed
+        )
+        return try await runtimeManager.streamUncached(prompt: prompt, options: options)
+    }
+
     /// Clears both the Swift-side hint tracker and the native llama KV cache.
     /// The tracker reset is synchronous because it protects the next request from advertising
     /// stale reuse; awaiting the runtime reset keeps native KV invalidation ordered before the next

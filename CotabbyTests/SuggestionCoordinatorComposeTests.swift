@@ -6,11 +6,9 @@ import XCTest
 
 /// Tests `SuggestionCoordinator+Compose` end to end with fakes for every collaborator.
 ///
-/// Most coordinator tests in the autocomplete path live inside `SuggestionInteractionState`
-/// helpers; Compose's orchestration is new enough that those state helpers cannot prove the
-/// behavior reviewers actually care about: first Tab generates, second Tab types, focus changes
-/// cancel mid-flight. The fakes below are all kept in this file so the contract under test stays
-/// readable as one unit.
+/// Compose Mode is single-Tab streaming: the first Tab opens a stream and each piece is typed
+/// straight into the focused field via `SuggestionInserter.insert`. Esc/focus change/typing
+/// cancels the stream; already-typed pieces stay. These tests lock in that contract.
 @MainActor
 final class SuggestionCoordinatorComposeTests: XCTestCase {
     private static var retainedCoordinators: [SuggestionCoordinator] = []
@@ -20,30 +18,30 @@ final class SuggestionCoordinatorComposeTests: XCTestCase {
         try await super.tearDown()
     }
 
-    // MARK: - First Tab: generation
+    // MARK: - First Tab: streaming starts
 
-    func test_firstTab_inComposeMode_callsGenerateComposeAndShowsPreview() async {
-        let generateExpectation = expectation(description: "generateCompose called")
-        let showPreviewExpectation = expectation(description: "showComposePreview called")
+    func test_firstTab_inComposeMode_streamsPiecesIntoTheField() async {
+        let pieces = ["Hello", " team,", "\n", "Thanks."]
+        let finishedExpectation = expectation(description: "stream finished")
         let env = makeEnvironment(
             mode: .compose,
-            engineBehavior: .success(composeResult(text: "Hello team.")),
-            onGenerateCalled: { generateExpectation.fulfill() },
-            onShowComposePreview: { showPreviewExpectation.fulfill() }
+            engineBehavior: .success(pieces: pieces),
+            onStreamFinished: { finishedExpectation.fulfill() }
         )
 
         _ = env.coordinator.handleInputEvent(CotabbyTestFixtures.inputEvent(kind: .acceptance))
-        await fulfillment(of: [generateExpectation, showPreviewExpectation], timeout: 1.0)
+        await fulfillment(of: [finishedExpectation], timeout: 1.0)
+        await Task.yield()
 
-        XCTAssertEqual(env.engine.composeCallCount, 1)
-        XCTAssertEqual(env.overlayController.composePreviewText, "Hello team.")
-        XCTAssertNotNil(env.coordinator.interactionState.activeComposeSession)
+        XCTAssertEqual(env.engine.composeStreamCallCount, 1)
+        XCTAssertEqual(env.inserter.insertedPieces, pieces)
+        XCTAssertNil(env.coordinator.interactionState.activeComposeSession)
     }
 
     func test_firstTab_inComposeMode_returnsTrueToConsumeTab() {
         let env = makeEnvironment(
             mode: .compose,
-            engineBehavior: .success(composeResult(text: "draft"))
+            engineBehavior: .success(pieces: ["only"])
         )
 
         let consumed = env.coordinator.handleInputEvent(CotabbyTestFixtures.inputEvent(kind: .acceptance))
@@ -51,133 +49,139 @@ final class SuggestionCoordinatorComposeTests: XCTestCase {
         XCTAssertTrue(consumed)
     }
 
-    func test_firstTab_inAutocompleteMode_doesNotInvokeComposePath() async {
+    func test_firstTab_inAutocompleteMode_doesNotInvokeComposeStream() async {
         let env = makeEnvironment(
             mode: .autocomplete,
-            engineBehavior: .success(composeResult(text: "should not run"))
+            engineBehavior: .success(pieces: ["should not run"])
         )
 
         _ = env.coordinator.handleInputEvent(CotabbyTestFixtures.inputEvent(kind: .acceptance))
-        // Yield to let any spurious Task progress.
         await Task.yield()
         await Task.yield()
 
-        XCTAssertEqual(env.engine.composeCallCount, 0)
-        XCTAssertNil(env.coordinator.interactionState.activeComposeSession)
+        XCTAssertEqual(env.engine.composeStreamCallCount, 0)
+        XCTAssertEqual(env.inserter.insertedPieces, [])
     }
 
-    // MARK: - Second Tab: acceptance
+    // MARK: - Subsequent Tabs while streaming
 
-    func test_secondTab_withActiveDraft_callsTypeDraftAndClearsSession() async {
-        let generateExpectation = expectation(description: "generateCompose called")
-        let typeExpectation = expectation(description: "typeDraft called")
+    func test_secondTab_whileStreaming_isAbsorbedWithoutRestartingTheStream() async {
         let env = makeEnvironment(
             mode: .compose,
-            engineBehavior: .success(composeResult(text: "Typed draft.")),
-            onGenerateCalled: { generateExpectation.fulfill() },
-            onTypeDraftCalled: { typeExpectation.fulfill() }
+            engineBehavior: .blocked(initialPieces: ["partial"])
         )
 
-        // First Tab — generate.
         _ = env.coordinator.handleInputEvent(CotabbyTestFixtures.inputEvent(kind: .acceptance))
-        await fulfillment(of: [generateExpectation], timeout: 1.0)
+        for _ in 0..<10 { await Task.yield() }
 
-        // Second Tab — accept.
-        _ = env.coordinator.handleInputEvent(CotabbyTestFixtures.inputEvent(kind: .acceptance))
-        await fulfillment(of: [typeExpectation], timeout: 1.0)
+        let consumedSecondTab = env.coordinator.handleInputEvent(
+            CotabbyTestFixtures.inputEvent(kind: .acceptance)
+        )
 
-        XCTAssertEqual(env.inserter.typedDrafts, ["Typed draft."])
-        XCTAssertNil(env.coordinator.interactionState.activeComposeSession)
+        XCTAssertTrue(consumedSecondTab, "second Tab during streaming should be absorbed, not passed through")
+        XCTAssertEqual(env.engine.composeStreamCallCount, 1, "second Tab must not start a second stream")
     }
 
     // MARK: - Cancellation
 
-    func test_escape_inComposeMode_clearsActiveSession() async {
-        let env = await makeEnvironmentWithReadyDraft(draftText: "Hello.")
+    func test_escape_duringStreaming_cancelsAndKeepsTypedText() async {
+        let env = makeEnvironment(
+            mode: .compose,
+            engineBehavior: .blocked(initialPieces: ["Hel", "lo"])
+        )
+
+        _ = env.coordinator.handleInputEvent(CotabbyTestFixtures.inputEvent(kind: .acceptance))
+        for _ in 0..<15 { await Task.yield() }
 
         _ = env.coordinator.handleInputEvent(CotabbyTestFixtures.inputEvent(kind: .dismissal))
+        for _ in 0..<10 { await Task.yield() }
 
+        XCTAssertEqual(env.inserter.insertedPieces, ["Hel", "lo"], "already-typed pieces stay in the field")
         XCTAssertNil(env.coordinator.interactionState.activeComposeSession)
-        XCTAssertEqual(env.inserter.typedDrafts, [])
     }
 
-    func test_textMutationDuringPreview_clearsActiveSession() async {
-        let env = await makeEnvironmentWithReadyDraft(draftText: "Hello.")
+    func test_textMutationDuringStreaming_cancelsTheStream() async {
+        let env = makeEnvironment(
+            mode: .compose,
+            engineBehavior: .blocked(initialPieces: ["streamed"])
+        )
+
+        _ = env.coordinator.handleInputEvent(CotabbyTestFixtures.inputEvent(kind: .acceptance))
+        for _ in 0..<15 { await Task.yield() }
 
         _ = env.coordinator.handleInputEvent(
             CotabbyTestFixtures.inputEvent(kind: .textMutation, characters: "x")
         )
+        for _ in 0..<10 { await Task.yield() }
 
         XCTAssertNil(env.coordinator.interactionState.activeComposeSession)
     }
 
-    func test_navigationDuringPreview_clearsActiveSession() async {
-        let env = await makeEnvironmentWithReadyDraft(draftText: "Hello.")
+    func test_navigationDuringStreaming_cancelsTheStream() async {
+        let env = makeEnvironment(
+            mode: .compose,
+            engineBehavior: .blocked(initialPieces: ["typed"])
+        )
+
+        _ = env.coordinator.handleInputEvent(CotabbyTestFixtures.inputEvent(kind: .acceptance))
+        for _ in 0..<15 { await Task.yield() }
 
         _ = env.coordinator.handleInputEvent(CotabbyTestFixtures.inputEvent(kind: .navigation))
+        for _ in 0..<10 { await Task.yield() }
 
         XCTAssertNil(env.coordinator.interactionState.activeComposeSession)
     }
 
-    func test_focusChange_duringPreview_clearsActiveSession() async {
-        let env = await makeEnvironmentWithReadyDraft(draftText: "Hello.")
+    func test_focusChangeDuringStreaming_cancelsTheStream() async {
+        let env = makeEnvironment(
+            mode: .compose,
+            engineBehavior: .blocked(initialPieces: ["before"])
+        )
+
+        _ = env.coordinator.handleInputEvent(CotabbyTestFixtures.inputEvent(kind: .acceptance))
+        for _ in 0..<15 { await Task.yield() }
 
         env.focusModel.publish(snapshot: focusSnapshot(processIdentifier: 999, elementIdentifier: "different"))
-        await Task.yield()
+        for _ in 0..<10 { await Task.yield() }
 
         XCTAssertNil(env.coordinator.interactionState.activeComposeSession)
     }
 
-    func test_modeChangeToAutocomplete_clearsActiveSession() async {
-        let env = await makeEnvironmentWithReadyDraft(draftText: "Hello.")
+    func test_modeChangeToAutocomplete_duringStreaming_cancelsTheStream() async {
+        let env = makeEnvironment(
+            mode: .compose,
+            engineBehavior: .blocked(initialPieces: ["before"])
+        )
+
+        _ = env.coordinator.handleInputEvent(CotabbyTestFixtures.inputEvent(kind: .acceptance))
+        for _ in 0..<15 { await Task.yield() }
 
         env.settings.publish(snapshot: snapshot(mode: .autocomplete))
-        await Task.yield()
+        for _ in 0..<10 { await Task.yield() }
 
         XCTAssertNil(env.coordinator.interactionState.activeComposeSession)
     }
 
     // MARK: - Failure paths
 
-    func test_emptyDraft_returnsToIdleAndHidesOverlay() async {
-        let generateExpectation = expectation(description: "generateCompose called")
+    func test_engineFailure_surfacesFailedStateAndClearsSession() async {
+        let finishedExpectation = expectation(description: "stream finished")
         let env = makeEnvironment(
             mode: .compose,
-            engineBehavior: .success(composeResult(text: "   \n  ")),
-            onGenerateCalled: { generateExpectation.fulfill() }
+            engineBehavior: .failure(SuggestionClientError.unavailable("No local model loaded.")),
+            onStreamFinished: { finishedExpectation.fulfill() }
         )
 
         _ = env.coordinator.handleInputEvent(CotabbyTestFixtures.inputEvent(kind: .acceptance))
-        await fulfillment(of: [generateExpectation], timeout: 1.0)
-        // Empty-draft handling is fully synchronous after `generateCompose` resolves; yield once
-        // so the awaiting `await applyComposeResult` runs.
-        await Task.yield()
-
-        XCTAssertNil(env.coordinator.interactionState.activeComposeSession)
-        if case .idle = env.coordinator.state {
-            // expected
-        } else {
-            XCTFail("Expected idle state after empty compose result, got \(env.coordinator.state)")
-        }
-    }
-
-    func test_engineFailure_surfacesFailedState() async {
-        let generateExpectation = expectation(description: "generateCompose called")
-        let env = makeEnvironment(
-            mode: .compose,
-            engineBehavior: .failure(SuggestionClientError.unavailable("Compose Mode requires tabby-depth-1.")),
-            onGenerateCalled: { generateExpectation.fulfill() }
-        )
-
-        _ = env.coordinator.handleInputEvent(CotabbyTestFixtures.inputEvent(kind: .acceptance))
-        await fulfillment(of: [generateExpectation], timeout: 1.0)
+        await fulfillment(of: [finishedExpectation], timeout: 1.0)
         await Task.yield()
 
         if case .failed(let message) = env.coordinator.state {
-            XCTAssertTrue(message.contains("tabby-depth-1"))
+            XCTAssertTrue(message.contains("local model"))
         } else {
             XCTFail("Expected failed state after engine failure, got \(env.coordinator.state)")
         }
+        XCTAssertNil(env.coordinator.interactionState.activeComposeSession)
     }
 
     // MARK: - Test environment
@@ -199,19 +203,15 @@ final class SuggestionCoordinatorComposeTests: XCTestCase {
     private func makeEnvironment(
         mode: SuggestionInteractionMode,
         engineBehavior: FakeSuggestionEngine.Behavior,
-        onGenerateCalled: (() -> Void)? = nil,
-        onShowComposePreview: (() -> Void)? = nil,
-        onTypeDraftCalled: (() -> Void)? = nil
+        onStreamFinished: (() -> Void)? = nil
     ) -> ComposeTestEnvironment {
         let permissions = FakeSuggestionPermissions()
         let focusModel = FakeFocusModel(initialSnapshot: focusSnapshot())
         let inputMonitor = FakeInputMonitor()
         let overlayController = FakeOverlayController()
-        overlayController.onShowComposePreview = onShowComposePreview
         let inserter = FakeSuggestionInserter()
-        inserter.onTypeDraftCalled = onTypeDraftCalled
         let engine = FakeSuggestionEngine(behavior: engineBehavior)
-        engine.onComposeCalled = onGenerateCalled
+        engine.onStreamFinished = onStreamFinished
         let settings = FakeSuggestionSettings(initialSnapshot: snapshot(mode: mode))
         let clipboard = FakeClipboardContextProvider()
         let visualContext = FakeVisualContextCoordinator()
@@ -252,21 +252,6 @@ final class SuggestionCoordinatorComposeTests: XCTestCase {
         )
     }
 
-    /// Spins up an environment, drives a first Tab through it, and waits for the compose preview
-    /// to be ready. Cancellation tests use this so they only have to assert post-conditions.
-    private func makeEnvironmentWithReadyDraft(draftText: String) async -> ComposeTestEnvironment {
-        let showPreviewExpectation = expectation(description: "showComposePreview called")
-        let env = makeEnvironment(
-            mode: .compose,
-            engineBehavior: .success(composeResult(text: draftText)),
-            onShowComposePreview: { showPreviewExpectation.fulfill() }
-        )
-
-        _ = env.coordinator.handleInputEvent(CotabbyTestFixtures.inputEvent(kind: .acceptance))
-        await fulfillment(of: [showPreviewExpectation], timeout: 1.0)
-        return env
-    }
-
     private func snapshot(mode: SuggestionInteractionMode) -> SuggestionSettingsSnapshot {
         SuggestionSettingsSnapshot(
             isGloballyEnabled: true,
@@ -298,10 +283,6 @@ final class SuggestionCoordinatorComposeTests: XCTestCase {
             context: inputSnapshot,
             inspection: nil
         )
-    }
-
-    private func composeResult(text: String) -> ComposeResult {
-        ComposeResult(generation: 1, rawText: text, text: text, latency: 0.05)
     }
 
     private func isolatedUserDefaults() -> UserDefaults {
@@ -363,7 +344,6 @@ private final class FakeInputMonitor: SuggestionInputMonitoring {
 private final class FakeOverlayController: SuggestionOverlayControlling {
     var state: OverlayState = .hidden(reason: "test idle")
     var onStateChange: ((OverlayState) -> Void)?
-    var onShowComposePreview: (() -> Void)?
     private(set) var composePreviewText: String?
     private(set) var hideReasons: [String] = []
 
@@ -376,7 +356,6 @@ private final class FakeOverlayController: SuggestionOverlayControlling {
         composePreviewText = text
         state = .composePreview(text: text, geometry: geometry)
         onStateChange?(state)
-        onShowComposePreview?()
     }
 
     func hide(reason: String) {
@@ -389,28 +368,33 @@ private final class FakeOverlayController: SuggestionOverlayControlling {
 @MainActor
 private final class FakeSuggestionInserter: SuggestionInserting {
     var lastErrorMessage: String?
-    var onTypeDraftCalled: (() -> Void)?
-    private(set) var typedDrafts: [String] = []
+    private(set) var insertedPieces: [String] = []
 
-    func insert(_ suggestion: String) -> Bool { true }
+    func insert(_ suggestion: String) -> Bool {
+        insertedPieces.append(suggestion)
+        return true
+    }
 
     func typeDraft(_ draft: String, shouldContinue: @escaping @MainActor () -> Bool) async -> Bool {
-        typedDrafts.append(draft)
-        onTypeDraftCalled?()
-        return true
+        true
     }
 }
 
 @MainActor
 private final class FakeSuggestionEngine: SuggestionGenerating {
     enum Behavior {
-        case success(ComposeResult)
+        /// Yields all pieces then finishes immediately.
+        case success(pieces: [String])
+        /// Yields `initialPieces`, then parks the stream until the underlying task is cancelled.
+        /// Lets tests trigger cancellation events (Esc, focus change, etc.) and verify cleanup.
+        case blocked(initialPieces: [String])
+        /// Throws immediately. Tests use `onStreamFinished` to wait for the failure to propagate.
         case failure(Error)
     }
 
     private let behavior: Behavior
-    var onComposeCalled: (() -> Void)?
-    private(set) var composeCallCount = 0
+    var onStreamFinished: (() -> Void)?
+    private(set) var composeStreamCallCount = 0
 
     init(behavior: Behavior) {
         self.behavior = behavior
@@ -421,18 +405,45 @@ private final class FakeSuggestionEngine: SuggestionGenerating {
     }
 
     func generateCompose(for request: ComposeRequest) async throws -> ComposeResult {
-        composeCallCount += 1
-        onComposeCalled?()
-        switch behavior {
-        case .success(let result):
-            return ComposeResult(
-                generation: request.generation,
-                rawText: result.rawText,
-                text: result.text,
-                latency: result.latency
-            )
-        case .failure(let error):
-            throw error
+        throw SuggestionClientError.unavailable("Compose Mode streams here; one-shot path unused.")
+    }
+
+    func generateComposeStreaming(for request: ComposeRequest) async throws -> AsyncThrowingStream<String, Error> {
+        composeStreamCallCount += 1
+        let behavior = self.behavior
+        let onStreamFinished = self.onStreamFinished
+
+        return AsyncThrowingStream { continuation in
+            let task = Task.detached {
+                switch behavior {
+                case .success(let pieces):
+                    for piece in pieces {
+                        if Task.isCancelled { break }
+                        continuation.yield(piece)
+                    }
+                    continuation.finish()
+                    onStreamFinished?()
+
+                case .blocked(let initialPieces):
+                    for piece in initialPieces {
+                        if Task.isCancelled { break }
+                        continuation.yield(piece)
+                    }
+                    // Park until the underlying detached task is cancelled by the consumer's
+                    // termination handler. Sleeping in small slices keeps `Task.isCancelled`
+                    // responsive without burning CPU.
+                    while !Task.isCancelled {
+                        try? await Task.sleep(nanoseconds: 10_000_000)
+                    }
+                    continuation.finish()
+                    onStreamFinished?()
+
+                case .failure(let error):
+                    continuation.finish(throwing: error)
+                    onStreamFinished?()
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
         }
     }
 
