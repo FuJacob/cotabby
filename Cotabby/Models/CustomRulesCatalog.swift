@@ -14,25 +14,26 @@ enum CustomRulesCatalog {
     static let maxRules = 10
     static let maxRuleLength = 60
 
-    /// Neutral, broadly-safe rules that ship enabled and that Reset restores. Opinionated style
-    /// rules (British spelling, lowercase, formal/casual) are intentionally palette-only because
-    /// they are wrong defaults for most users.
-    static let defaultRules: [String] = [
-        "Write concisely",
-        "Match my existing tone"
-    ]
+    /// Nothing ships enabled — rules are opt-in. "Clear" in the editor restores this empty state.
+    static let defaultRules: [String] = []
 
-    /// The full set of tappable suggestions shown in the editor. Includes the defaults so the chip
-    /// row stays complete even after a Reset.
+    /// Tappable suggestions shown in the editor. Chosen to span the common axes people care about —
+    /// tone, length, formatting, locale spelling, and punctuation — so most users find at least one
+    /// that fits without typing their own. Several are mutually exclusive on purpose (casual vs
+    /// professional, British vs American); they're choices, not a recommended stack.
     static let suggestedPalette: [String] = [
         "Write concisely",
-        "Match my existing tone",
-        "Use British spelling",
+        "Match my tone",
+        "Keep it casual",
+        "Keep it professional",
+        "Avoid jargon",
         "Never use em dashes",
-        "Keep a casual tone",
-        "Keep a formal tone",
+        "Avoid exclamation marks",
+        "Don't use emoji",
+        "Use British spelling",
+        "Use American spelling",
         "Default to lowercase",
-        "Avoid exclamation marks"
+        "Use the Oxford comma"
     ]
 
     /// Trims, drops empties, truncates over-long rules, de-duplicates case-insensitively (keeping

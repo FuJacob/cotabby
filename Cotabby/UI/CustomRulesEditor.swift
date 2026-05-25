@@ -22,7 +22,7 @@ struct CustomRulesEditor: View {
         return CustomRulesCatalog.suggestedPalette.filter { !existing.contains($0.lowercased()) }
     }
 
-    private var canReset: Bool {
+    private var canClear: Bool {
         suggestionSettings.customRules != CustomRulesCatalog.defaultRules
     }
 
@@ -32,8 +32,8 @@ struct CustomRulesEditor: View {
                 Text("Rules")
                     .font(.system(size: 13, weight: .medium))
                 Spacer()
-                if canReset {
-                    Button("Reset") {
+                if canClear {
+                    Button("Clear") {
                         suggestionSettings.resetRules()
                     }
                     .buttonStyle(.plain)
