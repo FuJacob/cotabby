@@ -118,6 +118,9 @@ struct SettingsView: View {
         } else if suggestionSettings.selectedEngine == .appleIntelligence,
                   !foundationModelAvailabilityService.isAvailable {
             attentionRow(foundationModelAvailabilityService.userVisibleMessage)
+        } else if suggestionSettings.selectedEngine == .llamaOpenSource,
+                  case .failed(let detail) = runtimeModel.state {
+            attentionRow("\(detail) See Model & Engine below.")
         }
     }
 
