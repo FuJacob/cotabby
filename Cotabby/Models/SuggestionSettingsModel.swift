@@ -119,7 +119,11 @@ final class SuggestionSettingsModel: ObservableObject {
         let resolvedFocusPollIntervalMilliseconds: Int = {
             let raw = userDefaults.object(forKey: Self.focusPollIntervalMillisecondsDefaultsKey) as? Int
                 ?? configuration.focusPollIntervalMilliseconds
-            return max(10, min(500, raw))
+            // Existing installs may have the old 50ms first-launch default persisted. Floor at the
+            // shipped default so the hotfix bump reaches them — the stepper is hidden from the UI,
+            // so the persisted value is always the previous default, never a user-chosen override.
+            let floored = max(raw, configuration.focusPollIntervalMilliseconds)
+            return max(10, min(500, floored))
         }()
 
         let resolvedMultiLineEnabled = userDefaults.object(forKey: Self.multiLineEnabledDefaultsKey) as? Bool ?? false

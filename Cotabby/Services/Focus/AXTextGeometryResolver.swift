@@ -50,22 +50,24 @@ struct AXTextGeometryResolver {
     func resolveCaretRect(
         for element: AXUIElement,
         selection: NSRange,
+        supportsBoundsForRange: Bool,
         supportsFrame: Bool,
         cocoaAnchorFrame: CGRect?,
         textValue: String? = nil
     ) -> CaretGeometryResult? {
         // Branch 1: Zero-length BoundsForRange at the caret position — ideal case.
-        // We try this unconditionally because many apps support BoundsForRange without
-        // advertising it in parameterizedAttributeNames. Without the old gate, though, some
-        // AX nodes (deep Chrome leaves, ancestors with inherited selections) respond non-nil
-        // with rects that belong to an unrelated range. Anchor validation rejects those so we
-        // fall through to TextMarker / child runs / AXFrame instead of locking in garbage as
-        // `.exact` and overriding the primary candidate via the deep-tree search.
-        if let rect = AXHelper.parameterizedRectValue(
-            for: kAXBoundsForRangeParameterizedAttribute as CFString,
-            range: NSRange(location: selection.location, length: 0),
-            on: element
-        ), !rect.isEmpty {
+        // Gated on `supportsBoundsForRange` because the API is a synchronous cross-process
+        // call into the focused app's AX implementation. In Chrome that's a round-trip into
+        // the renderer, and the deep-tree walker can touch many leaves per focus poll; calling
+        // BoundsForRange on nodes that don't advertise support stalled the main thread badly
+        // enough to freeze typing. The `rectIsNearAnchor` validator stays as a correctness
+        // guard for supporters that return rects belonging to an unrelated range.
+        if supportsBoundsForRange,
+            let rect = AXHelper.parameterizedRectValue(
+                for: kAXBoundsForRangeParameterizedAttribute as CFString,
+                range: NSRange(location: selection.location, length: 0),
+                on: element
+            ), !rect.isEmpty {
             let cocoaRect = AXHelper.validatedCocoaTextRect(
                 fromAccessibilityRect: rect,
                 anchorFrame: cocoaAnchorFrame
@@ -93,9 +95,9 @@ struct AXTextGeometryResolver {
         }
 
         // Branch 2: BoundsForRange on the character before the caret, then shift to its trailing edge.
-        // Same anchor validation as Branch 1 — the optimistic call can return rects for ranges
-        // that don't belong to this element.
-        if selection.location > 0,
+        // Same gate and anchor validation as Branch 1.
+        if supportsBoundsForRange,
+            selection.location > 0,
             let rect = AXHelper.parameterizedRectValue(
                 for: kAXBoundsForRangeParameterizedAttribute as CFString,
                 range: NSRange(location: selection.location - 1, length: 1),

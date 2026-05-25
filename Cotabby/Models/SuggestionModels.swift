@@ -109,7 +109,7 @@ struct SuggestionConfiguration: Equatable, Sendable {
         // Seed the profile settings with lightweight defaults on first launch.
         defaultUserName: "Jacob",
         defaultWordCountPreset: .twelveToTwenty,
-        focusPollIntervalMilliseconds: 50
+        focusPollIntervalMilliseconds: 80
     )
 }
 

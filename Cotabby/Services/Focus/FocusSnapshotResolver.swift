@@ -361,6 +361,7 @@ struct FocusSnapshotResolver {
             if let range = AXHelper.rangeValue(
                 for: kAXSelectedTextRangeAttribute as CFString, on: element
             ), range.length == 0 {
+                let paramAttrs = Set(AXHelper.parameterizedAttributeNames(on: element))
                 let attrs = Set(AXHelper.attributeNames(on: element))
                 let textValue =
                     attrs.contains(kAXValueAttribute as String)
@@ -369,6 +370,9 @@ struct FocusSnapshotResolver {
                 let result = geometryResolver.resolveCaretRect(
                     for: element,
                     selection: range,
+                    supportsBoundsForRange: paramAttrs.contains(
+                        kAXBoundsForRangeParameterizedAttribute as String
+                    ),
                     supportsFrame: attrs.contains("AXFrame"),
                     cocoaAnchorFrame: cocoaAnchorFrame,
                     textValue: textValue
@@ -430,6 +434,8 @@ struct FocusSnapshotResolver {
         let role = AXHelper.stringValue(for: kAXRoleAttribute as CFString, on: element) ?? "Unknown"
         let subrole = AXHelper.stringValue(for: kAXSubroleAttribute as CFString, on: element)
         let supportedAttributes = Set(AXHelper.attributeNames(on: element))
+        let supportedParameterizedAttributes = Set(
+            AXHelper.parameterizedAttributeNames(on: element))
         let explicitEditableFlag =
             supportedAttributes.contains("AXEditable")
             ? AXHelper.boolValue(for: "AXEditable" as CFString, on: element)
@@ -478,6 +484,8 @@ struct FocusSnapshotResolver {
             geometryResolver.resolveCaretRect(
                 for: element,
                 selection: $0,
+                supportsBoundsForRange: supportedParameterizedAttributes.contains(
+                    kAXBoundsForRangeParameterizedAttribute as String),
                 supportsFrame: supportedAttributes.contains("AXFrame"),
                 cocoaAnchorFrame: inputFrameRect,
                 textValue: textValue
@@ -582,6 +590,7 @@ struct FocusSnapshotResolver {
         let role = AXHelper.stringValue(for: kAXRoleAttribute as CFString, on: element) ?? "?"
         let subrole = AXHelper.stringValue(for: kAXSubroleAttribute as CFString, on: element)
         let attributes = Set(AXHelper.attributeNames(on: element))
+        let parameterizedAttributes = Set(AXHelper.parameterizedAttributeNames(on: element))
 
         var summary = "\(indent)\(role)"
         if let subrole { summary += " (\(subrole))" }
@@ -603,17 +612,17 @@ struct FocusSnapshotResolver {
         if let range = AXHelper.rangeValue(for: kAXSelectedTextRangeAttribute as CFString, on: element) {
             summary += "\(indent)  selection: loc=\(range.location) len=\(range.length)\n"
 
-            // Try BoundsForRange unconditionally so the dump reflects what the production resolver
-            // actually sees on Electron/WebKit elements that don't advertise the attribute.
-            let boundsRect = AXHelper.parameterizedRectValue(
-                for: kAXBoundsForRangeParameterizedAttribute as CFString,
-                range: NSRange(location: range.location, length: 0),
-                on: element
-            )
-            if let boundsRect, !boundsRect.isEmpty {
-                summary += "\(indent)  BoundsForRange(loc,0): \(fmt(boundsRect))\n"
-            } else {
-                summary += "\(indent)  BoundsForRange(loc,0): FAILED\n"
+            if parameterizedAttributes.contains(kAXBoundsForRangeParameterizedAttribute as String) {
+                let boundsRect = AXHelper.parameterizedRectValue(
+                    for: kAXBoundsForRangeParameterizedAttribute as CFString,
+                    range: NSRange(location: range.location, length: 0),
+                    on: element
+                )
+                if let boundsRect, !boundsRect.isEmpty {
+                    summary += "\(indent)  BoundsForRange(loc,0): \(fmt(boundsRect))\n"
+                } else {
+                    summary += "\(indent)  BoundsForRange(loc,0): FAILED\n"
+                }
             }
         }
 

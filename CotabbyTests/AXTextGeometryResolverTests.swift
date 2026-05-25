@@ -6,9 +6,9 @@ import XCTest
 /// Tests for `AXTextGeometryResolver` caret resolution branch ordering.
 ///
 /// These tests use a real `NSTextField` hosted in the test process to exercise the AX geometry
-/// pipeline end-to-end. Native AppKit text fields reliably support `AXBoundsForRange`, so they
-/// validate that the optimistic BoundsForRange path produces `.exact` quality without requiring
-/// the element to advertise the attribute in `parameterizedAttributeNames`.
+/// pipeline end-to-end. Native AppKit text fields reliably support `AXBoundsForRange` and
+/// advertise it via `parameterizedAttributeNames`, so the resolver's Branch 1/2 are reachable
+/// when callers pass `supportsBoundsForRange: true`.
 @MainActor
 final class AXTextGeometryResolverTests: XCTestCase {
     private let resolver = AXTextGeometryResolver()
@@ -50,6 +50,7 @@ final class AXTextGeometryResolverTests: XCTestCase {
         let resolved = resolver.resolveCaretRect(
             for: focusedElement,
             selection: NSRange(location: 5, length: 0),
+            supportsBoundsForRange: true,
             supportsFrame: true,
             cocoaAnchorFrame: nil
         )
@@ -83,6 +84,7 @@ final class AXTextGeometryResolverTests: XCTestCase {
         let result = resolver.resolveCaretRect(
             for: focusedElement,
             selection: NSRange(location: 0, length: 0),
+            supportsBoundsForRange: true,
             supportsFrame: true,
             cocoaAnchorFrame: nil
         )
@@ -110,6 +112,7 @@ final class AXTextGeometryResolverTests: XCTestCase {
         let result = resolver.resolveCaretRect(
             for: focusedElement,
             selection: NSRange(location: 3, length: 0),
+            supportsBoundsForRange: true,
             supportsFrame: true,
             cocoaAnchorFrame: nil,
             textValue: "Fallback test"

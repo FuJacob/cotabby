@@ -31,7 +31,7 @@ final class FocusTracker {
     private var lastFocusedInputSignature: FocusedInputPollingSignature?
 
     init(
-        pollInterval: TimeInterval = 0.05,
+        pollInterval: TimeInterval = 0.08,
         permissionProvider: @escaping @MainActor () -> Bool,
         ignoredBundleIdentifier: String?,
         snapshotResolver: FocusSnapshotResolver? = nil
