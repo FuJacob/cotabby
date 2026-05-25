@@ -75,12 +75,6 @@ final class LlamaSuggestionEngine {
     }
 
     func generateCompose(for request: ComposeRequest) async throws -> ComposeResult {
-        guard runtimeManager.selectedModelSupportsCompose else {
-            throw SuggestionClientError.unavailable(
-                "Compose Mode requires tabby-depth-1. Select or download \(RuntimeModelCatalog.composeRequiredFilename)."
-            )
-        }
-
         do {
             let startTime = Date()
             let prompt = ComposePromptRenderer.prompt(for: request)

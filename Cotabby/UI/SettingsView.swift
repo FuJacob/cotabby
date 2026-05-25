@@ -182,17 +182,6 @@ struct SettingsView: View {
                     .foregroundStyle(.orange)
             }
 
-            if suggestionSettings.selectedInteractionMode == .compose,
-               suggestionSettings.selectedEngine == .llamaOpenSource,
-               !runtimeModel.isComposeRequiredModelInstalled {
-                Text(
-                    "Compose requires \(RuntimeModelCatalog.composeRequiredFilename). "
-                    + "Add it to your models folder to enable draft generation."
-                )
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-            }
-
             Picker("Length", selection: selectedWordCountPresetBinding) {
                 ForEach(SuggestionWordCountPreset.allCases) { preset in
                     Text(preset.displayLabel)

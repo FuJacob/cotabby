@@ -23,10 +23,6 @@ final class LlamaRuntimeManager: ObservableObject {
     private var cachedRuntime: PreparedLlamaRuntime?
     private var selectedModelFilename: String?
 
-    var selectedModelSupportsCompose: Bool {
-        RuntimeModelCatalog.supportsCompose(filename: selectedModelFilename)
-    }
-
     convenience init() {
         self.init(
             configuration: .default,
