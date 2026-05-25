@@ -195,6 +195,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// warm the runtime only if the current engine choice needs it.
     private func handleModelDirectoryChange() {
         runtimeModel.refreshAvailableModels()
+        mlxRuntimeManager.refreshAvailableModels()
         startRuntimeIfPreferredEngineRequiresIt()
     }
 }

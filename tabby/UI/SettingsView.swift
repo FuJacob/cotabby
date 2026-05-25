@@ -309,12 +309,12 @@ struct SettingsView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            if runtimeModel.availableModels.isEmpty {
-                Text("No local GGUF models found. Download one below or add your own model file.")
+            if activeRuntimeModels.isEmpty {
+                Text(noLocalModelsText)
                     .foregroundStyle(.secondary)
             } else {
                 Picker("Selected Model", selection: selectedModelBinding) {
-                    ForEach(runtimeModel.availableModels) { model in
+                    ForEach(activeRuntimeModels) { model in
                         Text(model.displayName)
                             .tag(model.filename)
                     }
@@ -323,28 +323,32 @@ struct SettingsView: View {
 
             DownloadableModelCatalogView(
                 modelDownloadManager: modelDownloadManager,
+                models: downloadableModelsForSelectedEngine,
+                modelFormat: selectedLocalModelFormat,
                 onRefreshModels: refreshModels
             )
 
             LabeledContent("Folder") {
                 VStack(alignment: .trailing, spacing: 8) {
-                    Text(modelDownloadManager.modelsDirectoryPath)
+                    Text(modelDownloadManager.modelsDirectoryPath(for: selectedLocalModelFormat))
                         .font(.callout.monospaced())
                         .textSelection(.enabled)
                         .multilineTextAlignment(.trailing)
 
                     HStack(spacing: 8) {
-                        let lmStudioURL = FileManager.default.homeDirectoryForCurrentUser
-                            .appendingPathComponent(".lmstudio/models")
-                        Button("LM Studio Folder") {
-                            NSWorkspace.shared.open(lmStudioURL)
+                        if selectedLocalModelFormat == .gguf {
+                            let lmStudioURL = FileManager.default.homeDirectoryForCurrentUser
+                                .appendingPathComponent(".lmstudio/models")
+                            Button("LM Studio Folder") {
+                                NSWorkspace.shared.open(lmStudioURL)
+                            }
+                            .disabled(
+                                !FileManager.default.fileExists(atPath: lmStudioURL.path)
+                            )
                         }
-                        .disabled(
-                            !FileManager.default.fileExists(atPath: lmStudioURL.path)
-                        )
 
                         Button("Open Folder") {
-                            modelDownloadManager.openModelsDirectory()
+                            modelDownloadManager.openModelsDirectory(format: selectedLocalModelFormat)
                         }
 
                         Button("Refresh") {
@@ -354,12 +358,12 @@ struct SettingsView: View {
                 }
             }
 
-            if !runtimeModel.availableModels.isEmpty {
+            if !activeRuntimeModels.isEmpty {
                 Text("Installed")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                ForEach(runtimeModel.availableModels) { model in
+                ForEach(activeRuntimeModels) { model in
                     installedModelRow(model)
                 }
             }
@@ -410,10 +414,13 @@ struct SettingsView: View {
 
             Spacer(minLength: 0)
 
-            if model.filename == runtimeModel.selectedModelFilename {
+            if model.filename == selectedRuntimeModelName {
                 Image(systemName: "checkmark.circle.fill")
                     .foregroundStyle(.tint)
-            } else if modelDownloadManager.canDeleteModel(filename: model.filename) {
+            } else if modelDownloadManager.canDeleteModel(
+                filename: model.filename,
+                format: model.format
+            ) {
                 Button {
                     pendingDeletionModel = model
                 } label: {
@@ -584,13 +591,18 @@ struct SettingsView: View {
     private var selectedModelBinding: Binding<String> {
         Binding(
             get: {
-                runtimeModel.selectedModelFilename
-                    ?? runtimeModel.availableModels.first?.filename
+                selectedRuntimeModelName
+                    ?? activeRuntimeModels.first?.filename
                     ?? ""
             },
             set: { filename in
                 Task {
-                    await runtimeModel.selectModel(filename)
+                    switch suggestionSettings.selectedEngine {
+                    case .llamaOpenSource, .appleIntelligence:
+                        await runtimeModel.selectModel(filename)
+                    case .mlxSwift:
+                        try? await mlxRuntimeManager.selectModel(name: filename)
+                    }
                 }
             }
         )
@@ -618,6 +630,41 @@ struct SettingsView: View {
             return "Download an MLX model below. Models are stored locally on your Mac."
         case .appleIntelligence:
             return "These models are used when Engine is set to Open Source or MLX."
+        }
+    }
+
+    private var selectedLocalModelFormat: ModelFormat {
+        suggestionSettings.selectedEngine.modelFormat ?? .gguf
+    }
+
+    private var activeRuntimeModels: [RuntimeModelOption] {
+        switch suggestionSettings.selectedEngine {
+        case .mlxSwift:
+            return mlxRuntimeManager.availableModels
+        case .llamaOpenSource, .appleIntelligence:
+            return runtimeModel.availableModels
+        }
+    }
+
+    private var downloadableModelsForSelectedEngine: [DownloadableRuntimeModel] {
+        modelDownloadManager.models(for: selectedLocalModelFormat)
+    }
+
+    private var selectedRuntimeModelName: String? {
+        switch suggestionSettings.selectedEngine {
+        case .mlxSwift:
+            return mlxRuntimeManager.selectedModelName
+        case .llamaOpenSource, .appleIntelligence:
+            return runtimeModel.selectedModelFilename
+        }
+    }
+
+    private var noLocalModelsText: String {
+        switch selectedLocalModelFormat {
+        case .gguf:
+            return "No local GGUF models found. Download one below or add your own model file."
+        case .mlx:
+            return "No local MLX models found. Download one below."
         }
     }
 
@@ -674,14 +721,15 @@ struct SettingsView: View {
     }
 
     private func deleteModel(_ model: RuntimeModelOption) {
-        modelDownloadManager.deleteModel(filename: model.filename)
-        runtimeModel.refreshAvailableModels()
+        modelDownloadManager.deleteModel(filename: model.filename, format: model.format)
+        refreshModels()
         pendingDeletionModel = nil
     }
 
     private func refreshModels() {
         modelDownloadManager.refreshModelStates()
         runtimeModel.refreshAvailableModels()
+        mlxRuntimeManager.refreshAvailableModels()
     }
 
 }

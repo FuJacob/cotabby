@@ -10,11 +10,25 @@ import SwiftUI
 struct DownloadableModelCatalogView: View {
     @ObservedObject var modelDownloadManager: ModelDownloadManager
 
+    private let models: [DownloadableRuntimeModel]
+    private let modelFormat: ModelFormat
     let onRefreshModels: () -> Void
+
+    init(
+        modelDownloadManager: ModelDownloadManager,
+        models: [DownloadableRuntimeModel]? = nil,
+        modelFormat: ModelFormat = .gguf,
+        onRefreshModels: @escaping () -> Void
+    ) {
+        self.modelDownloadManager = modelDownloadManager
+        self.models = models ?? modelDownloadManager.models(for: modelFormat)
+        self.modelFormat = modelFormat
+        self.onRefreshModels = onRefreshModels
+    }
 
     var body: some View {
         VStack(spacing: 8) {
-            ForEach(modelDownloadManager.models) { model in
+            ForEach(models) { model in
                 DownloadableModelRow(
                     model: model,
                     state: modelDownloadManager.state(for: model),
@@ -25,9 +39,9 @@ struct DownloadableModelCatalogView: View {
 
             HStack(spacing: 12) {
                 Button {
-                    modelDownloadManager.openModelsDirectory()
+                    modelDownloadManager.openModelsDirectory(format: modelFormat)
                 } label: {
-                    Label("Add Your Own", systemImage: "folder.badge.plus")
+                    Label(openFolderLabel, systemImage: "folder.badge.plus")
                         .font(.system(size: 12))
                 }
                 .buttonStyle(.plain)
@@ -44,10 +58,28 @@ struct DownloadableModelCatalogView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            Text("Drop any .gguf model into the folder above.")
+            Text(folderHint)
                 .font(.system(size: 11))
                 .foregroundStyle(.tertiary)
                 .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private var openFolderLabel: String {
+        switch modelFormat {
+        case .gguf:
+            return "Add Your Own"
+        case .mlx:
+            return "Open MLX Folder"
+        }
+    }
+
+    private var folderHint: String {
+        switch modelFormat {
+        case .gguf:
+            return "Drop any .gguf model into the folder above."
+        case .mlx:
+            return "MLX models are folders containing config.json and .safetensors files."
         }
     }
 }

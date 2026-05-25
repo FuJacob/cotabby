@@ -81,11 +81,29 @@ final class ModelDownloadManager: ObservableObject {
     }
 
     var models: [DownloadableRuntimeModel] {
-        RuntimeModelCatalog.downloadableModels
+        models(for: .gguf)
+    }
+
+    func models(for format: ModelFormat) -> [DownloadableRuntimeModel] {
+        switch format {
+        case .gguf:
+            return RuntimeModelCatalog.downloadableModels
+        case .mlx:
+            return RuntimeModelCatalog.downloadableMLXModels
+        }
     }
 
     var modelsDirectoryPath: String {
-        runtimeDirectoryURL.path
+        modelsDirectoryPath(for: .gguf)
+    }
+
+    func modelsDirectoryPath(for format: ModelFormat) -> String {
+        switch format {
+        case .gguf:
+            return runtimeDirectoryURL.path
+        case .mlx:
+            return mlxRuntimeDirectoryURL.path
+        }
     }
 
     func state(for model: DownloadableRuntimeModel) -> ModelDownloadState {
@@ -93,7 +111,7 @@ final class ModelDownloadManager: ObservableObject {
     }
 
     func refreshModelStates() {
-        for model in models {
+        for model in models(for: .gguf) + models(for: .mlx) {
             if downloadTasks[model.filename] != nil {
                 if case .downloading(let progress) = modelStates[model.filename] {
                     modelStates[model.filename] = .downloading(progress: progress)
@@ -159,14 +177,24 @@ final class ModelDownloadManager: ObservableObject {
         }
     }
 
-    func openModelsDirectory() {
+    func openModelsDirectory(format: ModelFormat = .gguf) {
         do {
-            try ensureRuntimeDirectoryExists()
+            switch format {
+            case .gguf:
+                try ensureRuntimeDirectoryExists()
+            case .mlx:
+                try ensureMLXRuntimeDirectoryExists()
+            }
         } catch {
             return
         }
 
-        NSWorkspace.shared.open(runtimeDirectoryURL)
+        switch format {
+        case .gguf:
+            NSWorkspace.shared.open(runtimeDirectoryURL)
+        case .mlx:
+            NSWorkspace.shared.open(mlxRuntimeDirectoryURL)
+        }
     }
 
     /// Returns `true` only when the model lives in Tabby's user-writable model directory.

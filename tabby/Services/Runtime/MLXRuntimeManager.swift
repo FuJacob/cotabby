@@ -8,13 +8,13 @@ import Foundation
 final class MLXRuntimeManager: ObservableObject {
     @Published private(set) var state: RuntimeBootstrapState = .idle
     @Published private(set) var availableModels: [RuntimeModelOption] = []
+    @Published private(set) var selectedModelName: String?
 
     private let runtimeLocator: BundledRuntimeLocator
     private let core: MLXRuntimeCore
     private var startupTask: Task<PreparedMLXRuntime, Error>?
     private var startupModelName: String?
     private var cachedRuntime: PreparedMLXRuntime?
-    private var selectedModelName: String?
 
     convenience init() {
         self.init(runtimeLocator: BundledRuntimeLocator())
