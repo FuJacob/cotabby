@@ -21,7 +21,7 @@ PROJECT_PATH      = 'Cotabby.xcodeproj'
 HOST_TARGET_NAME  = 'Cotabby'
 TEST_TARGET_NAME  = 'CotabbyTests'
 DEPLOYMENT_TARGET = '26.0'
-TEST_BUNDLE_ID    = 'com.jacobfu.cotabby.CotabbyTests'
+TEST_BUNDLE_ID    = 'com.jacobfu.tabby.CotabbyTests'
 TESTS_DIR         = 'CotabbyTests'
 
 project = Xcodeproj::Project.open(PROJECT_PATH)

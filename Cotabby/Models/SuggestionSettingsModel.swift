@@ -28,22 +28,22 @@ final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var fullAcceptanceKeyLabel: String
     private let userDefaults: UserDefaults
 
-    private static let isGloballyEnabledDefaultsKey = "CotabbyGloballyEnabled"
-    private static let disabledAppRulesDefaultsKey = "CotabbyDisabledAppRules"
+    private static let isGloballyEnabledDefaultsKey = "tabbyGloballyEnabled"
+    private static let disabledAppRulesDefaultsKey = "tabbyDisabledAppRules"
     // Legacy key. Keep reading and writing through it so old builds degrade to a visible indicator.
-    private static let showCaretIndicatorDefaultsKey = "CotabbyShowCaretIndicator"
-    private static let selectedIndicatorModeDefaultsKey = "CotabbySelectedIndicatorMode"
-    private static let customSuggestionTextColorHexDefaultsKey = "CotabbyCustomSuggestionTextColorHex"
+    private static let showCaretIndicatorDefaultsKey = "tabbyShowCaretIndicator"
+    private static let selectedIndicatorModeDefaultsKey = "tabbySelectedIndicatorMode"
+    private static let customSuggestionTextColorHexDefaultsKey = "tabbyCustomSuggestionTextColorHex"
     private static let selectedEngineDefaultsKey = "selectedSuggestionEngine"
     private static let selectedWordCountPresetDefaultsKey = "selectedSuggestionWordCountPreset"
-    private static let clipboardContextEnabledDefaultsKey = "CotabbyClipboardContextEnabled"
-    private static let userNameDefaultsKey = "CotabbyUserName"
-    private static let debounceMillisecondsDefaultsKey = "CotabbyDebounceMilliseconds"
-    private static let focusPollIntervalMillisecondsDefaultsKey = "CotabbyFocusPollIntervalMilliseconds"
-    private static let acceptanceKeyCodeDefaultsKey = "CotabbyAcceptanceKeyCode"
-    private static let acceptanceKeyLabelDefaultsKey = "CotabbyAcceptanceKeyLabel"
-    private static let fullAcceptanceKeyCodeDefaultsKey = "CotabbyFullAcceptanceKeyCode"
-    private static let fullAcceptanceKeyLabelDefaultsKey = "CotabbyFullAcceptanceKeyLabel"
+    private static let clipboardContextEnabledDefaultsKey = "tabbyClipboardContextEnabled"
+    private static let userNameDefaultsKey = "tabbyUserName"
+    private static let debounceMillisecondsDefaultsKey = "tabbyDebounceMilliseconds"
+    private static let focusPollIntervalMillisecondsDefaultsKey = "tabbyFocusPollIntervalMilliseconds"
+    private static let acceptanceKeyCodeDefaultsKey = "tabbyAcceptanceKeyCode"
+    private static let acceptanceKeyLabelDefaultsKey = "tabbyAcceptanceKeyLabel"
+    private static let fullAcceptanceKeyCodeDefaultsKey = "tabbyFullAcceptanceKeyCode"
+    private static let fullAcceptanceKeyLabelDefaultsKey = "tabbyFullAcceptanceKeyLabel"
 
     static let defaultAcceptanceKeyCode: CGKeyCode = 48
     static let defaultAcceptanceKeyLabel = "Tab"

@@ -4,7 +4,7 @@
 # Usage: bash scripts/clean_local.sh
 set -euo pipefail
 
-BUNDLE_ID="com.jacobfu.cotabby"
+BUNDLE_ID="com.jacobfu.tabby"
 
 echo "=== Cotabby Local Cleanup ==="
 

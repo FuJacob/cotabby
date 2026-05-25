@@ -427,7 +427,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.jacobfu.cotabby;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jacobfu.tabby;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
 				SPARKLE_PUBLIC_ED_KEY = "efJeZNfUISOs6npbxI2MLLe7sBB5tT/sVnTk9t/qBSY=";
@@ -461,7 +461,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.jacobfu.cotabby;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jacobfu.tabby;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
 				SPARKLE_PUBLIC_ED_KEY = "efJeZNfUISOs6npbxI2MLLe7sBB5tT/sVnTk9t/qBSY=";
@@ -490,7 +490,7 @@
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.jacobfu.cotabby.CotabbyTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jacobfu.tabby.CotabbyTests;
 				PRODUCT_MODULE_NAME = "$(TARGET_NAME)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
@@ -515,7 +515,7 @@
 					"@loader_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.jacobfu.cotabby.CotabbyTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.jacobfu.tabby.CotabbyTests;
 				PRODUCT_MODULE_NAME = "$(TARGET_NAME)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
