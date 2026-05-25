@@ -142,7 +142,7 @@ private struct FieldEdgeIconIndicatorView: View {
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 5, style: .continuous)
-                .fill(Color(white: 0.32))
+                .fill(Color(red: 0.18, green: 0.19, blue: 0.21))
             Image("MenuBarCatIcon")
                 .renderingMode(.template)
                 .resizable()
