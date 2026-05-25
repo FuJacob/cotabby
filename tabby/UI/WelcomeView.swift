@@ -255,7 +255,7 @@ extension WelcomeView {
         switch suggestionSettings.selectedEngine {
         case .appleIntelligence:
             return foundationModelAvailabilityService.isAvailable
-        case .llamaOpenSource:
+        case .llamaOpenSource, .mlxSwift:
             return hasAtLeastOneModel
         }
     }
@@ -264,7 +264,7 @@ extension WelcomeView {
         switch suggestionSettings.selectedEngine {
         case .appleIntelligence:
             return "Apple Intelligence is not available on this Mac."
-        case .llamaOpenSource:
+        case .llamaOpenSource, .mlxSwift:
             return "Add or download at least one model to continue."
         }
     }

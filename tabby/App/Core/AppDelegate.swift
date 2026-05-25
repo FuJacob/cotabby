@@ -1,5 +1,6 @@
 import AppKit
 import Combine
+import os
 
 /// File overview:
 /// Starts the long-lived services that power permissions, focus tracking, suggestion generation,
@@ -15,6 +16,7 @@ import Combine
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let permissionManager: PermissionManager
     let runtimeModel: RuntimeBootstrapModel
+    let mlxRuntimeManager: MLXRuntimeManager
     let modelDownloadManager: ModelDownloadManager
     let focusModel: FocusTrackingModel
     let inputMonitor: InputMonitor
@@ -38,6 +40,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let environment = TabbyAppEnvironment()
         permissionManager = environment.permissionManager
         runtimeModel = environment.runtimeModel
+        mlxRuntimeManager = environment.mlxRuntimeManager
         modelDownloadManager = environment.modelDownloadManager
         focusModel = environment.focusModel
         inputMonitor = environment.inputMonitor
@@ -119,13 +122,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// Stops long-lived services before process exit so timers and runtime resources detach cleanly.
-    func applicationWillTerminate(_ notification: Notification) {
+    ///
+    /// AppKit lets an app defer termination by returning `.terminateLater`. We use that path because
+    /// native runtime cleanup may need to release Metal/GPU resources before the process starts
+    /// tearing down C++ static state. The timeout keeps a stuck native call from blocking quit forever.
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         activationIndicatorController.hide(reason: "Activation indicator hidden because Tabby is terminating.")
         focusDebugOverlayController?.hide()
         suggestionCoordinator.stop()
         inputMonitor.stop()
         focusModel.stop()
-        runtimeModel.stop()
+
+        let didReply = OSAllocatedUnfairLock(initialState: false)
+
+        func replyOnce() {
+            let alreadyReplied = didReply.withLock { replied -> Bool in
+                let was = replied
+                replied = true
+                return was
+            }
+            guard !alreadyReplied else { return }
+            sender.reply(toApplicationShouldTerminate: true)
+        }
+
+        Task.detached {
+            await self.runtimeModel.stopAndWait()
+            await self.mlxRuntimeManager.stopAndWait()
+            await MainActor.run { replyOnce() }
+        }
+
+        Task {
+            try? await Task.sleep(nanoseconds: 5_000_000_000)
+            replyOnce()
+        }
+
+        return .terminateLater
     }
 
     /// Shows or hides the field-edge tabby icon based on focus state, global enable, per-app
@@ -147,14 +178,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
     }
 
-    /// Warm the local runtime only when the user is actually on the open-source engine path.
+    /// Warm the local runtime only when the user is actually on a local engine path.
     /// This avoids noisy startup failures and wasted work for Apple Intelligence users.
     private func startRuntimeIfPreferredEngineRequiresIt() {
-        guard suggestionSettings.selectedEngine == .llamaOpenSource else {
-            return
+        switch suggestionSettings.selectedEngine {
+        case .llamaOpenSource:
+            runtimeModel.startIfNeeded()
+        case .mlxSwift:
+            Task { try? await mlxRuntimeManager.prepare() }
+        case .appleIntelligence:
+            break
         }
-
-        runtimeModel.startIfNeeded()
     }
 
     /// Model availability can change after downloads or manual file drops. Re-scan first, then

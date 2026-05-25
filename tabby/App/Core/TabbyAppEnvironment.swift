@@ -12,6 +12,7 @@ import Foundation
 final class TabbyAppEnvironment {
     let permissionManager: PermissionManager
     let runtimeModel: RuntimeBootstrapModel
+    let mlxRuntimeManager: MLXRuntimeManager
     let modelDownloadManager: ModelDownloadManager
     let focusModel: FocusTrackingModel
     let inputMonitor: InputMonitor
@@ -37,6 +38,7 @@ final class TabbyAppEnvironment {
         )
         let runtimeManager = LlamaRuntimeManager()
         let runtimeModel = RuntimeBootstrapModel(runtimeManager: runtimeManager)
+        let mlxRuntimeManager = MLXRuntimeManager()
         let modelDownloadManager = ModelDownloadManager()
         let suggestionSettings = SuggestionSettingsModel(configuration: configuration)
         let foundationModelAvailabilityService = FoundationModelAvailabilityService()
@@ -68,6 +70,7 @@ final class TabbyAppEnvironment {
             suggestionSettings: suggestionSettings,
             foundationModelAvailabilityService: foundationModelAvailabilityService,
             runtimeModel: runtimeModel,
+            mlxRuntimeManager: mlxRuntimeManager,
             modelDownloadManager: modelDownloadManager,
             onShowWelcome: { [weak welcomeCoordinator] in
                 welcomeCoordinator?.showWelcome()
@@ -100,10 +103,15 @@ final class TabbyAppEnvironment {
         )
         #endif
 
+        let mlxEngine: any SuggestionGenerating = MLXSuggestionEngine(
+            runtimeManager: mlxRuntimeManager
+        )
+
         let suggestionEngine: any SuggestionGenerating = SuggestionEngineRouter(
             suggestionSettings: suggestionSettings,
             foundationModelEngine: foundationModelEngine,
-            llamaEngine: LlamaSuggestionEngine(runtimeManager: runtimeManager)
+            llamaEngine: LlamaSuggestionEngine(runtimeManager: runtimeManager),
+            mlxEngine: mlxEngine
         )
 
         let interactionState = SuggestionInteractionState()
@@ -125,6 +133,7 @@ final class TabbyAppEnvironment {
 
         self.permissionManager = permissionManager
         self.runtimeModel = runtimeModel
+        self.mlxRuntimeManager = mlxRuntimeManager
         self.modelDownloadManager = modelDownloadManager
         self.focusModel = focusModel
         self.inputMonitor = inputMonitor

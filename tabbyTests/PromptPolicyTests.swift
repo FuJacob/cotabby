@@ -110,7 +110,8 @@ final class SuggestionEngineRouterTests: XCTestCase {
         let router = SuggestionEngineRouter(
             suggestionSettings: settings,
             foundationModelEngine: appleEngine,
-            llamaEngine: openSourceEngine
+            llamaEngine: openSourceEngine,
+            mlxEngine: StubSuggestionEngine(behavior: .success(fallbackResult))
         )
 
         let result = try await router.generateSuggestion(for: request)
@@ -118,6 +119,37 @@ final class SuggestionEngineRouterTests: XCTestCase {
         XCTAssertEqual(result, fallbackResult)
         XCTAssertEqual(appleEngine.generateCallCount, 1)
         XCTAssertEqual(openSourceEngine.generateCallCount, 1)
+    }
+
+    func test_generateSuggestion_routesToMLXEngineWhenSelected() async throws {
+        let settings = SuggestionSettingsModel(
+            configuration: .standard,
+            userDefaults: makeUserDefaults()
+        )
+        settings.selectEngine(.mlxSwift)
+        let request = TabbyTestFixtures.suggestionRequest()
+        let mlxResult = SuggestionResult(
+            generation: request.generation,
+            rawText: "mlx raw",
+            text: "mlx text",
+            latency: 0.1
+        )
+        let appleEngine = StubSuggestionEngine(behavior: .failure(SuggestionClientError.unavailable("unused")))
+        let openSourceEngine = StubSuggestionEngine(behavior: .failure(SuggestionClientError.unavailable("unused")))
+        let mlxEngine = StubSuggestionEngine(behavior: .success(mlxResult))
+        let router = SuggestionEngineRouter(
+            suggestionSettings: settings,
+            foundationModelEngine: appleEngine,
+            llamaEngine: openSourceEngine,
+            mlxEngine: mlxEngine
+        )
+
+        let result = try await router.generateSuggestion(for: request)
+
+        XCTAssertEqual(result, mlxResult)
+        XCTAssertEqual(appleEngine.generateCallCount, 0)
+        XCTAssertEqual(openSourceEngine.generateCallCount, 0)
+        XCTAssertEqual(mlxEngine.generateCallCount, 1)
     }
 
     private func makeUserDefaults() -> UserDefaults {
