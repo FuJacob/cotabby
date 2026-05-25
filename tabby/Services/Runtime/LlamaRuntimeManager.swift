@@ -159,6 +159,12 @@ final class LlamaRuntimeManager: ObservableObject {
         // outlive this deinit; production is fine because `LlamaBackendRegistry.shared`'s
         // `freeBackend` is a no-op, but callers that need deterministic teardown (uninstall,
         // model switch) must use `stopAndWait()`.
+        //
+        // Test caveat: in XCTest the cooperative thread pool may dispatch this task after the
+        // runner moves to the next test. If that test creates a new manager before the orphan
+        // shutdown completes, the shared registry's ref-count is temporarily inflated. Tests
+        // that use a mock registry (the current default) are unaffected; tests against the
+        // real shared registry should call `stopAndWait()` in tearDown to avoid the race.
         startupTask?.cancel()
         let core = core
         Task { await core.shutdown() }
