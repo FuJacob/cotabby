@@ -80,16 +80,23 @@ Everything runs on-device. No hosted API, no cloud round-trip.
 
 **Apple Intelligence**: uses Apple's on-device `FoundationModels` runtime on macOS 26 or later, no download required.
 
-**Open Source**: runs local GGUF models in-process through llama.cpp via `llama.swift`. Built-in downloadable models suggested for use:
+**Open Source**: runs local GGUF models in-process through llama.cpp via `llama.swift`. Cotabby ships with two built-in downloadable models:
 
-| Model                | File                          | Size    |
-| -------------------- | ----------------------------- | ------- |
-| `cotabby-swift-1`     | `Qwen3-0.6B-Q4_K_M.gguf`     | ~0.4 GB |
-| `cotabby-swift-pro-1` | `Qwen3.5-0.8B-Q4_K_M.gguf`   | ~0.5 GB |
-| `cotabby-balanced-1`  | `gemma-3-1b-it-Q4_K_M.gguf`  | ~0.8 GB |
-| `cotabby-careful-1`   | `gemma-4-E2B-it-Q4_K_M.gguf` | ~3.1 GB |
+| Model              | File                         | Size    | Source                                                                                              |
+| ------------------ | ---------------------------- | ------- | --------------------------------------------------------------------------------------------------- |
+| `tabby-fast-1`     | `Qwen3-0.6B-Q4_K_M.gguf`     | ~0.4 GB | [unsloth/Qwen3-0.6B-GGUF](https://huggingface.co/unsloth/Qwen3-0.6B-GGUF)                           |
+| `tabby-balanced-1` | `gemma-4-E2B-it-Q4_K_M.gguf` | ~3.1 GB | [unsloth/gemma-4-E2B-it-GGUF](https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF)                   |
 
-You can also drop your own `.gguf` files into Cotabby's models folder and refresh the model list.
+### Bring your own model
+
+Any GGUF small enough to run on-device works. Drop a `.gguf` file into Cotabby's models folder and refresh the model list from the menu bar. Community models we've tested with Cotabby:
+
+| Model                   | File                        | Size    | Source                                                                          |
+| ----------------------- | --------------------------- | ------- | ------------------------------------------------------------------------------- |
+| Qwen3.5-0.8B (instruct) | `Qwen3.5-0.8B-Q4_K_M.gguf`  | ~0.5 GB | [unsloth/Qwen3.5-0.8B-GGUF](https://huggingface.co/unsloth/Qwen3.5-0.8B-GGUF)   |
+| Gemma 3 1B (instruct)   | `gemma-3-1b-it-Q4_K_M.gguf` | ~0.8 GB | [unsloth/gemma-3-1b-it-GGUF](https://huggingface.co/unsloth/gemma-3-1b-it-GGUF) |
+
+Browse the [unsloth GGUF collection on Hugging Face](https://huggingface.co/unsloth) for more variants. Smaller quants (`Q3_K_M`, `Q4_K_S`) trade quality for size; larger models give better completions at the cost of memory and per-token latency.
 
 ## Install
 
