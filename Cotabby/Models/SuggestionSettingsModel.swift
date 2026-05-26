@@ -29,6 +29,7 @@ final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var acceptanceKeyLabel: String
     @Published private(set) var fullAcceptanceKeyCode: CGKeyCode
     @Published private(set) var fullAcceptanceKeyLabel: String
+    @Published private(set) var isPrefixAutoCorrectEnabled: Bool
     private let userDefaults: UserDefaults
 
     private static let isGloballyEnabledDefaultsKey = "cotabbyGloballyEnabled"
@@ -49,6 +50,7 @@ final class SuggestionSettingsModel: ObservableObject {
     private static let acceptanceKeyLabelDefaultsKey = "cotabbyAcceptanceKeyLabel"
     private static let fullAcceptanceKeyCodeDefaultsKey = "cotabbyFullAcceptanceKeyCode"
     private static let fullAcceptanceKeyLabelDefaultsKey = "cotabbyFullAcceptanceKeyLabel"
+    private static let prefixAutoCorrectEnabledDefaultsKey = "cotabbyPrefixAutoCorrectEnabled"
 
     static let defaultAcceptanceKeyCode: CGKeyCode = 48
     static let defaultAcceptanceKeyLabel = "Tab"
@@ -142,6 +144,9 @@ final class SuggestionSettingsModel: ObservableObject {
         let resolvedFullAcceptanceKeyLabel = userDefaults.string(forKey: Self.fullAcceptanceKeyLabelDefaultsKey)
             ?? Self.defaultFullAcceptanceKeyLabel
 
+        let resolvedPrefixAutoCorrectEnabled =
+            userDefaults.object(forKey: Self.prefixAutoCorrectEnabledDefaultsKey) as? Bool ?? false
+
         isGloballyEnabled = resolvedGloballyEnabled
         disabledAppRules = resolvedDisabledAppRules
         showIndicator = resolvedShowIndicator
@@ -159,6 +164,7 @@ final class SuggestionSettingsModel: ObservableObject {
         acceptanceKeyLabel = resolvedAcceptanceKeyLabel
         fullAcceptanceKeyCode = resolvedFullAcceptanceKeyCode
         fullAcceptanceKeyLabel = resolvedFullAcceptanceKeyLabel
+        isPrefixAutoCorrectEnabled = resolvedPrefixAutoCorrectEnabled
 
         userDefaults.set(resolvedGloballyEnabled, forKey: Self.isGloballyEnabledDefaultsKey)
         persistDisabledAppRules(resolvedDisabledAppRules)
@@ -177,6 +183,7 @@ final class SuggestionSettingsModel: ObservableObject {
         userDefaults.set(resolvedAcceptanceKeyLabel, forKey: Self.acceptanceKeyLabelDefaultsKey)
         userDefaults.set(Int(resolvedFullAcceptanceKeyCode), forKey: Self.fullAcceptanceKeyCodeDefaultsKey)
         userDefaults.set(resolvedFullAcceptanceKeyLabel, forKey: Self.fullAcceptanceKeyLabelDefaultsKey)
+        userDefaults.set(resolvedPrefixAutoCorrectEnabled, forKey: Self.prefixAutoCorrectEnabledDefaultsKey)
     }
 
     /// Legacy compatibility shim. Reads through to `showIndicator`.
@@ -340,6 +347,14 @@ final class SuggestionSettingsModel: ObservableObject {
         return disabledAppRules.contains {
             $0.bundleIdentifier == normalizedBundleIdentifier
         }
+    }
+
+    // MARK: - Prefix auto-correct
+
+    func setPrefixAutoCorrectEnabled(_ enabled: Bool) {
+        guard isPrefixAutoCorrectEnabled != enabled else { return }
+        isPrefixAutoCorrectEnabled = enabled
+        userDefaults.set(enabled, forKey: Self.prefixAutoCorrectEnabledDefaultsKey)
     }
 
     func setShowIndicator(_ show: Bool) {

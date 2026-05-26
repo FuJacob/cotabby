@@ -75,6 +75,14 @@ struct MenuBarView: View {
                 .toggleStyle(.switch)
                 .controlSize(.small)
 
+            Toggle("Auto-Correct Typos", isOn: prefixAutoCorrectEnabledBinding)
+                .toggleStyle(.switch)
+                .controlSize(.small)
+                .disabled(!foundationModelAvailabilityService.isAvailable)
+                .help(foundationModelAvailabilityService.isAvailable
+                    ? "Apple Intelligence rewrites obvious typos in the text you just typed."
+                    : "Requires Apple Intelligence: \(foundationModelAvailabilityService.userVisibleMessage)")
+
             if let application = focusModel.latestExternalApplication,
                !TerminalAppDetector.isTerminal(bundleIdentifier: application.bundleIdentifier) {
                 Toggle("Enable in \(application.applicationName)", isOn: appEnabledBinding(for: application))
@@ -261,6 +269,13 @@ struct MenuBarView: View {
         Binding(
             get: { suggestionSettings.isClipboardContextEnabled },
             set: { suggestionSettings.setClipboardContextEnabled($0) }
+        )
+    }
+
+    private var prefixAutoCorrectEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.isPrefixAutoCorrectEnabled },
+            set: { suggestionSettings.setPrefixAutoCorrectEnabled($0) }
         )
     }
 

@@ -86,6 +86,20 @@ protocol SuggestionOverlayControlling: AnyObject {
 }
 
 @MainActor
+protocol PrefixCorrecting: AnyObject {
+    /// Whether the engine can currently service a correction request (e.g., Apple Intelligence
+    /// is downloaded and available). Used by the coordinator to skip cycles when the backend is
+    /// down rather than queueing requests that will throw.
+    var isAvailable: Bool { get }
+
+    /// Returns a proposed correction of `prefix`. The implementation must not perform any user-
+    /// visible side effects — the coordinator owns the apply-or-drop decision after the safety
+    /// filter runs. Throws on backend failures; returns `nil` if the model returned an empty or
+    /// unusable response.
+    func proposeCorrection(for prefix: String) async throws -> String?
+}
+
+@MainActor
 protocol VisualContextCoordinating: AnyObject {
     var status: VisualContextStatus { get }
     var latestExcerpt: String? { get }

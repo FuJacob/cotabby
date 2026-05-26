@@ -31,6 +31,8 @@ final class FocusDebugOverlayController {
     private var latestVisualContextStatus: VisualContextStatus = .idle
     private var latestVisualContextExcerptCharacterCount: Int?
     private var latestPollEvent: FocusPollingEvent?
+    private var latestAutoCorrect: AutoCorrectDebugEvent?
+    private var autoCorrectExpiryTask: Task<Void, Never>?
 
     func update(for snapshot: FocusSnapshot) {
         guard let context = snapshot.context else {
@@ -62,11 +64,28 @@ final class FocusDebugOverlayController {
         renderBottomStatusPanel()
     }
 
+    /// Flashes the most recent prefix auto-correct in the bottom panel, then clears it after a few
+    /// seconds so the panel reflects "just corrected" rather than a stale event.
+    func recordAutoCorrect(original: String, corrected: String) {
+        latestAutoCorrect = AutoCorrectDebugEvent(original: original, corrected: corrected, timestamp: Date())
+        renderBottomStatusPanel()
+
+        autoCorrectExpiryTask?.cancel()
+        autoCorrectExpiryTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(6))
+            guard !Task.isCancelled else { return }
+            self?.latestAutoCorrect = nil
+            self?.renderBottomStatusPanel()
+        }
+    }
+
     func hide() {
         hideFocusGeometry()
         latestPollEvent = nil
         latestVisualContextStatus = .idle
         latestVisualContextExcerptCharacterCount = nil
+        autoCorrectExpiryTask?.cancel()
+        latestAutoCorrect = nil
         bottomStatusPanel.orderOut(nil)
     }
 
@@ -139,6 +158,7 @@ final class FocusDebugOverlayController {
             visualContextStatus: latestVisualContextStatus,
             excerptCharacterCount: latestVisualContextExcerptCharacterCount,
             pollEvent: latestPollEvent,
+            autoCorrect: latestAutoCorrect,
             maxWidth: maxWidth
         ))
         contentView.layoutSubtreeIfNeeded()
@@ -162,7 +182,7 @@ final class FocusDebugOverlayController {
     }
 
     private var shouldShowBottomStatusPanel: Bool {
-        latestVisualContextStatus != .idle || latestPollEvent != nil
+        latestVisualContextStatus != .idle || latestPollEvent != nil || latestAutoCorrect != nil
     }
 
     // MARK: - Helpers
@@ -240,6 +260,7 @@ private struct BottomDebugStatusView: View {
     let visualContextStatus: VisualContextStatus
     let excerptCharacterCount: Int?
     let pollEvent: FocusPollingEvent?
+    let autoCorrect: AutoCorrectDebugEvent?
     let maxWidth: CGFloat
 
     private var stages: [VisualContextDebugStage] {
@@ -311,6 +332,38 @@ private struct BottomDebugStatusView: View {
                         .font(.system(size: 10, weight: .medium, design: .monospaced))
                         .foregroundStyle(.white.opacity(0.82))
                         .lineLimit(1)
+                }
+            }
+
+            if let autoCorrect {
+                Divider()
+                    .overlay(Color.white.opacity(0.16))
+
+                HStack(spacing: 7) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.orange)
+
+                    Text("Auto-correct")
+                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        .foregroundStyle(.orange)
+
+                    Text(Self.tail(autoCorrect.original))
+                        .font(.system(size: 10, weight: .medium, design: .monospaced))
+                        .foregroundStyle(.white.opacity(0.6))
+                        .lineLimit(1)
+                        .strikethrough()
+
+                    Image(systemName: "arrow.right")
+                        .font(.system(size: 8))
+                        .foregroundStyle(.white.opacity(0.5))
+
+                    Text(Self.tail(autoCorrect.corrected))
+                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(.green)
+                        .lineLimit(1)
+
+                    Spacer(minLength: 0)
                 }
             }
         }
@@ -394,6 +447,20 @@ private struct BottomDebugStatusView: View {
             return .blocked
         }
     }
+
+    /// Shows the trailing slice of a prefix (where edits usually land), with newlines collapsed,
+    /// so the row stays single-line in the panel.
+    private static func tail(_ text: String, max: Int = 32) -> String {
+        let collapsed = text.replacingOccurrences(of: "\n", with: "⏎")
+        return collapsed.count <= max ? collapsed : "…" + String(collapsed.suffix(max))
+    }
+}
+
+/// One prefix auto-correct event, surfaced in the debug overlay's bottom panel.
+private struct AutoCorrectDebugEvent {
+    let original: String
+    let corrected: String
+    let timestamp: Date
 }
 
 private struct VisualContextStagePill: View {

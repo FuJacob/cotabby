@@ -23,6 +23,7 @@ final class CotabbyAppEnvironment {
     let foundationModelAvailabilityService: FoundationModelAvailabilityService
     let clipboardContextProvider: ClipboardContextProvider
     let suggestionCoordinator: SuggestionCoordinator
+    let prefixCorrectionCoordinator: PrefixCorrectionCoordinator
     let welcomeCoordinator: WelcomeCoordinator
     let settingsCoordinator: SettingsCoordinator
     let activationIndicatorController: ActivationIndicatorController
@@ -144,6 +145,34 @@ final class CotabbyAppEnvironment {
             configuration: configuration
         )
 
+        let prefixCorrectionEngine: any PrefixCorrecting = {
+            #if canImport(FoundationModels)
+            if #available(macOS 26.0, *) {
+                return FoundationModelPrefixCorrectionEngine(
+                    availabilityService: foundationModelAvailabilityService
+                )
+            }
+            #endif
+            return UnavailablePrefixCorrectionEngine()
+        }()
+        let prefixCorrectionWriter = PrefixCorrectionWriter(suppressionController: suppressionController)
+        let prefixCorrectionCoordinator = PrefixCorrectionCoordinator(
+            focusModel: focusModel,
+            correctionEngine: prefixCorrectionEngine,
+            writer: prefixCorrectionWriter,
+            isCorrectionEnabled: { suggestionSettings.isPrefixAutoCorrectEnabled },
+            isAutocompleteBusy: { [weak suggestionCoordinator] in
+                guard let state = suggestionCoordinator?.state else { return false }
+                switch state {
+                case .debouncing, .generating:
+                    return true
+                default:
+                    return false
+                }
+            }
+        )
+        prefixCorrectionCoordinator.start()
+
         self.permissionManager = permissionManager
         self.runtimeModel = runtimeModel
         self.modelDownloadManager = modelDownloadManager
@@ -156,12 +185,21 @@ final class CotabbyAppEnvironment {
         self.foundationModelAvailabilityService = foundationModelAvailabilityService
         self.clipboardContextProvider = clipboardContextProvider
         self.suggestionCoordinator = suggestionCoordinator
+        self.prefixCorrectionCoordinator = prefixCorrectionCoordinator
         self.welcomeCoordinator = welcomeCoordinator
         self.settingsCoordinator = settingsCoordinator
         self.activationIndicatorController = activationIndicatorController
         self.focusDebugOverlayController = FocusDebugOverlayController.isEnabled
             ? FocusDebugOverlayController()
             : nil
+
+        // Surface prefix auto-corrections in the debug overlay when it's active. Production builds
+        // leave the hook nil so no extra work happens per correction.
+        if let focusDebugOverlayController = self.focusDebugOverlayController {
+            prefixCorrectionCoordinator.onCorrectionApplied = { [weak focusDebugOverlayController] original, corrected in
+                focusDebugOverlayController?.recordAutoCorrect(original: original, corrected: corrected)
+            }
+        }
 
         // Update the AX polling timer whenever the user changes the poll interval setting.
         suggestionSettings.$focusPollIntervalMilliseconds
