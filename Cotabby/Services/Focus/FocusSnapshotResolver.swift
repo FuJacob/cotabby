@@ -248,7 +248,170 @@ struct FocusSnapshotResolver {
             }
         }
 
+        for node in [focusedElement] + ancestors where shouldSearchEditableDescendants(from: node) {
+            for descendant in editableDescendantCandidates(from: node) {
+                append(descendant)
+            }
+        }
+
         return ordered
+    }
+
+    /// Chromium can report the page-level `AXWebArea` as focused while the actual compose box is
+    /// several levels below it. When that container owns the live text marker selection, we use it
+    /// as a bounded search root to recover the real editable input target instead of declaring the
+    /// whole focus unsupported.
+    private func shouldSearchEditableDescendants(from root: AXUIElement) -> Bool {
+        let role = AXHelper.stringValue(for: kAXRoleAttribute as CFString, on: root) ?? "Unknown"
+        let attributes = Set(AXHelper.attributeNames(on: root))
+        let explicitEditableFlag =
+            attributes.contains("AXEditable")
+            ? AXHelper.boolValue(for: "AXEditable" as CFString, on: root)
+            : nil
+
+        guard !AXHelper.hasStrongEditabilitySignal(
+            role: role,
+            explicitEditableFlag: explicitEditableFlag
+        ) else {
+            return false
+        }
+
+        return attributes.contains("AXSelectedTextMarkerRange")
+    }
+
+    /// Finds editable descendants under a browser document/container whose text marker range is
+    /// active. The score is intentionally simple: a real editable role/flag is required, then
+    /// geometry near the container's marker rect and live selection/value data decide ordering.
+    private func editableDescendantCandidates(from root: AXUIElement) -> [AXUIElement] {
+        let rootMarkerRect = AXHelper.textMarkerCaretRect(on: root)
+        var queue: [(element: AXUIElement, depth: Int)] =
+            AXHelper.childElements(of: root).map { ($0, 1) }
+        let maxDepth = 24
+        let maxNodes = 1_500
+        let maxResults = 12
+        var visited = 0
+        var seen = Set<String>()
+        var scoredCandidates: [EditableDescendantCandidate] = []
+
+        while !queue.isEmpty, visited < maxNodes {
+            let (element, depth) = queue.removeFirst()
+            let identity = AXHelper.elementIdentity(for: element)
+            guard seen.insert(identity).inserted else { continue }
+            visited += 1
+
+            if let candidate = scoreEditableDescendant(
+                element,
+                depth: depth,
+                rootMarkerRect: rootMarkerRect
+            ) {
+                scoredCandidates.append(candidate)
+            }
+
+            guard depth < maxDepth else { continue }
+            for child in AXHelper.childElements(of: element) {
+                queue.append((child, depth + 1))
+            }
+        }
+
+        let ordered = scoredCandidates
+            .sorted { lhs, rhs in
+                if lhs.score != rhs.score {
+                    return lhs.score > rhs.score
+                }
+                return lhs.depth < rhs.depth
+            }
+            .prefix(maxResults)
+            .map(\.element)
+
+        if !ordered.isEmpty {
+            CotabbyLogger.focus.debug(
+                "Recovered \(ordered.count) editable descendant candidate(s) from marker-owning container"
+            )
+        }
+
+        return Array(ordered)
+    }
+
+    private func scoreEditableDescendant(
+        _ element: AXUIElement,
+        depth: Int,
+        rootMarkerRect: CGRect?
+    ) -> EditableDescendantCandidate? {
+        let role = AXHelper.stringValue(for: kAXRoleAttribute as CFString, on: element) ?? "Unknown"
+        let attributes = Set(AXHelper.attributeNames(on: element))
+        let explicitEditableFlag =
+            attributes.contains("AXEditable")
+            ? AXHelper.boolValue(for: "AXEditable" as CFString, on: element)
+            : nil
+
+        guard AXHelper.hasStrongEditabilitySignal(
+            role: role,
+            explicitEditableFlag: explicitEditableFlag
+        ), !AXHelper.isKnownReadOnlyRole(role) else {
+            return nil
+        }
+
+        let selection = attributes.contains(kAXSelectedTextRangeAttribute as String)
+            ? AXHelper.rangeValue(for: kAXSelectedTextRangeAttribute as CFString, on: element)
+            : nil
+        let hasValue = attributes.contains(kAXValueAttribute as String)
+            && AXHelper.stringValue(for: kAXValueAttribute as CFString, on: element) != nil
+        let frame = attributes.contains("AXFrame")
+            ? AXHelper.rectValue(for: "AXFrame" as CFString, on: element)
+            : nil
+        let markerMatches = markerRect(rootMarkerRect, matchesEditableFrame: frame)
+
+        var score = AXHelper.editabilityHintScore(
+            role: role,
+            explicitEditableFlag: explicitEditableFlag
+        )
+        if role == kAXTextAreaRole as String {
+            score += 10
+        } else if role == kAXTextFieldRole as String || role == "AXSearchField" {
+            score += 6
+        }
+        if markerMatches {
+            score += 50
+        }
+        if selection != nil {
+            score += 20
+        }
+        if selection?.length == 0 {
+            score += 8
+        }
+        if hasValue {
+            score += 5
+        }
+
+        // Without either marker geometry or a live selection, the node is just a generic editable
+        // descendant somewhere in the page. Keep the recovery path tied to the active browser
+        // selection so we don't accidentally pick an unrelated search field or hidden input.
+        guard markerMatches || selection != nil else {
+            return nil
+        }
+
+        return EditableDescendantCandidate(element: element, score: score, depth: depth)
+    }
+
+    private func markerRect(_ markerRect: CGRect?, matchesEditableFrame frame: CGRect?) -> Bool {
+        guard let markerRect, !markerRect.isEmpty, let frame, !frame.isEmpty else {
+            return false
+        }
+
+        let cocoaFrame = AXHelper.cocoaRect(fromAccessibilityRect: frame)
+        let cocoaMarkerRect = AXHelper.validatedCocoaTextRect(
+            fromAccessibilityRect: markerRect,
+            anchorFrame: cocoaFrame
+        )
+        let expandedCocoaFrame = cocoaFrame.insetBy(dx: -24, dy: -24)
+        if expandedCocoaFrame.intersects(cocoaMarkerRect)
+            || expandedCocoaFrame.contains(CGPoint(x: cocoaMarkerRect.midX, y: cocoaMarkerRect.midY)) {
+            return true
+        }
+
+        let expandedRawFrame = frame.insetBy(dx: -24, dy: -24)
+        return expandedRawFrame.intersects(markerRect)
+            || expandedRawFrame.contains(CGPoint(x: markerRect.midX, y: markerRect.midY))
     }
 
     /// Chooses the caret geometry to ship from the primary candidate and the optional deep-tree
@@ -398,8 +561,10 @@ struct FocusSnapshotResolver {
         return bestResult?.result
     }
 
-    /// Prefers deeper descendants because browser AX wrappers can expose superficially "valid"
-    /// geometry on shallow nodes while the real caret anchor lives lower in the text-run leaves.
+    /// Prefers exact marker/range geometry before depth. Browser AX wrappers can expose
+    /// superficially "valid" derived rectangles, but the Cotypist-style Chrome path is a live
+    /// zero-length selection on a text-run node; once we find exact geometry, a deeper estimate
+    /// should not displace it.
     private func shouldPreferDeepResult(
         _ candidate: CaretGeometryResult,
         at depth: Int,
@@ -409,12 +574,13 @@ struct FocusSnapshotResolver {
             return true
         }
 
-        if depth != best.depth {
-            return depth > best.depth
+        let candidateQualityScore = deepResultQualityScore(candidate.quality)
+        let bestQualityScore = deepResultQualityScore(best.result.quality)
+        if candidateQualityScore != bestQualityScore {
+            return candidateQualityScore > bestQualityScore
         }
 
-        return deepResultQualityScore(candidate.quality)
-            > deepResultQualityScore(best.result.quality)
+        return depth > best.depth
     }
 
     private func deepResultQualityScore(_ quality: CaretGeometryQuality) -> Int {
@@ -660,4 +826,10 @@ private struct AXFocusCandidate {
     let inputFrameRect: CGRect?
     let isSecure: Bool
     let resolverCandidate: FocusCapabilityCandidate
+}
+
+private struct EditableDescendantCandidate {
+    let element: AXUIElement
+    let score: Int
+    let depth: Int
 }
