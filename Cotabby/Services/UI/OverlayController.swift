@@ -32,6 +32,11 @@ final class OverlayController: SuggestionOverlayControlling {
     /// instead of a full view rebuild + layout pass.
     private var hostingView: NSHostingView<GhostSuggestionView>?
 
+    /// Per-focus-session floor for caret-derived font size. Caret height flickers between the real
+    /// line height and the coarse field-height fallback from poll to poll; stabilizing keeps ghost
+    /// text from ballooning when the fallback wins. See `GhostFontSizeStabilizer`.
+    private var ghostFontStabilizer = GhostFontSizeStabilizer()
+
     init(suggestionSettings: SuggestionSettingsModel) {
         self.suggestionSettings = suggestionSettings
     }
@@ -66,15 +71,23 @@ final class OverlayController: SuggestionOverlayControlling {
             return
         }
 
+        let stabilizedCaretHeight = ghostFontStabilizer.stabilizedCaretHeight(
+            geometry.caretRect.height,
+            focusSessionKey: geometry.focusChangeSequence
+        )
         let fontSize = resolvedGhostFontSize(
-            for: geometry.caretRect,
+            forCaretHeight: stabilizedCaretHeight,
             caretQuality: geometry.caretQuality
         )
+        // `nil` when the user disabled the hint or no accept key is bound — in that case the layout
+        // drops the keycap and its reserved width so ghost text can use the full line.
+        let acceptanceHintLabel = suggestionSettings.acceptanceHintLabel
         let layout = GhostSuggestionLayout.make(
             text: text,
             geometry: geometry,
             fontSize: fontSize,
-            visibleFrame: targetScreenVisibleFrame(for: geometry.caretRect)
+            visibleFrame: targetScreenVisibleFrame(for: geometry.caretRect),
+            showsAcceptanceHint: acceptanceHintLabel != nil
         )
         let customGhostColor = SuggestionTextColorCodec.color(
             fromHex: suggestionSettings.customSuggestionTextColorHex
@@ -84,7 +97,8 @@ final class OverlayController: SuggestionOverlayControlling {
             existing.rootView = GhostSuggestionView(
                 layout: layout,
                 fontSize: fontSize,
-                customColor: customGhostColor
+                customColor: customGhostColor,
+                keycapLabel: acceptanceHintLabel
             )
             contentView = existing
         } else {
@@ -92,7 +106,8 @@ final class OverlayController: SuggestionOverlayControlling {
                 rootView: GhostSuggestionView(
                     layout: layout,
                     fontSize: fontSize,
-                    customColor: customGhostColor
+                    customColor: customGhostColor,
+                    keycapLabel: acceptanceHintLabel
                 )
             )
             hostingView = fresh
@@ -118,14 +133,15 @@ final class OverlayController: SuggestionOverlayControlling {
     /// Exact and derived caret rects usually reflect the real text line height, so they may scale
     /// up in larger editors. Estimated rects are much less trustworthy because some apps only
     /// expose the full field frame; the extra ceiling prevents one bad estimate from rendering
-    /// comically oversized ghost text.
+    /// comically oversized ghost text. `caretHeight` is already floored to the per-session minimum
+    /// by `ghostFontStabilizer`, so this only applies the static floor and quality ceilings.
     private func resolvedGhostFontSize(
-        for caretRect: CGRect,
+        forCaretHeight caretHeight: CGFloat,
         caretQuality: CaretGeometryQuality
     ) -> CGFloat {
         let proposedSize = max(
             Layout.minimumGhostFontSize,
-            caretRect.height * Layout.fontToLineHeightRatio
+            caretHeight * Layout.fontToLineHeightRatio
         )
         let qualityCap = caretQuality == .estimated
             ? Layout.maximumEstimatedGhostFontSize
@@ -162,6 +178,9 @@ private struct GhostSuggestionView: View {
     let layout: GhostSuggestionLayout
     let fontSize: CGFloat
     let customColor: Color?
+    /// The accept key to print inside the keycap pill, or `nil` when the hint is suppressed. Pairs
+    /// with `layout.lines`, where `showsKeycap` is already false on every line when this is `nil`.
+    let keycapLabel: String?
 
     var ghostColor: Color {
         customColor
@@ -176,9 +195,10 @@ private struct GhostSuggestionView: View {
         let alignment: HorizontalAlignment = layout.isRightToLeft ? .trailing : .leading
         VStack(alignment: alignment, spacing: 0) {
             ForEach(layout.lines) { line in
-                HStack(alignment: .firstTextBaseline, spacing: line.showsKeycap ? 6 : 0) {
-                    if layout.isRightToLeft && line.showsKeycap {
-                        GhostTabKeycap()
+                let showsKeycap = line.showsKeycap && keycapLabel != nil
+                HStack(alignment: .firstTextBaseline, spacing: showsKeycap ? 6 : 0) {
+                    if layout.isRightToLeft, showsKeycap, let keycapLabel {
+                        GhostKeycap(label: keycapLabel)
                     }
 
                     Text(line.text)
@@ -187,8 +207,8 @@ private struct GhostSuggestionView: View {
                         .lineLimit(1)
                         .fixedSize(horizontal: true, vertical: true)
 
-                    if !layout.isRightToLeft && line.showsKeycap {
-                        GhostTabKeycap()
+                    if !layout.isRightToLeft, showsKeycap, let keycapLabel {
+                        GhostKeycap(label: keycapLabel)
                     }
                 }
                 .padding(layout.isRightToLeft ? .trailing : .leading, line.leadingIndent)
@@ -199,9 +219,11 @@ private struct GhostSuggestionView: View {
     }
 }
 
-/// Visual hint that teaches the user which key accepts the suggestion.
-private struct GhostTabKeycap: View {
+/// Visual hint that teaches the user which key accepts the suggestion. The label tracks the user's
+/// configured accept keybind, so rebinding away from Tab updates the pill instead of lying about it.
+private struct GhostKeycap: View {
     @Environment(\.colorScheme) var colorScheme
+    let label: String
 
     var textColor: Color {
         colorScheme == .dark ? Color(white: 0.65) : Color(white: 0.45)
@@ -216,7 +238,7 @@ private struct GhostTabKeycap: View {
     }
 
     var body: some View {
-        Text("tab")
+        Text(label)
             .font(.system(size: 10, weight: .medium, design: .rounded))
             .foregroundStyle(textColor)
             .padding(.horizontal, 5)

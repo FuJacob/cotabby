@@ -33,7 +33,9 @@ enum FoundationModelPromptRenderer {
                 + "that exact phrase and you are finishing it.",
             "Continue the existing sentence or thought — extend it, never restart it.",
             "Return exactly one continuation fragment.",
-            request.completionLengthInstruction,
+            // Experiment: the explicit word-range cue (`request.completionLengthInstruction`) is
+            // omitted here too, matching the local-model path. Length is governed solely by the
+            // shared token budget (`maximumResponseTokens` ← `request.maxPredictionTokens`).
             "Do not repeat or quote the existing text.",
             "Match the existing tone, language, casing, and punctuation.",
             "Use clipboard and screen context only when it directly helps the inline continuation.",
@@ -41,8 +43,9 @@ enum FoundationModelPromptRenderer {
                 + "or explanation."
         ]
 
-        // A language override supersedes the "match the existing language" base rule above, so it
-        // goes right after the base block where the instructions channel weights it heavily.
+        // The declared-language hint refines the "match the existing language" base rule above — it
+        // never forces a language — so it sits right after that block where the instructions channel
+        // weights it heavily.
         if let languageInstruction = request.languageInstruction, !languageInstruction.isEmpty {
             lines.append(languageInstruction)
         }

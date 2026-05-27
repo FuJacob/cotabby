@@ -27,6 +27,7 @@ venv/
 # Personal notes
 launch.txt
 posts.txt
+.writing/
 
 # Claude Code
 .claude/worktrees/

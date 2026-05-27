@@ -32,6 +32,8 @@ You need:
 - A local Apple development team configured in Xcode if you want to launch the signed app from the
   IDE.
 - SwiftLint for local lint checks. CI installs it with Homebrew when needed.
+- XcodeGen if you need to change the project structure (targets, build settings, dependencies,
+  or scheme). Install it with `brew install xcodegen`. CI installs it the same way.
 
 Apple Silicon is strongly recommended for local model-runtime work.
 
@@ -47,6 +49,26 @@ open Cotabby.xcodeproj
 
 In Xcode, select the `Cotabby` scheme. If you run from Xcode, set your signing team under
 `Signing & Capabilities`.
+
+## The Xcode Project Is Generated
+
+`Cotabby.xcodeproj` is generated from `project.yml` by [XcodeGen](https://github.com/yonaskolb/XcodeGen).
+It is committed to the repo so you can clone and `open Cotabby.xcodeproj` without any extra tooling,
+but **`project.yml` is the source of truth**.
+
+Source files under `Cotabby/` and `CotabbyTests/` are auto-discovered by folder, so adding a new
+file (including a new test) needs no project edit — just create it and regenerate. Only structural
+changes (targets, build settings, package dependencies, scheme) require editing `project.yml`.
+
+After any structural change, regenerate and commit the result:
+
+```sh
+xcodegen generate
+```
+
+CI runs the `XcodeGen` workflow on every PR and fails if the committed `Cotabby.xcodeproj` differs
+from what `project.yml` produces. If that check is red, run `xcodegen generate` and commit the diff.
+Avoid hand-editing the project in Xcode without mirroring the change into `project.yml`.
 
 ## How To Navigate The Repo
 

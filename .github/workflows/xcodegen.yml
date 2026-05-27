@@ -1,0 +1,52 @@
+# XcodeGen drift gate.
+#
+# The .xcodeproj is generated from `project.yml` but committed to the repo so
+# contributors can `open Cotabby.xcodeproj` without installing XcodeGen first.
+# That convenience only holds if the committed project stays byte-identical to
+# what `xcodegen generate` produces. This job regenerates on every PR and fails
+# if the result differs from what's checked in — catching the case where
+# someone edits the project in Xcode (or hand-edits the pbxproj) without
+# mirroring the change into `project.yml`.
+#
+# Sibling to Build/Lint/Tests: one gate, one file, one clear failure mode.
+
+name: XcodeGen
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: xcodegen-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  drift:
+    name: project.yml matches Cotabby.xcodeproj
+    runs-on: macos-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install / verify XcodeGen
+        run: |
+          if ! command -v xcodegen >/dev/null; then
+            brew install xcodegen
+          fi
+          xcodegen --version
+
+      - name: Regenerate project
+        run: xcodegen generate
+
+      # XcodeGen only rewrites the tracked project files (pbxproj + shared
+      # schemes); Package.resolved is gitignored and untouched here. Scope the
+      # check to the project so unrelated working-tree noise can't fail it.
+      - name: Verify no drift
+        run: |
+          if ! git diff --exit-code -- Cotabby.xcodeproj; then
+            echo "::error::Cotabby.xcodeproj is out of sync with project.yml." \
+              "Run 'xcodegen generate' and commit the result." >&2
+            exit 1
+          fi

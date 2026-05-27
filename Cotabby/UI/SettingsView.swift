@@ -146,7 +146,12 @@ struct SettingsView: View {
 
             Toggle("Show Indicator", isOn: showIndicatorBinding)
 
+            Toggle("Show Accept Hint", isOn: showAcceptanceHintBinding)
+
             Toggle("Allow Multi-line Suggestions", isOn: multiLineEnabledBinding)
+
+            Toggle("Accept Punctuation With Word", isOn: autoAcceptTrailingPunctuationBinding)
+                .help("When on, accepting a word also takes punctuation attached to it, like the \"?\" in \"you?\".")
 
             Toggle("Include Clipboard Context", isOn: clipboardContextEnabledBinding)
 
@@ -204,13 +209,6 @@ struct SettingsView: View {
                 }
             }
 
-            Picker("Language", selection: selectedLanguageBinding) {
-                ForEach(SuggestionLanguage.allCases) { language in
-                    Text(language.displayLabel)
-                        .tag(language)
-                }
-            }
-
             VStack(alignment: .leading, spacing: 24) {
                 Text("This information is passed to the AI to help personalize your completions.")
                     .font(.caption)
@@ -226,6 +224,8 @@ struct SettingsView: View {
                     ))
                     .textFieldStyle(.roundedBorder)
                 }
+
+                LanguageTagsEditor(suggestionSettings: suggestionSettings)
 
                 CustomRulesEditor(suggestionSettings: suggestionSettings)
             }
@@ -307,6 +307,16 @@ struct SettingsView: View {
                         }
                     }
 
+                    if suggestionSettings.fullAcceptanceKeyCode != SuggestionSettingsModel.defaultFullAcceptanceKeyCode {
+                        Button("Reset") {
+                            suggestionSettings.setFullAcceptanceKey(
+                                keyCode: SuggestionSettingsModel.defaultFullAcceptanceKeyCode,
+                                label: SuggestionSettingsModel.defaultFullAcceptanceKeyLabel
+                            )
+                            isRecordingFullAcceptKeybind = false
+                        }
+                    }
+
                     if suggestionSettings.fullAcceptanceKeyCode != SuggestionSettingsModel.disabledKeyCode {
                         Button("Clear") {
                             suggestionSettings.clearFullAcceptanceKey()
@@ -342,14 +352,17 @@ struct SettingsView: View {
     @ViewBuilder
     private var appsSection: some View {
         Section("Apps") {
-            if suggestionSettings.disabledAppRules.isEmpty {
-                Text("No apps are disabled. Apps you turn off from the menu bar will appear here.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else {
-                ForEach(suggestionSettings.disabledAppRules) { rule in
-                    disabledAppRuleRow(rule)
-                }
+            Text("Cotabby won't autocomplete in these apps. Add an app you can't disable from the "
+                + "menu bar — like a launcher that closes the moment it loses focus.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            ForEach(suggestionSettings.disabledAppRules) { rule in
+                disabledAppRuleRow(rule)
+            }
+
+            Button("Add App…") {
+                presentDisabledAppPicker()
             }
         }
     }
@@ -619,10 +632,24 @@ struct SettingsView: View {
         )
     }
 
+    private var showAcceptanceHintBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.showAcceptanceHint },
+            set: { suggestionSettings.setShowAcceptanceHint($0) }
+        )
+    }
+
     private var multiLineEnabledBinding: Binding<Bool> {
         Binding(
             get: { suggestionSettings.isMultiLineEnabled },
             set: { suggestionSettings.setMultiLineEnabled($0) }
+        )
+    }
+
+    private var autoAcceptTrailingPunctuationBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.autoAcceptTrailingPunctuation },
+            set: { suggestionSettings.setAutoAcceptTrailingPunctuation($0) }
         )
     }
 
@@ -679,15 +706,6 @@ struct SettingsView: View {
             get: { suggestionSettings.selectedWordCountPreset },
             set: { preset in
                 suggestionSettings.selectWordCountPreset(preset)
-            }
-        )
-    }
-
-    private var selectedLanguageBinding: Binding<SuggestionLanguage> {
-        Binding(
-            get: { suggestionSettings.responseLanguage },
-            set: { language in
-                suggestionSettings.setResponseLanguage(language)
             }
         )
     }
@@ -791,6 +809,36 @@ struct SettingsView: View {
     private func refreshModels() {
         modelDownloadManager.refreshModelStates()
         runtimeModel.refreshAvailableModels()
+    }
+
+    /// Lets the user disable Cotabby in an app they can't reach from the menu bar. The menu-bar
+    /// "Enable in <app>" switch only targets the frontmost app, so a launcher like Raycast or
+    /// Spotlight — which dismisses itself the instant the menu bar is clicked — can never be turned
+    /// off that way. An open panel names any installed app whether or not it is running.
+    private func presentDisabledAppPicker() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.application]
+        panel.allowsMultipleSelection = true
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+        panel.directoryURL = URL(fileURLWithPath: "/Applications", isDirectory: true)
+        panel.prompt = "Disable"
+        panel.message = "Choose apps where Cotabby should not autocomplete."
+
+        guard panel.runModal() == .OK else {
+            return
+        }
+
+        for url in panel.urls {
+            guard let metadata = ApplicationBundleMetadata(appURL: url) else {
+                continue
+            }
+
+            suggestionSettings.disableApplication(
+                bundleIdentifier: metadata.bundleIdentifier,
+                displayName: metadata.displayName
+            )
+        }
     }
 
 }

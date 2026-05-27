@@ -1,4 +1,4 @@
-# Cotabby
+# Cotabby [beta]
 
 <sub>If Cotabby is useful to you, consider supporting development:</sub>
 
@@ -7,11 +7,11 @@
 ---
 
 <p align="center">
-  <img width="128" alt="Cotabby logo" src="https://github.com/user-attachments/assets/8a67095e-4d03-4055-8d4c-8871335152dd" />
+  <img width="128" alt="Cotabby logo" src="https://github.com/user-attachments/assets/1e223e72-770c-417b-82e5-83f18cd5a3b2" />
 </p>
 
 <p align="center">
-  <em>Open-source, local-first AI autocomplete for macOS. [beta]</em>
+  <em>Open-source, local-first AI autocomplete for macOS.</em>
   </p>
   
 <p align="center">
@@ -24,7 +24,7 @@
   <a href="https://github.com/FuJacob/cotabby/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/FuJacob/cotabby/total" /></a>
   <a href="https://github.com/FuJacob/cotabby/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/FuJacob/cotabby?style=flat" /></a>
   <img alt="Platform" src="https://img.shields.io/badge/platform-macOS%2015%2B-lightgrey" />
-  <img alt="Visitors" src="https://visitor-badge.laobi.icu/badge?page_id=FuJacob.cotabby" />
+  <img alt="Visitors" src="https://visitor-badge.laobi.icu/badge?page_id=FuJacob.tabby" />
 </p>
 
 ---
@@ -80,26 +80,49 @@ Everything runs on-device. No hosted API, no cloud round-trip.
 
 **Apple Intelligence**: uses Apple's on-device `FoundationModels` runtime on macOS 26 or later, no download required.
 
-**Open Source**: runs local GGUF models in-process through llama.cpp via `llama.swift`. Built-in downloadable models suggested for use:
+**Open Source**: runs local GGUF models in-process through llama.cpp via `llama.swift`. Cotabby ships with two built-in downloadable models:
 
-| Model                | File                          | Size    |
-| -------------------- | ----------------------------- | ------- |
-| `cotabby-swift-1`     | `Qwen3-0.6B-Q4_K_M.gguf`     | ~0.4 GB |
-| `cotabby-swift-pro-1` | `Qwen3.5-0.8B-Q4_K_M.gguf`   | ~0.5 GB |
-| `cotabby-balanced-1`  | `gemma-3-1b-it-Q4_K_M.gguf`  | ~0.8 GB |
-| `cotabby-careful-1`   | `gemma-4-E2B-it-Q4_K_M.gguf` | ~3.1 GB |
+| Model              | File                         | Size    | Source                                                                                              |
+| ------------------ | ---------------------------- | ------- | --------------------------------------------------------------------------------------------------- |
+| `tabby-fast-1`     | `Qwen3-0.6B-Q4_K_M.gguf`     | ~0.4 GB | [unsloth/Qwen3-0.6B-GGUF](https://huggingface.co/unsloth/Qwen3-0.6B-GGUF)                           |
+| `tabby-balanced-1` | `gemma-4-E2B-it-Q4_K_M.gguf` | ~3.1 GB | [unsloth/gemma-4-E2B-it-GGUF](https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF)                   |
 
-You can also drop your own `.gguf` files into Cotabby's models folder and refresh the model list.
+### Bring your own model
+
+Any GGUF small enough to run on-device works. Drop a `.gguf` file into Cotabby's models folder and refresh the model list from the menu bar. Community models we've tested with Cotabby:
+
+| Model                   | File                        | Size    | Source                                                                          |
+| ----------------------- | --------------------------- | ------- | ------------------------------------------------------------------------------- |
+| Qwen3.5-0.8B (instruct) | `Qwen3.5-0.8B-Q4_K_M.gguf`  | ~0.5 GB | [unsloth/Qwen3.5-0.8B-GGUF](https://huggingface.co/unsloth/Qwen3.5-0.8B-GGUF)   |
+| Gemma 3 1B (instruct)   | `gemma-3-1b-it-Q4_K_M.gguf` | ~0.8 GB | [unsloth/gemma-3-1b-it-GGUF](https://huggingface.co/unsloth/gemma-3-1b-it-GGUF) |
+
+Browse the [unsloth GGUF collection on Hugging Face](https://huggingface.co/unsloth) for more variants. Smaller quants (`Q3_K_M`, `Q4_K_S`) trade quality for size; larger models give better completions at the cost of memory and per-token latency.
 
 ## Install
 
+### Homebrew
+
+```sh
+brew tap FuJacob/cotabby
+brew install --cask cotabby
+```
+
+Upgrade later with `brew upgrade --cask cotabby`. The tap repo is [FuJacob/homebrew-cotabby](https://github.com/FuJacob/homebrew-cotabby).
+
+### Manual download
+
 1. Download the latest `Cotabby.dmg` from GitHub Releases.
 2. Drag `Cotabby.app` into `Applications` and launch it.
-3. Grant **Accessibility**, **Input Monitoring**, and **Screen Recording** when prompted.
-4. Pick an engine. Apple Intelligence if available, otherwise Open Source plus a model.
-5. Start typing in any supported editable field.
 
 If macOS blocks first launch, right-click `Cotabby.app` → `Open`, or allow it in `System Settings → Privacy & Security`.
+
+### Set up
+
+After installing with either method:
+
+1. Grant **Accessibility**, **Input Monitoring**, and **Screen Recording** when prompted.
+2. Pick an engine. Apple Intelligence if available, otherwise Open Source plus a model.
+3. Start typing in any supported editable field.
 
 ### Why those permissions?
 

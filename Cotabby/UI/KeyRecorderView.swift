@@ -10,16 +10,6 @@ struct KeyRecorderView: View {
 
     @State private var monitor: Any?
 
-    /// Keys that conflict with the suggestion pipeline's built-in classification.
-    /// Escape (53) is also handled above as the cancel-recording key, but lives here too
-    /// so it stays reserved even if the cancel logic changes.
-    private static let reservedKeyCodes: Set<UInt16> = [
-        36, 76,                 // Return, Enter
-        51, 117,                // Delete, Forward Delete
-        53,                     // Escape
-        123, 124, 125, 126      // Arrow keys
-    ]
-
     var body: some View {
         Text("Press a key…")
             .foregroundStyle(.secondary)
@@ -32,16 +22,19 @@ struct KeyRecorderView: View {
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [self] event in
             let keyCode = event.keyCode
 
-            if keyCode == 53 { // Escape cancels recording
+            // Escape cancels recording rather than binding, so it stays the universal "get me out"
+            // affordance. This is the recorder's only keyboard cancel, not a pipeline restriction.
+            if keyCode == 53 {
                 removeMonitor()
                 onCancelled?()
                 return nil
             }
 
-            guard !Self.reservedKeyCodes.contains(keyCode) else {
-                return event
-            }
-
+            // Any other key is fair game. The pipeline is key-agnostic: `InputMonitor.classify`
+            // matches the bound accept key before its behavioral branches, and acceptance only
+            // consumes the key while a suggestion is visible (otherwise it passes through and does
+            // its normal job). So even Return/Delete are safe to bind — they only intercept in the
+            // moment a suggestion is showing.
             let label = KeyCodeLabels.label(
                 for: CGKeyCode(keyCode),
                 fallback: event.charactersIgnoringModifiers

@@ -72,12 +72,17 @@ enum LlamaPromptRenderer {
         // still remains the last payload in the prompt.
         sections.append("")
         sections.append("Final instruction:")
-        // Language directive sits in the late, high-attention block right before the prefix so
-        // small instruct models don't drift back to the input's language mid-completion.
+        // The declared-language hint sits in the late, high-attention block right before the prefix
+        // so small instruct models actually weigh it — without it they tend to drift to English when
+        // the surrounding text is short or ambiguous.
         if let languageInstruction, !languageInstruction.isEmpty {
             sections.append("- \(languageInstruction)")
         }
-        sections.append("- \(completionLengthInstruction)")
+        // Experiment: the explicit word-range line (`completionLengthInstruction`) is intentionally
+        // omitted from the local-model prompt so length is governed purely by the token budget
+        // (`SuggestionWordCountPreset.suggestedPredictionTokenBudget`). The parameter stays wired so
+        // re-enabling the in-prompt cue is a one-line change. Apple Intelligence still gets the cue.
+        _ = completionLengthInstruction
         sections.append("- The next line must begin directly with the continuation text.")
         sections.append("Text before caret:")
         sections.append(prefixText)

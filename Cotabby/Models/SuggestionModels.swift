@@ -39,8 +39,11 @@ enum SuggestionWordCountPreset: String, CaseIterable, Equatable, Hashable, Senda
         }
     }
 
-    /// Token budget sized at ~1.5x the upper word bound. Tight enough to enforce the word cap
-    /// while leaving room for multi-token words (contractions, proper nouns, punctuation).
+    /// Token budget is the sole governor of completion length on the local model (the in-prompt
+    /// word-range cue was removed), so it must track the upper word bound closely. Sized at
+    /// ~1.5x the upper word count to leave headroom for multi-token words (contractions, proper
+    /// nouns, punctuation) without overrunning the preset. The earlier 50% bump (17/27/45) let
+    /// completions blow past the setting — e.g. ~12 words on the 3-7 preset (#271).
     var suggestedPredictionTokenBudget: Int {
         switch self {
         case .threeToSeven:
@@ -108,7 +111,7 @@ struct SuggestionConfiguration: Equatable, Sendable {
         // Seed the profile settings with lightweight defaults on first launch.
         defaultUserName: "Jacob",
         defaultWordCountPreset: .twelveToTwenty,
-        focusPollIntervalMilliseconds: 50
+        focusPollIntervalMilliseconds: 80
     )
 }
 
@@ -207,8 +210,10 @@ struct SuggestionRequest: Equatable, Sendable {
     /// User-authored style rules rendered as additional prompt directives, subordinate to the base
     /// autocomplete/safety rules. Empty when the user has none.
     let customRules: [String]
-    /// Pre-rendered directive forcing the output language (e.g. "Always write the continuation in
-    /// Spanish…"). `nil` for English, where no override is needed.
+    /// Pre-rendered language hint built from the user's declared languages (e.g. "The user usually
+    /// writes in German and English…"). `nil` when none are declared. Deliberately a hint, not an
+    /// override: it tells the model to match the surrounding text and only fall back to the declared
+    /// languages when that text is ambiguous, which protects code-switching.
     let languageInstruction: String?
     /// Ephemeral clipboard context captured only when the user has enabled clipboard prompting.
     let clipboardContext: String?
@@ -352,6 +357,26 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
     /// When `true`, the text near the caret is Right-to-Left (Arabic, Hebrew, etc.) and the ghost
     /// text overlay should appear to the left of the caret instead of the right.
     let isRightToLeft: Bool
+    /// Identifies the focus session that produced this geometry. `OverlayController` keys its
+    /// per-session font-size stabilization on this value, so a field switch (or focus loss) starts
+    /// a fresh size baseline. Defaults to 0 for tests that do not exercise session-scoped behavior.
+    let focusChangeSequence: UInt64
+
+    init(
+        caretRect: CGRect,
+        inputFrameRect: CGRect?,
+        caretQuality: CaretGeometryQuality,
+        observedCharWidth: CGFloat?,
+        isRightToLeft: Bool,
+        focusChangeSequence: UInt64 = 0
+    ) {
+        self.caretRect = caretRect
+        self.inputFrameRect = inputFrameRect
+        self.caretQuality = caretQuality
+        self.observedCharWidth = observedCharWidth
+        self.isRightToLeft = isRightToLeft
+        self.focusChangeSequence = focusChangeSequence
+    }
 }
 
 /// The overlay is intentionally modeled as data so diagnostics can reason about visibility

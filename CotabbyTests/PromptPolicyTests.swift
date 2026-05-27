@@ -15,7 +15,8 @@ final class FoundationModelPromptRendererTests: XCTestCase {
         let instructions = FoundationModelPromptRenderer.sessionInstructions(for: request)
 
         XCTAssertTrue(instructions.contains("text-continuation engine"))
-        XCTAssertTrue(instructions.contains("UNIQUE_LENGTH_POLICY"))
+        // The word-range cue is no longer injected — length is token-budget-only on both engines.
+        XCTAssertFalse(instructions.contains("UNIQUE_LENGTH_POLICY"))
         XCTAssertTrue(instructions.contains("Do not repeat or quote the existing text."))
     }
 
@@ -99,7 +100,8 @@ final class FoundationModelPromptRendererTests: XCTestCase {
         let preview = FoundationModelPromptRenderer.promptPreview(for: request)
 
         XCTAssertTrue(preview.contains("Instructions:\n"))
-        XCTAssertTrue(preview.contains("UNIQUE_LENGTH_POLICY"))
+        // Length cue removed from the prompt; it should not surface in the diagnostics preview either.
+        XCTAssertFalse(preview.contains("UNIQUE_LENGTH_POLICY"))
         XCTAssertTrue(preview.contains("Prompt:\n"))
         XCTAssertTrue(preview.contains("UNIQUE_APPLE_SCREEN_CONTEXT"))
     }
