@@ -14,6 +14,8 @@ import Foundation
 final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var isGloballyEnabled: Bool
     @Published private(set) var showIndicator: Bool
+    /// Whether the keycap hint (the small pill that teaches the accept key) is drawn after ghost text.
+    @Published private(set) var showAcceptanceHint: Bool
     @Published private(set) var disabledAppRules: [DisabledApplicationRule]
     @Published private(set) var customSuggestionTextColorHex: String?
     @Published private(set) var selectedEngine: SuggestionEngineKind
@@ -35,6 +37,7 @@ final class SuggestionSettingsModel: ObservableObject {
     private static let disabledAppRulesDefaultsKey = "cotabbyDisabledAppRules"
     private static let showCaretIndicatorDefaultsKey = "cotabbyShowCaretIndicator"
     private static let selectedIndicatorModeDefaultsKey = "cotabbySelectedIndicatorMode"
+    private static let showAcceptanceHintDefaultsKey = "cotabbyShowAcceptanceHint"
     private static let customSuggestionTextColorHexDefaultsKey = "cotabbyCustomSuggestionTextColorHex"
     private static let selectedEngineDefaultsKey = "cotabbySelectedEngine"
     private static let selectedWordCountPresetDefaultsKey = "cotabbySelectedWordCountPreset"
@@ -76,6 +79,7 @@ final class SuggestionSettingsModel: ObservableObject {
         } else {
             userDefaults.object(forKey: Self.showCaretIndicatorDefaultsKey) as? Bool ?? true
         }
+        let resolvedShowAcceptanceHint = userDefaults.object(forKey: Self.showAcceptanceHintDefaultsKey) as? Bool ?? true
         let resolvedCustomSuggestionTextColorHex = Self.normalizedHexString(
             userDefaults.string(forKey: Self.customSuggestionTextColorHexDefaultsKey)
         )
@@ -145,6 +149,7 @@ final class SuggestionSettingsModel: ObservableObject {
         isGloballyEnabled = resolvedGloballyEnabled
         disabledAppRules = resolvedDisabledAppRules
         showIndicator = resolvedShowIndicator
+        showAcceptanceHint = resolvedShowAcceptanceHint
         customSuggestionTextColorHex = resolvedCustomSuggestionTextColorHex
         selectedEngine = resolvedEngine
         selectedWordCountPreset = resolvedWordCountPreset
@@ -163,6 +168,7 @@ final class SuggestionSettingsModel: ObservableObject {
         userDefaults.set(resolvedGloballyEnabled, forKey: Self.isGloballyEnabledDefaultsKey)
         persistDisabledAppRules(resolvedDisabledAppRules)
         persistShowIndicator(resolvedShowIndicator)
+        userDefaults.set(resolvedShowAcceptanceHint, forKey: Self.showAcceptanceHintDefaultsKey)
         persistCustomSuggestionTextColorHex(resolvedCustomSuggestionTextColorHex)
         persistSelectedEngine(resolvedEngine)
         persistSelectedWordCountPreset(resolvedWordCountPreset)
@@ -349,6 +355,33 @@ final class SuggestionSettingsModel: ObservableObject {
 
         showIndicator = show
         persistShowIndicator(show)
+    }
+
+    func setShowAcceptanceHint(_ show: Bool) {
+        guard showAcceptanceHint != show else {
+            return
+        }
+
+        showAcceptanceHint = show
+        userDefaults.set(show, forKey: Self.showAcceptanceHintDefaultsKey)
+    }
+
+    /// The label the ghost-text keycap should display, or `nil` when no hint should be drawn —
+    /// either the user turned it off or no key is currently bound to accept a suggestion. Prefers
+    /// the word-accept key (the historical "tab" pill) and falls back to the full-accept key so the
+    /// hint still teaches a working gesture after the word-accept key has been cleared.
+    var acceptanceHintLabel: String? {
+        guard showAcceptanceHint else {
+            return nil
+        }
+
+        if acceptanceKeyCode != Self.disabledKeyCode {
+            return acceptanceKeyLabel
+        }
+        if fullAcceptanceKeyCode != Self.disabledKeyCode {
+            return fullAcceptanceKeyLabel
+        }
+        return nil
     }
 
     func setCustomSuggestionTextColorHex(_ hex: String?) {

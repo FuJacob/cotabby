@@ -497,6 +497,45 @@ final class SuggestionSettingsModelDisabledAppsTests: XCTestCase {
         _ = cancellables
     }
 
+    func test_acceptanceHint_defaultsToOnAndShowsWordAcceptLabel() {
+        runOnMainActor {
+            let model = makeModel()
+
+            XCTAssertTrue(model.showAcceptanceHint)
+            XCTAssertEqual(model.acceptanceHintLabel, SuggestionSettingsModel.defaultAcceptanceKeyLabel)
+        }
+    }
+
+    func test_showAcceptanceHint_persistsAcrossModelRecreation() {
+        runOnMainActor {
+            let userDefaults = makeUserDefaults()
+            let model = makeModel(userDefaults: userDefaults)
+
+            model.setShowAcceptanceHint(false)
+            let reloadedModel = makeModel(userDefaults: userDefaults)
+
+            XCTAssertFalse(reloadedModel.showAcceptanceHint)
+            XCTAssertNil(reloadedModel.acceptanceHintLabel, "Disabled hint should resolve to no label")
+        }
+    }
+
+    func test_acceptanceHintLabel_tracksRebindAndFallsBackWhenWordAcceptCleared() {
+        runOnMainActor {
+            let model = makeModel()
+
+            model.setAcceptanceKey(keyCode: 49, label: "Space")
+            XCTAssertEqual(model.acceptanceHintLabel, "Space", "Hint should follow the rebound word-accept key")
+
+            // Clearing word-accept should fall back to the still-bound full-accept key.
+            model.clearAcceptanceKey()
+            XCTAssertEqual(model.acceptanceHintLabel, model.fullAcceptanceKeyLabel)
+
+            // With no accept key bound at all, there is nothing to teach.
+            model.clearFullAcceptanceKey()
+            XCTAssertNil(model.acceptanceHintLabel)
+        }
+    }
+
     @MainActor
     private func makeModel(
         userDefaults: UserDefaults? = nil

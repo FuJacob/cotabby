@@ -90,6 +90,10 @@ struct MenuBarView: View {
                 .toggleStyle(.switch)
                 .controlSize(.small)
 
+            Toggle("Show Accept Hint", isOn: showAcceptanceHintBinding)
+                .toggleStyle(.switch)
+                .controlSize(.small)
+
             Toggle("Allow Multi-line Suggestions", isOn: multiLineEnabledBinding)
                 .toggleStyle(.switch)
                 .controlSize(.small)
@@ -285,6 +289,13 @@ struct MenuBarView: View {
         Binding(
             get: { suggestionSettings.showIndicator },
             set: { suggestionSettings.setShowIndicator($0) }
+        )
+    }
+
+    private var showAcceptanceHintBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.showAcceptanceHint },
+            set: { suggestionSettings.setShowAcceptanceHint($0) }
         )
     }
 

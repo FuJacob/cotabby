@@ -39,11 +39,14 @@ struct GhostSuggestionLayout: Equatable {
         text: String,
         geometry: SuggestionOverlayGeometry,
         fontSize: CGFloat,
-        visibleFrame: CGRect
+        visibleFrame: CGRect,
+        showsAcceptanceHint: Bool = true
     ) -> GhostSuggestionLayout {
         let normalizedText = normalizedDisplayText(text)
         let lineHeight = ceil(fontSize * Metrics.lineHeightMultiplier)
         let isRTL = geometry.isRightToLeft
+        // When the keycap is hidden the text can use the full width, so we stop reserving room for it.
+        let keycapReservation = showsAcceptanceHint ? Metrics.estimatedKeycapAndSpacingWidth : 0
         let usableFrame = usableTextFrame(
             geometry: geometry,
             visibleFrame: visibleFrame
@@ -61,7 +64,7 @@ struct GhostSuggestionLayout: Equatable {
             )
             firstLineBudget = max(
                 0,
-                firstLineAnchor - usableFrame.minX - Metrics.estimatedKeycapAndSpacingWidth
+                firstLineAnchor - usableFrame.minX - keycapReservation
             )
         } else {
             firstLineAnchor = min(
@@ -70,13 +73,13 @@ struct GhostSuggestionLayout: Equatable {
             )
             firstLineBudget = max(
                 0,
-                usableFrame.maxX - firstLineAnchor - Metrics.estimatedKeycapAndSpacingWidth
+                usableFrame.maxX - firstLineAnchor - keycapReservation
             )
         }
 
         let overflowBudget = max(
             Metrics.minimumLineWidth,
-            usableFrame.width - Metrics.estimatedKeycapAndSpacingWidth
+            usableFrame.width - keycapReservation
         )
 
         let singleLineFits = !normalizedText.contains("\n") && measuredWidth(
@@ -88,7 +91,7 @@ struct GhostSuggestionLayout: Equatable {
         if singleLineFits {
             return GhostSuggestionLayout(
                 lines: [
-                    Line(index: 0, text: normalizedText, leadingIndent: 0, showsKeycap: true)
+                    Line(index: 0, text: normalizedText, leadingIndent: 0, showsKeycap: showsAcceptanceHint)
                 ],
                 panelOriginX: firstLineAnchor,
                 lineHeight: lineHeight,
@@ -152,7 +155,7 @@ struct GhostSuggestionLayout: Equatable {
                 index: offset,
                 text: rawLine.text,
                 leadingIndent: rawLine.leadingIndent,
-                showsKeycap: offset == rawLines.count - 1
+                showsKeycap: showsAcceptanceHint && offset == rawLines.count - 1
             )
         }
 

@@ -146,6 +146,8 @@ struct SettingsView: View {
 
             Toggle("Show Indicator", isOn: showIndicatorBinding)
 
+            Toggle("Show Accept Hint", isOn: showAcceptanceHintBinding)
+
             Toggle("Allow Multi-line Suggestions", isOn: multiLineEnabledBinding)
 
             Toggle("Include Clipboard Context", isOn: clipboardContextEnabledBinding)
@@ -626,6 +628,13 @@ struct SettingsView: View {
         Binding(
             get: { suggestionSettings.showIndicator },
             set: { suggestionSettings.setShowIndicator($0) }
+        )
+    }
+
+    private var showAcceptanceHintBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.showAcceptanceHint },
+            set: { suggestionSettings.setShowAcceptanceHint($0) }
         )
     }
 
