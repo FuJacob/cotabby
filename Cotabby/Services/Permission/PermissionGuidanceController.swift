@@ -17,7 +17,9 @@ final class PermissionGuidanceController {
     private var activationObserver: NSObjectProtocol?
     private var activePermission: CotabbyPermissionKind?
     private var pendingSourceFrameInScreen: CGRect?
-    private var didPresentCurrentOverlay = false
+    private var hasPresentedOverlay = false
+    private var isOverlayVisible = false
+    private var lastSettingsFrame: CGRect?
 
     init(
         permissionManager: PermissionManager,
@@ -72,7 +74,9 @@ final class PermissionGuidanceController {
         overlayController = nil
         activePermission = nil
         pendingSourceFrameInScreen = nil
-        didPresentCurrentOverlay = false
+        hasPresentedOverlay = false
+        isOverlayVisible = false
+        lastSettingsFrame = nil
     }
 
     private func presentGuidance(for permission: CotabbyPermissionKind, sourceFrameInScreen: CGRect?) {
@@ -98,7 +102,7 @@ final class PermissionGuidanceController {
 
     private func startTracking() {
         trackingTimer?.invalidate()
-        trackingTimer = Timer.scheduledTimer(withTimeInterval: 0.15, repeats: true) { [weak self] _ in
+        trackingTimer = Timer.scheduledTimer(withTimeInterval: 0.3, repeats: true) { [weak self] _ in
             guard let self else {
                 return
             }
@@ -138,24 +142,44 @@ final class PermissionGuidanceController {
             return
         }
 
-        guard let snapshot = SystemSettingsWindowLocator.frontmostWindow() else {
-            overlayController?.hide()
-            return
-        }
+        // The tracker fires on a timer *and* on every app activation. Route the decision through a
+        // pure rule and only touch the window when the action actually changes — re-ordering or
+        // hiding on every tick is what made the helper flicker as focus moved between System
+        // Settings, the macOS permission dialog, and Cotabby's own windows.
+        let snapshot = SystemSettingsWindowLocator.frontmostWindow()
+        switch PermissionOverlayTracker.transition(
+            settingsFrame: snapshot?.frame,
+            hasPresented: hasPresentedOverlay,
+            isVisible: isOverlayVisible,
+            lastFrame: lastSettingsFrame
+        ) {
+        case .present:
+            guard let snapshot else { return }
+            overlayController?.present(
+                from: pendingSourceFrameInScreen,
+                settingsFrame: snapshot.frame,
+                visibleFrame: snapshot.visibleFrame
+            )
+            hasPresentedOverlay = true
+            isOverlayVisible = true
+            lastSettingsFrame = snapshot.frame
 
-        if didPresentCurrentOverlay {
+        case .reposition:
+            guard let snapshot else { return }
             overlayController?.updatePosition(
                 with: snapshot.frame,
                 visibleFrame: snapshot.visibleFrame
             )
-            return
-        }
+            isOverlayVisible = true
+            lastSettingsFrame = snapshot.frame
 
-        overlayController?.present(
-            from: pendingSourceFrameInScreen,
-            settingsFrame: snapshot.frame,
-            visibleFrame: snapshot.visibleFrame
-        )
-        didPresentCurrentOverlay = true
+        case .hide:
+            overlayController?.hide()
+            isOverlayVisible = false
+            lastSettingsFrame = nil
+
+        case .none:
+            break
+        }
     }
 }
