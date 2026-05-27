@@ -71,61 +71,79 @@ struct MenuBarView: View {
     @ViewBuilder
     private var controlsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Toggle("Enable Globally", isOn: globallyEnabledBinding)
-                .toggleStyle(.switch)
-                .controlSize(.small)
-
-            if let application = focusModel.latestExternalApplication,
-               !TerminalAppDetector.isTerminal(bundleIdentifier: application.bundleIdentifier) {
-                Toggle("Enable in \(application.applicationName)", isOn: appEnabledBinding(for: application))
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
-            }
-
-            Toggle("Include Clipboard Context", isOn: clipboardContextEnabledBinding)
-                .toggleStyle(.switch)
-                .controlSize(.small)
-
             Toggle("Fast Mode", isOn: fastModeEnabledBinding)
                 .toggleStyle(.switch)
                 .controlSize(.small)
                 .help("Skips capturing on-screen context (OCR) for faster, lower-overhead suggestions.")
 
-            Toggle("Allow Multi-line Suggestions", isOn: multiLineEnabledBinding)
-                .toggleStyle(.switch)
-                .controlSize(.small)
+            Divider()
 
-            MenuBarPickerRow(title: "Engine") {
-                Picker("Engine", selection: selectedEngineBinding) {
-                    ForEach(SuggestionEngineKind.allCases) { engine in
-                        Text(engine.displayLabel)
-                            .tag(engine)
-                    }
+            // Activation lives in its own band: the global switch plus the per-app override for
+            // whatever app currently has focus.
+            Group {
+                Toggle("Enable Globally", isOn: globallyEnabledBinding)
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+
+                if let application = focusModel.latestExternalApplication,
+                   !TerminalAppDetector.isTerminal(bundleIdentifier: application.bundleIdentifier) {
+                    Toggle("Enable in \(application.applicationName)", isOn: appEnabledBinding(for: application))
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
                 }
-                .labelsHidden()
-                .pickerStyle(.menu)
             }
 
-            if suggestionSettings.selectedEngine == .appleIntelligence,
-               !foundationModelAvailabilityService.isAvailable {
-                Text(foundationModelAvailabilityService.userVisibleMessage)
-                    .font(.caption)
-                    .foregroundStyle(.orange)
+            Divider()
+
+            // Context-shaping toggles that change what the model is fed.
+            Group {
+                Toggle("Include Clipboard Context", isOn: clipboardContextEnabledBinding)
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+
+                Toggle("Allow Multi-line Suggestions", isOn: multiLineEnabledBinding)
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
             }
 
-            if suggestionSettings.selectedEngine.supportsLocalModelManagement {
-                modelRow
-            }
+            Divider()
 
-            MenuBarPickerRow(title: "Length") {
-                Picker("Length", selection: selectedWordCountPresetBinding) {
-                    ForEach(SuggestionWordCountPreset.allCases) { preset in
-                        Text(preset.displayLabel)
-                            .tag(preset)
+            // Generation setup: which engine/model produces completions and how long they run.
+            // Wrapped in a Group so the four rows plus the toggles and dividers above stay under
+            // SwiftUI's 10-child ViewBuilder limit for the enclosing VStack.
+            Group {
+                MenuBarPickerRow(title: "Engine") {
+                    Picker("Engine", selection: selectedEngineBinding) {
+                        ForEach(SuggestionEngineKind.allCases) { engine in
+                            Text(engine.displayLabel)
+                                .tag(engine)
+                        }
                     }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
                 }
-                .labelsHidden()
-                .pickerStyle(.menu)
+
+                if suggestionSettings.selectedEngine == .appleIntelligence,
+                   !foundationModelAvailabilityService.isAvailable {
+                    Text(foundationModelAvailabilityService.userVisibleMessage)
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
+
+                if suggestionSettings.selectedEngine.supportsLocalModelManagement {
+                    modelRow
+                }
+
+                MenuBarPickerRow(title: "Length") {
+                    Picker("Length", selection: selectedWordCountPresetBinding) {
+                        ForEach(SuggestionWordCountPreset.allCases) { preset in
+                            Text(preset.displayLabel)
+                                .tag(preset)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                }
             }
         }
         .padding(.bottom, 12)
