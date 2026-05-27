@@ -26,6 +26,8 @@ struct SettingsView: View {
     @State private var pendingDeletionModel: RuntimeModelOption?
     @State private var isRecordingKeybind = false
     @State private var isRecordingFullAcceptKeybind = false
+    @State private var isIndicatorIconImporterPresented = false
+    @State private var didIndicatorIconImportFail = false
 
     var body: some View {
         Form {
@@ -68,6 +70,17 @@ struct SettingsView: View {
             Button("Cancel", role: .cancel) {}
         } message: { model in
             Text("Remove \(model.displayName) from Cotabby's local models folder?")
+        }
+        .fileImporter(
+            isPresented: $isIndicatorIconImporterPresented,
+            allowedContentTypes: [.image]
+        ) { result in
+            handleIndicatorIconSelection(result)
+        }
+        .alert("Couldn't Use That Image", isPresented: $didIndicatorIconImportFail) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Cotabby couldn't read that file as an image. Try a PNG or JPEG.")
         }
     }
 
@@ -146,6 +159,22 @@ struct SettingsView: View {
 
             Toggle("Show Indicator", isOn: showIndicatorBinding)
 
+            LabeledContent("Indicator Icon") {
+                HStack(spacing: 8) {
+                    FieldEdgeIconIndicatorView(customImage: suggestionSettings.customIndicatorImage)
+
+                    Button("Choose Image…") {
+                        isIndicatorIconImporterPresented = true
+                    }
+
+                    if suggestionSettings.customIndicatorImage != nil {
+                        Button("Reset") {
+                            suggestionSettings.clearCustomIndicatorImage()
+                        }
+                    }
+                }
+            }
+
             Toggle("Allow Multi-line Suggestions", isOn: multiLineEnabledBinding)
 
             Toggle("Include Clipboard Context", isOn: clipboardContextEnabledBinding)
@@ -159,6 +188,19 @@ struct SettingsView: View {
                     onShowWelcome()
                 }
             }
+        }
+    }
+
+    /// Applies a picked image as the indicator icon, flagging an alert when the file can't be used.
+    private func handleIndicatorIconSelection(_ result: Result<URL, Error>) {
+        switch result {
+        case let .success(url):
+            if !suggestionSettings.setCustomIndicatorImage(from: url) {
+                didIndicatorIconImportFail = true
+            }
+
+        case .failure:
+            didIndicatorIconImportFail = true
         }
     }
 

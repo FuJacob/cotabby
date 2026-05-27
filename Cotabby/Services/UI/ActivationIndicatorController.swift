@@ -44,7 +44,8 @@ final class ActivationIndicatorController {
     func show(
         enabled: Bool,
         caretRect: CGRect,
-        inputFrameRect: CGRect?
+        inputFrameRect: CGRect?,
+        customImage: NSImage?
     ) {
         guard enabled else {
             hide(reason: "Activation indicator hidden because it is disabled.")
@@ -56,7 +57,7 @@ final class ActivationIndicatorController {
             return
         }
 
-        contentView.rootView = AnyView(FieldEdgeIconIndicatorView())
+        contentView.rootView = AnyView(FieldEdgeIconIndicatorView(customImage: customImage))
         contentView.layoutSubtreeIfNeeded()
         let contentSize = contentView.fittingSize
         let origin = fieldEdgeIconOrigin(
@@ -136,22 +137,4 @@ final class ActivationIndicatorController {
 private final class ActivationIndicatorPanel: NSPanel {
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
-}
-
-private struct FieldEdgeIconIndicatorView: View {
-    var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 5, style: .continuous)
-                .fill(Color(red: 0.18, green: 0.19, blue: 0.21))
-            Image("MenuBarCatIcon")
-                .renderingMode(.template)
-                .resizable()
-                .scaledToFit()
-                .frame(height: 13)
-                .foregroundStyle(.white)
-        }
-        .frame(width: 20, height: 20)
-        .shadow(color: .black.opacity(0.12), radius: 2, y: 1)
-        .fixedSize()
-    }
 }
