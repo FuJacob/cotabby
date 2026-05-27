@@ -32,7 +32,7 @@ struct CotabbyApp: App {
                 }
             )
         } label: {
-            MenuBarStatusLabelView(activityModel: appDelegate.menuBarActivityModel)
+            MenuBarStatusLabelView(suggestionCoordinator: appDelegate.suggestionCoordinator)
         }
         .menuBarExtraStyle(.window)
     }

@@ -25,7 +25,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let suggestionSettings: SuggestionSettingsModel
     let foundationModelAvailabilityService: FoundationModelAvailabilityService
     let suggestionCoordinator: SuggestionCoordinator
-    let menuBarActivityModel: MenuBarActivityModel
     let welcomeCoordinator: WelcomeCoordinator
     let settingsCoordinator: SettingsCoordinator
 
@@ -51,7 +50,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         suggestionSettings = environment.suggestionSettings
         foundationModelAvailabilityService = environment.foundationModelAvailabilityService
         suggestionCoordinator = environment.suggestionCoordinator
-        menuBarActivityModel = environment.menuBarActivityModel
         welcomeCoordinator = environment.welcomeCoordinator
         settingsCoordinator = environment.settingsCoordinator
         activationIndicatorController = environment.activationIndicatorController
