@@ -47,6 +47,15 @@ final class AppUpdateManager {
         isStarted = true
         log("Sparkle updater started.")
 
+        // Check once on every launch. Sparkle's scheduled check only fires on launch when the
+        // interval has already elapsed, so frequent users (who reopen within a day) would never
+        // see a check on open. This is a *background* check: it silently does nothing when the app
+        // is up to date and only surfaces UI when an update is actually available — unlike
+        // `checkForUpdates()`, which always shows a result dialog and is reserved for the manual
+        // "Check for Updates" button. The daily `SUScheduledCheckInterval` then covers long-running
+        // sessions where the app stays open for days.
+        updaterController.updater.checkForUpdatesInBackground()
+
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains(Self.debugCheckForUpdatesOnLaunchArgument) {
             log("Debug launch argument requested an immediate update check.")
