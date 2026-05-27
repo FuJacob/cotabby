@@ -23,6 +23,7 @@ final class CotabbyAppEnvironment {
     let foundationModelAvailabilityService: FoundationModelAvailabilityService
     let clipboardContextProvider: ClipboardContextProvider
     let suggestionCoordinator: SuggestionCoordinator
+    let menuBarActivityModel: MenuBarActivityModel
     let welcomeCoordinator: WelcomeCoordinator
     let settingsCoordinator: SettingsCoordinator
     let activationIndicatorController: ActivationIndicatorController
@@ -143,6 +144,10 @@ final class CotabbyAppEnvironment {
             workController: workController,
             configuration: configuration
         )
+        let menuBarActivityModel = MenuBarActivityModel(
+            runtimeModel: runtimeModel,
+            suggestionCoordinator: suggestionCoordinator
+        )
 
         self.permissionManager = permissionManager
         self.runtimeModel = runtimeModel
@@ -156,6 +161,7 @@ final class CotabbyAppEnvironment {
         self.foundationModelAvailabilityService = foundationModelAvailabilityService
         self.clipboardContextProvider = clipboardContextProvider
         self.suggestionCoordinator = suggestionCoordinator
+        self.menuBarActivityModel = menuBarActivityModel
         self.welcomeCoordinator = welcomeCoordinator
         self.settingsCoordinator = settingsCoordinator
         self.activationIndicatorController = activationIndicatorController

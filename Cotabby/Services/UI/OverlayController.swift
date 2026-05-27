@@ -92,13 +92,15 @@ final class OverlayController: SuggestionOverlayControlling {
         let customGhostColor = SuggestionTextColorCodec.color(
             fromHex: suggestionSettings.customSuggestionTextColorHex
         )
+        let ghostOpacity = suggestionSettings.ghostTextOpacity
         let contentView: NSHostingView<GhostSuggestionView>
         if let existing = hostingView {
             existing.rootView = GhostSuggestionView(
                 layout: layout,
                 fontSize: fontSize,
                 customColor: customGhostColor,
-                keycapLabel: acceptanceHintLabel
+                keycapLabel: acceptanceHintLabel,
+                opacity: ghostOpacity
             )
             contentView = existing
         } else {
@@ -107,7 +109,8 @@ final class OverlayController: SuggestionOverlayControlling {
                     layout: layout,
                     fontSize: fontSize,
                     customColor: customGhostColor,
-                    keycapLabel: acceptanceHintLabel
+                    keycapLabel: acceptanceHintLabel,
+                    opacity: ghostOpacity
                 )
             )
             hostingView = fresh
@@ -181,14 +184,18 @@ private struct GhostSuggestionView: View {
     /// The accept key to print inside the keycap pill, or `nil` when the hint is suppressed. Pairs
     /// with `layout.lines`, where `showsKeycap` is already false on every line when this is `nil`.
     let keycapLabel: String?
+    /// User-controlled fade for the suggestion text, in [0.3, 1.0]. Applied only to the ghost text,
+    /// not the keycap, so the acceptance hint stays legible at low opacities.
+    let opacity: Double
 
     var ghostColor: Color {
-        customColor
+        let baseColor = customColor
             ?? (
                 colorScheme == .dark
                     ? Color(red: 0.65, green: 0.65, blue: 0.65)
                     : Color(red: 0.45, green: 0.45, blue: 0.45)
             )
+        return baseColor.opacity(opacity)
     }
 
     var body: some View {
