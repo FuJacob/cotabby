@@ -89,6 +89,10 @@ enum RuntimeModelCatalog {
             return "tabby-fast-1"
         case "gemma-4-E2B-it-Q4_K_M.gguf":
             return "tabby-balanced-1"
+        case "gemma-4-E4B-it-Q4_K_M.gguf":
+            return "tabby-max-1"
+        case "SmolLM-360M-Instruct.Q8_0.gguf":
+            return "tabby-nano-1"
         default:
             return filename
         }
@@ -102,6 +106,17 @@ enum RuntimeModelCatalog {
     ///
     ///   curl -sIL "<URL>" | grep -iE "^(x-linked-size|x-linked-etag):"
     static let downloadableModels: [DownloadableRuntimeModel] = [
+        DownloadableRuntimeModel(
+            filename: "SmolLM-360M-Instruct.Q8_0.gguf",
+            displayName: displayName(for: "SmolLM-360M-Instruct.Q8_0.gguf"),
+            downloadURL: URL(
+                string:
+                    "https://huggingface.co/QuantFactory/SmolLM-360M-Instruct-GGUF/resolve/main/SmolLM-360M-Instruct.Q8_0.gguf?download=true"
+            )!,
+            approximateSizeInGigabytes: 0.4,
+            expectedSizeBytes: 386_404_800,
+            sha256: "24ca4b7c7a5eb3673af7eb313fb2c68ab778f1d2a10c545ef23193faef706ca0"
+        ),
         DownloadableRuntimeModel(
             filename: "Qwen3-0.6B-Q4_K_M.gguf",
             displayName: displayName(for: "Qwen3-0.6B-Q4_K_M.gguf"),
@@ -123,6 +138,17 @@ enum RuntimeModelCatalog {
             approximateSizeInGigabytes: 3.1,
             expectedSizeBytes: 3_106_736_256,
             sha256: "9378bc471710229ef165709b62e34bfb62231420ddaf6d729e727305b5b8672d"
+        ),
+        DownloadableRuntimeModel(
+            filename: "gemma-4-E4B-it-Q4_K_M.gguf",
+            displayName: displayName(for: "gemma-4-E4B-it-Q4_K_M.gguf"),
+            downloadURL: URL(
+                string:
+                    "https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF/resolve/main/gemma-4-E4B-it-Q4_K_M.gguf?download=true"
+            )!,
+            approximateSizeInGigabytes: 5.0,
+            expectedSizeBytes: 4_977_169_568,
+            sha256: "519b9793ed6ce0ff530f1b7c96e848e08e49e7af4d57bb97f76215963a54146d"
         )
     ]
 }
@@ -140,8 +166,10 @@ struct LlamaRuntimeConfiguration: Equatable, Sendable {
     static let `default` = LlamaRuntimeConfiguration(
         runtimeDirectoryPath: nil,
         preferredModelNames: [
+            "gemma-4-E4B-it-Q4_K_M.gguf",
             "gemma-4-E2B-it-Q4_K_M.gguf",
-            "Qwen3-0.6B-Q4_K_M.gguf"
+            "Qwen3-0.6B-Q4_K_M.gguf",
+            "SmolLM-360M-Instruct.Q8_0.gguf"
         ],
         contextWindowTokens: 2048,
         batchSize: 512,
