@@ -132,9 +132,13 @@ extension SuggestionCoordinator {
         }
 
         if event.shouldSchedulePrediction {
-            // Capture AX state immediately at keystroke time so the debounce window
-            // works with the freshest possible snapshot, not whenever the poll timer last fired.
-            focusModel.refreshNow()
+            // Deliberately do NOT refresh focus here. `handleInputEvent` runs inside the synchronous
+            // CGEvent tap callback, and macOS withholds the keystroke from the focused app until the
+            // callback returns (see `InputMonitor.handleTap`). A full AX resolve on this path can take
+            // tens of milliseconds in complex browser trees — worst when the caret is mid-text and the
+            // resolver falls back to the deep-tree caret walk — which the user feels directly as typing
+            // lag. The debounced `generateFromCurrentFocus` re-reads focus at fire time, and the 80ms
+            // poll keeps the snapshot warm, so scheduling alone is enough and stays off the hot path.
             schedulePrediction()
         }
 
@@ -165,7 +169,9 @@ extension SuggestionCoordinator {
                 clearDiagnostics: false
             )
             if event.shouldSchedulePrediction {
-                focusModel.refreshNow()
+                // No synchronous focus refresh here: this runs inside the event tap callback and
+                // would stall the keystroke. `generateFromCurrentFocus` re-reads focus after the
+                // debounce. See the matching note in `handleInputEvent(_:)`.
                 schedulePrediction()
             }
             return false
@@ -176,7 +182,7 @@ extension SuggestionCoordinator {
                 clearDiagnostics: false
             )
             if event.shouldSchedulePrediction {
-                focusModel.refreshNow()
+                // See the note above: keep the AX resolve off the synchronous event-tap path.
                 schedulePrediction()
             }
             return false
