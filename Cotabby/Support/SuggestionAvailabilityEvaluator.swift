@@ -70,14 +70,23 @@ enum SuggestionAvailabilityEvaluator {
     /// Delegates to `disabledReason` with capability checking disabled so transient field
     /// states (text selected, secure field) are intentionally ignored — OCR should start
     /// early in those cases and be ready by the time the user begins typing.
+    ///
+    /// Fast mode is checked here, and deliberately NOT in `disabledReason`: it suppresses only the
+    /// screenshot/OCR pipeline. Predictions still run (they just go out without visual context), so
+    /// `disabledReason` / `shouldSchedulePrediction` must stay unaffected.
     static func shouldCaptureVisualContext(
         globallyEnabled: Bool = true,
         disabledAppBundleIdentifiers: Set<String> = [],
         inputMonitoringGranted: Bool,
         screenRecordingGranted: Bool,
-        focusSnapshot: FocusSnapshot
+        focusSnapshot: FocusSnapshot,
+        isFastModeEnabled: Bool = false
     ) -> Bool {
-        disabledReason(
+        guard !isFastModeEnabled else {
+            return false
+        }
+
+        return disabledReason(
             globallyEnabled: globallyEnabled,
             disabledAppBundleIdentifiers: disabledAppBundleIdentifiers,
             inputMonitoringGranted: inputMonitoringGranted,

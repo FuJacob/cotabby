@@ -86,6 +86,11 @@ struct MenuBarView: View {
                 .toggleStyle(.switch)
                 .controlSize(.small)
 
+            Toggle("Fast Mode", isOn: fastModeEnabledBinding)
+                .toggleStyle(.switch)
+                .controlSize(.small)
+                .help("Skips capturing on-screen context (OCR) for faster, lower-overhead suggestions.")
+
             Toggle("Show Indicator", isOn: showIndicatorBinding)
                 .toggleStyle(.switch)
                 .controlSize(.small)
@@ -254,6 +259,13 @@ struct MenuBarView: View {
         Binding(
             get: { suggestionSettings.isClipboardContextEnabled },
             set: { suggestionSettings.setClipboardContextEnabled($0) }
+        )
+    }
+
+    private var fastModeEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.isFastModeEnabled },
+            set: { suggestionSettings.setFastModeEnabled($0) }
         )
     }
 
