@@ -132,9 +132,10 @@ extension SuggestionCoordinator {
         }
 
         if event.shouldSchedulePrediction {
-            // Capture AX state immediately at keystroke time so the debounce window
-            // works with the freshest possible snapshot, not whenever the poll timer last fired.
-            focusModel.refreshNow()
+            // Refresh the AX snapshot off the synchronous tap path (see
+            // `scheduleNonBlockingFocusRefresh`) so the resolve cost never delays this keystroke.
+            // The fresh snapshot lands before the post-debounce generation re-reads it.
+            scheduleNonBlockingFocusRefresh()
             schedulePrediction()
         }
 
@@ -148,6 +149,34 @@ extension SuggestionCoordinator {
             generation: latestGenerationNumber,
             message: "Ignored Cotabby's own synthetic key event."
         )
+    }
+
+    /// Refreshes the focus snapshot without blocking keystroke delivery.
+    ///
+    /// `InputMonitor` runs the event-tap callback (and therefore `handleInputEvent`) synchronously
+    /// *before* macOS hands the keystroke to the focused app, so a synchronous `refreshNow()` here
+    /// adds the full Accessibility-resolve latency to every character typed. That resolve grows with
+    /// the field's text and AX subtree (candidate discovery, deep-geometry walks, full-value reads),
+    /// which is why typing into large or Chromium-based fields lagged badly while editing existing
+    /// text. Deferring the refresh to the next main-actor turn keeps the keystroke instant; the
+    /// snapshot still refreshes promptly, before the user's next event (e.g. a Tab acceptance) and
+    /// well before the post-debounce `generateFromCurrentFocus`, which re-reads it anyway.
+    ///
+    /// Coalesced via `isFocusRefreshScheduled`: continuous typing collapses to at most one pending
+    /// refresh, which reads the latest live AX state when it runs and so already reflects every
+    /// keystroke queued before it. The 80ms poll remains the backstop for freshness.
+    func scheduleNonBlockingFocusRefresh() {
+        guard !isFocusRefreshScheduled else {
+            return
+        }
+        isFocusRefreshScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else {
+                return
+            }
+            self.isFocusRefreshScheduled = false
+            self.focusModel.refreshNow()
+        }
     }
 
     /// While a suggestion tail is active, normal typing is interpreted relative to that tail first.
@@ -165,7 +194,7 @@ extension SuggestionCoordinator {
                 clearDiagnostics: false
             )
             if event.shouldSchedulePrediction {
-                focusModel.refreshNow()
+                scheduleNonBlockingFocusRefresh()
                 schedulePrediction()
             }
             return false
@@ -176,7 +205,7 @@ extension SuggestionCoordinator {
                 clearDiagnostics: false
             )
             if event.shouldSchedulePrediction {
-                focusModel.refreshNow()
+                scheduleNonBlockingFocusRefresh()
                 schedulePrediction()
             }
             return false

@@ -61,6 +61,9 @@ final class SuggestionCoordinator: ObservableObject {
     // barrier task that the next generation must cross before it can ask the runtime for output.
     var cacheResetSequence: UInt64 = 0
     var pendingCacheReset: (sequence: UInt64, task: Task<Void, Never>)?
+    // Coalesces off-tap focus refreshes so fast typing can't queue a backlog of full AX resolves on
+    // the main actor. See `scheduleNonBlockingFocusRefresh`.
+    var isFocusRefreshScheduled = false
 
     init(
         permissionManager: any SuggestionPermissionProviding,
