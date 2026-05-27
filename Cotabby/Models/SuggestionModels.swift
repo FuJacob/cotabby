@@ -39,17 +39,19 @@ enum SuggestionWordCountPreset: String, CaseIterable, Equatable, Hashable, Senda
         }
     }
 
-    /// Token budget bumped 50% above the prior ~1.5x-upper-word-bound sizing, giving the
-    /// token-cap-only path (no in-prompt word range for the local model) room to land a clean
-    /// stopping point instead of hard-truncating mid-thought.
+    /// Token budget is the sole governor of completion length on the local model (the in-prompt
+    /// word-range cue was removed), so it must track the upper word bound closely. Sized at
+    /// ~1.5x the upper word count to leave headroom for multi-token words (contractions, proper
+    /// nouns, punctuation) without overrunning the preset. The earlier 50% bump (17/27/45) let
+    /// completions blow past the setting — e.g. ~12 words on the 3-7 preset (#271).
     var suggestedPredictionTokenBudget: Int {
         switch self {
         case .threeToSeven:
-            return 17
+            return 11
         case .sevenToTwelve:
-            return 27
+            return 18
         case .twelveToTwenty:
-            return 45
+            return 30
         }
     }
 }
