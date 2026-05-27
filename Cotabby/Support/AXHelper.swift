@@ -213,33 +213,6 @@ enum AXHelper {
         return unsafeBitCast(element, to: AXUIElement.self)
     }
 
-    /// Creates the AX application root for one running process.
-    ///
-    /// Browser focus bugs are often easier to diagnose from the app root than from the system-wide
-    /// focused element because Chromium can briefly report stale toolbar focus through the global API.
-    static func applicationElement(processIdentifier: pid_t) -> AXUIElement {
-        AXUIElementCreateApplication(processIdentifier)
-    }
-
-    /// Reads an AXUIElement-valued attribute, such as `AXFocusedUIElement` or `AXFocusedWindow`.
-    static func uiElementValue(for attribute: CFString, on element: AXUIElement) -> AXUIElement? {
-        guard let value = copyAttributeValue(attribute, on: element) else {
-            return nil
-        }
-
-        guard CFGetTypeID(value) == AXUIElementGetTypeID() else {
-            return nil
-        }
-
-        // Same Core Foundation bridging rule as `focusedElement()`.
-        return unsafeBitCast(value, to: AXUIElement.self)
-    }
-
-    /// Returns the focused element reported by a specific app's AX root.
-    static func focusedElement(inApplication applicationElement: AXUIElement) -> AXUIElement? {
-        uiElementValue(for: kAXFocusedUIElementAttribute as CFString, on: applicationElement)
-    }
-
     /// Returns the running application that owns the given AX element.
     ///
     /// This matters for accessory apps (Raycast, Spotlight, Alfred) that show non-activating

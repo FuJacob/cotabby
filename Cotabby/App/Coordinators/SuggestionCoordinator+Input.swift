@@ -1,4 +1,3 @@
-import CoreGraphics
 import Foundation
 import Logging
 
@@ -25,7 +24,7 @@ extension SuggestionCoordinator {
 
     func handleFocusSnapshotChange(_ snapshot: FocusSnapshot) {
         CotabbyLogger.suggestion.trace(
-            "Focus snapshot changed: app=\(snapshot.applicationName) capability=\(snapshot.capability.shortLabel) \(focusDiagnostics(for: snapshot))"
+            "Focus snapshot changed: app=\(snapshot.applicationName) capability=\(snapshot.capability.shortLabel)"
         )
         // Start capturing visual context for a newly focused input even when predictions are
         // temporarily disabled by transient field states (e.g., "text is selected" or "secure
@@ -192,43 +191,5 @@ extension SuggestionCoordinator {
         case .other, .acceptance, .fullAcceptance:
             return false
         }
-    }
-}
-
-private extension SuggestionCoordinator {
-    /// Website editors often expose unstable AX trees, so this log keeps the next repro actionable
-    /// without writing the user's message text into the debug file.
-    func focusDiagnostics(for snapshot: FocusSnapshot) -> String {
-        let inspection = snapshot.inspection
-        guard let context = snapshot.context else {
-            return "reason=\"\(snapshot.capability.summary)\" "
-                + "focusedRole=\(inspection?.focusedRoleSummary ?? "n/a") "
-                + "resolvedRole=\(inspection?.resolvedRoleSummary ?? "n/a") "
-                + "missing=\(inspection?.missingCapabilitySummary ?? "n/a")"
-        }
-
-        let textLength = context.precedingText.count + context.trailingText.count
-        return "role=\(context.role)/\(context.subrole ?? "n/a") "
-            + "selection=\(context.selection.location)+\(context.selection.length) "
-            + "textLength=\(textLength) before=\(context.precedingText.count) after=\(context.trailingText.count) "
-            + "secure=\(context.isSecure) sequence=\(context.focusChangeSequence) "
-            + "caret=\(context.caretQuality.label):\(context.caretSource) "
-            + "caretRect=\(formatRect(context.caretRect)) inputRect=\(formatOptionalRect(context.inputFrameRect)) "
-            + "resolvedRole=\(inspection?.resolvedRoleSummary ?? "n/a") "
-            + "missing=\(inspection?.missingCapabilitySummary ?? "n/a")"
-    }
-
-    func formatOptionalRect(_ rect: CGRect?) -> String {
-        rect.map(formatRect) ?? "nil"
-    }
-
-    func formatRect(_ rect: CGRect) -> String {
-        String(
-            format: "(x=%.0f,y=%.0f,w=%.0f,h=%.0f)",
-            rect.origin.x,
-            rect.origin.y,
-            rect.width,
-            rect.height
-        )
     }
 }

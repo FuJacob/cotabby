@@ -158,7 +158,7 @@ final class VisualContextCoordinator {
                 CotabbyLogger.app.debug("Visual context generation cancelled")
                 return
             } catch let error as ScreenshotContextGenerationError {
-                logGenerationError(error)
+                CotabbyLogger.app.warning("Visual context generation error: \(error.localizedDescription)")
                 setStatus(errorStatus(for: error), for: session.sessionID)
             } catch {
                 CotabbyLogger.app.error("Visual context generation failed: \(error.localizedDescription)")
@@ -240,17 +240,6 @@ final class VisualContextCoordinator {
             return .unavailable(message)
         case .failed(let message):
             return .failed(message)
-        }
-    }
-
-    /// `.unavailable` means the optional screenshot/OCR add-on had no useful signal. That should be
-    /// visible in diagnostics, but it is not the same severity as a broken capture or OCR pipeline.
-    private func logGenerationError(_ error: ScreenshotContextGenerationError) {
-        switch error {
-        case .unavailable(let message):
-            CotabbyLogger.app.debug("Visual context unavailable: \(message)")
-        case .failed(let message):
-            CotabbyLogger.app.warning("Visual context generation error: \(message)")
         }
     }
 

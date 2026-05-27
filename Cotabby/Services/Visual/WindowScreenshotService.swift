@@ -60,17 +60,13 @@ struct WindowScreenshotService {
         }
 
         let shareableContent = try await currentShareableContent()
-        let processWindows = shareableContent.windows.filter {
-            $0.owningApplication?.processID == processIdentifier && $0.isOnScreen
-        }
-        let substantialWindows = processWindows.filter { isSubstantialWindow($0) }
         let matchingWindow =
-            bestWindow(for: context, in: substantialWindows)
-            ?? substantialWindows.first(where: { $0.isActive })
-            ?? substantialWindows.first
-            ?? bestWindow(for: context, in: processWindows)
-            ?? processWindows.first(where: { $0.isActive })
-            ?? processWindows.first
+            shareableContent.windows.first(where: {
+                $0.owningApplication?.processID == processIdentifier && $0.isActive && $0.isOnScreen
+            })
+            ?? shareableContent.windows.first(where: {
+                $0.owningApplication?.processID == processIdentifier && $0.isOnScreen
+            })
 
         guard let matchingWindow else {
             CotabbyLogger.app.debug("No visible window for pid \(processIdentifier)")
@@ -103,106 +99,8 @@ struct WindowScreenshotService {
         configuration.height = max(Int((localSourceRect.height * outputScale).rounded(.up)), 1)
         configuration.showsCursor = false
 
-        let inputFrameCG = context.inputFrameRect.map { convertBetweenAppKitAndCG(rect: $0) }
-        let caretRectCG = convertBetweenAppKitAndCG(rect: context.caretRect)
-        let windowFrameDescription = formatRect(matchingWindow.frame)
-        let inputDescription = formatOptionalRect(inputFrameCG)
-        let caretDescription = formatRect(caretRectCG)
-        let sourceDescription = formatRect(sourceRect)
-        let localSourceDescription = formatRect(localSourceRect)
-        let outputDescription = "\(configuration.width)x\(configuration.height)"
-        let captureGeometryMessage = [
-            "Capture geometry:",
-            "windows=\(processWindows.count)",
-            "substantial=\(substantialWindows.count)",
-            "selected=\"\(windowTitle)\"",
-            "active=\(matchingWindow.isActive)",
-            "window=\(windowFrameDescription)",
-            "input=\(inputDescription)",
-            "caret=\(caretDescription)",
-            "source=\(sourceDescription)",
-            "local=\(localSourceDescription)",
-            "output=\(outputDescription)"
-        ].joined(separator: " ")
-        CotabbyLogger.app.debug("\(captureGeometryMessage)")
-        if !isSubstantialWindow(matchingWindow) {
-            let warningMessage = "Capture fell back to tiny window: title=\"\(windowTitle)\" frame=\(windowFrameDescription)"
-            CotabbyLogger.app.warning("\(warningMessage)")
-        }
-
         let image = try await captureImage(filter: filter, configuration: configuration)
         return CapturedWindowScreenshot(image: image, windowTitle: matchingWindow.title)
-    }
-
-    /// Browsers expose tiny toolbar/popover surfaces through ScreenCaptureKit. Those surfaces can
-    /// intersect stale or toolbar-shaped AX geometry, but they cannot contain useful page OCR context.
-    private func isSubstantialWindow(_ window: SCWindow) -> Bool {
-        window.frame.width >= 240 && window.frame.height >= 240
-    }
-
-    /// Chrome and Electron can expose multiple ScreenCaptureKit windows for one process, including
-    /// tiny auxiliary surfaces. The Accessibility caret/input rect is our strongest signal for
-    /// which window actually owns the focused editor, so prefer a window containing that geometry
-    /// before falling back to "active" ordering.
-    private func bestWindow(
-        for context: FocusedInputSnapshot,
-        in windows: [SCWindow]
-    ) -> SCWindow? {
-        let inputFrameCG = context.inputFrameRect.map { convertBetweenAppKitAndCG(rect: $0) }
-        let caretRectCG = convertBetweenAppKitAndCG(rect: context.caretRect)
-        let anchorPoint = CGPoint(
-            x: (inputFrameCG ?? caretRectCG).midX,
-            y: (inputFrameCG ?? caretRectCG).midY
-        )
-
-        return windows
-            .filter { window in
-                window.frame.contains(anchorPoint)
-                    || inputFrameCG.map { window.frame.intersects($0) } == true
-                    || window.frame.intersects(caretRectCG)
-            }
-            .sorted { lhs, rhs in
-                if lhs.isActive != rhs.isActive {
-                    return lhs.isActive
-                }
-
-                return visibleAreaScore(lhs, inputFrameCG: inputFrameCG, caretRectCG: caretRectCG)
-                    > visibleAreaScore(rhs, inputFrameCG: inputFrameCG, caretRectCG: caretRectCG)
-            }
-            .first
-    }
-
-    private func visibleAreaScore(
-        _ window: SCWindow,
-        inputFrameCG: CGRect?,
-        caretRectCG: CGRect
-    ) -> CGFloat {
-        let inputArea = inputFrameCG.map { intersectionArea(window.frame, $0) } ?? 0
-        let caretArea = intersectionArea(window.frame, caretRectCG)
-        return max(inputArea, caretArea)
-    }
-
-    private func intersectionArea(_ lhs: CGRect, _ rhs: CGRect) -> CGFloat {
-        let intersection = lhs.intersection(rhs)
-        guard !intersection.isNull, !intersection.isEmpty else {
-            return 0
-        }
-
-        return intersection.width * intersection.height
-    }
-
-    private func formatOptionalRect(_ rect: CGRect?) -> String {
-        rect.map(formatRect) ?? "nil"
-    }
-
-    private func formatRect(_ rect: CGRect) -> String {
-        String(
-            format: "(x=%.0f,y=%.0f,w=%.0f,h=%.0f)",
-            rect.origin.x,
-            rect.origin.y,
-            rect.width,
-            rect.height
-        )
     }
 
     private func snapshotRect(

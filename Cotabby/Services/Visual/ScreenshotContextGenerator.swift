@@ -63,13 +63,17 @@ final class ScreenshotContextGenerator {
         do {
             extractedText = try await textExtractor.extractText(from: screenshot.image).text
         } catch ScreenTextExtractionError.noRecognizedText {
-            if let titleExcerpt = fallbackExcerpt(from: screenshot.windowTitle) {
-                return titleExcerpt
-            } else {
+            guard let windowTitle = screenshot.windowTitle,
+                hasMeaningfulSignal(windowTitle)
+            else {
                 throw ScreenshotContextGenerationError.unavailable(
                     "The screenshot did not contain enough visible text to build prompt context."
                 )
             }
+
+            return VisualContextExcerpt(
+                text: boundedSummaryText(normalizeRecognizedText(windowTitle))
+            )
         } catch let error as ScreenTextExtractionError {
             throw ScreenshotContextGenerationError.unavailable(error.localizedDescription)
         } catch {
@@ -88,11 +92,6 @@ final class ScreenshotContextGenerator {
 
         CotabbyLogger.app.debug("OCR extracted \(normalizedText.count) chars from screenshot")
         guard hasMeaningfulSignal(normalizedText) else {
-            if let titleExcerpt = fallbackExcerpt(from: screenshot.windowTitle) {
-                CotabbyLogger.app.debug("OCR text was too sparse; using window title as visual context fallback")
-                return titleExcerpt
-            }
-
             throw ScreenshotContextGenerationError.unavailable(
                 "The screenshot did not contain enough visible text to build prompt context."
             )
@@ -125,20 +124,6 @@ final class ScreenshotContextGenerator {
 
         return VisualContextExcerpt(
             text: finalContextText
-        )
-    }
-
-    /// A tiny or visually blank crop can still identify the surrounding document through the window
-    /// title. This keeps visual context best-effort instead of making a sparse OCR result look fatal.
-    private func fallbackExcerpt(from windowTitle: String?) -> VisualContextExcerpt? {
-        guard let windowTitle,
-              hasMeaningfulSignal(windowTitle)
-        else {
-            return nil
-        }
-
-        return VisualContextExcerpt(
-            text: boundedSummaryText(normalizeRecognizedText(windowTitle))
         )
     }
 
