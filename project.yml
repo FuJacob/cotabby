@@ -13,7 +13,9 @@ packages:
     exactVersion: 2.9.1
   CotabbyInference:
     url: https://github.com/FuJacob/cotabbyinference.git
-    branch: main
+    # Temporarily tracks the per-sequence thread-budget branch (cotabbyinference#1).
+    # Move back to `branch: main` once that PR merges.
+    branch: feat/per-sequence-thread-budget
   swift-log:
     url: https://github.com/apple/swift-log.git
     from: 1.12.1

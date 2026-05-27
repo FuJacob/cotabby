@@ -1173,7 +1173,7 @@
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/FuJacob/cotabbyinference.git";
 			requirement = {
-				branch = main;
+				branch = "feat/per-sequence-thread-budget";
 				kind = branch;
 			};
 		};

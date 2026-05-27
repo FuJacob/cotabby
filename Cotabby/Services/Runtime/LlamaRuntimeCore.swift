@@ -381,7 +381,8 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
             top_p: Float(options.topP),
             min_p: Float(options.minP),
             repetition_penalty: Float(options.repetitionPenalty),
-            seed: options.seed ?? 0
+            seed: options.seed ?? 0,
+            thread_count: Int32(options.threadCount)
         )
     }
 

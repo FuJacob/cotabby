@@ -204,6 +204,11 @@ struct LlamaGenerationOptions: Equatable, Sendable {
     let minP: Double
     let repetitionPenalty: Double
     var seed: UInt32?
+    /// CPU threads the sequence's context may use. 0 means "the runtime default" (all hardware
+    /// threads). Autocomplete leaves this at 0 to stay as fast as possible; the background
+    /// summarizer sets a smaller budget so it decodes concurrently with autocomplete instead of
+    /// oversubscribing every core. Does not affect sampling output, only execution width.
+    var threadCount: Int = 0
 
     static func summary(maxPredictionTokens: Int, temperature: Double) -> LlamaGenerationOptions {
         LlamaGenerationOptions(
@@ -214,8 +219,16 @@ struct LlamaGenerationOptions: Equatable, Sendable {
             minP: 0.05,
             // Higher penalty than autocomplete (1.05) because summaries span more tokens and
             // are more prone to looping when OCR input contains repeated phrases.
-            repetitionPenalty: 1.4
+            repetitionPenalty: 1.4,
+            // Background work: cap to roughly a quarter of the cores (min 2) so the summarizer
+            // runs alongside latency-critical autocomplete rather than fighting it for every core.
+            threadCount: Self.backgroundThreadBudget
         )
+    }
+
+    /// ~1/4 of the machine's cores, floored at 2, used for background (summary) sequences.
+    static var backgroundThreadBudget: Int {
+        max(2, ProcessInfo.processInfo.activeProcessorCount / 4)
     }
 }
 
