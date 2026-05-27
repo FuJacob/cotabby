@@ -100,13 +100,29 @@ Browse the [unsloth GGUF collection on Hugging Face](https://huggingface.co/unsl
 
 ## Install
 
+### Homebrew
+
+```sh
+brew tap FuJacob/cotabby
+brew install --cask cotabby
+```
+
+Upgrade later with `brew upgrade --cask cotabby`. The tap repo is [FuJacob/homebrew-cotabby](https://github.com/FuJacob/homebrew-cotabby).
+
+### Manual download
+
 1. Download the latest `Cotabby.dmg` from GitHub Releases.
 2. Drag `Cotabby.app` into `Applications` and launch it.
-3. Grant **Accessibility**, **Input Monitoring**, and **Screen Recording** when prompted.
-4. Pick an engine. Apple Intelligence if available, otherwise Open Source plus a model.
-5. Start typing in any supported editable field.
 
 If macOS blocks first launch, right-click `Cotabby.app` → `Open`, or allow it in `System Settings → Privacy & Security`.
+
+### Set up
+
+After installing with either method:
+
+1. Grant **Accessibility**, **Input Monitoring**, and **Screen Recording** when prompted.
+2. Pick an engine. Apple Intelligence if available, otherwise Open Source plus a model.
+3. Start typing in any supported editable field.
 
 ### Why those permissions?
 
