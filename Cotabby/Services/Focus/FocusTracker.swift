@@ -42,7 +42,11 @@ final class FocusTracker {
         self.ignoredBundleIdentifier = ignoredBundleIdentifier
         // Default resolver construction must happen inside the actor-isolated initializer body.
         // Swift evaluates default parameter expressions before entering the `@MainActor` context.
-        self.snapshotResolver = snapshotResolver ?? FocusSnapshotResolver()
+        // The caret-geometry cache is owned here so its lifetime matches the tracker's; it memoizes
+        // the focused field's text-run leaves so per-keystroke caret resolution can re-read them
+        // instead of re-walking the AX tree.
+        self.snapshotResolver = snapshotResolver
+            ?? FocusSnapshotResolver(caretGeometryCache: CaretGeometrySourceCache())
     }
 
     /// Starts periodic AX polling and immediately captures an initial snapshot.
