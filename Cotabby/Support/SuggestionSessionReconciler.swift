@@ -279,6 +279,30 @@ enum SuggestionSessionReconciler {
         return wordEnd
     }
 
+    /// Returns the text to actually type for an acceptance chunk, dropping its leading whitespace run
+    /// when the live text before the caret already ends in whitespace — so accepting never stacks a
+    /// second space onto a boundary the field already provides.
+    ///
+    /// This is the authoritative, accept-time counterpart to the generation-time space handling in
+    /// `SuggestionTextNormalizer`. That normalizer decides whether to keep the model's leading space
+    /// against a prefix *snapshot* taken when the request was built, which can be stale by the time
+    /// the user accepts — most often because they typed the separating space themselves after the
+    /// ghost appeared, or because AX reported the prefix before that space landed. Reconciling here
+    /// against the live preceding text makes the boundary deterministic instead of relying on the
+    /// timing-sensitive session reconciler to consume the typed space first.
+    ///
+    /// The session still advances by the full (untrimmed) chunk: the whitespace we skip typing is
+    /// exactly the whitespace already present in the field, so the consumed-suffix accounting the
+    /// reconciler does after insertion still lines up.
+    static func insertionChunk(forAcceptedChunk chunk: String, precedingText: String) -> String {
+        guard let lastScalar = precedingText.unicodeScalars.last,
+              CharacterSet.whitespaces.contains(lastScalar) else {
+            return chunk
+        }
+
+        return String(chunk.drop(while: { $0.isWhitespace }))
+    }
+
     /// Counts word-like tokens so punctuation-only accepts do not inflate productivity metrics.
     static func acceptedWordCount(in text: String) -> Int {
         text

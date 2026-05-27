@@ -131,6 +131,64 @@ final class SuggestionSessionReconcilerTests: XCTestCase {
         )
     }
 
+    func test_insertionChunk_dropsLeadingSpaceWhenPrecedingTextAlreadyEndsInWhitespace() {
+        XCTAssertEqual(
+            SuggestionSessionReconciler.insertionChunk(forAcceptedChunk: " you", precedingText: "How are "),
+            "you"
+        )
+    }
+
+    func test_insertionChunk_keepsLeadingSpaceWhenPrecedingTextHasNoTrailingWhitespace() {
+        XCTAssertEqual(
+            SuggestionSessionReconciler.insertionChunk(forAcceptedChunk: " you", precedingText: "How are"),
+            " you"
+        )
+    }
+
+    func test_insertionChunk_collapsesAWholeLeadingRunAgainstFieldWhitespace() {
+        // The reported "bunch of spaces" case: a field that already ends in a space plus a chunk
+        // carrying its own leading space(s) must not stack them.
+        XCTAssertEqual(
+            SuggestionSessionReconciler.insertionChunk(forAcceptedChunk: "  you", precedingText: "How are "),
+            "you"
+        )
+    }
+
+    func test_insertionChunk_leavesChunkUntouchedWhenItHasNoLeadingWhitespace() {
+        XCTAssertEqual(
+            SuggestionSessionReconciler.insertionChunk(forAcceptedChunk: "you", precedingText: "How are "),
+            "you"
+        )
+    }
+
+    func test_insertionChunk_treatsTabAsBoundaryWhitespaceButNotNewline() {
+        XCTAssertEqual(
+            SuggestionSessionReconciler.insertionChunk(forAcceptedChunk: " you", precedingText: "How are\t"),
+            "you"
+        )
+        // Newlines are not horizontal whitespace, so a leading space after a line break is kept.
+        XCTAssertEqual(
+            SuggestionSessionReconciler.insertionChunk(forAcceptedChunk: " you", precedingText: "line\n"),
+            " you"
+        )
+    }
+
+    func test_insertionChunk_preservesInterWordSpaceMidSuggestion() {
+        // After "you" was already inserted, the field ends in a word, so the next chunk's space
+        // is the real boundary and must survive.
+        XCTAssertEqual(
+            SuggestionSessionReconciler.insertionChunk(forAcceptedChunk: " are", precedingText: "How are you"),
+            " are"
+        )
+    }
+
+    func test_insertionChunk_returnsChunkUnchangedForEmptyPrecedingText() {
+        XCTAssertEqual(
+            SuggestionSessionReconciler.insertionChunk(forAcceptedChunk: " you", precedingText: ""),
+            " you"
+        )
+    }
+
     func test_acceptedWordCount_countsOnlyTokensWithAlphanumerics() {
         let count = SuggestionSessionReconciler.acceptedWordCount(
             in: "hello, !!! world 123 --"

@@ -70,64 +70,79 @@ struct MenuBarView: View {
     @ViewBuilder
     private var controlsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Toggle("Enable Globally", isOn: globallyEnabledBinding)
+            Toggle("Fast Mode", isOn: fastModeEnabledBinding)
                 .toggleStyle(.switch)
                 .controlSize(.small)
+                .help("Skips capturing on-screen context (OCR) for faster, lower-overhead suggestions.")
 
-            if let application = focusModel.latestExternalApplication,
-               !TerminalAppDetector.isTerminal(bundleIdentifier: application.bundleIdentifier) {
-                Toggle("Enable in \(application.applicationName)", isOn: appEnabledBinding(for: application))
+            Divider()
+
+            // Activation lives in its own band: the global switch plus the per-app override for
+            // whatever app currently has focus.
+            Group {
+                Toggle("Enable Globally", isOn: globallyEnabledBinding)
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+
+                if let application = focusModel.latestExternalApplication,
+                   !TerminalAppDetector.isTerminal(bundleIdentifier: application.bundleIdentifier) {
+                    Toggle("Enable in \(application.applicationName)", isOn: appEnabledBinding(for: application))
+                        .toggleStyle(.switch)
+                        .controlSize(.small)
+                }
+            }
+
+            Divider()
+
+            // Context-shaping toggles that change what the model is fed.
+            Group {
+                Toggle("Include Clipboard Context", isOn: clipboardContextEnabledBinding)
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+
+                Toggle("Allow Multi-line Suggestions", isOn: multiLineEnabledBinding)
                     .toggleStyle(.switch)
                     .controlSize(.small)
             }
 
-            Toggle("Include Clipboard Context", isOn: clipboardContextEnabledBinding)
-                .toggleStyle(.switch)
-                .controlSize(.small)
+            Divider()
 
-            Toggle("Show Indicator", isOn: showIndicatorBinding)
-                .toggleStyle(.switch)
-                .controlSize(.small)
-
-            Toggle("Show Accept Hint", isOn: showAcceptanceHintBinding)
-                .toggleStyle(.switch)
-                .controlSize(.small)
-
-            Toggle("Allow Multi-line Suggestions", isOn: multiLineEnabledBinding)
-                .toggleStyle(.switch)
-                .controlSize(.small)
-
-            MenuBarPickerRow(title: "Engine") {
-                Picker("Engine", selection: selectedEngineBinding) {
-                    ForEach(SuggestionEngineKind.allCases) { engine in
-                        Text(engine.displayLabel)
-                            .tag(engine)
+            // Generation setup: which engine/model produces completions and how long they run.
+            // Wrapped in a Group so the four rows plus the toggles and dividers above stay under
+            // SwiftUI's 10-child ViewBuilder limit for the enclosing VStack.
+            Group {
+                MenuBarPickerRow(title: "Engine") {
+                    Picker("Engine", selection: selectedEngineBinding) {
+                        ForEach(SuggestionEngineKind.allCases) { engine in
+                            Text(engine.displayLabel)
+                                .tag(engine)
+                        }
                     }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
                 }
-                .labelsHidden()
-                .pickerStyle(.menu)
-            }
 
-            if suggestionSettings.selectedEngine == .appleIntelligence,
-               !foundationModelAvailabilityService.isAvailable {
-                Text(foundationModelAvailabilityService.userVisibleMessage)
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-            }
+                if suggestionSettings.selectedEngine == .appleIntelligence,
+                   !foundationModelAvailabilityService.isAvailable {
+                    Text(foundationModelAvailabilityService.userVisibleMessage)
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                }
 
-            if suggestionSettings.selectedEngine.supportsLocalModelManagement {
-                modelRow
-            }
+                if suggestionSettings.selectedEngine.supportsLocalModelManagement {
+                    modelRow
+                }
 
-            MenuBarPickerRow(title: "Length") {
-                Picker("Length", selection: selectedWordCountPresetBinding) {
-                    ForEach(SuggestionWordCountPreset.allCases) { preset in
-                        Text(preset.displayLabel)
-                            .tag(preset)
+                MenuBarPickerRow(title: "Length") {
+                    Picker("Length", selection: selectedWordCountPresetBinding) {
+                        ForEach(SuggestionWordCountPreset.allCases) { preset in
+                            Text(preset.displayLabel)
+                                .tag(preset)
+                        }
                     }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
                 }
-                .labelsHidden()
-                .pickerStyle(.menu)
             }
         }
         .padding(.bottom, 12)
@@ -256,6 +271,13 @@ struct MenuBarView: View {
         )
     }
 
+    private var fastModeEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.isFastModeEnabled },
+            set: { suggestionSettings.setFastModeEnabled($0) }
+        )
+    }
+
     private func appEnabledBinding(for application: FocusedApplicationIdentity) -> Binding<Bool> {
         Binding(
             get: {
@@ -270,20 +292,6 @@ struct MenuBarView: View {
                     disabled: !enabled
                 )
             }
-        )
-    }
-
-    private var showIndicatorBinding: Binding<Bool> {
-        Binding(
-            get: { suggestionSettings.showIndicator },
-            set: { suggestionSettings.setShowIndicator($0) }
-        )
-    }
-
-    private var showAcceptanceHintBinding: Binding<Bool> {
-        Binding(
-            get: { suggestionSettings.showAcceptanceHint },
-            set: { suggestionSettings.setShowAcceptanceHint($0) }
         )
     }
 

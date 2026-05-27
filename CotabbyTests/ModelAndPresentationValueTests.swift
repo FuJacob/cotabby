@@ -176,3 +176,105 @@ final class RuntimeAndInputModelValueTests: XCTestCase {
         XCTAssertFalse(CotabbyTestFixtures.inputEvent(kind: .other).shouldClearSuggestion)
     }
 }
+
+final class GhostTextColorPresetTests: XCTestCase {
+    func test_matching_nilHexResolvesToAutomatic() {
+        XCTAssertEqual(GhostTextColorPreset.matching(hex: nil), .automatic)
+    }
+
+    func test_matching_isCaseInsensitiveAndIgnoresWhitespace() {
+        XCTAssertEqual(GhostTextColorPreset.matching(hex: "  3b82f6 ").id, "blue")
+        XCTAssertEqual(GhostTextColorPreset.matching(hex: "EC4899").id, "pink")
+    }
+
+    func test_matching_unknownHexFallsBackToAutomatic() {
+        XCTAssertEqual(GhostTextColorPreset.matching(hex: "010203"), .automatic)
+    }
+
+    func test_allPresetHexesAreValidAndDecodable() {
+        for preset in GhostTextColorPreset.all where preset.hex != nil {
+            XCTAssertNotNil(
+                SuggestionTextColorCodec.nsColor(fromHex: preset.hex),
+                "Preset \(preset.id) has an undecodable hex"
+            )
+        }
+    }
+}
+
+final class GhostTextOpacitySettingsTests: XCTestCase {
+    /// Hosted macOS tests crash while deallocating short-lived `SuggestionSettingsModel` instances,
+    /// so we retain them for the process lifetime and drive each test through `MainActor`. This
+    /// mirrors `SuggestionSettingsModelDisabledAppsTests`, which quarantines the same runtime issue.
+    private static var retainedModels: [SuggestionSettingsModel] = []
+
+    private var userDefaultsSuites: [(suiteName: String, userDefaults: UserDefaults)] = []
+
+    override func tearDown() {
+        for suite in userDefaultsSuites {
+            suite.userDefaults.removePersistentDomain(forName: suite.suiteName)
+        }
+        userDefaultsSuites.removeAll()
+        super.tearDown()
+    }
+
+    func test_defaultOpacityIsFullyOpaqueOnFreshInstall() {
+        runOnMainActor {
+            XCTAssertEqual(makeModel().ghostTextOpacity, SuggestionSettingsModel.defaultGhostTextOpacity)
+        }
+    }
+
+    func test_setOpacityClampsBelowMinimumAndAboveMaximum() {
+        runOnMainActor {
+            let model = makeModel()
+
+            model.setGhostTextOpacity(0.0)
+            XCTAssertEqual(model.ghostTextOpacity, SuggestionSettingsModel.minimumGhostTextOpacity)
+
+            model.setGhostTextOpacity(5.0)
+            XCTAssertEqual(model.ghostTextOpacity, SuggestionSettingsModel.maximumGhostTextOpacity)
+        }
+    }
+
+    func test_opacityPersistsAcrossModelReload() {
+        runOnMainActor {
+            let userDefaults = makeUserDefaults()
+            makeModel(userDefaults: userDefaults).setGhostTextOpacity(0.5)
+
+            XCTAssertEqual(makeModel(userDefaults: userDefaults).ghostTextOpacity, 0.5)
+        }
+    }
+
+    @MainActor
+    private func makeModel(userDefaults: UserDefaults? = nil) -> SuggestionSettingsModel {
+        let model = SuggestionSettingsModel(
+            configuration: .standard,
+            userDefaults: userDefaults ?? makeUserDefaults()
+        )
+        Self.retainedModels.append(model)
+        return model
+    }
+
+    private func makeUserDefaults() -> UserDefaults {
+        let suiteName = "GhostTextOpacitySettingsTests-\(UUID().uuidString)"
+        guard let userDefaults = UserDefaults(suiteName: suiteName) else {
+            XCTFail("Expected an isolated UserDefaults suite")
+            return .standard
+        }
+
+        userDefaults.removePersistentDomain(forName: suiteName)
+        userDefaultsSuites.append((suiteName: suiteName, userDefaults: userDefaults))
+        return userDefaults
+    }
+
+    private func runOnMainActor<Result>(
+        _ body: @MainActor () throws -> Result
+    ) rethrows -> Result {
+        if Thread.isMainThread {
+            return try MainActor.assumeIsolated(body)
+        }
+
+        return try DispatchQueue.main.sync {
+            try MainActor.assumeIsolated(body)
+        }
+    }
+}

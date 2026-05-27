@@ -56,7 +56,19 @@ extension SuggestionCoordinator {
             return passTabThrough(reason: reason)
         }
 
-        guard suggestionInserter.insert(acceptedChunk) else {
+        // Reconcile the word boundary against the *live* preceding text instead of trusting the
+        // leading space baked into the suggestion at generation time — that decision goes stale when
+        // the user types the separating space themselves, producing a double space on accept. The
+        // session still advances by the full `acceptedChunk`; the whitespace we skip typing is the
+        // field's own, so the post-insertion consumed-suffix accounting still lines up.
+        let insertionChunk = SuggestionSessionReconciler.insertionChunk(
+            forAcceptedChunk: acceptedChunk,
+            precedingText: liveContext.precedingText
+        )
+
+        // An empty chunk means the accepted span was entirely a boundary space the field already
+        // supplies: advance the session without synthesizing a keystroke.
+        if !insertionChunk.isEmpty, !suggestionInserter.insert(insertionChunk) {
             let message = suggestionInserter.lastErrorMessage ?? "Suggestion insertion failed."
             cancelPredictionWork()
             clearSuggestion(clearDiagnostics: true)
@@ -67,7 +79,7 @@ extension SuggestionCoordinator {
                 workID: currentWorkID,
                 generation: liveContext.generation,
                 message: message,
-                normalizedOutput: acceptedChunk
+                normalizedOutput: insertionChunk
             )
             return false
         }
@@ -103,7 +115,7 @@ extension SuggestionCoordinator {
             state = .ready(text: advancedSession.remainingText, latency: advancedSession.latency)
             let isRTL = TextDirectionDetector.isRightToLeft(liveContext.precedingText)
             let predictedCaret = Self.predictedCaretRect(
-                after: acceptedChunk,
+                after: insertionChunk,
                 oldCaretRect: liveContext.caretRect,
                 caretQuality: liveContext.caretQuality,
                 observedCharWidth: liveContext.observedCharWidth,

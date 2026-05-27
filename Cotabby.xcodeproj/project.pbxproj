@@ -65,6 +65,7 @@
 		5E10EFC426217CB7218A5847 /* CotabbyTestFixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF1E065C7FFB697FCEB2FA5C /* CotabbyTestFixtures.swift */; };
 		5E92E3C1EB41D482FC06BC52 /* MenuBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AA0117B322C625F6D4BBEAB /* MenuBarView.swift */; };
 		5F019E5A0679FFB52F129798 /* InputModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F34AE24BB7C99D66E1F3904 /* InputModels.swift */; };
+		6014B31E2570EFFE45557E33 /* TickMarkSlider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67586807ACE8EB13C9014535 /* TickMarkSlider.swift */; };
 		61EC9D635D416115E7C96E0F /* PermissionOverlayWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92C6EB9FDA48ADF425A116A9 /* PermissionOverlayWindowController.swift */; };
 		644EEF959D07D54CC779BBF6 /* SettingsCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3350EDE01ED5125520C79D53 /* SettingsCoordinator.swift */; };
 		65478B0DABF5460C32D4C458 /* ModelFileValidatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A829F28F01FAE76CA7244BBC /* ModelFileValidatorTests.swift */; };
@@ -144,6 +145,7 @@
 		EE87886AC1BFC8BB3DE09762 /* HuggingFaceModelBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78E49BDA7F3A42455C4C5350 /* HuggingFaceModelBrowserView.swift */; };
 		F08C139B246C1EC7BB435455 /* MenuBarPresentationObserver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00824BDD8D0E9B3063827C78 /* MenuBarPresentationObserver.swift */; };
 		F0DEEE8A866ABB560E7A7E6A /* LaunchAtLoginService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 220CD4AFA1E96A37BC4514AD /* LaunchAtLoginService.swift */; };
+		F4EEE6291095B0BF2D3FBA21 /* GhostTextColorPreset.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E44E393DD58B978B1EAB6CF /* GhostTextColorPreset.swift */; };
 		F78F594F77C26C233377E71F /* KeyCodeLabels.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAAE6B395FAB604DF059280A /* KeyCodeLabels.swift */; };
 		F8E86FA4D6CEEBFA7FB55F8D /* KeyRecorderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A567677424A82D9EEF47495 /* KeyRecorderView.swift */; };
 		FAC7FFC78BEBF62D5B7A2EFB /* DownloadOutcomeClassifierTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E217A66717D78E1E49350EC8 /* DownloadOutcomeClassifierTests.swift */; };
@@ -211,6 +213,7 @@
 		5F34AE24BB7C99D66E1F3904 /* InputModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputModels.swift; sourceTree = "<group>"; };
 		60629DFE309C1A4BD8A7FB3B /* RuntimeBootstrapModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeBootstrapModel.swift; sourceTree = "<group>"; };
 		656F58E56FE9BC087B6F1D33 /* PermissionReminderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionReminderView.swift; sourceTree = "<group>"; };
+		67586807ACE8EB13C9014535 /* TickMarkSlider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TickMarkSlider.swift; sourceTree = "<group>"; };
 		6B2D97BAA3618A7D0357AC44 /* SuggestionWorkController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionWorkController.swift; sourceTree = "<group>"; };
 		6C4565D64DF64A2AA0DB1532 /* WelcomeProfileStepView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeProfileStepView.swift; sourceTree = "<group>"; };
 		70367FCC1E0F08EE3B8EB26F /* FocusCapabilityResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusCapabilityResolver.swift; sourceTree = "<group>"; };
@@ -220,6 +223,7 @@
 		77B0121E7BB173F8A2B0B108 /* WindowScreenshotService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowScreenshotService.swift; sourceTree = "<group>"; };
 		78E280F4F39A9D86840800D2 /* SuggestionCoordinator+Lifecycle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SuggestionCoordinator+Lifecycle.swift"; sourceTree = "<group>"; };
 		78E49BDA7F3A42455C4C5350 /* HuggingFaceModelBrowserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HuggingFaceModelBrowserView.swift; sourceTree = "<group>"; };
+		7E44E393DD58B978B1EAB6CF /* GhostTextColorPreset.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GhostTextColorPreset.swift; sourceTree = "<group>"; };
 		7F4C4A7EAF886E0CC945BFEF /* TerminalAppDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalAppDetector.swift; sourceTree = "<group>"; };
 		815F2ABAF6AB75DA3AFBBCEF /* WordCountFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WordCountFormatter.swift; sourceTree = "<group>"; };
 		82F7F7355967725162DF2D1B /* CustomRulesEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomRulesEditor.swift; sourceTree = "<group>"; };
@@ -521,6 +525,7 @@
 				0E0F6AFF229D20B73CF14C6C /* SettingsView.swift */,
 				FB317C82CE2CBC69056BA4B8 /* TagChip.swift */,
 				58C0F017699EE44C81C095CA /* TagsInputView.swift */,
+				67586807ACE8EB13C9014535 /* TickMarkSlider.swift */,
 				D5D6C2318E405AA717D1C256 /* WelcomePermissionStepView.swift */,
 				6C4565D64DF64A2AA0DB1532 /* WelcomeProfileStepView.swift */,
 				264CA64B2AB1611F82E5B760 /* WelcomeView.swift */,
@@ -577,6 +582,7 @@
 				FE7BF162A12703249726F20A /* FoundationModelPromptRenderer.swift */,
 				9458F0820B3161FE9CF1DDAF /* GhostFontSizeStabilizer.swift */,
 				043E8AA850F930222DD112C0 /* GhostSuggestionLayout.swift */,
+				7E44E393DD58B978B1EAB6CF /* GhostTextColorPreset.swift */,
 				EBEDE359CFD99EF906FA50BC /* IndicatorIconImageProcessor.swift */,
 				EAAE6B395FAB604DF059280A /* KeyCodeLabels.swift */,
 				B5679E08C9A09065531C37B5 /* LlamaPromptRenderer.swift */,
@@ -743,6 +749,7 @@
 				6DD1E22151571E1A22FF22F4 /* FoundationModelSuggestionEngine.swift in Sources */,
 				42D40F37086294D0E58200C5 /* GhostFontSizeStabilizer.swift in Sources */,
 				ED9C51B0D7056F0753AADF2D /* GhostSuggestionLayout.swift in Sources */,
+				F4EEE6291095B0BF2D3FBA21 /* GhostTextColorPreset.swift in Sources */,
 				91C27021750AC03AA4A0115A /* HuggingFaceAPIClient.swift in Sources */,
 				EE87886AC1BFC8BB3DE09762 /* HuggingFaceModelBrowserView.swift in Sources */,
 				B2F7589B8D32ACF97BB642AB /* HuggingFaceModels.swift in Sources */,
@@ -808,6 +815,7 @@
 				B0828FF0D7EE110C0B23DB94 /* TagsInputView.swift in Sources */,
 				AB9C9C001F97F9D14F8B192A /* TerminalAppDetector.swift in Sources */,
 				96782E57CA26A16409368B69 /* TextDirectionDetector.swift in Sources */,
+				6014B31E2570EFFE45557E33 /* TickMarkSlider.swift in Sources */,
 				E9E4CC657771DF9F4C56183C /* VisualContextCoordinator.swift in Sources */,
 				4190F8A76196B16ED94D0A55 /* VisualContextModels.swift in Sources */,
 				4AC255BE2D0CCC67B8882C7A /* WelcomeCoordinator.swift in Sources */,
@@ -888,7 +896,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.jacobfu.tabby;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -959,7 +967,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -1019,7 +1027,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1045,7 +1053,7 @@
 					"@executable_path/../Frameworks",
 					"@loader_path/../Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.jacobfu.tabby.CotabbyTests;
 				PRODUCT_MODULE_NAME = "$(TARGET_NAME)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1077,7 +1085,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.jacobfu.tabby;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1109,7 +1117,7 @@
 					"@executable_path/../Frameworks",
 					"@loader_path/../Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.jacobfu.tabby.CotabbyTests;
 				PRODUCT_MODULE_NAME = "$(TARGET_NAME)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
