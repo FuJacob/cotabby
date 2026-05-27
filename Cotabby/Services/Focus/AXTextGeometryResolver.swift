@@ -287,6 +287,19 @@ struct AXTextGeometryResolver {
             return nil
         }
 
+        // Per-line runs omit the line breaks the field value keeps, so a caret near the end of a
+        // multi-line message sits past the summed run length by the number of breaks above it. Size
+        // the past-all-runs tolerance to that glue so the fallback still anchors to the last run
+        // instead of collapsing to the whole-field estimate, while a larger overshoot still rejects
+        // an incomplete or label-polluted run list.
+        let caretLocation = min(parentSelection.location, parentTextLength)
+        let newlinesBeforeCaret = (parentText as NSString).substring(to: caretLocation)
+            .unicodeScalars
+            .reduce(into: 0) { count, scalar in
+                if CharacterSet.newlines.contains(scalar) { count += 1 }
+            }
+        let missingTextTolerance = max(2, newlinesBeforeCaret)
+
         let fieldKey: CaretGeometrySourceCache.FieldKey?
         if let focusChangeSequence, cache != nil {
             fieldKey = CaretGeometrySourceCache.FieldKey(

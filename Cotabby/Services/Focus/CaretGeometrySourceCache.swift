@@ -31,6 +31,15 @@ final class CaretGeometrySourceCache {
     private var deepKey: FieldKey?
     private var deepSourceElement: AXUIElement?
 
+    /// Releasing the cache's storage (CF element references, strings, ints) is thread-safe, so the
+    /// deinit does not need main-actor isolation. Marking it `nonisolated` keeps the rest of the type
+    /// main-actor isolated while preventing the compiler from emitting an isolated-deinit hop. With
+    /// our macOS 14 deployment target that hop runs through the back-deployment shim
+    /// `swift_task_deinitOnExecutorMainActorBackDeploy`, which over-releases and aborts the process
+    /// ("pointer being freed was not allocated") when a `@MainActor` class with non-trivial stored
+    /// properties is destroyed — it crashed `CaretGeometrySourceCacheTests` deterministically.
+    nonisolated deinit {}
+
     /// Debug-only counters (read by `FocusTracker` when `-cotabby-debug` is set) so a dump can show
     /// whether the cache is actually hitting in the wild rather than us guessing. Not used for logic.
     private(set) var runHits = 0
