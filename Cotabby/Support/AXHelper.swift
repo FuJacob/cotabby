@@ -213,6 +213,20 @@ enum AXHelper {
         return unsafeBitCast(element, to: AXUIElement.self)
     }
 
+    /// Returns the running application that owns the given AX element.
+    ///
+    /// This matters for accessory apps (Raycast, Spotlight, Alfred) that show non-activating
+    /// panels: they keep the previously active app as `NSWorkspace.frontmostApplication` while
+    /// actually owning the focused text element. Resolving identity from the element's pid is the
+    /// only way to attribute the focused field to the real owner.
+    static func owningApplication(of element: AXUIElement) -> NSRunningApplication? {
+        var pid: pid_t = 0
+        guard AXUIElementGetPid(element, &pid) == .success, pid > 0 else {
+            return nil
+        }
+        return NSRunningApplication(processIdentifier: pid)
+    }
+
     /// Returns the parent AX node when the current element exposes one.
     static func parentElement(of element: AXUIElement) -> AXUIElement? {
         guard let value = copyAttributeValue(kAXParentAttribute as CFString, on: element) else {
