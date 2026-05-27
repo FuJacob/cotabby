@@ -215,7 +215,7 @@ enum CotabbyTestFixtures {
         isClipboardContextEnabled: Bool = true,
         userName: String = "",
         customRules: [String] = [],
-        responseLanguage: SuggestionLanguage = .default,
+        responseLanguages: [String] = [],
         debounceMilliseconds: Int = 50,
         focusPollIntervalMilliseconds: Int = 50,
         isMultiLineEnabled: Bool = false
@@ -228,7 +228,7 @@ enum CotabbyTestFixtures {
             isClipboardContextEnabled: isClipboardContextEnabled,
             userName: userName,
             customRules: customRules,
-            responseLanguage: responseLanguage,
+            responseLanguages: responseLanguages,
             debounceMilliseconds: debounceMilliseconds,
             focusPollIntervalMilliseconds: focusPollIntervalMilliseconds,
             isMultiLineEnabled: isMultiLineEnabled

@@ -126,17 +126,6 @@ struct MenuBarView: View {
                 .labelsHidden()
                 .pickerStyle(.menu)
             }
-
-            MenuBarPickerRow(title: "Language") {
-                Picker("Language", selection: selectedLanguageBinding) {
-                    ForEach(SuggestionLanguage.allCases) { language in
-                        Text(language.displayLabel)
-                            .tag(language)
-                    }
-                }
-                .labelsHidden()
-                .pickerStyle(.menu)
-            }
         }
         .padding(.bottom, 12)
     }
@@ -309,15 +298,6 @@ struct MenuBarView: View {
             get: { suggestionSettings.selectedWordCountPreset },
             set: { preset in
                 suggestionSettings.selectWordCountPreset(preset)
-            }
-        )
-    }
-
-    private var selectedLanguageBinding: Binding<SuggestionLanguage> {
-        Binding(
-            get: { suggestionSettings.responseLanguage },
-            set: { language in
-                suggestionSettings.setResponseLanguage(language)
             }
         )
     }

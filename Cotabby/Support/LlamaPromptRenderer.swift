@@ -72,8 +72,9 @@ enum LlamaPromptRenderer {
         // still remains the last payload in the prompt.
         sections.append("")
         sections.append("Final instruction:")
-        // Language directive sits in the late, high-attention block right before the prefix so
-        // small instruct models don't drift back to the input's language mid-completion.
+        // The declared-language hint sits in the late, high-attention block right before the prefix
+        // so small instruct models actually weigh it — without it they tend to drift to English when
+        // the surrounding text is short or ambiguous.
         if let languageInstruction, !languageInstruction.isEmpty {
             sections.append("- \(languageInstruction)")
         }

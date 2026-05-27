@@ -208,8 +208,10 @@ struct SuggestionRequest: Equatable, Sendable {
     /// User-authored style rules rendered as additional prompt directives, subordinate to the base
     /// autocomplete/safety rules. Empty when the user has none.
     let customRules: [String]
-    /// Pre-rendered directive forcing the output language (e.g. "Always write the continuation in
-    /// Spanish…"). `nil` for English, where no override is needed.
+    /// Pre-rendered language hint built from the user's declared languages (e.g. "The user usually
+    /// writes in German and English…"). `nil` when none are declared. Deliberately a hint, not an
+    /// override: it tells the model to match the surrounding text and only fall back to the declared
+    /// languages when that text is ambiguous, which protects code-switching.
     let languageInstruction: String?
     /// Ephemeral clipboard context captured only when the user has enabled clipboard prompting.
     let clipboardContext: String?

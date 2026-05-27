@@ -21,7 +21,7 @@ final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var isClipboardContextEnabled: Bool
     @Published private(set) var userName: String
     @Published private(set) var customRules: [String]
-    @Published private(set) var responseLanguage: SuggestionLanguage
+    @Published private(set) var responseLanguages: [String]
     @Published private(set) var debounceMilliseconds: Int
     @Published private(set) var focusPollIntervalMilliseconds: Int
     @Published private(set) var isMultiLineEnabled: Bool
@@ -41,7 +41,9 @@ final class SuggestionSettingsModel: ObservableObject {
     private static let clipboardContextEnabledDefaultsKey = "cotabbyClipboardContextEnabled"
     private static let userNameDefaultsKey = "cotabbyUserName"
     private static let customRulesDefaultsKey = "cotabbyCustomRules"
-    private static let responseLanguageDefaultsKey = "cotabbyResponseLanguage"
+    private static let responseLanguagesDefaultsKey = "cotabbyResponseLanguages"
+    /// Legacy single-select key, read once to migrate the previous value into `responseLanguages`.
+    private static let legacyResponseLanguageDefaultsKey = "cotabbyResponseLanguage"
     private static let debounceMillisecondsDefaultsKey = "cotabbyDebounceMilliseconds"
     private static let focusPollIntervalMillisecondsDefaultsKey = "cotabbyFocusPollIntervalMilliseconds"
     private static let multiLineEnabledDefaultsKey = "cotabbyMultiLineEnabled"
@@ -107,9 +109,16 @@ final class SuggestionSettingsModel: ObservableObject {
             CustomRulesCatalog.normalize(userDefaults.stringArray(forKey: Self.customRulesDefaultsKey) ?? [])
         }
 
-        let resolvedResponseLanguage = userDefaults.string(forKey: Self.responseLanguageDefaultsKey)
-            .flatMap(SuggestionLanguage.init(rawValue:))
-            ?? .default
+        // Prefer the multi-language value once the user has touched it (key present, even if empty).
+        // Otherwise migrate the previous single-select choice exactly once; a fresh install gets the
+        // empty default.
+        let resolvedResponseLanguages: [String] = if userDefaults.object(forKey: Self.responseLanguagesDefaultsKey) != nil {
+            LanguageCatalog.normalize(userDefaults.stringArray(forKey: Self.responseLanguagesDefaultsKey) ?? [])
+        } else if let legacyCode = userDefaults.string(forKey: Self.legacyResponseLanguageDefaultsKey) {
+            LanguageCatalog.migratedLanguages(fromLegacyCode: legacyCode)
+        } else {
+            LanguageCatalog.defaultLanguages
+        }
 
         let resolvedDebounceMilliseconds: Int = {
             let raw = userDefaults.object(forKey: Self.debounceMillisecondsDefaultsKey) as? Int
@@ -151,7 +160,7 @@ final class SuggestionSettingsModel: ObservableObject {
         isClipboardContextEnabled = resolvedClipboardContextEnabled
         userName = resolvedUserName
         customRules = resolvedCustomRules
-        responseLanguage = resolvedResponseLanguage
+        responseLanguages = resolvedResponseLanguages
         debounceMilliseconds = resolvedDebounceMilliseconds
         focusPollIntervalMilliseconds = resolvedFocusPollIntervalMilliseconds
         isMultiLineEnabled = resolvedMultiLineEnabled
@@ -169,7 +178,7 @@ final class SuggestionSettingsModel: ObservableObject {
         persistClipboardContextEnabled(resolvedClipboardContextEnabled)
         persistUserName(resolvedUserName)
         persistCustomRules(resolvedCustomRules)
-        userDefaults.set(resolvedResponseLanguage.rawValue, forKey: Self.responseLanguageDefaultsKey)
+        persistResponseLanguages(resolvedResponseLanguages)
         userDefaults.set(resolvedDebounceMilliseconds, forKey: Self.debounceMillisecondsDefaultsKey)
         userDefaults.set(resolvedFocusPollIntervalMilliseconds, forKey: Self.focusPollIntervalMillisecondsDefaultsKey)
         userDefaults.set(resolvedMultiLineEnabled, forKey: Self.multiLineEnabledDefaultsKey)
@@ -193,7 +202,7 @@ final class SuggestionSettingsModel: ObservableObject {
             isClipboardContextEnabled: isClipboardContextEnabled,
             userName: userName,
             customRules: customRules,
-            responseLanguage: responseLanguage,
+            responseLanguages: responseLanguages,
             debounceMilliseconds: debounceMilliseconds,
             focusPollIntervalMilliseconds: focusPollIntervalMilliseconds,
             isMultiLineEnabled: isMultiLineEnabled
@@ -396,13 +405,29 @@ final class SuggestionSettingsModel: ObservableObject {
         setRules(CustomRulesCatalog.defaultRules)
     }
 
-    func setResponseLanguage(_ language: SuggestionLanguage) {
-        guard responseLanguage != language else {
+    /// All language mutations funnel through here so storage stays normalized (trimmed, deduped,
+    /// capped), mirroring `setRules`.
+    func setLanguages(_ languages: [String]) {
+        let normalized = LanguageCatalog.normalize(languages)
+        guard responseLanguages != normalized else {
             return
         }
 
-        responseLanguage = language
-        userDefaults.set(language.rawValue, forKey: Self.responseLanguageDefaultsKey)
+        responseLanguages = normalized
+        persistResponseLanguages(normalized)
+    }
+
+    func addLanguage(_ language: String) {
+        setLanguages(responseLanguages + [language])
+    }
+
+    func removeLanguage(_ language: String) {
+        setLanguages(responseLanguages.filter { $0 != language })
+    }
+
+    /// Restores the baseline (empty) language set. Named for the editor's "Clear" affordance.
+    func clearLanguages() {
+        setLanguages(LanguageCatalog.defaultLanguages)
     }
 
     func setAcceptanceKey(keyCode: CGKeyCode, label: String) {
@@ -560,6 +585,10 @@ final class SuggestionSettingsModel: ObservableObject {
         userDefaults.set(rules, forKey: Self.customRulesDefaultsKey)
     }
 
+    private func persistResponseLanguages(_ languages: [String]) {
+        userDefaults.set(languages, forKey: Self.responseLanguagesDefaultsKey)
+    }
+
     private func persistDisabledAppRules(_ rules: [DisabledApplicationRule]) {
         guard !rules.isEmpty else {
             userDefaults.removeObject(forKey: Self.disabledAppRulesDefaultsKey)
@@ -582,12 +611,12 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                 $selectedWordCountPreset
             ),
             $isClipboardContextEnabled,
-            Publishers.CombineLatest3($userName, $customRules, $responseLanguage),
+            Publishers.CombineLatest3($userName, $customRules, $responseLanguages),
             Publishers.CombineLatest3($debounceMilliseconds, $focusPollIntervalMilliseconds, $isMultiLineEnabled)
         )
         .map { combinedSettings, clipboardContextEnabled, profile, timing in
             let (globallyEnabled, disabledAppRules, engine, wordCountPreset) = combinedSettings
-            let (userName, customRules, responseLanguage) = profile
+            let (userName, customRules, responseLanguages) = profile
             let (debounce, focusPoll, multiLine) = timing
             return SuggestionSettingsSnapshot(
                 isGloballyEnabled: globallyEnabled,
@@ -597,7 +626,7 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                 isClipboardContextEnabled: clipboardContextEnabled,
                 userName: userName,
                 customRules: customRules,
-                responseLanguage: responseLanguage,
+                responseLanguages: responseLanguages,
                 debounceMilliseconds: debounce,
                 focusPollIntervalMilliseconds: focusPoll,
                 isMultiLineEnabled: multiLine

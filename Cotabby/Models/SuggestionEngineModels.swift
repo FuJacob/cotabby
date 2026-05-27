@@ -59,8 +59,10 @@ struct SuggestionSettingsSnapshot: Equatable, Sendable {
     /// User-authored style rules, carried in the snapshot so generation uses the same value the
     /// Settings UI shows.
     let customRules: [String]
-    /// Forces the completion language. English emits no prompt directive.
-    let responseLanguage: SuggestionLanguage
+    /// The languages the user has declared they write in. Used to build a soft prompt hint; an empty
+    /// set emits no directive (the renderers then just match the surrounding text). Never forces a
+    /// language, so a code-switcher's other languages are preserved.
+    let responseLanguages: [String]
     let debounceMilliseconds: Int
     let focusPollIntervalMilliseconds: Int
     let isMultiLineEnabled: Bool
