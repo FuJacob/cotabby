@@ -91,14 +91,6 @@ struct MenuBarView: View {
                 .controlSize(.small)
                 .help("Skips capturing on-screen context (OCR) for faster, lower-overhead suggestions.")
 
-            Toggle("Show Indicator", isOn: showIndicatorBinding)
-                .toggleStyle(.switch)
-                .controlSize(.small)
-
-            Toggle("Show Accept Hint", isOn: showAcceptanceHintBinding)
-                .toggleStyle(.switch)
-                .controlSize(.small)
-
             Toggle("Allow Multi-line Suggestions", isOn: multiLineEnabledBinding)
                 .toggleStyle(.switch)
                 .controlSize(.small)
@@ -283,20 +275,6 @@ struct MenuBarView: View {
                     disabled: !enabled
                 )
             }
-        )
-    }
-
-    private var showIndicatorBinding: Binding<Bool> {
-        Binding(
-            get: { suggestionSettings.showIndicator },
-            set: { suggestionSettings.setShowIndicator($0) }
-        )
-    }
-
-    private var showAcceptanceHintBinding: Binding<Bool> {
-        Binding(
-            get: { suggestionSettings.showAcceptanceHint },
-            set: { suggestionSettings.setShowAcceptanceHint($0) }
         )
     }
 
