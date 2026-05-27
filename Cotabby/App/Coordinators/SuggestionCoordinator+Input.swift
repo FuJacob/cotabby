@@ -37,7 +37,8 @@ extension SuggestionCoordinator {
                disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
                inputMonitoringGranted: permissionManager.inputMonitoringGranted,
                screenRecordingGranted: permissionManager.screenRecordingGranted,
-               focusSnapshot: snapshot
+               focusSnapshot: snapshot,
+               isFastModeEnabled: settingsSnapshot.isFastModeEnabled
            ) {
             visualContextCoordinator.startSessionIfNeeded(for: context)
         }
@@ -61,8 +62,19 @@ extension SuggestionCoordinator {
             return
         }
 
-        // Start capturing visual context for newly focused input.
-        visualContextCoordinator.startSessionIfNeeded(for: focusedContext)
+        // Start capturing visual context for newly focused input. Gated like the focus-change path
+        // (and skipped in fast mode) so this entry point never kicks off screenshot/OCR work that the
+        // earlier `shouldCaptureVisualContext` check already declined.
+        if SuggestionAvailabilityEvaluator.shouldCaptureVisualContext(
+            globallyEnabled: settingsSnapshot.isGloballyEnabled,
+            disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
+            inputMonitoringGranted: permissionManager.inputMonitoringGranted,
+            screenRecordingGranted: permissionManager.screenRecordingGranted,
+            focusSnapshot: snapshot,
+            isFastModeEnabled: settingsSnapshot.isFastModeEnabled
+        ) {
+            visualContextCoordinator.startSessionIfNeeded(for: focusedContext)
+        }
 
         if case .disabled = state {
             state = .idle

@@ -286,6 +286,42 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
 
         XCTAssertFalse(ok)
     }
+
+    // MARK: - shouldCaptureVisualContext + fast mode
+
+    func test_shouldCaptureVisualContext_trueWhenAllowedAndNotFastMode() {
+        let ok = SuggestionAvailabilityEvaluator.shouldCaptureVisualContext(
+            globallyEnabled: true,
+            inputMonitoringGranted: true,
+            screenRecordingGranted: true,
+            focusSnapshot: makeSnapshot(capability: .supported),
+            isFastModeEnabled: false
+        )
+
+        XCTAssertTrue(ok)
+    }
+
+    /// The core fast-mode invariant: it turns off the screenshot/OCR pipeline while leaving the
+    /// prediction gate untouched, so the user still gets (faster, context-free) completions.
+    func test_fastMode_suppressesVisualContextButNotPredictions() {
+        let snapshot = makeSnapshot(capability: .supported)
+
+        XCTAssertFalse(
+            SuggestionAvailabilityEvaluator.shouldCaptureVisualContext(
+                inputMonitoringGranted: true,
+                screenRecordingGranted: true,
+                focusSnapshot: snapshot,
+                isFastModeEnabled: true
+            )
+        )
+        XCTAssertTrue(
+            SuggestionAvailabilityEvaluator.shouldSchedulePrediction(
+                inputMonitoringGranted: true,
+                screenRecordingGranted: true,
+                focusSnapshot: snapshot
+            )
+        )
+    }
 }
 
 /// Tests for the app identity that menu-bar controls target.
@@ -491,6 +527,44 @@ final class SuggestionSettingsModelDisabledAppsTests: XCTestCase {
                 .store(in: &cancellables)
 
             model.setClipboardContextEnabled(true)
+        }
+
+        wait(for: [expectation], timeout: 1.0)
+        _ = cancellables
+    }
+
+    func test_fastMode_defaultsToFalseAndPersists() {
+        runOnMainActor {
+            let userDefaults = makeUserDefaults()
+            let model = makeModel(userDefaults: userDefaults)
+
+            XCTAssertFalse(model.isFastModeEnabled)
+            XCTAssertFalse(model.snapshot.isFastModeEnabled)
+
+            model.setFastModeEnabled(true)
+            let reloadedModel = makeModel(userDefaults: userDefaults)
+
+            XCTAssertTrue(reloadedModel.isFastModeEnabled)
+            XCTAssertTrue(reloadedModel.snapshot.isFastModeEnabled)
+        }
+    }
+
+    func test_snapshotPublisher_emitsWhenFastModeSettingChanges() {
+        let expectation = expectation(description: "snapshot emits after fast mode setting changes")
+        var cancellables = Set<AnyCancellable>()
+
+        runOnMainActor {
+            let model = makeModel()
+
+            model.snapshotPublisher
+                .dropFirst()
+                .sink { snapshot in
+                    XCTAssertTrue(snapshot.isFastModeEnabled)
+                    expectation.fulfill()
+                }
+                .store(in: &cancellables)
+
+            model.setFastModeEnabled(true)
         }
 
         wait(for: [expectation], timeout: 1.0)

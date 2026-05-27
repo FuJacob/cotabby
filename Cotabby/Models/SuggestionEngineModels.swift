@@ -69,4 +69,7 @@ struct SuggestionSettingsSnapshot: Equatable, Sendable {
     /// When true (the default), accepting a word also takes punctuation attached to it. When false,
     /// trailing punctuation is left as its own acceptance part so a single Tab takes the word alone.
     let autoAcceptTrailingPunctuation: Bool
+    /// When true, the screenshot/OCR visual-context pipeline is skipped entirely for lower-latency
+    /// suggestions. Defaults to false. Only affects visual context — predictions still run.
+    let isFastModeEnabled: Bool
 }

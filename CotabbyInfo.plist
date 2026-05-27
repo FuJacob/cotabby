@@ -30,6 +30,8 @@
 	<false/>
 	<key>SUEnableAutomaticChecks</key>
 	<true/>
+	<key>SUScheduledCheckInterval</key>
+	<integer>86400</integer>
 	<key>SUFeedURL</key>
 	<string>https://updates.cotabby.app/appcast.xml</string>
     <key>SUPublicEDKey</key>
