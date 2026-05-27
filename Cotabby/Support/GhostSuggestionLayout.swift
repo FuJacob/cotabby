@@ -250,31 +250,13 @@ struct GhostSuggestionLayout: Equatable {
 
         // Explicit newline: force a line break at the first one.
         if let newlineIndex = source.firstIndex(of: "\n") {
-            let segment = String(source[..<newlineIndex]).trimmingCharacters(in: .whitespaces)
-            let afterIndex = source.index(after: newlineIndex)
-            let afterNewline = afterIndex < source.endIndex
-                ? String(source[afterIndex...]).trimmingCharacters(in: .whitespaces)
-                : ""
-
-            guard !segment.isEmpty else {
-                return splitPrefix(from: afterNewline, maxWidth: maxWidth, fontSize: fontSize, observedCharWidth: observedCharWidth)
-            }
-
-            if measuredWidth(of: segment, fontSize: fontSize, observedCharWidth: observedCharWidth) <= safeMaxWidth {
-                return (segment, afterNewline)
-            }
-
-            // Segment before newline is too wide — width-wrap it, keep post-newline as remainder.
-            let widthSplit = splitPrefix(from: segment, maxWidth: maxWidth, fontSize: fontSize, observedCharWidth: observedCharWidth)
-            let combined: String
-            if widthSplit.remainder.isEmpty {
-                combined = afterNewline
-            } else if afterNewline.isEmpty {
-                combined = widthSplit.remainder
-            } else {
-                combined = widthSplit.remainder + "\n" + afterNewline
-            }
-            return (widthSplit.line, combined)
+            return splitAtNewline(
+                source: source,
+                newlineIndex: newlineIndex,
+                maxWidth: maxWidth,
+                fontSize: fontSize,
+                observedCharWidth: observedCharWidth
+            )
         }
 
         if measuredWidth(of: source, fontSize: fontSize, observedCharWidth: observedCharWidth) <= safeMaxWidth {
@@ -309,6 +291,42 @@ struct GhostSuggestionLayout: Equatable {
         }
 
         return (text.trimmingCharacters(in: .whitespaces), "")
+    }
+
+    /// Splits `source` at its first explicit newline, width-wrapping the leading segment if it overflows.
+    private static func splitAtNewline(
+        source: String,
+        newlineIndex: String.Index,
+        maxWidth: CGFloat,
+        fontSize: CGFloat,
+        observedCharWidth: CGFloat?
+    ) -> (line: String, remainder: String) {
+        let safeMaxWidth = max(maxWidth, Metrics.minimumLineWidth)
+        let segment = String(source[..<newlineIndex]).trimmingCharacters(in: .whitespaces)
+        let afterIndex = source.index(after: newlineIndex)
+        let afterNewline = afterIndex < source.endIndex
+            ? String(source[afterIndex...]).trimmingCharacters(in: .whitespaces)
+            : ""
+
+        guard !segment.isEmpty else {
+            return splitPrefix(from: afterNewline, maxWidth: maxWidth, fontSize: fontSize, observedCharWidth: observedCharWidth)
+        }
+
+        if measuredWidth(of: segment, fontSize: fontSize, observedCharWidth: observedCharWidth) <= safeMaxWidth {
+            return (segment, afterNewline)
+        }
+
+        // Segment before newline is too wide — width-wrap it, keep post-newline as remainder.
+        let widthSplit = splitPrefix(from: segment, maxWidth: maxWidth, fontSize: fontSize, observedCharWidth: observedCharWidth)
+        let combined: String
+        if widthSplit.remainder.isEmpty {
+            combined = afterNewline
+        } else if afterNewline.isEmpty {
+            combined = widthSplit.remainder
+        } else {
+            combined = widthSplit.remainder + "\n" + afterNewline
+        }
+        return (widthSplit.line, combined)
     }
 
     private static func measuredWidth(
