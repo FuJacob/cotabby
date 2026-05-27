@@ -131,13 +131,29 @@ extension SuggestionCoordinator {
         }
 
         if event.shouldSchedulePrediction {
-            // Capture AX state immediately at keystroke time so the debounce window
-            // works with the freshest possible snapshot, not whenever the poll timer last fired.
-            focusModel.refreshNow()
-            schedulePrediction()
+            scheduleDeferredFocusRefreshAndPrediction()
         }
 
         return false
+    }
+
+    /// Refreshes the AX focus snapshot and schedules a prediction *off* the synchronous
+    /// event-tap callback.
+    ///
+    /// `FocusTracker.refreshNow()` performs a blocking Accessibility tree walk, and the keyboard
+    /// monitor is an active session event tap that the system routes the live input stream through
+    /// and waits on. Doing the AX read inline stalls every keystroke behind it, and against an
+    /// unresponsive app it can exceed the tap deadline, at which point macOS disables the tap and
+    /// drops the in-flight events queued behind it. Lost key-ups strand held keys (movement keys in
+    /// games keep firing) and desync modifier shortcuts. Hopping to the next main-actor turn lets
+    /// the keystroke flow through untouched; the debounced generation re-reads focus anyway
+    /// (`generateFromCurrentFocus`), so nothing downstream depends on this running inline.
+    func scheduleDeferredFocusRefreshAndPrediction() {
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            self.focusModel.refreshNow()
+            self.schedulePrediction()
+        }
     }
 
     func handleSuppressedSyntheticInput() {
@@ -164,8 +180,7 @@ extension SuggestionCoordinator {
                 clearDiagnostics: false
             )
             if event.shouldSchedulePrediction {
-                focusModel.refreshNow()
-                schedulePrediction()
+                scheduleDeferredFocusRefreshAndPrediction()
             }
             return false
 
@@ -175,8 +190,7 @@ extension SuggestionCoordinator {
                 clearDiagnostics: false
             )
             if event.shouldSchedulePrediction {
-                focusModel.refreshNow()
-                schedulePrediction()
+                scheduleDeferredFocusRefreshAndPrediction()
             }
             return false
 
