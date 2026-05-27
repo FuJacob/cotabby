@@ -271,13 +271,6 @@ struct SettingsView: View {
                             isRecordingKeybind = false
                         }
                     }
-
-                    if suggestionSettings.acceptanceKeyCode != SuggestionSettingsModel.disabledKeyCode {
-                        Button("Clear") {
-                            suggestionSettings.clearAcceptanceKey()
-                            isRecordingKeybind = false
-                        }
-                    }
                 }
             }
 
@@ -313,13 +306,6 @@ struct SettingsView: View {
                                 keyCode: SuggestionSettingsModel.defaultFullAcceptanceKeyCode,
                                 label: SuggestionSettingsModel.defaultFullAcceptanceKeyLabel
                             )
-                            isRecordingFullAcceptKeybind = false
-                        }
-                    }
-
-                    if suggestionSettings.fullAcceptanceKeyCode != SuggestionSettingsModel.disabledKeyCode {
-                        Button("Clear") {
-                            suggestionSettings.clearFullAcceptanceKey()
                             isRecordingFullAcceptKeybind = false
                         }
                     }
