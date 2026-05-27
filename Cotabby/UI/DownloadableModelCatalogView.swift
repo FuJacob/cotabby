@@ -14,6 +14,11 @@ struct DownloadableModelCatalogView: View {
 
     var body: some View {
         VStack(spacing: 8) {
+            Text("Recommended Models")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
             ForEach(modelDownloadManager.models) { model in
                 DownloadableModelRow(
                     model: model,
@@ -25,7 +30,8 @@ struct DownloadableModelCatalogView: View {
 
             HStack(spacing: 12) {
                 Button {
-                    modelDownloadManager.openModelsDirectory()
+                    modelDownloadManager.importModel()
+                    onRefreshModels()
                 } label: {
                     Label("Add Your Own", systemImage: "folder.badge.plus")
                         .font(.system(size: 12))
@@ -44,7 +50,7 @@ struct DownloadableModelCatalogView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            Text("Drop any .gguf model into the folder above.")
+            Text("Import any .gguf model from your computer.")
                 .font(.system(size: 11))
                 .foregroundStyle(.tertiary)
                 .frame(maxWidth: .infinity, alignment: .leading)

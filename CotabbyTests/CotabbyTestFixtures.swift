@@ -215,10 +215,12 @@ enum CotabbyTestFixtures {
         isClipboardContextEnabled: Bool = true,
         userName: String = "",
         customRules: [String] = [],
-        responseLanguage: SuggestionLanguage = .default,
+        responseLanguages: [String] = [],
         debounceMilliseconds: Int = 50,
         focusPollIntervalMilliseconds: Int = 50,
-        isMultiLineEnabled: Bool = false
+        isMultiLineEnabled: Bool = false,
+        autoAcceptTrailingPunctuation: Bool = true,
+        isFastModeEnabled: Bool = false
     ) -> SuggestionSettingsSnapshot {
         SuggestionSettingsSnapshot(
             isGloballyEnabled: isGloballyEnabled,
@@ -228,10 +230,12 @@ enum CotabbyTestFixtures {
             isClipboardContextEnabled: isClipboardContextEnabled,
             userName: userName,
             customRules: customRules,
-            responseLanguage: responseLanguage,
+            responseLanguages: responseLanguages,
             debounceMilliseconds: debounceMilliseconds,
             focusPollIntervalMilliseconds: focusPollIntervalMilliseconds,
-            isMultiLineEnabled: isMultiLineEnabled
+            isMultiLineEnabled: isMultiLineEnabled,
+            autoAcceptTrailingPunctuation: autoAcceptTrailingPunctuation,
+            isFastModeEnabled: isFastModeEnabled
         )
     }
 }

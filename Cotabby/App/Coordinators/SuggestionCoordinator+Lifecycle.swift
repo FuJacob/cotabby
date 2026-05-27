@@ -75,7 +75,8 @@ extension SuggestionCoordinator {
                disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
                inputMonitoringGranted: permissionManager.inputMonitoringGranted,
                screenRecordingGranted: permissionManager.screenRecordingGranted,
-               focusSnapshot: focusModel.snapshot
+               focusSnapshot: focusModel.snapshot,
+               isFastModeEnabled: settingsSnapshot.isFastModeEnabled
            ) {
             visualContextCoordinator.startSessionIfNeeded(for: focusedSnapshot)
         }

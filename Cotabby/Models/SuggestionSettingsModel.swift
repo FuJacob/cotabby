@@ -1,3 +1,4 @@
+import AppKit
 import ApplicationServices
 import Combine
 import Foundation
@@ -14,17 +15,26 @@ import Foundation
 final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var isGloballyEnabled: Bool
     @Published private(set) var showIndicator: Bool
+    /// Whether the keycap hint (the small pill that teaches the accept key) is drawn after ghost text.
+    @Published private(set) var showAcceptanceHint: Bool
+    /// User-supplied indicator icon, already processed into a small square image. `nil` means the
+    /// built-in Cotabby icon is used. Cached in memory so the focus-driven indicator does not decode
+    /// PNG data on every show.
+    @Published private(set) var customIndicatorImage: NSImage?
     @Published private(set) var disabledAppRules: [DisabledApplicationRule]
     @Published private(set) var customSuggestionTextColorHex: String?
+    @Published private(set) var ghostTextOpacity: Double
     @Published private(set) var selectedEngine: SuggestionEngineKind
     @Published private(set) var selectedWordCountPreset: SuggestionWordCountPreset
     @Published private(set) var isClipboardContextEnabled: Bool
+    @Published private(set) var isFastModeEnabled: Bool
     @Published private(set) var userName: String
     @Published private(set) var customRules: [String]
-    @Published private(set) var responseLanguage: SuggestionLanguage
+    @Published private(set) var responseLanguages: [String]
     @Published private(set) var debounceMilliseconds: Int
     @Published private(set) var focusPollIntervalMilliseconds: Int
     @Published private(set) var isMultiLineEnabled: Bool
+    @Published private(set) var autoAcceptTrailingPunctuation: Bool
     @Published private(set) var acceptanceKeyCode: CGKeyCode
     @Published private(set) var acceptanceKeyLabel: String
     @Published private(set) var fullAcceptanceKeyCode: CGKeyCode
@@ -35,16 +45,23 @@ final class SuggestionSettingsModel: ObservableObject {
     private static let disabledAppRulesDefaultsKey = "cotabbyDisabledAppRules"
     private static let showCaretIndicatorDefaultsKey = "cotabbyShowCaretIndicator"
     private static let selectedIndicatorModeDefaultsKey = "cotabbySelectedIndicatorMode"
+    private static let showAcceptanceHintDefaultsKey = "cotabbyShowAcceptanceHint"
+    private static let customIndicatorImageDataDefaultsKey = "cotabbyCustomIndicatorImageData"
     private static let customSuggestionTextColorHexDefaultsKey = "cotabbyCustomSuggestionTextColorHex"
+    private static let ghostTextOpacityDefaultsKey = "cotabbyGhostTextOpacity"
     private static let selectedEngineDefaultsKey = "cotabbySelectedEngine"
     private static let selectedWordCountPresetDefaultsKey = "cotabbySelectedWordCountPreset"
     private static let clipboardContextEnabledDefaultsKey = "cotabbyClipboardContextEnabled"
+    private static let fastModeEnabledDefaultsKey = "cotabbyFastModeEnabled"
     private static let userNameDefaultsKey = "cotabbyUserName"
     private static let customRulesDefaultsKey = "cotabbyCustomRules"
-    private static let responseLanguageDefaultsKey = "cotabbyResponseLanguage"
+    private static let responseLanguagesDefaultsKey = "cotabbyResponseLanguages"
+    /// Legacy single-select key, read once to migrate the previous value into `responseLanguages`.
+    private static let legacyResponseLanguageDefaultsKey = "cotabbyResponseLanguage"
     private static let debounceMillisecondsDefaultsKey = "cotabbyDebounceMilliseconds"
     private static let focusPollIntervalMillisecondsDefaultsKey = "cotabbyFocusPollIntervalMilliseconds"
     private static let multiLineEnabledDefaultsKey = "cotabbyMultiLineEnabled"
+    private static let autoAcceptTrailingPunctuationDefaultsKey = "cotabbyAutoAcceptTrailingPunctuation"
     private static let acceptanceKeyCodeDefaultsKey = "cotabbyAcceptanceKeyCode"
     private static let acceptanceKeyLabelDefaultsKey = "cotabbyAcceptanceKeyLabel"
     private static let fullAcceptanceKeyCodeDefaultsKey = "cotabbyFullAcceptanceKeyCode"
@@ -61,6 +78,13 @@ final class SuggestionSettingsModel: ObservableObject {
     static let defaultFullAcceptanceKeyCode: CGKeyCode = 50
     static let defaultFullAcceptanceKeyLabel = "`"
 
+    /// Floor kept above zero so ghost text can be faded but never made fully invisible (which would
+    /// look like the suggestion engine is broken). 100% is the out-of-box default.
+    static let minimumGhostTextOpacity: Double = 0.3
+    static let maximumGhostTextOpacity: Double = 1.0
+    static let defaultGhostTextOpacity: Double = 1.0
+    static let ghostTextOpacityStep: Double = 0.1
+
     init(
         configuration: SuggestionConfiguration,
         userDefaults: UserDefaults = .standard
@@ -76,9 +100,15 @@ final class SuggestionSettingsModel: ObservableObject {
         } else {
             userDefaults.object(forKey: Self.showCaretIndicatorDefaultsKey) as? Bool ?? true
         }
+        let resolvedShowAcceptanceHint = userDefaults.object(forKey: Self.showAcceptanceHintDefaultsKey) as? Bool ?? true
         let resolvedCustomSuggestionTextColorHex = Self.normalizedHexString(
             userDefaults.string(forKey: Self.customSuggestionTextColorHexDefaultsKey)
         )
+        let resolvedGhostTextOpacity: Double = if userDefaults.object(forKey: Self.ghostTextOpacityDefaultsKey) == nil {
+            Self.defaultGhostTextOpacity
+        } else {
+            Self.clampedGhostTextOpacity(userDefaults.double(forKey: Self.ghostTextOpacityDefaultsKey))
+        }
         let resolvedEngine = userDefaults
             .string(forKey: Self.selectedEngineDefaultsKey)
             .flatMap(SuggestionEngineKind.init(rawValue:))
@@ -89,6 +119,10 @@ final class SuggestionSettingsModel: ObservableObject {
             ?? configuration.defaultWordCountPreset
         let resolvedClipboardContextEnabled =
             userDefaults.object(forKey: Self.clipboardContextEnabledDefaultsKey) as? Bool ?? false
+        // Defaults to false so the visual-context pipeline keeps running for existing users; opting
+        // into fast mode turns it off.
+        let resolvedFastModeEnabled =
+            userDefaults.object(forKey: Self.fastModeEnabledDefaultsKey) as? Bool ?? false
         let resolvedUserName: String = if userDefaults.object(forKey: Self.userNameDefaultsKey) == nil {
             configuration.defaultUserName ?? ""
         } else {
@@ -107,9 +141,16 @@ final class SuggestionSettingsModel: ObservableObject {
             CustomRulesCatalog.normalize(userDefaults.stringArray(forKey: Self.customRulesDefaultsKey) ?? [])
         }
 
-        let resolvedResponseLanguage = userDefaults.string(forKey: Self.responseLanguageDefaultsKey)
-            .flatMap(SuggestionLanguage.init(rawValue:))
-            ?? .default
+        // Prefer the multi-language value once the user has touched it (key present, even if empty).
+        // Otherwise migrate the previous single-select choice exactly once; a fresh install gets the
+        // empty default.
+        let resolvedResponseLanguages: [String] = if userDefaults.object(forKey: Self.responseLanguagesDefaultsKey) != nil {
+            LanguageCatalog.normalize(userDefaults.stringArray(forKey: Self.responseLanguagesDefaultsKey) ?? [])
+        } else if let legacyCode = userDefaults.string(forKey: Self.legacyResponseLanguageDefaultsKey) {
+            LanguageCatalog.migratedLanguages(fromLegacyCode: legacyCode)
+        } else {
+            LanguageCatalog.defaultLanguages
+        }
 
         let resolvedDebounceMilliseconds: Int = {
             let raw = userDefaults.object(forKey: Self.debounceMillisecondsDefaultsKey) as? Int
@@ -127,6 +168,8 @@ final class SuggestionSettingsModel: ObservableObject {
         }()
 
         let resolvedMultiLineEnabled = userDefaults.object(forKey: Self.multiLineEnabledDefaultsKey) as? Bool ?? false
+        let resolvedAutoAcceptTrailingPunctuation =
+            userDefaults.object(forKey: Self.autoAcceptTrailingPunctuationDefaultsKey) as? Bool ?? true
 
         let resolvedAcceptanceKeyCode = CGKeyCode(
             userDefaults.object(forKey: Self.acceptanceKeyCodeDefaultsKey) as? Int
@@ -145,16 +188,21 @@ final class SuggestionSettingsModel: ObservableObject {
         isGloballyEnabled = resolvedGloballyEnabled
         disabledAppRules = resolvedDisabledAppRules
         showIndicator = resolvedShowIndicator
+        showAcceptanceHint = resolvedShowAcceptanceHint
+        customIndicatorImage = Self.loadCustomIndicatorImage(from: userDefaults)
         customSuggestionTextColorHex = resolvedCustomSuggestionTextColorHex
+        ghostTextOpacity = resolvedGhostTextOpacity
         selectedEngine = resolvedEngine
         selectedWordCountPreset = resolvedWordCountPreset
         isClipboardContextEnabled = resolvedClipboardContextEnabled
+        isFastModeEnabled = resolvedFastModeEnabled
         userName = resolvedUserName
         customRules = resolvedCustomRules
-        responseLanguage = resolvedResponseLanguage
+        responseLanguages = resolvedResponseLanguages
         debounceMilliseconds = resolvedDebounceMilliseconds
         focusPollIntervalMilliseconds = resolvedFocusPollIntervalMilliseconds
         isMultiLineEnabled = resolvedMultiLineEnabled
+        autoAcceptTrailingPunctuation = resolvedAutoAcceptTrailingPunctuation
         acceptanceKeyCode = resolvedAcceptanceKeyCode
         acceptanceKeyLabel = resolvedAcceptanceKeyLabel
         fullAcceptanceKeyCode = resolvedFullAcceptanceKeyCode
@@ -163,16 +211,20 @@ final class SuggestionSettingsModel: ObservableObject {
         userDefaults.set(resolvedGloballyEnabled, forKey: Self.isGloballyEnabledDefaultsKey)
         persistDisabledAppRules(resolvedDisabledAppRules)
         persistShowIndicator(resolvedShowIndicator)
+        userDefaults.set(resolvedShowAcceptanceHint, forKey: Self.showAcceptanceHintDefaultsKey)
         persistCustomSuggestionTextColorHex(resolvedCustomSuggestionTextColorHex)
+        userDefaults.set(resolvedGhostTextOpacity, forKey: Self.ghostTextOpacityDefaultsKey)
         persistSelectedEngine(resolvedEngine)
         persistSelectedWordCountPreset(resolvedWordCountPreset)
         persistClipboardContextEnabled(resolvedClipboardContextEnabled)
+        persistFastModeEnabled(resolvedFastModeEnabled)
         persistUserName(resolvedUserName)
         persistCustomRules(resolvedCustomRules)
-        userDefaults.set(resolvedResponseLanguage.rawValue, forKey: Self.responseLanguageDefaultsKey)
+        persistResponseLanguages(resolvedResponseLanguages)
         userDefaults.set(resolvedDebounceMilliseconds, forKey: Self.debounceMillisecondsDefaultsKey)
         userDefaults.set(resolvedFocusPollIntervalMilliseconds, forKey: Self.focusPollIntervalMillisecondsDefaultsKey)
         userDefaults.set(resolvedMultiLineEnabled, forKey: Self.multiLineEnabledDefaultsKey)
+        userDefaults.set(resolvedAutoAcceptTrailingPunctuation, forKey: Self.autoAcceptTrailingPunctuationDefaultsKey)
         userDefaults.set(Int(resolvedAcceptanceKeyCode), forKey: Self.acceptanceKeyCodeDefaultsKey)
         userDefaults.set(resolvedAcceptanceKeyLabel, forKey: Self.acceptanceKeyLabelDefaultsKey)
         userDefaults.set(Int(resolvedFullAcceptanceKeyCode), forKey: Self.fullAcceptanceKeyCodeDefaultsKey)
@@ -193,10 +245,12 @@ final class SuggestionSettingsModel: ObservableObject {
             isClipboardContextEnabled: isClipboardContextEnabled,
             userName: userName,
             customRules: customRules,
-            responseLanguage: responseLanguage,
+            responseLanguages: responseLanguages,
             debounceMilliseconds: debounceMilliseconds,
             focusPollIntervalMilliseconds: focusPollIntervalMilliseconds,
-            isMultiLineEnabled: isMultiLineEnabled
+            isMultiLineEnabled: isMultiLineEnabled,
+            autoAcceptTrailingPunctuation: autoAcceptTrailingPunctuation,
+            isFastModeEnabled: isFastModeEnabled
         )
     }
 
@@ -227,12 +281,29 @@ final class SuggestionSettingsModel: ObservableObject {
         persistClipboardContextEnabled(enabled)
     }
 
+    func setFastModeEnabled(_ enabled: Bool) {
+        guard isFastModeEnabled != enabled else {
+            return
+        }
+
+        isFastModeEnabled = enabled
+        persistFastModeEnabled(enabled)
+    }
+
     func setMultiLineEnabled(_ enabled: Bool) {
         guard isMultiLineEnabled != enabled else {
             return
         }
         isMultiLineEnabled = enabled
         userDefaults.set(enabled, forKey: Self.multiLineEnabledDefaultsKey)
+    }
+
+    func setAutoAcceptTrailingPunctuation(_ enabled: Bool) {
+        guard autoAcceptTrailingPunctuation != enabled else {
+            return
+        }
+        autoAcceptTrailingPunctuation = enabled
+        userDefaults.set(enabled, forKey: Self.autoAcceptTrailingPunctuationDefaultsKey)
     }
 
     func setDebounceMilliseconds(_ value: Int) {
@@ -351,6 +422,66 @@ final class SuggestionSettingsModel: ObservableObject {
         persistShowIndicator(show)
     }
 
+    func setShowAcceptanceHint(_ show: Bool) {
+        guard showAcceptanceHint != show else {
+            return
+        }
+
+        showAcceptanceHint = show
+        userDefaults.set(show, forKey: Self.showAcceptanceHintDefaultsKey)
+    }
+
+    /// The label the ghost-text keycap should display, or `nil` when no hint should be drawn —
+    /// either the user turned it off or no key is currently bound to accept a suggestion. Prefers
+    /// the word-accept key (the historical "tab" pill) and falls back to the full-accept key so the
+    /// hint still teaches a working gesture after the word-accept key has been cleared.
+    var acceptanceHintLabel: String? {
+        guard showAcceptanceHint else {
+            return nil
+        }
+
+        if acceptanceKeyCode != Self.disabledKeyCode {
+            return acceptanceKeyLabel
+        }
+        if fullAcceptanceKeyCode != Self.disabledKeyCode {
+            return fullAcceptanceKeyLabel
+        }
+        return nil
+    }
+
+    /// Imports a user-picked image as the indicator icon: reads the file, processes it into a small
+    /// square PNG, persists that, and updates the in-memory image. Returns false when the file can't
+    /// be read or decoded so the UI can surface an error instead of silently doing nothing.
+    @discardableResult
+    func setCustomIndicatorImage(from url: URL) -> Bool {
+        let didStartAccess = url.startAccessingSecurityScopedResource()
+        defer {
+            if didStartAccess {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
+
+        guard let sourceData = try? Data(contentsOf: url),
+              let iconData = IndicatorIconImageProcessor.squareIconPNGData(from: sourceData),
+              let image = NSImage(data: iconData)
+        else {
+            return false
+        }
+
+        userDefaults.set(iconData, forKey: Self.customIndicatorImageDataDefaultsKey)
+        customIndicatorImage = image
+        return true
+    }
+
+    func clearCustomIndicatorImage() {
+        guard customIndicatorImage != nil else {
+            return
+        }
+
+        userDefaults.removeObject(forKey: Self.customIndicatorImageDataDefaultsKey)
+        customIndicatorImage = nil
+    }
+
     func setCustomSuggestionTextColorHex(_ hex: String?) {
         let normalizedHex = Self.normalizedHexString(hex)
         guard customSuggestionTextColorHex != normalizedHex else {
@@ -359,6 +490,16 @@ final class SuggestionSettingsModel: ObservableObject {
 
         customSuggestionTextColorHex = normalizedHex
         persistCustomSuggestionTextColorHex(normalizedHex)
+    }
+
+    func setGhostTextOpacity(_ opacity: Double) {
+        let clamped = Self.clampedGhostTextOpacity(opacity)
+        guard ghostTextOpacity != clamped else {
+            return
+        }
+
+        ghostTextOpacity = clamped
+        userDefaults.set(clamped, forKey: Self.ghostTextOpacityDefaultsKey)
     }
 
     func setUserName(_ name: String) {
@@ -396,13 +537,29 @@ final class SuggestionSettingsModel: ObservableObject {
         setRules(CustomRulesCatalog.defaultRules)
     }
 
-    func setResponseLanguage(_ language: SuggestionLanguage) {
-        guard responseLanguage != language else {
+    /// All language mutations funnel through here so storage stays normalized (trimmed, deduped,
+    /// capped), mirroring `setRules`.
+    func setLanguages(_ languages: [String]) {
+        let normalized = LanguageCatalog.normalize(languages)
+        guard responseLanguages != normalized else {
             return
         }
 
-        responseLanguage = language
-        userDefaults.set(language.rawValue, forKey: Self.responseLanguageDefaultsKey)
+        responseLanguages = normalized
+        persistResponseLanguages(normalized)
+    }
+
+    func addLanguage(_ language: String) {
+        setLanguages(responseLanguages + [language])
+    }
+
+    func removeLanguage(_ language: String) {
+        setLanguages(responseLanguages.filter { $0 != language })
+    }
+
+    /// Restores the baseline (empty) language set. Named for the editor's "Clear" affordance.
+    func clearLanguages() {
+        setLanguages(LanguageCatalog.defaultLanguages)
     }
 
     func setAcceptanceKey(keyCode: CGKeyCode, label: String) {
@@ -457,10 +614,23 @@ final class SuggestionSettingsModel: ObservableObject {
         userDefaults.set(enabled, forKey: Self.clipboardContextEnabledDefaultsKey)
     }
 
+    private func persistFastModeEnabled(_ enabled: Bool) {
+        userDefaults.set(enabled, forKey: Self.fastModeEnabledDefaultsKey)
+    }
+
     private func persistShowIndicator(_ show: Bool) {
         let mode: ActivationIndicatorMode = show ? .fieldEdgeIcon : .hidden
         userDefaults.set(mode.rawValue, forKey: Self.selectedIndicatorModeDefaultsKey)
         userDefaults.set(show, forKey: Self.showCaretIndicatorDefaultsKey)
+    }
+
+    private static func loadCustomIndicatorImage(from userDefaults: UserDefaults) -> NSImage? {
+        guard let data = userDefaults.data(forKey: Self.customIndicatorImageDataDefaultsKey),
+              let image = NSImage(data: data)
+        else {
+            return nil
+        }
+        return image
     }
 
     private func persistCustomSuggestionTextColorHex(_ hex: String?) {
@@ -533,6 +703,14 @@ final class SuggestionSettingsModel: ObservableObject {
         return trimmed.isEmpty ? fallbackBundleIdentifier : trimmed
     }
 
+    private static func clampedGhostTextOpacity(_ value: Double) -> Double {
+        guard value.isFinite else {
+            return defaultGhostTextOpacity
+        }
+
+        return min(maximumGhostTextOpacity, max(minimumGhostTextOpacity, value))
+    }
+
     private static func normalizedHexString(_ hex: String?) -> String? {
         guard let hex else {
             return nil
@@ -560,6 +738,10 @@ final class SuggestionSettingsModel: ObservableObject {
         userDefaults.set(rules, forKey: Self.customRulesDefaultsKey)
     }
 
+    private func persistResponseLanguages(_ languages: [String]) {
+        userDefaults.set(languages, forKey: Self.responseLanguagesDefaultsKey)
+    }
+
     private func persistDisabledAppRules(_ rules: [DisabledApplicationRule]) {
         guard !rules.isEmpty else {
             userDefaults.removeObject(forKey: Self.disabledAppRulesDefaultsKey)
@@ -581,14 +763,20 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                 $selectedEngine,
                 $selectedWordCountPreset
             ),
-            $isClipboardContextEnabled,
-            Publishers.CombineLatest3($userName, $customRules, $responseLanguage),
-            Publishers.CombineLatest3($debounceMilliseconds, $focusPollIntervalMilliseconds, $isMultiLineEnabled)
+            Publishers.CombineLatest($isClipboardContextEnabled, $isFastModeEnabled),
+            Publishers.CombineLatest3($userName, $customRules, $responseLanguages),
+            Publishers.CombineLatest4(
+                $debounceMilliseconds,
+                $focusPollIntervalMilliseconds,
+                $isMultiLineEnabled,
+                $autoAcceptTrailingPunctuation
+            )
         )
-        .map { combinedSettings, clipboardContextEnabled, profile, timing in
+        .map { combinedSettings, contextToggles, profile, timing in
             let (globallyEnabled, disabledAppRules, engine, wordCountPreset) = combinedSettings
-            let (userName, customRules, responseLanguage) = profile
-            let (debounce, focusPoll, multiLine) = timing
+            let (clipboardContextEnabled, fastModeEnabled) = contextToggles
+            let (userName, customRules, responseLanguages) = profile
+            let (debounce, focusPoll, multiLine, autoAcceptPunctuation) = timing
             return SuggestionSettingsSnapshot(
                 isGloballyEnabled: globallyEnabled,
                 disabledAppBundleIdentifiers: Set(disabledAppRules.map(\.bundleIdentifier)),
@@ -597,10 +785,12 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                 isClipboardContextEnabled: clipboardContextEnabled,
                 userName: userName,
                 customRules: customRules,
-                responseLanguage: responseLanguage,
+                responseLanguages: responseLanguages,
                 debounceMilliseconds: debounce,
                 focusPollIntervalMilliseconds: focusPoll,
-                isMultiLineEnabled: multiLine
+                isMultiLineEnabled: multiLine,
+                autoAcceptTrailingPunctuation: autoAcceptPunctuation,
+                isFastModeEnabled: fastModeEnabled
             )
         }
         .removeDuplicates()

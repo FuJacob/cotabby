@@ -59,6 +59,136 @@ final class SuggestionSessionReconcilerTests: XCTestCase {
         XCTAssertEqual(SuggestionSessionReconciler.nextAcceptanceChunk(from: ""), "")
     }
 
+    func test_nextAcceptanceChunk_defaultsToAcceptingTrailingPunctuation() {
+        XCTAssertEqual(SuggestionSessionReconciler.nextAcceptanceChunk(from: "you?"), "you?")
+    }
+
+    func test_nextAcceptanceChunk_keepsTrailingPunctuationWhenAutoAcceptEnabled() {
+        XCTAssertEqual(
+            SuggestionSessionReconciler.nextAcceptanceChunk(from: "you?", autoAcceptTrailingPunctuation: true),
+            "you?"
+        )
+    }
+
+    func test_nextAcceptanceChunk_splitsTrailingPunctuationWhenAutoAcceptDisabled() {
+        XCTAssertEqual(
+            SuggestionSessionReconciler.nextAcceptanceChunk(from: "you?", autoAcceptTrailingPunctuation: false),
+            "you"
+        )
+    }
+
+    func test_nextAcceptanceChunk_returnsLeftoverPunctuationAsItsOwnPart() {
+        // After "you" is accepted, the remaining tail is the bare punctuation, taken whole next.
+        XCTAssertEqual(
+            SuggestionSessionReconciler.nextAcceptanceChunk(from: "?", autoAcceptTrailingPunctuation: false),
+            "?"
+        )
+    }
+
+    func test_nextAcceptanceChunk_splitsMultipleTrailingMarksAsOnePart() {
+        XCTAssertEqual(
+            SuggestionSessionReconciler.nextAcceptanceChunk(from: "you?!", autoAcceptTrailingPunctuation: false),
+            "you"
+        )
+        XCTAssertEqual(
+            SuggestionSessionReconciler.nextAcceptanceChunk(from: "?!", autoAcceptTrailingPunctuation: false),
+            "?!"
+        )
+    }
+
+    func test_nextAcceptanceChunk_preservesInternalPunctuationWhenSplitting() {
+        // Apostrophes and interior dots are not trailing, so the word stays whole.
+        XCTAssertEqual(
+            SuggestionSessionReconciler.nextAcceptanceChunk(from: "don't", autoAcceptTrailingPunctuation: false),
+            "don't"
+        )
+        XCTAssertEqual(
+            SuggestionSessionReconciler.nextAcceptanceChunk(from: "U.S.A", autoAcceptTrailingPunctuation: false),
+            "U.S.A"
+        )
+    }
+
+    func test_nextAcceptanceChunk_splitsOnlyFinalPeriodAfterInteriorDots() {
+        XCTAssertEqual(
+            SuggestionSessionReconciler.nextAcceptanceChunk(from: "U.S.A.", autoAcceptTrailingPunctuation: false),
+            "U.S.A"
+        )
+    }
+
+    func test_nextAcceptanceChunk_keepsLeadingWhitespaceWhenSplittingPunctuation() {
+        XCTAssertEqual(
+            SuggestionSessionReconciler.nextAcceptanceChunk(from: " world!", autoAcceptTrailingPunctuation: false),
+            " world"
+        )
+    }
+
+    func test_nextAcceptanceChunk_splittingStopsAtFirstWhitespaceBoundary() {
+        // The first token has no trailing punctuation, so splitting leaves it whole and never
+        // reaches the punctuation on the following word.
+        XCTAssertEqual(
+            SuggestionSessionReconciler.nextAcceptanceChunk(from: "hello world?", autoAcceptTrailingPunctuation: false),
+            "hello"
+        )
+    }
+
+    func test_insertionChunk_dropsLeadingSpaceWhenPrecedingTextAlreadyEndsInWhitespace() {
+        XCTAssertEqual(
+            SuggestionSessionReconciler.insertionChunk(forAcceptedChunk: " you", precedingText: "How are "),
+            "you"
+        )
+    }
+
+    func test_insertionChunk_keepsLeadingSpaceWhenPrecedingTextHasNoTrailingWhitespace() {
+        XCTAssertEqual(
+            SuggestionSessionReconciler.insertionChunk(forAcceptedChunk: " you", precedingText: "How are"),
+            " you"
+        )
+    }
+
+    func test_insertionChunk_collapsesAWholeLeadingRunAgainstFieldWhitespace() {
+        // The reported "bunch of spaces" case: a field that already ends in a space plus a chunk
+        // carrying its own leading space(s) must not stack them.
+        XCTAssertEqual(
+            SuggestionSessionReconciler.insertionChunk(forAcceptedChunk: "  you", precedingText: "How are "),
+            "you"
+        )
+    }
+
+    func test_insertionChunk_leavesChunkUntouchedWhenItHasNoLeadingWhitespace() {
+        XCTAssertEqual(
+            SuggestionSessionReconciler.insertionChunk(forAcceptedChunk: "you", precedingText: "How are "),
+            "you"
+        )
+    }
+
+    func test_insertionChunk_treatsTabAsBoundaryWhitespaceButNotNewline() {
+        XCTAssertEqual(
+            SuggestionSessionReconciler.insertionChunk(forAcceptedChunk: " you", precedingText: "How are\t"),
+            "you"
+        )
+        // Newlines are not horizontal whitespace, so a leading space after a line break is kept.
+        XCTAssertEqual(
+            SuggestionSessionReconciler.insertionChunk(forAcceptedChunk: " you", precedingText: "line\n"),
+            " you"
+        )
+    }
+
+    func test_insertionChunk_preservesInterWordSpaceMidSuggestion() {
+        // After "you" was already inserted, the field ends in a word, so the next chunk's space
+        // is the real boundary and must survive.
+        XCTAssertEqual(
+            SuggestionSessionReconciler.insertionChunk(forAcceptedChunk: " are", precedingText: "How are you"),
+            " are"
+        )
+    }
+
+    func test_insertionChunk_returnsChunkUnchangedForEmptyPrecedingText() {
+        XCTAssertEqual(
+            SuggestionSessionReconciler.insertionChunk(forAcceptedChunk: " you", precedingText: ""),
+            " you"
+        )
+    }
+
     func test_acceptedWordCount_countsOnlyTokensWithAlphanumerics() {
         let count = SuggestionSessionReconciler.acceptedWordCount(
             in: "hello, !!! world 123 --"

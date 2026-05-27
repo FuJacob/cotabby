@@ -18,6 +18,7 @@ struct SettingsView: View {
     @ObservedObject var foundationModelAvailabilityService: FoundationModelAvailabilityService
     @ObservedObject var runtimeModel: RuntimeBootstrapModel
     @ObservedObject var modelDownloadManager: ModelDownloadManager
+    @ObservedObject var huggingFaceSearchService: HuggingFaceSearchService
 
     let onShowWelcome: () -> Void
 
@@ -26,6 +27,8 @@ struct SettingsView: View {
     @State private var pendingDeletionModel: RuntimeModelOption?
     @State private var isRecordingKeybind = false
     @State private var isRecordingFullAcceptKeybind = false
+    @State private var isIndicatorIconImporterPresented = false
+    @State private var didIndicatorIconImportFail = false
 
     var body: some View {
         Form {
@@ -68,6 +71,17 @@ struct SettingsView: View {
             Button("Cancel", role: .cancel) {}
         } message: { model in
             Text("Remove \(model.displayName) from Cotabby's local models folder?")
+        }
+        .fileImporter(
+            isPresented: $isIndicatorIconImporterPresented,
+            allowedContentTypes: [.image]
+        ) { result in
+            handleIndicatorIconSelection(result)
+        }
+        .alert("Couldn't Use That Image", isPresented: $didIndicatorIconImportFail) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Cotabby couldn't read that file as an image. Try a PNG or JPEG.")
         }
     }
 
@@ -146,9 +160,59 @@ struct SettingsView: View {
 
             Toggle("Show Indicator", isOn: showIndicatorBinding)
 
+            LabeledContent("Indicator Icon") {
+                HStack(spacing: 8) {
+                    FieldEdgeIconIndicatorView(customImage: suggestionSettings.customIndicatorImage)
+
+                    Button("Choose Image…") {
+                        isIndicatorIconImporterPresented = true
+                    }
+
+                    if suggestionSettings.customIndicatorImage != nil {
+                        Button("Reset") {
+                            suggestionSettings.clearCustomIndicatorImage()
+                        }
+                    }
+                }
+            }
+
+            Toggle("Show Accept Hint", isOn: showAcceptanceHintBinding)
+
             Toggle("Allow Multi-line Suggestions", isOn: multiLineEnabledBinding)
 
+            Toggle("Accept Punctuation With Word", isOn: autoAcceptTrailingPunctuationBinding)
+                .help("When on, accepting a word also takes punctuation attached to it, like the \"?\" in \"you?\".")
+
             Toggle("Include Clipboard Context", isOn: clipboardContextEnabledBinding)
+
+            Toggle("Fast Mode", isOn: fastModeEnabledBinding)
+                .help("Skips capturing on-screen context (OCR) for faster, lower-overhead suggestions.")
+
+            LabeledContent("Ghost Text Color") {
+                HStack(spacing: 8) {
+                    ForEach(GhostTextColorPreset.all) { preset in
+                        ghostColorSwatch(for: preset)
+                    }
+                }
+            }
+
+            LabeledContent("Ghost Text Opacity") {
+                HStack(spacing: 10) {
+                    TickMarkSlider(
+                        value: ghostTextOpacityBinding,
+                        range: SuggestionSettingsModel.minimumGhostTextOpacity
+                            ... SuggestionSettingsModel.maximumGhostTextOpacity,
+                        step: SuggestionSettingsModel.ghostTextOpacityStep
+                    )
+                    .frame(width: 180)
+
+                    Text(ghostTextOpacityLabel)
+                        .font(.callout)
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                        .frame(width: 42, alignment: .trailing)
+                }
+            }
 
             // Open at Login is hidden until the quarantine/SMAppService issue is resolved.
             // The toggle reports .notFound for quarantined apps and apps outside /Applications,
@@ -159,6 +223,19 @@ struct SettingsView: View {
                     onShowWelcome()
                 }
             }
+        }
+    }
+
+    /// Applies a picked image as the indicator icon, flagging an alert when the file can't be used.
+    private func handleIndicatorIconSelection(_ result: Result<URL, Error>) {
+        switch result {
+        case let .success(url):
+            if !suggestionSettings.setCustomIndicatorImage(from: url) {
+                didIndicatorIconImportFail = true
+            }
+
+        case .failure:
+            didIndicatorIconImportFail = true
         }
     }
 
@@ -204,13 +281,6 @@ struct SettingsView: View {
                 }
             }
 
-            Picker("Language", selection: selectedLanguageBinding) {
-                ForEach(SuggestionLanguage.allCases) { language in
-                    Text(language.displayLabel)
-                        .tag(language)
-                }
-            }
-
             VStack(alignment: .leading, spacing: 24) {
                 Text("This information is passed to the AI to help personalize your completions.")
                     .font(.caption)
@@ -226,6 +296,8 @@ struct SettingsView: View {
                     ))
                     .textFieldStyle(.roundedBorder)
                 }
+
+                LanguageTagsEditor(suggestionSettings: suggestionSettings)
 
                 CustomRulesEditor(suggestionSettings: suggestionSettings)
             }
@@ -352,14 +424,17 @@ struct SettingsView: View {
     @ViewBuilder
     private var appsSection: some View {
         Section("Apps") {
-            if suggestionSettings.disabledAppRules.isEmpty {
-                Text("No apps are disabled. Apps you turn off from the menu bar will appear here.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else {
-                ForEach(suggestionSettings.disabledAppRules) { rule in
-                    disabledAppRuleRow(rule)
-                }
+            Text("Cotabby won't autocomplete in these apps. Add an app you can't disable from the "
+                + "menu bar — like a launcher that closes the moment it loses focus.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            ForEach(suggestionSettings.disabledAppRules) { rule in
+                disabledAppRuleRow(rule)
+            }
+
+            Button("Add App…") {
+                presentDisabledAppPicker()
             }
         }
     }
@@ -413,6 +488,12 @@ struct SettingsView: View {
             }
 
             DownloadableModelCatalogView(
+                modelDownloadManager: modelDownloadManager,
+                onRefreshModels: refreshModels
+            )
+
+            HuggingFaceModelBrowserView(
+                searchService: huggingFaceSearchService,
                 modelDownloadManager: modelDownloadManager,
                 onRefreshModels: refreshModels
             )
@@ -622,6 +703,13 @@ struct SettingsView: View {
         )
     }
 
+    private var fastModeEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.isFastModeEnabled },
+            set: { suggestionSettings.setFastModeEnabled($0) }
+        )
+    }
+
     private var showIndicatorBinding: Binding<Bool> {
         Binding(
             get: { suggestionSettings.showIndicator },
@@ -629,10 +717,24 @@ struct SettingsView: View {
         )
     }
 
+    private var showAcceptanceHintBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.showAcceptanceHint },
+            set: { suggestionSettings.setShowAcceptanceHint($0) }
+        )
+    }
+
     private var multiLineEnabledBinding: Binding<Bool> {
         Binding(
             get: { suggestionSettings.isMultiLineEnabled },
             set: { suggestionSettings.setMultiLineEnabled($0) }
+        )
+    }
+
+    private var autoAcceptTrailingPunctuationBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.autoAcceptTrailingPunctuation },
+            set: { suggestionSettings.setAutoAcceptTrailingPunctuation($0) }
         )
     }
 
@@ -653,25 +755,10 @@ struct SettingsView: View {
     //     )
     // }
 
-    /// The color picker always needs a concrete color. When the user has not picked one yet we feed
-    /// it the current automatic fallback so the control still previews something sensible. The first
-    /// user interaction promotes that preview into a persisted custom color.
-    private var customSuggestionTextColorBinding: Binding<Color> {
+    private var ghostTextOpacityBinding: Binding<Double> {
         Binding(
-            get: {
-                SuggestionTextColorCodec.color(
-                    fromHex: suggestionSettings.customSuggestionTextColorHex)
-                    ?? automaticGhostTextColor
-            },
-            set: { color in
-                guard let nsColor = NSColor(color).usingColorSpace(.sRGB),
-                    let hex = SuggestionTextColorCodec.hexString(from: nsColor)
-                else {
-                    return
-                }
-
-                suggestionSettings.setCustomSuggestionTextColorHex(hex)
-            }
+            get: { suggestionSettings.ghostTextOpacity },
+            set: { suggestionSettings.setGhostTextOpacity($0) }
         )
     }
 
@@ -693,15 +780,6 @@ struct SettingsView: View {
         )
     }
 
-    private var selectedLanguageBinding: Binding<SuggestionLanguage> {
-        Binding(
-            get: { suggestionSettings.responseLanguage },
-            set: { language in
-                suggestionSettings.setResponseLanguage(language)
-            }
-        )
-    }
-
     private var selectedModelBinding: Binding<String> {
         Binding(
             get: {
@@ -717,18 +795,52 @@ struct SettingsView: View {
         )
     }
 
+    /// Mirrors the overlay's automatic fallback (`GhostSuggestionView.ghostColor`) so the Automatic
+    /// swatch previews the same gray the user will actually see.
     private var automaticGhostTextColor: Color {
         colorScheme == .dark
             ? Color(red: 0.65, green: 0.65, blue: 0.65)
             : Color(red: 0.45, green: 0.45, blue: 0.45)
     }
 
-    private var ghostTextColorDescription: String {
-        if suggestionSettings.customSuggestionTextColorHex == nil {
-            return "Automatic adapts to light and dark editors with Cotabby's default subtle gray."
+    private var ghostTextOpacityLabel: String {
+        "\(Int((suggestionSettings.ghostTextOpacity * 100).rounded()))%"
+    }
+
+    /// A tappable color chip. `nil` hex selects the adaptive Automatic gray. The active preset gets a
+    /// heavier ring so the current choice reads at a glance.
+    @ViewBuilder
+    private func ghostColorSwatch(for preset: GhostTextColorPreset) -> some View {
+        let isSelected = GhostTextColorPreset.matching(
+            hex: suggestionSettings.customSuggestionTextColorHex
+        ) == preset
+
+        Button {
+            suggestionSettings.setCustomSuggestionTextColorHex(preset.hex)
+        } label: {
+            Circle()
+                .fill(swatchFill(for: preset))
+                .frame(width: 18, height: 18)
+                .overlay(
+                    Circle()
+                        .strokeBorder(
+                            Color.primary.opacity(isSelected ? 0.9 : 0.18),
+                            lineWidth: isSelected ? 2 : 1
+                        )
+                )
+        }
+        .buttonStyle(.plain)
+        .help(preset.name)
+    }
+
+    private func swatchFill(for preset: GhostTextColorPreset) -> Color {
+        guard let hex = preset.hex,
+              let color = SuggestionTextColorCodec.color(fromHex: hex)
+        else {
+            return automaticGhostTextColor
         }
 
-        return "Custom ghost text color is active."
+        return color
     }
 
     private var localModelsDescription: String {
@@ -801,6 +913,36 @@ struct SettingsView: View {
     private func refreshModels() {
         modelDownloadManager.refreshModelStates()
         runtimeModel.refreshAvailableModels()
+    }
+
+    /// Lets the user disable Cotabby in an app they can't reach from the menu bar. The menu-bar
+    /// "Enable in <app>" switch only targets the frontmost app, so a launcher like Raycast or
+    /// Spotlight — which dismisses itself the instant the menu bar is clicked — can never be turned
+    /// off that way. An open panel names any installed app whether or not it is running.
+    private func presentDisabledAppPicker() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.application]
+        panel.allowsMultipleSelection = true
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+        panel.directoryURL = URL(fileURLWithPath: "/Applications", isDirectory: true)
+        panel.prompt = "Disable"
+        panel.message = "Choose apps where Cotabby should not autocomplete."
+
+        guard panel.runModal() == .OK else {
+            return
+        }
+
+        for url in panel.urls {
+            guard let metadata = ApplicationBundleMetadata(appURL: url) else {
+                continue
+            }
+
+            suggestionSettings.disableApplication(
+                bundleIdentifier: metadata.bundleIdentifier,
+                displayName: metadata.displayName
+            )
+        }
     }
 
 }

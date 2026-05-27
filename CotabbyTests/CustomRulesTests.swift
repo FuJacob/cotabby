@@ -89,46 +89,4 @@ final class CustomRulesTests: XCTestCase {
 
         XCTAssertFalse(prompt.contains("Keep a casual tone"))
     }
-
-    // MARK: - language
-
-    func test_language_englishEmitsNoInstruction() {
-        XCTAssertNil(SuggestionLanguage.english.promptInstruction)
-    }
-
-    func test_language_nonEnglishEmitsForcingInstruction() {
-        let instruction = SuggestionLanguage.spanish.promptInstruction
-        XCTAssertNotNil(instruction)
-        XCTAssertTrue(instruction?.contains("Spanish") == true)
-    }
-
-    func test_llamaRenderer_includesLanguageInstructionInFinalBlock() {
-        // The length cue is no longer rendered (token-budget-only experiment), so this guards that
-        // the language directive still lands in the late, high-attention final-instruction block.
-        let prompt = LlamaPromptRenderer.prompt(
-            prefixText: "Hola",
-            applicationName: "Notes",
-            completionLengthInstruction: "UNIQUE_LENGTH_CUE",
-            userName: nil,
-            languageInstruction: SuggestionLanguage.spanish.promptInstruction
-        )
-
-        XCTAssertFalse(prompt.contains("UNIQUE_LENGTH_CUE"))
-
-        guard let finalRange = prompt.range(of: "Final instruction:"),
-              let langRange = prompt.range(of: "Spanish") else {
-            XCTFail("Expected final instruction header and language directive in the prompt")
-            return
-        }
-        XCTAssertLessThan(finalRange.lowerBound, langRange.lowerBound)
-    }
-
-    func test_foundationModelInstructions_includeLanguageOverride() {
-        let request = CotabbyTestFixtures.suggestionRequest(
-            languageInstruction: SuggestionLanguage.japanese.promptInstruction
-        )
-        let instructions = FoundationModelPromptRenderer.sessionInstructions(for: request)
-
-        XCTAssertTrue(instructions.contains("Japanese"))
-    }
 }

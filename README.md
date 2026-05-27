@@ -1,30 +1,32 @@
-# Cotabby [beta]
-
-<sub>If Cotabby is useful to you, consider supporting development:</sub>
-
-<a href='https://ko-fi.com/I2F22066MI' target='_blank'><img height='36' style='border:0px;height:36px;' src='https://storage.ko-fi.com/cdn/kofi6.png?v=6' border='0' alt='Buy Me a Coffee at ko-fi.com' /></a>
-
----
-
 <p align="center">
-  <img width="128" alt="Cotabby logo" src="https://github.com/user-attachments/assets/1e223e72-770c-417b-82e5-83f18cd5a3b2" />
+  <a href="https://cotabby.app" target="_blank">
+    <img height="200" alt="Cotabby logo" src="https://github.com/user-attachments/assets/1e223e72-770c-417b-82e5-83f18cd5a3b2" />
+  </a>
 </p>
 
-<p align="center">
-  <em>Open-source, local-first AI autocomplete for macOS.</em>
-  </p>
-  
+<h1 align="center">Cotabby [beta]</h1>
+
+<p align="center"><em>Open-source, local-first AI autocomplete for macOS.</em></p>
+
 <p align="center">
   <a href="https://cotabby.app"><strong>Visit the landing page →</strong></a>
 </p>
 
 <p align="center">
   <a href="LICENSE"><img alt="License: AGPL v3" src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" /></a>
-  <a href="https://github.com/FuJacob/tabby/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/FuJacob/tabby" /></a>
-  <a href="https://github.com/FuJacob/tabby/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/FuJacob/tabby/total" /></a>
-  <a href="https://github.com/FuJacob/tabby/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/FuJacob/tabby?style=flat" /></a>
+  <a href="https://github.com/FuJacob/cotabby/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/FuJacob/cotabby" /></a>
+  <a href="https://github.com/FuJacob/cotabby/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/FuJacob/cotabby/total" /></a>
+  <a href="https://github.com/FuJacob/cotabby/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/FuJacob/cotabby?style=flat" /></a>
   <img alt="Platform" src="https://img.shields.io/badge/platform-macOS%2015%2B-lightgrey" />
   <img alt="Visitors" src="https://visitor-badge.laobi.icu/badge?page_id=FuJacob.tabby" />
+</p>
+
+<p align="center">
+  <sub>Cotabby is free and open source. If it's useful to you, please consider supporting development</sub>
+</p>
+
+<p align="center">
+  <a href='https://ko-fi.com/I2F22066MI' target='_blank'><img height='36' style='border:0px;height:36px;' src='https://storage.ko-fi.com/cdn/kofi6.png?v=6' border='0' alt='Buy Me a Coffee at ko-fi.com' /></a>
 </p>
 
 ---
@@ -80,33 +82,47 @@ Everything runs on-device. No hosted API, no cloud round-trip.
 
 **Apple Intelligence**: uses Apple's on-device `FoundationModels` runtime on macOS 26 or later, no download required.
 
-**Open Source**: runs local GGUF models in-process through llama.cpp via `llama.swift`. Cotabby ships with two built-in downloadable models:
+**Open Source**: runs local GGUF models in-process through llama.cpp via `llama.swift`. Cotabby ships with five built-in downloadable models:
 
-| Model              | File                         | Size    | Source                                                                                              |
-| ------------------ | ---------------------------- | ------- | --------------------------------------------------------------------------------------------------- |
-| `tabby-fast-1`     | `Qwen3-0.6B-Q4_K_M.gguf`     | ~0.4 GB | [unsloth/Qwen3-0.6B-GGUF](https://huggingface.co/unsloth/Qwen3-0.6B-GGUF)                           |
-| `tabby-balanced-1` | `gemma-4-E2B-it-Q4_K_M.gguf` | ~3.1 GB | [unsloth/gemma-4-E2B-it-GGUF](https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF)                   |
+| Model              | File                              | Size    | Source                                                                                                  |
+| ------------------ | --------------------------------- | ------- | ------------------------------------------------------------------------------------------------------- |
+| `tabby-pico-1`     | `SmolLM2-135M-Instruct-q8_0.gguf` | ~0.1 GB | [Mungert/SmolLM2-135M-Instruct-GGUF](https://huggingface.co/Mungert/SmolLM2-135M-Instruct-GGUF)         |
+| `tabby-nano-1`     | `SmolLM-360M-Instruct.Q8_0.gguf`  | ~0.4 GB | [QuantFactory/SmolLM-360M-Instruct-GGUF](https://huggingface.co/QuantFactory/SmolLM-360M-Instruct-GGUF) |
+| `tabby-fast-1`     | `Qwen3-0.6B-Q4_K_M.gguf`          | ~0.4 GB | [unsloth/Qwen3-0.6B-GGUF](https://huggingface.co/unsloth/Qwen3-0.6B-GGUF)                               |
+| `tabby-balanced-1` | `gemma-4-E2B-it-Q4_K_M.gguf`      | ~3.1 GB | [unsloth/gemma-4-E2B-it-GGUF](https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF)                       |
+| `tabby-max-1`      | `gemma-4-E4B-it-Q4_K_M.gguf`      | ~5.0 GB | [unsloth/gemma-4-E4B-it-GGUF](https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF)                       |
 
 ### Bring your own model
 
-Any GGUF small enough to run on-device works. Drop a `.gguf` file into Cotabby's models folder and refresh the model list from the menu bar. Community models we've tested with Cotabby:
-
-| Model                   | File                        | Size    | Source                                                                          |
-| ----------------------- | --------------------------- | ------- | ------------------------------------------------------------------------------- |
-| Qwen3.5-0.8B (instruct) | `Qwen3.5-0.8B-Q4_K_M.gguf`  | ~0.5 GB | [unsloth/Qwen3.5-0.8B-GGUF](https://huggingface.co/unsloth/Qwen3.5-0.8B-GGUF)   |
-| Gemma 3 1B (instruct)   | `gemma-3-1b-it-Q4_K_M.gguf` | ~0.8 GB | [unsloth/gemma-3-1b-it-GGUF](https://huggingface.co/unsloth/gemma-3-1b-it-GGUF) |
+Any GGUF small enough to run on-device works. Drop a `.gguf` file into Cotabby's models folder and refresh the model list from the menu bar.
 
 Browse the [unsloth GGUF collection on Hugging Face](https://huggingface.co/unsloth) for more variants. Smaller quants (`Q3_K_M`, `Q4_K_S`) trade quality for size; larger models give better completions at the cost of memory and per-token latency.
 
 ## Install
 
+### Homebrew
+
+```sh
+brew tap FuJacob/cotabby
+brew install --cask cotabby
+```
+
+Upgrade later with `brew upgrade --cask cotabby`. The tap repo is [FuJacob/homebrew-cotabby](https://github.com/FuJacob/homebrew-cotabby).
+
+### Manual download
+
 1. Download the latest `Cotabby.dmg` from GitHub Releases.
 2. Drag `Cotabby.app` into `Applications` and launch it.
-3. Grant **Accessibility**, **Input Monitoring**, and **Screen Recording** when prompted.
-4. Pick an engine. Apple Intelligence if available, otherwise Open Source plus a model.
-5. Start typing in any supported editable field.
 
 If macOS blocks first launch, right-click `Cotabby.app` → `Open`, or allow it in `System Settings → Privacy & Security`.
+
+### Set up
+
+After installing with either method:
+
+1. Grant **Accessibility**, **Input Monitoring**, and **Screen Recording** when prompted.
+2. Pick an engine. Apple Intelligence if available, otherwise Open Source plus a model.
+3. Start typing in any supported editable field.
 
 ### Why those permissions?
 
@@ -121,7 +137,7 @@ If macOS blocks first launch, right-click `Cotabby.app` → `Open`, or allow it 
 Requires Xcode and Command Line Tools. Apple Silicon is strongly recommended for local model performance. For setup, build, test, and contribution workflow details, start with [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ```bash
-git clone https://github.com/FuJacob/tabby.git Cotabby
+git clone https://github.com/FuJacob/cotabby.git Cotabby
 cd Cotabby
 open Cotabby.xcodeproj
 ```
@@ -144,7 +160,7 @@ Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, bui
 - Swift, SwiftUI, and AppKit, which together make the menu bar app, overlays, and settings UI possible
 - Everyone who has filed issues, tested prereleases, and contributed pull requests
 
-## Built by
+## Created by
 
 <a href="https://github.com/FuJacob">@FuJacob</a> and <a href="https://github.com/jam-cai">@jam-cai</a> — two Computer Science students at the University of Waterloo.
 

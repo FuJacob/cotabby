@@ -220,8 +220,19 @@ enum SuggestionSessionReconciler {
     }
 
     /// Accepts optional leading whitespace plus the next visible token.
+    ///
+    /// When `autoAcceptTrailingPunctuation` is false, punctuation that trails a word is treated as
+    /// its own acceptance part: the chunk stops after the word's last alphanumeric character so a
+    /// user can accept "you" without being forced to also take the "?" in "you?". The leftover
+    /// punctuation is returned whole on the next call. Punctuation that sits inside a word
+    /// (the apostrophe in "don't", the interior dots in "U.S.A") is preserved because it is not
+    /// trailing.
+    ///
     /// This is intentionally a user-facing chunking rule rather than a model-token rule.
-    static func nextAcceptanceChunk(from remainingText: String) -> String {
+    static func nextAcceptanceChunk(
+        from remainingText: String,
+        autoAcceptTrailingPunctuation: Bool = true
+    ) -> String {
         guard !remainingText.isEmpty else {
             return ""
         }
@@ -231,11 +242,65 @@ enum SuggestionSessionReconciler {
             index = remainingText.index(after: index)
         }
 
+        let tokenStart = index
         while index < remainingText.endIndex, !remainingText[index].isWhitespace {
             index = remainingText.index(after: index)
         }
 
+        if !autoAcceptTrailingPunctuation,
+           let wordEnd = wordEndTrimmingTrailingPunctuation(in: remainingText, from: tokenStart, to: index) {
+            index = wordEnd
+        }
+
         return String(remainingText[..<index])
+    }
+
+    /// Returns the index just past a word token's final alphanumeric character when that token has
+    /// trailing punctuation worth splitting off. Returns `nil` — meaning "accept the whole token" —
+    /// for punctuation-only tokens and for words that already end in an alphanumeric character.
+    private static func wordEndTrimmingTrailingPunctuation(
+        in text: String,
+        from tokenStart: String.Index,
+        to tokenEnd: String.Index
+    ) -> String.Index? {
+        var lastWordCharacterEnd: String.Index?
+        var cursor = tokenStart
+        while cursor < tokenEnd {
+            if text[cursor].isAcceptanceWordCharacter {
+                lastWordCharacterEnd = text.index(after: cursor)
+            }
+            cursor = text.index(after: cursor)
+        }
+
+        guard let wordEnd = lastWordCharacterEnd, wordEnd < tokenEnd else {
+            return nil
+        }
+
+        return wordEnd
+    }
+
+    /// Returns the text to actually type for an acceptance chunk, dropping its leading whitespace run
+    /// when the live text before the caret already ends in whitespace — so accepting never stacks a
+    /// second space onto a boundary the field already provides.
+    ///
+    /// This is the authoritative, accept-time counterpart to the generation-time space handling in
+    /// `SuggestionTextNormalizer`. That normalizer decides whether to keep the model's leading space
+    /// against a prefix *snapshot* taken when the request was built, which can be stale by the time
+    /// the user accepts — most often because they typed the separating space themselves after the
+    /// ghost appeared, or because AX reported the prefix before that space landed. Reconciling here
+    /// against the live preceding text makes the boundary deterministic instead of relying on the
+    /// timing-sensitive session reconciler to consume the typed space first.
+    ///
+    /// The session still advances by the full (untrimmed) chunk: the whitespace we skip typing is
+    /// exactly the whitespace already present in the field, so the consumed-suffix accounting the
+    /// reconciler does after insertion still lines up.
+    static func insertionChunk(forAcceptedChunk chunk: String, precedingText: String) -> String {
+        guard let lastScalar = precedingText.unicodeScalars.last,
+              CharacterSet.whitespaces.contains(lastScalar) else {
+            return chunk
+        }
+
+        return String(chunk.drop(while: { $0.isWhitespace }))
     }
 
     /// Counts word-like tokens so punctuation-only accepts do not inflate productivity metrics.
@@ -281,5 +346,13 @@ private extension String {
         }
 
         return unicodeScalars.allSatisfy { !CharacterSet.controlCharacters.contains($0) }
+    }
+}
+
+private extension Character {
+    /// Alphanumerics form the core of a "word"; everything else trailing a word is punctuation that
+    /// can be peeled into its own acceptance part when auto-accept is disabled.
+    var isAcceptanceWordCharacter: Bool {
+        isLetter || isNumber
     }
 }

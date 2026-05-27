@@ -58,6 +58,10 @@ jobs:
     name: Build, notarize, sign, and publish
     runs-on: macos-26
     timeout-minutes: 180
+    outputs:
+      release_version: ${{ steps.metadata.outputs.release_version }}
+      publish: ${{ steps.metadata.outputs.publish }}
+      dmg_sha256: ${{ steps.dmg-sha.outputs.dmg_sha256 }}
     environment:
       name: github-pages
       url: ${{ steps.deploy-pages.outputs.page_url }}
@@ -568,6 +572,18 @@ jobs:
           xcrun stapler staple "${dmg_path}"
           xcrun stapler validate "${dmg_path}"
 
+      - name: Compute DMG SHA-256
+        id: dmg-sha
+        run: |
+          set -euo pipefail
+
+          # Checksum the stapled DMG that gets uploaded to the release so the
+          # Homebrew cask points at the exact bytes users download. Computed
+          # after stapling because stapling rewrites the DMG in place.
+          dmg_sha256="$(shasum -a 256 "build/${DMG_NAME}" | awk '{ print $1 }')"
+          echo "dmg_sha256=${dmg_sha256}" >> "$GITHUB_OUTPUT"
+          echo "Cotabby.dmg SHA-256: ${dmg_sha256}"
+
       - name: Generate signed appcast
         if: steps.sparkle-key.outputs.has_key == 'true'
         env:
@@ -691,3 +707,39 @@ jobs:
             build/appcast.xml
             build/notarization/**
           if-no-files-found: ignore
+
+  # Tell the Homebrew tap to point at the DMG this run just published. The tap's
+  # own update-cask.yml workflow listens for this repository_dispatch and rewrites
+  # Casks/cotabby.rb from the payload, so the cask-editing logic stays in the tap.
+  # Runs only after a real publish so dry-run validation builds never bump the cask.
+  update-homebrew-cask:
+    name: Update Homebrew cask
+    needs: release
+    if: needs.release.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch cask update to the tap
+        env:
+          # PAT with contents:write on FuJacob/homebrew-cotabby — the built-in
+          # GITHUB_TOKEN cannot reach another repository.
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          VERSION: ${{ needs.release.outputs.release_version }}
+          DMG_SHA256: ${{ needs.release.outputs.dmg_sha256 }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${DMG_SHA256}" ]]; then
+            echo "The release job did not produce a DMG checksum." >&2
+            exit 1
+          fi
+
+          # version + sha256 are the client_payload contract expected by
+          # FuJacob/homebrew-cotabby's update-cask.yml. jq builds the body so the
+          # values are JSON-escaped instead of string-spliced into the request.
+          jq -nc \
+            --arg version "${VERSION}" \
+            --arg sha256 "${DMG_SHA256}" \
+            '{event_type: "update-cask", client_payload: {version: $version, sha256: $sha256}}' \
+            | gh api repos/FuJacob/homebrew-cotabby/dispatches --method POST --input -
+
+          echo "Dispatched update-cask to FuJacob/homebrew-cotabby for ${VERSION}."

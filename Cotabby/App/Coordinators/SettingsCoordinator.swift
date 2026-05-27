@@ -18,6 +18,7 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
     private let foundationModelAvailabilityService: FoundationModelAvailabilityService
     private let runtimeModel: RuntimeBootstrapModel
     private let modelDownloadManager: ModelDownloadManager
+    private let huggingFaceSearchService: HuggingFaceSearchService
     private let onShowWelcome: () -> Void
 
     private var settingsWindowController: NSWindowController?
@@ -30,6 +31,7 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
         foundationModelAvailabilityService: FoundationModelAvailabilityService,
         runtimeModel: RuntimeBootstrapModel,
         modelDownloadManager: ModelDownloadManager,
+        huggingFaceSearchService: HuggingFaceSearchService,
         onShowWelcome: @escaping () -> Void
     ) {
         self.appUpdateManager = appUpdateManager
@@ -39,6 +41,7 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
         self.foundationModelAvailabilityService = foundationModelAvailabilityService
         self.runtimeModel = runtimeModel
         self.modelDownloadManager = modelDownloadManager
+        self.huggingFaceSearchService = huggingFaceSearchService
         self.onShowWelcome = onShowWelcome
     }
 
@@ -61,6 +64,7 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
                 foundationModelAvailabilityService: foundationModelAvailabilityService,
                 runtimeModel: runtimeModel,
                 modelDownloadManager: modelDownloadManager,
+                huggingFaceSearchService: huggingFaceSearchService,
                 onShowWelcome: onShowWelcome
             )
         )
