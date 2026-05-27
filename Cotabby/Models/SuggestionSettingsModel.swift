@@ -23,6 +23,7 @@ final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var customIndicatorImage: NSImage?
     @Published private(set) var disabledAppRules: [DisabledApplicationRule]
     @Published private(set) var customSuggestionTextColorHex: String?
+    @Published private(set) var ghostTextOpacity: Double
     @Published private(set) var selectedEngine: SuggestionEngineKind
     @Published private(set) var selectedWordCountPreset: SuggestionWordCountPreset
     @Published private(set) var isClipboardContextEnabled: Bool
@@ -47,6 +48,7 @@ final class SuggestionSettingsModel: ObservableObject {
     private static let showAcceptanceHintDefaultsKey = "cotabbyShowAcceptanceHint"
     private static let customIndicatorImageDataDefaultsKey = "cotabbyCustomIndicatorImageData"
     private static let customSuggestionTextColorHexDefaultsKey = "cotabbyCustomSuggestionTextColorHex"
+    private static let ghostTextOpacityDefaultsKey = "cotabbyGhostTextOpacity"
     private static let selectedEngineDefaultsKey = "cotabbySelectedEngine"
     private static let selectedWordCountPresetDefaultsKey = "cotabbySelectedWordCountPreset"
     private static let clipboardContextEnabledDefaultsKey = "cotabbyClipboardContextEnabled"
@@ -76,6 +78,13 @@ final class SuggestionSettingsModel: ObservableObject {
     static let defaultFullAcceptanceKeyCode: CGKeyCode = 50
     static let defaultFullAcceptanceKeyLabel = "`"
 
+    /// Floor kept above zero so ghost text can be faded but never made fully invisible (which would
+    /// look like the suggestion engine is broken). 100% is the out-of-box default.
+    static let minimumGhostTextOpacity: Double = 0.3
+    static let maximumGhostTextOpacity: Double = 1.0
+    static let defaultGhostTextOpacity: Double = 1.0
+    static let ghostTextOpacityStep: Double = 0.1
+
     init(
         configuration: SuggestionConfiguration,
         userDefaults: UserDefaults = .standard
@@ -95,6 +104,11 @@ final class SuggestionSettingsModel: ObservableObject {
         let resolvedCustomSuggestionTextColorHex = Self.normalizedHexString(
             userDefaults.string(forKey: Self.customSuggestionTextColorHexDefaultsKey)
         )
+        let resolvedGhostTextOpacity: Double = if userDefaults.object(forKey: Self.ghostTextOpacityDefaultsKey) == nil {
+            Self.defaultGhostTextOpacity
+        } else {
+            Self.clampedGhostTextOpacity(userDefaults.double(forKey: Self.ghostTextOpacityDefaultsKey))
+        }
         let resolvedEngine = userDefaults
             .string(forKey: Self.selectedEngineDefaultsKey)
             .flatMap(SuggestionEngineKind.init(rawValue:))
@@ -177,6 +191,7 @@ final class SuggestionSettingsModel: ObservableObject {
         showAcceptanceHint = resolvedShowAcceptanceHint
         customIndicatorImage = Self.loadCustomIndicatorImage(from: userDefaults)
         customSuggestionTextColorHex = resolvedCustomSuggestionTextColorHex
+        ghostTextOpacity = resolvedGhostTextOpacity
         selectedEngine = resolvedEngine
         selectedWordCountPreset = resolvedWordCountPreset
         isClipboardContextEnabled = resolvedClipboardContextEnabled
@@ -198,6 +213,7 @@ final class SuggestionSettingsModel: ObservableObject {
         persistShowIndicator(resolvedShowIndicator)
         userDefaults.set(resolvedShowAcceptanceHint, forKey: Self.showAcceptanceHintDefaultsKey)
         persistCustomSuggestionTextColorHex(resolvedCustomSuggestionTextColorHex)
+        userDefaults.set(resolvedGhostTextOpacity, forKey: Self.ghostTextOpacityDefaultsKey)
         persistSelectedEngine(resolvedEngine)
         persistSelectedWordCountPreset(resolvedWordCountPreset)
         persistClipboardContextEnabled(resolvedClipboardContextEnabled)
@@ -476,6 +492,16 @@ final class SuggestionSettingsModel: ObservableObject {
         persistCustomSuggestionTextColorHex(normalizedHex)
     }
 
+    func setGhostTextOpacity(_ opacity: Double) {
+        let clamped = Self.clampedGhostTextOpacity(opacity)
+        guard ghostTextOpacity != clamped else {
+            return
+        }
+
+        ghostTextOpacity = clamped
+        userDefaults.set(clamped, forKey: Self.ghostTextOpacityDefaultsKey)
+    }
+
     func setUserName(_ name: String) {
         guard userName != name else {
             return
@@ -675,6 +701,14 @@ final class SuggestionSettingsModel: ObservableObject {
     ) -> String {
         let trimmed = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? fallbackBundleIdentifier : trimmed
+    }
+
+    private static func clampedGhostTextOpacity(_ value: Double) -> Double {
+        guard value.isFinite else {
+            return defaultGhostTextOpacity
+        }
+
+        return min(maximumGhostTextOpacity, max(minimumGhostTextOpacity, value))
     }
 
     private static func normalizedHexString(_ hex: String?) -> String? {

@@ -187,6 +187,32 @@ struct SettingsView: View {
             Toggle("Fast Mode", isOn: fastModeEnabledBinding)
                 .help("Skips capturing on-screen context (OCR) for faster, lower-overhead suggestions.")
 
+            LabeledContent("Ghost Text Color") {
+                HStack(spacing: 8) {
+                    ForEach(GhostTextColorPreset.all) { preset in
+                        ghostColorSwatch(for: preset)
+                    }
+                }
+            }
+
+            LabeledContent("Ghost Text Opacity") {
+                HStack(spacing: 10) {
+                    TickMarkSlider(
+                        value: ghostTextOpacityBinding,
+                        range: SuggestionSettingsModel.minimumGhostTextOpacity
+                            ... SuggestionSettingsModel.maximumGhostTextOpacity,
+                        step: SuggestionSettingsModel.ghostTextOpacityStep
+                    )
+                    .frame(width: 180)
+
+                    Text(ghostTextOpacityLabel)
+                        .font(.callout)
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                        .frame(width: 42, alignment: .trailing)
+                }
+            }
+
             // Open at Login is hidden until the quarantine/SMAppService issue is resolved.
             // The toggle reports .notFound for quarantined apps and apps outside /Applications,
             // making it appear broken for most users. See LaunchAtLoginService for details.
@@ -722,25 +748,10 @@ struct SettingsView: View {
     //     )
     // }
 
-    /// The color picker always needs a concrete color. When the user has not picked one yet we feed
-    /// it the current automatic fallback so the control still previews something sensible. The first
-    /// user interaction promotes that preview into a persisted custom color.
-    private var customSuggestionTextColorBinding: Binding<Color> {
+    private var ghostTextOpacityBinding: Binding<Double> {
         Binding(
-            get: {
-                SuggestionTextColorCodec.color(
-                    fromHex: suggestionSettings.customSuggestionTextColorHex)
-                    ?? automaticGhostTextColor
-            },
-            set: { color in
-                guard let nsColor = NSColor(color).usingColorSpace(.sRGB),
-                    let hex = SuggestionTextColorCodec.hexString(from: nsColor)
-                else {
-                    return
-                }
-
-                suggestionSettings.setCustomSuggestionTextColorHex(hex)
-            }
+            get: { suggestionSettings.ghostTextOpacity },
+            set: { suggestionSettings.setGhostTextOpacity($0) }
         )
     }
 
@@ -777,18 +788,52 @@ struct SettingsView: View {
         )
     }
 
+    /// Mirrors the overlay's automatic fallback (`GhostSuggestionView.ghostColor`) so the Automatic
+    /// swatch previews the same gray the user will actually see.
     private var automaticGhostTextColor: Color {
         colorScheme == .dark
             ? Color(red: 0.65, green: 0.65, blue: 0.65)
             : Color(red: 0.45, green: 0.45, blue: 0.45)
     }
 
-    private var ghostTextColorDescription: String {
-        if suggestionSettings.customSuggestionTextColorHex == nil {
-            return "Automatic adapts to light and dark editors with Cotabby's default subtle gray."
+    private var ghostTextOpacityLabel: String {
+        "\(Int((suggestionSettings.ghostTextOpacity * 100).rounded()))%"
+    }
+
+    /// A tappable color chip. `nil` hex selects the adaptive Automatic gray. The active preset gets a
+    /// heavier ring so the current choice reads at a glance.
+    @ViewBuilder
+    private func ghostColorSwatch(for preset: GhostTextColorPreset) -> some View {
+        let isSelected = GhostTextColorPreset.matching(
+            hex: suggestionSettings.customSuggestionTextColorHex
+        ) == preset
+
+        Button {
+            suggestionSettings.setCustomSuggestionTextColorHex(preset.hex)
+        } label: {
+            Circle()
+                .fill(swatchFill(for: preset))
+                .frame(width: 18, height: 18)
+                .overlay(
+                    Circle()
+                        .strokeBorder(
+                            Color.primary.opacity(isSelected ? 0.9 : 0.18),
+                            lineWidth: isSelected ? 2 : 1
+                        )
+                )
+        }
+        .buttonStyle(.plain)
+        .help(preset.name)
+    }
+
+    private func swatchFill(for preset: GhostTextColorPreset) -> Color {
+        guard let hex = preset.hex,
+              let color = SuggestionTextColorCodec.color(fromHex: hex)
+        else {
+            return automaticGhostTextColor
         }
 
-        return "Custom ghost text color is active."
+        return color
     }
 
     private var localModelsDescription: String {
