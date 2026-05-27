@@ -44,13 +44,11 @@ struct HuggingFaceModelBrowserView: View {
             EmptyView()
 
         case .searching:
-            HStack(spacing: 6) {
-                ProgressView()
-                    .controlSize(.small)
-                Text("Searching…")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+            // Plain label rather than an indeterminate spinner: the spinner animates continuously
+            // and can leak its animation loop after the window closes. The "…" already reads as busy.
+            Text("Searching…")
+                .font(.caption)
+                .foregroundStyle(.secondary)
 
         case .noResults:
             Text("No GGUF models found.")
@@ -85,12 +83,8 @@ struct HuggingFaceModelBrowserView: View {
                     searchService.loadMore()
                 } label: {
                     if searchService.isLoadingMore {
-                        HStack(spacing: 6) {
-                            ProgressView()
-                                .controlSize(.small)
-                            Text("Loading…")
-                                .font(.caption)
-                        }
+                        Text("Loading…")
+                            .font(.caption)
                     } else {
                         Text("Load More")
                             .font(.caption)
@@ -110,14 +104,11 @@ struct HuggingFaceModelBrowserView: View {
         if isRepoSelected(repoId) {
             switch searchService.detailState {
             case .loading:
-                HStack(spacing: 6) {
-                    ProgressView()
-                        .controlSize(.small)
-                    Text("Loading files…")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.leading, 16)
+                // Plain label rather than an indeterminate spinner; see `.searching` above.
+                Text("Loading files…")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.leading, 16)
                 .padding(.top, 4)
 
             case .failed(let message):
@@ -235,12 +226,10 @@ private struct HFFileRow: View {
                 actionButton
             }
 
-            if state.isDownloading, let progress = state.progressFraction {
-                ProgressView(value: progress, total: 1)
-                    .progressViewStyle(.linear)
-                    .tint(.blue)
-            } else if state.isDownloading {
-                ProgressView()
+            if state.isDownloading {
+                // Determinate bar pinned at 0 until the fraction is known. An indeterminate linear
+                // `ProgressView` animates forever and leaks that animation loop past window close.
+                ProgressView(value: state.progressFraction ?? 0, total: 1)
                     .progressViewStyle(.linear)
                     .tint(.blue)
             }
@@ -274,8 +263,10 @@ private struct HFFileRow: View {
                             .foregroundStyle(.blue)
                             .frame(width: 40, alignment: .trailing)
                     } else {
-                        ProgressView()
-                            .controlSize(.small)
+                        // Static glyph instead of an indeterminate spinner; see DownloadableModelCatalogView.
+                        Image(systemName: "ellipsis")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.blue)
                             .frame(width: 40)
                     }
                     Button {

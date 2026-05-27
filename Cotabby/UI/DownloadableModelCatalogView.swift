@@ -140,8 +140,13 @@ private struct DownloadableModelRow: View {
                         .foregroundStyle(.blue)
                         .frame(width: 40, alignment: .trailing)
                 } else {
-                    ProgressView()
-                        .controlSize(.small)
+                    // A static glyph, not an indeterminate `ProgressView`. Indeterminate spinners
+                    // animate continuously via a detached display-link/NSAnimation loop that can
+                    // keep running (and pegging CPU) even after this window closes, and onboarding
+                    // shows several of these at once. The "…" reads as "starting" without spinning.
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.blue)
                         .frame(width: 40)
                 }
                 // Plain SF Symbol button keeps the row compact and matches
@@ -207,14 +212,11 @@ private struct DownloadableModelRow: View {
 
     @ViewBuilder
     private var downloadProgressBar: some View {
-        if let progress = state.progressFraction {
-            ProgressView(value: progress, total: 1)
-                .progressViewStyle(.linear)
-                .tint(.blue)
-        } else {
-            ProgressView()
-                .progressViewStyle(.linear)
-                .tint(.blue)
-        }
+        // Always a determinate bar: it sits at 0 while the progress fraction is still unknown and
+        // fills as bytes arrive. An indeterminate linear `ProgressView` animates a moving stripe
+        // forever, which keeps a CoreAnimation loop pinned even when the window is closed.
+        ProgressView(value: state.progressFraction ?? 0, total: 1)
+            .progressViewStyle(.linear)
+            .tint(.blue)
     }
 }
