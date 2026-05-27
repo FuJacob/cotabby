@@ -30,6 +30,14 @@ final class FocusTracker {
     private var focusChangeSequence: UInt64 = 0
     private var lastFocusedInputSignature: FocusedInputPollingSignature?
 
+    // Idle backoff state. When consecutive captures stop producing changes, the timer runs the
+    // expensive AX snapshot walk on a progressively longer stride instead of every tick. This is
+    // the primary fix for #280, where an 80ms poll kept walking Chrome's Accessibility tree
+    // ~12.5x/second — and failing — even with no focus change and the user's hands off the keyboard.
+    private var idleCaptureCount = 0
+    private var ticksSinceCapture = 0
+    private static let idleCaptureCountCap = 60
+
     init(
         pollInterval: TimeInterval = 0.08,
         permissionProvider: @escaping @MainActor () -> Bool,
@@ -56,7 +64,7 @@ final class FocusTracker {
 
         let timer = Timer(timeInterval: pollInterval, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
-                self?.refreshNow()
+                self?.handleTimerTick()
             }
         }
         self.timer = timer
@@ -92,12 +100,43 @@ final class FocusTracker {
     ///
     /// Other subsystems still call this after input or acceptance events because they know a read is
     /// useful immediately. The implementation is still polling-style: no event is trusted as state;
-    /// it only triggers another full AX read.
+    /// it only triggers another full AX read. An explicit refresh also resets idle backoff, since it
+    /// signals real activity and the poll loop should return to its responsive cadence.
     func refreshNow() {
+        idleCaptureCount = 0
+        ticksSinceCapture = 0
+        performCaptureAndPublish()
+    }
+
+    /// Timer entry point that applies idle backoff before the expensive Accessibility walk.
+    ///
+    /// While captures keep producing changes (typing, focus churn) the stride stays at 1 and the
+    /// poll runs at full cadence. Once captures stop changing, the stride grows so an idle machine
+    /// isn't paying for ~12.5 full Chrome AX tree walks per second — the dominant idle cost in #280.
+    private func handleTimerTick() {
+        ticksSinceCapture += 1
+        guard ticksSinceCapture >= Self.captureStride(idleCaptureCount: idleCaptureCount) else {
+            return
+        }
+        ticksSinceCapture = 0
+
+        if performCaptureAndPublish() {
+            idleCaptureCount = 0
+        } else {
+            idleCaptureCount = min(idleCaptureCount + 1, Self.idleCaptureCountCap)
+        }
+    }
+
+    /// Captures the current snapshot, publishes any change, and reports whether anything changed.
+    /// Returns `true` when the published snapshot or the focused-input identity changed; idle
+    /// backoff uses this to decide whether to stay fast or stretch the poll stride.
+    @discardableResult
+    private func performCaptureAndPublish() -> Bool {
         pollSequence += 1
         let capture = captureSnapshot()
 
-        if capture.snapshot != snapshot {
+        let snapshotChanged = capture.snapshot != snapshot
+        if snapshotChanged {
             snapshot = capture.snapshot
         }
 
@@ -111,6 +150,26 @@ final class FocusTracker {
                 occurredAt: Date()
             )
         )
+
+        return snapshotChanged || capture.didChangeFocusedInput
+    }
+
+    /// How many base poll ticks to wait between expensive captures, given how many consecutive
+    /// captures have produced no change. Pure and `nonisolated` so the backoff schedule is unit-testable.
+    ///
+    /// The first few idle captures stay at full cadence so a brief pause doesn't make the field feel
+    /// laggy; sustained idleness ramps toward ~800ms (at the 80ms base) before the next AX walk.
+    nonisolated static func captureStride(idleCaptureCount: Int) -> Int {
+        switch idleCaptureCount {
+        case ..<5:
+            return 1
+        case ..<12:
+            return 3
+        case ..<30:
+            return 6
+        default:
+            return 10
+        }
     }
 
     /// Captures the current frontmost application's focused element and reduces it into a snapshot.

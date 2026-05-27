@@ -36,6 +36,7 @@
 		F10000012FA0000100EEE001 /* TextDirectionDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F10000112FA0000100EEE011 /* TextDirectionDetectorTests.swift */; };
 		FA0000012FA4000100FFF001 /* FoundationModelDriftEvalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA0000112FA4000100FFF011 /* FoundationModelDriftEvalTests.swift */; };
 		G10000012FB0000100FFF001 /* WordCountFormatterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = G10000112FB0000100FFF011 /* WordCountFormatterTests.swift */; };
+		H10000012FC0000100HHH001 /* FocusPollBackoffTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = H10000112FC0000100HHH011 /* FocusPollBackoffTests.swift */; };
 		G10000022FB0000100FFF002 /* ClipboardContentDistillerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = G10000122FB0000100FFF012 /* ClipboardContentDistillerTests.swift */; };
 		G20000012FB0000100FFF001 /* ClipboardRelevanceFilterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = G20000112FB0000100FFF011 /* ClipboardRelevanceFilterTests.swift */; };
 /* End PBXBuildFile section */
@@ -78,6 +79,7 @@
 		F9D35DB9E86506B9FAE1CFE9 /* ModelFileValidatorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ModelFileValidatorTests.swift; sourceTree = "<group>"; };
 		FA0000112FA4000100FFF011 /* FoundationModelDriftEvalTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FoundationModelDriftEvalTests.swift; sourceTree = "<group>"; };
 		G10000112FB0000100FFF011 /* WordCountFormatterTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WordCountFormatterTests.swift; sourceTree = "<group>"; };
+		H10000112FC0000100HHH011 /* FocusPollBackoffTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FocusPollBackoffTests.swift; sourceTree = "<group>"; };
 		G10000122FB0000100FFF012 /* ClipboardContentDistillerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ClipboardContentDistillerTests.swift; sourceTree = "<group>"; };
 		G20000112FB0000100FFF011 /* ClipboardRelevanceFilterTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ClipboardRelevanceFilterTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -160,6 +162,7 @@
 				G20000112FB0000100FFF011 /* ClipboardRelevanceFilterTests.swift */,
 				G10000122FB0000100FFF012 /* ClipboardContentDistillerTests.swift */,
 				G10000112FB0000100FFF011 /* WordCountFormatterTests.swift */,
+				H10000112FC0000100HHH011 /* FocusPollBackoffTests.swift */,
 			);
 			path = CotabbyTests;
 			sourceTree = "<group>";
@@ -307,6 +310,7 @@
 				G20000012FB0000100FFF001 /* ClipboardRelevanceFilterTests.swift in Sources */,
 				G10000022FB0000100FFF002 /* ClipboardContentDistillerTests.swift in Sources */,
 				G10000012FB0000100FFF001 /* WordCountFormatterTests.swift in Sources */,
+				H10000012FC0000100HHH001 /* FocusPollBackoffTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
