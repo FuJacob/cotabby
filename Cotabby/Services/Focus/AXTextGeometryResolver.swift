@@ -31,6 +31,14 @@ struct CaretGeometryResult {
 
 @MainActor
 struct AXTextGeometryResolver {
+    /// Remembers the text-run leaves of the focused field so per-keystroke caret resolution can
+    /// re-read them instead of re-walking the tree. Nil disables caching (tests, non-focus callers).
+    private let cache: CaretGeometrySourceCache?
+
+    init(cache: CaretGeometrySourceCache? = nil) {
+        self.cache = cache
+    }
+
     /// Resolves the full input frame for workflows that need the whole field bounds, such as
     /// screenshot cropping and field-level diagnostics. This stays separate from caret resolution
     /// because not every consumer wants the same geometry contract.
@@ -53,7 +61,8 @@ struct AXTextGeometryResolver {
         supportsBoundsForRange: Bool,
         supportsFrame: Bool,
         cocoaAnchorFrame: CGRect?,
-        textValue: String? = nil
+        textValue: String? = nil,
+        focusChangeSequence: UInt64? = nil
     ) -> CaretGeometryResult? {
         // Branch 1: Zero-length BoundsForRange at the caret position — ideal case.
         // Gated on `supportsBoundsForRange` because the API is a synchronous cross-process
@@ -146,7 +155,8 @@ struct AXTextGeometryResolver {
             if let result = resolveCaretFromChildTextRuns(
                 element: element,
                 parentSelection: selection,
-                parentText: parentText
+                parentText: parentText,
+                focusChangeSequence: focusChangeSequence
             ) {
                 return result
             }
@@ -265,20 +275,57 @@ struct AXTextGeometryResolver {
     private func resolveCaretFromChildTextRuns(
         element: AXUIElement,
         parentSelection: NSRange,
-        parentText: String
+        parentText: String,
+        focusChangeSequence: UInt64?
     ) -> CaretGeometryResult? {
         let parentTextLength = (parentText as NSString).length
         guard parentSelection.location <= parentTextLength else {
             return nil
         }
 
-        let textRuns = collectStaticTextRuns(from: element)
+        let fieldKey: CaretGeometrySourceCache.FieldKey?
+        if let focusChangeSequence, cache != nil {
+            fieldKey = CaretGeometrySourceCache.FieldKey(
+                containerIdentifier: AXHelper.elementIdentity(for: element),
+                focusChangeSequence: focusChangeSequence
+            )
+        } else {
+            fieldKey = nil
+        }
 
-        guard !textRuns.isEmpty else { return nil }
+        // Fast path: re-read the cached line leaves instead of re-walking the tree. A successful
+        // caret map means the field's line structure is intact — including after the caret jumped
+        // lines, since the offset simply maps to a different cached run. A nil map (e.g. a line the
+        // cache predates) falls through to a fresh walk that refreshes the cache.
+        if let fieldKey, let cache,
+            let cachedElements = cache.textRunElements(for: fieldKey),
+            let runs = textRuns(fromElements: cachedElements), !runs.isEmpty,
+            let result = caretResult(fromRuns: runs, caretOffset: parentSelection.location) {
+            return result
+        }
 
-        // Derive the average character width from the child frames — this is a direct measurement
-        // of the actual rendered font, not a guess. We aggregate across all children so a single
-        // short run doesn't skew the estimate.
+        // Slow path: discover the leaves with a bounded walk, cache them, then map.
+        let elements = collectStaticTextElements(from: element)
+        guard !elements.isEmpty,
+            let runs = textRuns(fromElements: elements), !runs.isEmpty else {
+            return nil
+        }
+        if let fieldKey, let cache {
+            cache.store(textRunElements: elements, for: fieldKey)
+        }
+        return caretResult(fromRuns: runs, caretOffset: parentSelection.location)
+    }
+
+    /// Maps a caret offset onto ordered text runs: walk cumulative text length to find the
+    /// containing run, then interpolate proportionally inside its frame. Returns nil when the offset
+    /// overshoots the runs by more than a small tolerance — the signal that the run list is stale or
+    /// incomplete, so the caller should re-walk rather than anchor the overlay to an unrelated tail.
+    private func caretResult(
+        fromRuns textRuns: [(text: String, frame: CGRect)],
+        caretOffset: Int
+    ) -> CaretGeometryResult? {
+        // Average character width measured directly from the child frames — the actual rendered
+        // font, not a guess. Aggregated across runs so one short run doesn't skew it.
         var totalChars = 0
         var totalWidth: CGFloat = 0
         for run in textRuns {
@@ -287,9 +334,7 @@ struct AXTextGeometryResolver {
         }
         let charWidth: CGFloat? = totalChars > 0 ? totalWidth / CGFloat(totalChars) : nil
 
-        // Find which child contains the caret by matching parent selection against cumulative
-        // text lengths. AX selections use UTF-16 offsets, so we match on NSString length.
-        let caretOffset = parentSelection.location
+        // AX selections use UTF-16 offsets, so match on NSString length.
         var cumulative = 0
         for run in textRuns {
             let runLen = (run.text as NSString).length
@@ -308,16 +353,16 @@ struct AXTextGeometryResolver {
             cumulative += runLen
         }
 
-        // A tiny overrun can happen when browsers omit newline glue from child text runs.
-        // A large overrun means the descendant list is incomplete or polluted by non-editor labels
-        // (Gmail tracking banners are exposed this way), so anchoring to the last child would jump
-        // the overlay to unrelated UI.
+        // A tiny overrun can happen when browsers omit newline glue from child text runs. A large
+        // overrun means the run list is incomplete or polluted by non-editor labels (Gmail tracking
+        // banners are exposed this way), so anchoring to the last run would jump the overlay to
+        // unrelated UI.
         let missingTextTolerance = 2
-        guard caretOffset <= cumulative + missingTextTolerance else {
+        guard caretOffset <= cumulative + missingTextTolerance, let lastRun = textRuns.last else {
             return nil
         }
 
-        let lastFrame = AXHelper.cocoaRect(fromAccessibilityRect: textRuns.last!.frame)
+        let lastFrame = AXHelper.cocoaRect(fromAccessibilityRect: lastRun.frame)
         return CaretGeometryResult(
             rect: CGRect(x: lastFrame.maxX, y: lastFrame.minY, width: 2, height: lastFrame.height),
             quality: .derived,
@@ -329,12 +374,12 @@ struct AXTextGeometryResolver {
     /// anonymous containers, etc.). Walking only one child level misses those runs and forces
     /// Branch 3 (`AXFrame`) fallback. We scan descendants in pre-order so cumulative text length
     /// still tracks visual reading order in most editor trees.
-    private func collectStaticTextRuns(from root: AXUIElement) -> [(text: String, frame: CGRect)] {
+    private func collectStaticTextElements(from root: AXUIElement) -> [AXUIElement] {
         let maxDepth = 8
         let maxNodes = 300
         var visitedNodes = 0
         var seen = Set<String>()
-        var runs: [(text: String, frame: CGRect)] = []
+        var elements: [AXUIElement] = []
 
         func walk(_ element: AXUIElement, depth: Int) {
             guard depth <= maxDepth, visitedNodes < maxNodes else {
@@ -354,7 +399,7 @@ struct AXTextGeometryResolver {
                 !text.isEmpty,
                 let frame = AXHelper.rectValue(for: "AXFrame" as CFString, on: element),
                 !frame.isEmpty {
-                runs.append((text, frame))
+                elements.append(element)
             }
 
             guard depth < maxDepth else {
@@ -368,6 +413,29 @@ struct AXTextGeometryResolver {
 
         for child in AXHelper.childElements(of: root) {
             walk(child, depth: 1)
+        }
+
+        return elements
+    }
+
+    /// Reads the current text and frame of each leaf and returns them in visual reading order.
+    /// Returns nil when a leaf no longer reports the static-text role — the signal that a cached
+    /// element list is stale and the caller must re-walk. Leaves that read empty are skipped rather
+    /// than treated as stale, since a line can be momentarily empty mid-edit.
+    private func textRuns(fromElements elements: [AXUIElement]) -> [(text: String, frame: CGRect)]? {
+        var runs: [(text: String, frame: CGRect)] = []
+        for element in elements {
+            guard AXHelper.stringValue(for: kAXRoleAttribute as CFString, on: element)
+                == kAXStaticTextRole as String else {
+                return nil
+            }
+            guard let text = AXHelper.stringValue(for: kAXValueAttribute as CFString, on: element),
+                !text.isEmpty,
+                let frame = AXHelper.rectValue(for: "AXFrame" as CFString, on: element),
+                !frame.isEmpty else {
+                continue
+            }
+            runs.append((text, frame))
         }
 
         return runs.sorted { lhs, rhs in
@@ -385,6 +453,11 @@ struct AXTextGeometryResolver {
             }
             return lhsFrame.minX < rhsFrame.minX
         }
+    }
+
+    /// One-shot run collection for callers that don't cache (e.g. line-height estimation).
+    private func collectStaticTextRuns(from root: AXUIElement) -> [(text: String, frame: CGRect)] {
+        textRuns(fromElements: collectStaticTextElements(from: root)) ?? []
     }
 
     /// Confirms a BoundsForRange result actually belongs to the focused field's neighborhood.

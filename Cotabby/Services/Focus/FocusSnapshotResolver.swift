@@ -16,8 +16,11 @@ struct FocusSnapshotResolver {
     private static let dumpAXTree = false
     private static var lastDumpedElementID: String?
 
-    init(geometryResolver: AXTextGeometryResolver? = nil) {
-        self.geometryResolver = geometryResolver ?? AXTextGeometryResolver()
+    init(
+        geometryResolver: AXTextGeometryResolver? = nil,
+        caretGeometryCache: CaretGeometrySourceCache? = nil
+    ) {
+        self.geometryResolver = geometryResolver ?? AXTextGeometryResolver(cache: caretGeometryCache)
     }
 
     /// Resolves the best editable candidate around the focused AX node and materializes a focus snapshot.
@@ -47,7 +50,11 @@ struct FocusSnapshotResolver {
         }
 
         let candidates = candidateElements(around: focusedElement).map {
-            candidateSnapshot(for: $0, bundleIdentifier: bundleIdentifier)
+            candidateSnapshot(
+                for: $0,
+                bundleIdentifier: bundleIdentifier,
+                focusChangeSequence: focusChangeSequence
+            )
         }
         let resolution = FocusCapabilityResolver.resolve(
             candidates: candidates.map(\.resolverCandidate))
@@ -131,7 +138,8 @@ struct FocusSnapshotResolver {
             : resolveDeepGeometrySource(
                 focusedElement: focusedElement,
                 resolvedElement: resolvedCandidate.element,
-                cocoaAnchorFrame: resolvedCandidate.inputFrameRect
+                cocoaAnchorFrame: resolvedCandidate.inputFrameRect,
+                focusChangeSequence: focusChangeSequence
             )
 
         guard let caret = Self.selectCaretGeometry(
@@ -474,11 +482,13 @@ struct FocusSnapshotResolver {
     private func resolveDeepGeometrySource(
         focusedElement: AXUIElement,
         resolvedElement: AXUIElement,
-        cocoaAnchorFrame: CGRect?
+        cocoaAnchorFrame: CGRect?,
+        focusChangeSequence: UInt64
     ) -> CaretGeometryResult? {
         if let result = findDeepGeometrySource(
             from: resolvedElement,
-            cocoaAnchorFrame: cocoaAnchorFrame
+            cocoaAnchorFrame: cocoaAnchorFrame,
+            focusChangeSequence: focusChangeSequence
         ) {
             return result
         }
@@ -492,7 +502,8 @@ struct FocusSnapshotResolver {
 
         return findDeepGeometrySource(
             from: focusedElement,
-            cocoaAnchorFrame: cocoaAnchorFrame
+            cocoaAnchorFrame: cocoaAnchorFrame,
+            focusChangeSequence: focusChangeSequence
         )
     }
 
@@ -503,7 +514,8 @@ struct FocusSnapshotResolver {
     /// We only read position from these nodes; the input target (where we type) stays unchanged.
     private func findDeepGeometrySource(
         from root: AXUIElement,
-        cocoaAnchorFrame: CGRect?
+        cocoaAnchorFrame: CGRect?,
+        focusChangeSequence: UInt64
     ) -> CaretGeometryResult? {
         var queue: [(element: AXUIElement, depth: Int)] = [(root, 0)]
         let maxDepth = 10
@@ -538,7 +550,8 @@ struct FocusSnapshotResolver {
                     ),
                     supportsFrame: attrs.contains("AXFrame"),
                     cocoaAnchorFrame: cocoaAnchorFrame,
-                    textValue: textValue
+                    textValue: textValue,
+                    focusChangeSequence: focusChangeSequence
                 )
 
                 if let result, result.quality == .exact || result.quality == .derived {
@@ -595,8 +608,11 @@ struct FocusSnapshotResolver {
     }
 
     /// Extracts the AX properties Cotabby needs from one candidate element near the current focus.
-    private func candidateSnapshot(for element: AXUIElement, bundleIdentifier: String)
-        -> AXFocusCandidate {
+    private func candidateSnapshot(
+        for element: AXUIElement,
+        bundleIdentifier: String,
+        focusChangeSequence: UInt64
+    ) -> AXFocusCandidate {
         let role = AXHelper.stringValue(for: kAXRoleAttribute as CFString, on: element) ?? "Unknown"
         let subrole = AXHelper.stringValue(for: kAXSubroleAttribute as CFString, on: element)
         let supportedAttributes = Set(AXHelper.attributeNames(on: element))
@@ -654,7 +670,8 @@ struct FocusSnapshotResolver {
                     kAXBoundsForRangeParameterizedAttribute as String),
                 supportsFrame: supportedAttributes.contains("AXFrame"),
                 cocoaAnchorFrame: inputFrameRect,
-                textValue: textValue
+                textValue: textValue,
+                focusChangeSequence: focusChangeSequence
             )
         }
         let caretRect = caretResult?.rect
