@@ -25,6 +25,9 @@ final class FocusTracker {
     private let permissionProvider: @MainActor () -> Bool
     private let ignoredBundleIdentifier: String?
     private let snapshotResolver: FocusSnapshotResolver
+    /// Retained only so debug instrumentation can read cache hit/miss counts; resolution itself goes
+    /// through `snapshotResolver`, which shares this same instance.
+    private let caretGeometryCache: CaretGeometrySourceCache?
 
     private var timer: Timer?
     private var pollSequence = 0
@@ -52,8 +55,14 @@ final class FocusTracker {
         // The caret-geometry cache is owned here so its lifetime matches the tracker's; it memoizes
         // the focused field's text-run leaves so per-keystroke caret resolution can re-read them
         // instead of re-walking the AX tree.
-        self.snapshotResolver = snapshotResolver
-            ?? FocusSnapshotResolver(caretGeometryCache: CaretGeometrySourceCache())
+        if let snapshotResolver {
+            self.snapshotResolver = snapshotResolver
+            self.caretGeometryCache = nil
+        } else {
+            let cache = CaretGeometrySourceCache()
+            self.snapshotResolver = FocusSnapshotResolver(caretGeometryCache: cache)
+            self.caretGeometryCache = cache
+        }
     }
 
     /// Starts periodic AX polling and immediately captures an initial snapshot.
@@ -198,10 +207,16 @@ final class FocusTracker {
             )
         }
 
+        let resolveStart = ContinuousClock.now
         let firstPassSnapshot = snapshotResolver.resolveSnapshot(
             focusedElement: focusedElement,
             application: application,
             focusChangeSequence: focusChangeSequence
+        )
+        logResolveTiming(
+            since: resolveStart,
+            application: application,
+            snapshot: firstPassSnapshot
         )
 
         guard let context = firstPassSnapshot.context else {
@@ -237,6 +252,26 @@ final class FocusTracker {
             reason: "focused input snapshot changed"
         )
         return FocusCaptureResult(snapshot: finalSnapshot, didChangeFocusedInput: true)
+    }
+
+    /// Logs how long a single `resolveSnapshot` took on the main thread, with the caret source and
+    /// cache hit/miss tally. Gated behind `-cotabby-debug`. This is the signal that distinguishes
+    /// "keystrokes lag because the synchronous AX resolve is expensive" from other causes — a dump
+    /// with consistently high `resolveMs` in a browser confirms the main-thread walk is the stall.
+    private func logResolveTiming(
+        since start: ContinuousClock.Instant,
+        application: NSRunningApplication,
+        snapshot: FocusSnapshot
+    ) {
+        guard CotabbyDebugOptions.isEnabled else {
+            return
+        }
+        let millis = Double((ContinuousClock.now - start).components.attoseconds) / 1e15
+        let source = snapshot.context?.caretSource ?? snapshot.capability.shortLabel
+        let stats = caretGeometryCache?.debugStats ?? "no-cache"
+        let line = "Resolve timing: app=\(application.localizedName ?? "?") "
+            + "resolveMs=\(String(format: "%.1f", millis)) caret=\(source) cache=[\(stats)]"
+        CotabbyLogger.focus.debug("\(line)")
     }
 
     private func inactiveCapture(

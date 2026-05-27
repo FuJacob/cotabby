@@ -31,12 +31,25 @@ final class CaretGeometrySourceCache {
     private var deepKey: FieldKey?
     private var deepSourceElement: AXUIElement?
 
+    /// Debug-only counters (read by `FocusTracker` when `-cotabby-debug` is set) so a dump can show
+    /// whether the cache is actually hitting in the wild rather than us guessing. Not used for logic.
+    private(set) var runHits = 0
+    private(set) var runMisses = 0
+    private(set) var deepHits = 0
+    private(set) var deepMisses = 0
+
+    var debugStats: String {
+        "run \(runHits)/\(runHits + runMisses) deep \(deepHits)/\(deepHits + deepMisses)"
+    }
+
     /// Returns the cached ordered text-run leaves for `key`, or nil when the focused field changed
     /// (key mismatch) or nothing has been cached yet.
     func textRunElements(for key: FieldKey) -> [AXUIElement]? {
         guard runKey == key else {
+            runMisses += 1
             return nil
         }
+        runHits += 1
         return textRunElements
     }
 
@@ -52,8 +65,10 @@ final class CaretGeometrySourceCache {
     /// the subtree again. Nil on field change or cold cache.
     func deepSource(for key: FieldKey) -> AXUIElement? {
         guard deepKey == key else {
+            deepMisses += 1
             return nil
         }
+        deepHits += 1
         return deepSourceElement
     }
 
