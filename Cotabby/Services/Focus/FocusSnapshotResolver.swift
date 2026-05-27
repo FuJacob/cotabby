@@ -23,8 +23,12 @@ struct FocusSnapshotResolver {
         geometryResolver: AXTextGeometryResolver? = nil,
         caretGeometryCache: CaretGeometrySourceCache? = nil
     ) {
-        self.geometryResolver = geometryResolver ?? AXTextGeometryResolver(cache: caretGeometryCache)
-        self.caretGeometryCache = caretGeometryCache
+        let resolver = geometryResolver ?? AXTextGeometryResolver(cache: caretGeometryCache)
+        self.geometryResolver = resolver
+        // Adopt the resolver's own cache so the deep-walk fast path (this type) and the run-walk fast
+        // path (inside the resolver) always key off one memo. When a caller injects a custom resolver,
+        // its cache wins; the `caretGeometryCache` argument only seeds the default resolver.
+        self.caretGeometryCache = resolver.cache
     }
 
     /// Resolves the best editable candidate around the focused AX node and materializes a focus snapshot.
@@ -119,6 +123,18 @@ struct FocusSnapshotResolver {
                 capability: .unsupported("Selection range exceeds the current field value."),
                 context: nil,
                 inspection: inspection
+            )
+        }
+
+        // Populate the focused field's text-run cache once, for the resolved winner. The candidate
+        // probe above resolves caret geometry with the run cache read-only so a non-winning candidate
+        // can't evict the focused field's leaves on the same poll. `observedCharWidth` is non-nil only
+        // when the winner's caret came from the child-text-run path, so native / BoundsForRange fields
+        // that never use the run cache skip the walk entirely.
+        if resolvedCandidate.observedCharWidth != nil {
+            geometryResolver.cacheTextRunSources(
+                for: resolvedCandidate.element,
+                focusChangeSequence: focusChangeSequence
             )
         }
 

@@ -43,6 +43,15 @@ final class CaretGeometrySourceCacheTests: XCTestCase {
         XCTAssertEqual(cache.textRunElements(for: key("b", 1))?.count, 1)
     }
 
+    func testStoringDeepSourceNewKeyEvictsPrevious() {
+        let cache = CaretGeometrySourceCache()
+        cache.store(deepSource: element, for: key("a", 1))
+        cache.store(deepSource: element, for: key("b", 1))
+        // The deep-source slot shares the run slot's one-entry contract: a new key drops the old one.
+        XCTAssertNil(cache.deepSource(for: key("a", 1)))
+        XCTAssertNotNil(cache.deepSource(for: key("b", 1)))
+    }
+
     func testRunAndDeepEntriesAreIndependent() {
         let cache = CaretGeometrySourceCache()
         cache.store(textRunElements: [element], for: key("field", 1))

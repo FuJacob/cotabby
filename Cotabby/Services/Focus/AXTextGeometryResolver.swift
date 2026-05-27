@@ -33,7 +33,11 @@ struct CaretGeometryResult {
 struct AXTextGeometryResolver {
     /// Remembers the text-run leaves of the focused field so per-keystroke caret resolution can
     /// re-read them instead of re-walking the tree. Nil disables caching (tests, non-focus callers).
-    private let cache: CaretGeometrySourceCache?
+    ///
+    /// Exposed (not private) so `FocusSnapshotResolver` can adopt this exact instance for its own
+    /// deep-walk fast path. If the two types held separate caches, an injected resolver would
+    /// silently lose run-walk caching while deep-walk caching kept working.
+    let cache: CaretGeometrySourceCache?
 
     init(cache: CaretGeometrySourceCache? = nil) {
         self.cache = cache
@@ -304,16 +308,45 @@ struct AXTextGeometryResolver {
             return result
         }
 
-        // Slow path: discover the leaves with a bounded walk, cache them, then map.
+        // Slow path: discover the leaves with a bounded walk, then map. The resolved field's leaves
+        // are cached once after candidate selection by `cacheTextRunSources` — deliberately not here
+        // — so a non-winning candidate probed on the same poll cannot evict the focused field's entry
+        // and force a re-walk every keystroke.
         let elements = collectStaticTextElements(from: element)
         guard !elements.isEmpty,
             let runs = textRuns(fromElements: elements), !runs.isEmpty else {
             return nil
         }
-        if let fieldKey, let cache {
-            cache.store(textRunElements: elements, for: fieldKey)
-        }
         return caretResult(fromRuns: runs, caretOffset: parentSelection.location)
+    }
+
+    /// Populates the text-run cache for the resolved field once candidate selection is done.
+    ///
+    /// `FocusSnapshotResolver` probes every candidate with the run cache read-only: each candidate
+    /// has a distinct cache identity and the cache holds a single field, so letting every probe write
+    /// would let a non-winning candidate evict the focused field's leaves on the same poll and force
+    /// a re-walk every keystroke. The resolver instead calls this once for the winner. Already-warm
+    /// fields are a no-op; the walk runs only when the entry is cold (first poll on a field) or a
+    /// line change moved the caret off the cached leaves.
+    func cacheTextRunSources(for element: AXUIElement, focusChangeSequence: UInt64) {
+        guard let cache else {
+            return
+        }
+
+        let fieldKey = CaretGeometrySourceCache.FieldKey(
+            containerIdentifier: AXHelper.elementIdentity(for: element),
+            focusChangeSequence: focusChangeSequence
+        )
+        guard cache.textRunElements(for: fieldKey) == nil else {
+            return
+        }
+
+        let elements = collectStaticTextElements(from: element)
+        guard !elements.isEmpty,
+            let runs = textRuns(fromElements: elements), !runs.isEmpty else {
+            return
+        }
+        cache.store(textRunElements: elements, for: fieldKey)
     }
 
     /// Maps a caret offset onto ordered text runs: walk cumulative text length to find the
