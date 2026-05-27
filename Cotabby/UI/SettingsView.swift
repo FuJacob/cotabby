@@ -157,8 +157,10 @@ struct SettingsView: View {
     private var generalSection: some View {
         Section("General") {
             Toggle("Enable Globally", isOn: globallyEnabledBinding)
+                .help("Master switch. Turn off to silence Cotabby in every app.")
 
             Toggle("Show Indicator", isOn: showIndicatorBinding)
+                .help("Show a small icon next to the cursor when Cotabby is active in a field.")
 
             LabeledContent("Indicator Icon") {
                 HStack(spacing: 8) {
@@ -172,21 +174,26 @@ struct SettingsView: View {
                         Button("Reset") {
                             suggestionSettings.clearCustomIndicatorImage()
                         }
+                        .help("Go back to the default indicator icon.")
                     }
                 }
             }
+            .help("Custom image used in place of the default indicator. PNG or JPEG.")
 
             Toggle("Show Accept Hint", isOn: showAcceptanceHintBinding)
+                .help("Show a small label near the ghost text reminding you which key accepts it.")
 
             Toggle("Allow Multi-line Suggestions", isOn: multiLineEnabledBinding)
+                .help("Let suggestions span more than one line. Off keeps them to a single line.")
 
             Toggle("Accept Punctuation With Word", isOn: autoAcceptTrailingPunctuationBinding)
-                .help("When on, accepting a word also takes punctuation attached to it, like the \"?\" in \"you?\".")
+                .help("With this on, accepting a word also takes punctuation attached to it, like the \"?\" in \"you?\".")
 
             Toggle("Include Clipboard Context", isOn: clipboardContextEnabledBinding)
+                .help("Include your latest clipboard contents in the prompt so completions can reference what you copied.")
 
             Toggle("Fast Mode", isOn: fastModeEnabledBinding)
-                .help("Skips capturing on-screen context (OCR) for faster, lower-overhead suggestions.")
+                .help("Skip on-screen OCR context for faster, lower-overhead suggestions. Predictions still run.")
 
             LabeledContent("Ghost Text Color") {
                 HStack(spacing: 8) {
@@ -195,6 +202,7 @@ struct SettingsView: View {
                     }
                 }
             }
+            .help("Color of the ghost text shown before you accept it.")
 
             LabeledContent("Ghost Text Opacity") {
                 HStack(spacing: 10) {
@@ -213,6 +221,7 @@ struct SettingsView: View {
                         .frame(width: 42, alignment: .trailing)
                 }
             }
+            .help("How visible the ghost text is. Lower values are subtler but harder to read.")
 
             // Open at Login is hidden until the quarantine/SMAppService issue is resolved.
             // The toggle reports .notFound for quarantined apps and apps outside /Applications,
@@ -250,6 +259,7 @@ struct SettingsView: View {
                         .tag(engine)
                 }
             }
+            .help("Apple Intelligence runs on-device through macOS. Llama runs a local GGUF model you pick below.")
 
             switch suggestionSettings.selectedEngine {
             case .appleIntelligence:
@@ -280,6 +290,7 @@ struct SettingsView: View {
                         .tag(preset)
                 }
             }
+            .help("How long completions tend to be. Shorter is faster and less likely to overreach.")
 
             VStack(alignment: .leading, spacing: 24) {
                 Text("This information is passed to the AI to help personalize your completions.")
@@ -295,6 +306,7 @@ struct SettingsView: View {
                         set: { suggestionSettings.setUserName($0) }
                     ))
                     .textFieldStyle(.roundedBorder)
+                    .help("How Cotabby refers to you when it matters, like signing off an email.")
                 }
 
                 LanguageTagsEditor(suggestionSettings: suggestionSettings)
@@ -332,6 +344,7 @@ struct SettingsView: View {
                         Button("Change") {
                             isRecordingKeybind = true
                         }
+                        .help("Record a new key. Press any key to bind it; Escape to cancel.")
                     }
 
                     if suggestionSettings.acceptanceKeyCode != SuggestionSettingsModel.defaultAcceptanceKeyCode {
@@ -342,6 +355,7 @@ struct SettingsView: View {
                             )
                             isRecordingKeybind = false
                         }
+                        .help("Restore the default key.")
                     }
 
                     if suggestionSettings.acceptanceKeyCode != SuggestionSettingsModel.disabledKeyCode {
@@ -349,9 +363,11 @@ struct SettingsView: View {
                             suggestionSettings.clearAcceptanceKey()
                             isRecordingKeybind = false
                         }
+                        .help("Unbind this shortcut. No key will accept word-by-word.")
                     }
                 }
             }
+            .help("Key that accepts the next word of the suggestion.")
 
             LabeledContent("Accept Entire Suggestion") {
                 HStack(spacing: 8) {
@@ -377,6 +393,7 @@ struct SettingsView: View {
                         Button("Change") {
                             isRecordingFullAcceptKeybind = true
                         }
+                        .help("Record a new key. Press any key to bind it; Escape to cancel.")
                     }
 
                     if suggestionSettings.fullAcceptanceKeyCode != SuggestionSettingsModel.defaultFullAcceptanceKeyCode {
@@ -387,6 +404,7 @@ struct SettingsView: View {
                             )
                             isRecordingFullAcceptKeybind = false
                         }
+                        .help("Restore the default key.")
                     }
 
                     if suggestionSettings.fullAcceptanceKeyCode != SuggestionSettingsModel.disabledKeyCode {
@@ -394,9 +412,11 @@ struct SettingsView: View {
                             suggestionSettings.clearFullAcceptanceKey()
                             isRecordingFullAcceptKeybind = false
                         }
+                        .help("Unbind this shortcut. No key will accept the whole suggestion at once.")
                     }
                 }
             }
+            .help("Key that accepts the whole suggestion at once.")
         }
     }
 
@@ -409,10 +429,7 @@ struct SettingsView: View {
                 in: 10...500,
                 step: 10
             )
-
-            Text("How long to wait after typing before generating a suggestion.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            .help("How long Cotabby waits after you stop typing before generating. Higher saves CPU; lower feels snappier.")
 
             // Focus poll interval is intentionally hidden from the UI. The default (50 ms)
             // is tuned for the best balance of responsiveness and CPU usage. Exposing it
@@ -436,6 +453,7 @@ struct SettingsView: View {
             Button("Add App…") {
                 presentDisabledAppPicker()
             }
+            .help("Pick an app to disable Cotabby in.")
         }
     }
 
@@ -485,6 +503,7 @@ struct SettingsView: View {
                             .tag(model.filename)
                     }
                 }
+                .help("Which GGUF file Cotabby loads. Larger models are smarter but slower and use more memory.")
             }
 
             DownloadableModelCatalogView(
@@ -508,14 +527,18 @@ struct SettingsView: View {
                     HStack(spacing: 8) {
                         let lmStudioURL = FileManager.default.homeDirectoryForCurrentUser
                             .appendingPathComponent(".lmstudio/models")
+                        let lmStudioAvailable = FileManager.default.fileExists(atPath: lmStudioURL.path)
                         let isUsingCustomPath = BundledRuntimeLocator.customModelDirectoryURL() != nil
                         Button("Use LM Studio") {
                             BundledRuntimeLocator.setCustomModelDirectory(lmStudioURL)
                             modelDownloadManager.refreshSearchDirectories()
                             refreshModels()
                         }
-                        .disabled(
-                            !FileManager.default.fileExists(atPath: lmStudioURL.path)
+                        .disabled(!lmStudioAvailable)
+                        .help(
+                            lmStudioAvailable
+                                ? "Point Cotabby at LM Studio's models folder (~/.lmstudio/models) so you don't keep two copies."
+                                : "Install LM Studio with at least one model first. Cotabby couldn't find ~/.lmstudio/models."
                         )
 
                         Button("Reset Path") {
@@ -524,6 +547,7 @@ struct SettingsView: View {
                             refreshModels()
                         }
                         .disabled(!isUsingCustomPath)
+                        .help("Go back to Cotabby's default models folder.")
 
                         Button("Open Folder") {
                             modelDownloadManager.openModelsDirectory()
@@ -532,9 +556,11 @@ struct SettingsView: View {
                         Button("Refresh") {
                             refreshModels()
                         }
+                        .help("Re-scan the folder for newly added or removed model files.")
                     }
                 }
             }
+            .help("Where Cotabby looks for GGUF model files.")
 
             if !runtimeModel.availableModels.isEmpty {
                 Text("Installed")
@@ -676,6 +702,7 @@ struct SettingsView: View {
                     action()
                 }
                 .controlSize(.small)
+                .help("Open System Settings to Privacy & Security so you can grant this permission.")
             }
         }
     }

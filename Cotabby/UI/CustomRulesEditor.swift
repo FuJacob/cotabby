@@ -30,6 +30,8 @@ struct CustomRulesEditor: View {
             HStack {
                 Text("Rules")
                     .font(.system(size: 13, weight: .medium))
+                    .help("Short style instructions added to every prompt, like \"no em dashes\" "
+                        + "or \"prefer short sentences\". Stored only on your Mac.")
                 Spacer()
                 if canClear {
                     Button("Clear") {
@@ -38,12 +40,9 @@ struct CustomRulesEditor: View {
                     .buttonStyle(.plain)
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
+                    .help("Remove all custom rules.")
                 }
             }
-
-            Text("Short style instructions for your completions. Stored only on your Mac.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
 
             if !rules.isEmpty {
                 TagFlowLayout(spacing: 10) {

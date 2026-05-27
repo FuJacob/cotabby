@@ -3,7 +3,7 @@ import SwiftUI
 /// File overview:
 /// Editor for the languages the user writes in. Mirrors `CustomRulesEditor`: declared languages are
 /// removable chips, added by tapping a suggestion (shown with its native name) or typing a custom
-/// one. "Clear" removes them all — the baseline is empty, which means "just follow the surrounding
+/// one. "Clear" removes them all. The baseline is empty, which means "just follow the surrounding
 /// text." The chip and flow-layout primitives are shared via `TagChip.swift`.
 struct LanguageTagsEditor: View {
     @ObservedObject var suggestionSettings: SuggestionSettingsModel
@@ -29,6 +29,9 @@ struct LanguageTagsEditor: View {
             HStack {
                 Text("Languages")
                     .font(.system(size: 13, weight: .medium))
+                    .help("Languages you write in. Cotabby matches what you're currently typing; "
+                        + "these help when a field is empty or too short to tell. "
+                        + "Leave empty to always follow the surrounding text.")
                 Spacer()
                 if canClear {
                     Button("Clear") {
@@ -37,14 +40,9 @@ struct LanguageTagsEditor: View {
                     .buttonStyle(.plain)
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
+                    .help("Remove all language tags.")
                 }
             }
-
-            Text("The languages you write in. Cotabby matches the language you're already typing; "
-                + "these help when a field is empty or too short to tell. Leave empty to always "
-                + "follow the surrounding text.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
 
             if !languages.isEmpty {
                 TagFlowLayout(spacing: 10) {
@@ -86,7 +84,7 @@ struct LanguageTagsEditor: View {
 
             // The hint can only ask the model to use a language; whether it actually can depends on
             // the chosen engine, so we say so plainly rather than implying universal support.
-            Text("Language support depends on your selected model — Apple Intelligence covers a fixed "
+            Text("Language support depends on your selected model. Apple Intelligence covers a fixed "
                 + "set of languages, and local models vary, so some languages may not work.")
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
