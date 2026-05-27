@@ -38,6 +38,7 @@
 		G10000012FB0000100FFF001 /* WordCountFormatterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = G10000112FB0000100FFF011 /* WordCountFormatterTests.swift */; };
 		G10000022FB0000100FFF002 /* ClipboardContentDistillerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = G10000122FB0000100FFF012 /* ClipboardContentDistillerTests.swift */; };
 		G20000012FB0000100FFF001 /* ClipboardRelevanceFilterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = G20000112FB0000100FFF011 /* ClipboardRelevanceFilterTests.swift */; };
+		G30000012FB0000100FFF001 /* ApplicationBundleMetadataTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = G30000112FB0000100FFF011 /* ApplicationBundleMetadataTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -80,6 +81,7 @@
 		G10000112FB0000100FFF011 /* WordCountFormatterTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WordCountFormatterTests.swift; sourceTree = "<group>"; };
 		G10000122FB0000100FFF012 /* ClipboardContentDistillerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ClipboardContentDistillerTests.swift; sourceTree = "<group>"; };
 		G20000112FB0000100FFF011 /* ClipboardRelevanceFilterTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ClipboardRelevanceFilterTests.swift; sourceTree = "<group>"; };
+		G30000112FB0000100FFF011 /* ApplicationBundleMetadataTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ApplicationBundleMetadataTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -160,6 +162,7 @@
 				G20000112FB0000100FFF011 /* ClipboardRelevanceFilterTests.swift */,
 				G10000122FB0000100FFF012 /* ClipboardContentDistillerTests.swift */,
 				G10000112FB0000100FFF011 /* WordCountFormatterTests.swift */,
+				G30000112FB0000100FFF011 /* ApplicationBundleMetadataTests.swift */,
 			);
 			path = CotabbyTests;
 			sourceTree = "<group>";
@@ -307,6 +310,7 @@
 				G20000012FB0000100FFF001 /* ClipboardRelevanceFilterTests.swift in Sources */,
 				G10000022FB0000100FFF002 /* ClipboardContentDistillerTests.swift in Sources */,
 				G10000012FB0000100FFF001 /* WordCountFormatterTests.swift in Sources */,
+				G30000012FB0000100FFF001 /* ApplicationBundleMetadataTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
