@@ -106,14 +106,18 @@ final class SuggestionInteractionState {
     /// use for diagnostics and overlay updates.
     func prepareAcceptance(
         from snapshot: FocusedInputSnapshot,
-        overlayState: OverlayState
+        overlayState: OverlayState,
+        autoAcceptTrailingPunctuation: Bool = true
     ) -> SuggestionAcceptancePreparation {
         let validated = validateSessionForAcceptance(from: snapshot, overlayState: overlayState)
         guard let (liveContext, session) = validated.session else {
             return .invalid(validated.failureReason ?? "Key passed through.")
         }
 
-        let chunk = SuggestionSessionReconciler.nextAcceptanceChunk(from: session.remainingText)
+        let chunk = SuggestionSessionReconciler.nextAcceptanceChunk(
+            from: session.remainingText,
+            autoAcceptTrailingPunctuation: autoAcceptTrailingPunctuation
+        )
         guard !chunk.isEmpty else {
             return .invalid("Key passed through because no remaining suggestion chunk was available.")
         }

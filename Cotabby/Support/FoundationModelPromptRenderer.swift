@@ -43,8 +43,9 @@ enum FoundationModelPromptRenderer {
                 + "or explanation."
         ]
 
-        // A language override supersedes the "match the existing language" base rule above, so it
-        // goes right after the base block where the instructions channel weights it heavily.
+        // The declared-language hint refines the "match the existing language" base rule above — it
+        // never forces a language — so it sits right after that block where the instructions channel
+        // weights it heavily.
         if let languageInstruction = request.languageInstruction, !languageInstruction.isEmpty {
             lines.append(languageInstruction)
         }

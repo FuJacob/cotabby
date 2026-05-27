@@ -20,9 +20,9 @@
 
 <p align="center">
   <a href="LICENSE"><img alt="License: AGPL v3" src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" /></a>
-  <a href="https://github.com/FuJacob/tabby/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/FuJacob/tabby" /></a>
-  <a href="https://github.com/FuJacob/tabby/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/FuJacob/tabby/total" /></a>
-  <a href="https://github.com/FuJacob/tabby/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/FuJacob/tabby?style=flat" /></a>
+  <a href="https://github.com/FuJacob/cotabby/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/FuJacob/cotabby" /></a>
+  <a href="https://github.com/FuJacob/cotabby/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/FuJacob/cotabby/total" /></a>
+  <a href="https://github.com/FuJacob/cotabby/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/FuJacob/cotabby?style=flat" /></a>
   <img alt="Platform" src="https://img.shields.io/badge/platform-macOS%2015%2B-lightgrey" />
   <img alt="Visitors" src="https://visitor-badge.laobi.icu/badge?page_id=FuJacob.tabby" />
 </p>
@@ -100,13 +100,29 @@ Browse the [unsloth GGUF collection on Hugging Face](https://huggingface.co/unsl
 
 ## Install
 
+### Homebrew
+
+```sh
+brew tap FuJacob/cotabby
+brew install --cask cotabby
+```
+
+Upgrade later with `brew upgrade --cask cotabby`. The tap repo is [FuJacob/homebrew-cotabby](https://github.com/FuJacob/homebrew-cotabby).
+
+### Manual download
+
 1. Download the latest `Cotabby.dmg` from GitHub Releases.
 2. Drag `Cotabby.app` into `Applications` and launch it.
-3. Grant **Accessibility**, **Input Monitoring**, and **Screen Recording** when prompted.
-4. Pick an engine. Apple Intelligence if available, otherwise Open Source plus a model.
-5. Start typing in any supported editable field.
 
 If macOS blocks first launch, right-click `Cotabby.app` → `Open`, or allow it in `System Settings → Privacy & Security`.
+
+### Set up
+
+After installing with either method:
+
+1. Grant **Accessibility**, **Input Monitoring**, and **Screen Recording** when prompted.
+2. Pick an engine. Apple Intelligence if available, otherwise Open Source plus a model.
+3. Start typing in any supported editable field.
 
 ### Why those permissions?
 
@@ -121,7 +137,7 @@ If macOS blocks first launch, right-click `Cotabby.app` → `Open`, or allow it 
 Requires Xcode and Command Line Tools. Apple Silicon is strongly recommended for local model performance. For setup, build, test, and contribution workflow details, start with [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ```bash
-git clone https://github.com/FuJacob/tabby.git Cotabby
+git clone https://github.com/FuJacob/cotabby.git Cotabby
 cd Cotabby
 open Cotabby.xcodeproj
 ```
@@ -144,7 +160,7 @@ Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, bui
 - Swift, SwiftUI, and AppKit, which together make the menu bar app, overlays, and settings UI possible
 - Everyone who has filed issues, tested prereleases, and contributed pull requests
 
-## Built by
+## Created by
 
 <a href="https://github.com/FuJacob">@FuJacob</a> and <a href="https://github.com/jam-cai">@jam-cai</a> — two Computer Science students at the University of Waterloo.
 

@@ -48,6 +48,61 @@ final class GhostSuggestionLayoutTests: XCTestCase {
         XCTAssertEqual(layout.lines.last?.showsKeycap, true)
     }
 
+    // MARK: - Acceptance hint suppression
+
+    func test_make_hidesKeycapOnEveryLineWhenAcceptanceHintDisabled() {
+        let geometry = CotabbyTestFixtures.overlayGeometry(
+            caretRect: CGRect(x: 10, y: 80, width: 2, height: 18),
+            inputFrameRect: CGRect(x: 0, y: 70, width: 200, height: 30),
+            observedCharWidth: 7
+        )
+
+        let layout = GhostSuggestionLayout.make(
+            text: " alpha beta gamma delta epsilon zeta eta theta iota",
+            geometry: geometry,
+            fontSize: 14,
+            visibleFrame: CGRect(x: 0, y: 0, width: 500, height: 300),
+            showsAcceptanceHint: false
+        )
+
+        XCTAssertGreaterThan(layout.lines.count, 1, "Should still wrap to multiple lines")
+        for line in layout.lines {
+            XCTAssertFalse(line.showsKeycap, "No line should show a keycap when the hint is disabled")
+        }
+    }
+
+    func test_make_reclaimsKeycapWidthForTextWhenAcceptanceHintDisabled() {
+        // Text width (44 chars * 10pt = 440) is tuned to sit between the first-line budget with the
+        // keycap reserved (492 - 28 - 36 = 428) and without it (492 - 28 = 464). So the same text
+        // overflows and wraps while the hint is shown, but fits on a single line once hiding the
+        // hint hands its reserved width back to the text.
+        let geometry = CotabbyTestFixtures.overlayGeometry(
+            caretRect: CGRect(x: 20, y: 80, width: 2, height: 18),
+            inputFrameRect: CGRect(x: 0, y: 70, width: 500, height: 30),
+            observedCharWidth: 10
+        )
+        let text = "aaaa bbbb cccc dddd eeee ffff gggg hhhh iiii"
+        let visibleFrame = CGRect(x: 0, y: 0, width: 1000, height: 600)
+
+        let withHint = GhostSuggestionLayout.make(
+            text: text,
+            geometry: geometry,
+            fontSize: 14,
+            visibleFrame: visibleFrame,
+            showsAcceptanceHint: true
+        )
+        let withoutHint = GhostSuggestionLayout.make(
+            text: text,
+            geometry: geometry,
+            fontSize: 14,
+            visibleFrame: visibleFrame,
+            showsAcceptanceHint: false
+        )
+
+        XCTAssertGreaterThan(withHint.lines.count, 1, "Keycap reservation should force a wrap here")
+        XCTAssertEqual(withoutHint.lines.count, 1, "Reclaimed keycap width should fit the text on one line")
+    }
+
     // MARK: - Word boundary splitting
 
     func test_make_splitsAtWordBoundaryWhenTextExceedsBudget() {

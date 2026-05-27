@@ -373,8 +373,15 @@ struct AXTextGeometryResolver {
         return runs.sorted { lhs, rhs in
             let lhsFrame = AXHelper.cocoaRect(fromAccessibilityRect: lhs.frame)
             let rhsFrame = AXHelper.cocoaRect(fromAccessibilityRect: rhs.frame)
-            if abs(lhsFrame.midY - rhsFrame.midY) > 4 {
-                return lhsFrame.midY > rhsFrame.midY
+            // Bucket midY into fixed slots so every pair of runs on the same visual line maps to
+            // the same bucket. A direct `abs(Δ) > tolerance` comparison is non-transitive (A~B, B~C,
+            // but A≁C), which yields an undefined sort order and can map cumulative offsets to the
+            // wrong run — placing ghost text on the wrong line.
+            let lineTolerance: CGFloat = 4
+            let lhsBucket = (lhsFrame.midY / lineTolerance).rounded(.toNearestOrAwayFromZero)
+            let rhsBucket = (rhsFrame.midY / lineTolerance).rounded(.toNearestOrAwayFromZero)
+            if lhsBucket != rhsBucket {
+                return lhsBucket > rhsBucket
             }
             return lhsFrame.minX < rhsFrame.minX
         }

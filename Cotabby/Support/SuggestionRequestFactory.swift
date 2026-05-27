@@ -44,8 +44,8 @@ enum SuggestionRequestFactory {
         let userName = activeUserName(settings: settings)
         // Already normalized (trimmed/deduped/capped) by SuggestionSettingsModel.setRules.
         let customRules = settings.customRules
-        // nil for English — no forcing line needed.
-        let languageInstruction = settings.responseLanguage.promptInstruction
+        // nil when the user declared no languages — the renderers then just match the surrounding text.
+        let languageInstruction = LanguageCatalog.promptInstruction(for: settings.responseLanguages)
         let boundedClipboardContext = activeClipboardContext(
             rawContext: clipboardContext,
             settings: settings,

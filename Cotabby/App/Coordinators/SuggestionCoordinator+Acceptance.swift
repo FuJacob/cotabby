@@ -37,7 +37,11 @@ extension SuggestionCoordinator {
 
         let preparation = fullText
             ? interactionState.prepareFullAcceptance(from: rawContext, overlayState: overlayState)
-            : interactionState.prepareAcceptance(from: rawContext, overlayState: overlayState)
+            : interactionState.prepareAcceptance(
+                from: rawContext,
+                overlayState: overlayState,
+                autoAcceptTrailingPunctuation: settingsSnapshot.autoAcceptTrailingPunctuation
+            )
 
         let liveContext: FocusedInputContext
         let sessionForAcceptance: ActiveSuggestionSession

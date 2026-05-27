@@ -40,13 +40,13 @@ final class SuggestionTextColorCodecTests: XCTestCase {
 final class SuggestionModelValueTests: XCTestCase {
     func test_wordCountPresetsExposeMatchingPromptInstructionsAndTokenBudgets() {
         XCTAssertEqual(SuggestionWordCountPreset.threeToSeven.promptInstruction, "Return only the next 3 to 7 words.")
-        XCTAssertEqual(SuggestionWordCountPreset.threeToSeven.suggestedPredictionTokenBudget, 17)
+        XCTAssertEqual(SuggestionWordCountPreset.threeToSeven.suggestedPredictionTokenBudget, 11)
 
         XCTAssertEqual(SuggestionWordCountPreset.sevenToTwelve.promptInstruction, "Return only the next 7 to 12 words.")
-        XCTAssertEqual(SuggestionWordCountPreset.sevenToTwelve.suggestedPredictionTokenBudget, 27)
+        XCTAssertEqual(SuggestionWordCountPreset.sevenToTwelve.suggestedPredictionTokenBudget, 18)
 
         XCTAssertEqual(SuggestionWordCountPreset.twelveToTwenty.promptInstruction, "Return only the next 12 to 20 words.")
-        XCTAssertEqual(SuggestionWordCountPreset.twelveToTwenty.suggestedPredictionTokenBudget, 45)
+        XCTAssertEqual(SuggestionWordCountPreset.twelveToTwenty.suggestedPredictionTokenBudget, 30)
     }
 
     func test_activeSuggestionSession_clampsConsumedCountAndSlicesByCharacters() {

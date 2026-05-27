@@ -65,9 +65,12 @@ change as shipping to end users, not as an exercise.
 ## Contributing Workflow
 
 - External contributors open PRs against `main`. Greptile reviews automatically.
-- New test files in `CotabbyTests/` must be manually registered in
-  `Cotabby.xcodeproj/project.pbxproj` (the `Cotabby/` source group auto-discovers
-  files, but `CotabbyTests/` uses manual PBXGroup entries).
+- `Cotabby.xcodeproj` is generated from `project.yml` by XcodeGen and committed to the
+  repo. `project.yml` is the source of truth. Sources under `Cotabby/` and `CotabbyTests/`
+  are auto-discovered by folder, so a new file (including a new test) needs no project edit.
+  Only structural changes (targets, build settings, package dependencies, scheme) require
+  editing `project.yml` followed by `xcodegen generate`. The `XcodeGen` CI workflow fails the
+  PR if the committed project drifts from `project.yml`.
 - Run SwiftLint before pushing: `swiftlint lint --quiet`. The project config is
   in `.swiftlint.yml` (line length 140/200, trailing commas disallowed).
 - Wiki lives at https://github.com/FuJacob/Cotabby/wiki for contributor onboarding.
