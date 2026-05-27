@@ -48,32 +48,49 @@ final class VisualContextCoordinator {
     /// across unrelated AX elements. The monotonic `focusChangeSequence` counter provides a
     /// guaranteed-unique signal that the focus tracker actually observed a new element.
     func startSessionIfNeeded(for snapshotContext: FocusedInputSnapshot) {
-        if let activeAugmentationSession,
-            activeAugmentationSession.elementIdentifier == snapshotContext.elementIdentifier,
-            activeAugmentationSession.focusChangeSequence == snapshotContext.focusChangeSequence {
-            if case .unavailable(let reason) = activeAugmentationSession.status,
-                reason.localizedCaseInsensitiveContains("Screen Recording"),
-                screenRecordingPermissionProvider() {
-                cancel(resetState: true)
-            } else {
-                return
+        // Coalesce repeated calls for the same field (active or already pending) so a flapping focus
+        // can't restart the pipeline. The decision is pure so the invariants stay unit-testable.
+        let incoming = VisualContextFieldIdentity(
+            elementIdentifier: snapshotContext.elementIdentifier,
+            focusChangeSequence: snapshotContext.focusChangeSequence
+        )
+        let decision = VisualContextStartCoalescer.decide(
+            incoming: incoming,
+            active: activeAugmentationSession.map {
+                VisualContextFieldIdentity(elementIdentifier: $0.elementIdentifier, focusChangeSequence: $0.focusChangeSequence)
+            },
+            activeIsBlockedOnScreenRecording: activeIsBlockedOnScreenRecording,
+            hasScreenRecordingPermission: screenRecordingPermissionProvider(),
+            pending: pendingStartContext.map {
+                VisualContextFieldIdentity(elementIdentifier: $0.elementIdentifier, focusChangeSequence: $0.focusChangeSequence)
             }
-        }
+        )
 
-        // A start for this exact field is already waiting out its settle delay; don't restart the
-        // timer on every redundant focus publish.
-        if let pendingStartContext,
-            pendingStartContext.elementIdentifier == snapshotContext.elementIdentifier,
-            pendingStartContext.focusChangeSequence == snapshotContext.focusChangeSequence {
+        switch decision {
+        case .ignore:
             return
+        case .recoverPermissionThenStart:
+            cancel(resetState: true)
+        case .start:
+            break
         }
 
         // Debounce the expensive screenshot -> OCR -> summarize pipeline. Chromium/Electron apps
         // flap the focused AX element (lose and re-acquire it), calling this repeatedly with a
-        // churning focusChangeSequence. Coalescing on a short settle window runs the pipeline once
-        // focus is stable instead of once per flap — the visual-context retrigger storm in #280.
+        // churning focusChangeSequence. Coalescing (above) plus a short settle window runs the
+        // pipeline once focus is stable instead of once per flap — the retrigger storm in #280.
         cancel(resetState: false)
         scheduleSessionStart(for: snapshotContext)
+    }
+
+    /// Whether the active session is currently parked on missing Screen Recording permission, so a
+    /// permission grant for the same field should restart it rather than be ignored as a duplicate.
+    private var activeIsBlockedOnScreenRecording: Bool {
+        guard let activeAugmentationSession,
+            case .unavailable(let reason) = activeAugmentationSession.status else {
+            return false
+        }
+        return reason.localizedCaseInsensitiveContains("Screen Recording")
     }
 
     /// Arms a debounced session start. Repeated calls for a churning focus replace the pending

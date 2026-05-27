@@ -31,13 +31,12 @@ final class FocusTracker {
     private var focusChangeSequence: UInt64 = 0
     private var lastFocusedInputSignature: FocusedInputPollingSignature?
 
-    // Idle backoff state. When consecutive captures stop producing changes, the timer runs the
-    // expensive AX snapshot walk on a progressively longer stride instead of every tick. This is
-    // the primary fix for #280, where an 80ms poll kept walking Chrome's Accessibility tree
-    // ~12.5x/second — and failing — even with no focus change and the user's hands off the keyboard.
-    private var idleCaptureCount = 0
-    private var ticksSinceCapture = 0
-    private static let idleCaptureCountCap = 60
+    // Idle backoff. When consecutive captures stop producing changes, the timer runs the expensive
+    // AX snapshot walk on a progressively longer stride instead of every tick — the primary fix for
+    // #280, where an 80ms poll kept walking Chrome's Accessibility tree ~12.5x/second (and failing)
+    // even with no focus change and the user's hands off the keyboard. The transitions live in the
+    // pure `FocusPollBackoff` so they can be unit-tested without a live timer.
+    private var backoff = FocusPollBackoff()
 
     init(
         pollInterval: TimeInterval = 0.08,
@@ -108,8 +107,7 @@ final class FocusTracker {
     /// it only triggers another full AX read. An explicit refresh also resets idle backoff, since it
     /// signals real activity and the poll loop should return to its responsive cadence.
     func refreshNow() {
-        idleCaptureCount = 0
-        ticksSinceCapture = 0
+        backoff.reset()
         performCaptureAndPublish()
     }
 
@@ -119,17 +117,10 @@ final class FocusTracker {
     /// poll runs at full cadence. Once captures stop changing, the stride grows so an idle machine
     /// isn't paying for ~12.5 full Chrome AX tree walks per second — the dominant idle cost in #280.
     private func handleTimerTick() {
-        ticksSinceCapture += 1
-        guard ticksSinceCapture >= Self.captureStride(idleCaptureCount: idleCaptureCount) else {
+        guard backoff.shouldCaptureOnTick() else {
             return
         }
-        ticksSinceCapture = 0
-
-        if performCaptureAndPublish() {
-            idleCaptureCount = 0
-        } else {
-            idleCaptureCount = min(idleCaptureCount + 1, Self.idleCaptureCountCap)
-        }
+        backoff.recordCapture(didChange: performCaptureAndPublish())
     }
 
     /// Captures the current snapshot, publishes any change, and reports whether anything changed.
@@ -157,24 +148,6 @@ final class FocusTracker {
         )
 
         return snapshotChanged || capture.didChangeFocusedInput
-    }
-
-    /// How many base poll ticks to wait between expensive captures, given how many consecutive
-    /// captures have produced no change. Pure and `nonisolated` so the backoff schedule is unit-testable.
-    ///
-    /// The first few idle captures stay at full cadence so a brief pause doesn't make the field feel
-    /// laggy; sustained idleness ramps toward ~800ms (at the 80ms base) before the next AX walk.
-    nonisolated static func captureStride(idleCaptureCount: Int) -> Int {
-        switch idleCaptureCount {
-        case ..<5:
-            return 1
-        case ..<12:
-            return 3
-        case ..<30:
-            return 6
-        default:
-            return 10
-        }
     }
 
     /// Captures the current frontmost application's focused element and reduces it into a snapshot.
