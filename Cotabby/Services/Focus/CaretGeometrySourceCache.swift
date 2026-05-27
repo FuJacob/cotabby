@@ -25,13 +25,16 @@ final class CaretGeometrySourceCache {
         let focusChangeSequence: UInt64
     }
 
-    private var key: FieldKey?
+    private var runKey: FieldKey?
     private var textRunElements: [AXUIElement]?
+
+    private var deepKey: FieldKey?
+    private var deepSourceElement: AXUIElement?
 
     /// Returns the cached ordered text-run leaves for `key`, or nil when the focused field changed
     /// (key mismatch) or nothing has been cached yet.
     func textRunElements(for key: FieldKey) -> [AXUIElement]? {
-        guard self.key == key else {
+        guard runKey == key else {
             return nil
         }
         return textRunElements
@@ -40,12 +43,29 @@ final class CaretGeometrySourceCache {
     /// Replaces the cached leaves for `key`. Storing under a new key implicitly drops the previous
     /// field's entry, so the cache never holds more than one field at a time.
     func store(textRunElements elements: [AXUIElement], for key: FieldKey) {
-        self.key = key
-        self.textRunElements = elements
+        runKey = key
+        textRunElements = elements
+    }
+
+    /// Returns the cached deep geometry source leaf — the element whose zero-length selection range
+    /// produced the caret rect last time — so the resolver can read it directly instead of BFS-ing
+    /// the subtree again. Nil on field change or cold cache.
+    func deepSource(for key: FieldKey) -> AXUIElement? {
+        guard deepKey == key else {
+            return nil
+        }
+        return deepSourceElement
+    }
+
+    func store(deepSource element: AXUIElement, for key: FieldKey) {
+        deepKey = key
+        deepSourceElement = element
     }
 
     func invalidate() {
-        key = nil
+        runKey = nil
         textRunElements = nil
+        deepKey = nil
+        deepSourceElement = nil
     }
 }
