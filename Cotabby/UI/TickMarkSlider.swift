@@ -28,6 +28,21 @@ struct TickMarkSlider: NSViewRepresentable {
 
     func updateNSView(_ slider: NSSlider, context: Context) {
         context.coordinator.value = $value
+
+        // Re-apply the range-derived configuration so a caller passing dynamic range/step values
+        // doesn't leave the slider with stale tick marks or snap bounds. Guarded so we only touch
+        // AppKit state when it actually changed.
+        let expectedTickCount = tickCount
+        if slider.numberOfTickMarks != expectedTickCount {
+            slider.numberOfTickMarks = expectedTickCount
+        }
+        if slider.minValue != range.lowerBound {
+            slider.minValue = range.lowerBound
+        }
+        if slider.maxValue != range.upperBound {
+            slider.maxValue = range.upperBound
+        }
+
         // Avoid feeding the slider its own in-flight value back as an external update.
         if slider.doubleValue != value {
             slider.doubleValue = value

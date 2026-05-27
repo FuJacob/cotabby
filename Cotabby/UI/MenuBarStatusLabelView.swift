@@ -22,13 +22,15 @@ struct MenuBarStatusLabelView: View {
                 .scaledToFit()
                 .frame(height: 16)
 
-            if activityModel.isBusy {
-                ProgressView()
-                    .progressViewStyle(.circular)
-                    .controlSize(.small)
-                    .scaleEffect(0.7)
-                    .frame(width: 14, height: 16)
-            }
+            // Always reserve the spinner slot and toggle it with opacity. Inserting/removing the
+            // ProgressView would change the label view's width, which makes MenuBarExtra resize the
+            // status item and shove neighboring menu-bar icons sideways on every busy transition.
+            ProgressView()
+                .progressViewStyle(.circular)
+                .controlSize(.small)
+                .scaleEffect(0.7)
+                .frame(width: 14, height: 16)
+                .opacity(activityModel.isBusy ? 1 : 0)
         }
     }
 }
