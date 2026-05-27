@@ -1,19 +1,13 @@
-# Cotabby [beta]
-
-<sub>If Cotabby is useful to you, consider supporting development:</sub>
-
-<a href='https://ko-fi.com/I2F22066MI' target='_blank'><img height='36' style='border:0px;height:36px;' src='https://storage.ko-fi.com/cdn/kofi6.png?v=6' border='0' alt='Buy Me a Coffee at ko-fi.com' /></a>
-
----
-
 <p align="center">
-  <img width="128" alt="Cotabby logo" src="https://github.com/user-attachments/assets/1e223e72-770c-417b-82e5-83f18cd5a3b2" />
+  <a href="https://cotabby.app" target="_blank">
+    <img height="200" alt="Cotabby logo" src="https://github.com/user-attachments/assets/1e223e72-770c-417b-82e5-83f18cd5a3b2" />
+  </a>
 </p>
 
-<p align="center">
-  <em>Open-source, local-first AI autocomplete for macOS.</em>
-  </p>
-  
+<h1 align="center">Cotabby [beta]</h1>
+
+<p align="center"><em>Open-source, local-first AI autocomplete for macOS.</em></p>
+
 <p align="center">
   <a href="https://cotabby.app"><strong>Visit the landing page →</strong></a>
 </p>
@@ -25,6 +19,14 @@
   <a href="https://github.com/FuJacob/cotabby/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/FuJacob/cotabby?style=flat" /></a>
   <img alt="Platform" src="https://img.shields.io/badge/platform-macOS%2015%2B-lightgrey" />
   <img alt="Visitors" src="https://visitor-badge.laobi.icu/badge?page_id=FuJacob.tabby" />
+</p>
+
+<p align="center">
+  <sub>Cotabby is free and open source. If it's useful to you, please consider supporting development for the sake of open source ✨</sub>
+</p>
+
+<p align="center">
+  <a href='https://ko-fi.com/I2F22066MI' target='_blank'><img height='36' style='border:0px;height:36px;' src='https://storage.ko-fi.com/cdn/kofi6.png?v=6' border='0' alt='Buy Me a Coffee at ko-fi.com' /></a>
 </p>
 
 ---
