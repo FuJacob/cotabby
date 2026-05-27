@@ -39,17 +39,19 @@ enum SuggestionWordCountPreset: String, CaseIterable, Equatable, Hashable, Senda
         }
     }
 
-    /// Token budget bumped 50% above the prior ~1.5x-upper-word-bound sizing, giving the
-    /// token-cap-only path (no in-prompt word range for the local model) room to land a clean
-    /// stopping point instead of hard-truncating mid-thought.
+    /// Token budget is the sole governor of completion length on the local model (the in-prompt
+    /// word-range cue was removed), so it must track the upper word bound closely. Sized at
+    /// ~1.5x the upper word count to leave headroom for multi-token words (contractions, proper
+    /// nouns, punctuation) without overrunning the preset. The earlier 50% bump (17/27/45) let
+    /// completions blow past the setting — e.g. ~12 words on the 3-7 preset (#271).
     var suggestedPredictionTokenBudget: Int {
         switch self {
         case .threeToSeven:
-            return 17
+            return 11
         case .sevenToTwelve:
-            return 27
+            return 18
         case .twelveToTwenty:
-            return 45
+            return 30
         }
     }
 }
@@ -208,8 +210,10 @@ struct SuggestionRequest: Equatable, Sendable {
     /// User-authored style rules rendered as additional prompt directives, subordinate to the base
     /// autocomplete/safety rules. Empty when the user has none.
     let customRules: [String]
-    /// Pre-rendered directive forcing the output language (e.g. "Always write the continuation in
-    /// Spanish…"). `nil` for English, where no override is needed.
+    /// Pre-rendered language hint built from the user's declared languages (e.g. "The user usually
+    /// writes in German and English…"). `nil` when none are declared. Deliberately a hint, not an
+    /// override: it tells the model to match the surrounding text and only fall back to the declared
+    /// languages when that text is ambiguous, which protects code-switching.
     let languageInstruction: String?
     /// Ephemeral clipboard context captured only when the user has enabled clipboard prompting.
     let clipboardContext: String?

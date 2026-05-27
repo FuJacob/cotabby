@@ -220,8 +220,19 @@ enum SuggestionSessionReconciler {
     }
 
     /// Accepts optional leading whitespace plus the next visible token.
+    ///
+    /// When `autoAcceptTrailingPunctuation` is false, punctuation that trails a word is treated as
+    /// its own acceptance part: the chunk stops after the word's last alphanumeric character so a
+    /// user can accept "you" without being forced to also take the "?" in "you?". The leftover
+    /// punctuation is returned whole on the next call. Punctuation that sits inside a word
+    /// (the apostrophe in "don't", the interior dots in "U.S.A") is preserved because it is not
+    /// trailing.
+    ///
     /// This is intentionally a user-facing chunking rule rather than a model-token rule.
-    static func nextAcceptanceChunk(from remainingText: String) -> String {
+    static func nextAcceptanceChunk(
+        from remainingText: String,
+        autoAcceptTrailingPunctuation: Bool = true
+    ) -> String {
         guard !remainingText.isEmpty else {
             return ""
         }
@@ -231,11 +242,41 @@ enum SuggestionSessionReconciler {
             index = remainingText.index(after: index)
         }
 
+        let tokenStart = index
         while index < remainingText.endIndex, !remainingText[index].isWhitespace {
             index = remainingText.index(after: index)
         }
 
+        if !autoAcceptTrailingPunctuation,
+           let wordEnd = wordEndTrimmingTrailingPunctuation(in: remainingText, from: tokenStart, to: index) {
+            index = wordEnd
+        }
+
         return String(remainingText[..<index])
+    }
+
+    /// Returns the index just past a word token's final alphanumeric character when that token has
+    /// trailing punctuation worth splitting off. Returns `nil` — meaning "accept the whole token" —
+    /// for punctuation-only tokens and for words that already end in an alphanumeric character.
+    private static func wordEndTrimmingTrailingPunctuation(
+        in text: String,
+        from tokenStart: String.Index,
+        to tokenEnd: String.Index
+    ) -> String.Index? {
+        var lastWordCharacterEnd: String.Index?
+        var cursor = tokenStart
+        while cursor < tokenEnd {
+            if text[cursor].isAcceptanceWordCharacter {
+                lastWordCharacterEnd = text.index(after: cursor)
+            }
+            cursor = text.index(after: cursor)
+        }
+
+        guard let wordEnd = lastWordCharacterEnd, wordEnd < tokenEnd else {
+            return nil
+        }
+
+        return wordEnd
     }
 
     /// Counts word-like tokens so punctuation-only accepts do not inflate productivity metrics.
@@ -281,5 +322,13 @@ private extension String {
         }
 
         return unicodeScalars.allSatisfy { !CharacterSet.controlCharacters.contains($0) }
+    }
+}
+
+private extension Character {
+    /// Alphanumerics form the core of a "word"; everything else trailing a word is punctuation that
+    /// can be peeled into its own acceptance part when auto-accept is disabled.
+    var isAcceptanceWordCharacter: Bool {
+        isLetter || isNumber
     }
 }

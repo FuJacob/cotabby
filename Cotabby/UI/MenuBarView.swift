@@ -90,6 +90,10 @@ struct MenuBarView: View {
                 .toggleStyle(.switch)
                 .controlSize(.small)
 
+            Toggle("Show Accept Hint", isOn: showAcceptanceHintBinding)
+                .toggleStyle(.switch)
+                .controlSize(.small)
+
             Toggle("Allow Multi-line Suggestions", isOn: multiLineEnabledBinding)
                 .toggleStyle(.switch)
                 .controlSize(.small)
@@ -121,17 +125,6 @@ struct MenuBarView: View {
                     ForEach(SuggestionWordCountPreset.allCases) { preset in
                         Text(preset.displayLabel)
                             .tag(preset)
-                    }
-                }
-                .labelsHidden()
-                .pickerStyle(.menu)
-            }
-
-            MenuBarPickerRow(title: "Language") {
-                Picker("Language", selection: selectedLanguageBinding) {
-                    ForEach(SuggestionLanguage.allCases) { language in
-                        Text(language.displayLabel)
-                            .tag(language)
                     }
                 }
                 .labelsHidden()
@@ -288,6 +281,13 @@ struct MenuBarView: View {
         )
     }
 
+    private var showAcceptanceHintBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.showAcceptanceHint },
+            set: { suggestionSettings.setShowAcceptanceHint($0) }
+        )
+    }
+
     private var selectedEngineBinding: Binding<SuggestionEngineKind> {
         Binding(
             get: { suggestionSettings.selectedEngine },
@@ -309,15 +309,6 @@ struct MenuBarView: View {
             get: { suggestionSettings.selectedWordCountPreset },
             set: { preset in
                 suggestionSettings.selectWordCountPreset(preset)
-            }
-        )
-    }
-
-    private var selectedLanguageBinding: Binding<SuggestionLanguage> {
-        Binding(
-            get: { suggestionSettings.responseLanguage },
-            set: { language in
-                suggestionSettings.setResponseLanguage(language)
             }
         )
     }

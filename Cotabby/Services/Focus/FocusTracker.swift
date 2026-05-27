@@ -123,7 +123,21 @@ final class FocusTracker {
             )
         }
 
-        guard let application = NSWorkspace.shared.frontmostApplication else {
+        guard let focusedElement = AXHelper.focusedElement() else {
+            let frontmost = NSWorkspace.shared.frontmostApplication
+            return inactiveCapture(
+                applicationName: frontmost?.localizedName ?? "No active application",
+                bundleIdentifier: frontmost?.bundleIdentifier,
+                capability: .unsupported("No focused Accessibility element.")
+            )
+        }
+
+        // Identity must come from the app that owns the focused element, not from
+        // `frontmostApplication`. Accessory apps with non-activating panels (Raycast, Spotlight,
+        // Alfred) leave the previous app frontmost while owning the focused field, so trusting
+        // frontmost there would attribute typing to the wrong app and defeat per-app disabling.
+        guard let application = AXHelper.owningApplication(of: focusedElement)
+            ?? NSWorkspace.shared.frontmostApplication else {
             return inactiveCapture(
                 applicationName: "No active application",
                 bundleIdentifier: nil,
@@ -136,14 +150,6 @@ final class FocusTracker {
                 applicationName: application.localizedName ?? "Cotabby",
                 bundleIdentifier: application.bundleIdentifier,
                 capability: .blocked("Cotabby is focused.")
-            )
-        }
-
-        guard let focusedElement = AXHelper.focusedElement() else {
-            return inactiveCapture(
-                applicationName: application.localizedName ?? "Unknown",
-                bundleIdentifier: application.bundleIdentifier,
-                capability: .unsupported("No focused Accessibility element.")
             )
         }
 
