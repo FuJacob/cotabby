@@ -184,6 +184,9 @@ struct SettingsView: View {
 
             Toggle("Include Clipboard Context", isOn: clipboardContextEnabledBinding)
 
+            Toggle("Fast Mode", isOn: fastModeEnabledBinding)
+                .help("Skips capturing on-screen context (OCR) for faster, lower-overhead suggestions.")
+
             // Open at Login is hidden until the quarantine/SMAppService issue is resolved.
             // The toggle reports .notFound for quarantined apps and apps outside /Applications,
             // making it appear broken for most users. See LaunchAtLoginService for details.
@@ -664,6 +667,13 @@ struct SettingsView: View {
         Binding(
             get: { suggestionSettings.isClipboardContextEnabled },
             set: { suggestionSettings.setClipboardContextEnabled($0) }
+        )
+    }
+
+    private var fastModeEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.isFastModeEnabled },
+            set: { suggestionSettings.setFastModeEnabled($0) }
         )
     }
 
