@@ -119,26 +119,25 @@ struct FocusSnapshotResolver {
         }
 
         // The input target and the geometry source don't need to be the same element.
-        // Native AppKit apps give exact caret rects on the input target itself. Chrome's
-        // AXTextArea, by contrast, answers BoundsForRange(loc-1, 1) with a multi-line union
-        // rect — labeled `.derived` here but actually unusable. The leaf AXStaticText holding
-        // the active line carries its own zero-length selection range and
-        // AXSelectedTextMarkerRange, so the deep BFS in `resolveDeepGeometrySource` can
-        // synthesize a real `.exact` rect via Branch 1.5 (TextMarker) on that leaf.
-        //
-        // Precedence:
-        //   1. primary `.exact`   (single API call, perfect — no walk needed)
-        //   2. deep `.exact`      (beats primary `.derived` so we escape Chrome's union-rect trap)
-        //   3. primary `.derived`
-        //   4. deep `.derived`
-        //   5. primary `.estimated` / unknown fallback
-        // The walk is skipped entirely when primary is already `.exact`, and otherwise throttled to
-        // one BFS per `deepWalkThrottleInterval` while focus stays in the same field. Chromium
-        // editors keep the focused element at `.derived`, so without the throttle the ~200-node walk
-        // ran on every keystroke and pinned a CPU core. Within the window we reuse the previous deep
-        // result, which can trail the live caret by up to one throttle interval of fast typing.
+        // Native AppKit apps give exact caret rects on the input target itself. The deep BFS in
+        // `resolveDeepGeometrySource` can recover a real `.exact` rect from a leaf AXStaticText
+        // (via Branch 1.5 (TextMarker) on its zero-length selection range) when the focused input
+        // only exposes weak geometry. Selection precedence and the search decision live in the
+        // pure `CaretGeometrySelector`:
+        //   1. primary `.exact`    (single API call, perfect — no walk needed)
+        //   2. primary `.derived`  (trusted; the walk is skipped entirely for it)
+        //   3. deep (any)          (only reached when primary is `.estimated`/unknown)
+        //   4. primary (any, fallback)
+        // The walk is skipped whenever primary geometry is already trustworthy (`.exact`/`.derived`),
+        // and otherwise throttled to one BFS per `deepWalkThrottleInterval` while focus stays in the
+        // same field, so the ~200-node walk does not run on every keystroke and pin a CPU core.
+        // Within the window we reuse the previous deep result, which can trail the live caret by up
+        // to one throttle interval of fast typing.
         let deepResult: CaretGeometryResult?
-        if resolvedCandidate.caretQuality == .exact {
+        if !CaretGeometrySelector.shouldSearchDeep(
+            primaryRect: resolvedCandidate.caretRect,
+            primaryQuality: resolvedCandidate.caretQuality
+        ) {
             deepResult = nil
         } else {
             deepResult = deepWalkThrottle.result(
@@ -153,7 +152,7 @@ struct FocusSnapshotResolver {
             }
         }
 
-        guard let caret = Self.selectCaretGeometry(
+        guard let caret = CaretGeometrySelector.select(
             primaryRect: resolvedCandidate.caretRect,
             primaryQuality: resolvedCandidate.caretQuality,
             primaryObservedCharWidth: resolvedCandidate.observedCharWidth,
@@ -268,61 +267,6 @@ struct FocusSnapshotResolver {
         }
 
         return ordered
-    }
-
-    /// Chooses the caret geometry to ship from the primary candidate and the optional deep-tree
-    /// result, following a fixed precedence (see the call site). Pulled out of `resolveSnapshot`
-    /// so that method stays under the cyclomatic-complexity limit; returns `nil` when neither
-    /// source produced a rect, which the caller maps to an unsupported snapshot.
-    ///
-    /// Precedence: primary `.exact` → deep `.exact` (beats primary `.derived`, escaping Chrome's
-    /// union-rect trap) → primary `.derived` → deep (any) → primary (any, fallback).
-    private struct SelectedCaretGeometry {
-        let rect: CGRect
-        let source: String
-        let quality: CaretGeometryQuality
-        let observedCharWidth: CGFloat?
-    }
-
-    private static func selectCaretGeometry(
-        primaryRect: CGRect?,
-        primaryQuality: CaretGeometryQuality?,
-        primaryObservedCharWidth: CGFloat?,
-        deepResult: CaretGeometryResult?
-    ) -> SelectedCaretGeometry? {
-        if let primary = primaryRect, primaryQuality == .exact {
-            return SelectedCaretGeometry(
-                rect: primary, source: "exact primary", quality: .exact,
-                observedCharWidth: primaryObservedCharWidth
-            )
-        }
-        if let deep = deepResult, deep.quality == .exact {
-            return SelectedCaretGeometry(
-                rect: deep.rect, source: "exact deep", quality: .exact,
-                observedCharWidth: deep.observedCharWidth
-            )
-        }
-        if let primary = primaryRect, primaryQuality == .derived {
-            return SelectedCaretGeometry(
-                rect: primary, source: "derived primary", quality: .derived,
-                observedCharWidth: primaryObservedCharWidth
-            )
-        }
-        if let deep = deepResult {
-            return SelectedCaretGeometry(
-                rect: deep.rect, source: "\(deep.quality.label) deep", quality: deep.quality,
-                observedCharWidth: deep.observedCharWidth
-            )
-        }
-        if let primary = primaryRect {
-            return SelectedCaretGeometry(
-                rect: primary,
-                source: "\(primaryQuality?.label ?? "unknown") primary-fallback",
-                quality: primaryQuality ?? .estimated,
-                observedCharWidth: primaryObservedCharWidth
-            )
-        }
-        return nil
     }
 
     /// Runs deep geometry search from the resolved editable candidate first, then falls back to
