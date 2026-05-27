@@ -93,6 +93,8 @@ enum RuntimeModelCatalog {
             return "tabby-max-1"
         case "SmolLM-360M-Instruct.Q8_0.gguf":
             return "tabby-nano-1"
+        case "SmolLM2-135M-Instruct-q8_0.gguf":
+            return "tabby-pico-1"
         default:
             return filename
         }
@@ -106,6 +108,17 @@ enum RuntimeModelCatalog {
     ///
     ///   curl -sIL "<URL>" | grep -iE "^(x-linked-size|x-linked-etag):"
     static let downloadableModels: [DownloadableRuntimeModel] = [
+        DownloadableRuntimeModel(
+            filename: "SmolLM2-135M-Instruct-q8_0.gguf",
+            displayName: displayName(for: "SmolLM2-135M-Instruct-q8_0.gguf"),
+            downloadURL: URL(
+                string:
+                    "https://huggingface.co/Mungert/SmolLM2-135M-Instruct-GGUF/resolve/main/SmolLM2-135M-Instruct-q8_0.gguf?download=true"
+            )!,
+            approximateSizeInGigabytes: 0.1,
+            expectedSizeBytes: 144_811_552,
+            sha256: "bc64cce8e1c11e4ed870633b557e04af718249c817c4cf8a6784116144ec3e28"
+        ),
         DownloadableRuntimeModel(
             filename: "SmolLM-360M-Instruct.Q8_0.gguf",
             displayName: displayName(for: "SmolLM-360M-Instruct.Q8_0.gguf"),
@@ -169,7 +182,8 @@ struct LlamaRuntimeConfiguration: Equatable, Sendable {
             "gemma-4-E4B-it-Q4_K_M.gguf",
             "gemma-4-E2B-it-Q4_K_M.gguf",
             "Qwen3-0.6B-Q4_K_M.gguf",
-            "SmolLM-360M-Instruct.Q8_0.gguf"
+            "SmolLM-360M-Instruct.Q8_0.gguf",
+            "SmolLM2-135M-Instruct-q8_0.gguf"
         ],
         contextWindowTokens: 2048,
         batchSize: 512,
