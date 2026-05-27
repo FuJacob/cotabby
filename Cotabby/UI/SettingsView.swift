@@ -259,6 +259,7 @@ struct SettingsView: View {
                         .tag(engine)
                 }
             }
+            .help("Apple Intelligence runs on-device through macOS. Llama runs a local GGUF model you pick below.")
 
             switch suggestionSettings.selectedEngine {
             case .appleIntelligence:
@@ -452,6 +453,7 @@ struct SettingsView: View {
             Button("Add App…") {
                 presentDisabledAppPicker()
             }
+            .help("Pick an app to disable Cotabby in.")
         }
     }
 
@@ -501,6 +503,7 @@ struct SettingsView: View {
                             .tag(model.filename)
                     }
                 }
+                .help("Which GGUF file Cotabby loads. Larger models are smarter but slower and use more memory.")
             }
 
             DownloadableModelCatalogView(
@@ -524,14 +527,18 @@ struct SettingsView: View {
                     HStack(spacing: 8) {
                         let lmStudioURL = FileManager.default.homeDirectoryForCurrentUser
                             .appendingPathComponent(".lmstudio/models")
+                        let lmStudioAvailable = FileManager.default.fileExists(atPath: lmStudioURL.path)
                         let isUsingCustomPath = BundledRuntimeLocator.customModelDirectoryURL() != nil
                         Button("Use LM Studio") {
                             BundledRuntimeLocator.setCustomModelDirectory(lmStudioURL)
                             modelDownloadManager.refreshSearchDirectories()
                             refreshModels()
                         }
-                        .disabled(
-                            !FileManager.default.fileExists(atPath: lmStudioURL.path)
+                        .disabled(!lmStudioAvailable)
+                        .help(
+                            lmStudioAvailable
+                                ? "Point Cotabby at LM Studio's models folder (~/.lmstudio/models) so you don't keep two copies."
+                                : "Install LM Studio with at least one model first. Cotabby couldn't find ~/.lmstudio/models."
                         )
 
                         Button("Reset Path") {
@@ -540,6 +547,7 @@ struct SettingsView: View {
                             refreshModels()
                         }
                         .disabled(!isUsingCustomPath)
+                        .help("Go back to Cotabby's default models folder.")
 
                         Button("Open Folder") {
                             modelDownloadManager.openModelsDirectory()
@@ -548,9 +556,11 @@ struct SettingsView: View {
                         Button("Refresh") {
                             refreshModels()
                         }
+                        .help("Re-scan the folder for newly added or removed model files.")
                     }
                 }
             }
+            .help("Where Cotabby looks for GGUF model files.")
 
             if !runtimeModel.availableModels.isEmpty {
                 Text("Installed")
@@ -692,6 +702,7 @@ struct SettingsView: View {
                     action()
                 }
                 .controlSize(.small)
+                .help("Open System Settings to Privacy & Security so you can grant this permission.")
             }
         }
     }
