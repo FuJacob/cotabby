@@ -23,7 +23,7 @@ enum SettingsAttentionEvaluator {
         let llamaRuntimeFailedReason: String?
     }
 
-    /// Returns the set of categories that should render a red dot in the sidebar.
+    /// Returns the set of categories that should render an attention dot in the sidebar.
     static func categoriesNeedingAttention(_ inputs: Inputs) -> Set<SettingsCategory> {
         var categories: Set<SettingsCategory> = []
 
@@ -59,12 +59,14 @@ enum SettingsAttentionEvaluator {
 
         case .appleIntelligence:
             guard inputs.selectedEngine == .appleIntelligence,
-                  !inputs.foundationModelAvailable else { return nil }
+                  !inputs.foundationModelAvailable,
+                  !inputs.foundationModelMessage.isEmpty else { return nil }
             return inputs.foundationModelMessage
 
         case .openSource:
             guard inputs.selectedEngine == .llamaOpenSource,
-                  let reason = inputs.llamaRuntimeFailedReason else { return nil }
+                  let reason = inputs.llamaRuntimeFailedReason,
+                  !reason.isEmpty else { return nil }
             return reason
 
         case .engineAndModel, .general, .writing, .shortcuts, .apps, .about:
