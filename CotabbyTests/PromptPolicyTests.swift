@@ -21,7 +21,11 @@ final class FoundationModelPromptRendererTests: XCTestCase {
         // wording change cannot silently drop a rule.
         XCTAssertTrue(instructions.contains("Output the continuation only:"))
         XCTAssertTrue(instructions.contains("no greeting"))
+        XCTAssertTrue(instructions.contains("no sign-off"))
+        XCTAssertTrue(instructions.contains("no quotes"))
         XCTAssertTrue(instructions.contains("no markdown"))
+        XCTAssertTrue(instructions.contains("no labels"))
+        XCTAssertTrue(instructions.contains("no explanation"))
         // Style line still has to match the existing field — language, register, casing.
         XCTAssertTrue(instructions.contains("Match the existing language, register, casing"))
         // The word-range cue is still token-budget-only on both engines.
@@ -47,7 +51,14 @@ final class FoundationModelPromptRendererTests: XCTestCase {
         let instructions = FoundationModelPromptRenderer.sessionInstructions(for: request)
 
         XCTAssertTrue(instructions.contains("Examples ("))
-        let continuationCount = instructions.components(separatedBy: "Continuation:").count - 1
+        // Scope the "Continuation:" count to the examples block so an injected
+        // language hint or custom rule containing the substring cannot inflate it.
+        let examplesHeader = "Examples (quotes only mark the boundaries; never output the quotes):"
+        let examplesSection = instructions
+            .components(separatedBy: examplesHeader)
+            .dropFirst()
+            .joined(separator: examplesHeader)
+        let continuationCount = examplesSection.components(separatedBy: "Continuation:").count - 1
         XCTAssertEqual(continuationCount, 2, "Expected the trimmed two-example demo set.")
     }
 
