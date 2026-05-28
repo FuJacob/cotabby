@@ -279,28 +279,54 @@ enum SuggestionSessionReconciler {
         return wordEnd
     }
 
-    /// Returns the text to actually type for an acceptance chunk, dropping its leading whitespace run
-    /// when the live text before the caret already ends in whitespace — so accepting never stacks a
-    /// second space onto a boundary the field already provides.
+    /// Returns the text to actually type for an acceptance chunk, reconciling the word boundary
+    /// against the live text before the caret. Two complementary rules run here:
     ///
-    /// This is the authoritative, accept-time counterpart to the generation-time space handling in
+    /// 1. If the live preceding text already ends in horizontal whitespace, drop the chunk's leading
+    ///    whitespace run so we never stack a second space onto a boundary the field already provides.
+    /// 2. If the live preceding text ends in a word character and the chunk starts in a word
+    ///    character, insert a single space between them so the suggestion doesn't glue onto the
+    ///    user's last word.
+    ///
+    /// Rule 1 is the accept-time counterpart to the generation-time space handling in
     /// `SuggestionTextNormalizer`. That normalizer decides whether to keep the model's leading space
     /// against a prefix *snapshot* taken when the request was built, which can be stale by the time
     /// the user accepts — most often because they typed the separating space themselves after the
-    /// ghost appeared, or because AX reported the prefix before that space landed. Reconciling here
-    /// against the live preceding text makes the boundary deterministic instead of relying on the
-    /// timing-sensitive session reconciler to consume the typed space first.
+    /// ghost appeared, or because AX reported the prefix before that space landed.
     ///
-    /// The session still advances by the full (untrimmed) chunk: the whitespace we skip typing is
-    /// exactly the whitespace already present in the field, so the consumed-suffix accounting the
-    /// reconciler does after insertion still lines up.
+    /// Rule 2 is the inverse: when the model emits a fresh word without its own leading space
+    /// (either because the small local model just omitted one, or because the normalizer stripped it
+    /// against a stale snapshot that thought the field ended in whitespace), there is no boundary in
+    /// the chunk and none in the field. We add the boundary explicitly here so accept never glues
+    /// "Hello"+"World" into "HelloWorld". The tradeoff is that we don't try to distinguish a fresh
+    /// new word from a partial-word completion — Cotabby's prompt is biased toward continuing at the
+    /// caret with multi-word output, so the "new word" interpretation matches what users see.
+    ///
+    /// Session accounting: rule 1 advances the session by the full (untrimmed) acceptedChunk; the
+    /// whitespace we skip typing is the field's own, so the consumed-suffix reconciliation lines up.
+    /// Rule 2 types one character the session does NOT account for — fullText has no leading space
+    /// to consume, so the post-insertion reconciler enters its tolerate path and the session stays
+    /// alive for follow-up word-by-word accepts. A user who then types a character that would have
+    /// typed-matched the next suggestion char will fall out of the tolerate window and the session
+    /// will be invalidated, which is acceptable: the next prediction picks up from the corrected
+    /// field state without any visible glue.
     static func insertionChunk(forAcceptedChunk chunk: String, precedingText: String) -> String {
-        guard let lastScalar = precedingText.unicodeScalars.last,
-              CharacterSet.whitespaces.contains(lastScalar) else {
+        if let lastScalar = precedingText.unicodeScalars.last,
+           CharacterSet.whitespaces.contains(lastScalar) {
+            // The drop predicate mirrors the guard's horizontal-whitespace definition so a chunk
+            // that legitimately starts with a newline (e.g. a full-accept spanning a line break) is
+            // not silently dropped when the field happens to end in a space or tab.
+            return String(chunk.drop(while: { $0.unicodeScalars.allSatisfy(CharacterSet.whitespaces.contains) }))
+        }
+
+        guard let firstChunkChar = chunk.first,
+              firstChunkChar.isAcceptanceWordCharacter,
+              let lastPrecedingChar = precedingText.last,
+              lastPrecedingChar.isAcceptanceWordCharacter else {
             return chunk
         }
 
-        return String(chunk.drop(while: { $0.isWhitespace }))
+        return " " + chunk
     }
 
     /// Counts word-like tokens so punctuation-only accepts do not inflate productivity metrics.
