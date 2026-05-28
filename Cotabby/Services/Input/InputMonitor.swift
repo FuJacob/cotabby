@@ -42,6 +42,12 @@ final class InputMonitor {
     /// (terminals, globally disabled, per-app disabled).
     var shouldProcessEventsProvider: @MainActor () -> Bool = { true }
 
+    /// Fail-open authorization for the active accept tap. The tap only consumes a keystroke
+    /// when this returns `true` at the moment the event arrives. Default returns `false` so
+    /// stale or misinstalled taps never eat input. The coordinator wires this to a real check
+    /// (ready state + live active session + visible overlay) at construction time.
+    var shouldConsumeAcceptKeyProvider: @MainActor () -> Bool = { false }
+
     private let permissionProvider: @MainActor () -> Bool
     private let suppressionController: InputSuppressionController
 
@@ -297,6 +303,35 @@ final class InputMonitor {
                 && eventModifiers == acceptanceKeyModifiersProvider()
 
             if fullAcceptMatches || acceptMatches {
+                // Layer 1 — never consume a bare printable character. The recorder can store
+                // bindings like (keyCode: 0, modifiers: []) which is the 'a' key. Without this
+                // guard the bound character would silently disappear every time the user typed
+                // it system-wide. Acceptance via a bare letter is incoherent anyway (the same
+                // press cannot both insert the user's character and accept).
+                let isBarePrintable = eventModifiers.isEmpty
+                    && !event.unicodeString.trimmingCharacters(in: .controlCharacters).isEmpty
+                if isBarePrintable {
+                    let message = "Accept tap refusing to consume bare printable keyCode=\(keyCode). "
+                        + "Rebind with a modifier in Settings > Shortcuts."
+                    CotabbyLogger.app.warning("\(message)")
+                    return Unmanaged.passUnretained(event)
+                }
+
+                // Layer 2 — fail-open. The accept tap is only allowed to swallow when the
+                // coordinator confirms IN-THE-MOMENT that a ready, valid, visible session exists.
+                // Any stale install, lifecycle gap, or settings race causes the predicate to
+                // return false, the key falls through to the host, and the user never loses
+                // input. This is the "if Cotabby is unsure, pass through" rule.
+                guard shouldConsumeAcceptKeyProvider() else {
+                    let message = "Accept tap declining to consume keyCode=\(keyCode): "
+                        + "coordinator reports no ready session"
+                    CotabbyLogger.app.debug("\(message)")
+                    return Unmanaged.passUnretained(event)
+                }
+
+                CotabbyLogger.app.debug(
+                    "Accept tap consumed keyCode=\(keyCode) modifiers=\(eventModifiers.rawValue)"
+                )
                 return nil
             }
             return Unmanaged.passUnretained(event)

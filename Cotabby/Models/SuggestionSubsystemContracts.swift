@@ -35,6 +35,12 @@ protocol SuggestionInputMonitoring: AnyObject {
     var onEvent: ((CapturedInputEvent) -> Bool)? { get set }
     var onSuppressedSyntheticInput: (() -> Void)? { get set }
 
+    /// Fail-open authorization for the active accept tap. The tap only consumes a matching
+    /// keystroke when this closure returns `true` at event time. The coordinator wires it to a
+    /// live check (ready state + active session + visible overlay) so any lifecycle gap collapses
+    /// to "pass through" instead of swallowing the user's keystroke.
+    var shouldConsumeAcceptKeyProvider: @MainActor () -> Bool { get set }
+
     /// Drives the lifecycle of the active accept-key tap. The coordinator turns this on while
     /// a suggestion overlay is visible and off otherwise, so Cotabby only sits in the synchronous
     /// keystroke path during the brief windows it actually needs to consume the accept key.
