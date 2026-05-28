@@ -14,11 +14,11 @@ import Logging
 /// - A steady-state `.listenOnly` observer at the head of the chain. Listen-only taps do not gate
 ///   event delivery on the callback's return, so a slow main actor cannot stall global keystrokes
 ///   in unrelated apps (DaVinci Resolve's Spacebar play/pause is the canonical victim of an active
-///   tap here — see issue #328).
+///   tap here — see issue #328). It handles ordinary typing, navigation, and dismissal events.
 /// - A narrow `.defaultTap` accept tap at the tail, installed only while a suggestion is visible.
-///   This is the only path that consumes events, and it only exists for the brief window a
-///   suggestion is on screen. When no overlay is showing, Cotabby is fully out of the keystroke
-///   critical path.
+///   This is the only path that consumes events, so it also owns acceptance side effects. Keeping
+///   insertion and consumption in the same callback prevents the coordinator from hiding the overlay
+///   before the tap has decided what to do with the original Tab.
 @MainActor
 final class InputMonitor {
     var onEvent: ((CapturedInputEvent) -> Bool)?
@@ -42,10 +42,9 @@ final class InputMonitor {
     /// (terminals, globally disabled, per-app disabled).
     var shouldProcessEventsProvider: @MainActor () -> Bool = { true }
 
-    /// Fail-open authorization for the active accept tap. The tap only consumes a keystroke
-    /// when this returns `true` at the moment the event arrives. Default returns `false` so
-    /// stale or misinstalled taps never eat input. The coordinator wires this to a real check
-    /// (ready state + live active session + visible overlay) at construction time.
+    /// Fail-open authorization for routing a matching accept key into the active accept tap.
+    /// The tap still consumes only when the coordinator successfully accepts the event; this
+    /// preflight keeps stale or misinstalled taps from even attempting acceptance.
     var shouldConsumeAcceptKeyProvider: @MainActor () -> Bool = { false }
 
     private let permissionProvider: @MainActor () -> Bool
@@ -90,10 +89,9 @@ final class InputMonitor {
         }
     }
 
-    /// Installs (when `active == true`) or removes (when `false`) the narrow active tap that
-    /// consumes the accept key so the focused application never sees it. The coordinator calls
-    /// this when a suggestion becomes visible or hidden, so Cotabby only blocks event delivery
-    /// during the brief window when there is actually something to accept.
+    /// Installs (when `active == true`) or removes (when `false`) the narrow active tap that can
+    /// consume the accept key. The coordinator calls this when a suggestion becomes visible or
+    /// hidden, so Cotabby only enters the synchronous event path while there is something to accept.
     func setAcceptInterceptionActive(_ active: Bool) {
         guard permissionProvider() else {
             destroyAcceptTap()
@@ -104,26 +102,6 @@ final class InputMonitor {
         } else {
             destroyAcceptTap()
         }
-    }
-
-    /// Re-posts an accept key that was already swallowed by the active tap. The coordinator
-    /// only calls this from the bail paths in `acceptSuggestion` — by which point the overlay
-    /// has been hidden (so `destroyAcceptTap` already ran via the overlay state change) and the
-    /// synthetic event we post will reach the focused application unmodified. Suppression is
-    /// armed beforehand so our own observer tap recognizes the replay as Cotabby's own work
-    /// instead of treating it as a fresh user keystroke.
-    func replayConsumedAcceptKey(keyCode: CGKeyCode, flags: CGEventFlags) {
-        guard let keyDown = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: true),
-              let keyUp = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: false) else {
-            CotabbyLogger.app.warning("Failed to synthesize replay for consumed accept key \(keyCode)")
-            return
-        }
-        keyDown.flags = flags
-        keyUp.flags = flags
-        suppressionController.registerSyntheticInsertion(expectedKeyDownCount: 1)
-        keyDown.post(tap: .cghidEventTap)
-        keyUp.post(tap: .cghidEventTap)
-        CotabbyLogger.app.debug("Replayed consumed accept key \(keyCode) to the focused app")
     }
 
     private func installObserverTapIfNeeded() {
@@ -185,9 +163,8 @@ final class InputMonitor {
         }
 
         // Tail-append so this tap runs *after* the head-inserted observer. The observer is
-        // listen-only and never drops events, so the accept tap reliably sees the accept key
-        // even though it runs second; the order guarantees the observer's classification fires
-        // before this tap consumes the event.
+        // listen-only and intentionally ignores acceptance keys, so the default tap remains the
+        // single place where accept insertion and original-key consumption are decided.
         guard let tap = CGEvent.tapCreate(
             tap: .cgSessionEventTap,
             place: .tailAppendEventTap,
@@ -243,7 +220,9 @@ final class InputMonitor {
     /// Listen-only observer: classifies the event and notifies the coordinator. The return value
     /// of `onEvent` is ignored here because a listen-only tap cannot drop or modify events.
     /// Consumption of the accept key is handled by the separate active accept tap.
-    private func handleObserverTap(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
+    /// Handles the listen-only tap callback. Internal so tests can lock down which tap owns
+    /// acceptance without installing real global event taps.
+    func handleObserverTap(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         switch type {
         case .tapDisabledByTimeout, .tapDisabledByUserInput:
             CotabbyLogger.app.warning("Observer tap was disabled by system, re-enabling")
@@ -266,6 +245,13 @@ final class InputMonitor {
             }
 
             let capturedEvent = classify(event: event)
+            guard !capturedEvent.kind.isAcceptance else {
+                // Acceptance is handled by the active default tap, because only that callback can
+                // make insertion and "consume the original key" one atomic decision. If the active
+                // tap is absent, the Tab naturally belongs to the focused app.
+                return Unmanaged.passUnretained(event)
+            }
+
             _ = onEvent?(capturedEvent)
             return Unmanaged.passUnretained(event)
 
@@ -275,10 +261,12 @@ final class InputMonitor {
     }
 
     /// Active accept tap: only consumes the configured accept keys, so the focused application
-    /// never sees them when a suggestion is on screen. All other keys pass through unchanged.
-    /// This tap intentionally does not invoke `onEvent` — the observer tap is the single source
-    /// of classification, and it has already fired for this keystroke by the time we run.
-    private func handleAcceptTap(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
+    /// never sees them when a suggestion is accepted. All other keys pass through unchanged.
+    /// This tap owns acceptance because it can return `nil` for the exact key event that triggered
+    /// insertion. The listen-only observer cannot do that safely.
+    /// Handles the consuming tap callback. Internal so tests can verify that successful acceptance
+    /// returns `nil` for the original key while declined acceptance passes that key through.
+    func handleAcceptTap(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         switch type {
         case .tapDisabledByTimeout, .tapDisabledByUserInput:
             CotabbyLogger.app.warning("Accept tap was disabled by system, re-enabling")
@@ -317,15 +305,27 @@ final class InputMonitor {
                     return Unmanaged.passUnretained(event)
                 }
 
-                // Layer 2 — fail-open. The accept tap is only allowed to swallow when the
-                // coordinator confirms IN-THE-MOMENT that a ready, valid, visible session exists.
-                // Any stale install, lifecycle gap, or settings race causes the predicate to
-                // return false, the key falls through to the host, and the user never loses
-                // input. This is the "if Cotabby is unsure, pass through" rule.
+                // Layer 2 — fail-open preflight. A stale accept tap should never ask the
+                // coordinator to insert text. The coordinator still performs full AX/session
+                // validation below before this callback consumes the original key.
                 guard shouldConsumeAcceptKeyProvider() else {
                     let message = "Accept tap declining to consume keyCode=\(keyCode): "
-                        + "coordinator reports no ready session"
+                        + "coordinator reports no visible active session"
                     CotabbyLogger.app.debug("\(message)")
+                    return Unmanaged.passUnretained(event)
+                }
+
+                let kind: CapturedInputEvent.Kind = fullAcceptMatches ? .fullAcceptance : .acceptance
+                let capturedEvent = CapturedInputEvent(
+                    kind: kind,
+                    keyCode: keyCode,
+                    characters: event.unicodeString,
+                    flags: event.flags
+                )
+                guard onEvent?(capturedEvent) == true else {
+                    CotabbyLogger.app.debug(
+                        "Accept tap passed keyCode=\(keyCode) through because coordinator declined acceptance"
+                    )
                     return Unmanaged.passUnretained(event)
                 }
 
@@ -407,6 +407,14 @@ final class InputMonitor {
 }
 
 extension InputMonitor: SuggestionInputMonitoring {}
+
+private extension CapturedInputEvent.Kind {
+    /// Acceptance is the one event family that must be handled by the consuming tap, not the
+    /// listen-only observer. The observer can describe these keys, but it cannot stop them.
+    var isAcceptance: Bool {
+        self == .acceptance || self == .fullAcceptance
+    }
+}
 
 private extension CGEvent {
     var unicodeString: String {

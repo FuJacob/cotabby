@@ -35,10 +35,9 @@ protocol SuggestionInputMonitoring: AnyObject {
     var onEvent: ((CapturedInputEvent) -> Bool)? { get set }
     var onSuppressedSyntheticInput: (() -> Void)? { get set }
 
-    /// Fail-open authorization for the active accept tap. The tap only consumes a matching
-    /// keystroke when this closure returns `true` at event time. The coordinator wires it to a
-    /// live check (ready state + active session + visible overlay) so any lifecycle gap collapses
-    /// to "pass through" instead of swallowing the user's keystroke.
+    /// Fail-open preflight for the active accept tap. The tap only routes a matching key into the
+    /// coordinator when this closure returns `true` at event time. The coordinator still performs
+    /// full session validation before the tap consumes the original key.
     var shouldConsumeAcceptKeyProvider: @MainActor () -> Bool { get set }
 
     /// Drives the lifecycle of the active accept-key tap. The coordinator turns this on while
@@ -46,11 +45,6 @@ protocol SuggestionInputMonitoring: AnyObject {
     /// keystroke path during the brief windows it actually needs to consume the accept key.
     func setAcceptInterceptionActive(_ active: Bool)
 
-    /// Re-posts an accept key that the active tap already swallowed, used when the coordinator
-    /// decides at the last moment not to insert a suggestion (stale AX, invalidated session).
-    /// Without this, browsers like Gmail experience the keystroke as silently dropped — see the
-    /// "missed Tab" symptom investigated alongside #337.
-    func replayConsumedAcceptKey(keyCode: CGKeyCode, flags: CGEventFlags)
 }
 
 @MainActor

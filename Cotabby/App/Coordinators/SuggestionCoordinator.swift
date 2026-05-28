@@ -135,16 +135,13 @@ final class SuggestionCoordinator: ObservableObject {
             self?.handleSuppressedSyntheticInput()
         }
 
-        // Fail-open authorization for the active accept tap. The tap will only consume a
-        // keystroke when this predicate returns `true` at the moment the event arrives — i.e.,
-        // when the coordinator currently holds a ready, valid, visible suggestion session. Any
-        // lifecycle gap (tap left over after invalidate, stale settings race, etc.) collapses to
-        // "no" and the keystroke falls through to the host. Without this, the accept tap's
-        // matching predicate could swallow a keystroke based on stale state — exactly the
-        // "letter never reaches Chrome" report.
+        // Fail-open preflight for the active accept tap. The tap should only route a matching key
+        // into the coordinator while a visible overlay has a buffered session behind it. We
+        // deliberately do not require `.ready`: a background refresh can put `state` into
+        // `.debouncing` while the visible ghost text is still valid and accept-worthy. The
+        // acceptance path performs the expensive live AX/session validation before the tap consumes.
         inputMonitor.shouldConsumeAcceptKeyProvider = { [weak self] in
             guard let self else { return false }
-            guard case .ready = self.state else { return false }
             guard self.interactionState.activeSession != nil else { return false }
             guard self.overlayState.isVisible else { return false }
             return true
