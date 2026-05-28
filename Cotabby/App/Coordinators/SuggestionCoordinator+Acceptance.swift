@@ -31,7 +31,15 @@ extension SuggestionCoordinator {
             return passTabThrough(reason: snapshot.capability.summary)
         }
 
-        guard case .ready = state else {
+        // Gate on the live session, not on `state`. A background refresh (notably the visual-context
+        // path that calls `schedulePrediction` once OCR finishes) flips `state` to `.debouncing`
+        // while the previous suggestion is still buffered and its overlay is still on screen — and
+        // the accept tap is still installed because the overlay is visible. Gating on `.ready` here
+        // would `passTabThrough` for the keystroke the accept tap just consumed, swallowing the
+        // user's accept and letting the background regeneration replace the suggestion they were
+        // trying to take. `validateSessionForAcceptance` still rejects the accept if the session no
+        // longer reconciles with the live AX state.
+        guard interactionState.activeSession != nil else {
             return passTabThrough(reason: "Key passed through because no valid suggestion was ready.")
         }
 
