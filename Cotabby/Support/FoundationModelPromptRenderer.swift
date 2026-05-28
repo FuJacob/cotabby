@@ -16,36 +16,24 @@ enum FoundationModelPromptRenderer {
     /// them the right place to say "this is autocomplete, not chat."
     ///
     /// The framing is deliberately *text continuation*, not *assist the user*. Apple's system model
-    /// is chat-tuned, so any second-person/assistant framing ("complete the user's text", a stated
-    /// user name) pulls it toward greetings and replies ("Jacob, how are you", "Hope it's going
-    /// well"). We replace negative "don't chat" rules with a positive identity plus few-shot
-    /// examples, which steer the chat prior far more reliably than prohibitions.
+    /// is chat-tuned, so any second-person/assistant framing pulls it toward greetings and
+    /// replies. Apple's WWDC25 prompt-design guidance is to use a positive identity plus a small
+    /// number of demonstrations rather than a long list of prohibitions, so the rules here stay
+    /// short, positive, and concrete; the two few-shot examples below carry the rest of the
+    /// anti-drift signal.
     static func sessionInstructions(for request: SuggestionRequest) -> String {
         var lines = [
-            "You are a text-continuation engine. Output only the text that comes immediately after "
-                + "the existing text, as if the same person kept typing in the same field.",
-            "You are not a chatbot or assistant. Never greet, introduce yourself, address the reader, "
-                + "ask a question, or start a new message.",
-            "There is no request to fulfill — you only continue text. Never refuse, apologize, or say "
-                + "you cannot help; always produce a continuation of the existing text.",
-            "Do not open your output with a person's name or with words like \"Hi\", \"Hey\", "
-                + "\"Hello\", \"Hope\", \"Thanks\", or \"Dear\" unless the existing text already began "
-                + "that exact phrase and you are finishing it.",
-            "Continue the existing sentence or thought — extend it, never restart it.",
-            "Return exactly one continuation fragment.",
-            // Experiment: the explicit word-range cue (`request.completionLengthInstruction`) is
-            // omitted here too, matching the local-model path. Length is governed solely by the
-            // shared token budget (`maximumResponseTokens` ← `request.maxPredictionTokens`).
-            "Do not repeat or quote the existing text.",
-            "Match the existing tone, language, casing, and punctuation.",
-            "Use clipboard and screen context only when it directly helps the inline continuation.",
-            "Output plain text only: no labels, bullets, markdown, surrounding quotation marks, "
-                + "or explanation."
+            "You complete partially-typed text. The user is the author; you produce the next "
+                + "few words they would type, in their voice.",
+            "Output the continuation only: no greeting, no sign-off, no quotes, no markdown, "
+                + "no labels, no explanation.",
+            "Match the existing language, register, casing, and punctuation. Continue the "
+                + "current sentence or thought rather than restarting it.",
+            "Use clipboard or screen context only when it directly helps the next words."
         ]
 
-        // The declared-language hint refines the "match the existing language" base rule above — it
-        // never forces a language — so it sits right after that block where the instructions channel
-        // weights it heavily.
+        // The declared-language hint refines the "match the existing language" rule above. It sits
+        // right after the base block so the instructions channel weights it heavily.
         if let languageInstruction = request.languageInstruction, !languageInstruction.isEmpty {
             lines.append(languageInstruction)
         }
@@ -55,10 +43,11 @@ enum FoundationModelPromptRenderer {
         // you"). The llama backend still personalizes via `LlamaPromptRenderer`; Apple's model
         // does not get the name until we can scope it to contexts that actually need it.
 
-        // Few-shot examples are the strongest signal that the task is "keep typing", not "reply".
-        // They deliberately include openers that tempt a greeting (a name, "Hey", "Thanks") and show
-        // the model finishing the thought instead.
-        lines.append("Examples (quotes only mark the text boundaries — never output the quotes):")
+        // Two few-shot examples (down from five) carry the heavy anti-drift signal. The first
+        // proves "finish a salutation-adjacent sentence without restarting"; the second proves
+        // "code prefixes produce code, not prose." Both are also short, which matters because
+        // instructions land in Apple's 4096-token shared context and earn their tokens.
+        lines.append("Examples (quotes only mark the boundaries; never output the quotes):")
         lines.append(contentsOf: Self.continuationExampleLines)
 
         // Style rules live in the high-priority instructions channel like the base rules, but are
@@ -76,19 +65,12 @@ enum FoundationModelPromptRenderer {
         return lines.joined(separator: "\n")
     }
 
-    /// Demonstrations that lock the "continue, don't converse" behavior. Each pairs the text already
-    /// in the field with the bare continuation. Cases target the observed failure modes: re-greeting
-    /// when a name is present, adding pleasantries, and restarting the sentence. Kept single-line so
-    /// they don't fragment the newline-joined instructions block.
+    /// The minimal demonstration set that locks in "continue, do not converse." One prose pair
+    /// covers the salutation-restart failure mode the chat-tuned model is most prone to; one code
+    /// pair establishes that code prefixes get code continuations, not English prose.
     private static let continuationExampleLines: [String] = [
         "Existing text: \"I just wanted to follow up on the \"",
         "Continuation: proposal we discussed last week.",
-        "Existing text: \"Thanks Priya — I'll look over the \"",
-        "Continuation: draft and send notes tomorrow.",
-        "Existing text: \"Hi team,\n\nQuick update — we \"",
-        "Continuation: finished the migration ahead of schedule.",
-        "Existing text: \"lol yeah I totally \"",
-        "Continuation: forgot we had that meeting today.",
         "Existing text: \"def total(items): return \"",
         "Continuation: sum(item.price for item in items)"
     ]
