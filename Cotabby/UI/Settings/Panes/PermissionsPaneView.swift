@@ -6,6 +6,7 @@ import SwiftUI
 /// shortcut into the relevant System Settings pane when one of them is missing.
 struct PermissionsPaneView: View {
     @ObservedObject var permissionManager: PermissionManager
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         SettingsPaneScaffold(callout: callout) {
@@ -34,6 +35,13 @@ struct PermissionsPaneView: View {
             }
         }
         .onAppear { permissionManager.refresh() }
+        // Re-check on scene activation: .onAppear does not fire when returning from
+        // System Settings, so permission status would otherwise stay stale.
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .active {
+                permissionManager.refresh()
+            }
+        }
     }
 
     /// Top-of-pane callout when any required permission is still missing. The full picture stays
