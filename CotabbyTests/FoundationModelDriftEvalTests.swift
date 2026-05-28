@@ -267,8 +267,20 @@ final class FoundationModelDriftEvalTests: XCTestCase {
 
         let latenciesMs = outcomes.map { Int(($0.latency * 1000).rounded()) }.sorted()
         if !latenciesMs.isEmpty {
-            let p50 = latenciesMs[latenciesMs.count / 2]
-            let p95Index = min(latenciesMs.count - 1, Int(Double(latenciesMs.count) * 0.95))
+            // Median: for an even-length sample average the two middle values, otherwise pick the
+            // single middle. Reporting the upper-middle as "p50" would mask a small regression
+            // sitting right at the median.
+            let p50: Int
+            if latenciesMs.count.isMultiple(of: 2) {
+                let mid = latenciesMs.count / 2
+                p50 = (latenciesMs[mid - 1] + latenciesMs[mid]) / 2
+            } else {
+                p50 = latenciesMs[latenciesMs.count / 2]
+            }
+            // Nearest-rank: ceil(0.95 * n) gives the 1-indexed rank, so subtract 1 for the array
+            // index. Plain truncation overshoots for small per-category buckets.
+            let rank = Int((Double(latenciesMs.count) * 0.95).rounded(.up))
+            let p95Index = min(latenciesMs.count - 1, max(0, rank - 1))
             let p95 = latenciesMs[p95Index]
             lines.append("--- latency (ms) ---")
             lines.append("p50=\(p50), p95=\(p95), max=\(latenciesMs.last ?? 0)")
@@ -309,14 +321,14 @@ final class FoundationModelDriftEvalTests: XCTestCase {
     }
 
     /// Heuristic for "the token budget cut the model off mid-word". Empty strings are exempt
-    /// (counted under `empty`). A clean stop is final whitespace, sentence-ending punctuation,
-    /// or a closing bracket / paren that finishes a code fragment.
+    /// (counted under `empty`). A clean stop is sentence-ending punctuation or a closing bracket
+    /// / paren that finishes a code fragment. Trimming above strips any trailing whitespace, so a
+    /// whitespace check here would be dead code.
     private static func endsMidWord(_ text: String) -> Bool {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let last = trimmed.last else {
             return false
         }
-        if last.isWhitespace { return false }
         if last.isPunctuation { return false }
         if "})]>".contains(last) { return false }
         return true
