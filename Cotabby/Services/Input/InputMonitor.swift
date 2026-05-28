@@ -322,11 +322,18 @@ final class InputMonitor {
             return CapturedInputEvent(kind: .navigation, keyCode: keyCode, characters: characters, flags: flags)
         }
 
-        if [51, 117, 36, 76].contains(keyCode) {
+        // Backspace (51) and forward-delete (117) mutate field content. Return (36) and Keypad
+        // Enter (76) intentionally fall through to the dismissal block below alongside Escape.
+        // Enter often acts as navigation rather than text input (Find Bar next-match, single-line
+        // form submit, chat send), and even in multi-line fields the next character typed will
+        // schedule a fresh prediction anyway — regenerating on Enter itself just masks the user's
+        // post-Enter action with a stale overlay.
+        if [51, 117].contains(keyCode) {
             return CapturedInputEvent(kind: .textMutation, keyCode: keyCode, characters: characters, flags: flags)
         }
 
-        if keyCode == 53 {
+        // 53 = Escape, 36 = Return, 76 = Keypad Enter.
+        if [53, 36, 76].contains(keyCode) {
             return CapturedInputEvent(kind: .dismissal, keyCode: keyCode, characters: characters, flags: flags)
         }
 
