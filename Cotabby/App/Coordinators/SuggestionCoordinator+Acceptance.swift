@@ -10,25 +10,32 @@ extension SuggestionCoordinator {
     // MARK: - Acceptance and Session Reconciliation
 
     /// Accepts the next word of the current suggestion.
-    func acceptCurrentSuggestion() -> Bool {
-        acceptSuggestion(fullText: false, keyName: "Tab")
+    func acceptCurrentSuggestion(originalEvent: CapturedInputEvent? = nil) -> Bool {
+        acceptSuggestion(fullText: false, keyName: "Tab", originalEvent: originalEvent)
     }
 
     /// Accepts the entire remaining suggestion at once.
-    func acceptEntireSuggestion() -> Bool {
-        acceptSuggestion(fullText: true, keyName: "full-accept")
+    func acceptEntireSuggestion(originalEvent: CapturedInputEvent? = nil) -> Bool {
+        acceptSuggestion(fullText: true, keyName: "full-accept", originalEvent: originalEvent)
     }
 
     /// Shared acceptance path used by both word-by-word and full acceptance.
-    private func acceptSuggestion(fullText: Bool, keyName: String) -> Bool {
+    private func acceptSuggestion(
+        fullText: Bool,
+        keyName: String,
+        originalEvent: CapturedInputEvent?
+    ) -> Bool {
         let snapshot = focusModel.snapshot
 
         guard permissionManager.inputMonitoringGranted else {
-            return passTabThrough(reason: "Input Monitoring permission is required before Cotabby can accept suggestions.")
+            return passTabThrough(
+                reason: "Input Monitoring permission is required before Cotabby can accept suggestions.",
+                replay: originalEvent
+            )
         }
 
         guard case .supported = snapshot.capability, let rawContext = snapshot.context else {
-            return passTabThrough(reason: snapshot.capability.summary)
+            return passTabThrough(reason: snapshot.capability.summary, replay: originalEvent)
         }
 
         // Gate on the live session, not on `state`. A background refresh (notably the visual-context
@@ -40,7 +47,10 @@ extension SuggestionCoordinator {
         // trying to take. `validateSessionForAcceptance` still rejects the accept if the session no
         // longer reconciles with the live AX state.
         guard interactionState.activeSession != nil else {
-            return passTabThrough(reason: "Key passed through because no valid suggestion was ready.")
+            return passTabThrough(
+                reason: "Key passed through because no valid suggestion was ready.",
+                replay: originalEvent
+            )
         }
 
         let preparation = fullText
@@ -61,7 +71,7 @@ extension SuggestionCoordinator {
             acceptedChunk = preparedAcceptedChunk
 
         case let .invalid(reason):
-            return passTabThrough(reason: reason)
+            return passTabThrough(reason: reason, replay: originalEvent)
         }
 
         // Reconcile the word boundary against the *live* preceding text instead of trusting the
@@ -147,13 +157,23 @@ extension SuggestionCoordinator {
         }
     }
 
-    /// Returns control of `Tab` to the host app and clears stale suggestion UI.
-    func passTabThrough(reason: String) -> Bool {
+    /// Returns control of the accept key to the host app and clears stale suggestion UI.
+    ///
+    /// When `replay` is supplied (the original captured event from `handleInputEvent`), this
+    /// re-posts that key to the focused app *after* hiding the overlay — `hideOverlay` flips the
+    /// overlay state to `.hidden`, which tears down the active accept tap, so the replay reaches
+    /// the focused app without the tap re-consuming it. This is the only thing standing between
+    /// the user and a silently-swallowed Tab when the coordinator bails on acceptance after the
+    /// accept tap already consumed the keystroke (notably Gmail / browser AX races).
+    func passTabThrough(reason: String, replay: CapturedInputEvent? = nil) -> Bool {
         let generation = latestGenerationNumber
         cancelPredictionWork()
         clearSuggestion(clearDiagnostics: true)
         hideOverlay(reason: reason)
         state = .idle
+        if let replay {
+            inputMonitor.replayConsumedAcceptKey(keyCode: replay.keyCode, flags: replay.flags)
+        }
         logStage(
             "tab-passed-through",
             workID: currentWorkID,

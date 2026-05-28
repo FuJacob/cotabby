@@ -39,6 +39,12 @@ protocol SuggestionInputMonitoring: AnyObject {
     /// a suggestion overlay is visible and off otherwise, so Cotabby only sits in the synchronous
     /// keystroke path during the brief windows it actually needs to consume the accept key.
     func setAcceptInterceptionActive(_ active: Bool)
+
+    /// Re-posts an accept key that the active tap already swallowed, used when the coordinator
+    /// decides at the last moment not to insert a suggestion (stale AX, invalidated session).
+    /// Without this, browsers like Gmail experience the keystroke as silently dropped — see the
+    /// "missed Tab" symptom investigated alongside #337.
+    func replayConsumedAcceptKey(keyCode: CGKeyCode, flags: CGEventFlags)
 }
 
 @MainActor

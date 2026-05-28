@@ -100,6 +100,26 @@ final class InputMonitor {
         }
     }
 
+    /// Re-posts an accept key that was already swallowed by the active tap. The coordinator
+    /// only calls this from the bail paths in `acceptSuggestion` — by which point the overlay
+    /// has been hidden (so `destroyAcceptTap` already ran via the overlay state change) and the
+    /// synthetic event we post will reach the focused application unmodified. Suppression is
+    /// armed beforehand so our own observer tap recognizes the replay as Cotabby's own work
+    /// instead of treating it as a fresh user keystroke.
+    func replayConsumedAcceptKey(keyCode: CGKeyCode, flags: CGEventFlags) {
+        guard let keyDown = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: true),
+              let keyUp = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: false) else {
+            CotabbyLogger.app.warning("Failed to synthesize replay for consumed accept key \(keyCode)")
+            return
+        }
+        keyDown.flags = flags
+        keyUp.flags = flags
+        suppressionController.registerSyntheticInsertion(expectedKeyDownCount: 1)
+        keyDown.post(tap: .cghidEventTap)
+        keyUp.post(tap: .cghidEventTap)
+        CotabbyLogger.app.debug("Replayed consumed accept key \(keyCode) to the focused app")
+    }
+
     private func installObserverTapIfNeeded() {
         guard observerTap == nil else {
             return
