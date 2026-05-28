@@ -1,10 +1,11 @@
 import SwiftUI
 
 /// File overview:
-/// "General" detail pane of the redesigned Settings window. Owns the everyday on/off toggles, the
-/// ghost-text appearance controls, and the onboarding re-entry. Lifted intact from the legacy
-/// `SettingsView.generalSection` so behavior, bindings, and tooltip copy stay identical; only the
-/// scaffolding around the form is new.
+/// "General" detail pane of the redesigned Settings window. Groups settings into four visually
+/// separated `Section`s (`.formStyle(.grouped)` renders each as its own rounded card, which is
+/// the macOS-native equivalent of a divider): top-level on/off toggles, behavior tuning, display
+/// surface, and appearance. The `Display` picker label here matches the same name used by the
+/// menu-bar quick control so users can connect the two.
 struct GeneralPaneView: View {
     @ObservedObject var suggestionSettings: SuggestionSettingsModel
     let onShowWelcome: () -> Void
@@ -13,8 +14,35 @@ struct GeneralPaneView: View {
 
     var body: some View {
         SettingsPaneScaffold {
-            Section("General") {
+            Section {
                 Toggle("Enable Globally", isOn: globallyEnabledBinding)
+
+                // Fast Mode is the most user-facing performance lever, so it gets prime real
+                // estate at the top. The "(no screen context)" suffix tells the user concretely
+                // what gets skipped so they can decide whether they care.
+                Toggle("Fast Mode (no screen context)", isOn: fastModeEnabledBinding)
+            }
+
+            Section("Behavior") {
+                Toggle("Include Clipboard Context", isOn: clipboardContextEnabledBinding)
+
+                Toggle("Allow Multi-line Suggestions", isOn: multiLineEnabledBinding)
+
+                Toggle("Accept Punctuation With Word", isOn: autoAcceptTrailingPunctuationBinding)
+            }
+
+            Section("Display") {
+                Picker("Suggestion Display", selection: mirrorPreferenceBinding) {
+                    ForEach(MirrorPreference.allCases) { preference in
+                        Text(preference.displayLabel).tag(preference)
+                    }
+                }
+                .pickerStyle(.menu)
+                .help(
+                    "Auto uses inline ghost text when the focused field exposes a reliable cursor " +
+                    "position, and switches to a popup card when it doesn't (some Electron and web " +
+                    "editors). Choose Inline or Popup to pin one style for every app."
+                )
 
                 Toggle("Show Indicator", isOn: showIndicatorBinding)
 
@@ -32,27 +60,9 @@ struct GeneralPaneView: View {
                         Text("Key Hint")
                     }
                 }
+            }
 
-                Picker("Suggestion Display", selection: mirrorPreferenceBinding) {
-                    ForEach(MirrorPreference.allCases) { preference in
-                        Text(preference.displayLabel).tag(preference)
-                    }
-                }
-                .pickerStyle(.menu)
-                .help(
-                    "Auto uses inline ghost text when the focused field exposes a reliable cursor " +
-                    "position, and switches to a popup card when it doesn't (some Electron and web " +
-                    "editors). Choose Inline or Popup to pin one style for every app."
-                )
-
-                Toggle("Allow Multi-line Suggestions", isOn: multiLineEnabledBinding)
-
-                Toggle("Accept Punctuation With Word", isOn: autoAcceptTrailingPunctuationBinding)
-
-                Toggle("Include Clipboard Context", isOn: clipboardContextEnabledBinding)
-
-                Toggle("Fast Mode", isOn: fastModeEnabledBinding)
-
+            Section("Appearance") {
                 LabeledContent("Ghost Text Color") {
                     HStack(spacing: 8) {
                         ForEach(GhostTextColorPreset.all) { preset in
@@ -78,7 +88,9 @@ struct GeneralPaneView: View {
                             .frame(width: 42, alignment: .trailing)
                     }
                 }
+            }
 
+            Section {
                 LabeledContent("Onboarding") {
                     Button("Open Welcome Guide") {
                         onShowWelcome()
