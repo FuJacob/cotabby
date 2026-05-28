@@ -91,7 +91,7 @@ final class LlamaPromptRendererTests: XCTestCase {
             userName: nil
         )
 
-        XCTAssertTrue(prompt.contains("App: Slack"))
+        XCTAssertTrue(prompt.contains("User is on Slack."))
         XCTAssertTrue(prompt.contains("My prefix text here"))
     }
 

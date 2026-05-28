@@ -57,7 +57,7 @@ enum LlamaPromptRenderer {
 
         sections.append("")
         sections.append("Screen context:")
-        sections.append("App: \(applicationName)")
+        sections.append("User is on \(applicationName).")
         if let summary = visualContextSummary, !summary.isEmpty {
             sections.append("Screen content:")
             sections.append(summary)
