@@ -189,6 +189,89 @@ final class SuggestionSessionReconcilerTests: XCTestCase {
         )
     }
 
+    func test_insertionChunk_addsBoundarySpaceWhenChunkAndFieldWouldGlue() {
+        // The reported "no space" regression: the chunk has no leading whitespace (model omitted it,
+        // or the normalizer stripped it against a stale prefix snapshot) and the field doesn't have
+        // a trailing one either, so we synthesize the word boundary at insert time.
+        XCTAssertEqual(
+            SuggestionSessionReconciler.insertionChunk(forAcceptedChunk: "World", precedingText: "Hello"),
+            " World"
+        )
+    }
+
+    func test_insertionChunk_addsBoundarySpaceForLowercaseNewWord() {
+        // Lowercase new words are the harder half of the model-omission case; the heuristic still
+        // fires because both boundary characters are word characters.
+        XCTAssertEqual(
+            SuggestionSessionReconciler.insertionChunk(forAcceptedChunk: "world", precedingText: "the"),
+            " world"
+        )
+    }
+
+    func test_insertionChunk_addsBoundarySpaceAcrossDigitWordBoundary() {
+        // A digit followed by a letter (or letter followed by digit) is still a word/word boundary
+        // that the user expects to read as two tokens.
+        XCTAssertEqual(
+            SuggestionSessionReconciler.insertionChunk(forAcceptedChunk: "abc", precedingText: "123"),
+            " abc"
+        )
+        XCTAssertEqual(
+            SuggestionSessionReconciler.insertionChunk(forAcceptedChunk: "1st", precedingText: "Hello"),
+            " 1st"
+        )
+    }
+
+    func test_insertionChunk_doesNotAddBoundarySpaceWhenChunkStartsWithPunctuation() {
+        // Punctuation-leading chunks ("." closes a sentence, "'s" is a possessive, "," is a list
+        // continuation) intentionally attach to the prior word without a separator.
+        XCTAssertEqual(
+            SuggestionSessionReconciler.insertionChunk(forAcceptedChunk: ".", precedingText: "Hello"),
+            "."
+        )
+        XCTAssertEqual(
+            SuggestionSessionReconciler.insertionChunk(forAcceptedChunk: "'s", precedingText: "John"),
+            "'s"
+        )
+        XCTAssertEqual(
+            SuggestionSessionReconciler.insertionChunk(forAcceptedChunk: ", more", precedingText: "first"),
+            ", more"
+        )
+    }
+
+    func test_insertionChunk_doesNotAddBoundarySpaceAfterPunctuation() {
+        // Opening punctuation in the prefix means the chunk should hug it, not be separated from it.
+        XCTAssertEqual(
+            SuggestionSessionReconciler.insertionChunk(forAcceptedChunk: "World", precedingText: "Hello ("),
+            "World"
+        )
+    }
+
+    func test_insertionChunk_doesNotAddBoundarySpaceAfterNewline() {
+        // A line break is a hard boundary on its own; we should not synthesize an indent space here.
+        XCTAssertEqual(
+            SuggestionSessionReconciler.insertionChunk(forAcceptedChunk: "World", precedingText: "line\n"),
+            "World"
+        )
+    }
+
+    func test_insertionChunk_doesNotAddBoundarySpaceWhenPrecedingTextIsEmpty() {
+        // At the very start of an empty field there is no last word to glue onto.
+        XCTAssertEqual(
+            SuggestionSessionReconciler.insertionChunk(forAcceptedChunk: "World", precedingText: ""),
+            "World"
+        )
+    }
+
+    func test_insertionChunk_dropsLeadingHorizontalWhitespaceButNotLeadingNewline() {
+        // The drop predicate must mirror the guard's horizontal-whitespace definition, so a chunk
+        // whose first character is a newline survives even when the field ends in a space — keeping
+        // the structural line break the suggestion was authored with.
+        XCTAssertEqual(
+            SuggestionSessionReconciler.insertionChunk(forAcceptedChunk: "\nnext", precedingText: "first "),
+            "\nnext"
+        )
+    }
+
     func test_acceptedWordCount_countsOnlyTokensWithAlphanumerics() {
         let count = SuggestionSessionReconciler.acceptedWordCount(
             in: "hello, !!! world 123 --"
