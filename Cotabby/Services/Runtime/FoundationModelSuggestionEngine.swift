@@ -10,13 +10,14 @@ import FoundationModels
 /// `SuggestionGenerating` capability. The coordinator should not care whether suggestions come
 /// from llama.cpp or Apple Intelligence; that backend choice belongs in app composition.
 ///
-/// The engine keeps one `LanguageModelSession` alive across requests when the underlying
-/// instructions text is unchanged. Apple's framework caches the tokenization of the instructions
-/// channel as a prefix, so reusing the session is the supported way to skip re-tokenizing the
-/// (long) system rules on every keystroke. The cache is keyed on the rendered instructions string
-/// rather than on `SuggestionRequest` identity because everything that varies inside the request
-/// (prefix text, visual/clipboard context, generation number) belongs to the *prompt* channel,
-/// not the *instructions* channel, and therefore does not invalidate the cached session.
+/// The engine caches a pristine `LanguageModelSession` so the focus-time `prewarm(for:)` call can
+/// hand the same prewarmed session to the first user-typed request. Reuse is bounded: once a
+/// session has actually serviced a `respond` (its transcript has grown past the pristine count)
+/// or is mid-stream (`isResponding == true`), the next request builds a fresh session instead.
+/// This keeps the prewarm latency win on the first keystroke after focus without inheriting
+/// Apple's two single-flight failure modes — `concurrentRequests` from overlapping streams on the
+/// same session, and `exceededContextWindowSize` from transcript entries piling up over many
+/// keystrokes in the same field. See `ensureSession` for the reuse predicate.
 ///
 /// `prewarm(for:)` is the supported hook for "the user just focused an editable field; a real
 /// request is likely within a second." The coordinator calls it from the focus path; the engine
@@ -153,10 +154,29 @@ final class FoundationModelSuggestionEngine {
         cachedSession = nil
     }
 
-    /// Returns the cached session if its instructions match the rendered ones, otherwise builds a
-    /// new session and replaces the cache. Keying on rendered instructions (rather than the
-    /// untransformed settings fields they came from) keeps this correct if the renderer
-    /// composition rules change later.
+    /// Returns the cached session when it is safe to reuse, otherwise builds a fresh session
+    /// and replaces the cache. The cache key (rendered instructions) keeps this correct if the
+    /// renderer composition rules change later.
+    ///
+    /// Reuse is gated on three conditions that together avoid two Apple-surfaced failures the
+    /// previous unconditional-reuse design was vulnerable to:
+    ///
+    /// - `cached.instructions == instructions`: the cached session was built with this exact
+    ///   instruction string. Any settings edit (custom rules, language override) that re-renders
+    ///   instructions forces a rebuild.
+    /// - `!cached.session.isResponding`: Apple's `LanguageModelSession` rejects a second concurrent
+    ///   `respond` / `streamResponse` with `.concurrentRequests`. Swift task cancellation is
+    ///   cooperative, so the coordinator's `cancelPredictionWork()` + `schedulePrediction()` pair
+    ///   can leave the previous stream still draining inside Apple's runtime when the next request
+    ///   arrives. Falling through to a fresh session keeps that case from surfacing as a
+    ///   user-visible `generationFailed` error.
+    /// - `cached.session.transcript.count == cached.pristineTranscriptCount`: a successful (or even
+    ///   cancelled) `respond` appends the prompt and response to the session's transcript. Reusing
+    ///   the session indefinitely accumulates entries that all replay through the 4096-token
+    ///   shared context, which Apple eventually surfaces as `.exceededContextWindowSize`. Bounded
+    ///   reuse keeps the prewarm benefit on the first keystroke after focus — the session is
+    ///   built and prewarmed on focus change, then consumed once — and any further keystroke in
+    ///   the same field starts from a fresh session, matching the pre-PR single-turn behavior.
     ///
     /// The cache key intentionally omits `model` identity. `availabilityService` owns the singleton
     /// `SystemLanguageModel` and only swaps it on app restart, never mid-session — so a cached
@@ -167,12 +187,19 @@ final class FoundationModelSuggestionEngine {
         model: SystemLanguageModel
     ) -> LanguageModelSession {
         let instructions = FoundationModelPromptRenderer.sessionInstructions(for: request)
-        if let cached = cachedSession, cached.instructions == instructions {
+        if let cached = cachedSession,
+           cached.instructions == instructions,
+           !cached.session.isResponding,
+           cached.session.transcript.count == cached.pristineTranscriptCount {
             return cached.session
         }
 
         let session = LanguageModelSession(model: model, instructions: instructions)
-        cachedSession = CachedSession(instructions: instructions, session: session)
+        cachedSession = CachedSession(
+            instructions: instructions,
+            session: session,
+            pristineTranscriptCount: session.transcript.count
+        )
         return session
     }
 
@@ -229,6 +256,10 @@ final class FoundationModelSuggestionEngine {
     private struct CachedSession {
         let instructions: String
         let session: LanguageModelSession
+        /// Snapshot of `session.transcript.count` immediately after construction (and after any
+        /// `prewarm()`, which does not modify the transcript). A respond call appends entries,
+        /// so a count divergence is the cue that this session is no longer single-turn safe.
+        let pristineTranscriptCount: Int
     }
 }
 
