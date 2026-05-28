@@ -22,6 +22,15 @@ import FoundationModels
 /// request is likely within a second." The coordinator calls it from the focus path; the engine
 /// builds (or reuses) the session and calls Apple's `LanguageModelSession.prewarm()` so weight
 /// loading and instruction tokenization happen before the first user-visible respond call.
+///
+/// Generation itself goes through `session.streamResponse` rather than `session.respond`. Apple's
+/// stream yields cumulative partials, so the loop captures the latest snapshot and exits with it
+/// as the final raw text. The win is responsiveness to cancellation: `Task.checkCancellation()`
+/// inside the loop lets the coordinator interrupt mid-decode when the user types past the
+/// in-flight suggestion, where `respond` would otherwise have to run to completion. The external
+/// `SuggestionResult` shape is unchanged, so the rest of the pipeline (overlay, presenter,
+/// active-session reconciliation) stays as-is — pushing partials all the way to the overlay is a
+/// separate, larger change scoped to a follow-up.
 #if canImport(FoundationModels)
 @available(macOS 26.0, *)
 @MainActor
@@ -59,13 +68,19 @@ final class FoundationModelSuggestionEngine {
             }
 
             let session = ensureSession(for: request, model: model)
-            let response = try await session.respond(
+            let stream = session.streamResponse(
                 to: prompt,
                 options: generationOptions(for: request)
             )
+            // Apple's stream yields cumulative `Snapshot` values whose `.content` carries the
+            // text generated so far. Capturing each snapshot (and re-checking cancellation around
+            // it) is what lets us bail out mid-decode without waiting for the full completion.
+            var rawSuggestion = ""
+            for try await partial in stream {
+                try Task.checkCancellation()
+                rawSuggestion = partial.content
+            }
             try Task.checkCancellation()
-
-            let rawSuggestion = response.content
             let normalizedSuggestion = SuggestionTextNormalizer.normalize(
                 rawSuggestion,
                 for: request,
