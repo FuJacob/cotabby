@@ -45,6 +45,9 @@ struct SettingsContainerView: View {
             selection = SettingsCategory(rawValue: storedCategoryRawValue) ?? .general
             launchAtLoginService.refresh()
             permissionManager.refresh()
+            // Set the title unconditionally on open: when the restored selection equals the
+            // initial @State value, `.onChange` does not fire and the title would stay blank.
+            syncWindowTitle(for: selection)
         }
         .onChange(of: selection) { _, newValue in
             storedCategoryRawValue = newValue.rawValue
@@ -73,8 +76,11 @@ struct SettingsContainerView: View {
     /// pane; this preserves that convention without rendering a duplicate large title inside the
     /// content.
     private func syncWindowTitle(for category: SettingsCategory) {
+        // Capture the key window now: between the tap and the async block running, a popover or
+        // alert could become key and we would retitle the wrong window.
+        let window = NSApp.keyWindow
         DispatchQueue.main.async {
-            NSApp.keyWindow?.title = "Settings — \(category.label)"
+            window?.title = "Settings — \(category.label)"
         }
     }
 }
