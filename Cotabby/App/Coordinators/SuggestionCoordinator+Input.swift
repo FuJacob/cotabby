@@ -198,12 +198,20 @@ extension SuggestionCoordinator {
     /// still collapse cleanly.
     private func schedulePredictionAfterHostPublishDelay() {
         let baseline = focusModel.snapshot.context
-        pollForHostPublish(
-            baselineText: baseline?.precedingText,
-            baselineElementID: baseline?.elementIdentifier,
-            baselineSelectionLocation: baseline?.selection.location,
-            elapsedMs: 0
-        )
+        // Defer the first poll to the next run-loop tick so we don't run a synchronous AX walk
+        // inside whatever path delivered the keystroke — historically that walk could take
+        // 200–500ms on Chrome contenteditable / Console / Xcode, and any code path that ran the
+        // active accept tap callback on the main run loop would stall behind it. The active tap
+        // now lives on a background thread, but the same delay still hurts perceived typing
+        // latency, so defer regardless.
+        DispatchQueue.main.async { [weak self] in
+            self?.pollForHostPublish(
+                baselineText: baseline?.precedingText,
+                baselineElementID: baseline?.elementIdentifier,
+                baselineSelectionLocation: baseline?.selection.location,
+                elapsedMs: 0
+            )
+        }
     }
 
     /// Drives the snapshot-changed gate. Reads the live focus snapshot, fires `schedulePrediction`

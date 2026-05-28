@@ -13,7 +13,7 @@ import Foundation
 /// We don't reuse `CGEventFlags` directly because it carries unrelated bits — caps lock,
 /// numeric pad, secondary fn, device-specific flags — that we don't want to participate in
 /// shortcut equality. Reducing to a 4-bit mask gives unambiguous storage and comparison.
-struct ShortcutModifierMask: OptionSet, Hashable {
+struct ShortcutModifierMask: OptionSet, Hashable, Sendable {
     let rawValue: UInt32
 
     init(rawValue: UInt32) {
