@@ -303,12 +303,20 @@ extension WelcomeView {
                     title: "Accept Word",
                     keyLabel: suggestionSettings.acceptanceKeyLabel,
                     isRecording: $isRecordingOnboardingKeybind,
-                    onKeyRecorded: { keyCode, label in
-                        suggestionSettings.setAcceptanceKey(keyCode: keyCode, label: label)
+                    onKeyRecorded: { keyCode, modifiers, label in
+                        suggestionSettings.setAcceptanceKey(
+                            keyCode: keyCode,
+                            modifiers: modifiers,
+                            label: label
+                        )
                     },
-                    onReset: suggestionSettings.acceptanceKeyCode != SuggestionSettingsModel.defaultAcceptanceKeyCode ? {
+                    onReset: (
+                        suggestionSettings.acceptanceKeyCode != SuggestionSettingsModel.defaultAcceptanceKeyCode
+                            || !suggestionSettings.acceptanceKeyModifiers.isEmpty
+                    ) ? {
                         suggestionSettings.setAcceptanceKey(
                             keyCode: SuggestionSettingsModel.defaultAcceptanceKeyCode,
+                            modifiers: [],
                             label: SuggestionSettingsModel.defaultAcceptanceKeyLabel
                         )
                     } : nil
@@ -318,12 +326,20 @@ extension WelcomeView {
                     title: "Accept Entire Suggestion",
                     keyLabel: suggestionSettings.fullAcceptanceKeyLabel,
                     isRecording: $isRecordingOnboardingFullAcceptKeybind,
-                    onKeyRecorded: { keyCode, label in
-                        suggestionSettings.setFullAcceptanceKey(keyCode: keyCode, label: label)
+                    onKeyRecorded: { keyCode, modifiers, label in
+                        suggestionSettings.setFullAcceptanceKey(
+                            keyCode: keyCode,
+                            modifiers: modifiers,
+                            label: label
+                        )
                     },
-                    onReset: suggestionSettings.fullAcceptanceKeyCode != SuggestionSettingsModel.defaultFullAcceptanceKeyCode ? {
+                    onReset: (
+                        suggestionSettings.fullAcceptanceKeyCode != SuggestionSettingsModel.defaultFullAcceptanceKeyCode
+                            || !suggestionSettings.fullAcceptanceKeyModifiers.isEmpty
+                    ) ? {
                         suggestionSettings.setFullAcceptanceKey(
                             keyCode: SuggestionSettingsModel.defaultFullAcceptanceKeyCode,
+                            modifiers: [],
                             label: SuggestionSettingsModel.defaultFullAcceptanceKeyLabel
                         )
                     } : nil
@@ -344,7 +360,7 @@ extension WelcomeView {
         title: String,
         keyLabel: String,
         isRecording: Binding<Bool>,
-        onKeyRecorded: @escaping (CGKeyCode, String) -> Void,
+        onKeyRecorded: @escaping (CGKeyCode, ShortcutModifierMask, String) -> Void,
         onReset: (() -> Void)? = nil
     ) -> some View {
         VStack(spacing: 6) {
@@ -364,8 +380,8 @@ extension WelcomeView {
 
                 if isRecording.wrappedValue {
                     KeyRecorderView(
-                        onKeyRecorded: { keyCode, label in
-                            onKeyRecorded(keyCode, label)
+                        onKeyRecorded: { keyCode, modifiers, label in
+                            onKeyRecorded(keyCode, modifiers, label)
                             isRecording.wrappedValue = false
                         },
                         onCancelled: {

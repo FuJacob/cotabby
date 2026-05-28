@@ -36,8 +36,10 @@ final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var isMultiLineEnabled: Bool
     @Published private(set) var autoAcceptTrailingPunctuation: Bool
     @Published private(set) var acceptanceKeyCode: CGKeyCode
+    @Published private(set) var acceptanceKeyModifiers: ShortcutModifierMask
     @Published private(set) var acceptanceKeyLabel: String
     @Published private(set) var fullAcceptanceKeyCode: CGKeyCode
+    @Published private(set) var fullAcceptanceKeyModifiers: ShortcutModifierMask
     @Published private(set) var fullAcceptanceKeyLabel: String
     private let userDefaults: UserDefaults
 
@@ -63,8 +65,10 @@ final class SuggestionSettingsModel: ObservableObject {
     private static let multiLineEnabledDefaultsKey = "cotabbyMultiLineEnabled"
     private static let autoAcceptTrailingPunctuationDefaultsKey = "cotabbyAutoAcceptTrailingPunctuation"
     private static let acceptanceKeyCodeDefaultsKey = "cotabbyAcceptanceKeyCode"
+    private static let acceptanceKeyModifiersDefaultsKey = "cotabbyAcceptanceKeyModifiers"
     private static let acceptanceKeyLabelDefaultsKey = "cotabbyAcceptanceKeyLabel"
     private static let fullAcceptanceKeyCodeDefaultsKey = "cotabbyFullAcceptanceKeyCode"
+    private static let fullAcceptanceKeyModifiersDefaultsKey = "cotabbyFullAcceptanceKeyModifiers"
     private static let fullAcceptanceKeyLabelDefaultsKey = "cotabbyFullAcceptanceKeyLabel"
 
     static let defaultAcceptanceKeyCode: CGKeyCode = 48
@@ -175,12 +179,20 @@ final class SuggestionSettingsModel: ObservableObject {
             userDefaults.object(forKey: Self.acceptanceKeyCodeDefaultsKey) as? Int
                 ?? Int(Self.defaultAcceptanceKeyCode)
         )
+        // Absence means a pre-modifier-support install: default to no modifiers so the user's
+        // existing bare-key binding keeps working exactly as it did before this feature.
+        let resolvedAcceptanceKeyModifiers = ShortcutModifierMask(
+            rawValue: UInt32(userDefaults.object(forKey: Self.acceptanceKeyModifiersDefaultsKey) as? Int ?? 0)
+        )
         let resolvedAcceptanceKeyLabel = userDefaults.string(forKey: Self.acceptanceKeyLabelDefaultsKey)
             ?? Self.defaultAcceptanceKeyLabel
 
         let resolvedFullAcceptanceKeyCode = CGKeyCode(
             userDefaults.object(forKey: Self.fullAcceptanceKeyCodeDefaultsKey) as? Int
                 ?? Int(Self.defaultFullAcceptanceKeyCode)
+        )
+        let resolvedFullAcceptanceKeyModifiers = ShortcutModifierMask(
+            rawValue: UInt32(userDefaults.object(forKey: Self.fullAcceptanceKeyModifiersDefaultsKey) as? Int ?? 0)
         )
         let resolvedFullAcceptanceKeyLabel = userDefaults.string(forKey: Self.fullAcceptanceKeyLabelDefaultsKey)
             ?? Self.defaultFullAcceptanceKeyLabel
@@ -204,8 +216,10 @@ final class SuggestionSettingsModel: ObservableObject {
         isMultiLineEnabled = resolvedMultiLineEnabled
         autoAcceptTrailingPunctuation = resolvedAutoAcceptTrailingPunctuation
         acceptanceKeyCode = resolvedAcceptanceKeyCode
+        acceptanceKeyModifiers = resolvedAcceptanceKeyModifiers
         acceptanceKeyLabel = resolvedAcceptanceKeyLabel
         fullAcceptanceKeyCode = resolvedFullAcceptanceKeyCode
+        fullAcceptanceKeyModifiers = resolvedFullAcceptanceKeyModifiers
         fullAcceptanceKeyLabel = resolvedFullAcceptanceKeyLabel
 
         userDefaults.set(resolvedGloballyEnabled, forKey: Self.isGloballyEnabledDefaultsKey)
@@ -226,8 +240,13 @@ final class SuggestionSettingsModel: ObservableObject {
         userDefaults.set(resolvedMultiLineEnabled, forKey: Self.multiLineEnabledDefaultsKey)
         userDefaults.set(resolvedAutoAcceptTrailingPunctuation, forKey: Self.autoAcceptTrailingPunctuationDefaultsKey)
         userDefaults.set(Int(resolvedAcceptanceKeyCode), forKey: Self.acceptanceKeyCodeDefaultsKey)
+        userDefaults.set(Int(resolvedAcceptanceKeyModifiers.rawValue), forKey: Self.acceptanceKeyModifiersDefaultsKey)
         userDefaults.set(resolvedAcceptanceKeyLabel, forKey: Self.acceptanceKeyLabelDefaultsKey)
         userDefaults.set(Int(resolvedFullAcceptanceKeyCode), forKey: Self.fullAcceptanceKeyCodeDefaultsKey)
+        userDefaults.set(
+            Int(resolvedFullAcceptanceKeyModifiers.rawValue),
+            forKey: Self.fullAcceptanceKeyModifiersDefaultsKey
+        )
         userDefaults.set(resolvedFullAcceptanceKeyLabel, forKey: Self.fullAcceptanceKeyLabelDefaultsKey)
     }
 
@@ -562,44 +581,62 @@ final class SuggestionSettingsModel: ObservableObject {
         setLanguages(LanguageCatalog.defaultLanguages)
     }
 
-    func setAcceptanceKey(keyCode: CGKeyCode, label: String) {
-        guard acceptanceKeyCode != keyCode || acceptanceKeyLabel != label else {
+    func setAcceptanceKey(keyCode: CGKeyCode, modifiers: ShortcutModifierMask, label: String) {
+        let normalizedModifiers = keyCode == Self.disabledKeyCode ? [] : modifiers
+        guard acceptanceKeyCode != keyCode
+            || acceptanceKeyModifiers != normalizedModifiers
+            || acceptanceKeyLabel != label
+        else {
             return
         }
 
-        // Clear the other keybind if it would conflict.
-        if keyCode != Self.disabledKeyCode, keyCode == fullAcceptanceKeyCode {
+        // Two bindings on the same `(keyCode, modifiers)` would both fire on the same press,
+        // so clear the other side to keep classification unambiguous. We only treat it as a
+        // conflict when both the key and the modifier set match — `Tab` and `⇧Tab` are now
+        // distinct bindings and may coexist.
+        if keyCode != Self.disabledKeyCode,
+           keyCode == fullAcceptanceKeyCode,
+           normalizedModifiers == fullAcceptanceKeyModifiers {
             clearFullAcceptanceKey()
         }
 
         acceptanceKeyCode = keyCode
+        acceptanceKeyModifiers = normalizedModifiers
         acceptanceKeyLabel = label
         userDefaults.set(Int(keyCode), forKey: Self.acceptanceKeyCodeDefaultsKey)
+        userDefaults.set(Int(normalizedModifiers.rawValue), forKey: Self.acceptanceKeyModifiersDefaultsKey)
         userDefaults.set(label, forKey: Self.acceptanceKeyLabelDefaultsKey)
     }
 
     func clearAcceptanceKey() {
-        setAcceptanceKey(keyCode: Self.disabledKeyCode, label: Self.disabledKeyLabel)
+        setAcceptanceKey(keyCode: Self.disabledKeyCode, modifiers: [], label: Self.disabledKeyLabel)
     }
 
-    func setFullAcceptanceKey(keyCode: CGKeyCode, label: String) {
-        guard fullAcceptanceKeyCode != keyCode || fullAcceptanceKeyLabel != label else {
+    func setFullAcceptanceKey(keyCode: CGKeyCode, modifiers: ShortcutModifierMask, label: String) {
+        let normalizedModifiers = keyCode == Self.disabledKeyCode ? [] : modifiers
+        guard fullAcceptanceKeyCode != keyCode
+            || fullAcceptanceKeyModifiers != normalizedModifiers
+            || fullAcceptanceKeyLabel != label
+        else {
             return
         }
 
-        // Clear the other keybind if it would conflict.
-        if keyCode != Self.disabledKeyCode, keyCode == acceptanceKeyCode {
+        if keyCode != Self.disabledKeyCode,
+           keyCode == acceptanceKeyCode,
+           normalizedModifiers == acceptanceKeyModifiers {
             clearAcceptanceKey()
         }
 
         fullAcceptanceKeyCode = keyCode
+        fullAcceptanceKeyModifiers = normalizedModifiers
         fullAcceptanceKeyLabel = label
         userDefaults.set(Int(keyCode), forKey: Self.fullAcceptanceKeyCodeDefaultsKey)
+        userDefaults.set(Int(normalizedModifiers.rawValue), forKey: Self.fullAcceptanceKeyModifiersDefaultsKey)
         userDefaults.set(label, forKey: Self.fullAcceptanceKeyLabelDefaultsKey)
     }
 
     func clearFullAcceptanceKey() {
-        setFullAcceptanceKey(keyCode: Self.disabledKeyCode, label: Self.disabledKeyLabel)
+        setFullAcceptanceKey(keyCode: Self.disabledKeyCode, modifiers: [], label: Self.disabledKeyLabel)
     }
 
     private func persistSelectedEngine(_ engine: SuggestionEngineKind) {

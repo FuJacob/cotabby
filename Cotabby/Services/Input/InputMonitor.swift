@@ -28,8 +28,14 @@ final class InputMonitor {
     /// Combine delivery lag between settings changes and the event classifier.
     var acceptanceKeyCodeProvider: @MainActor () -> CGKeyCode = { 48 }
 
+    /// Modifier mask required alongside the word-accept key code. Empty means the bare key.
+    var acceptanceKeyModifiersProvider: @MainActor () -> ShortcutModifierMask = { [] }
+
     /// Reads the current full-accept key code from the model at event time.
     var fullAcceptanceKeyCodeProvider: @MainActor () -> CGKeyCode = { CGKeyCode(UInt16.max) }
+
+    /// Modifier mask required alongside the full-accept key code. Empty means the bare key.
+    var fullAcceptanceKeyModifiersProvider: @MainActor () -> ShortcutModifierMask = { [] }
 
     /// When false, the observer passes keystrokes through without classifying or notifying the
     /// coordinator. This eliminates per-keystroke overhead in apps where Cotabby will never act
@@ -261,13 +267,16 @@ final class InputMonitor {
             }
 
             let keyCode = CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode))
-            let flags = event.flags
-            let noModifiers = flags.isDisjoint(with: [.maskCommand, .maskControl, .maskAlternate, .maskShift])
-            guard noModifiers else {
-                return Unmanaged.passUnretained(event)
-            }
+            // Normalize to just the four bits we honor — caps lock, fn, numeric pad, and device
+            // flags must not influence shortcut equality.
+            let eventModifiers = ShortcutModifierMask(eventFlags: event.flags)
 
-            if keyCode == fullAcceptanceKeyCodeProvider() || keyCode == acceptanceKeyCodeProvider() {
+            let fullAcceptMatches = keyCode == fullAcceptanceKeyCodeProvider()
+                && eventModifiers == fullAcceptanceKeyModifiersProvider()
+            let acceptMatches = keyCode == acceptanceKeyCodeProvider()
+                && eventModifiers == acceptanceKeyModifiersProvider()
+
+            if fullAcceptMatches || acceptMatches {
                 return nil
             }
             return Unmanaged.passUnretained(event)
@@ -283,19 +292,27 @@ final class InputMonitor {
         let flags = event.flags
         let characters = event.unicodeString
 
-        let noModifiers = flags.isDisjoint(with: [.maskCommand, .maskControl, .maskAlternate, .maskShift])
+        // Normalize to just the four bits we care about — `CGEventFlags` also carries caps lock,
+        // numeric pad, secondary fn, and device flags that must not influence shortcut equality.
+        let eventModifiers = ShortcutModifierMask(eventFlags: flags)
 
-        // Read key codes from the model at event time so changes are always current.
+        // Read shortcut state from the model at event time so changes are always current.
         let fullAcceptKey = fullAcceptanceKeyCodeProvider()
+        let fullAcceptModifiers = fullAcceptanceKeyModifiersProvider()
         let acceptKey = acceptanceKeyCodeProvider()
+        let acceptModifiers = acceptanceKeyModifiersProvider()
 
         // Full-suggestion acceptance takes priority so pressing the full-accept key
         // doesn't silently fall through to word-accept when both are assigned.
-        if keyCode == fullAcceptKey, noModifiers {
+        // The acceptance checks run before the Command-key branch below so a binding like
+        // `⌘Tab` is classified as acceptance instead of being eaten by the shortcutMutation
+        // path. The bound modifier set must match the masked event modifiers exactly, so
+        // `Tab` and `⇧Tab` are distinct bindings and neither one triggers the other.
+        if keyCode == fullAcceptKey, eventModifiers == fullAcceptModifiers {
             return CapturedInputEvent(kind: .fullAcceptance, keyCode: keyCode, characters: characters, flags: flags)
         }
 
-        if keyCode == acceptKey, noModifiers {
+        if keyCode == acceptKey, eventModifiers == acceptModifiers {
             return CapturedInputEvent(kind: .acceptance, keyCode: keyCode, characters: characters, flags: flags)
         }
 

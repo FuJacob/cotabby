@@ -49,7 +49,9 @@ final class CotabbyAppEnvironment {
             suppressionController: suppressionController
         )
         inputMonitor.acceptanceKeyCodeProvider = { suggestionSettings.acceptanceKeyCode }
+        inputMonitor.acceptanceKeyModifiersProvider = { suggestionSettings.acceptanceKeyModifiers }
         inputMonitor.fullAcceptanceKeyCodeProvider = { suggestionSettings.fullAcceptanceKeyCode }
+        inputMonitor.fullAcceptanceKeyModifiersProvider = { suggestionSettings.fullAcceptanceKeyModifiers }
         let focusModel = FocusTrackingModel(
             permissionProvider: { permissionManager.accessibilityGranted },
             ignoredBundleIdentifier: Bundle.main.bundleIdentifier,

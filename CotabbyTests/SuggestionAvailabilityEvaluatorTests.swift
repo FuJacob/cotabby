@@ -597,7 +597,7 @@ final class SuggestionSettingsModelDisabledAppsTests: XCTestCase {
         runOnMainActor {
             let model = makeModel()
 
-            model.setAcceptanceKey(keyCode: 49, label: "Space")
+            model.setAcceptanceKey(keyCode: 49, modifiers: [], label: "Space")
             XCTAssertEqual(model.acceptanceHintLabel, "Space", "Hint should follow the rebound word-accept key")
 
             // Clearing word-accept should fall back to the still-bound full-accept key.
