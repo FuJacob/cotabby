@@ -571,14 +571,14 @@ struct SettingsView: View {
         Section("Support") {
             LabeledContent {
                 Link(destination: URL(string: "https://ko-fi.com/cotabby")!) {
-                    Text("Buy Us a Coffee")
+                    Label("Support", systemImage: "heart.fill")
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.blue)
             } label: {
                 Text(
-                    "Cotabby is free and open source, maintained by two university students. "
-                    + "If it's useful to you, consider supporting development."
+                    "Cotabby is free and open source, maintained by two university students in our free time. "
+                    + "If it's useful to you, please consider supporting development."
                 )
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
