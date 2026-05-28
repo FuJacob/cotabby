@@ -38,7 +38,8 @@ enum SuggestionRequestFactory {
     ) -> SuggestionRequestBuildResult {
         let prefixText = truncatedPromptPrefix(
             from: context.precedingText,
-            configuration: configuration
+            configuration: configuration,
+            engine: settings.selectedEngine
         )
         let completionLengthInstruction = settings.selectedWordCountPreset.promptInstruction
         let userName = activeUserName(settings: settings)
@@ -101,15 +102,29 @@ enum SuggestionRequestFactory {
     ///
     /// Exposed (non-private) so the coordinator can compute the same bounded window before
     /// calling the relevance filter, ensuring the filter and the downstream distiller evaluate
-    /// token overlap against an identical prefix.
+    /// token overlap against an identical prefix. The `engine` parameter selects between the
+    /// llama-sized window (small, low latency) and the FM-sized window (larger, fits Apple's
+    /// shared context). Default arg keeps existing call sites and external usages source-compatible.
     static func truncatedPromptPrefix(
         from precedingText: String,
-        configuration: SuggestionConfiguration
+        configuration: SuggestionConfiguration,
+        engine: SuggestionEngineKind = .llamaOpenSource
     ) -> String {
-        let characterWindow = String(precedingText.suffix(configuration.maxPrefixCharacters))
+        let maxCharacters: Int
+        let maxWords: Int
+        switch engine {
+        case .appleIntelligence:
+            maxCharacters = configuration.maxPrefixCharactersFoundationModel
+            maxWords = configuration.maxPrefixWordsFoundationModel
+        case .llamaOpenSource:
+            maxCharacters = configuration.maxPrefixCharacters
+            maxWords = configuration.maxPrefixWords
+        }
+
+        let characterWindow = String(precedingText.suffix(maxCharacters))
         let trailingWords = characterWindow
             .split(whereSeparator: { $0.isWhitespace })
-            .suffix(configuration.maxPrefixWords)
+            .suffix(maxWords)
             .map(String.init)
             .joined(separator: " ")
 

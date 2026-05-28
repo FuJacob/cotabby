@@ -88,6 +88,99 @@ final class FoundationModelPromptRendererTests: XCTestCase {
         XCTAssertTrue(prompt.contains("  Hello from the field  "))
     }
 
+    /// Trailing context lets the model bridge into what is already after the caret instead of
+    /// overwriting it. The section appears only when there is suffix content to share.
+    func test_prompt_includesTrailingTextSectionWhenSuffixPresent() {
+        let request = CotabbyTestFixtures.suggestionRequest(
+            prefixText: "I'm flying to ",
+            precedingText: "I'm flying to ",
+            trailingText: " on Friday."
+        )
+
+        let prompt = FoundationModelPromptRenderer.prompt(for: request)
+
+        XCTAssertTrue(prompt.contains("Text after the caret:"))
+        XCTAssertTrue(prompt.contains(" on Friday."))
+    }
+
+    func test_prompt_omitsTrailingTextSectionWhenSuffixEmpty() {
+        let request = CotabbyTestFixtures.suggestionRequest(
+            prefixText: "Continue this",
+            precedingText: "Continue this"
+        )
+
+        let prompt = FoundationModelPromptRenderer.prompt(for: request)
+
+        XCTAssertFalse(prompt.contains("Text after the caret:"))
+    }
+
+    /// The natural-language length hint goes on the prompt channel (per-request), not the
+    /// instructions channel (which is cached on the FM session). That keeps the cached prefix
+    /// stable while still giving the model the cue it needs to stop at a clean word boundary.
+    func test_prompt_includesNaturalLanguageLengthHint() {
+        let request = CotabbyTestFixtures.suggestionRequest(
+            prefixText: "Continue this",
+            precedingText: "Continue this",
+            completionLengthInstruction: "Return only the next 7 to 12 words."
+        )
+
+        let prompt = FoundationModelPromptRenderer.prompt(for: request)
+
+        XCTAssertTrue(prompt.contains("Return only the next 7 to 12 words."))
+    }
+
+    /// Per-app tone hints live in the prompt rather than instructions so switching apps does not
+    /// invalidate the cached instruction prefix. Use a known code-editor bundle ID and verify the
+    /// matching cue appears; unknown bundle IDs fall through to no hint at all.
+    func test_prompt_includesCodeEditorToneHintForKnownBundleIdentifier() {
+        let context = CotabbyTestFixtures.focusedInputContext(
+            applicationName: "Xcode",
+            bundleIdentifier: "com.apple.dt.Xcode",
+            precedingText: "let total = items.reduce(0, "
+        )
+        let request = SuggestionRequest(
+            context: context,
+            prefixText: "let total = items.reduce(0, ",
+            prompt: "PROMPT",
+            generation: 1,
+            maxPredictionTokens: 16,
+            temperature: 0.1,
+            topK: 20,
+            topP: 0.7,
+            minP: 0.08,
+            repetitionPenalty: 1.05,
+            randomSeed: 42,
+            maxSuffixCharacters: 192,
+            completionLengthInstruction: "Return only the next 7 to 12 words.",
+            userName: nil,
+            customRules: [],
+            languageInstruction: nil,
+            clipboardContext: nil,
+            visualContextSummary: nil,
+            isMultiLineEnabled: false
+        )
+
+        let prompt = FoundationModelPromptRenderer.prompt(for: request)
+
+        XCTAssertTrue(prompt.contains("writing code"))
+    }
+
+    func test_prompt_omitsToneHintForUnknownBundleIdentifier() {
+        let request = CotabbyTestFixtures.suggestionRequest(
+            prefixText: "Continue this",
+            precedingText: "Continue this"
+        )
+
+        let prompt = FoundationModelPromptRenderer.prompt(for: request)
+
+        // The default fixture uses bundleIdentifier "com.example.TestApp", which is not in any of
+        // the tone-hint prefix sets, so the prompt must not carry a category cue.
+        XCTAssertFalse(prompt.contains("writing code"))
+        XCTAssertFalse(prompt.contains("writing an email"))
+        XCTAssertFalse(prompt.contains("chat app"))
+        XCTAssertFalse(prompt.contains("inside a browser"))
+    }
+
     func test_prompt_includesVisualContextWhenProvided() {
         let request = CotabbyTestFixtures.suggestionRequest(
             prefixText: "Continue this",
@@ -136,10 +229,13 @@ final class FoundationModelPromptRendererTests: XCTestCase {
         let preview = FoundationModelPromptRenderer.promptPreview(for: request)
 
         XCTAssertTrue(preview.contains("Instructions:\n"))
-        // Length cue removed from the prompt; it should not surface in the diagnostics preview either.
-        XCTAssertFalse(preview.contains("UNIQUE_LENGTH_POLICY"))
         XCTAssertTrue(preview.contains("Prompt:\n"))
         XCTAssertTrue(preview.contains("UNIQUE_APPLE_SCREEN_CONTEXT"))
+        // The length cue lives on the prompt channel now (PR 5), so it must surface in diagnostics.
+        XCTAssertTrue(preview.contains("UNIQUE_LENGTH_POLICY"))
+        // It still must not bleed into the cached instructions channel.
+        let instructions = FoundationModelPromptRenderer.sessionInstructions(for: request)
+        XCTAssertFalse(instructions.contains("UNIQUE_LENGTH_POLICY"))
     }
 }
 

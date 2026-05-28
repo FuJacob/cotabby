@@ -79,7 +79,8 @@ extension SuggestionCoordinator {
         // per-line filter can't disagree about what "shares tokens with the prefix" means.
         let truncatedPrefix = SuggestionRequestFactory.truncatedPromptPrefix(
             from: rawContext.precedingText,
-            configuration: configuration
+            configuration: configuration,
+            engine: settingsSnapshot.selectedEngine
         )
         let clipboardContext = clipboardRelevanceFilter.filter(
             clipboard: rawClipboard,

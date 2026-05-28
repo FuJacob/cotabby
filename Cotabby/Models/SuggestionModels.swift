@@ -80,6 +80,11 @@ struct SuggestionConfiguration: Equatable, Sendable {
     let randomSeed: UInt32?
     let maxPrefixWords: Int
     let maxPrefixCharacters: Int
+    /// Foundation Models has a noticeably larger shared context than the local llama path, so the
+    /// FM-selected request gets a separate (larger) prefix budget. Setting this above the llama
+    /// caps avoids crowding instructions while keeping the local-continuation focus.
+    let maxPrefixWordsFoundationModel: Int
+    let maxPrefixCharactersFoundationModel: Int
     let maxSuffixCharacters: Int
     /// Shipped first-launch default for the user's saved profile.
     /// `SuggestionSettingsModel` persists the user's real preference; configuration only provides
@@ -104,9 +109,15 @@ struct SuggestionConfiguration: Equatable, Sendable {
         repetitionPenalty: 1.05,
         randomSeed: nil,
         maxPrefixWords: 50,
-        // Prompt windows should stay small. Sending an entire editor buffer hurts latency with
-        // little quality gain because Cotabby is only completing the immediate local continuation.
+        // Prompt windows should stay small for the local llama path. Sending an entire editor
+        // buffer hurts latency with little quality gain because Cotabby is only completing the
+        // immediate local continuation.
         maxPrefixCharacters: 1000,
+        // Apple's on-device model has a 4096-token shared context. Even with instructions plus
+        // visual/clipboard context, there is room to send ~3x the llama window before crowding
+        // the prompt, and the extra surrounding sentences materially help mid-thought completions.
+        maxPrefixWordsFoundationModel: 150,
+        maxPrefixCharactersFoundationModel: 2500,
         maxSuffixCharacters: 192,
         // Seed the profile settings with lightweight defaults on first launch.
         defaultUserName: "Jacob",

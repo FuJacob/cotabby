@@ -100,6 +100,12 @@ enum FoundationModelPromptRenderer {
             "User is on \(request.context.applicationName)."
         ]
 
+        // Per-app tone hint lives in the per-request prompt, not the session instructions, so it
+        // can vary as the user switches apps without invalidating the cached instruction prefix.
+        if let toneHint = appToneHint(forBundleIdentifier: request.context.bundleIdentifier) {
+            sections.append(toneHint)
+        }
+
         if let summary = request.visualContextSummary,
            !summary.isEmpty {
             sections.append("Screen content:")
@@ -116,13 +122,92 @@ enum FoundationModelPromptRenderer {
         sections.append(contentsOf: [
             "",
             "Text before the caret:",
-            prefixText,
+            prefixText
+        ])
+
+        // Trailing context lets the model produce a continuation that bridges into what is already
+        // present after the caret instead of overwriting it. We send the suffix verbatim, capped
+        // to `maxSuffixCharacters` (the same cap used elsewhere) by the upstream context capture.
+        let trailing = request.context.trailingText
+        if !trailing.isEmpty {
+            sections.append(contentsOf: [
+                "",
+                "Text after the caret:",
+                trailing
+            ])
+        }
+
+        // Length cue is reintroduced on the FM prompt channel (not instructions). Apple's model
+        // responds reliably to plain-language length hints, and the explicit cue keeps shorter
+        // completions from getting hard-truncated mid-word by `maximumResponseTokens` alone.
+        sections.append(contentsOf: [
             "",
-            "Write only the next continuation fragment."
+            "Write only the next continuation fragment.",
+            request.completionLengthInstruction
         ])
 
         return sections.joined(separator: "\n")
     }
+
+    /// Maps the focused app's bundle identifier to a one-line tone cue or nil if no rule matches.
+    /// The set is intentionally small: each entry has to earn its tokens, so we cover the
+    /// surfaces real users complain about (code editors, email/chat clients, browsers) and let
+    /// everything else fall back to the generic instructions.
+    private static func appToneHint(forBundleIdentifier identifier: String) -> String? {
+        let lower = identifier.lowercased()
+        if codeEditorBundlePrefixes.contains(where: { lower.hasPrefix($0) }) {
+            return "The user is writing code, so the continuation should be code rather than prose."
+        }
+        if emailBundlePrefixes.contains(where: { lower.hasPrefix($0) }) {
+            return "The user is writing an email, so keep the same register and finish the current thought."
+        }
+        if chatBundlePrefixes.contains(where: { lower.hasPrefix($0) }) {
+            return "The user is in a chat app, so keep the continuation short and informal."
+        }
+        if browserBundlePrefixes.contains(where: { lower.hasPrefix($0) }) {
+            return "The user is typing inside a browser, so keep the continuation concise."
+        }
+        return nil
+    }
+
+    private static let codeEditorBundlePrefixes: [String] = [
+        "com.apple.dt.xcode",
+        "com.microsoft.vscode",
+        "com.todesktop.230313mzl4w4u92",  // Cursor (stable id used at the time of writing)
+        "com.jetbrains.",
+        "com.sublimetext.",
+        "com.panic.nova",
+        "co.zeit.hyper",
+        "com.googlecode.iterm2",
+        "com.apple.terminal"
+    ]
+
+    private static let emailBundlePrefixes: [String] = [
+        "com.apple.mail",
+        "com.readdle.smartemail",
+        "com.airmailapp.airmail",
+        "com.microsoft.outlook"
+    ]
+
+    private static let chatBundlePrefixes: [String] = [
+        "com.tinyspeck.slackmacgap",
+        "com.microsoft.teams",
+        "com.hnc.discord",
+        "com.apple.mobilesms",
+        "ru.keepcoder.telegram",
+        "net.whatsapp.whatsapp"
+    ]
+
+    private static let browserBundlePrefixes: [String] = [
+        "com.apple.safari",
+        "com.apple.safaritechnologypreview",
+        "com.google.chrome",
+        "com.google.chrome.canary",
+        "org.mozilla.firefox",
+        "company.thebrowser.browser",  // Arc
+        "com.brave.browser",
+        "com.microsoft.edgemac"
+    ]
 
     /// Diagnostics need to show both payloads Apple receives: the high-priority instructions and
     /// the shorter request prompt. Keeping this renderer-owned prevents the menu/debug preview from

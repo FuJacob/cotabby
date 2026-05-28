@@ -73,6 +73,8 @@ final class SuggestionRequestFactoryTests: XCTestCase {
             randomSeed: 42,
             maxPrefixWords: 3,
             maxPrefixCharacters: 32,
+            maxPrefixWordsFoundationModel: 9,
+            maxPrefixCharactersFoundationModel: 96,
             maxSuffixCharacters: 192,
             defaultUserName: nil,
             defaultWordCountPreset: .sevenToTwelve,
@@ -90,6 +92,50 @@ final class SuggestionRequestFactoryTests: XCTestCase {
         XCTAssertFalse(result.promptPreview.contains("alpha beta"))
     }
 
+    /// The Foundation Models path has a separate, larger prefix budget because Apple's shared
+    /// context window can take more local sentences without crowding instructions. This pins the
+    /// engine-aware truncation so a future change cannot quietly collapse the two budgets back
+    /// into one and shrink FM-side context with it.
+    func test_buildRequest_appliesFoundationModelPrefixBudgetWhenAppleEngineSelected() {
+        let precedingText = "alpha beta gamma delta epsilon zeta eta theta"
+        let context = CotabbyTestFixtures.focusedInputContext(precedingText: precedingText)
+        let configuration = SuggestionConfiguration(
+            maxPredictionTokens: 8,
+            debounceMilliseconds: 0,
+            temperature: 0.1,
+            topK: 20,
+            topP: 0.7,
+            minP: 0.08,
+            repetitionPenalty: 1.05,
+            randomSeed: 42,
+            maxPrefixWords: 3,
+            maxPrefixCharacters: 32,
+            maxPrefixWordsFoundationModel: 6,
+            maxPrefixCharactersFoundationModel: 96,
+            maxSuffixCharacters: 192,
+            defaultUserName: nil,
+            defaultWordCountPreset: .sevenToTwelve,
+            focusPollIntervalMilliseconds: 50
+        )
+
+        let llamaResult = SuggestionRequestFactory.buildRequest(
+            context: context,
+            settings: CotabbyTestFixtures.settingsSnapshot(selectedEngine: .llamaOpenSource),
+            configuration: configuration
+        )
+        let foundationModelResult = SuggestionRequestFactory.buildRequest(
+            context: context,
+            settings: CotabbyTestFixtures.settingsSnapshot(selectedEngine: .appleIntelligence),
+            configuration: configuration
+        )
+
+        XCTAssertEqual(llamaResult.request.prefixText, "zeta eta theta")
+        XCTAssertEqual(
+            foundationModelResult.request.prefixText,
+            "gamma delta epsilon zeta eta theta"
+        )
+    }
+
     func test_buildRequest_usesWordCountPresetForInstructionAndTokenBudget() {
         let context = CotabbyTestFixtures.focusedInputContext(precedingText: "Hello world")
         let configuration = SuggestionConfiguration(
@@ -103,6 +149,8 @@ final class SuggestionRequestFactoryTests: XCTestCase {
             randomSeed: 42,
             maxPrefixWords: 50,
             maxPrefixCharacters: 1000,
+            maxPrefixWordsFoundationModel: 150,
+            maxPrefixCharactersFoundationModel: 2500,
             maxSuffixCharacters: 192,
             defaultUserName: nil,
             defaultWordCountPreset: .sevenToTwelve,
