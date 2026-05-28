@@ -34,6 +34,11 @@ struct SettingsPaneScaffold<Content: View>: View {
                     content()
                 }
                 .formStyle(.grouped)
+                // `.formStyle(.grouped)` only pads BEFORE a `Section` that has a header. Panes
+                // whose first section is header-less (General, About, Apps) would otherwise butt
+                // flush against the title bar. A fixed top inset gives every pane the same
+                // breathing room regardless of whether the first section carries a header.
+                .padding(.top, 12)
             }
         }
     }
