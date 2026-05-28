@@ -84,12 +84,12 @@ Everything runs on-device. No hosted API, no cloud round-trip.
 
 **Open Source**: runs local GGUF models in-process through llama.cpp via `llama.swift`. Cotabby ships with four built-in downloadable models:
 
-| Model              | File                              | Size    | Source                                                                                                  |
-| ------------------ | --------------------------------- | ------- | ------------------------------------------------------------------------------------------------------- |
-| `tabby-nano-2`     | `SmolLM2-135M-Instruct-q8_0.gguf` | ~0.1 GB | [Mungert/SmolLM2-135M-Instruct-GGUF](https://huggingface.co/Mungert/SmolLM2-135M-Instruct-GGUF)         |
-| `tabby-fast-1`     | `Qwen3-0.6B-Q4_K_M.gguf`          | ~0.4 GB | [unsloth/Qwen3-0.6B-GGUF](https://huggingface.co/unsloth/Qwen3-0.6B-GGUF)                               |
-| `tabby-balanced-1` | `gemma-4-E2B-it-Q4_K_M.gguf`      | ~3.1 GB | [unsloth/gemma-4-E2B-it-GGUF](https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF)                       |
-| `tabby-max-1`      | `gemma-4-E4B-it-Q4_K_M.gguf`      | ~5.0 GB | [unsloth/gemma-4-E4B-it-GGUF](https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF)                       |
+| Model          | File                              | Size    | Source                                                                                                  |
+| -------------- | --------------------------------- | ------- | ------------------------------------------------------------------------------------------------------- |
+| `tabby-1-nano` | `SmolLM2-135M-Instruct-q8_0.gguf` | ~0.1 GB | [Mungert/SmolLM2-135M-Instruct-GGUF](https://huggingface.co/Mungert/SmolLM2-135M-Instruct-GGUF)         |
+| `tabby-1-mini` | `Qwen3-0.6B-Q4_K_M.gguf`          | ~0.4 GB | [unsloth/Qwen3-0.6B-GGUF](https://huggingface.co/unsloth/Qwen3-0.6B-GGUF)                               |
+| `tabby-1-base` | `gemma-4-E2B-it-Q4_K_M.gguf`      | ~3.1 GB | [unsloth/gemma-4-E2B-it-GGUF](https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF)                       |
+| `tabby-1-pro`  | `gemma-4-E4B-it-Q4_K_M.gguf`      | ~5.0 GB | [unsloth/gemma-4-E4B-it-GGUF](https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF)                       |
 
 ### Bring your own model
 

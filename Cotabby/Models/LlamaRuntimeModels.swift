@@ -96,13 +96,13 @@ enum RuntimeModelCatalog {
     static func displayName(for filename: String) -> String {
         switch filename {
         case "Qwen3-0.6B-Q4_K_M.gguf":
-            return "tabby-fast-1"
+            return "tabby-1-mini"
         case "gemma-4-E2B-it-Q4_K_M.gguf":
-            return "tabby-balanced-1"
+            return "tabby-1-base"
         case "gemma-4-E4B-it-Q4_K_M.gguf":
-            return "tabby-max-1"
+            return "tabby-1-pro"
         case "SmolLM2-135M-Instruct-q8_0.gguf":
-            return "tabby-nano-2"
+            return "tabby-1-nano"
         default:
             return filename
         }
