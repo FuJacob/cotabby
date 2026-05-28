@@ -29,9 +29,6 @@ struct LanguageTagsEditor: View {
             HStack {
                 Text("Languages")
                     .font(.system(size: 13, weight: .medium))
-                    .cotabbyHelp("Languages you write in. Cotabby matches what you're currently typing; "
-                        + "these help when a field is empty or too short to tell. "
-                        + "Leave empty to always follow the surrounding text.")
                 Spacer()
                 if canClear {
                     Button("Clear") {
@@ -40,7 +37,6 @@ struct LanguageTagsEditor: View {
                     .buttonStyle(.plain)
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
-                    .cotabbyHelp("Remove all language tags.")
                 }
             }
 

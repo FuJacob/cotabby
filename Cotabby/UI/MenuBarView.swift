@@ -73,7 +73,6 @@ struct MenuBarView: View {
             Toggle("Fast Mode", isOn: fastModeEnabledBinding)
                 .toggleStyle(.switch)
                 .controlSize(.small)
-                .cotabbyHelp("Skip on-screen OCR context for faster, lower-overhead suggestions. Predictions still run.")
 
             Divider()
 
@@ -83,14 +82,12 @@ struct MenuBarView: View {
                 Toggle("Enable Globally", isOn: globallyEnabledBinding)
                     .toggleStyle(.switch)
                     .controlSize(.small)
-                    .cotabbyHelp("Master switch. Turn off to silence Cotabby in every app.")
 
                 if let application = focusModel.latestExternalApplication,
                    !TerminalAppDetector.isTerminal(bundleIdentifier: application.bundleIdentifier) {
                     Toggle("Enable in \(application.applicationName)", isOn: appEnabledBinding(for: application))
                         .toggleStyle(.switch)
                         .controlSize(.small)
-                        .cotabbyHelp("Disable Cotabby just in this app. Overrides Enable Globally.")
                 }
             }
 
@@ -101,12 +98,10 @@ struct MenuBarView: View {
                 Toggle("Include Clipboard Context", isOn: clipboardContextEnabledBinding)
                     .toggleStyle(.switch)
                     .controlSize(.small)
-                    .cotabbyHelp("Include your latest clipboard contents in the prompt so completions can reference what you copied.")
 
                 Toggle("Allow Multi-line Suggestions", isOn: multiLineEnabledBinding)
                     .toggleStyle(.switch)
                     .controlSize(.small)
-                    .cotabbyHelp("Let suggestions span more than one line. Off keeps them to a single line.")
             }
 
             Divider()
@@ -124,7 +119,6 @@ struct MenuBarView: View {
                     }
                     .labelsHidden()
                     .pickerStyle(.menu)
-                    .cotabbyHelp("Apple Intelligence runs on-device through macOS. Llama runs a local GGUF model you pick below.")
                 }
 
                 if suggestionSettings.selectedEngine == .appleIntelligence,
@@ -147,7 +141,6 @@ struct MenuBarView: View {
                     }
                     .labelsHidden()
                     .pickerStyle(.menu)
-                    .cotabbyHelp("How long completions tend to be. Shorter is faster and less likely to overreach.")
                 }
 
                 MenuBarPickerRow(title: "Display") {
@@ -159,10 +152,6 @@ struct MenuBarView: View {
                     }
                     .labelsHidden()
                     .pickerStyle(.menu)
-                    .help(
-                        "Inline ghost text or a popup card. Auto switches to the popup for hosts " +
-                        "where caret position can't be tracked reliably."
-                    )
                 }
             }
         }
@@ -202,7 +191,6 @@ struct MenuBarView: View {
                 }
                 .buttonStyle(.borderless)
                 .controlSize(.small)
-                .cotabbyHelp("Open Models Folder")
 
                 Button {
                     modelDownloadManager.refreshModelStates()
@@ -212,7 +200,6 @@ struct MenuBarView: View {
                 }
                 .buttonStyle(.borderless)
                 .controlSize(.small)
-                .cotabbyHelp("Refresh Available Models")
             }
         }
     }

@@ -143,10 +143,8 @@ struct SettingsView: View {
     private var generalSection: some View {
         Section("General") {
             Toggle("Enable Globally", isOn: globallyEnabledBinding)
-                .cotabbyHelp("Master switch. Turn off to silence Cotabby in every app.")
 
             Toggle("Show Indicator", isOn: showIndicatorBinding)
-                .cotabbyHelp("Show a small icon next to the cursor when Cotabby is active in a field.")
 
             Toggle(isOn: showAcceptanceHintBinding) {
                 HStack(spacing: 4) {
@@ -162,7 +160,6 @@ struct SettingsView: View {
                     Text("Key Hint")
                 }
             }
-            .cotabbyHelp("Show a small label near the ghost text reminding you which key accepts it.")
 
             Picker("Suggestion Display", selection: mirrorPreferenceBinding) {
                 ForEach(MirrorPreference.allCases) { preference in
@@ -170,23 +167,14 @@ struct SettingsView: View {
                 }
             }
             .pickerStyle(.menu)
-            .help(
-                "Auto uses inline ghost text when the focused field exposes a reliable cursor " +
-                "position, and switches to a popup card when it doesn't (some Electron and web " +
-                "editors). Choose Inline or Popup to pin one style for every app."
-            )
 
             Toggle("Allow Multi-line Suggestions", isOn: multiLineEnabledBinding)
-                .cotabbyHelp("Let suggestions span more than one line. Off keeps them to a single line.")
 
             Toggle("Accept Punctuation With Word", isOn: autoAcceptTrailingPunctuationBinding)
-                .cotabbyHelp("With this on, accepting a word also takes punctuation attached to it, like the \"?\" in \"you?\".")
 
             Toggle("Include Clipboard Context", isOn: clipboardContextEnabledBinding)
-                .cotabbyHelp("Include your latest clipboard contents in the prompt so completions can reference what you copied.")
 
             Toggle("Fast Mode", isOn: fastModeEnabledBinding)
-                .cotabbyHelp("Skip on-screen OCR context for faster, lower-overhead suggestions. Predictions still run.")
 
             LabeledContent("Ghost Text Color") {
                 HStack(spacing: 8) {
@@ -195,7 +183,6 @@ struct SettingsView: View {
                     }
                 }
             }
-            .cotabbyHelp("Color of the ghost text shown before you accept it.")
 
             LabeledContent("Ghost Text Opacity") {
                 HStack(spacing: 10) {
@@ -214,7 +201,6 @@ struct SettingsView: View {
                         .frame(width: 42, alignment: .trailing)
                 }
             }
-            .cotabbyHelp("How visible the ghost text is. Lower values are subtler but harder to read.")
 
             // Open at Login is hidden until the quarantine/SMAppService issue is resolved.
             // The toggle reports .notFound for quarantined apps and apps outside /Applications,
@@ -239,7 +225,6 @@ struct SettingsView: View {
                         .tag(engine)
                 }
             }
-            .cotabbyHelp("Apple Intelligence runs on-device through macOS. Llama runs a local GGUF model you pick below.")
 
             switch suggestionSettings.selectedEngine {
             case .appleIntelligence:
@@ -270,7 +255,6 @@ struct SettingsView: View {
                         .tag(preset)
                 }
             }
-            .cotabbyHelp("How long completions tend to be. Shorter is faster and less likely to overreach.")
 
             VStack(alignment: .leading, spacing: 24) {
                 Text("This information is passed to the AI to help personalize your completions.")
@@ -286,7 +270,6 @@ struct SettingsView: View {
                         set: { suggestionSettings.setUserName($0) }
                     ))
                     .textFieldStyle(.roundedBorder)
-                    .cotabbyHelp("How Cotabby refers to you when it matters, like signing off an email.")
                 }
 
                 LanguageTagsEditor(suggestionSettings: suggestionSettings)
@@ -328,7 +311,6 @@ struct SettingsView: View {
                         Button("Change") {
                             isRecordingKeybind = true
                         }
-                        .cotabbyHelp("Record a new shortcut. Hold any modifiers and press a key to bind it; Escape to cancel.")
                     }
 
                     if suggestionSettings.acceptanceKeyCode != SuggestionSettingsModel.defaultAcceptanceKeyCode
@@ -341,7 +323,6 @@ struct SettingsView: View {
                             )
                             isRecordingKeybind = false
                         }
-                        .cotabbyHelp("Restore the default key.")
                     }
 
                     if suggestionSettings.acceptanceKeyCode != SuggestionSettingsModel.disabledKeyCode {
@@ -349,11 +330,9 @@ struct SettingsView: View {
                             suggestionSettings.clearAcceptanceKey()
                             isRecordingKeybind = false
                         }
-                        .cotabbyHelp("Unbind this shortcut. No key will accept word-by-word.")
                     }
                 }
             }
-            .cotabbyHelp("Key that accepts the next word of the suggestion.")
 
             LabeledContent("Accept Entire Suggestion") {
                 HStack(spacing: 8) {
@@ -383,7 +362,6 @@ struct SettingsView: View {
                         Button("Change") {
                             isRecordingFullAcceptKeybind = true
                         }
-                        .cotabbyHelp("Record a new shortcut. Hold any modifiers and press a key to bind it; Escape to cancel.")
                     }
 
                     if suggestionSettings.fullAcceptanceKeyCode != SuggestionSettingsModel.defaultFullAcceptanceKeyCode
@@ -396,7 +374,6 @@ struct SettingsView: View {
                             )
                             isRecordingFullAcceptKeybind = false
                         }
-                        .cotabbyHelp("Restore the default key.")
                     }
 
                     if suggestionSettings.fullAcceptanceKeyCode != SuggestionSettingsModel.disabledKeyCode {
@@ -404,11 +381,9 @@ struct SettingsView: View {
                             suggestionSettings.clearFullAcceptanceKey()
                             isRecordingFullAcceptKeybind = false
                         }
-                        .cotabbyHelp("Unbind this shortcut. No key will accept the whole suggestion at once.")
                     }
                 }
             }
-            .cotabbyHelp("Key that accepts the whole suggestion at once.")
         }
     }
 
@@ -421,7 +396,6 @@ struct SettingsView: View {
                 in: 10...500,
                 step: 10
             )
-            .cotabbyHelp("How long Cotabby waits after you stop typing before generating. Higher saves CPU; lower feels snappier.")
 
             // Focus poll interval is intentionally hidden from the UI. The default (50 ms)
             // is tuned for the best balance of responsiveness and CPU usage. Exposing it
@@ -445,7 +419,6 @@ struct SettingsView: View {
             Button("Add App…") {
                 presentDisabledAppPicker()
             }
-            .cotabbyHelp("Pick an app to disable Cotabby in.")
         }
     }
 
@@ -495,7 +468,6 @@ struct SettingsView: View {
                             .tag(model.filename)
                     }
                 }
-                .cotabbyHelp("Which GGUF file Cotabby loads. Larger models are smarter but slower and use more memory.")
             }
 
             DownloadableModelCatalogView(
@@ -527,11 +499,6 @@ struct SettingsView: View {
                             refreshModels()
                         }
                         .disabled(!lmStudioAvailable)
-                        .cotabbyHelp(
-                            lmStudioAvailable
-                                ? "Point Cotabby at LM Studio's models folder (~/.lmstudio/models) so you don't keep two copies."
-                                : "Install LM Studio with at least one model first. Cotabby couldn't find ~/.lmstudio/models."
-                        )
 
                         Button("Reset Path") {
                             BundledRuntimeLocator.setCustomModelDirectory(nil)
@@ -539,7 +506,6 @@ struct SettingsView: View {
                             refreshModels()
                         }
                         .disabled(!isUsingCustomPath)
-                        .cotabbyHelp("Go back to Cotabby's default models folder.")
 
                         Button("Open Folder") {
                             modelDownloadManager.openModelsDirectory()
@@ -548,11 +514,9 @@ struct SettingsView: View {
                         Button("Refresh") {
                             refreshModels()
                         }
-                        .cotabbyHelp("Re-scan the folder for newly added or removed model files.")
                     }
                 }
             }
-            .cotabbyHelp("Where Cotabby looks for GGUF model files.")
 
             if !runtimeModel.availableModels.isEmpty {
                 Text("Installed")
@@ -625,7 +589,6 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.borderless)
-                .cotabbyHelp("Delete \(model.displayName)")
             }
         }
     }
@@ -658,7 +621,6 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
             .buttonStyle(.borderless)
-            .cotabbyHelp("Remove \(rule.displayName) from disabled apps")
         }
     }
 
@@ -694,7 +656,6 @@ struct SettingsView: View {
                     action()
                 }
                 .controlSize(.small)
-                .cotabbyHelp("Open System Settings to Privacy & Security so you can grant this permission.")
             }
         }
     }
@@ -856,7 +817,6 @@ struct SettingsView: View {
                 )
         }
         .buttonStyle(.plain)
-        .cotabbyHelp(preset.name)
     }
 
     private func swatchFill(for preset: GhostTextColorPreset) -> Color {
