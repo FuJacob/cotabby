@@ -47,6 +47,16 @@ protocol SuggestionGenerating: AnyObject {
     /// Clears backend-local continuation state when the focused editing context is no longer
     /// continuous. Stateless engines may implement this as a no-op.
     func resetCachedGenerationContext() async
+    /// Best-effort warmup hook the coordinator calls after focus arrives on an editable surface.
+    /// Engines that benefit from prefix caching or weight loading (Apple Foundation Models) use it
+    /// to prime the next request; engines that do not (llama already keeps its KV cache hot) can
+    /// rely on the default no-op extension. Failures are intentionally swallowed by implementations
+    /// because prewarming is opportunistic.
+    func prewarm(for request: SuggestionRequest) async
+}
+
+extension SuggestionGenerating {
+    func prewarm(for request: SuggestionRequest) async {}
 }
 
 @MainActor

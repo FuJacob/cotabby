@@ -48,6 +48,18 @@ final class SuggestionEngineRouter {
         await llamaEngine.resetCachedGenerationContext()
     }
 
+    /// Forwards the warmup hook only to the currently selected engine. The inactive backend has
+    /// no benefit from warming caches the user is not about to hit, and the FM path specifically
+    /// allocates a session as a side effect, so we keep that work out of the llama-selected path.
+    func prewarm(for request: SuggestionRequest) async {
+        switch suggestionSettings.selectedEngine {
+        case .appleIntelligence:
+            await foundationModelEngine.prewarm(for: request)
+        case .llamaOpenSource:
+            await llamaEngine.prewarm(for: request)
+        }
+    }
+
     /// Apple Intelligence can reject a request after global availability reports success because
     /// language support is checked against the active request/locale. Falling back here keeps the
     /// coordinator backend-agnostic while giving local models a chance to handle that text.

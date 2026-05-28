@@ -10,18 +10,24 @@ import FoundationModels
 /// `SuggestionGenerating` capability. The coordinator should not care whether suggestions come
 /// from llama.cpp or Apple Intelligence; that backend choice belongs in app composition.
 ///
-/// This engine creates a fresh `LanguageModelSession` per request. That is the right default for
-/// Cotabby's autocomplete flow because each suggestion is a single-turn interaction and we do not
-/// want prior model responses to accumulate in the context window.
+/// The engine keeps one `LanguageModelSession` alive across requests when the underlying
+/// instructions text is unchanged. Apple's framework caches the tokenization of the instructions
+/// channel as a prefix, so reusing the session is the supported way to skip re-tokenizing the
+/// (long) system rules on every keystroke. The cache is keyed on the rendered instructions string
+/// rather than on `SuggestionRequest` identity because everything that varies inside the request
+/// (prefix text, visual/clipboard context, generation number) belongs to the *prompt* channel,
+/// not the *instructions* channel, and therefore does not invalidate the cached session.
 ///
-/// The important behavioral nuance is that Foundation Models has a dedicated instructions channel.
-/// We use that to tell the system model "this is inline autocomplete, not a chat reply," because a
-/// bare text prefix like "hello" otherwise invites conversational continuations.
+/// `prewarm(for:)` is the supported hook for "the user just focused an editable field; a real
+/// request is likely within a second." The coordinator calls it from the focus path; the engine
+/// builds (or reuses) the session and calls Apple's `LanguageModelSession.prewarm()` so weight
+/// loading and instruction tokenization happen before the first user-visible respond call.
 #if canImport(FoundationModels)
 @available(macOS 26.0, *)
 @MainActor
 final class FoundationModelSuggestionEngine {
     private let availabilityService: FoundationModelAvailabilityService
+    private var cachedSession: CachedSession?
 
     init(availabilityService: FoundationModelAvailabilityService) {
         self.availabilityService = availabilityService
@@ -52,10 +58,7 @@ final class FoundationModelSuggestionEngine {
                 )
             }
 
-            let session = LanguageModelSession(
-                model: model,
-                instructions: FoundationModelPromptRenderer.sessionInstructions(for: request)
-            )
+            let session = ensureSession(for: request, model: model)
             let response = try await session.respond(
                 to: prompt,
                 options: generationOptions(for: request)
@@ -96,8 +99,49 @@ final class FoundationModelSuggestionEngine {
         }
     }
 
-    /// Foundation Models sessions are already one-shot, so there is no backend context to clear.
-    func resetCachedGenerationContext() async {}
+    /// Best-effort warmup. Apple's prewarm loads weights into memory and primes the instruction
+    /// prefix cache. We swallow errors because prewarming is opportunistic — the next
+    /// `respond` call will surface real availability or generation failures with the right
+    /// vocabulary, and reporting them here would just produce noise.
+    func prewarm(for request: SuggestionRequest) async {
+        availabilityService.refresh()
+        guard availabilityService.isAvailable else {
+            return
+        }
+        guard let model = availabilityService.systemLanguageModel else {
+            return
+        }
+
+        let session = ensureSession(for: request, model: model)
+        session.prewarm()
+        CotabbyLogger.suggestion.debug("Foundation model session prewarmed")
+    }
+
+    /// Dropping the cached session forces the next request to rebuild instructions, which is the
+    /// right behavior when the coordinator signals the editing context is no longer continuous
+    /// (focus changes, settings edits). Apple's session also holds a transcript that we
+    /// deliberately do not want to leak across editing contexts.
+    func resetCachedGenerationContext() async {
+        cachedSession = nil
+    }
+
+    /// Returns the cached session if its instructions match the rendered ones, otherwise builds a
+    /// new session and replaces the cache. Keying on rendered instructions (rather than the
+    /// untransformed settings fields they came from) keeps this correct if the renderer
+    /// composition rules change later.
+    private func ensureSession(
+        for request: SuggestionRequest,
+        model: SystemLanguageModel
+    ) -> LanguageModelSession {
+        let instructions = FoundationModelPromptRenderer.sessionInstructions(for: request)
+        if let cached = cachedSession, cached.instructions == instructions {
+            return cached.session
+        }
+
+        let session = LanguageModelSession(model: model, instructions: instructions)
+        cachedSession = CachedSession(instructions: instructions, session: session)
+        return session
+    }
 
     /// Maps Cotabby's existing generation knobs onto the subset of Foundation Models options the
     /// system model exposes. We preserve the same upstream request shape so the coordinator does
@@ -147,6 +191,11 @@ final class FoundationModelSuggestionEngine {
         @unknown default:
             return .generationFailed(error.localizedDescription)
         }
+    }
+
+    private struct CachedSession {
+        let instructions: String
+        let session: LanguageModelSession
     }
 }
 
