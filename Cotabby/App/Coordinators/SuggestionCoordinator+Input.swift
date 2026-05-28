@@ -174,10 +174,12 @@ extension SuggestionCoordinator {
     }
 
     /// Maximum wall time we'll wait for the host app to publish post-keystroke AX before giving
-    /// up and generating against whatever's there. Chosen empirically: long enough to cover
-    /// Chrome's slower contenteditable publish on a busy page, short enough that the user can
-    /// always type ahead without the rescheduled suggestion feeling stuck.
-    private static let hostPublishWaitCeilingMs = 400
+    /// up and generating against whatever's there. Dropped from 400ms to 60ms now that the
+    /// accept tap fail-open in #382 guarantees the user's keystroke reaches the host regardless
+    /// of AX timing. The publish-wait is purely a quality knob for the rescheduled suggestion;
+    /// it no longer masks an input-swallow bug, so we'd rather keep predictions snappy than
+    /// trade them off for AX accuracy that the model only marginally benefits from.
+    private static let hostPublishWaitCeilingMs = 60
 
     /// Interval between AX polls while waiting for the host publish. Same order of magnitude as
     /// the focus poll itself (default 80ms) but tighter so we catch the publish promptly without
