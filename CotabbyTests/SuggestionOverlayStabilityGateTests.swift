@@ -45,7 +45,7 @@ final class SuggestionOverlayStabilityGateTests: XCTestCase {
     /// has drifted by a sub-pixel amount in the latest AX read. Holding the geometry is what
     /// prevents the post-accept jitter.
     func test_sameFieldSameTextStableFrame_holdsGeometry() {
-        let current: OverlayState = .visible(text: "draft and send", geometry: Self.geometry())
+        let current: OverlayState = .visible(text: "draft and send", geometry: Self.geometry(), mode: .inline)
 
         XCTAssertFalse(
             SuggestionOverlayStabilityGate.shouldRePresent(
@@ -60,7 +60,8 @@ final class SuggestionOverlayStabilityGateTests: XCTestCase {
     func test_focusSessionChanged_reAnchors() {
         let current: OverlayState = .visible(
             text: "draft and send",
-            geometry: Self.geometry(focusChangeSequence: 7)
+            geometry: Self.geometry(focusChangeSequence: 7),
+            mode: .inline
         )
 
         XCTAssertTrue(
@@ -74,7 +75,7 @@ final class SuggestionOverlayStabilityGateTests: XCTestCase {
     }
 
     func test_displayedTextChanged_reAnchors() {
-        let current: OverlayState = .visible(text: "draft and send", geometry: Self.geometry())
+        let current: OverlayState = .visible(text: "draft and send", geometry: Self.geometry(), mode: .inline)
 
         XCTAssertTrue(
             SuggestionOverlayStabilityGate.shouldRePresent(
@@ -90,7 +91,7 @@ final class SuggestionOverlayStabilityGateTests: XCTestCase {
     /// re-anchor or the overlay will lag behind the dragged window.
     func test_inputFrameMovedBeyondTolerance_reAnchors() {
         let movedFrame = Self.inputFrame.offsetBy(dx: 12, dy: 0)
-        let current: OverlayState = .visible(text: "draft and send", geometry: Self.geometry())
+        let current: OverlayState = .visible(text: "draft and send", geometry: Self.geometry(), mode: .inline)
 
         XCTAssertTrue(
             SuggestionOverlayStabilityGate.shouldRePresent(
@@ -106,7 +107,7 @@ final class SuggestionOverlayStabilityGateTests: XCTestCase {
     /// post-accept regression we are guarding against.
     func test_inputFrameSubPixelNoise_holdsGeometry() {
         let nudgedFrame = Self.inputFrame.offsetBy(dx: 0.4, dy: -0.3)
-        let current: OverlayState = .visible(text: "draft and send", geometry: Self.geometry())
+        let current: OverlayState = .visible(text: "draft and send", geometry: Self.geometry(), mode: .inline)
 
         XCTAssertFalse(
             SuggestionOverlayStabilityGate.shouldRePresent(
@@ -121,11 +122,13 @@ final class SuggestionOverlayStabilityGateTests: XCTestCase {
     func test_inputFrameAppearedOrDisappeared_reAnchors() {
         let visibleWithFrame: OverlayState = .visible(
             text: "draft and send",
-            geometry: Self.geometry(inputFrameRect: Self.inputFrame)
+            geometry: Self.geometry(inputFrameRect: Self.inputFrame),
+            mode: .inline
         )
         let visibleWithoutFrame: OverlayState = .visible(
             text: "draft and send",
-            geometry: Self.geometry(inputFrameRect: nil)
+            geometry: Self.geometry(inputFrameRect: nil),
+            mode: .inline
         )
 
         XCTAssertTrue(
@@ -146,10 +149,27 @@ final class SuggestionOverlayStabilityGateTests: XCTestCase {
         )
     }
 
+    /// Exactly at the 1pt boundary: drift of 1.0pt is absorbed (strict `>` comparison).
+    /// Pins the contract so a future change to `>=` would flip a documented branch and fail here.
+    func test_inputFrameAtExactTolerance_holdsGeometry() {
+        let exactFrame = Self.inputFrame.offsetBy(dx: 1.0, dy: 0)
+        let current: OverlayState = .visible(text: "draft and send", geometry: Self.geometry(), mode: .inline)
+
+        XCTAssertFalse(
+            SuggestionOverlayStabilityGate.shouldRePresent(
+                currentOverlay: current,
+                newText: "draft and send",
+                newInputFrameRect: exactFrame,
+                newFocusChangeSequence: 7
+            )
+        )
+    }
+
     func test_bothFramesNil_holdsGeometry() {
         let current: OverlayState = .visible(
             text: "draft and send",
-            geometry: Self.geometry(inputFrameRect: nil)
+            geometry: Self.geometry(inputFrameRect: nil),
+            mode: .inline
         )
 
         XCTAssertFalse(
