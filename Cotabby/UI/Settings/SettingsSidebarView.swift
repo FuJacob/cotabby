@@ -4,7 +4,7 @@ import SwiftUI
 /// Renders the sidebar list of the redesigned Settings window. Sections drive visual grouping;
 /// `selection` is the binding the container view uses to decide which detail pane to show.
 /// `attentionCategories` is the set returned by `SettingsAttentionEvaluator` and decides which
-/// rows show a small red dot at the trailing edge.
+/// rows show a small orange attention dot at the trailing edge.
 ///
 /// Why this lives in its own file:
 /// the sidebar's row ordering, section headers, indentation, and attention rendering are all
