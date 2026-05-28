@@ -94,11 +94,11 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
                     )
                 )
             )
-            initialFrame = CGRect(x: 0, y: 0, width: 960, height: 680)
-            minSize = NSSize(width: 820, height: 540)
-            // Separate autosave name so the redesigned layout starts from its own default frame
-            // for users who already had a smaller saved frame from the legacy window.
-            autosaveName = "CotabbySettingsWindowV2"
+            initialFrame = CGRect(x: 0, y: 0, width: 1320, height: 820)
+            minSize = NSSize(width: 1180, height: 720)
+            // Bumped autosave name again so existing dogfooders get the new larger default
+            // frame instead of inheriting the previous V2 size.
+            autosaveName = "CotabbySettingsWindowV3"
         } else {
             hostingController = NSHostingController(
                 rootView: AnyView(

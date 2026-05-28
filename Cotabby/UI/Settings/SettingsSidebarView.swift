@@ -16,14 +16,6 @@ struct SettingsSidebarView: View {
 
     var body: some View {
         List(selection: $selection) {
-            // First row would otherwise sit flush against the window title bar. A clear-color
-            // sentinel that is excluded from selection gives the sidebar the same top breathing
-            // room as the detail pane without fighting `.listStyle(.sidebar)`.
-            Color.clear
-                .frame(height: 8)
-                .listRowBackground(Color.clear)
-                .selectionDisabled()
-
             ForEach(SettingsSidebarSection.allCases, id: \.self) { section in
                 let rows = SettingsCategory.allCases.filter { $0.section == section }
                 if !rows.isEmpty {
@@ -38,8 +30,12 @@ struct SettingsSidebarView: View {
             }
         }
         .listStyle(.sidebar)
-        // Wider min/ideal so labels like "Apple Intelligence" do not truncate to "Apple I...".
-        .navigationSplitViewColumnWidth(min: 240, ideal: 260, max: 320)
+        // Doubled column width so every label fits without truncation and the sidebar reads as a
+        // real navigation column. The earlier clear-color top spacer is gone: it was pushing the
+        // first row well below where the detail pane's first card starts, breaking visual
+        // alignment between sidebar and content. The grouped form's own top inset on the detail
+        // side handles breathing room; the sidebar lines up with it naturally.
+        .navigationSplitViewColumnWidth(min: 480, ideal: 520, max: 640)
     }
 
     @ViewBuilder
