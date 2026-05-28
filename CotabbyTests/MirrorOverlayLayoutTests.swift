@@ -59,6 +59,86 @@ final class MirrorOverlayLayoutTests: XCTestCase {
         )
     }
 
+    // MARK: - Caret-anchored path (user-forced / per-app-forced popup)
+
+    func test_make_userPreferenceAnchorsToCaretLine_notInputField() {
+        // The field's bottom edge (minY in AppKit coordinates) is at y=400. The caret line sits at
+        // y=500, far above the field's bottom edge. Pre-fix behavior anchored to the field minY
+        // even with .userPreference reason, dropping the popup ~100pt below where the eye is. The
+        // fix uses caret.minY for user/perApp reasons so the popup tracks the cursor.
+        let geometry = CotabbyTestFixtures.overlayGeometry(
+            caretRect: CGRect(x: 720, y: 500, width: 2, height: 18),
+            inputFrameRect: CGRect(x: 400, y: 400, width: 640, height: 200)
+        )
+
+        let userPreferenceLayout = MirrorOverlayLayout.make(
+            suggestion: "hello",
+            geometry: geometry,
+            visibleFrame: screen,
+            showsAcceptanceHint: true,
+            reason: .userPreference
+        )
+
+        // Card must sit close to the caret line (within one card-height worth of slack), not at the
+        // field's bottom edge.
+        XCTAssertLessThan(
+            userPreferenceLayout.panelFrame.maxY,
+            geometry.caretRect.minY,
+            "User-forced popup should sit below the caret line"
+        )
+        XCTAssertGreaterThan(
+            userPreferenceLayout.panelFrame.maxY,
+            geometry.inputFrameRect!.minY + 40,
+            "User-forced popup should NOT drop down to the field's bottom edge"
+        )
+    }
+
+    func test_make_perAppOverrideAnchorsToCaretLine() {
+        let geometry = CotabbyTestFixtures.overlayGeometry(
+            caretRect: CGRect(x: 720, y: 500, width: 2, height: 18),
+            inputFrameRect: CGRect(x: 400, y: 400, width: 640, height: 200)
+        )
+
+        let layout = MirrorOverlayLayout.make(
+            suggestion: "hello",
+            geometry: geometry,
+            visibleFrame: screen,
+            showsAcceptanceHint: true,
+            reason: .perAppOverride
+        )
+
+        XCTAssertLessThan(
+            layout.panelFrame.maxY,
+            geometry.caretRect.minY,
+            "Per-app forced popup should also sit below the caret line, not the field"
+        )
+    }
+
+    func test_make_estimatedReasonStillAnchorsToInputField() {
+        // Same geometry as the user-preference test above, but with .caretGeometryEstimated. The
+        // caret rect is exactly the kind of value that can't be trusted in this case, so the layout
+        // must keep the field-rect anchor it had before the fix.
+        let geometry = CotabbyTestFixtures.overlayGeometry(
+            caretRect: CGRect(x: 720, y: 500, width: 2, height: 18),
+            inputFrameRect: CGRect(x: 400, y: 400, width: 640, height: 200)
+        )
+
+        let layout = MirrorOverlayLayout.make(
+            suggestion: "hello",
+            geometry: geometry,
+            visibleFrame: screen,
+            showsAcceptanceHint: true,
+            reason: .caretGeometryEstimated
+        )
+
+        // Card sits below the FIELD edge, well below the caret line.
+        XCTAssertLessThan(
+            layout.panelFrame.maxY,
+            geometry.inputFrameRect!.minY,
+            "Estimated-reason popup should still anchor below the input field rect"
+        )
+    }
+
     // MARK: - Fallback when input frame missing
 
     func test_make_fallsBackToCaretRectWhenInputFrameMissing() {

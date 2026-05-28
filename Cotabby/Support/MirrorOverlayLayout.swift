@@ -91,7 +91,7 @@ struct MirrorOverlayLayout: Equatable {
         let cardWidth = contentWidth + (Metrics.horizontalPadding * 2)
         let cardHeight = ceil(Metrics.fontSize * 1.6) + (Metrics.verticalPadding * 2)
 
-        let anchorTopY = computeAnchorTopY(geometry: geometry)
+        let anchorTopY = computeAnchorTopY(geometry: geometry, reason: reason)
         let anchorCenterX = computeAnchorCenterX(geometry: geometry)
 
         var originX = anchorCenterX - (cardWidth / 2)
@@ -133,15 +133,43 @@ struct MirrorOverlayLayout: Equatable {
     }
 
     /// The Y coordinate the card sits *under*. In AppKit's bottom-up coordinate system this is the
-    /// bottom edge of the anchor (field or caret rect) minus the gap.
-    private static func computeAnchorTopY(geometry: SuggestionOverlayGeometry) -> CGFloat {
-        if let inputFrame = geometry.inputFrameRect?.standardized, !inputFrame.isEmpty {
-            return inputFrame.minY - Metrics.anchorGap
+    /// bottom edge of the anchor minus the gap.
+    ///
+    /// The anchor choice depends on *why* mirror mode is active:
+    ///
+    /// - `.caretGeometryEstimated` means the host did not expose any of the trusted caret paths, so
+    ///   the caret rect itself is unreliable. We anchor to the input field rect when available
+    ///   because the field rect stays stable even when the caret estimate drifts.
+    /// - `.userPreference` and `.perAppOverride` mean the user pinned popup mode despite the caret
+    ///   geometry being trustworthy (`.exact` or `.derived`). Anchoring to the field rect in this
+    ///   case wastes the precise caret signal and lands the card far below where the eye is. We
+    ///   anchor to the caret rect instead, with the input field as a safety net only for the
+    ///   degenerate case where the caret rect is empty.
+    private static func computeAnchorTopY(
+        geometry: SuggestionOverlayGeometry,
+        reason: CompletionRenderMode.MirrorReason
+    ) -> CGFloat {
+        switch reason {
+        case .caretGeometryEstimated:
+            if let inputFrame = geometry.inputFrameRect?.standardized, !inputFrame.isEmpty {
+                return inputFrame.minY - Metrics.anchorGap
+            }
+            // Caret-rect fallback uses the larger offset because in `.estimated` we treat the caret
+            // height as unreliable; the extra slack keeps the card from overlapping the typed line.
+            return geometry.caretRect.minY - Metrics.caretFallbackVerticalOffset
+
+        case .userPreference, .perAppOverride:
+            // Caret geometry is trustworthy in these cases. Sit just under the caret line so the
+            // popup tracks the cursor like the inline ghost does, instead of floating below the
+            // entire field.
+            if !geometry.caretRect.isEmpty {
+                return geometry.caretRect.minY - Metrics.anchorGap
+            }
+            if let inputFrame = geometry.inputFrameRect?.standardized, !inputFrame.isEmpty {
+                return inputFrame.minY - Metrics.anchorGap
+            }
+            return geometry.caretRect.minY - Metrics.caretFallbackVerticalOffset
         }
-        // No field rect — fall back to the caret rect with an explicit vertical offset so the card
-        // doesn't overlap the caret line. The card lands slightly lower than ideal but at least
-        // doesn't sit directly on top of typed text.
-        return geometry.caretRect.minY - Metrics.caretFallbackVerticalOffset
     }
 
     /// Horizontal center the card aligns to. Prefer the caret's X because the user's eye is already
