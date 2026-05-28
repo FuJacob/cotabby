@@ -33,7 +33,10 @@ struct SettingsContainerView: View {
 
     var body: some View {
         NavigationSplitView {
-            SettingsSidebarView(selection: $selection)
+            SettingsSidebarView(
+                selection: $selection,
+                attentionCategories: attentionCategories
+            )
         } detail: {
             detailPane
                 .id(selection)
@@ -53,6 +56,21 @@ struct SettingsContainerView: View {
             storedCategoryRawValue = newValue.rawValue
             syncWindowTitle(for: newValue)
         }
+    }
+
+    /// Snapshot driven by the live observable graph. Recomputes whenever the underlying state
+    /// publishes, so a permission grant or a runtime recovery clears the sidebar dot without any
+    /// manual refresh.
+    private var attentionCategories: Set<SettingsCategory> {
+        SettingsAttentionEvaluator.categoriesNeedingAttention(
+            SettingsAttentionEvaluator.Inputs(
+                permissionsGranted: permissionManager.requiredPermissionsGranted,
+                selectedEngine: suggestionSettings.selectedEngine,
+                foundationModelAvailable: foundationModelAvailabilityService.isAvailable,
+                foundationModelMessage: foundationModelAvailabilityService.userVisibleMessage,
+                llamaRuntimeFailedReason: runtimeModel.state.failureDetail
+            )
+        )
     }
 
     @ViewBuilder

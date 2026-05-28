@@ -46,13 +46,21 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
     }
 
     /// UserDefaults key that toggles between the legacy single-form Settings and the redesigned
-    /// sidebar Settings. Default is `false` (legacy) until the redesign is feature-complete; flip
-    /// to `true` to dogfood. The key is intentionally kept narrow so a regression can be reverted
-    /// with a single `defaults write` without redeploying the app.
+    /// sidebar Settings. Defaults to `true` now that the redesigned panes cover every legacy
+    /// control; the legacy view is retained as a one-`defaults write` rollback for one release
+    /// cycle before it is deleted. The key is intentionally narrow so a regression can be
+    /// reverted with `defaults write com.jacobfu.tabby cotabbySettingsRedesignEnabled -bool NO`
+    /// without redeploying the app.
     static let redesignEnabledDefaultsKey = "cotabbySettingsRedesignEnabled"
 
     private var isRedesignEnabled: Bool {
-        UserDefaults.standard.bool(forKey: Self.redesignEnabledDefaultsKey)
+        // `bool(forKey:)` cannot distinguish "user explicitly set false" from "key absent". Read
+        // the raw object so the absent case can default to true without overwriting an explicit
+        // opt-out from someone who set the key to false.
+        guard let stored = UserDefaults.standard.object(forKey: Self.redesignEnabledDefaultsKey) as? Bool else {
+            return true
+        }
+        return stored
     }
 
     /// Shows the settings window, reusing the existing instance if it is already open.
