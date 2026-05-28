@@ -165,8 +165,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         activationIndicatorController.show(
             enabled: suggestionSettings.showIndicator,
             caretRect: context.caretRect,
-            inputFrameRect: context.inputFrameRect,
-            customImage: suggestionSettings.customIndicatorImage
+            inputFrameRect: context.inputFrameRect
         )
     }
 

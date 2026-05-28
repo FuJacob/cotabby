@@ -44,8 +44,7 @@ final class ActivationIndicatorController {
     func show(
         enabled: Bool,
         caretRect: CGRect,
-        inputFrameRect: CGRect?,
-        customImage: NSImage?
+        inputFrameRect: CGRect?
     ) {
         guard enabled else {
             hide(reason: "Activation indicator hidden because it is disabled.")
@@ -57,7 +56,7 @@ final class ActivationIndicatorController {
             return
         }
 
-        contentView.rootView = AnyView(FieldEdgeIconIndicatorView(customImage: customImage))
+        contentView.rootView = AnyView(FieldEdgeIconIndicatorView())
         contentView.layoutSubtreeIfNeeded()
         let contentSize = contentView.fittingSize
         let origin = fieldEdgeIconOrigin(
