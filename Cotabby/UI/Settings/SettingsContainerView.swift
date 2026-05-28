@@ -51,7 +51,12 @@ struct SettingsContainerView: View {
                 .toolbar(removing: .sidebarToggle)
         }
         .navigationSplitViewStyle(.balanced)
-        .frame(minWidth: 1180, minHeight: 720)
+        // Sized so the sidebar's `ideal` width (240) plus a detail pane that comfortably holds the
+        // grouped Form (~500pt) fits without forcing `.balanced` to squeeze the sidebar below the
+        // longest label. The previous 1180pt floor came from an earlier sidebar experiment that
+        // doubled column widths; with the sidebar tightened back down, that floor leaves the
+        // detail pane oversized for the actual content.
+        .frame(minWidth: 780, minHeight: 560)
         .onChange(of: columnVisibility) { _, newValue in
             // Snap back to `.all` if something tries to collapse the sidebar. Cheaper than wiring
             // a custom binding and reads as the same intent: the sidebar is never optional here.
