@@ -109,7 +109,16 @@ final class LlamaRuntimeManager: ObservableObject {
                 )
             }
             return try await withTaskCancellationHandler {
-                try await task.value
+                // `core.generate` cooperates with cancellation by returning the partial buffer it
+                // accumulated instead of throwing, which is the right behavior for the inference
+                // layer (the KV-cache trim and lock release still need to run on the way out).
+                // The manager surfaces the cancellation as a thrown `CancellationError` so the
+                // `catch` below stays reachable and so callers see the same vocabulary as a
+                // throwing path. The outer task is the one that was cancelled (that is why
+                // `onCancel` ran), so `Task.checkCancellation()` throws here.
+                let partial = try await task.value
+                try Task.checkCancellation()
+                return partial
             } onCancel: {
                 task.cancel()
             }
@@ -149,7 +158,12 @@ final class LlamaRuntimeManager: ObservableObject {
                 )
             }
             return try await withTaskCancellationHandler {
-                try await task.value
+                // Same pattern as `generate`: the detached task returns partial text on cancel,
+                // so surface the cancel here via `Task.checkCancellation()` to keep the catch
+                // below reachable and the runtime vocabulary consistent across both paths.
+                let partial = try await task.value
+                try Task.checkCancellation()
+                return partial
             } onCancel: {
                 task.cancel()
             }
