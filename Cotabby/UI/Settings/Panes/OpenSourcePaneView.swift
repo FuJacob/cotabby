@@ -25,6 +25,7 @@ struct OpenSourcePaneView: View {
                         Button("Switch to Open Source") {
                             suggestionSettings.selectEngine(.llamaOpenSource)
                         }
+                        .controlSize(.regular)
                     } label: {
                         Text("Currently using Apple Intelligence. Switch to use the local llama runtime.")
                             .foregroundStyle(.secondary)

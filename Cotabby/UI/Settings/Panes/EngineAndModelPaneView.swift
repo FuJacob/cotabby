@@ -28,7 +28,7 @@ struct EngineAndModelPaneView: View {
                 case .appleIntelligence:
                     LabeledContent("Availability") {
                         Text(foundationModelAvailabilityService.userVisibleMessage)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(foundationModelAvailabilityService.isAvailable ? .green : .orange)
                     }
                 case .llamaOpenSource:
                     LabeledContent("Runtime") {
@@ -51,6 +51,7 @@ struct EngineAndModelPaneView: View {
                 .padding(.vertical, 4)
             }
         }
+        .onAppear { foundationModelAvailabilityService.refresh() }
     }
 
     private var selectedEngineBinding: Binding<SuggestionEngineKind> {
