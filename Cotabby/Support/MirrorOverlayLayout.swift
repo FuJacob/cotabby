@@ -82,10 +82,12 @@ struct MirrorOverlayLayout: Equatable {
         let measuredTextWidth = measuredWidth(of: normalizedSuggestion, fontSize: Metrics.fontSize)
         let keycapReservation = showsAcceptanceHint ? Metrics.keycapReservation : 0
 
-        let contentWidth = min(
-            Metrics.maxCardWidth,
-            max(Metrics.minCardWidth, measuredTextWidth + keycapReservation)
-        )
+        // Reserve the keycap on top of the text width, not inside the min/max clamp. Otherwise a
+        // short suggestion (measured width below `minCardWidth`) gets the same card as one with the
+        // hint disabled because the minimum floor absorbs the reservation.
+        let textBudget = max(0, Metrics.maxCardWidth - keycapReservation)
+        let textContentWidth = min(textBudget, max(Metrics.minCardWidth, measuredTextWidth))
+        let contentWidth = textContentWidth + keycapReservation
         let cardWidth = contentWidth + (Metrics.horizontalPadding * 2)
         let cardHeight = ceil(Metrics.fontSize * 1.6) + (Metrics.verticalPadding * 2)
 
