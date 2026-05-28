@@ -58,15 +58,21 @@ struct SettingsContainerView: View {
     @ViewBuilder
     private var detailPane: some View {
         switch selection {
-        case .general,
-             .engineAndModel,
+        case .general:
+            GeneralPaneView(
+                suggestionSettings: suggestionSettings,
+                onShowWelcome: onShowWelcome
+            )
+        case .permissions:
+            PermissionsPaneView(permissionManager: permissionManager)
+        case .about:
+            AboutPaneView(appUpdateManager: appUpdateManager)
+        case .engineAndModel,
              .appleIntelligence,
              .openSource,
              .writing,
              .shortcuts,
-             .apps,
-             .permissions,
-             .about:
+             .apps:
             PlaceholderPaneView(category: selection)
         }
     }
