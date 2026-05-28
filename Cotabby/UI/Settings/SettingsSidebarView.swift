@@ -16,6 +16,14 @@ struct SettingsSidebarView: View {
 
     var body: some View {
         List(selection: $selection) {
+            // First row would otherwise sit flush against the window title bar. A clear-color
+            // sentinel that is excluded from selection gives the sidebar the same top breathing
+            // room as the detail pane without fighting `.listStyle(.sidebar)`.
+            Color.clear
+                .frame(height: 8)
+                .listRowBackground(Color.clear)
+                .selectionDisabled()
+
             ForEach(SettingsSidebarSection.allCases, id: \.self) { section in
                 let rows = SettingsCategory.allCases.filter { $0.section == section }
                 if !rows.isEmpty {
@@ -30,7 +38,8 @@ struct SettingsSidebarView: View {
             }
         }
         .listStyle(.sidebar)
-        .navigationSplitViewColumnWidth(min: 200, ideal: 220, max: 260)
+        // Wider min/ideal so labels like "Apple Intelligence" do not truncate to "Apple I...".
+        .navigationSplitViewColumnWidth(min: 240, ideal: 260, max: 320)
     }
 
     @ViewBuilder
