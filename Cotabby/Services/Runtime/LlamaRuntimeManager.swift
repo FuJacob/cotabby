@@ -97,13 +97,22 @@ final class LlamaRuntimeManager: ObservableObject {
 
         let core = self.core
         do {
-            return try await Task.detached {
+            // `Task.detached` does not inherit the caller's cancellation, so an outer cancel
+            // would otherwise leave `core.generate` running to its full prediction budget while
+            // holding `autocompleteLock`. The handler forwards the cancel signal, and the loop
+            // inside `core.generate` polls `Task.isCancelled` between sampleNext calls.
+            let task = Task.detached {
                 try core.generate(
                     prompt: prompt,
                     cachedPrefixBytes: cachedPrefixBytes,
                     options: options
                 )
-            }.value
+            }
+            return try await withTaskCancellationHandler {
+                try await task.value
+            } onCancel: {
+                task.cancel()
+            }
         } catch is CancellationError {
             CotabbyLogger.runtime.debug("Generation cancelled")
             throw LlamaRuntimeError.cancelled
@@ -133,12 +142,17 @@ final class LlamaRuntimeManager: ObservableObject {
             temperature: temperature
         )
         do {
-            return try await Task.detached {
+            let task = Task.detached {
                 try core.summarize(
                     prompt: prompt,
                     options: options
                 )
-            }.value
+            }
+            return try await withTaskCancellationHandler {
+                try await task.value
+            } onCancel: {
+                task.cancel()
+            }
         } catch is CancellationError {
             throw LlamaRuntimeError.cancelled
         } catch let error as LlamaRuntimeError {

@@ -150,6 +150,12 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         var generatedText = ""
 
         for _ in 0 ..< options.maxPredictionTokens {
+            // Cooperative cancellation: when the wrapping Task is cancelled (caller hit a new
+            // keystroke, focus changed, Compose started), bail before the next sampleNext call so
+            // we release `autocompleteLock` instead of running the full prediction budget and
+            // making the next autocomplete wait behind us.
+            if Task.isCancelled { break }
+
             let result = engine.sampleNext(sequenceID)
 
             if result.was_cancelled || result.is_eos {
