@@ -45,6 +45,16 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
         self.onShowWelcome = onShowWelcome
     }
 
+    /// UserDefaults key that toggles between the legacy single-form Settings and the redesigned
+    /// sidebar Settings. Default is `false` (legacy) until the redesign is feature-complete; flip
+    /// to `true` to dogfood. The key is intentionally kept narrow so a regression can be reverted
+    /// with a single `defaults write` without redeploying the app.
+    static let redesignEnabledDefaultsKey = "cotabbySettingsRedesignEnabled"
+
+    private var isRedesignEnabled: Bool {
+        UserDefaults.standard.bool(forKey: Self.redesignEnabledDefaultsKey)
+    }
+
     /// Shows the settings window, reusing the existing instance if it is already open.
     /// Reusing one window avoids subtle state duplication and matches standard macOS settings
     /// behavior where there is a single shared preferences surface for the app.
@@ -55,22 +65,55 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
             return
         }
 
-        let hostingController = NSHostingController(
-            rootView: SettingsView(
-                appUpdateManager: appUpdateManager,
-                launchAtLoginService: launchAtLoginService,
-                permissionManager: permissionManager,
-                suggestionSettings: suggestionSettings,
-                foundationModelAvailabilityService: foundationModelAvailabilityService,
-                runtimeModel: runtimeModel,
-                modelDownloadManager: modelDownloadManager,
-                huggingFaceSearchService: huggingFaceSearchService,
-                onShowWelcome: onShowWelcome
+        let hostingController: NSHostingController<AnyView>
+        let initialFrame: CGRect
+        let minSize: NSSize
+        let autosaveName: String
+
+        if isRedesignEnabled {
+            hostingController = NSHostingController(
+                rootView: AnyView(
+                    SettingsContainerView(
+                        appUpdateManager: appUpdateManager,
+                        launchAtLoginService: launchAtLoginService,
+                        permissionManager: permissionManager,
+                        suggestionSettings: suggestionSettings,
+                        foundationModelAvailabilityService: foundationModelAvailabilityService,
+                        runtimeModel: runtimeModel,
+                        modelDownloadManager: modelDownloadManager,
+                        huggingFaceSearchService: huggingFaceSearchService,
+                        onShowWelcome: onShowWelcome
+                    )
+                )
             )
-        )
+            initialFrame = CGRect(x: 0, y: 0, width: 960, height: 680)
+            minSize = NSSize(width: 820, height: 540)
+            // Separate autosave name so the redesigned layout starts from its own default frame
+            // for users who already had a smaller saved frame from the legacy window.
+            autosaveName = "CotabbySettingsWindowV2"
+        } else {
+            hostingController = NSHostingController(
+                rootView: AnyView(
+                    SettingsView(
+                        appUpdateManager: appUpdateManager,
+                        launchAtLoginService: launchAtLoginService,
+                        permissionManager: permissionManager,
+                        suggestionSettings: suggestionSettings,
+                        foundationModelAvailabilityService: foundationModelAvailabilityService,
+                        runtimeModel: runtimeModel,
+                        modelDownloadManager: modelDownloadManager,
+                        huggingFaceSearchService: huggingFaceSearchService,
+                        onShowWelcome: onShowWelcome
+                    )
+                )
+            )
+            initialFrame = CGRect(x: 0, y: 0, width: 700, height: 620)
+            minSize = NSSize(width: 640, height: 520)
+            autosaveName = "CotabbySettingsWindow"
+        }
 
         let window = NSWindow(
-            contentRect: CGRect(x: 0, y: 0, width: 700, height: 620),
+            contentRect: initialFrame,
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
@@ -80,8 +123,8 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
         window.isReleasedWhenClosed = false
         window.level = .normal
         window.collectionBehavior = [.moveToActiveSpace, .fullScreenAuxiliary]
-        window.minSize = NSSize(width: 640, height: 520)
-        window.setFrameAutosaveName("CotabbySettingsWindow")
+        window.minSize = minSize
+        window.setFrameAutosaveName(autosaveName)
         window.delegate = self
         window.contentViewController = hostingController
 
