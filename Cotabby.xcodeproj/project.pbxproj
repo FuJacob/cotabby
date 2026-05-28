@@ -20,6 +20,7 @@
 		0D8241CD31942A25EC4E0EE4 /* CotabbyDebugOptions.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7B2D34A6F3AC9DFD61350F7 /* CotabbyDebugOptions.swift */; };
 		0DDC0CFF5558A8F4355836B2 /* OverlayController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F308F6E274CC645E27CB651F /* OverlayController.swift */; };
 		0F3267956257401F39386773 /* SuggestionOverlayStabilityGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2F95847D76893C8A5B504B4 /* SuggestionOverlayStabilityGate.swift */; };
+		11F3AF0F7E0A4B72A4A67C70 /* InputMonitorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11F3AF0E7E0A4B72A4A67C70 /* InputMonitorTests.swift */; };
 		1003373E13779882503C0E9D /* DisplayCoordinateConverter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74BD1D4DB27D5D96D1E06096 /* DisplayCoordinateConverter.swift */; };
 		12995E5DDB11E3395E6AF82F /* ShortcutsPaneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB630F9814388203DD1CA2EC /* ShortcutsPaneView.swift */; };
 		14D77F0B8A195AC2FA8D24A9 /* MirrorOverlayLayoutTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC83D14A7557BC0196E59007 /* MirrorOverlayLayoutTests.swift */; };
@@ -206,6 +207,7 @@
 		0E0F6AFF229D20B73CF14C6C /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		0F5E263AB69029D5E13D5EE8 /* FocusDebugOverlayController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusDebugOverlayController.swift; sourceTree = "<group>"; };
 		110CB0B53016644EF7840301 /* HuggingFaceAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HuggingFaceAPIClient.swift; sourceTree = "<group>"; };
+		11F3AF0E7E0A4B72A4A67C70 /* InputMonitorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputMonitorTests.swift; sourceTree = "<group>"; };
 		12DD19BCE610808F1E38702D /* PermissionOverlayTrackerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionOverlayTrackerTests.swift; sourceTree = "<group>"; };
 		18D990E515E1AE4F312F4E95 /* BundledRuntimeLocatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BundledRuntimeLocatorTests.swift; sourceTree = "<group>"; };
 		19BE12C28A4AB8A4A58C2FF7 /* SettingsPaneScaffold.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPaneScaffold.swift; sourceTree = "<group>"; };
@@ -574,6 +576,7 @@
 				D49F3B597374208594861B9B /* FoundationModelDriftEvalTests.swift */,
 				335BF59EE80F3A0143B79740 /* GhostFontSizeStabilizerTests.swift */,
 				5AD3F4F9FBE82007E4E15F58 /* GhostSuggestionLayoutTests.swift */,
+				11F3AF0E7E0A4B72A4A67C70 /* InputMonitorTests.swift */,
 				4793D4EA5D36D7E5CC216C27 /* LanguageSupportTests.swift */,
 				3009812A35A1CDEF16295AB7 /* LlamaPromptRendererTests.swift */,
 				FC83D14A7557BC0196E59007 /* MirrorOverlayLayoutTests.swift */,
@@ -981,6 +984,7 @@
 				31DCCE980B6708401256D4D1 /* FoundationModelDriftEvalTests.swift in Sources */,
 				2EE05B312C990104BE934772 /* GhostFontSizeStabilizerTests.swift in Sources */,
 				A0BB87E3665EF6C209034798 /* GhostSuggestionLayoutTests.swift in Sources */,
+				11F3AF0F7E0A4B72A4A67C70 /* InputMonitorTests.swift in Sources */,
 				E912D4617AE1376061DF1F00 /* LanguageSupportTests.swift in Sources */,
 				190C571B3CDFE117F4D15484 /* LlamaPromptRendererTests.swift in Sources */,
 				14D77F0B8A195AC2FA8D24A9 /* MirrorOverlayLayoutTests.swift in Sources */,

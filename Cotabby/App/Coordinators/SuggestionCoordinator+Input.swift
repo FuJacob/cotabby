@@ -141,11 +141,11 @@ extension SuggestionCoordinator {
         }
 
         if event.kind == .acceptance {
-            return acceptCurrentSuggestion(originalEvent: event)
+            return acceptCurrentSuggestion()
         }
 
         if event.kind == .fullAcceptance {
-            return acceptEntireSuggestion(originalEvent: event)
+            return acceptEntireSuggestion()
         }
 
         if let activeSession = interactionState.activeSession {
