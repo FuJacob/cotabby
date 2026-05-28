@@ -32,6 +32,20 @@ final class FoundationModelPromptRendererTests: XCTestCase {
         XCTAssertFalse(instructions.contains("UNIQUE_LENGTH_POLICY"))
     }
 
+    /// Locks in the anti-echo rule. Without it, the chat-tuned model emits the prefix back on some
+    /// mid-line comment and mid-sentence prose cases — the normalizer then strips the echo and the
+    /// overlay shows nothing. The eval suite (`FoundationModelDriftEvalTests`) was the canary that
+    /// surfaced this regression when session reuse was tightened to single-turn, so it stays
+    /// pinned here as a fast unit-level guard before the live eval ever runs.
+    func test_sessionInstructions_forbidEchoingExistingText() {
+        let request = CotabbyTestFixtures.suggestionRequest()
+
+        let instructions = FoundationModelPromptRenderer.sessionInstructions(for: request)
+
+        XCTAssertTrue(instructions.contains("Continue from the position immediately after the existing text"))
+        XCTAssertTrue(instructions.contains("Do not repeat or quote the existing text"))
+    }
+
     /// The user's name is deliberately withheld from Apple's chat-tuned model: a stated name is the
     /// main trigger for breaking character ("Jacob, how are you"). Personalization stays on llama.
     func test_sessionInstructions_omitTheUserName() {

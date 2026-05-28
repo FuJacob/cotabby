@@ -27,6 +27,14 @@ enum FoundationModelPromptRenderer {
                 + "few words they would type, in their voice.",
             "Output the continuation only: no greeting, no sign-off, no quotes, no markdown, "
                 + "no labels, no explanation.",
+            // Anti-echo guard. Without an explicit rule the chat-tuned model sometimes emits the
+            // existing text again instead of continuing — most reliably on mid-line comment and
+            // mid-sentence prose prefixes — which the normalizer then strips, leaving the user
+            // with no suggestion at all. The rule is paired with positive framing so it does not
+            // violate the WWDC25 "positive identity over prohibitions" guidance that motivates
+            // this rewrite.
+            "Continue from the position immediately after the existing text. Do not repeat or "
+                + "quote the existing text.",
             "Match the existing language, register, casing, and punctuation. Continue the "
                 + "current sentence or thought rather than restarting it.",
             "Use clipboard or screen context only when it directly helps the next words."
