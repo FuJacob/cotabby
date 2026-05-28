@@ -25,6 +25,7 @@ struct OpenSourcePaneView: View {
                         Button("Switch to Open Source") {
                             suggestionSettings.selectEngine(.llamaOpenSource)
                         }
+                        .controlSize(.regular)
                     } label: {
                         Text("Currently using Apple Intelligence. Switch to use the local llama runtime.")
                             .foregroundStyle(.secondary)
@@ -87,10 +88,6 @@ struct OpenSourcePaneView: View {
                                 refreshModels()
                             }
                             .disabled(!lmStudioAvailable)
-                                lmStudioAvailable
-                                    ? "Point Cotabby at LM Studio's models folder (~/.lmstudio/models) so you don't keep two copies."
-                                    : "Install LM Studio with at least one model first. Cotabby couldn't find ~/.lmstudio/models."
-                            )
 
                             Button("Reset Path") {
                                 BundledRuntimeLocator.setCustomModelDirectory(nil)
