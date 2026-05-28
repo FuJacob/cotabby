@@ -173,22 +173,77 @@ extension SuggestionCoordinator {
         return false
     }
 
-    /// Schedules a fresh prediction after a short delay so Chromium-based editors (Chrome, Edge,
-    /// Slack, Discord, Notion, every Electron app) have time to publish the new contenteditable
-    /// text to AX. Without the delay, `schedulePrediction()` fires synchronously from inside the
-    /// CGEvent tap — which runs *before* the host app processes the keystroke — so the AX read
-    /// inside generation still sees pre-keystroke text. The result feels like Cotabby swallowed
-    /// the key: the active suggestion vanishes, a new one appears that does not reflect the
-    /// character the user just typed, and the user concludes their keystroke was eaten.
-    /// 150ms is chosen empirically: long enough for Chromium's contenteditable AX to settle on a
-    /// busy page, short enough that the rescheduled suggestion still feels responsive after the
-    /// user has just diverged from the previous one. `schedulePrediction()` internally
-    /// `replaceDebouncedWork`s, so back-to-back keystrokes still collapse cleanly.
+    /// Maximum wall time we'll wait for the host app to publish post-keystroke AX before giving
+    /// up and generating against whatever's there. Chosen empirically: long enough to cover
+    /// Chrome's slower contenteditable publish on a busy page, short enough that the user can
+    /// always type ahead without the rescheduled suggestion feeling stuck.
+    private static let hostPublishWaitCeilingMs = 400
+
+    /// Interval between AX polls while waiting for the host publish. Same order of magnitude as
+    /// the focus poll itself (default 80ms) but tighter so we catch the publish promptly without
+    /// burning CPU on AX queries that are themselves 5–15ms each.
+    private static let hostPublishPollIntervalMs = 30
+
+    /// Schedules a fresh prediction once the host app has actually published the new
+    /// contenteditable text to AX. The previous fix waited a fixed 150ms — see PR #376 — but the
+    /// logs in #381 showed Chromium's publish lag can exceed that ceiling on a busy page, so the
+    /// rescheduled generation still read pre-keystroke text and produced a suggestion that looked
+    /// like Cotabby swallowed the character.
+    ///
+    /// We now snapshot the AX state at keystroke time (focused element identity, preceding text,
+    /// selection) and poll `focusModel` until the snapshot actually moves on. The poll is capped
+    /// at `hostPublishWaitCeilingMs` so a silent host can't hang the pipeline — once the cap is
+    /// reached we generate against whatever's there, matching the old fixed-delay behavior.
+    /// `schedulePrediction()` internally `replaceDebouncedWork`s, so back-to-back keystrokes
+    /// still collapse cleanly.
     private func schedulePredictionAfterHostPublishDelay() {
-        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(150)) { [weak self] in
-            guard let self else { return }
-            self.focusModel.refreshNow()
-            self.schedulePrediction()
+        let baseline = focusModel.snapshot.context
+        pollForHostPublish(
+            baselineText: baseline?.precedingText,
+            baselineElementID: baseline?.elementIdentifier,
+            baselineSelectionLocation: baseline?.selection.location,
+            elapsedMs: 0
+        )
+    }
+
+    /// Drives the snapshot-changed gate. Reads the live focus snapshot, fires `schedulePrediction`
+    /// as soon as any of the captured baseline fields move on, and otherwise tail-calls itself
+    /// after `hostPublishPollIntervalMs` until the ceiling is hit.
+    private func pollForHostPublish(
+        baselineText: String?,
+        baselineElementID: String?,
+        baselineSelectionLocation: Int?,
+        elapsedMs: Int
+    ) {
+        focusModel.refreshNow()
+        let currentContext = focusModel.snapshot.context
+
+        // No focus context at all means the user moved away from any editable field — let
+        // `schedulePrediction` and its downstream guards handle the disabled / unsupported state.
+        let textChanged = currentContext?.precedingText != baselineText
+        let elementChanged = currentContext?.elementIdentifier != baselineElementID
+        let selectionChanged = currentContext?.selection.location != baselineSelectionLocation
+        if textChanged || elementChanged || selectionChanged {
+            schedulePrediction()
+            return
+        }
+
+        // Ceiling: stop polling and generate anyway. Without this fallback a host that genuinely
+        // produces no AX change (rare but possible — e.g. dead-key composition) would never get
+        // its next prediction.
+        let nextElapsed = elapsedMs + Self.hostPublishPollIntervalMs
+        guard nextElapsed < Self.hostPublishWaitCeilingMs else {
+            schedulePrediction()
+            return
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(Self.hostPublishPollIntervalMs)) { [weak self] in
+            self?.pollForHostPublish(
+                baselineText: baselineText,
+                baselineElementID: baselineElementID,
+                baselineSelectionLocation: baselineSelectionLocation,
+                elapsedMs: nextElapsed
+            )
         }
     }
 
