@@ -162,10 +162,12 @@ extension SuggestionCoordinator {
         }
 
         if event.shouldSchedulePrediction {
-            // Capture AX state immediately at keystroke time so the debounce window
-            // works with the freshest possible snapshot, not whenever the poll timer last fired.
-            focusModel.refreshNow()
-            schedulePrediction()
+            // Same Chromium AX-publish race as the with-session paths below: the CGEvent tap runs
+            // *before* the host app processes the keystroke, so a synchronous `refreshNow()` here
+            // reads pre-keystroke text and feeds it into generation. The result is a suggestion
+            // that looks like the typed character was ignored — see
+            // `schedulePredictionAfterHostPublishDelay` for the full rationale.
+            schedulePredictionAfterHostPublishDelay()
         }
 
         return false
