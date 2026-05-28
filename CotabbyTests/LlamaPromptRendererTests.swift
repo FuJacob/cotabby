@@ -234,7 +234,8 @@ final class LlamaPromptRendererTests: XCTestCase {
             languageInstruction: nil,
             clipboardContext: nil,
             visualContextSummary: nil,
-            isMultiLineEnabled: false
+            isMultiLineEnabled: false,
+            kind: .continuation
         )
     }
 }

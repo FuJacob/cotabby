@@ -50,6 +50,9 @@ final class SuggestionCoordinator: ObservableObject {
     let userDefaults: UserDefaults
     let overlayPresenter: SuggestionOverlayPresenter
     let logger: SuggestionDebugLogger
+    /// Drives the typo gate before each prediction. Owned at app scope so the same
+    /// `NSSpellChecker` document tag persists across the coordinator's lifetime.
+    let spellChecker: CurrentWordSpellChecker
 
     static let totalTabAcceptedWordCountDefaultsKey = "cotabbyTotalAcceptedWordCount"
 
@@ -76,6 +79,7 @@ final class SuggestionCoordinator: ObservableObject {
         interactionState: SuggestionInteractionState,
         workController: SuggestionWorkController,
         configuration: SuggestionConfiguration,
+        spellChecker: CurrentWordSpellChecker,
         userDefaults: UserDefaults = .standard
     ) {
         let storedTotalTabAcceptedWordCount = userDefaults.integer(
@@ -94,6 +98,7 @@ final class SuggestionCoordinator: ObservableObject {
         self.interactionState = interactionState
         self.workController = workController
         self.configuration = configuration
+        self.spellChecker = spellChecker
         self.userDefaults = userDefaults
         settingsSnapshot = suggestionSettings.snapshot
         // These collaborators isolate "how overlay/logging works" from "when the coordinator

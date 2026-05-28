@@ -127,7 +127,8 @@ enum CotabbyTestFixtures {
             languageInstruction: languageInstruction,
             clipboardContext: clipboardContext,
             visualContextSummary: visualContextSummary,
-            isMultiLineEnabled: isMultiLineEnabled
+            isMultiLineEnabled: isMultiLineEnabled,
+            kind: .continuation
         )
     }
 
@@ -221,7 +222,9 @@ enum CotabbyTestFixtures {
         isMultiLineEnabled: Bool = false,
         autoAcceptTrailingPunctuation: Bool = true,
         isFastModeEnabled: Bool = false,
-        mirrorPreference: MirrorPreference = .auto
+        mirrorPreference: MirrorPreference = .auto,
+        suppressCompletionsOnTypo: Bool = false,
+        offerTypoCorrections: Bool = false
     ) -> SuggestionSettingsSnapshot {
         SuggestionSettingsSnapshot(
             isGloballyEnabled: isGloballyEnabled,
@@ -237,7 +240,9 @@ enum CotabbyTestFixtures {
             isMultiLineEnabled: isMultiLineEnabled,
             autoAcceptTrailingPunctuation: autoAcceptTrailingPunctuation,
             isFastModeEnabled: isFastModeEnabled,
-            mirrorPreference: mirrorPreference
+            mirrorPreference: mirrorPreference,
+            suppressCompletionsOnTypo: suppressCompletionsOnTypo,
+            offerTypoCorrections: offerTypoCorrections
         )
     }
 }

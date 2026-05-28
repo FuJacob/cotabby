@@ -76,4 +76,11 @@ struct SuggestionSettingsSnapshot: Equatable, Sendable {
     /// based on caret geometry quality). Travels in the snapshot so consumers can react to changes
     /// without subscribing to the settings model directly.
     let mirrorPreference: MirrorPreference
+    /// When true, Cotabby checks the user's last word with `NSSpellChecker` and skips the normal
+    /// continuation request when the word looks misspelled. Avoids extending broken words.
+    let suppressCompletionsOnTypo: Bool
+    /// When true and `suppressCompletionsOnTypo` is also true, Cotabby switches into correction
+    /// mode on the same typo trigger: it asks the model for a context-aware fix and offers it as
+    /// a replace-the-typo suggestion. No effect when suppression is off.
+    let offerTypoCorrections: Bool
 }

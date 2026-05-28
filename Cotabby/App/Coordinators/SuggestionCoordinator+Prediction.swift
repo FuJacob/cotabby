@@ -70,6 +70,23 @@ extension SuggestionCoordinator {
             return
         }
 
+        // Typo gate runs synchronously off the AX snapshot. `NSSpellChecker` is sub-millisecond
+        // on one word, so the cost is negligible and we always know up front whether to switch
+        // into correction mode, suppress entirely, or proceed with a normal continuation.
+        let typoDecision = resolveTypoDecision(for: rawContext.precedingText)
+        if typoDecision.shouldSuppress {
+            clearSuggestion()
+            hideOverlay(reason: "Overlay hidden because the current word looks misspelled.")
+            state = .idle
+            logStage(
+                "typo-suppressed",
+                workID: workID,
+                message: "Skipped generation because the current word looks misspelled."
+            )
+            return
+        }
+        let typoContext = typoDecision.typoContext
+
         let context = interactionState.materializeContext(from: rawContext)
         let visualContextSummary = visualContextCoordinator.excerpt(for: context)
         let rawClipboard = settingsSnapshot.isClipboardContextEnabled
@@ -91,7 +108,8 @@ extension SuggestionCoordinator {
             settings: settingsSnapshot,
             configuration: configuration,
             clipboardContext: clipboardContext,
-            visualContextSummary: visualContextSummary
+            visualContextSummary: visualContextSummary,
+            typoContext: typoContext
         )
         latestGenerationNumber = context.generation
         latestPromptPreview = requestBuildResult.promptPreview
@@ -118,7 +136,7 @@ extension SuggestionCoordinator {
                     return
                 }
 
-                await apply(result: result, workID: workID)
+                await apply(result: result, workID: workID, requestKind: request.kind)
             } catch SuggestionClientError.cancelled {
                 return
             } catch {
@@ -132,7 +150,9 @@ extension SuggestionCoordinator {
     }
 
     /// Promotes a generated result to `ready` only when it is still fresh for the current field.
-    func apply(result: SuggestionResult, workID: UInt64) async {
+    /// `requestKind` carries forward the request's kind so the session knows whether to behave
+    /// as a continuation or a correction without us round-tripping the original `SuggestionRequest`.
+    func apply(result: SuggestionResult, workID: UInt64, requestKind: SuggestionKind = .continuation) async {
 
         guard workController.isCurrent(workID) else {
 
@@ -213,10 +233,13 @@ extension SuggestionCoordinator {
 
         latestLatencyMilliseconds = Int(result.latency * 1000)
         latestGenerationNumber = liveContext.generation
+        // Carry the request's kind into the session so the acceptance path can branch on
+        // continuation vs correction without needing the original request object back.
         let session = interactionState.startSession(
             fullText: result.text,
             liveContext: liveContext,
-            latency: result.latency
+            latency: result.latency,
+            kind: requestKind
         )
         applySessionDiagnostics(session, acceptanceAction: "Generated new suggestion.")
         state = .ready(text: session.remainingText, latency: session.latency)
@@ -225,7 +248,8 @@ extension SuggestionCoordinator {
             text: session.remainingText,
             at: liveContext.caretRect,
             context: liveContext,
-            isRightToLeft: TextDirectionDetector.isRightToLeft(liveContext.precedingText)
+            isRightToLeft: TextDirectionDetector.isRightToLeft(liveContext.precedingText),
+            isCorrection: requestKind.isCorrection
         )
         logStage(
             "ready",
@@ -235,6 +259,38 @@ extension SuggestionCoordinator {
             rawOutput: result.rawText,
             normalizedOutput: result.text
         )
+    }
+
+    /// Result of the typo gate. `shouldSuppress` is true only when the user has the suppression
+    /// toggle on, has the corrections toggle off, and we detected a typo on the current word —
+    /// the one combination where we should drop the request without generating anything.
+    struct TypoDecision {
+        let shouldSuppress: Bool
+        let typoContext: TypoContext?
+    }
+
+    /// Checks the trailing word for a typo and returns the appropriate gate decision. Extracted
+    /// from `generateFromCurrentFocus` to keep that function's cyclomatic complexity reasonable.
+    func resolveTypoDecision(for precedingText: String) -> TypoDecision {
+        guard settingsSnapshot.suppressCompletionsOnTypo else {
+            return TypoDecision(shouldSuppress: false, typoContext: nil)
+        }
+        guard let currentWord = CurrentWordExtractor.extract(from: precedingText) else {
+            return TypoDecision(shouldSuppress: false, typoContext: nil)
+        }
+        guard spellChecker.isTypo(currentWord.word) else {
+            return TypoDecision(shouldSuppress: false, typoContext: nil)
+        }
+        if settingsSnapshot.offerTypoCorrections {
+            return TypoDecision(
+                shouldSuppress: false,
+                typoContext: TypoContext(
+                    typoWord: currentWord.word,
+                    nativeCorrections: spellChecker.nativeCorrections(for: currentWord.word)
+                )
+            )
+        }
+        return TypoDecision(shouldSuppress: true, typoContext: nil)
     }
 
     /// Converts a runtime or engine failure into visible coordinator state and clears stale UI.
@@ -333,7 +389,8 @@ extension SuggestionCoordinator {
                     text: reconciledSession.remainingText,
                     at: liveContext.caretRect,
                     context: liveContext,
-                    isRightToLeft: TextDirectionDetector.isRightToLeft(liveContext.precedingText)
+                    isRightToLeft: TextDirectionDetector.isRightToLeft(liveContext.precedingText),
+                    isCorrection: reconciledSession.kind.isCorrection
                 )
             }
             if let advancement {

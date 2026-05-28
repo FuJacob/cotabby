@@ -79,6 +79,13 @@ protocol SuggestionInserting: AnyObject {
     var lastErrorMessage: String? { get }
 
     func insert(_ suggestion: String) -> Bool
+
+    /// Replaces the trailing `deleteCount` characters of the host field with `suggestion` by first
+    /// synthesizing `deleteCount` backspace events and then inserting the replacement. Used by the
+    /// correction-acceptance path so a typo'd word can be swapped for the corrected word in one
+    /// gesture. Implementations must arm `InputSuppressionController` for every synthetic event
+    /// they emit so the global tap doesn't observe its own writes.
+    func insert(_ suggestion: String, replacingLastCharacters deleteCount: Int) -> Bool
 }
 
 @MainActor

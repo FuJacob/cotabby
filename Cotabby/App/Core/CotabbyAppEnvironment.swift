@@ -133,6 +133,9 @@ final class CotabbyAppEnvironment {
 
         let interactionState = SuggestionInteractionState()
         let workController = SuggestionWorkController()
+        // Constructed once at app scope so the underlying `NSSpellChecker` document tag survives
+        // across coordinator state transitions instead of churning per-keystroke.
+        let spellChecker = CurrentWordSpellChecker()
         let suggestionCoordinator = SuggestionCoordinator(
             permissionManager: permissionManager,
             focusModel: focusModel,
@@ -146,7 +149,8 @@ final class CotabbyAppEnvironment {
             visualContextCoordinator: visualContextCoordinator,
             interactionState: interactionState,
             workController: workController,
-            configuration: configuration
+            configuration: configuration,
+            spellChecker: spellChecker
         )
 
         self.permissionManager = permissionManager

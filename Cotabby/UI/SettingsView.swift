@@ -182,6 +182,19 @@ struct SettingsView: View {
             Toggle("Accept Punctuation With Word", isOn: autoAcceptTrailingPunctuationBinding)
                 .cotabbyHelp("With this on, accepting a word also takes punctuation attached to it, like the \"?\" in \"you?\".")
 
+            Toggle("Hide Suggestions on Typo", isOn: suppressCompletionsOnTypoBinding)
+                .help(
+                    "Hide the continuation when the word you're currently typing looks misspelled, "
+                    + "so completions don't pile on top of a broken word."
+                )
+
+            Toggle("Offer Corrections on Typo", isOn: offerTypoCorrectionsBinding)
+                .help(
+                    "When the current word looks misspelled, suggest a fix in green. Pressing the "
+                    + "accept key replaces the typo with the corrected word."
+                )
+                .disabled(!suggestionSettings.suppressCompletionsOnTypo)
+
             Toggle("Include Clipboard Context", isOn: clipboardContextEnabledBinding)
                 .cotabbyHelp("Include your latest clipboard contents in the prompt so completions can reference what you copied.")
 
@@ -761,6 +774,20 @@ struct SettingsView: View {
         Binding(
             get: { suggestionSettings.autoAcceptTrailingPunctuation },
             set: { suggestionSettings.setAutoAcceptTrailingPunctuation($0) }
+        )
+    }
+
+    private var suppressCompletionsOnTypoBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.suppressCompletionsOnTypo },
+            set: { suggestionSettings.setSuppressCompletionsOnTypo($0) }
+        )
+    }
+
+    private var offerTypoCorrectionsBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.offerTypoCorrections },
+            set: { suggestionSettings.setOfferTypoCorrections($0) }
         )
     }
 
