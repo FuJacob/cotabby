@@ -23,6 +23,16 @@ enum RuntimeBootstrapState: Equatable, Sendable {
             return detail
         }
     }
+
+    /// Convenience accessor for callers that only care about the failed case (e.g. the Settings
+    /// sidebar's attention evaluator). Returns `nil` for healthy states so the call site stays a
+    /// single `if let` rather than a multi-case switch.
+    var failureDetail: String? {
+        if case .failed(let detail) = self {
+            return detail
+        }
+        return nil
+    }
 }
 
 /// One discovered GGUF model option that can be displayed in the menu and loaded at runtime.
