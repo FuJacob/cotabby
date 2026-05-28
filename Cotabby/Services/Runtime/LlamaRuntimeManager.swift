@@ -97,13 +97,31 @@ final class LlamaRuntimeManager: ObservableObject {
 
         let core = self.core
         do {
-            return try await Task.detached {
+            // `Task.detached` does not inherit the caller's cancellation, so an outer cancel
+            // would otherwise leave `core.generate` running to its full prediction budget while
+            // holding `autocompleteLock`. The handler forwards the cancel signal, and the loop
+            // inside `core.generate` polls `Task.isCancelled` between sampleNext calls.
+            let task = Task.detached {
                 try core.generate(
                     prompt: prompt,
                     cachedPrefixBytes: cachedPrefixBytes,
                     options: options
                 )
-            }.value
+            }
+            return try await withTaskCancellationHandler {
+                // `core.generate` cooperates with cancellation by returning the partial buffer it
+                // accumulated instead of throwing, which is the right behavior for the inference
+                // layer (the KV-cache trim and lock release still need to run on the way out).
+                // The manager surfaces the cancellation as a thrown `CancellationError` so the
+                // `catch` below stays reachable and so callers see the same vocabulary as a
+                // throwing path. The outer task is the one that was cancelled (that is why
+                // `onCancel` ran), so `Task.checkCancellation()` throws here.
+                let partial = try await task.value
+                try Task.checkCancellation()
+                return partial
+            } onCancel: {
+                task.cancel()
+            }
         } catch is CancellationError {
             CotabbyLogger.runtime.debug("Generation cancelled")
             throw LlamaRuntimeError.cancelled
@@ -133,12 +151,22 @@ final class LlamaRuntimeManager: ObservableObject {
             temperature: temperature
         )
         do {
-            return try await Task.detached {
+            let task = Task.detached {
                 try core.summarize(
                     prompt: prompt,
                     options: options
                 )
-            }.value
+            }
+            return try await withTaskCancellationHandler {
+                // Same pattern as `generate`: the detached task returns partial text on cancel,
+                // so surface the cancel here via `Task.checkCancellation()` to keep the catch
+                // below reachable and the runtime vocabulary consistent across both paths.
+                let partial = try await task.value
+                try Task.checkCancellation()
+                return partial
+            } onCancel: {
+                task.cancel()
+            }
         } catch is CancellationError {
             throw LlamaRuntimeError.cancelled
         } catch let error as LlamaRuntimeError {
