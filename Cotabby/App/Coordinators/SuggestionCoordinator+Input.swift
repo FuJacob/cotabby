@@ -90,10 +90,37 @@ extension SuggestionCoordinator {
             clearSuggestion(clearDiagnostics: true)
             hideOverlay(reason: "Overlay hidden because the focused field changed.")
             state = .idle
+            // The user is now on a new editable surface and is likely to type soon. Prime the
+            // selected engine in the background so weight loading and instruction tokenization
+            // happen before the first real `respond` instead of inside its critical path. Llama's
+            // default `prewarm` is a no-op, so this call is FM-only by design.
+            prewarmEngineForCurrentField(rawContext: focusedContext)
         }
 
         if overlayState.isVisible {
             hideOverlay(reason: "Overlay hidden because no ready suggestion remains.")
+        }
+    }
+
+    /// Fire-and-forget warmup that builds a minimal request shape for the current focus and asks
+    /// the routed engine to prime itself. Generation 0 is intentional — prewarm requests must not
+    /// burn real generation numbers, because those drive the stale-result drop logic.
+    private func prewarmEngineForCurrentField(rawContext: FocusedInputSnapshot) {
+        let settings = settingsSnapshot
+        let configuration = configuration
+        let suggestionEngine = suggestionEngine
+        Task { @MainActor [weak self] in
+            // Honor the cache-reset barrier so prewarm always runs *after* the engine has dropped
+            // the session that belongs to the previous editing context. Otherwise the reset can
+            // null the freshly primed session out from under us.
+            await self?.awaitCachedGenerationContextResetIfNeeded()
+            let prewarmContext = FocusedInputContext(snapshot: rawContext, generation: 0)
+            let request = SuggestionRequestFactory.buildRequest(
+                context: prewarmContext,
+                settings: settings,
+                configuration: configuration
+            ).request
+            await suggestionEngine.prewarm(for: request)
         }
     }
 
