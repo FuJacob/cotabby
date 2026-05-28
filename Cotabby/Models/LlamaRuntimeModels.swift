@@ -91,10 +91,8 @@ enum RuntimeModelCatalog {
             return "tabby-balanced-1"
         case "gemma-4-E4B-it-Q4_K_M.gguf":
             return "tabby-max-1"
-        case "SmolLM-360M-Instruct.Q8_0.gguf":
-            return "tabby-nano-1"
         case "SmolLM2-135M-Instruct-q8_0.gguf":
-            return "tabby-pico-1"
+            return "tabby-nano-2"
         default:
             return filename
         }
@@ -118,17 +116,6 @@ enum RuntimeModelCatalog {
             approximateSizeInGigabytes: 0.1,
             expectedSizeBytes: 144_811_552,
             sha256: "bc64cce8e1c11e4ed870633b557e04af718249c817c4cf8a6784116144ec3e28"
-        ),
-        DownloadableRuntimeModel(
-            filename: "SmolLM-360M-Instruct.Q8_0.gguf",
-            displayName: displayName(for: "SmolLM-360M-Instruct.Q8_0.gguf"),
-            downloadURL: URL(
-                string:
-                    "https://huggingface.co/QuantFactory/SmolLM-360M-Instruct-GGUF/resolve/main/SmolLM-360M-Instruct.Q8_0.gguf?download=true"
-            )!,
-            approximateSizeInGigabytes: 0.4,
-            expectedSizeBytes: 386_404_800,
-            sha256: "24ca4b7c7a5eb3673af7eb313fb2c68ab778f1d2a10c545ef23193faef706ca0"
         ),
         DownloadableRuntimeModel(
             filename: "Qwen3-0.6B-Q4_K_M.gguf",
@@ -182,7 +169,6 @@ struct LlamaRuntimeConfiguration: Equatable, Sendable {
             "gemma-4-E4B-it-Q4_K_M.gguf",
             "gemma-4-E2B-it-Q4_K_M.gguf",
             "Qwen3-0.6B-Q4_K_M.gguf",
-            "SmolLM-360M-Instruct.Q8_0.gguf",
             "SmolLM2-135M-Instruct-q8_0.gguf"
         ],
         contextWindowTokens: 2048,
