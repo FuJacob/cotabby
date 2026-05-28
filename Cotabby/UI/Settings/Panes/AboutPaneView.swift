@@ -56,11 +56,13 @@ struct AboutPaneView: View {
     @ViewBuilder
     private var supportRow: some View {
         LabeledContent {
-            Link(destination: URL(string: "https://ko-fi.com/cotabby")!) {
-                Label("Support", systemImage: "heart.fill")
+            if let supportURL = URL(string: "https://ko-fi.com/cotabby") {
+                Link(destination: supportURL) {
+                    Label("Support", systemImage: "heart.fill")
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.blue)
             }
-            .buttonStyle(.borderedProminent)
-            .tint(.blue)
         } label: {
             Text(
                 "Cotabby is free and open source, maintained by two university students in our free time. "
@@ -74,11 +76,15 @@ struct AboutPaneView: View {
     @ViewBuilder
     private var linksRow: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Link(destination: URL(string: "https://github.com/FuJacob/cotabby")!) {
-                Label("GitHub Repository", systemImage: "chevron.left.forwardslash.chevron.right")
+            if let repoURL = URL(string: "https://github.com/FuJacob/Cotabby") {
+                Link(destination: repoURL) {
+                    Label("GitHub Repository", systemImage: "chevron.left.forwardslash.chevron.right")
+                }
             }
-            Link(destination: URL(string: "https://github.com/FuJacob/Cotabby/wiki")!) {
-                Label("Wiki & Contributor Guide", systemImage: "book")
+            if let wikiURL = URL(string: "https://github.com/FuJacob/Cotabby/wiki") {
+                Link(destination: wikiURL) {
+                    Label("Wiki & Contributor Guide", systemImage: "book")
+                }
             }
             Button {
                 isShowingAcknowledgements = true

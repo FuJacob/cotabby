@@ -15,10 +15,8 @@ struct GeneralPaneView: View {
         SettingsPaneScaffold {
             Section("General") {
                 Toggle("Enable Globally", isOn: globallyEnabledBinding)
-                    .cotabbyHelp("Master switch. Turn off to silence Cotabby in every app.")
 
                 Toggle("Show Indicator", isOn: showIndicatorBinding)
-                    .cotabbyHelp("Show a small icon next to the cursor when Cotabby is active in a field.")
 
                 Toggle(isOn: showAcceptanceHintBinding) {
                     HStack(spacing: 4) {
@@ -34,7 +32,6 @@ struct GeneralPaneView: View {
                         Text("Key Hint")
                     }
                 }
-                .cotabbyHelp("Show a small label near the ghost text reminding you which key accepts it.")
 
                 Picker("Suggestion Display", selection: mirrorPreferenceBinding) {
                     ForEach(MirrorPreference.allCases) { preference in
@@ -49,16 +46,12 @@ struct GeneralPaneView: View {
                 )
 
                 Toggle("Allow Multi-line Suggestions", isOn: multiLineEnabledBinding)
-                    .cotabbyHelp("Let suggestions span more than one line. Off keeps them to a single line.")
 
                 Toggle("Accept Punctuation With Word", isOn: autoAcceptTrailingPunctuationBinding)
-                    .cotabbyHelp("With this on, accepting a word also takes punctuation attached to it, like the \"?\" in \"you?\".")
 
                 Toggle("Include Clipboard Context", isOn: clipboardContextEnabledBinding)
-                    .cotabbyHelp("Include your latest clipboard contents in the prompt so completions can reference what you copied.")
 
                 Toggle("Fast Mode", isOn: fastModeEnabledBinding)
-                    .cotabbyHelp("Skip on-screen OCR context for faster, lower-overhead suggestions. Predictions still run.")
 
                 LabeledContent("Ghost Text Color") {
                     HStack(spacing: 8) {
@@ -67,7 +60,6 @@ struct GeneralPaneView: View {
                         }
                     }
                 }
-                .cotabbyHelp("Color of the ghost text shown before you accept it.")
 
                 LabeledContent("Ghost Text Opacity") {
                     HStack(spacing: 10) {
@@ -86,7 +78,6 @@ struct GeneralPaneView: View {
                             .frame(width: 42, alignment: .trailing)
                     }
                 }
-                .cotabbyHelp("How visible the ghost text is. Lower values are subtler but harder to read.")
 
                 LabeledContent("Onboarding") {
                     Button("Open Welcome Guide") {
@@ -197,7 +188,6 @@ struct GeneralPaneView: View {
                 )
         }
         .buttonStyle(.plain)
-        .cotabbyHelp(preset.name)
     }
 
     private func swatchFill(for preset: GhostTextColorPreset) -> Color {
