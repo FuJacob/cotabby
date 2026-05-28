@@ -127,7 +127,8 @@ final class SuggestionInteractionStateTests: XCTestCase {
                     text: " world again",
                     geometry: CotabbyTestFixtures.overlayGeometry(caretRect: context.caretRect),
                     mode: .inline
-                )
+                ),
+                granularity: .word
             )
 
             guard case let .ready(liveContext, session, acceptedChunk) = preparation else {
@@ -152,7 +153,8 @@ final class SuggestionInteractionStateTests: XCTestCase {
                     text: " different",
                     geometry: CotabbyTestFixtures.overlayGeometry(caretRect: context.caretRect),
                     mode: .inline
-                )
+                ),
+                granularity: .word
             )
 
             guard case let .invalid(reason) = preparation else {
@@ -180,7 +182,8 @@ final class SuggestionInteractionStateTests: XCTestCase {
                     processIdentifier: 123,
                     precedingText: "Different live text"
                 ),
-                overlayState: .hidden(reason: "waiting for caret sync")
+                overlayState: .hidden(reason: "waiting for caret sync"),
+                granularity: .word
             )
 
             guard case let .ready(_, _, acceptedChunk) = preparation else {

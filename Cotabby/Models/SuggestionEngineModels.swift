@@ -45,6 +45,17 @@ struct DisabledApplicationRule: Codable, Equatable, Identifiable, Sendable {
     var id: String { bundleIdentifier }
 }
 
+/// How much of a buffered suggestion the primary accept key takes per press. The dedicated
+/// full-accept key always takes the entire remaining tail regardless of this setting.
+enum AcceptanceGranularity: String, CaseIterable, Codable, Sendable {
+    /// One word (with the existing trailing-punctuation policy applied per chunk).
+    case word
+    /// Words accumulated until a sentence terminator (`.`, `!`, `?`, `\n`) or the tail runs out.
+    case phrase
+    /// The entire remaining suggestion at once — same outcome as the dedicated full-accept key.
+    case full
+}
+
 /// A compact snapshot of the autocomplete settings the coordinator actually needs at generation
 /// time. Keeping this as a value type makes change detection simple and deterministic.
 struct SuggestionSettingsSnapshot: Equatable, Sendable {
@@ -76,4 +87,7 @@ struct SuggestionSettingsSnapshot: Equatable, Sendable {
     /// based on caret geometry quality). Travels in the snapshot so consumers can react to changes
     /// without subscribing to the settings model directly.
     let mirrorPreference: MirrorPreference
+    /// How much of the buffered suggestion the primary accept key takes per press. Read once per
+    /// accept call so a mid-press setting change can't strand a partially-handled press.
+    let acceptanceGranularity: AcceptanceGranularity
 }

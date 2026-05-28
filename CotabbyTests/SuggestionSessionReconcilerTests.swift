@@ -131,6 +131,145 @@ final class SuggestionSessionReconcilerTests: XCTestCase {
         )
     }
 
+    // MARK: - Phrase chunker
+
+    func test_nextAcceptancePhrase_returnsEmptyForEmptyTail() {
+        XCTAssertEqual(SuggestionSessionReconciler.nextAcceptancePhrase(from: ""), "")
+    }
+
+    func test_nextAcceptancePhrase_returnsWholeTailWhenNoTerminatorPresent() {
+        XCTAssertEqual(
+            SuggestionSessionReconciler.nextAcceptancePhrase(from: "hello world again"),
+            "hello world again"
+        )
+    }
+
+    func test_nextAcceptancePhrase_stopsAtFirstPeriod() {
+        XCTAssertEqual(
+            SuggestionSessionReconciler.nextAcceptancePhrase(from: "hello world. foo bar."),
+            "hello world."
+        )
+    }
+
+    func test_nextAcceptancePhrase_stopsAtFirstQuestionMark() {
+        XCTAssertEqual(
+            SuggestionSessionReconciler.nextAcceptancePhrase(from: "how are you? fine."),
+            "how are you?"
+        )
+    }
+
+    func test_nextAcceptancePhrase_stopsAtFirstExclamation() {
+        XCTAssertEqual(
+            SuggestionSessionReconciler.nextAcceptancePhrase(from: "stop! go back"),
+            "stop!"
+        )
+    }
+
+    func test_nextAcceptancePhrase_stopsAtNewlineBetweenTokens() {
+        // Composition over the word chunker would otherwise carry the newline as leading whitespace
+        // into the next iteration's accumulated chunk; the in-chunk newline scan must catch it.
+        XCTAssertEqual(
+            SuggestionSessionReconciler.nextAcceptancePhrase(from: "hello\nworld"),
+            "hello\n"
+        )
+    }
+
+    func test_nextAcceptancePhrase_stopsAtLeadingNewline() {
+        XCTAssertEqual(
+            SuggestionSessionReconciler.nextAcceptancePhrase(from: "\nworld"),
+            "\n"
+        )
+    }
+
+    func test_nextAcceptancePhrase_stopsAtFirstOfMultipleNewlines() {
+        XCTAssertEqual(
+            SuggestionSessionReconciler.nextAcceptancePhrase(from: "\n\nbody"),
+            "\n"
+        )
+    }
+
+    func test_nextAcceptancePhrase_includesLeadingWhitespaceUpToTerminator() {
+        XCTAssertEqual(
+            SuggestionSessionReconciler.nextAcceptancePhrase(from: "  hello. world."),
+            "  hello."
+        )
+    }
+
+    func test_nextAcceptancePhrase_preservesInteriorPunctuationWithinTokens() {
+        XCTAssertEqual(
+            SuggestionSessionReconciler.nextAcceptancePhrase(from: "don't go. yes"),
+            "don't go."
+        )
+    }
+
+    func test_nextAcceptancePhrase_abbreviationFalseBreakIsKnownLimitation() {
+        // "U.S.A." ends in a period, which the rule-based scanner treats as a sentence terminator.
+        // The user accepts the abbreviation in one press and the next phrase begins with " is".
+        // Without NLP this collapse is unavoidable; Cursor and Copilot behave the same way.
+        XCTAssertEqual(
+            SuggestionSessionReconciler.nextAcceptancePhrase(from: "U.S.A. is great."),
+            "U.S.A."
+        )
+    }
+
+    func test_nextAcceptancePhrase_isInvariantToAutoAcceptTrailingPunctuationFlag() {
+        let tail = "you? Yes."
+        XCTAssertEqual(
+            SuggestionSessionReconciler.nextAcceptancePhrase(from: tail, autoAcceptTrailingPunctuation: true),
+            "you?"
+        )
+        XCTAssertEqual(
+            SuggestionSessionReconciler.nextAcceptancePhrase(from: tail, autoAcceptTrailingPunctuation: false),
+            "you?"
+        )
+    }
+
+    func test_nextAcceptancePhrase_stopsAtNewlineEvenWhenPunctuationPrecedes() {
+        // The newline must win over a sentence-terminator on the same line so paragraph breaks are
+        // never accidentally skipped past.
+        XCTAssertEqual(
+            SuggestionSessionReconciler.nextAcceptancePhrase(from: "hello world\nmore"),
+            "hello world\n"
+        )
+    }
+
+    func test_nextAcceptancePhrase_stopsAtSentenceEndInsideStraightQuotes() {
+        XCTAssertEqual(
+            SuggestionSessionReconciler.nextAcceptancePhrase(from: "\"done.\" Next sentence."),
+            "\"done.\""
+        )
+    }
+
+    func test_nextAcceptancePhrase_stopsAtSentenceEndInsideCurlyQuotes() {
+        XCTAssertEqual(
+            SuggestionSessionReconciler.nextAcceptancePhrase(from: "\u{201C}done.\u{201D} Next."),
+            "\u{201C}done.\u{201D}"
+        )
+    }
+
+    func test_nextAcceptancePhrase_stopsAtSentenceEndInsideParentheses() {
+        XCTAssertEqual(
+            SuggestionSessionReconciler.nextAcceptancePhrase(from: "(yes!) keep going"),
+            "(yes!)"
+        )
+    }
+
+    func test_nextAcceptancePhrase_walksPastMultipleClosingPunctuation() {
+        // Nested closers — quote inside parens, sentence ends inside both.
+        XCTAssertEqual(
+            SuggestionSessionReconciler.nextAcceptancePhrase(from: "(\"done.\") next"),
+            "(\"done.\")"
+        )
+    }
+
+    func test_nextAcceptancePhrase_doesNotBreakOnBareClosingQuote() {
+        // Closing quote with no preceding sentence terminator is not a phrase boundary.
+        XCTAssertEqual(
+            SuggestionSessionReconciler.nextAcceptancePhrase(from: "\"hi\" there"),
+            "\"hi\" there"
+        )
+    }
+
     func test_insertionChunk_dropsLeadingSpaceWhenPrecedingTextAlreadyEndsInWhitespace() {
         XCTAssertEqual(
             SuggestionSessionReconciler.insertionChunk(forAcceptedChunk: " you", precedingText: "How are "),

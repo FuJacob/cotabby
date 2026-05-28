@@ -255,6 +255,87 @@ enum SuggestionSessionReconciler {
         return String(remainingText[..<index])
     }
 
+    /// Accepts a full phrase up to the next sentence terminator (`.`, `!`, `?`, `\n`) or the end
+    /// of the buffered suggestion tail. Composes over `nextAcceptanceChunk` so word-boundary,
+    /// internal-punctuation, and leading-whitespace policy stay identical across the seams of a
+    /// multi-word accept.
+    ///
+    /// Newlines need an extra rule: `nextAcceptanceChunk` returns leading whitespace as part of
+    /// the next chunk, so a tail like `Hello\nworld` would surface `\n` as the leading character
+    /// of the second chunk rather than the trailing character of the first. The in-chunk newline
+    /// scan below catches that — without it, phrase mode would silently cross paragraph breaks.
+    ///
+    /// Sentence-terminating `.!?` are detected via the accumulated tail's tail-end after walking
+    /// past any closing-punctuation run. This catches both the plain case (`done.`) and the
+    /// quoted-prose case (`"done." Next` → stop after the closing quote). Without the walk-back,
+    /// the chunk's last character would be `"` rather than `.` and phrase mode would over-accept
+    /// the next sentence. Token-interior punctuation like the dots in `U.S.A` does NOT trigger
+    /// an early break because the chunk's tail (after walking) is `A`, not `.`. The known
+    /// false-positive is when the tail itself ends with `U.S.A.` — the trailing period reads as
+    /// a sentence terminator and the user has to press once more for the next phrase. Rule-based
+    /// scanners can't disambiguate that without NLP; Cursor and Copilot behave the same way.
+    ///
+    /// The `autoAcceptTrailingPunctuation` flag is passed through to each underlying chunk call
+    /// but does not change the final phrase output: a tail like `you?` with the flag off yields
+    /// chunks `"you"` then `"?"`, accumulated to `"you?"`, terminator-suffixed → stop. Net match
+    /// to the flag-on case where the first chunk is already `"you?"`.
+    static func nextAcceptancePhrase(
+        from remainingText: String,
+        autoAcceptTrailingPunctuation: Bool = true
+    ) -> String {
+        guard !remainingText.isEmpty else {
+            return ""
+        }
+
+        var accumulated = ""
+        var working = remainingText
+
+        while !working.isEmpty {
+            let chunk = nextAcceptanceChunk(
+                from: working,
+                autoAcceptTrailingPunctuation: autoAcceptTrailingPunctuation
+            )
+            guard !chunk.isEmpty else {
+                break
+            }
+
+            if let newlineIndex = chunk.firstIndex(of: "\n") {
+                accumulated += chunk[...newlineIndex]
+                return accumulated
+            }
+
+            accumulated += chunk
+            working = String(working.dropFirst(chunk.count))
+
+            if endsInSentenceTerminator(accumulated) {
+                return accumulated
+            }
+        }
+
+        return accumulated
+    }
+
+    /// Tail-end check for sentence terminators that survives closing quotes and brackets, so
+    /// `"done."` and `(yes!)` are recognized as phrase ends even though their final character is
+    /// a closer rather than `.!?`. Walks back past any run of closing punctuation, then checks
+    /// whether the character immediately before that run is a sentence terminator.
+    private static func endsInSentenceTerminator(_ text: String) -> Bool {
+        var index = text.endIndex
+        while index > text.startIndex {
+            let prev = text.index(before: index)
+            if text[prev].isPhraseClosingPunctuation {
+                index = prev
+            } else {
+                break
+            }
+        }
+        guard index > text.startIndex else {
+            return false
+        }
+        let prev = text.index(before: index)
+        return text[prev].isPhraseSentenceTerminator
+    }
+
     /// Returns the index just past a word token's final alphanumeric character when that token has
     /// trailing punctuation worth splitting off. Returns `nil` — meaning "accept the whole token" —
     /// for punctuation-only tokens and for words that already end in an alphanumeric character.
@@ -380,5 +461,21 @@ private extension Character {
     /// can be peeled into its own acceptance part when auto-accept is disabled.
     var isAcceptanceWordCharacter: Bool {
         isLetter || isNumber
+    }
+
+    /// Sentence-ending punctuation for phrase mode. `\n` is handled separately because it can
+    /// appear inside a leading-whitespace prefix of a composed chunk rather than at the chunk's
+    /// tail end.
+    var isPhraseSentenceTerminator: Bool {
+        self == "." || self == "!" || self == "?"
+    }
+
+    /// Closing punctuation that may follow a sentence terminator in prose: straight + curly
+    /// quotes, parentheses, square brackets, and braces. The phrase scanner walks back past a
+    /// run of these to find the real sentence terminator underneath, so `"done."` stops as a
+    /// complete sentence even though its final character is the closing quote.
+    var isPhraseClosingPunctuation: Bool {
+        self == "\"" || self == "'" || self == ")" || self == "]" || self == "}"
+            || self == "\u{201D}" || self == "\u{2019}"
     }
 }

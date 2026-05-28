@@ -104,9 +104,14 @@ final class SuggestionInteractionState {
     /// Validates whether the current stored session can be accepted from the latest live AX state.
     /// The returned value gives the coordinator the exact chunk to insert and the context it should
     /// use for diagnostics and overlay updates.
+    ///
+    /// `granularity` selects between word-by-word and phrase-by-phrase acceptance. `.full` is
+    /// rejected here because the coordinator routes full accepts to `prepareFullAcceptance`, which
+    /// keeps a distinct invalid-reason message for the dedicated full-accept key.
     func prepareAcceptance(
         from snapshot: FocusedInputSnapshot,
         overlayState: OverlayState,
+        granularity: AcceptanceGranularity,
         autoAcceptTrailingPunctuation: Bool = true
     ) -> SuggestionAcceptancePreparation {
         let validated = validateSessionForAcceptance(from: snapshot, overlayState: overlayState)
@@ -114,10 +119,22 @@ final class SuggestionInteractionState {
             return .invalid(validated.failureReason ?? "Key passed through.")
         }
 
-        let chunk = SuggestionSessionReconciler.nextAcceptanceChunk(
-            from: session.remainingText,
-            autoAcceptTrailingPunctuation: autoAcceptTrailingPunctuation
-        )
+        let chunk: String
+        switch granularity {
+        case .word:
+            chunk = SuggestionSessionReconciler.nextAcceptanceChunk(
+                from: session.remainingText,
+                autoAcceptTrailingPunctuation: autoAcceptTrailingPunctuation
+            )
+        case .phrase:
+            chunk = SuggestionSessionReconciler.nextAcceptancePhrase(
+                from: session.remainingText,
+                autoAcceptTrailingPunctuation: autoAcceptTrailingPunctuation
+            )
+        case .full:
+            preconditionFailure("prepareAcceptance should not receive .full — route to prepareFullAcceptance instead")
+        }
+
         guard !chunk.isEmpty else {
             return .invalid("Key passed through because no remaining suggestion chunk was available.")
         }

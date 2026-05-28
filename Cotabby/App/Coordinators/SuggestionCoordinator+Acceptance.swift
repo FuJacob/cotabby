@@ -53,13 +53,21 @@ extension SuggestionCoordinator {
             )
         }
 
-        let preparation = fullText
-            ? interactionState.prepareFullAcceptance(from: rawContext, overlayState: overlayState)
-            : interactionState.prepareAcceptance(
+        // `acceptEntireSuggestion` forces the full-acceptance path regardless of granularity so the
+        // dedicated full-accept key stays a per-press override. `acceptCurrentSuggestion` honors
+        // the user-selected granularity for the primary accept key.
+        let primaryGranularity = settingsSnapshot.acceptanceGranularity
+        let preparation: SuggestionAcceptancePreparation
+        if fullText || primaryGranularity == .full {
+            preparation = interactionState.prepareFullAcceptance(from: rawContext, overlayState: overlayState)
+        } else {
+            preparation = interactionState.prepareAcceptance(
                 from: rawContext,
                 overlayState: overlayState,
+                granularity: primaryGranularity,
                 autoAcceptTrailingPunctuation: settingsSnapshot.autoAcceptTrailingPunctuation
             )
+        }
 
         let liveContext: FocusedInputContext
         let sessionForAcceptance: ActiveSuggestionSession

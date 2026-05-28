@@ -38,6 +38,7 @@ final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var fullAcceptanceKeyCode: CGKeyCode
     @Published private(set) var fullAcceptanceKeyModifiers: ShortcutModifierMask
     @Published private(set) var fullAcceptanceKeyLabel: String
+    @Published private(set) var acceptanceGranularity: AcceptanceGranularity
     private let userDefaults: UserDefaults
 
     private static let isGloballyEnabledDefaultsKey = "cotabbyGloballyEnabled"
@@ -67,6 +68,7 @@ final class SuggestionSettingsModel: ObservableObject {
     private static let fullAcceptanceKeyCodeDefaultsKey = "cotabbyFullAcceptanceKeyCode"
     private static let fullAcceptanceKeyModifiersDefaultsKey = "cotabbyFullAcceptanceKeyModifiers"
     private static let fullAcceptanceKeyLabelDefaultsKey = "cotabbyFullAcceptanceKeyLabel"
+    private static let acceptanceGranularityDefaultsKey = "cotabbyAcceptanceGranularity"
 
     static let defaultAcceptanceKeyCode: CGKeyCode = 48
     static let defaultAcceptanceKeyLabel = "Tab"
@@ -200,6 +202,13 @@ final class SuggestionSettingsModel: ObservableObject {
         )
         let resolvedFullAcceptanceKeyLabel = userDefaults.string(forKey: Self.fullAcceptanceKeyLabelDefaultsKey)
             ?? Self.defaultFullAcceptanceKeyLabel
+        // Default `.word` preserves the pre-feature behavior for existing installs that have no
+        // value persisted yet. Invalid persisted values fall back to `.word` rather than crashing
+        // so a hand-edited UserDefault can't strand the user.
+        let resolvedAcceptanceGranularity = userDefaults
+            .string(forKey: Self.acceptanceGranularityDefaultsKey)
+            .flatMap(AcceptanceGranularity.init(rawValue:))
+            ?? .word
 
         isGloballyEnabled = resolvedGloballyEnabled
         disabledAppRules = resolvedDisabledAppRules
@@ -225,6 +234,7 @@ final class SuggestionSettingsModel: ObservableObject {
         fullAcceptanceKeyCode = resolvedFullAcceptanceKeyCode
         fullAcceptanceKeyModifiers = resolvedFullAcceptanceKeyModifiers
         fullAcceptanceKeyLabel = resolvedFullAcceptanceKeyLabel
+        acceptanceGranularity = resolvedAcceptanceGranularity
 
         userDefaults.set(resolvedGloballyEnabled, forKey: Self.isGloballyEnabledDefaultsKey)
         persistDisabledAppRules(resolvedDisabledAppRules)
@@ -253,6 +263,7 @@ final class SuggestionSettingsModel: ObservableObject {
             forKey: Self.fullAcceptanceKeyModifiersDefaultsKey
         )
         userDefaults.set(resolvedFullAcceptanceKeyLabel, forKey: Self.fullAcceptanceKeyLabelDefaultsKey)
+        userDefaults.set(resolvedAcceptanceGranularity.rawValue, forKey: Self.acceptanceGranularityDefaultsKey)
 
         // The custom indicator icon feature was removed; scrub any previously-persisted PNG so
         // users who picked one in an older build get the default cat icon back automatically.
@@ -279,7 +290,8 @@ final class SuggestionSettingsModel: ObservableObject {
             isMultiLineEnabled: isMultiLineEnabled,
             autoAcceptTrailingPunctuation: autoAcceptTrailingPunctuation,
             isFastModeEnabled: isFastModeEnabled,
-            mirrorPreference: mirrorPreference
+            mirrorPreference: mirrorPreference,
+            acceptanceGranularity: acceptanceGranularity
         )
     }
 
@@ -342,6 +354,14 @@ final class SuggestionSettingsModel: ObservableObject {
         }
         autoAcceptTrailingPunctuation = enabled
         userDefaults.set(enabled, forKey: Self.autoAcceptTrailingPunctuationDefaultsKey)
+    }
+
+    func setAcceptanceGranularity(_ granularity: AcceptanceGranularity) {
+        guard acceptanceGranularity != granularity else {
+            return
+        }
+        acceptanceGranularity = granularity
+        userDefaults.set(granularity.rawValue, forKey: Self.acceptanceGranularityDefaultsKey)
     }
 
     func setDebounceMilliseconds(_ value: Int) {
@@ -778,7 +798,10 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
         // upstreams. Group related settings into nested combiners so the shape stays readable.
         // `presentationToggles` carries the visual-pipeline knobs (clipboard, fast mode, mirror
         // preference); they share the property of "affects how/when suggestions are shown".
-        Publishers.CombineLatest4(
+        //
+        // The outer CombineLatest4 is at the cap, so `$acceptanceGranularity` is layered above it
+        // via a second CombineLatest to avoid restructuring the existing groupings.
+        let primary = Publishers.CombineLatest4(
             Publishers.CombineLatest4(
                 $isGloballyEnabled,
                 $disabledAppRules,
@@ -794,29 +817,32 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                 $autoAcceptTrailingPunctuation
             )
         )
-        .map { combinedSettings, presentationToggles, profile, timing in
-            let (globallyEnabled, disabledAppRules, engine, wordCountPreset) = combinedSettings
-            let (clipboardContextEnabled, fastModeEnabled, mirrorPreference) = presentationToggles
-            let (userName, customRules, responseLanguages) = profile
-            let (debounce, focusPoll, multiLine, autoAcceptPunctuation) = timing
-            return SuggestionSettingsSnapshot(
-                isGloballyEnabled: globallyEnabled,
-                disabledAppBundleIdentifiers: Set(disabledAppRules.map(\.bundleIdentifier)),
-                selectedEngine: engine,
-                selectedWordCountPreset: wordCountPreset,
-                isClipboardContextEnabled: clipboardContextEnabled,
-                userName: userName,
-                customRules: customRules,
-                responseLanguages: responseLanguages,
-                debounceMilliseconds: debounce,
-                focusPollIntervalMilliseconds: focusPoll,
-                isMultiLineEnabled: multiLine,
-                autoAcceptTrailingPunctuation: autoAcceptPunctuation,
-                isFastModeEnabled: fastModeEnabled,
-                mirrorPreference: mirrorPreference
-            )
-        }
-        .removeDuplicates()
-        .eraseToAnyPublisher()
+        return Publishers.CombineLatest(primary, $acceptanceGranularity)
+            .map { primaryTuple, granularity in
+                let (combinedSettings, presentationToggles, profile, timing) = primaryTuple
+                let (globallyEnabled, disabledAppRules, engine, wordCountPreset) = combinedSettings
+                let (clipboardContextEnabled, fastModeEnabled, mirrorPreference) = presentationToggles
+                let (userName, customRules, responseLanguages) = profile
+                let (debounce, focusPoll, multiLine, autoAcceptPunctuation) = timing
+                return SuggestionSettingsSnapshot(
+                    isGloballyEnabled: globallyEnabled,
+                    disabledAppBundleIdentifiers: Set(disabledAppRules.map(\.bundleIdentifier)),
+                    selectedEngine: engine,
+                    selectedWordCountPreset: wordCountPreset,
+                    isClipboardContextEnabled: clipboardContextEnabled,
+                    userName: userName,
+                    customRules: customRules,
+                    responseLanguages: responseLanguages,
+                    debounceMilliseconds: debounce,
+                    focusPollIntervalMilliseconds: focusPoll,
+                    isMultiLineEnabled: multiLine,
+                    autoAcceptTrailingPunctuation: autoAcceptPunctuation,
+                    isFastModeEnabled: fastModeEnabled,
+                    mirrorPreference: mirrorPreference,
+                    acceptanceGranularity: granularity
+                )
+            }
+            .removeDuplicates()
+            .eraseToAnyPublisher()
     }
 }
