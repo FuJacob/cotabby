@@ -20,6 +20,12 @@ final class OverlayController: SuggestionOverlayControlling {
     var onStateChange: ((OverlayState) -> Void)?
 
     private let suggestionSettings: SuggestionSettingsModel
+    private let renderModePolicy: CompletionRenderModePolicy
+
+    /// Bundle identifier of the currently focused host app, supplied by the coordinator each time
+    /// a suggestion is presented. The policy uses this to look up per-app overrides. Nil in tests
+    /// or when the focus pipeline could not identify the host.
+    private var currentBundleIdentifier: String?
 
     private(set) var state: OverlayState = .hidden(reason: "Overlay idle.") {
         didSet {
@@ -30,15 +36,31 @@ final class OverlayController: SuggestionOverlayControlling {
     /// Reused across overlay updates to avoid allocating a new SwiftUI hosting view on every
     /// tab-per-word cycle. Only the rootView is swapped, which triggers a lightweight diff
     /// instead of a full view rebuild + layout pass.
-    private var hostingView: NSHostingView<GhostSuggestionView>?
+    ///
+    /// Inline and mirror modes keep separate hosting views because their root view types differ
+    /// (`GhostSuggestionView` vs `MirrorOverlayView`). Sharing one hosting view via `AnyView` would
+    /// defeat SwiftUI's type-aware diffing.
+    private var inlineHostingView: NSHostingView<GhostSuggestionView>?
+    private var mirrorHostingView: NSHostingView<MirrorOverlayView>?
 
     /// Per-focus-session floor for caret-derived font size. Caret height flickers between the real
     /// line height and the coarse field-height fallback from poll to poll; stabilizing keeps ghost
     /// text from ballooning when the fallback wins. See `GhostFontSizeStabilizer`.
     private var ghostFontStabilizer = GhostFontSizeStabilizer()
 
-    init(suggestionSettings: SuggestionSettingsModel) {
+    init(
+        suggestionSettings: SuggestionSettingsModel,
+        renderModePolicy: CompletionRenderModePolicy = CompletionRenderModePolicy()
+    ) {
         self.suggestionSettings = suggestionSettings
+        self.renderModePolicy = renderModePolicy
+    }
+
+    /// Coordinator hook that updates the bundle identifier used by per-app overrides. Phase 1
+    /// callers do not need this (policy is `.auto` with no overrides); Phase 2 will wire it through
+    /// the presenter so per-app settings take effect immediately when the focused app changes.
+    func setCurrentBundleIdentifier(_ bundleIdentifier: String?) {
+        currentBundleIdentifier = bundleIdentifier
     }
 
     private lazy var panel: OverlayPanel = {
@@ -64,13 +86,39 @@ final class OverlayController: SuggestionOverlayControlling {
         return panel
     }()
 
-    /// Sizes and positions the overlay next to the reported caret bounds for the current field.
+    /// Sizes and positions the overlay using the render mode the policy picks for this geometry.
+    /// Each mode is responsible for its own layout math and SwiftUI view; this entry point just
+    /// routes and records the resulting state.
     func showSuggestion(_ text: String, geometry: SuggestionOverlayGeometry) {
         guard !text.isEmpty else {
             hide(reason: "Overlay not shown because the suggestion was empty.")
             return
         }
 
+        let mode = renderModePolicy.mode(
+            for: geometry,
+            bundleIdentifier: currentBundleIdentifier
+        )
+
+        switch mode {
+        case .inline:
+            showInline(text: text, geometry: geometry)
+        case .mirror(let reason):
+            showMirror(text: text, geometry: geometry, reason: reason)
+        }
+
+        state = .visible(text: text, geometry: geometry, mode: mode)
+    }
+
+    /// Hides the floating panel and records why the overlay is no longer visible.
+    func hide(reason: String) {
+        panel.orderOut(nil)
+        state = .hidden(reason: reason)
+    }
+
+    /// Inline ghost text drawn next to the caret. This is the original rendering path; the body
+    /// stays unchanged from the pre-mirror behavior aside from being extracted into its own method.
+    private func showInline(text: String, geometry: SuggestionOverlayGeometry) {
         let stabilizedCaretHeight = ghostFontStabilizer.stabilizedCaretHeight(
             geometry.caretRect.height,
             focusSessionKey: geometry.focusChangeSequence
@@ -93,30 +141,32 @@ final class OverlayController: SuggestionOverlayControlling {
             fromHex: suggestionSettings.customSuggestionTextColorHex
         )
         let ghostOpacity = suggestionSettings.ghostTextOpacity
+
+        let rootView = GhostSuggestionView(
+            layout: layout,
+            fontSize: fontSize,
+            customColor: customGhostColor,
+            keycapLabel: acceptanceHintLabel,
+            opacity: ghostOpacity
+        )
+
         let contentView: NSHostingView<GhostSuggestionView>
-        if let existing = hostingView {
-            existing.rootView = GhostSuggestionView(
-                layout: layout,
-                fontSize: fontSize,
-                customColor: customGhostColor,
-                keycapLabel: acceptanceHintLabel,
-                opacity: ghostOpacity
-            )
+        if let existing = inlineHostingView {
+            existing.rootView = rootView
             contentView = existing
         } else {
-            let fresh = NSHostingView(
-                rootView: GhostSuggestionView(
-                    layout: layout,
-                    fontSize: fontSize,
-                    customColor: customGhostColor,
-                    keycapLabel: acceptanceHintLabel,
-                    opacity: ghostOpacity
-                )
-            )
-            hostingView = fresh
-            panel.contentView = fresh
+            let fresh = NSHostingView(rootView: rootView)
+            inlineHostingView = fresh
             contentView = fresh
         }
+
+        // Mirror mode and inline mode share the same panel but use different SwiftUI root view
+        // types. Switching modes mid-suggestion requires re-attaching the panel's contentView; an
+        // identity check skips the re-attach when we're already on the right view.
+        if panel.contentView !== contentView {
+            panel.contentView = contentView
+        }
+
         contentView.layoutSubtreeIfNeeded()
         let contentSize = contentView.fittingSize
 
@@ -124,13 +174,54 @@ final class OverlayController: SuggestionOverlayControlling {
 
         panel.setFrame(frame.integral, display: true)
         panel.orderFrontRegardless()
-        state = .visible(text: text, geometry: geometry)
     }
 
-    /// Hides the floating panel and records why the overlay is no longer visible.
-    func hide(reason: String) {
-        panel.orderOut(nil)
-        state = .hidden(reason: reason)
+    /// Mirror-mode rendering. Draws the suggestion inside a Cotabby-owned card anchored to the
+    /// input field rectangle (not the caret rect) so unreliable caret geometry does not propagate
+    /// into the card position. The card is otherwise visually similar to inline ghost text plus a
+    /// backdrop that makes it read as a UI element rather than free-floating text.
+    private func showMirror(
+        text: String,
+        geometry: SuggestionOverlayGeometry,
+        reason: CompletionRenderMode.MirrorReason
+    ) {
+        let acceptanceHintLabel = suggestionSettings.acceptanceHintLabel
+        let visibleFrame = targetScreenVisibleFrame(for: geometry.caretRect)
+        let layout = MirrorOverlayLayout.make(
+            suggestion: text,
+            geometry: geometry,
+            visibleFrame: visibleFrame,
+            showsAcceptanceHint: acceptanceHintLabel != nil,
+            reason: reason
+        )
+        let customGhostColor = SuggestionTextColorCodec.color(
+            fromHex: suggestionSettings.customSuggestionTextColorHex
+        )
+        let ghostOpacity = suggestionSettings.ghostTextOpacity
+
+        let rootView = MirrorOverlayView(
+            layout: layout,
+            customColor: customGhostColor,
+            keycapLabel: acceptanceHintLabel,
+            opacity: ghostOpacity
+        )
+
+        let contentView: NSHostingView<MirrorOverlayView>
+        if let existing = mirrorHostingView {
+            existing.rootView = rootView
+            contentView = existing
+        } else {
+            let fresh = NSHostingView(rootView: rootView)
+            mirrorHostingView = fresh
+            contentView = fresh
+        }
+
+        if panel.contentView !== contentView {
+            panel.contentView = contentView
+        }
+
+        panel.setFrame(layout.panelFrame, display: true)
+        panel.orderFrontRegardless()
     }
 
     /// Exact and derived caret rects usually reflect the real text line height, so they may scale
@@ -259,5 +350,72 @@ private struct GhostKeycap: View {
                     .stroke(borderColor, lineWidth: 1)
             )
             .fixedSize(horizontal: true, vertical: true)
+    }
+}
+
+/// Mirror-mode card. Renders the suggestion inside a Cotabby-owned backdrop anchored below the
+/// focused field. Unlike `GhostSuggestionView`, this view is single-line by design — the whole
+/// reason mirror mode exists is that the host's caret rect is unreliable, so multi-line wrapping
+/// would just compound the positioning uncertainty.
+///
+/// The backdrop and shadow are what make this read as a deliberate UI element instead of a stray
+/// floating text label. We do not try to disguise the card as the host editor; Cotypist's product
+/// language ("preview") is the right framing here.
+private struct MirrorOverlayView: View {
+    @Environment(\.colorScheme) var colorScheme
+    let layout: MirrorOverlayLayout
+    let customColor: Color?
+    let keycapLabel: String?
+    let opacity: Double
+
+    private var ghostColor: Color {
+        let baseColor = customColor
+            ?? (
+                colorScheme == .dark
+                    ? Color(red: 0.85, green: 0.85, blue: 0.85)
+                    : Color(red: 0.25, green: 0.25, blue: 0.25)
+            )
+        return baseColor.opacity(opacity)
+    }
+
+    private var backdropColor: Color {
+        colorScheme == .dark
+            ? Color(white: 0.16).opacity(0.96)
+            : Color(white: 0.98).opacity(0.96)
+    }
+
+    private var borderColor: Color {
+        colorScheme == .dark ? Color(white: 0.28) : Color(white: 0.82)
+    }
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Text(layout.suggestionText)
+                .font(.system(size: layout.fontSize))
+                .foregroundStyle(ghostColor)
+                .lineLimit(1)
+                .truncationMode(.tail)
+
+            if let keycapLabel {
+                GhostKeycap(label: keycapLabel)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(backdropColor)
+                .shadow(color: .black.opacity(0.12), radius: 6, x: 0, y: 2)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(borderColor, lineWidth: 0.5)
+        )
+        // The panel itself is sized by MirrorOverlayLayout to the card dimensions, so we don't
+        // need fixedSize here — the view fills the panel exactly.
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // Right-to-left hosts get the SwiftUI environment flip so the keycap lands on the leading
+        // side of the suggestion text, mirroring how RTL languages read.
+        .environment(\.layoutDirection, layout.isRightToLeft ? .rightToLeft : .leftToRight)
     }
 }

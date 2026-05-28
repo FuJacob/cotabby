@@ -66,15 +66,17 @@ final class SuggestionModelValueTests: XCTestCase {
             geometry: CotabbyTestFixtures.overlayGeometry(
                 caretRect: CGRect(x: 12.9, y: 40.1, width: 2, height: 18),
                 caretQuality: .derived
-            )
+            ),
+            mode: .inline
         )
 
         XCTAssertEqual(state.shortLabel, "Visible")
         XCTAssertEqual(
             state.detail,
-            "Showing 5 characters near (12, 40) using derived caret geometry."
+            "Showing 5 characters near (12, 40) using derived caret geometry (inline)."
         )
         XCTAssertEqual(state.visibleText, "hello")
+        XCTAssertEqual(state.visibleMode, .inline)
     }
 
     func test_ghostSuggestionLayoutWrapsOverflowToInputLeftEdge() {

@@ -381,9 +381,13 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
 
 /// The overlay is intentionally modeled as data so diagnostics can reason about visibility
 /// without poking into AppKit window objects directly.
+///
+/// `visible` carries the active `CompletionRenderMode` so the focus debug overlay, tests, and
+/// presenter state-diffing can distinguish an inline ghost from a mirror card without inspecting
+/// `OverlayController` internals.
 enum OverlayState: Equatable {
     case hidden(reason: String)
-    case visible(text: String, geometry: SuggestionOverlayGeometry)
+    case visible(text: String, geometry: SuggestionOverlayGeometry, mode: CompletionRenderMode)
 
     var shortLabel: String {
         switch self {
@@ -398,10 +402,10 @@ enum OverlayState: Equatable {
         switch self {
         case let .hidden(reason):
             return reason
-        case let .visible(text, geometry):
+        case let .visible(text, geometry, mode):
             return "Showing \(text.count) characters near " +
                 "(\(Int(geometry.caretRect.minX)), \(Int(geometry.caretRect.minY))) " +
-                "using \(geometry.caretQuality.label) caret geometry."
+                "using \(geometry.caretQuality.label) caret geometry (\(mode.label))."
         }
     }
 
@@ -414,11 +418,18 @@ enum OverlayState: Equatable {
     }
 
     var visibleText: String? {
-        guard case let .visible(text, _) = self else {
+        guard case let .visible(text, _, _) = self else {
             return nil
         }
 
         return text
+    }
+
+    var visibleMode: CompletionRenderMode? {
+        guard case let .visible(_, _, mode) = self else {
+            return nil
+        }
+        return mode
     }
 }
 

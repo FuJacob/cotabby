@@ -125,7 +125,8 @@ final class SuggestionInteractionStateTests: XCTestCase {
                 from: snapshot,
                 overlayState: .visible(
                     text: " world again",
-                    geometry: CotabbyTestFixtures.overlayGeometry(caretRect: context.caretRect)
+                    geometry: CotabbyTestFixtures.overlayGeometry(caretRect: context.caretRect),
+                    mode: .inline
                 )
             )
 
@@ -149,7 +150,8 @@ final class SuggestionInteractionStateTests: XCTestCase {
                 from: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello"),
                 overlayState: .visible(
                     text: " different",
-                    geometry: CotabbyTestFixtures.overlayGeometry(caretRect: context.caretRect)
+                    geometry: CotabbyTestFixtures.overlayGeometry(caretRect: context.caretRect),
+                    mode: .inline
                 )
             )
 
@@ -427,7 +429,7 @@ final class SuggestionOverlayPresenterTests: XCTestCase {
             let caretRect = CGRect(x: 10, y: 20, width: 2, height: 18)
             let geometry = CotabbyTestFixtures.overlayGeometry(caretRect: caretRect)
             let overlayController = FakeOverlayController(
-                initialState: .visible(text: " world", geometry: geometry)
+                initialState: .visible(text: " world", geometry: geometry, mode: .inline)
             )
             let presenter = SuggestionOverlayPresenter(overlayController: overlayController)
 
@@ -454,7 +456,8 @@ final class SuggestionOverlayPresenterTests: XCTestCase {
                 geometry: CotabbyTestFixtures.overlayGeometry(caretRect: nextRect),
                 previousState: .visible(
                     text: " world",
-                    geometry: CotabbyTestFixtures.overlayGeometry(caretRect: previousRect)
+                    geometry: CotabbyTestFixtures.overlayGeometry(caretRect: previousRect),
+                    mode: .inline
                 )
             )
 
@@ -476,7 +479,8 @@ final class SuggestionOverlayPresenterTests: XCTestCase {
                 ),
                 previousState: .visible(
                     text: " world",
-                    geometry: CotabbyTestFixtures.overlayGeometry(caretRect: caretRect)
+                    geometry: CotabbyTestFixtures.overlayGeometry(caretRect: caretRect),
+                    mode: .inline
                 )
             )
 
@@ -555,7 +559,10 @@ private final class FakeOverlayController: SuggestionOverlayControlling {
         lastShownText = text
         lastShownCaretRect = geometry.caretRect
         lastShownGeometry = geometry
-        state = .visible(text: text, geometry: geometry)
+        // The fake does not run the production policy; it just records the call. Defaulting to
+        // inline keeps existing tests unchanged. Mirror-aware tests inject explicit state via
+        // `initialState:`.
+        state = .visible(text: text, geometry: geometry, mode: .inline)
         onStateChange?(state)
     }
 

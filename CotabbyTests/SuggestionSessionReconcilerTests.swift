@@ -214,7 +214,8 @@ final class SuggestionSessionReconcilerTests: XCTestCase {
                 of: " world",
                 overlayState: .visible(
                     text: " world",
-                    geometry: CotabbyTestFixtures.overlayGeometry(caretRect: caretRect)
+                    geometry: CotabbyTestFixtures.overlayGeometry(caretRect: caretRect),
+                    mode: .inline
                 )
             )
         )
@@ -223,7 +224,8 @@ final class SuggestionSessionReconcilerTests: XCTestCase {
                 of: " world",
                 overlayState: .visible(
                     text: " there",
-                    geometry: CotabbyTestFixtures.overlayGeometry(caretRect: caretRect)
+                    geometry: CotabbyTestFixtures.overlayGeometry(caretRect: caretRect),
+                    mode: .inline
                 )
             )
         )
