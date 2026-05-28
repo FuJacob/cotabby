@@ -30,12 +30,20 @@ struct SettingsSidebarView: View {
             }
         }
         .listStyle(.sidebar)
-        // Doubled column width so every label fits without truncation and the sidebar reads as a
-        // real navigation column. The earlier clear-color top spacer is gone: it was pushing the
-        // first row well below where the detail pane's first card starts, breaking visual
-        // alignment between sidebar and content. The grouped form's own top inset on the detail
-        // side handles breathing room; the sidebar lines up with it naturally.
-        .navigationSplitViewColumnWidth(min: 480, ideal: 520, max: 640)
+        // Restores the breathing room the previous clear-color top spacer used to provide. Without
+        // it, the first sidebar row snaps to the toolbar baseline while the detail pane's grouped
+        // `Form` keeps its own ~20pt top inset, so the two columns visually disagree about where
+        // content begins. Insetting from the safe area keeps the inset out of scroll content so it
+        // never overlaps a row mid-scroll.
+        .safeAreaInset(edge: .top, spacing: 0) {
+            Color.clear.frame(height: 12)
+        }
+        // Previously bumped to 480/520/640, but with the window's overall `minWidth` the
+        // `.balanced` split style had to shrink the sidebar back below 240pt to keep the detail
+        // pane usable — which still truncated "Apple Intelligence" to "Apple Intell…". The
+        // tighter range here matches the longest user-facing label and lines up with the
+        // matching `minWidth` reduction on the container so the detail pane keeps its own room.
+        .navigationSplitViewColumnWidth(min: 220, ideal: 240, max: 280)
     }
 
     @ViewBuilder
