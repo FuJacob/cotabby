@@ -38,6 +38,14 @@ final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var fullAcceptanceKeyCode: CGKeyCode
     @Published private(set) var fullAcceptanceKeyModifiers: ShortcutModifierMask
     @Published private(set) var fullAcceptanceKeyLabel: String
+    /// When on, Cotabby checks the user's last word with `NSSpellChecker` and skips the normal
+    /// continuation request when the word looks misspelled. Avoids the bad-feel of extending a
+    /// typo'd word with more text on top.
+    @Published private(set) var suppressCompletionsOnTypo: Bool
+    /// When on (and `suppressCompletionsOnTypo` is also on), the typo trigger switches into a
+    /// correction request instead of dropping the suggestion entirely: the model is asked for a
+    /// context-aware fix, which the user can accept to replace the typo.
+    @Published private(set) var offerTypoCorrections: Bool
     private let userDefaults: UserDefaults
 
     private static let isGloballyEnabledDefaultsKey = "cotabbyGloballyEnabled"
@@ -67,6 +75,8 @@ final class SuggestionSettingsModel: ObservableObject {
     private static let fullAcceptanceKeyCodeDefaultsKey = "cotabbyFullAcceptanceKeyCode"
     private static let fullAcceptanceKeyModifiersDefaultsKey = "cotabbyFullAcceptanceKeyModifiers"
     private static let fullAcceptanceKeyLabelDefaultsKey = "cotabbyFullAcceptanceKeyLabel"
+    private static let suppressCompletionsOnTypoDefaultsKey = "cotabbySuppressCompletionsOnTypo"
+    private static let offerTypoCorrectionsDefaultsKey = "cotabbyOfferTypoCorrections"
 
     static let defaultAcceptanceKeyCode: CGKeyCode = 48
     static let defaultAcceptanceKeyLabel = "Tab"
@@ -201,6 +211,13 @@ final class SuggestionSettingsModel: ObservableObject {
         let resolvedFullAcceptanceKeyLabel = userDefaults.string(forKey: Self.fullAcceptanceKeyLabelDefaultsKey)
             ?? Self.defaultFullAcceptanceKeyLabel
 
+        // Default both to true: typo suppression and correction-on-typo are polish features and on
+        // balance the right out-of-box behavior. Existing users without a stored value get them on.
+        let resolvedSuppressCompletionsOnTypo =
+            userDefaults.object(forKey: Self.suppressCompletionsOnTypoDefaultsKey) as? Bool ?? true
+        let resolvedOfferTypoCorrections =
+            userDefaults.object(forKey: Self.offerTypoCorrectionsDefaultsKey) as? Bool ?? true
+
         isGloballyEnabled = resolvedGloballyEnabled
         disabledAppRules = resolvedDisabledAppRules
         showIndicator = resolvedShowIndicator
@@ -225,6 +242,8 @@ final class SuggestionSettingsModel: ObservableObject {
         fullAcceptanceKeyCode = resolvedFullAcceptanceKeyCode
         fullAcceptanceKeyModifiers = resolvedFullAcceptanceKeyModifiers
         fullAcceptanceKeyLabel = resolvedFullAcceptanceKeyLabel
+        suppressCompletionsOnTypo = resolvedSuppressCompletionsOnTypo
+        offerTypoCorrections = resolvedOfferTypoCorrections
 
         userDefaults.set(resolvedGloballyEnabled, forKey: Self.isGloballyEnabledDefaultsKey)
         persistDisabledAppRules(resolvedDisabledAppRules)
@@ -253,6 +272,8 @@ final class SuggestionSettingsModel: ObservableObject {
             forKey: Self.fullAcceptanceKeyModifiersDefaultsKey
         )
         userDefaults.set(resolvedFullAcceptanceKeyLabel, forKey: Self.fullAcceptanceKeyLabelDefaultsKey)
+        userDefaults.set(resolvedSuppressCompletionsOnTypo, forKey: Self.suppressCompletionsOnTypoDefaultsKey)
+        userDefaults.set(resolvedOfferTypoCorrections, forKey: Self.offerTypoCorrectionsDefaultsKey)
 
         // The custom indicator icon feature was removed; scrub any previously-persisted PNG so
         // users who picked one in an older build get the default cat icon back automatically.
@@ -279,7 +300,9 @@ final class SuggestionSettingsModel: ObservableObject {
             isMultiLineEnabled: isMultiLineEnabled,
             autoAcceptTrailingPunctuation: autoAcceptTrailingPunctuation,
             isFastModeEnabled: isFastModeEnabled,
-            mirrorPreference: mirrorPreference
+            mirrorPreference: mirrorPreference,
+            suppressCompletionsOnTypo: suppressCompletionsOnTypo,
+            offerTypoCorrections: offerTypoCorrections
         )
     }
 
@@ -342,6 +365,22 @@ final class SuggestionSettingsModel: ObservableObject {
         }
         autoAcceptTrailingPunctuation = enabled
         userDefaults.set(enabled, forKey: Self.autoAcceptTrailingPunctuationDefaultsKey)
+    }
+
+    func setSuppressCompletionsOnTypo(_ enabled: Bool) {
+        guard suppressCompletionsOnTypo != enabled else {
+            return
+        }
+        suppressCompletionsOnTypo = enabled
+        userDefaults.set(enabled, forKey: Self.suppressCompletionsOnTypoDefaultsKey)
+    }
+
+    func setOfferTypoCorrections(_ enabled: Bool) {
+        guard offerTypoCorrections != enabled else {
+            return
+        }
+        offerTypoCorrections = enabled
+        userDefaults.set(enabled, forKey: Self.offerTypoCorrectionsDefaultsKey)
     }
 
     func setDebounceMilliseconds(_ value: Int) {
@@ -785,7 +824,14 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                 $selectedEngine,
                 $selectedWordCountPreset
             ),
-            Publishers.CombineLatest3($isClipboardContextEnabled, $isFastModeEnabled, $mirrorPreference),
+            // Five fields with no native CombineLatest5 — pair the two typo toggles into one
+            // inner publisher so the outer slot count stays at 4.
+            Publishers.CombineLatest4(
+                $isClipboardContextEnabled,
+                $isFastModeEnabled,
+                $mirrorPreference,
+                Publishers.CombineLatest($suppressCompletionsOnTypo, $offerTypoCorrections)
+            ),
             Publishers.CombineLatest3($userName, $customRules, $responseLanguages),
             Publishers.CombineLatest4(
                 $debounceMilliseconds,
@@ -796,7 +842,8 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
         )
         .map { combinedSettings, presentationToggles, profile, timing in
             let (globallyEnabled, disabledAppRules, engine, wordCountPreset) = combinedSettings
-            let (clipboardContextEnabled, fastModeEnabled, mirrorPreference) = presentationToggles
+            let (clipboardContextEnabled, fastModeEnabled, mirrorPreference, typoToggles) = presentationToggles
+            let (suppressOnTypo, offerCorrections) = typoToggles
             let (userName, customRules, responseLanguages) = profile
             let (debounce, focusPoll, multiLine, autoAcceptPunctuation) = timing
             return SuggestionSettingsSnapshot(
@@ -813,7 +860,9 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                 isMultiLineEnabled: multiLine,
                 autoAcceptTrailingPunctuation: autoAcceptPunctuation,
                 isFastModeEnabled: fastModeEnabled,
-                mirrorPreference: mirrorPreference
+                mirrorPreference: mirrorPreference,
+                suppressCompletionsOnTypo: suppressOnTypo,
+                offerTypoCorrections: offerCorrections
             )
         }
         .removeDuplicates()

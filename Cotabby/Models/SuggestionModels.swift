@@ -179,6 +179,34 @@ struct FocusedInputContext: Equatable, Sendable {
     }
 }
 
+/// Distinguishes a normal forward continuation from a typo-correction reply.
+///
+/// `.correction(replacingLastWordOfLength:)` tells the acceptance path how many trailing
+/// characters of the host field to erase before inserting the corrected word, so we can express
+/// "replace the typo" with the same suggestion machinery that handles plain continuations.
+enum SuggestionKind: Equatable, Sendable {
+    case continuation
+    case correction(replacingLastWordOfLength: Int)
+
+    var isCorrection: Bool {
+        if case .correction = self {
+            return true
+        }
+        return false
+    }
+}
+
+/// Context the request factory needs when it's switching into correction mode. Built by the
+/// coordinator from `CurrentWordExtractor` + `CurrentWordSpellChecker` and threaded into
+/// `SuggestionRequestFactory.buildRequest` only when both the toggle is on and a typo was
+/// detected on the current word.
+struct TypoContext: Equatable, Sendable {
+    let typoWord: String
+    /// NSSpellChecker's own ranked guesses for the typo, best first. The LLM uses these as a
+    /// hint but is free to ignore them when surrounding context points to a different correction.
+    let nativeCorrections: [String]
+}
+
 /// One generation request sent from the coordinator into the suggestion engine.
 struct SuggestionRequest: Equatable, Sendable {
     let context: FocusedInputContext
@@ -221,6 +249,9 @@ struct SuggestionRequest: Equatable, Sendable {
     let visualContextSummary: String?
     /// When enabled, the normalizer keeps multiple lines instead of truncating to the first line.
     let isMultiLineEnabled: Bool
+    /// Marks this request as a typo correction (with the length of the word to be replaced) or a
+    /// plain continuation. Defaults to `.continuation` so existing call sites stay unaffected.
+    let kind: SuggestionKind
 }
 
 /// The engine's normalized response, including raw model text for debugging.
@@ -242,17 +273,23 @@ struct ActiveSuggestionSession: Equatable, Sendable {
     let fullText: String
     let consumedCharacterCount: Int
     let latency: TimeInterval
+    /// `.continuation` for normal forward suggestions; `.correction(replacingLastWordOfLength:)`
+    /// when the active session represents a typo-fix the user can accept. The acceptance path
+    /// branches on this so corrections always commit the whole word and replace the typo.
+    let kind: SuggestionKind
 
     init(
         baseContext: FocusedInputContext,
         fullText: String,
         consumedCharacterCount: Int = 0,
-        latency: TimeInterval
+        latency: TimeInterval,
+        kind: SuggestionKind = .continuation
     ) {
         self.baseContext = baseContext
         self.fullText = fullText
         self.consumedCharacterCount = min(max(consumedCharacterCount, 0), fullText.count)
         self.latency = latency
+        self.kind = kind
     }
 
     var acceptedText: String {
@@ -284,7 +321,8 @@ struct ActiveSuggestionSession: Equatable, Sendable {
             baseContext: baseContext,
             fullText: fullText,
             consumedCharacterCount: self.consumedCharacterCount + max(consumedCharacters, 0),
-            latency: latency
+            latency: latency,
+            kind: kind
         )
     }
 
@@ -295,7 +333,8 @@ struct ActiveSuggestionSession: Equatable, Sendable {
             baseContext: baseContext,
             fullText: fullText,
             consumedCharacterCount: consumedCharacters,
-            latency: latency
+            latency: latency,
+            kind: kind
         )
     }
 }
@@ -361,6 +400,10 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
     /// per-session font-size stabilization on this value, so a field switch (or focus loss) starts
     /// a fresh size baseline. Defaults to 0 for tests that do not exercise session-scoped behavior.
     let focusChangeSequence: UInt64
+    /// When `true`, the overlay is rendering a typo correction rather than a forward continuation.
+    /// `OverlayController` switches to a green tint on this signal so users can tell at a glance
+    /// that pressing the accept key will replace their last word, not extend it.
+    let isCorrection: Bool
 
     init(
         caretRect: CGRect,
@@ -368,7 +411,8 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
         caretQuality: CaretGeometryQuality,
         observedCharWidth: CGFloat?,
         isRightToLeft: Bool,
-        focusChangeSequence: UInt64 = 0
+        focusChangeSequence: UInt64 = 0,
+        isCorrection: Bool = false
     ) {
         self.caretRect = caretRect
         self.inputFrameRect = inputFrameRect
@@ -376,6 +420,7 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
         self.observedCharWidth = observedCharWidth
         self.isRightToLeft = isRightToLeft
         self.focusChangeSequence = focusChangeSequence
+        self.isCorrection = isCorrection
     }
 }
 

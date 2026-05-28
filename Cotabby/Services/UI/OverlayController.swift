@@ -163,7 +163,8 @@ final class OverlayController: SuggestionOverlayControlling {
             fontSize: fontSize,
             customColor: customGhostColor,
             keycapLabel: acceptanceHintLabel,
-            opacity: ghostOpacity
+            opacity: ghostOpacity,
+            isCorrection: geometry.isCorrection
         )
 
         let contentView: NSHostingView<GhostSuggestionView>
@@ -294,8 +295,20 @@ private struct GhostSuggestionView: View {
     /// User-controlled fade for the suggestion text, in [0.3, 1.0]. Applied only to the ghost text,
     /// not the keycap, so the acceptance hint stays legible at low opacities.
     let opacity: Double
+    /// When true, the suggestion is replacing a typo'd word. We render in green to signal that
+    /// accepting will swap the user's last word, not extend the text. The custom color override
+    /// is intentionally bypassed in this mode — semantic communication beats personalization.
+    let isCorrection: Bool
 
     var ghostColor: Color {
+        if isCorrection {
+            // Tuned per color scheme so the green stays legible in both modes without dropping
+            // below the WCAG contrast floor against typical text-field backgrounds.
+            let correctionColor = colorScheme == .dark
+                ? Color(red: 0.45, green: 0.85, blue: 0.45)
+                : Color(red: 0.15, green: 0.60, blue: 0.20)
+            return correctionColor.opacity(opacity)
+        }
         let baseColor = customColor
             ?? (
                 colorScheme == .dark

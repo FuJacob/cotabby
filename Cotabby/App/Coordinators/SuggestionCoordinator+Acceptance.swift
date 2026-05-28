@@ -43,6 +43,18 @@ extension SuggestionCoordinator {
             return passTabThrough(reason: "Key passed through because no valid suggestion was ready.")
         }
 
+        // Corrections always commit as a unit — Tab and the full-accept key both swap the typo'd
+        // word for the corrected one in one gesture. Partial acceptance would be incoherent here
+        // because the corrected word and the typo can disagree on prefix length.
+        if let session = interactionState.activeSession,
+           case let .correction(replacingLastWordOfLength) = session.kind {
+            return acceptCorrection(
+                session: session,
+                replacingLastWordOfLength: replacingLastWordOfLength,
+                keyName: keyName
+            )
+        }
+
         let preparation = fullText
             ? interactionState.prepareFullAcceptance(from: rawContext, overlayState: overlayState)
             : interactionState.prepareAcceptance(
@@ -145,6 +157,59 @@ extension SuggestionCoordinator {
             )
             return true
         }
+    }
+
+    /// Commits a correction by replacing the trailing typo with the corrected word in one shot.
+    /// Returns true on success so the active accept tap consumes the key event; false routes
+    /// `Tab` (or whatever key was bound) back to the host app via `passTabThrough`.
+    private func acceptCorrection(
+        session: ActiveSuggestionSession,
+        replacingLastWordOfLength: Int,
+        keyName: String
+    ) -> Bool {
+        let correctedText = session.fullText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !correctedText.isEmpty else {
+            return passTabThrough(reason: "Key passed through because the correction text was empty.")
+        }
+
+        let success = suggestionInserter.insert(
+            correctedText,
+            replacingLastCharacters: replacingLastWordOfLength
+        )
+        guard success else {
+            let message = suggestionInserter.lastErrorMessage ?? "Correction insertion failed."
+            cancelPredictionWork()
+            clearSuggestion(clearDiagnostics: true)
+            hideOverlay(reason: "Overlay hidden because correction insertion failed.")
+            state = .idle
+            logStage(
+                "correction-insert-failed",
+                workID: currentWorkID,
+                generation: session.baseContext.generation,
+                message: message,
+                normalizedOutput: correctedText
+            )
+            return false
+        }
+
+        recordAcceptedWords(from: correctedText)
+        cancelPredictionWork()
+        latestGenerationNumber = session.baseContext.generation
+        clearSuggestion(clearDiagnostics: false)
+        hideOverlay(reason: "Overlay hidden because \(keyName) accepted a typo correction.")
+        latestAcceptanceAction = "Accepted typo correction with \(keyName)."
+        state = .idle
+        logStage(
+            "\(keyName)-accepted-correction",
+            workID: currentWorkID,
+            generation: session.baseContext.generation,
+            message: "Replaced the user's last word with the corrected version.",
+            normalizedOutput: correctedText
+        )
+        // Re-arm prediction so the next keystroke can produce a fresh continuation now that the
+        // typo is gone — the user is likely to keep typing immediately after accepting.
+        schedulePrediction()
+        return true
     }
 
     /// Returns control of `Tab` to the host app and clears stale suggestion UI.
@@ -335,7 +400,8 @@ extension SuggestionCoordinator {
         text: String,
         at caretRect: CGRect,
         context: FocusedInputContext,
-        isRightToLeft: Bool = false
+        isRightToLeft: Bool = false,
+        isCorrection: Bool = false
     ) {
         let geometry = SuggestionOverlayGeometry(
             caretRect: caretRect,
@@ -343,7 +409,8 @@ extension SuggestionCoordinator {
             caretQuality: context.caretQuality,
             observedCharWidth: context.observedCharWidth,
             isRightToLeft: isRightToLeft,
-            focusChangeSequence: context.focusChangeSequence
+            focusChangeSequence: context.focusChangeSequence,
+            isCorrection: isCorrection
         )
         if let message = overlayPresenter.present(
             text: text,

@@ -29,12 +29,17 @@ enum SuggestionRequestFactory {
     }
 
     /// Builds the generation request plus the exact prompt preview used by Cotabby's diagnostics UI.
+    ///
+    /// When `typoContext` is non-nil, the factory swaps to a correction-flavored prompt template
+    /// and stamps `request.kind = .correction(...)` so downstream acceptance knows to replace the
+    /// typo'd word instead of appending forward text.
     static func buildRequest(
         context: FocusedInputContext,
         settings: SuggestionSettingsSnapshot,
         configuration: SuggestionConfiguration,
         clipboardContext: String? = nil,
-        visualContextSummary: String? = nil
+        visualContextSummary: String? = nil,
+        typoContext: TypoContext? = nil
     ) -> SuggestionRequestBuildResult {
         let prefixText = truncatedPromptPrefix(
             from: context.precedingText,
@@ -54,27 +59,58 @@ enum SuggestionRequestFactory {
         let boundedVisualContextSummary = activeVisualContextSummary(
             rawSummary: visualContextSummary
         )
-        let prompt = LlamaPromptRenderer.prompt(
-            prefixText: prefixText,
-            applicationName: context.applicationName,
-            completionLengthInstruction: completionLengthInstruction,
-            userName: userName,
-            customRules: customRules,
-            languageInstruction: languageInstruction,
-            clipboardContext: boundedClipboardContext,
-            visualContextSummary: boundedVisualContextSummary
-        )
+
+        let prompt: String
+        let kind: SuggestionKind
+        let maxPredictionTokens: Int
+
+        if let typoContext {
+            // Correction mode: ask the model for a single-word fix. The prefix passed to the
+            // renderer is the text *before* the typo so the model sees surrounding context but
+            // never sees the typo word twice (the prompt provides it explicitly).
+            let prefixWithoutTypo = Self.precedingTextWithoutTrailingWord(
+                prefixText: prefixText,
+                trailingWord: typoContext.typoWord
+            )
+            prompt = CorrectionPromptRenderer.prompt(
+                precedingTextBeforeTypo: prefixWithoutTypo,
+                typoWord: typoContext.typoWord,
+                nativeCorrectionsHint: typoContext.nativeCorrections,
+                metadata: CorrectionPromptRenderer.Metadata(
+                    applicationName: context.applicationName,
+                    userName: userName,
+                    languageInstruction: languageInstruction
+                )
+            )
+            kind = .correction(replacingLastWordOfLength: typoContext.typoWord.count)
+            // One word fits comfortably in a small token budget; oversized budgets risk the model
+            // adding a continuation we'd then have to strip.
+            maxPredictionTokens = 6
+        } else {
+            prompt = LlamaPromptRenderer.prompt(
+                prefixText: prefixText,
+                applicationName: context.applicationName,
+                completionLengthInstruction: completionLengthInstruction,
+                userName: userName,
+                customRules: customRules,
+                languageInstruction: languageInstruction,
+                clipboardContext: boundedClipboardContext,
+                visualContextSummary: boundedVisualContextSummary
+            )
+            kind = .continuation
+            maxPredictionTokens = activeMaxPredictionTokens(
+                configuration: configuration,
+                wordCountPreset: settings.selectedWordCountPreset,
+                isMultiLineEnabled: settings.isMultiLineEnabled
+            )
+        }
 
         let request = SuggestionRequest(
             context: context,
             prefixText: prefixText,
             prompt: prompt,
             generation: context.generation,
-            maxPredictionTokens: activeMaxPredictionTokens(
-                configuration: configuration,
-                wordCountPreset: settings.selectedWordCountPreset,
-                isMultiLineEnabled: settings.isMultiLineEnabled
-            ),
+            maxPredictionTokens: maxPredictionTokens,
             temperature: configuration.temperature,
             topK: configuration.topK,
             topP: configuration.topP,
@@ -88,13 +124,28 @@ enum SuggestionRequestFactory {
             languageInstruction: languageInstruction,
             clipboardContext: boundedClipboardContext,
             visualContextSummary: boundedVisualContextSummary,
-            isMultiLineEnabled: settings.isMultiLineEnabled
+            isMultiLineEnabled: settings.isMultiLineEnabled,
+            kind: kind
         )
 
         return SuggestionRequestBuildResult(
             request: request,
             promptPreview: promptPreview(for: request, selectedEngine: settings.selectedEngine)
         )
+    }
+
+    /// Drops the trailing word from `prefixText` when it matches `trailingWord`. Used by the
+    /// correction prompt so the context shown to the model stops just before the typo, avoiding
+    /// the awkward duplication of having the typo appear inline *and* under "Typo:".
+    private static func precedingTextWithoutTrailingWord(
+        prefixText: String,
+        trailingWord: String
+    ) -> String {
+        guard prefixText.hasSuffix(trailingWord) else {
+            return prefixText
+        }
+        return String(prefixText.dropLast(trailingWord.count))
+            .trimmingCharacters(in: CharacterSet.whitespaces)
     }
 
     /// Keep only the latest short word tail to prevent long stale context from steering output.
