@@ -1,4 +1,3 @@
-import AppKit
 import ApplicationServices
 import Combine
 import Foundation
@@ -17,10 +16,6 @@ final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var showIndicator: Bool
     /// Whether the keycap hint (the small pill that teaches the accept key) is drawn after ghost text.
     @Published private(set) var showAcceptanceHint: Bool
-    /// User-supplied indicator icon, already processed into a small square image. `nil` means the
-    /// built-in Cotabby icon is used. Cached in memory so the focus-driven indicator does not decode
-    /// PNG data on every show.
-    @Published private(set) var customIndicatorImage: NSImage?
     @Published private(set) var disabledAppRules: [DisabledApplicationRule]
     @Published private(set) var customSuggestionTextColorHex: String?
     @Published private(set) var ghostTextOpacity: Double
@@ -48,7 +43,6 @@ final class SuggestionSettingsModel: ObservableObject {
     private static let showCaretIndicatorDefaultsKey = "cotabbyShowCaretIndicator"
     private static let selectedIndicatorModeDefaultsKey = "cotabbySelectedIndicatorMode"
     private static let showAcceptanceHintDefaultsKey = "cotabbyShowAcceptanceHint"
-    private static let customIndicatorImageDataDefaultsKey = "cotabbyCustomIndicatorImageData"
     private static let customSuggestionTextColorHexDefaultsKey = "cotabbyCustomSuggestionTextColorHex"
     private static let ghostTextOpacityDefaultsKey = "cotabbyGhostTextOpacity"
     private static let selectedEngineDefaultsKey = "cotabbySelectedEngine"
@@ -201,7 +195,6 @@ final class SuggestionSettingsModel: ObservableObject {
         disabledAppRules = resolvedDisabledAppRules
         showIndicator = resolvedShowIndicator
         showAcceptanceHint = resolvedShowAcceptanceHint
-        customIndicatorImage = Self.loadCustomIndicatorImage(from: userDefaults)
         customSuggestionTextColorHex = resolvedCustomSuggestionTextColorHex
         ghostTextOpacity = resolvedGhostTextOpacity
         selectedEngine = resolvedEngine
@@ -248,6 +241,10 @@ final class SuggestionSettingsModel: ObservableObject {
             forKey: Self.fullAcceptanceKeyModifiersDefaultsKey
         )
         userDefaults.set(resolvedFullAcceptanceKeyLabel, forKey: Self.fullAcceptanceKeyLabelDefaultsKey)
+
+        // The custom indicator icon feature was removed; scrub any previously-persisted PNG so
+        // users who picked one in an older build get the default cat icon back automatically.
+        userDefaults.removeObject(forKey: "cotabbyCustomIndicatorImageData")
     }
 
     /// Legacy compatibility shim. Reads through to `showIndicator`.
@@ -468,39 +465,6 @@ final class SuggestionSettingsModel: ObservableObject {
         return nil
     }
 
-    /// Imports a user-picked image as the indicator icon: reads the file, processes it into a small
-    /// square PNG, persists that, and updates the in-memory image. Returns false when the file can't
-    /// be read or decoded so the UI can surface an error instead of silently doing nothing.
-    @discardableResult
-    func setCustomIndicatorImage(from url: URL) -> Bool {
-        let didStartAccess = url.startAccessingSecurityScopedResource()
-        defer {
-            if didStartAccess {
-                url.stopAccessingSecurityScopedResource()
-            }
-        }
-
-        guard let sourceData = try? Data(contentsOf: url),
-              let iconData = IndicatorIconImageProcessor.squareIconPNGData(from: sourceData),
-              let image = NSImage(data: iconData)
-        else {
-            return false
-        }
-
-        userDefaults.set(iconData, forKey: Self.customIndicatorImageDataDefaultsKey)
-        customIndicatorImage = image
-        return true
-    }
-
-    func clearCustomIndicatorImage() {
-        guard customIndicatorImage != nil else {
-            return
-        }
-
-        userDefaults.removeObject(forKey: Self.customIndicatorImageDataDefaultsKey)
-        customIndicatorImage = nil
-    }
-
     func setCustomSuggestionTextColorHex(_ hex: String?) {
         let normalizedHex = Self.normalizedHexString(hex)
         guard customSuggestionTextColorHex != normalizedHex else {
@@ -659,15 +623,6 @@ final class SuggestionSettingsModel: ObservableObject {
         let mode: ActivationIndicatorMode = show ? .fieldEdgeIcon : .hidden
         userDefaults.set(mode.rawValue, forKey: Self.selectedIndicatorModeDefaultsKey)
         userDefaults.set(show, forKey: Self.showCaretIndicatorDefaultsKey)
-    }
-
-    private static func loadCustomIndicatorImage(from userDefaults: UserDefaults) -> NSImage? {
-        guard let data = userDefaults.data(forKey: Self.customIndicatorImageDataDefaultsKey),
-              let image = NSImage(data: data)
-        else {
-            return nil
-        }
-        return image
     }
 
     private func persistCustomSuggestionTextColorHex(_ hex: String?) {
