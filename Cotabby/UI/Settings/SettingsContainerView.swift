@@ -51,7 +51,7 @@ struct SettingsContainerView: View {
                 .toolbar(removing: .sidebarToggle)
         }
         .navigationSplitViewStyle(.balanced)
-        .frame(minWidth: 820, minHeight: 540)
+        .frame(minWidth: 1180, minHeight: 720)
         .onChange(of: columnVisibility) { _, newValue in
             // Snap back to `.all` if something tries to collapse the sidebar. Cheaper than wiring
             // a custom binding and reads as the same intent: the sidebar is never optional here.
