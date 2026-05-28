@@ -11,22 +11,10 @@ struct ShortcutsPaneView: View {
     @State private var isRecordingKeybind = false
     @State private var isRecordingFullAcceptKeybind = false
 
-    private var acceptanceGranularityBinding: Binding<AcceptanceGranularity> {
-        Binding(
-            get: { suggestionSettings.acceptanceGranularity },
-            set: { suggestionSettings.setAcceptanceGranularity($0) }
-        )
-    }
-
     var body: some View {
         SettingsPaneScaffold {
             Section("Shortcuts") {
-                Picker("Acceptance Mode", selection: acceptanceGranularityBinding) {
-                    Text("Word").tag(AcceptanceGranularity.word)
-                    Text("Phrase").tag(AcceptanceGranularity.phrase)
-                    Text("Full Suggestion").tag(AcceptanceGranularity.full)
-                }
-                .pickerStyle(.menu)
+                AcceptanceModePickerView(suggestionSettings: suggestionSettings)
 
                 LabeledContent("Accept Word") {
                     KeybindRow(

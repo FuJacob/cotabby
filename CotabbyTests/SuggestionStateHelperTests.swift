@@ -194,6 +194,35 @@ final class SuggestionInteractionStateTests: XCTestCase {
         }
     }
 
+    func test_prepareAcceptance_phraseGranularityAcceptsThroughSentenceTerminator() {
+        runOnMainActor {
+            let state = makeState()
+            let context = CotabbyTestFixtures.focusedInputContext(precedingText: "Hello")
+            _ = state.startSession(fullText: " hello world. next", liveContext: context, latency: 0.1)
+            let snapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello")
+
+            let preparation = state.prepareAcceptance(
+                from: snapshot,
+                overlayState: .visible(
+                    text: " hello world. next",
+                    geometry: CotabbyTestFixtures.overlayGeometry(caretRect: context.caretRect),
+                    mode: .inline
+                ),
+                granularity: .phrase
+            )
+
+            guard case let .ready(_, session, acceptedChunk) = preparation else {
+                XCTFail("Expected phrase acceptance to be ready")
+                return
+            }
+            // Phrase mode must delegate to nextAcceptancePhrase: the accepted chunk spans every word
+            // up to the sentence terminator, not just the first word a .word accept would take.
+            XCTAssertEqual(session.remainingText, " hello world. next")
+            XCTAssertEqual(acceptedChunk, " hello world.")
+            XCTAssertEqual(SuggestionSessionReconciler.nextAcceptanceChunk(from: session.remainingText), " hello")
+        }
+    }
+
     func test_commitAcceptedChunkAdvancesSessionAndSetsPendingInsertionSentinel() {
         runOnMainActor {
             let state = makeState()

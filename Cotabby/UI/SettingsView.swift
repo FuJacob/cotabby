@@ -283,12 +283,7 @@ struct SettingsView: View {
     @ViewBuilder
     private var shortcutsSection: some View {
         Section("Shortcuts") {
-            Picker("Acceptance Mode", selection: acceptanceGranularityBinding) {
-                Text("Word").tag(AcceptanceGranularity.word)
-                Text("Phrase").tag(AcceptanceGranularity.phrase)
-                Text("Full Suggestion").tag(AcceptanceGranularity.full)
-            }
-            .pickerStyle(.menu)
+            AcceptanceModePickerView(suggestionSettings: suggestionSettings)
 
             LabeledContent("Accept Word") {
                 HStack(spacing: 8) {
@@ -729,13 +724,6 @@ struct SettingsView: View {
         Binding(
             get: { suggestionSettings.autoAcceptTrailingPunctuation },
             set: { suggestionSettings.setAutoAcceptTrailingPunctuation($0) }
-        )
-    }
-
-    private var acceptanceGranularityBinding: Binding<AcceptanceGranularity> {
-        Binding(
-            get: { suggestionSettings.acceptanceGranularity },
-            set: { suggestionSettings.setAcceptanceGranularity($0) }
         )
     }
 

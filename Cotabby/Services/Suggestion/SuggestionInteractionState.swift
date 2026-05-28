@@ -132,7 +132,11 @@ final class SuggestionInteractionState {
                 autoAcceptTrailingPunctuation: autoAcceptTrailingPunctuation
             )
         case .full:
-            preconditionFailure("prepareAcceptance should not receive .full — route to prepareFullAcceptance instead")
+            // The coordinator routes full accepts to `prepareFullAcceptance`, so `.full` should never
+            // reach here. Trap in debug, but degrade gracefully in release by passing the key through
+            // rather than crashing a shipping process — matching the other `.invalid` branches here.
+            assertionFailure("prepareAcceptance should not receive .full — route to prepareFullAcceptance instead")
+            return .invalid("Key passed through because .full granularity was routed incorrectly.")
         }
 
         guard !chunk.isEmpty else {

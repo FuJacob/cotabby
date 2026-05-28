@@ -159,6 +159,7 @@
 		D5CAF3B590E5EC2AFC72E57A /* VisualContextStartCoalescerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 050D929E13BE52E6282B64D2 /* VisualContextStartCoalescerTests.swift */; };
 		D9C51DEDF01033E276A479CE /* AXTextGeometryResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB58035EFFD65B767949BAE6 /* AXTextGeometryResolver.swift */; };
 		DD7FA343F1C21C4569F6D181 /* ScreenshotContextGenerator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B84BAE361626891F19DC9DB /* ScreenshotContextGenerator.swift */; };
+		DDEDCBAA2196303455F6926A /* AcceptanceModePickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5DAF68AEBFE334F68A65E82 /* AcceptanceModePickerView.swift */; };
 		DE236C9285635C686D66A2F6 /* TerminalAppDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43E37A7E835D3BDE6265843C /* TerminalAppDetectorTests.swift */; };
 		E17CAA453B1F534D284F0D89 /* PermissionHostApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6ACCB12E4DB32D2F2BEA567 /* PermissionHostApp.swift */; };
 		E313639E71AE1374D2B9A956 /* SuggestionWorkController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B2D97BAA3618A7D0357AC44 /* SuggestionWorkController.swift */; };
@@ -348,6 +349,7 @@
 		E217A66717D78E1E49350EC8 /* DownloadOutcomeClassifierTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadOutcomeClassifierTests.swift; sourceTree = "<group>"; };
 		E3C84377F352140759B448C9 /* CaretGeometrySelector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaretGeometrySelector.swift; sourceTree = "<group>"; };
 		E43E587E421AF544A8300CE4 /* CustomRulesCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomRulesCatalog.swift; sourceTree = "<group>"; };
+		E5DAF68AEBFE334F68A65E82 /* AcceptanceModePickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AcceptanceModePickerView.swift; sourceTree = "<group>"; };
 		E6423D6CC8CC371D2DA899DE /* PermissionOverlayTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionOverlayTracker.swift; sourceTree = "<group>"; };
 		E7F42112F14026E6253BB865 /* PermissionAndContextModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionAndContextModelTests.swift; sourceTree = "<group>"; };
 		EAAE6B395FAB604DF059280A /* KeyCodeLabels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyCodeLabels.swift; sourceTree = "<group>"; };
@@ -503,6 +505,7 @@
 		6E1171BBC9CB74DB623C5E8B /* Components */ = {
 			isa = PBXGroup;
 			children = (
+				E5DAF68AEBFE334F68A65E82 /* AcceptanceModePickerView.swift */,
 				19BE12C28A4AB8A4A58C2FF7 /* SettingsPaneScaffold.swift */,
 			);
 			path = Components;
@@ -830,6 +833,7 @@
 				30F3F2B6D13CD583136CD787 /* AXHelper.swift in Sources */,
 				D9C51DEDF01033E276A479CE /* AXTextGeometryResolver.swift in Sources */,
 				78FAE5DB691A1B71042B9D20 /* AboutPaneView.swift in Sources */,
+				DDEDCBAA2196303455F6926A /* AcceptanceModePickerView.swift in Sources */,
 				0A658BF137DBD0898E40B87F /* AcknowledgementsView.swift in Sources */,
 				26E0331E9E2F92FAE531BDEE /* ActivationIndicatorController.swift in Sources */,
 				0A3443AEE6540F11E5E6BF8F /* AppDelegate.swift in Sources */,
