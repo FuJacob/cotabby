@@ -30,7 +30,7 @@ struct CustomRulesEditor: View {
             HStack {
                 Text("Rules")
                     .font(.system(size: 13, weight: .medium))
-                    .help("Short style instructions added to every prompt, like \"no em dashes\" "
+                    .cotabbyHelp("Short style instructions added to every prompt, like \"no em dashes\" "
                         + "or \"prefer short sentences\". Stored only on your Mac.")
                 Spacer()
                 if canClear {
@@ -40,7 +40,7 @@ struct CustomRulesEditor: View {
                     .buttonStyle(.plain)
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
-                    .help("Remove all custom rules.")
+                    .cotabbyHelp("Remove all custom rules.")
                 }
             }
 

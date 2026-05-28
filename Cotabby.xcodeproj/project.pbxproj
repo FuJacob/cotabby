@@ -147,6 +147,7 @@
 		DE236C9285635C686D66A2F6 /* TerminalAppDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43E37A7E835D3BDE6265843C /* TerminalAppDetectorTests.swift */; };
 		E17CAA453B1F534D284F0D89 /* PermissionHostApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6ACCB12E4DB32D2F2BEA567 /* PermissionHostApp.swift */; };
 		E313639E71AE1374D2B9A956 /* SuggestionWorkController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B2D97BAA3618A7D0357AC44 /* SuggestionWorkController.swift */; };
+		E4118809465DA2449E21A8BE /* TooltipSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB73667A6FF0EA590D54DDF9 /* TooltipSupport.swift */; };
 		E6EE3C13FA31F261CD734C69 /* DownloadOutcomeClassifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DE1975F3B5F4A70478DBF41 /* DownloadOutcomeClassifier.swift */; };
 		E912D4617AE1376061DF1F00 /* LanguageSupportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4793D4EA5D36D7E5CC216C27 /* LanguageSupportTests.swift */; };
 		E994FE418A961FB234D9057A /* DownloadFileRescuerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2F46767D9D1F0D44E239CA8 /* DownloadFileRescuerTests.swift */; };
@@ -308,6 +309,7 @@
 		D504BEB224E0C176F5FCFF6E /* CompletionRenderModePolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompletionRenderModePolicyTests.swift; sourceTree = "<group>"; };
 		D5D6C2318E405AA717D1C256 /* WelcomePermissionStepView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomePermissionStepView.swift; sourceTree = "<group>"; };
 		D84D4528EEC9EFEB8AE8E318 /* ActivationIndicatorController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivationIndicatorController.swift; sourceTree = "<group>"; };
+		DB73667A6FF0EA590D54DDF9 /* TooltipSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TooltipSupport.swift; sourceTree = "<group>"; };
 		DDE858CB1E687E3CEB8FDD5B /* SuggestionRequestFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionRequestFactory.swift; sourceTree = "<group>"; };
 		DEB16474A67CE1D210B944C9 /* SuggestionSubsystemContracts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionSubsystemContracts.swift; sourceTree = "<group>"; };
 		E1D2782B6C7BE3F56BCB22DE /* LlamaVisualContextSummarizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LlamaVisualContextSummarizer.swift; sourceTree = "<group>"; };
@@ -554,6 +556,7 @@
 				FB317C82CE2CBC69056BA4B8 /* TagChip.swift */,
 				58C0F017699EE44C81C095CA /* TagsInputView.swift */,
 				67586807ACE8EB13C9014535 /* TickMarkSlider.swift */,
+				DB73667A6FF0EA590D54DDF9 /* TooltipSupport.swift */,
 				D5D6C2318E405AA717D1C256 /* WelcomePermissionStepView.swift */,
 				6C4565D64DF64A2AA0DB1532 /* WelcomeProfileStepView.swift */,
 				264CA64B2AB1611F82E5B760 /* WelcomeView.swift */,
@@ -854,6 +857,7 @@
 				AB9C9C001F97F9D14F8B192A /* TerminalAppDetector.swift in Sources */,
 				96782E57CA26A16409368B69 /* TextDirectionDetector.swift in Sources */,
 				6014B31E2570EFFE45557E33 /* TickMarkSlider.swift in Sources */,
+				E4118809465DA2449E21A8BE /* TooltipSupport.swift in Sources */,
 				E9E4CC657771DF9F4C56183C /* VisualContextCoordinator.swift in Sources */,
 				4190F8A76196B16ED94D0A55 /* VisualContextModels.swift in Sources */,
 				19CB55B62977376E9AE8D428 /* VisualContextStartCoalescer.swift in Sources */,

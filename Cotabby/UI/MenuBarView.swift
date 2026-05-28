@@ -73,7 +73,7 @@ struct MenuBarView: View {
             Toggle("Fast Mode", isOn: fastModeEnabledBinding)
                 .toggleStyle(.switch)
                 .controlSize(.small)
-                .help("Skip on-screen OCR context for faster, lower-overhead suggestions. Predictions still run.")
+                .cotabbyHelp("Skip on-screen OCR context for faster, lower-overhead suggestions. Predictions still run.")
 
             Divider()
 
@@ -83,14 +83,14 @@ struct MenuBarView: View {
                 Toggle("Enable Globally", isOn: globallyEnabledBinding)
                     .toggleStyle(.switch)
                     .controlSize(.small)
-                    .help("Master switch. Turn off to silence Cotabby in every app.")
+                    .cotabbyHelp("Master switch. Turn off to silence Cotabby in every app.")
 
                 if let application = focusModel.latestExternalApplication,
                    !TerminalAppDetector.isTerminal(bundleIdentifier: application.bundleIdentifier) {
                     Toggle("Enable in \(application.applicationName)", isOn: appEnabledBinding(for: application))
                         .toggleStyle(.switch)
                         .controlSize(.small)
-                        .help("Disable Cotabby just in this app. Overrides Enable Globally.")
+                        .cotabbyHelp("Disable Cotabby just in this app. Overrides Enable Globally.")
                 }
             }
 
@@ -101,12 +101,12 @@ struct MenuBarView: View {
                 Toggle("Include Clipboard Context", isOn: clipboardContextEnabledBinding)
                     .toggleStyle(.switch)
                     .controlSize(.small)
-                    .help("Include your latest clipboard contents in the prompt so completions can reference what you copied.")
+                    .cotabbyHelp("Include your latest clipboard contents in the prompt so completions can reference what you copied.")
 
                 Toggle("Allow Multi-line Suggestions", isOn: multiLineEnabledBinding)
                     .toggleStyle(.switch)
                     .controlSize(.small)
-                    .help("Let suggestions span more than one line. Off keeps them to a single line.")
+                    .cotabbyHelp("Let suggestions span more than one line. Off keeps them to a single line.")
             }
 
             Divider()
@@ -124,7 +124,7 @@ struct MenuBarView: View {
                     }
                     .labelsHidden()
                     .pickerStyle(.menu)
-                    .help("Apple Intelligence runs on-device through macOS. Llama runs a local GGUF model you pick below.")
+                    .cotabbyHelp("Apple Intelligence runs on-device through macOS. Llama runs a local GGUF model you pick below.")
                 }
 
                 if suggestionSettings.selectedEngine == .appleIntelligence,
@@ -147,7 +147,7 @@ struct MenuBarView: View {
                     }
                     .labelsHidden()
                     .pickerStyle(.menu)
-                    .help("How long completions tend to be. Shorter is faster and less likely to overreach.")
+                    .cotabbyHelp("How long completions tend to be. Shorter is faster and less likely to overreach.")
                 }
             }
         }
@@ -187,7 +187,7 @@ struct MenuBarView: View {
                 }
                 .buttonStyle(.borderless)
                 .controlSize(.small)
-                .help("Open Models Folder")
+                .cotabbyHelp("Open Models Folder")
 
                 Button {
                     modelDownloadManager.refreshModelStates()
@@ -197,7 +197,7 @@ struct MenuBarView: View {
                 }
                 .buttonStyle(.borderless)
                 .controlSize(.small)
-                .help("Refresh Available Models")
+                .cotabbyHelp("Refresh Available Models")
             }
         }
     }
