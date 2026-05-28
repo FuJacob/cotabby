@@ -38,12 +38,14 @@ struct SettingsSidebarView: View {
         .safeAreaInset(edge: .top, spacing: 0) {
             Color.clear.frame(height: 12)
         }
-        // Previously bumped to 480/520/640, but with the window's overall `minWidth` the
-        // `.balanced` split style had to shrink the sidebar back below 240pt to keep the detail
-        // pane usable — which still truncated "Apple Intelligence" to "Apple Intell…". The
-        // tighter range here matches the longest user-facing label and lines up with the
-        // matching `minWidth` reduction on the container so the detail pane keeps its own room.
-        .navigationSplitViewColumnWidth(min: 220, ideal: 240, max: 280)
+        // 220/240/280 still truncated "Apple Intelligence" because that row is a sub-row with a
+        // 16pt leading indent (see `row(for:)` below), so its usable label space is sidebar width
+        // minus the indent, the icon, the row inset, and the attention-dot gutter. Bumping the
+        // floor to 260 gives the longest sub-row label real room even when `.balanced` clamps the
+        // sidebar to its minimum, and pushing the ideal up to 280 means most users see the label
+        // unclipped at the default window size. The matching container `minWidth` bump keeps the
+        // detail pane sized comfortably alongside the wider sidebar.
+        .navigationSplitViewColumnWidth(min: 260, ideal: 280, max: 320)
     }
 
     @ViewBuilder

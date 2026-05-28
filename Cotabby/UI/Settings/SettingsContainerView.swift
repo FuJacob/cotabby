@@ -56,7 +56,10 @@ struct SettingsContainerView: View {
         // longest label. The previous 1180pt floor came from an earlier sidebar experiment that
         // doubled column widths; with the sidebar tightened back down, that floor leaves the
         // detail pane oversized for the actual content.
-        .frame(minWidth: 780, minHeight: 560)
+        // Sidebar grew (min 260 / ideal 280) to fit the longest sub-row label without truncation.
+        // Bump the container floor in step so the detail pane keeps a comfortable working width
+        // (sidebar 260 + detail ~560 ≈ 820pt).
+        .frame(minWidth: 820, minHeight: 560)
         .onChange(of: columnVisibility) { _, newValue in
             // Snap back to `.all` if something tries to collapse the sidebar. Cheaper than wiring
             // a custom binding and reads as the same intent: the sidebar is never optional here.

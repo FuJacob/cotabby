@@ -82,10 +82,15 @@ enum SettingsSidebarSection: CaseIterable {
 
     var title: String? {
         switch self {
-        case .top, .meta: return nil
+        case .top: return nil
         case .engineModel: return "Engine & Model"
         case .customize: return "Customize"
         case .system: return "System"
+        // SwiftUI's grouped sidebar still inserts inter-section spacing for header-less groups, so
+        // leaving `meta` headerless reads as an unexplained gap between Permissions and About.
+        // Naming the group avoids that visual hiccup without merging About into System (which would
+        // overload "System" with two unrelated concepts: permissions and app-info).
+        case .meta: return "Info"
         }
     }
 }
