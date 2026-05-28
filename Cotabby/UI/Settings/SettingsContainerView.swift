@@ -30,20 +30,35 @@ struct SettingsContainerView: View {
     private var storedCategoryRawValue: String = SettingsCategory.general.rawValue
 
     @State private var selection: SettingsCategory = .general
+    // Pinning visibility to `.all` and binding it as constant tells NavigationSplitView the user
+    // is never allowed to collapse the sidebar. That removes the default toggle button from the
+    // title bar (which otherwise teleports between the sidebar header and the content header as
+    // the column collapses) and keeps the sidebar always present, which is what users expect from
+    // a Settings window.
+    @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
     var body: some View {
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: $columnVisibility) {
             SettingsSidebarView(
                 selection: $selection,
                 attentionCategories: attentionCategories
             )
+            .toolbar(removing: .sidebarToggle)
         } detail: {
             detailPane
                 .id(selection)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .toolbar(removing: .sidebarToggle)
         }
         .navigationSplitViewStyle(.balanced)
         .frame(minWidth: 820, minHeight: 540)
+        .onChange(of: columnVisibility) { _, newValue in
+            // Snap back to `.all` if something tries to collapse the sidebar. Cheaper than wiring
+            // a custom binding and reads as the same intent: the sidebar is never optional here.
+            if newValue != .all {
+                columnVisibility = .all
+            }
+        }
         .onAppear {
             selection = SettingsCategory(rawValue: storedCategoryRawValue) ?? .general
             launchAtLoginService.refresh()
