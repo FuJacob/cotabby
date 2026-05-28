@@ -27,9 +27,6 @@ struct SettingsView: View {
     @State private var pendingDeletionModel: RuntimeModelOption?
     @State private var isRecordingKeybind = false
     @State private var isRecordingFullAcceptKeybind = false
-    @State private var isIndicatorIconImporterPresented = false
-    @State private var didIndicatorIconImportFail = false
-
     var body: some View {
         Form {
             // Header keeps the app identity and the (important, frequently-checked) update
@@ -71,17 +68,6 @@ struct SettingsView: View {
             Button("Cancel", role: .cancel) {}
         } message: { model in
             Text("Remove \(model.displayName) from Cotabby's local models folder?")
-        }
-        .fileImporter(
-            isPresented: $isIndicatorIconImporterPresented,
-            allowedContentTypes: [.image]
-        ) { result in
-            handleIndicatorIconSelection(result)
-        }
-        .alert("Couldn't Use That Image", isPresented: $didIndicatorIconImportFail) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("Cotabby couldn't read that file as an image. Try a PNG or JPEG.")
         }
     }
 
@@ -162,24 +148,6 @@ struct SettingsView: View {
             Toggle("Show Indicator", isOn: showIndicatorBinding)
                 .help("Show a small icon next to the cursor when Cotabby is active in a field.")
 
-            LabeledContent("Indicator Icon") {
-                HStack(spacing: 8) {
-                    FieldEdgeIconIndicatorView(customImage: suggestionSettings.customIndicatorImage)
-
-                    Button("Choose Image…") {
-                        isIndicatorIconImporterPresented = true
-                    }
-
-                    if suggestionSettings.customIndicatorImage != nil {
-                        Button("Reset") {
-                            suggestionSettings.clearCustomIndicatorImage()
-                        }
-                        .help("Go back to the default indicator icon.")
-                    }
-                }
-            }
-            .help("Custom image used in place of the default indicator. PNG or JPEG.")
-
             Toggle("Show Accept Hint", isOn: showAcceptanceHintBinding)
                 .help("Show a small label near the ghost text reminding you which key accepts it.")
 
@@ -232,19 +200,6 @@ struct SettingsView: View {
                     onShowWelcome()
                 }
             }
-        }
-    }
-
-    /// Applies a picked image as the indicator icon, flagging an alert when the file can't be used.
-    private func handleIndicatorIconSelection(_ result: Result<URL, Error>) {
-        switch result {
-        case let .success(url):
-            if !suggestionSettings.setCustomIndicatorImage(from: url) {
-                didIndicatorIconImportFail = true
-            }
-
-        case .failure:
-            didIndicatorIconImportFail = true
         }
     }
 
