@@ -63,16 +63,29 @@ struct SettingsContainerView: View {
                 suggestionSettings: suggestionSettings,
                 onShowWelcome: onShowWelcome
             )
+        case .engineAndModel:
+            EngineAndModelPaneView(
+                suggestionSettings: suggestionSettings,
+                foundationModelAvailabilityService: foundationModelAvailabilityService,
+                runtimeModel: runtimeModel
+            )
+        case .appleIntelligence:
+            AppleIntelligencePaneView(
+                suggestionSettings: suggestionSettings,
+                foundationModelAvailabilityService: foundationModelAvailabilityService
+            )
+        case .openSource:
+            OpenSourcePaneView(
+                suggestionSettings: suggestionSettings,
+                runtimeModel: runtimeModel,
+                modelDownloadManager: modelDownloadManager,
+                huggingFaceSearchService: huggingFaceSearchService
+            )
         case .permissions:
             PermissionsPaneView(permissionManager: permissionManager)
         case .about:
             AboutPaneView(appUpdateManager: appUpdateManager)
-        case .engineAndModel,
-             .appleIntelligence,
-             .openSource,
-             .writing,
-             .shortcuts,
-             .apps:
+        case .writing, .shortcuts, .apps:
             PlaceholderPaneView(category: selection)
         }
     }
