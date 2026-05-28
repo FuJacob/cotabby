@@ -81,12 +81,16 @@ struct SettingsContainerView: View {
                 modelDownloadManager: modelDownloadManager,
                 huggingFaceSearchService: huggingFaceSearchService
             )
+        case .writing:
+            WritingPaneView(suggestionSettings: suggestionSettings)
+        case .shortcuts:
+            ShortcutsPaneView(suggestionSettings: suggestionSettings)
+        case .apps:
+            AppsPaneView(suggestionSettings: suggestionSettings)
         case .permissions:
             PermissionsPaneView(permissionManager: permissionManager)
         case .about:
             AboutPaneView(appUpdateManager: appUpdateManager)
-        case .writing, .shortcuts, .apps:
-            PlaceholderPaneView(category: selection)
         }
     }
 
