@@ -1,0 +1,120 @@
+import AppKit
+import SwiftUI
+
+/// File overview:
+/// "About" detail pane of the redesigned Settings window. Consolidates what used to live across
+/// three legacy sections (header, support CTA, uninstall) plus a new Acknowledgements modal that
+/// lists the third-party packages Cotabby ships with.
+struct AboutPaneView: View {
+    let appUpdateManager: AppUpdateManager
+
+    @State private var isShowingAcknowledgements = false
+
+    var body: some View {
+        SettingsPaneScaffold {
+            Section { aboutHeader }
+            Section("Support") { supportRow }
+            Section("Links") { linksRow }
+            Section("Uninstall") { uninstallText }
+        }
+        .sheet(isPresented: $isShowingAcknowledgements) {
+            AcknowledgementsView { isShowingAcknowledgements = false }
+        }
+    }
+
+    @ViewBuilder
+    private var aboutHeader: some View {
+        HStack(spacing: 12) {
+            Image("CotabbyLogo")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 40, height: 40)
+                .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Cotabby")
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+
+                Text("Local macOS AI Autocomplete")
+                    .font(.system(size: 12, design: .rounded))
+                    .foregroundStyle(.secondary)
+
+                Text(appVersionText)
+                    .font(.system(size: 11, design: .rounded))
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 12)
+
+            Button("Check for Updates") {
+                appUpdateManager.checkForUpdates()
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    @ViewBuilder
+    private var supportRow: some View {
+        LabeledContent {
+            Link(destination: URL(string: "https://ko-fi.com/cotabby")!) {
+                Label("Support", systemImage: "heart.fill")
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.blue)
+        } label: {
+            Text(
+                "Cotabby is free and open source, maintained by two university students in our free time. "
+                + "If it's useful to you, please consider supporting development."
+            )
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    @ViewBuilder
+    private var linksRow: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Link(destination: URL(string: "https://github.com/FuJacob/cotabby")!) {
+                Label("GitHub Repository", systemImage: "chevron.left.forwardslash.chevron.right")
+            }
+            Link(destination: URL(string: "https://github.com/FuJacob/Cotabby/wiki")!) {
+                Label("Wiki & Contributor Guide", systemImage: "book")
+            }
+            Button {
+                isShowingAcknowledgements = true
+            } label: {
+                Label("Acknowledgements", systemImage: "doc.text")
+            }
+            .buttonStyle(.link)
+        }
+    }
+
+    @ViewBuilder
+    private var uninstallText: some View {
+        Text(
+            "Drag Cotabby.app from Applications to the Trash. "
+            + "To remove leftover data, also delete ~/Library/Application Support/Cotabby. "
+            + "Privacy permissions can only be revoked in System Settings → Privacy & Security."
+        )
+        .font(.caption)
+        .foregroundStyle(.secondary)
+    }
+
+    /// The app bundle is the canonical source for human-facing version text.
+    private var appVersionText: String {
+        let shortVersion =
+            Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+        let buildNumber = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
+
+        switch (shortVersion, buildNumber) {
+        case (let shortVersion?, let buildNumber?) where shortVersion != buildNumber:
+            return "Version \(shortVersion) (\(buildNumber))"
+        case (let shortVersion?, _):
+            return "Version \(shortVersion)"
+        case (_, let buildNumber?):
+            return "Build \(buildNumber)"
+        default:
+            return "Unknown version"
+        }
+    }
+}
