@@ -73,14 +73,27 @@ final class FoundationModelSuggestionEngine {
                 options: generationOptions(for: request)
             )
             // Apple's stream yields cumulative `Snapshot` values whose `.content` carries the
-            // text generated so far. Capturing each snapshot (and re-checking cancellation around
-            // it) is what lets us bail out mid-decode without waiting for the full completion.
+            // text generated so far. Capture each snapshot first and check cancellation after, so a
+            // late cancel between the final snapshot and its assignment doesn't discard fully
+            // decoded text — cancellation always throws, but keeping the best-available text saved
+            // before honoring the signal makes the intent obvious.
             var rawSuggestion = ""
+            var didReceiveSnapshot = false
             for try await partial in stream {
-                try Task.checkCancellation()
                 rawSuggestion = partial.content
+                didReceiveSnapshot = true
+                try Task.checkCancellation()
             }
             try Task.checkCancellation()
+            // Apple's documented contract is at least one snapshot on a successful stream, so a
+            // zero-snapshot path is treated as a generation failure rather than a silent empty
+            // suggestion — the latter would let the overlay clear without surfacing that the model
+            // produced literally nothing.
+            guard didReceiveSnapshot else {
+                throw SuggestionClientError.generationFailed(
+                    "Apple Intelligence finished streaming without producing any content."
+                )
+            }
             let normalizedSuggestion = SuggestionTextNormalizer.normalize(
                 rawSuggestion,
                 for: request,
