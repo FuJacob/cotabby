@@ -110,10 +110,14 @@ extension SuggestionCoordinator {
         let configuration = configuration
         let suggestionEngine = suggestionEngine
         Task { @MainActor [weak self] in
+            // If the coordinator has been torn down (app shutdown), skip prewarm entirely.
+            // Using `guard let self` instead of the optional chain prevents prewarm from
+            // racing past a missed cache-reset barrier when self has gone away.
+            guard let self else { return }
             // Honor the cache-reset barrier so prewarm always runs *after* the engine has dropped
             // the session that belongs to the previous editing context. Otherwise the reset can
             // null the freshly primed session out from under us.
-            await self?.awaitCachedGenerationContextResetIfNeeded()
+            await self.awaitCachedGenerationContextResetIfNeeded()
             let prewarmContext = FocusedInputContext(snapshot: rawContext, generation: 0)
             let request = SuggestionRequestFactory.buildRequest(
                 context: prewarmContext,

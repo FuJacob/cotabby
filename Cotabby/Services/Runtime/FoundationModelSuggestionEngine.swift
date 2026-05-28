@@ -129,6 +129,11 @@ final class FoundationModelSuggestionEngine {
     /// new session and replaces the cache. Keying on rendered instructions (rather than the
     /// untransformed settings fields they came from) keeps this correct if the renderer
     /// composition rules change later.
+    ///
+    /// The cache key intentionally omits `model` identity. `availabilityService` owns the singleton
+    /// `SystemLanguageModel` and only swaps it on app restart, never mid-session — so a cached
+    /// session can never be silently bound to a stale model. If that invariant ever changes
+    /// (e.g. live Apple Intelligence asset reloads), include `ObjectIdentifier(model)` here.
     private func ensureSession(
         for request: SuggestionRequest,
         model: SystemLanguageModel
