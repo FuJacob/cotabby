@@ -23,6 +23,8 @@ final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var selectedWordCountPreset: SuggestionWordCountPreset
     @Published private(set) var isClipboardContextEnabled: Bool
     @Published private(set) var isFastModeEnabled: Bool
+    /// How suggestions are presented (inline ghost text vs popup card vs auto).
+    @Published private(set) var mirrorPreference: MirrorPreference
     @Published private(set) var userName: String
     @Published private(set) var customRules: [String]
     @Published private(set) var responseLanguages: [String]
@@ -49,6 +51,7 @@ final class SuggestionSettingsModel: ObservableObject {
     private static let selectedWordCountPresetDefaultsKey = "cotabbySelectedWordCountPreset"
     private static let clipboardContextEnabledDefaultsKey = "cotabbyClipboardContextEnabled"
     private static let fastModeEnabledDefaultsKey = "cotabbyFastModeEnabled"
+    private static let mirrorPreferenceDefaultsKey = "cotabbyMirrorPreference"
     private static let userNameDefaultsKey = "cotabbyUserName"
     private static let customRulesDefaultsKey = "cotabbyCustomRules"
     private static let responseLanguagesDefaultsKey = "cotabbyResponseLanguages"
@@ -121,6 +124,13 @@ final class SuggestionSettingsModel: ObservableObject {
         // into fast mode turns it off.
         let resolvedFastModeEnabled =
             userDefaults.object(forKey: Self.fastModeEnabledDefaultsKey) as? Bool ?? false
+        // Default `.auto` keeps existing users on the byte-for-byte original inline rendering for
+        // hosts that report exact/derived caret geometry; only `.estimated` hosts see the new popup
+        // card. Power users can pin one mode from Settings or the menu bar.
+        let resolvedMirrorPreference = userDefaults
+            .string(forKey: Self.mirrorPreferenceDefaultsKey)
+            .flatMap(MirrorPreference.init(rawValue:))
+            ?? .auto
         let resolvedUserName: String = if userDefaults.object(forKey: Self.userNameDefaultsKey) == nil {
             configuration.defaultUserName ?? ""
         } else {
@@ -201,6 +211,7 @@ final class SuggestionSettingsModel: ObservableObject {
         selectedWordCountPreset = resolvedWordCountPreset
         isClipboardContextEnabled = resolvedClipboardContextEnabled
         isFastModeEnabled = resolvedFastModeEnabled
+        mirrorPreference = resolvedMirrorPreference
         userName = resolvedUserName
         customRules = resolvedCustomRules
         responseLanguages = resolvedResponseLanguages
@@ -225,6 +236,7 @@ final class SuggestionSettingsModel: ObservableObject {
         persistSelectedWordCountPreset(resolvedWordCountPreset)
         persistClipboardContextEnabled(resolvedClipboardContextEnabled)
         persistFastModeEnabled(resolvedFastModeEnabled)
+        persistMirrorPreference(resolvedMirrorPreference)
         persistUserName(resolvedUserName)
         persistCustomRules(resolvedCustomRules)
         persistResponseLanguages(resolvedResponseLanguages)
@@ -266,7 +278,8 @@ final class SuggestionSettingsModel: ObservableObject {
             focusPollIntervalMilliseconds: focusPollIntervalMilliseconds,
             isMultiLineEnabled: isMultiLineEnabled,
             autoAcceptTrailingPunctuation: autoAcceptTrailingPunctuation,
-            isFastModeEnabled: isFastModeEnabled
+            isFastModeEnabled: isFastModeEnabled,
+            mirrorPreference: mirrorPreference
         )
     }
 
@@ -304,6 +317,15 @@ final class SuggestionSettingsModel: ObservableObject {
 
         isFastModeEnabled = enabled
         persistFastModeEnabled(enabled)
+    }
+
+    func setMirrorPreference(_ preference: MirrorPreference) {
+        guard mirrorPreference != preference else {
+            return
+        }
+
+        mirrorPreference = preference
+        persistMirrorPreference(preference)
     }
 
     func setMultiLineEnabled(_ enabled: Bool) {
@@ -619,6 +641,10 @@ final class SuggestionSettingsModel: ObservableObject {
         userDefaults.set(enabled, forKey: Self.fastModeEnabledDefaultsKey)
     }
 
+    private func persistMirrorPreference(_ preference: MirrorPreference) {
+        userDefaults.set(preference.rawValue, forKey: Self.mirrorPreferenceDefaultsKey)
+    }
+
     private func persistShowIndicator(_ show: Bool) {
         let mode: ActivationIndicatorMode = show ? .fieldEdgeIcon : .hidden
         userDefaults.set(mode.rawValue, forKey: Self.selectedIndicatorModeDefaultsKey)
@@ -748,6 +774,10 @@ final class SuggestionSettingsModel: ObservableObject {
 
 extension SuggestionSettingsModel: SuggestionSettingsProviding {
     var snapshotPublisher: AnyPublisher<SuggestionSettingsSnapshot, Never> {
+        // The publisher count creeps up as we add settings, but Combine caps each operator at 4
+        // upstreams. Group related settings into nested combiners so the shape stays readable.
+        // `presentationToggles` carries the visual-pipeline knobs (clipboard, fast mode, mirror
+        // preference); they share the property of "affects how/when suggestions are shown".
         Publishers.CombineLatest4(
             Publishers.CombineLatest4(
                 $isGloballyEnabled,
@@ -755,7 +785,7 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                 $selectedEngine,
                 $selectedWordCountPreset
             ),
-            Publishers.CombineLatest($isClipboardContextEnabled, $isFastModeEnabled),
+            Publishers.CombineLatest3($isClipboardContextEnabled, $isFastModeEnabled, $mirrorPreference),
             Publishers.CombineLatest3($userName, $customRules, $responseLanguages),
             Publishers.CombineLatest4(
                 $debounceMilliseconds,
@@ -764,9 +794,9 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                 $autoAcceptTrailingPunctuation
             )
         )
-        .map { combinedSettings, contextToggles, profile, timing in
+        .map { combinedSettings, presentationToggles, profile, timing in
             let (globallyEnabled, disabledAppRules, engine, wordCountPreset) = combinedSettings
-            let (clipboardContextEnabled, fastModeEnabled) = contextToggles
+            let (clipboardContextEnabled, fastModeEnabled, mirrorPreference) = presentationToggles
             let (userName, customRules, responseLanguages) = profile
             let (debounce, focusPoll, multiLine, autoAcceptPunctuation) = timing
             return SuggestionSettingsSnapshot(
@@ -782,7 +812,8 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                 focusPollIntervalMilliseconds: focusPoll,
                 isMultiLineEnabled: multiLine,
                 autoAcceptTrailingPunctuation: autoAcceptPunctuation,
-                isFastModeEnabled: fastModeEnabled
+                isFastModeEnabled: fastModeEnabled,
+                mirrorPreference: mirrorPreference
             )
         }
         .removeDuplicates()

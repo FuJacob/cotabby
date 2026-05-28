@@ -20,12 +20,28 @@ final class OverlayController: SuggestionOverlayControlling {
     var onStateChange: ((OverlayState) -> Void)?
 
     private let suggestionSettings: SuggestionSettingsModel
-    private let renderModePolicy: CompletionRenderModePolicy
+
+    /// Optional injection seam for tests. When set, `currentRenderModePolicy` returns this directly
+    /// instead of building one from live settings. Production code leaves this nil.
+    private let renderModePolicyOverride: CompletionRenderModePolicy?
 
     /// Bundle identifier of the currently focused host app, supplied by the coordinator each time
     /// a suggestion is presented. The policy uses this to look up per-app overrides. Nil in tests
     /// or when the focus pipeline could not identify the host.
     private var currentBundleIdentifier: String?
+
+    /// Built from the live `mirrorPreference` setting at call time rather than cached. The struct
+    /// is tiny (one enum + an empty dict in Phase 2) so per-show allocation cost is negligible,
+    /// and the read-through model means the user's Settings/menu-bar toggle takes effect on the
+    /// very next presentation without any subscription bookkeeping.
+    private var currentRenderModePolicy: CompletionRenderModePolicy {
+        if let renderModePolicyOverride {
+            return renderModePolicyOverride
+        }
+        return CompletionRenderModePolicy(
+            userPreference: suggestionSettings.mirrorPreference
+        )
+    }
 
     private(set) var state: OverlayState = .hidden(reason: "Overlay idle.") {
         didSet {
@@ -50,10 +66,10 @@ final class OverlayController: SuggestionOverlayControlling {
 
     init(
         suggestionSettings: SuggestionSettingsModel,
-        renderModePolicy: CompletionRenderModePolicy = CompletionRenderModePolicy()
+        renderModePolicyOverride: CompletionRenderModePolicy? = nil
     ) {
         self.suggestionSettings = suggestionSettings
-        self.renderModePolicy = renderModePolicy
+        self.renderModePolicyOverride = renderModePolicyOverride
     }
 
     /// Coordinator hook that updates the bundle identifier used by per-app overrides. Phase 1
@@ -95,7 +111,7 @@ final class OverlayController: SuggestionOverlayControlling {
             return
         }
 
-        let mode = renderModePolicy.mode(
+        let mode = currentRenderModePolicy.mode(
             for: geometry,
             bundleIdentifier: currentBundleIdentifier
         )

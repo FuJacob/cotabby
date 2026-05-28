@@ -571,6 +571,44 @@ final class SuggestionSettingsModelDisabledAppsTests: XCTestCase {
         _ = cancellables
     }
 
+    func test_mirrorPreference_defaultsToAutoAndPersists() {
+        runOnMainActor {
+            let userDefaults = makeUserDefaults()
+            let model = makeModel(userDefaults: userDefaults)
+
+            XCTAssertEqual(model.mirrorPreference, .auto)
+            XCTAssertEqual(model.snapshot.mirrorPreference, .auto)
+
+            model.setMirrorPreference(.alwaysMirror)
+            let reloadedModel = makeModel(userDefaults: userDefaults)
+
+            XCTAssertEqual(reloadedModel.mirrorPreference, .alwaysMirror)
+            XCTAssertEqual(reloadedModel.snapshot.mirrorPreference, .alwaysMirror)
+        }
+    }
+
+    func test_snapshotPublisher_emitsWhenMirrorPreferenceChanges() {
+        let expectation = expectation(description: "snapshot emits after mirror preference changes")
+        var cancellables = Set<AnyCancellable>()
+
+        runOnMainActor {
+            let model = makeModel()
+
+            model.snapshotPublisher
+                .dropFirst()
+                .sink { snapshot in
+                    XCTAssertEqual(snapshot.mirrorPreference, .alwaysInline)
+                    expectation.fulfill()
+                }
+                .store(in: &cancellables)
+
+            model.setMirrorPreference(.alwaysInline)
+        }
+
+        wait(for: [expectation], timeout: 1.0)
+        _ = cancellables
+    }
+
     func test_acceptanceHint_defaultsToOnAndShowsWordAcceptLabel() {
         runOnMainActor {
             let model = makeModel()

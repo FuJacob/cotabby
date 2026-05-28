@@ -220,7 +220,8 @@ enum CotabbyTestFixtures {
         focusPollIntervalMilliseconds: Int = 50,
         isMultiLineEnabled: Bool = false,
         autoAcceptTrailingPunctuation: Bool = true,
-        isFastModeEnabled: Bool = false
+        isFastModeEnabled: Bool = false,
+        mirrorPreference: MirrorPreference = .auto
     ) -> SuggestionSettingsSnapshot {
         SuggestionSettingsSnapshot(
             isGloballyEnabled: isGloballyEnabled,
@@ -235,7 +236,8 @@ enum CotabbyTestFixtures {
             focusPollIntervalMilliseconds: focusPollIntervalMilliseconds,
             isMultiLineEnabled: isMultiLineEnabled,
             autoAcceptTrailingPunctuation: autoAcceptTrailingPunctuation,
-            isFastModeEnabled: isFastModeEnabled
+            isFastModeEnabled: isFastModeEnabled,
+            mirrorPreference: mirrorPreference
         )
     }
 }

@@ -149,6 +149,21 @@ struct MenuBarView: View {
                     .pickerStyle(.menu)
                     .help("How long completions tend to be. Shorter is faster and less likely to overreach.")
                 }
+
+                MenuBarPickerRow(title: "Display") {
+                    Picker("Display", selection: mirrorPreferenceBinding) {
+                        ForEach(MirrorPreference.allCases) { preference in
+                            Text(preference.displayLabel)
+                                .tag(preference)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .help(
+                        "Inline ghost text or a popup card. Auto switches to the popup for hosts " +
+                        "where caret position can't be tracked reliably."
+                    )
+                }
             }
         }
         .padding(.bottom, 12)
@@ -323,6 +338,13 @@ struct MenuBarView: View {
             set: { preset in
                 suggestionSettings.selectWordCountPreset(preset)
             }
+        )
+    }
+
+    private var mirrorPreferenceBinding: Binding<MirrorPreference> {
+        Binding(
+            get: { suggestionSettings.mirrorPreference },
+            set: { suggestionSettings.setMirrorPreference($0) }
         )
     }
 

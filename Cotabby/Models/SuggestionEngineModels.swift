@@ -72,4 +72,8 @@ struct SuggestionSettingsSnapshot: Equatable, Sendable {
     /// When true, the screenshot/OCR visual-context pipeline is skipped entirely for lower-latency
     /// suggestions. Defaults to false. Only affects visual context — predictions still run.
     let isFastModeEnabled: Bool
+    /// User preference for how suggestions are presented (inline ghost text vs popup card vs auto
+    /// based on caret geometry quality). Travels in the snapshot so consumers can react to changes
+    /// without subscribing to the settings model directly.
+    let mirrorPreference: MirrorPreference
 }

@@ -151,6 +151,18 @@ struct SettingsView: View {
             Toggle("Show Accept Hint", isOn: showAcceptanceHintBinding)
                 .help("Show a small label near the ghost text reminding you which key accepts it.")
 
+            Picker("Suggestion Display", selection: mirrorPreferenceBinding) {
+                ForEach(MirrorPreference.allCases) { preference in
+                    Text(preference.displayLabel).tag(preference)
+                }
+            }
+            .pickerStyle(.menu)
+            .help(
+                "Auto uses inline ghost text when the focused field exposes a reliable cursor " +
+                "position, and switches to a popup card when it doesn't (some Electron and web " +
+                "editors). Choose Inline or Popup to pin one style for every app."
+            )
+
             Toggle("Allow Multi-line Suggestions", isOn: multiLineEnabledBinding)
                 .help("Let suggestions span more than one line. Off keeps them to a single line.")
 
@@ -701,6 +713,13 @@ struct SettingsView: View {
         Binding(
             get: { suggestionSettings.isFastModeEnabled },
             set: { suggestionSettings.setFastModeEnabled($0) }
+        )
+    }
+
+    private var mirrorPreferenceBinding: Binding<MirrorPreference> {
+        Binding(
+            get: { suggestionSettings.mirrorPreference },
+            set: { suggestionSettings.setMirrorPreference($0) }
         )
     }
 

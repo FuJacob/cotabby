@@ -7,21 +7,37 @@ import Foundation
 /// auto rule misfires for their host mix.
 ///
 /// Phase 1 hardcodes `.auto` everywhere; the global setting and per-app overrides land in Phase 2.
-enum MirrorPreference: String, Codable, CaseIterable, Equatable, Sendable {
+enum MirrorPreference: String, Codable, CaseIterable, Identifiable, Equatable, Sendable {
     case auto
     case alwaysInline
     case alwaysMirror
 
-    /// Human-readable label for Settings UI. Kept here so Settings code does not have to repeat the
-    /// mapping; the policy is the single source of truth for both the rule and the copy.
+    var id: String { rawValue }
+
+    /// Human-readable label for Settings UI and the menu bar pop-up. Kept here so the UI code does
+    /// not have to repeat the mapping; the policy is the single source of truth for both the rule
+    /// and the copy. Phrased in user-facing terms ("popup") rather than the internal "mirror" name.
     var displayLabel: String {
         switch self {
         case .auto:
-            return "Auto (recommended)"
+            return "Auto"
         case .alwaysInline:
-            return "Always inline"
+            return "Inline"
         case .alwaysMirror:
-            return "Always preview card"
+            return "Popup"
+        }
+    }
+
+    /// One-sentence explanation suitable for `.help()` tooltips next to the picker. Read as a group
+    /// the three help strings teach the user when each option is the right pick.
+    var helpDescription: String {
+        switch self {
+        case .auto:
+            return "Inline ghost text when caret position is reliable; popup card when it isn't (some Electron and web editors)."
+        case .alwaysInline:
+            return "Always draw ghost text next to the caret, even when caret position may drift."
+        case .alwaysMirror:
+            return "Always show suggestions in a popup card anchored below the focused field."
         }
     }
 }
