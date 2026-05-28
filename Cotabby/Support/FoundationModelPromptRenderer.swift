@@ -107,7 +107,7 @@ enum FoundationModelPromptRenderer {
 
         var sections = [
             "Screen context:",
-            "App: \(request.context.applicationName)"
+            "User is on \(request.context.applicationName)."
         ]
 
         if let summary = request.visualContextSummary,

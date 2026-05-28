@@ -48,7 +48,7 @@ final class FoundationModelPromptRendererTests: XCTestCase {
 
         let prompt = FoundationModelPromptRenderer.prompt(for: request)
 
-        XCTAssertTrue(prompt.contains("App: TestApp"))
+        XCTAssertTrue(prompt.contains("User is on TestApp."))
         XCTAssertTrue(prompt.contains("  Hello from the field  "))
     }
 
