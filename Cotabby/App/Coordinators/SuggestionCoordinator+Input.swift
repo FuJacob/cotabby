@@ -171,6 +171,25 @@ extension SuggestionCoordinator {
         return false
     }
 
+    /// Schedules a fresh prediction after a short delay so Chromium-based editors (Chrome, Edge,
+    /// Slack, Discord, Notion, every Electron app) have time to publish the new contenteditable
+    /// text to AX. Without the delay, `schedulePrediction()` fires synchronously from inside the
+    /// CGEvent tap — which runs *before* the host app processes the keystroke — so the AX read
+    /// inside generation still sees pre-keystroke text. The result feels like Cotabby swallowed
+    /// the key: the active suggestion vanishes, a new one appears that does not reflect the
+    /// character the user just typed, and the user concludes their keystroke was eaten.
+    /// 150ms is chosen empirically: long enough for Chromium's contenteditable AX to settle on a
+    /// busy page, short enough that the rescheduled suggestion still feels responsive after the
+    /// user has just diverged from the previous one. `schedulePrediction()` internally
+    /// `replaceDebouncedWork`s, so back-to-back keystrokes still collapse cleanly.
+    private func schedulePredictionAfterHostPublishDelay() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(150)) { [weak self] in
+            guard let self else { return }
+            self.focusModel.refreshNow()
+            self.schedulePrediction()
+        }
+    }
+
     func handleSuppressedSyntheticInput() {
         logStage(
             "suppressed-synthetic-input",
@@ -195,8 +214,7 @@ extension SuggestionCoordinator {
                 clearDiagnostics: false
             )
             if event.shouldSchedulePrediction {
-                focusModel.refreshNow()
-                schedulePrediction()
+                schedulePredictionAfterHostPublishDelay()
             }
             return false
 
@@ -206,8 +224,7 @@ extension SuggestionCoordinator {
                 clearDiagnostics: false
             )
             if event.shouldSchedulePrediction {
-                focusModel.refreshNow()
-                schedulePrediction()
+                schedulePredictionAfterHostPublishDelay()
             }
             return false
 
