@@ -314,12 +314,28 @@ extension SuggestionCoordinator {
             }
 
             state = .ready(text: reconciledSession.remainingText, latency: reconciledSession.latency)
-            presentOverlay(
-                text: reconciledSession.remainingText,
-                at: liveContext.caretRect,
-                context: liveContext,
-                isRightToLeft: TextDirectionDetector.isRightToLeft(liveContext.precedingText)
-            )
+            // Reconciliation runs both for legitimate context changes (window drag, field switch,
+            // user typing through the tail) and for the +30ms post-insertion AX refresh that fires
+            // after every Tab accept. In the post-insertion case the underlying state has not
+            // meaningfully changed (the overlay already shows the right tail at the predicted
+            // caret), but AX commonly returns a slightly different `caretRect` / `observedCharWidth`
+            // than the predicted pair. Re-rendering against those drifted measurements is what
+            // causes the visible one-frame "shift left and down then snap back" on accept. Hold the
+            // existing geometry whenever the field, text, and on-screen field bounds have not
+            // materially moved; the gate below still re-anchors on legitimate context changes.
+            if SuggestionOverlayStabilityGate.shouldRePresent(
+                currentOverlay: overlayState,
+                newText: reconciledSession.remainingText,
+                newInputFrameRect: liveContext.inputFrameRect,
+                newFocusChangeSequence: liveContext.focusChangeSequence
+            ) {
+                presentOverlay(
+                    text: reconciledSession.remainingText,
+                    at: liveContext.caretRect,
+                    context: liveContext,
+                    isRightToLeft: TextDirectionDetector.isRightToLeft(liveContext.precedingText)
+                )
+            }
             if let advancement {
                 logStage(
                     advancement.stage,
