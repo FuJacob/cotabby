@@ -34,6 +34,11 @@ protocol SuggestionFocusProviding: AnyObject {
 protocol SuggestionInputMonitoring: AnyObject {
     var onEvent: ((CapturedInputEvent) -> Bool)? { get set }
     var onSuppressedSyntheticInput: (() -> Void)? { get set }
+
+    /// Drives the lifecycle of the active accept-key tap. The coordinator turns this on while
+    /// a suggestion overlay is visible and off otherwise, so Cotabby only sits in the synchronous
+    /// keystroke path during the brief windows it actually needs to consume the accept key.
+    func setAcceptInterceptionActive(_ active: Bool)
 }
 
 @MainActor

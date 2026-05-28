@@ -136,7 +136,17 @@ final class SuggestionCoordinator: ObservableObject {
         }
 
         overlayController.onStateChange = { [weak self] state in
-            self?.overlayState = state
+            guard let self else { return }
+            self.overlayState = state
+            // Only sit in the synchronous keystroke critical path while a suggestion is actually
+            // visible. With the overlay hidden, Cotabby observes via a listen-only tap that does
+            // not gate event delivery to other apps (issue #328).
+            switch state {
+            case .visible:
+                self.inputMonitor.setAcceptInterceptionActive(true)
+            case .hidden:
+                self.inputMonitor.setAcceptInterceptionActive(false)
+            }
         }
 
         visualContextCoordinator.onStateChange = { [weak self] status, excerpt in

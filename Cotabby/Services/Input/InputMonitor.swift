@@ -3,15 +3,22 @@ import Foundation
 import Logging
 
 /// File overview:
-/// Owns the global keyboard event tap used to detect typing, navigation, dismissal keys,
+/// Owns the global keyboard event taps used to detect typing, navigation, dismissal keys,
 /// and `Tab` acceptance. This is the boundary between raw CGEvents and Cotabby's smaller
 /// input-event vocabulary.
 ///
 /// `CapturedInputEvent` now lives in `Models/InputModels.swift` so the rest of the app can depend
 /// on the semantic event type without importing this event-tap implementation.
 
-/// Installs a session event tap.
-/// We still observe normal typing, but we can now consume `Tab` when Cotabby has a valid suggestion.
+/// Installs two taps:
+/// - A steady-state `.listenOnly` observer at the head of the chain. Listen-only taps do not gate
+///   event delivery on the callback's return, so a slow main actor cannot stall global keystrokes
+///   in unrelated apps (DaVinci Resolve's Spacebar play/pause is the canonical victim of an active
+///   tap here — see issue #328).
+/// - A narrow `.defaultTap` accept tap at the tail, installed only while a suggestion is visible.
+///   This is the only path that consumes events, and it only exists for the brief window a
+///   suggestion is on screen. When no overlay is showing, Cotabby is fully out of the keystroke
+///   critical path.
 @MainActor
 final class InputMonitor {
     var onEvent: ((CapturedInputEvent) -> Bool)?
@@ -24,16 +31,19 @@ final class InputMonitor {
     /// Reads the current full-accept key code from the model at event time.
     var fullAcceptanceKeyCodeProvider: @MainActor () -> CGKeyCode = { CGKeyCode(UInt16.max) }
 
-    /// When false, the tap passes keystrokes through without classifying or notifying the
-    /// coordinator. This eliminates per-keystroke overhead in apps where Tabby will never act
+    /// When false, the observer passes keystrokes through without classifying or notifying the
+    /// coordinator. This eliminates per-keystroke overhead in apps where Cotabby will never act
     /// (terminals, globally disabled, per-app disabled).
     var shouldProcessEventsProvider: @MainActor () -> Bool = { true }
 
     private let permissionProvider: @MainActor () -> Bool
     private let suppressionController: InputSuppressionController
 
-    private var eventTap: CFMachPort?
-    private var runLoopSource: CFRunLoopSource?
+    private var observerTap: CFMachPort?
+    private var observerRunLoopSource: CFRunLoopSource?
+
+    private var acceptTap: CFMachPort?
+    private var acceptRunLoopSource: CFRunLoopSource?
 
     init(
         permissionProvider: @escaping @MainActor () -> Bool,
@@ -43,30 +53,49 @@ final class InputMonitor {
         self.suppressionController = suppressionController
     }
 
-    /// Installs the event tap and begins listening for global keyboard activity.
+    /// Installs the observer tap and begins listening for global keyboard activity.
     func start() {
         CotabbyLogger.app.info("Input monitor starting")
         refresh()
     }
 
-    /// Removes the event tap and stops observing keyboard events.
+    /// Removes both taps and stops observing keyboard events.
     func stop() {
         CotabbyLogger.app.info("Input monitor stopping")
-        destroyTap()
+        destroyAcceptTap()
+        destroyObserverTap()
     }
 
-    /// Re-evaluates whether the tap should exist after a permission change.
+    /// Re-evaluates whether the observer tap should exist after a permission change.
+    /// The accept tap is also torn down if permission was revoked; it gets re-installed lazily
+    /// the next time the coordinator presents a suggestion.
     func refresh() {
         if permissionProvider() {
-            installTapIfNeeded()
+            installObserverTapIfNeeded()
         } else {
-            destroyTap()
+            destroyAcceptTap()
+            destroyObserverTap()
         }
     }
 
-    /// Creates and enables the CGEvent tap only when permissions allow observation.
-    private func installTapIfNeeded() {
-        guard eventTap == nil else {
+    /// Installs (when `active == true`) or removes (when `false`) the narrow active tap that
+    /// consumes the accept key so the focused application never sees it. The coordinator calls
+    /// this when a suggestion becomes visible or hidden, so Cotabby only blocks event delivery
+    /// during the brief window when there is actually something to accept.
+    func setAcceptInterceptionActive(_ active: Bool) {
+        guard permissionProvider() else {
+            destroyAcceptTap()
+            return
+        }
+        if active {
+            installAcceptTapIfNeeded()
+        } else {
+            destroyAcceptTap()
+        }
+    }
+
+    private func installObserverTapIfNeeded() {
+        guard observerTap == nil else {
             return
         }
 
@@ -77,29 +106,27 @@ final class InputMonitor {
             }
 
             let monitor = Unmanaged<InputMonitor>.fromOpaque(userInfo).takeUnretainedValue()
-            // The CGEvent tap callback is a C function pointer. `assumeIsolated` tells Swift that
-            // we are deliberately hopping back onto this `@MainActor` object before touching state.
             return MainActor.assumeIsolated {
-                monitor.handleTap(type: type, event: event)
+                monitor.handleObserverTap(type: type, event: event)
             }
         }
 
         guard let tap = CGEvent.tapCreate(
             tap: .cgSessionEventTap,
             place: .headInsertEventTap,
-            options: .defaultTap,
+            options: .listenOnly,
             eventsOfInterest: CGEventMask(mask),
             callback: callback,
             userInfo: Unmanaged.passUnretained(self).toOpaque()
         ) else {
-            CotabbyLogger.app.warning("Failed to create CGEvent tap — Input Monitoring permission may be missing")
+            CotabbyLogger.app.warning("Failed to create CGEvent observer tap — Input Monitoring permission may be missing")
             return
         }
-        CotabbyLogger.app.info("CGEvent tap installed")
+        CotabbyLogger.app.info("CGEvent observer tap installed (listen-only)")
 
-        eventTap = tap
+        observerTap = tap
         let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
-        runLoopSource = source
+        observerRunLoopSource = source
 
         if let source {
             CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
@@ -108,28 +135,88 @@ final class InputMonitor {
         CGEvent.tapEnable(tap: tap, enable: true)
     }
 
-    /// Tears down the event tap and run-loop source to avoid leaking global event observers.
-    private func destroyTap() {
-        if let source = runLoopSource {
-            CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
+    private func installAcceptTapIfNeeded() {
+        guard acceptTap == nil else {
+            return
         }
 
-        runLoopSource = nil
+        let mask = (1 << CGEventType.keyDown.rawValue)
+        let callback: CGEventTapCallBack = { _, type, event, userInfo in
+            guard let userInfo else {
+                return Unmanaged.passUnretained(event)
+            }
 
-        if let tap = eventTap {
-            CFMachPortInvalidate(tap)
+            let monitor = Unmanaged<InputMonitor>.fromOpaque(userInfo).takeUnretainedValue()
+            return MainActor.assumeIsolated {
+                monitor.handleAcceptTap(type: type, event: event)
+            }
         }
 
-        eventTap = nil
+        // Tail-append so this tap runs *after* the head-inserted observer. The observer is
+        // listen-only and never drops events, so the accept tap reliably sees the accept key
+        // even though it runs second; the order guarantees the observer's classification fires
+        // before this tap consumes the event.
+        guard let tap = CGEvent.tapCreate(
+            tap: .cgSessionEventTap,
+            place: .tailAppendEventTap,
+            options: .defaultTap,
+            eventsOfInterest: CGEventMask(mask),
+            callback: callback,
+            userInfo: Unmanaged.passUnretained(self).toOpaque()
+        ) else {
+            CotabbyLogger.app.warning("Failed to create CGEvent accept tap")
+            return
+        }
+        CotabbyLogger.app.info("CGEvent accept tap installed (active, accept-key only)")
+
+        acceptTap = tap
+        let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
+        acceptRunLoopSource = source
+
+        if let source {
+            CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
+        }
+
+        CGEvent.tapEnable(tap: tap, enable: true)
     }
 
-    /// Routes each raw keyboard event through suppression, classification, and optional interception.
-    private func handleTap(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
+    private func destroyObserverTap() {
+        if let source = observerRunLoopSource {
+            CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
+        }
+        observerRunLoopSource = nil
+
+        if let tap = observerTap {
+            CFMachPortInvalidate(tap)
+        }
+        observerTap = nil
+    }
+
+    private func destroyAcceptTap() {
+        guard acceptTap != nil || acceptRunLoopSource != nil else {
+            return
+        }
+        if let source = acceptRunLoopSource {
+            CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
+        }
+        acceptRunLoopSource = nil
+
+        if let tap = acceptTap {
+            CFMachPortInvalidate(tap)
+        }
+        acceptTap = nil
+        CotabbyLogger.app.info("CGEvent accept tap removed")
+    }
+
+    /// Listen-only observer: classifies the event and notifies the coordinator. The return value
+    /// of `onEvent` is ignored here because a listen-only tap cannot drop or modify events.
+    /// Consumption of the accept key is handled by the separate active accept tap.
+    private func handleObserverTap(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         switch type {
         case .tapDisabledByTimeout, .tapDisabledByUserInput:
-            CotabbyLogger.app.warning("CGEvent tap was disabled by system, re-enabling")
-            if let eventTap {
-                CGEvent.tapEnable(tap: eventTap, enable: true)
+            CotabbyLogger.app.warning("Observer tap was disabled by system, re-enabling")
+            if let observerTap {
+                CGEvent.tapEnable(tap: observerTap, enable: true)
             }
             return Unmanaged.passUnretained(event)
 
@@ -139,17 +226,51 @@ final class InputMonitor {
                 return Unmanaged.passUnretained(event)
             }
 
-            // Short-circuit before classification when Tabby won't act on events for the
-            // current app (terminals, globally disabled, per-app disabled). The tap callback
-            // runs synchronously before macOS delivers the keystroke, so any work here adds
-            // latency the user feels in the target app.
+            // Short-circuit before classification when Cotabby won't act on events for the
+            // current app. Even though this tap is listen-only, classification still does work
+            // on the main actor that we should skip when nothing will use the result.
             guard shouldProcessEventsProvider() else {
                 return Unmanaged.passUnretained(event)
             }
 
             let capturedEvent = classify(event: event)
-            let shouldIntercept = onEvent?(capturedEvent) ?? false
-            return shouldIntercept ? nil : Unmanaged.passUnretained(event)
+            _ = onEvent?(capturedEvent)
+            return Unmanaged.passUnretained(event)
+
+        default:
+            return Unmanaged.passUnretained(event)
+        }
+    }
+
+    /// Active accept tap: only consumes the configured accept keys, so the focused application
+    /// never sees them when a suggestion is on screen. All other keys pass through unchanged.
+    /// This tap intentionally does not invoke `onEvent` — the observer tap is the single source
+    /// of classification, and it has already fired for this keystroke by the time we run.
+    private func handleAcceptTap(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
+        switch type {
+        case .tapDisabledByTimeout, .tapDisabledByUserInput:
+            CotabbyLogger.app.warning("Accept tap was disabled by system, re-enabling")
+            if let acceptTap {
+                CGEvent.tapEnable(tap: acceptTap, enable: true)
+            }
+            return Unmanaged.passUnretained(event)
+
+        case .keyDown:
+            guard shouldProcessEventsProvider() else {
+                return Unmanaged.passUnretained(event)
+            }
+
+            let keyCode = CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode))
+            let flags = event.flags
+            let noModifiers = flags.isDisjoint(with: [.maskCommand, .maskControl, .maskAlternate, .maskShift])
+            guard noModifiers else {
+                return Unmanaged.passUnretained(event)
+            }
+
+            if keyCode == fullAcceptanceKeyCodeProvider() || keyCode == acceptanceKeyCodeProvider() {
+                return nil
+            }
+            return Unmanaged.passUnretained(event)
 
         default:
             return Unmanaged.passUnretained(event)
