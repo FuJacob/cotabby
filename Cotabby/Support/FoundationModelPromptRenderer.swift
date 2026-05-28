@@ -126,9 +126,11 @@ enum FoundationModelPromptRenderer {
         ])
 
         // Trailing context lets the model produce a continuation that bridges into what is already
-        // present after the caret instead of overwriting it. We send the suffix verbatim, capped
-        // to `maxSuffixCharacters` (the same cap used elsewhere) by the upstream context capture.
-        let trailing = request.context.trailingText
+        // present after the caret instead of overwriting it. The upstream focus snapshot does NOT
+        // bound this string (it returns the full document tail from the caret), so we apply
+        // `maxSuffixCharacters` here to keep a caret-at-top in a long document from pushing the
+        // entire body through Apple's 4096-token shared context window.
+        let trailing = String(request.context.trailingText.prefix(request.maxSuffixCharacters))
         if !trailing.isEmpty {
             sections.append(contentsOf: [
                 "",
@@ -170,16 +172,17 @@ enum FoundationModelPromptRenderer {
         return nil
     }
 
+    // Cursor ships under opaque ToDesktop hashes (com.todesktop.<id>) that change between builds,
+    // so prefix-matching is unreliable; omitted intentionally.
+    // Terminal emulators (iTerm2, Apple Terminal, Hyper) are also omitted: a shell prompt, log
+    // pager, or `git commit` buffer is mostly prose, not code, so the no-hint default is safer
+    // than a guessed code hint.
     private static let codeEditorBundlePrefixes: [String] = [
         "com.apple.dt.xcode",
         "com.microsoft.vscode",
-        "com.todesktop.230313mzl4w4u92",  // Cursor (stable id used at the time of writing)
         "com.jetbrains.",
         "com.sublimetext.",
-        "com.panic.nova",
-        "co.zeit.hyper",
-        "com.googlecode.iterm2",
-        "com.apple.terminal"
+        "com.panic.nova"
     ]
 
     private static let emailBundlePrefixes: [String] = [

@@ -165,6 +165,49 @@ final class FoundationModelPromptRendererTests: XCTestCase {
         XCTAssertTrue(prompt.contains("writing code"))
     }
 
+    /// Terminal emulators host prose contexts (commit messages, log pagers, shell prompts) more
+    /// often than not, so they must not pick up the code-editor tone hint. Cursor is also
+    /// excluded because its ToDesktop bundle hash is unstable across releases.
+    func test_prompt_omitsCodeEditorToneHintForTerminalAndOpaqueCursorBundles() {
+        let bundles = [
+            "com.apple.Terminal",
+            "com.googlecode.iterm2",
+            "co.zeit.hyper",
+            "com.todesktop.230313mzl4w4u92"
+        ]
+        for bundle in bundles {
+            let context = CotabbyTestFixtures.focusedInputContext(
+                applicationName: "Test",
+                bundleIdentifier: bundle,
+                precedingText: "anything"
+            )
+            let request = SuggestionRequest(
+                context: context,
+                prefixText: "anything",
+                prompt: "PROMPT",
+                generation: 1,
+                maxPredictionTokens: 16,
+                temperature: 0.1,
+                topK: 20,
+                topP: 0.7,
+                minP: 0.08,
+                repetitionPenalty: 1.05,
+                randomSeed: 42,
+                maxSuffixCharacters: 192,
+                completionLengthInstruction: "Return only the next 7 to 12 words.",
+                userName: nil,
+                customRules: [],
+                languageInstruction: nil,
+                clipboardContext: nil,
+                visualContextSummary: nil,
+                isMultiLineEnabled: false
+            )
+
+            let prompt = FoundationModelPromptRenderer.prompt(for: request)
+            XCTAssertFalse(prompt.contains("writing code"), "bundle \(bundle) should not get the code-editor hint")
+        }
+    }
+
     func test_prompt_omitsToneHintForUnknownBundleIdentifier() {
         let request = CotabbyTestFixtures.suggestionRequest(
             prefixText: "Continue this",
