@@ -22,6 +22,15 @@ import FoundationModels
 /// request is likely within a second." The coordinator calls it from the focus path; the engine
 /// builds (or reuses) the session and calls Apple's `LanguageModelSession.prewarm()` so weight
 /// loading and instruction tokenization happen before the first user-visible respond call.
+///
+/// Generation itself goes through `session.streamResponse` rather than `session.respond`. Apple's
+/// stream yields cumulative partials, so the loop captures the latest snapshot and exits with it
+/// as the final raw text. The win is responsiveness to cancellation: `Task.checkCancellation()`
+/// inside the loop lets the coordinator interrupt mid-decode when the user types past the
+/// in-flight suggestion, where `respond` would otherwise have to run to completion. The external
+/// `SuggestionResult` shape is unchanged, so the rest of the pipeline (overlay, presenter,
+/// active-session reconciliation) stays as-is — pushing partials all the way to the overlay is a
+/// separate, larger change scoped to a follow-up.
 #if canImport(FoundationModels)
 @available(macOS 26.0, *)
 @MainActor
@@ -59,13 +68,32 @@ final class FoundationModelSuggestionEngine {
             }
 
             let session = ensureSession(for: request, model: model)
-            let response = try await session.respond(
+            let stream = session.streamResponse(
                 to: prompt,
                 options: generationOptions(for: request)
             )
+            // Apple's stream yields cumulative `Snapshot` values whose `.content` carries the
+            // text generated so far. Capture each snapshot first and check cancellation after, so a
+            // late cancel between the final snapshot and its assignment doesn't discard fully
+            // decoded text — cancellation always throws, but keeping the best-available text saved
+            // before honoring the signal makes the intent obvious.
+            var rawSuggestion = ""
+            var didReceiveSnapshot = false
+            for try await partial in stream {
+                rawSuggestion = partial.content
+                didReceiveSnapshot = true
+                try Task.checkCancellation()
+            }
             try Task.checkCancellation()
-
-            let rawSuggestion = response.content
+            // Apple's documented contract is at least one snapshot on a successful stream, so a
+            // zero-snapshot path is treated as a generation failure rather than a silent empty
+            // suggestion — the latter would let the overlay clear without surfacing that the model
+            // produced literally nothing.
+            guard didReceiveSnapshot else {
+                throw SuggestionClientError.generationFailed(
+                    "Apple Intelligence finished streaming without producing any content."
+                )
+            }
             let normalizedSuggestion = SuggestionTextNormalizer.normalize(
                 rawSuggestion,
                 for: request,
