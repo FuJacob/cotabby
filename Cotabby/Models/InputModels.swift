@@ -54,6 +54,36 @@ struct CapturedInputEvent: Equatable {
     let keyCode: CGKeyCode
     let characters: String
     let flags: CGEventFlags
+    /// True only for accept-key events already swallowed by the active event tap.
+    ///
+    /// A listen-only observer should never replay input because the host app still receives the
+    /// original event. The active accept tap is different: it must consume first, then ask the
+    /// coordinator to insert. If the coordinator later rejects the accept because AX state went
+    /// stale, replaying the original key preserves the user's Tab instead of silently dropping it.
+    let replaysWhenAcceptanceRejected: Bool
+
+    init(
+        kind: Kind,
+        keyCode: CGKeyCode,
+        characters: String,
+        flags: CGEventFlags,
+        replaysWhenAcceptanceRejected: Bool = false
+    ) {
+        self.kind = kind
+        self.keyCode = keyCode
+        self.characters = characters
+        self.flags = flags
+        self.replaysWhenAcceptanceRejected = replaysWhenAcceptanceRejected
+    }
+
+    var isAcceptanceKeyEvent: Bool {
+        switch kind {
+        case .acceptance, .fullAcceptance:
+            return true
+        case .textMutation, .navigation, .shortcutMutation, .dismissal, .other:
+            return false
+        }
+    }
 
     var shouldSchedulePrediction: Bool {
         switch kind {
