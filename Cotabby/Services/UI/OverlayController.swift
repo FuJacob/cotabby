@@ -13,6 +13,11 @@ final class OverlayController: SuggestionOverlayControlling {
     private enum Layout {
         static let minimumGhostFontSize: CGFloat = 14
         static let maximumGhostFontSize: CGFloat = 24
+        /// Derived caret rects come from line-box geometry rather than measured text bounds, so the
+        /// reported height often inflates against the host's real font size (Slack, several web
+        /// editors). Keep the ceiling well below the exact cap so a wrong derived reading cannot
+        /// render oversized ghost text — the observed failure mode is too-large, not too-small.
+        static let maximumDerivedGhostFontSize: CGFloat = 17
         static let maximumEstimatedGhostFontSize: CGFloat = 16
         static let fontToLineHeightRatio: CGFloat = 0.78
     }
@@ -240,11 +245,13 @@ final class OverlayController: SuggestionOverlayControlling {
         panel.orderFrontRegardless()
     }
 
-    /// Exact and derived caret rects usually reflect the real text line height, so they may scale
-    /// up in larger editors. Estimated rects are much less trustworthy because some apps only
-    /// expose the full field frame; the extra ceiling prevents one bad estimate from rendering
-    /// comically oversized ghost text. `caretHeight` is already floored to the per-session minimum
-    /// by `ghostFontStabilizer`, so this only applies the static floor and quality ceilings.
+    /// Caps the proposed font size by how much we trust the caret geometry:
+    ///   - `.exact`: measured text bounds, trusted up to the full ceiling so larger editors scale.
+    ///   - `.derived`: line-box geometry that commonly inflates against the real font, tightly
+    ///     capped to avoid the "insanely big derived" failure mode observed in Slack-like hosts.
+    ///   - `.estimated`: full-field-frame fallback, even less trustworthy, tightest ceiling.
+    /// `caretHeight` is already floored to the per-session minimum by `ghostFontStabilizer`, so this
+    /// only applies the static floor and the per-quality ceiling.
     private func resolvedGhostFontSize(
         forCaretHeight caretHeight: CGFloat,
         caretQuality: CaretGeometryQuality
@@ -253,9 +260,15 @@ final class OverlayController: SuggestionOverlayControlling {
             Layout.minimumGhostFontSize,
             caretHeight * Layout.fontToLineHeightRatio
         )
-        let qualityCap = caretQuality == .estimated
-            ? Layout.maximumEstimatedGhostFontSize
-            : Layout.maximumGhostFontSize
+        let qualityCap: CGFloat
+        switch caretQuality {
+        case .exact:
+            qualityCap = Layout.maximumGhostFontSize
+        case .derived:
+            qualityCap = Layout.maximumDerivedGhostFontSize
+        case .estimated:
+            qualityCap = Layout.maximumEstimatedGhostFontSize
+        }
 
         return min(proposedSize, qualityCap)
     }
