@@ -111,7 +111,9 @@ final class EmojiPickerControllerTests: XCTestCase {
                 focusModel: focus,
                 inputMonitor: monitor,
                 inserter: inserter,
-                isEnabled: { true }
+                isEnabled: { true },
+                emojiPreferences: { .default },
+                acceptKeyLabel: { "⇥" }
             )
             controller.start()
             EmojiPickerControllerTests.retained.append(controller)
@@ -209,7 +211,7 @@ private final class FakePanel: EmojiPickerPanelPresenting {
     var onClickOutside: (() -> Void)?
     private(set) var isHidden = false
 
-    func show(query: String, matches: [EmojiMatch], selectedIndex: Int, caretRect: CGRect) {
+    func show(query: String, matches: [EmojiMatch], selectedIndex: Int, caretRect: CGRect, acceptKeyLabel: String?) {
         isHidden = false
     }
 

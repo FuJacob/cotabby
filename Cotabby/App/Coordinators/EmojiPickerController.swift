@@ -23,6 +23,10 @@ final class EmojiPickerController {
     private let inputMonitor: any EmojiInputIntercepting
     private let inserter: any EmojiTextInserting
     private let isEnabled: () -> Bool
+    /// Live emoji-customization preferences (skin tone / gender / neutral variant), read at match time.
+    private let emojiPreferences: () -> EmojiVariantPreferences
+    /// The accept-word key label shown as a keycap on the highlighted row; `nil` hides the hint.
+    private let acceptKeyLabel: () -> String?
 
     private var currentQuery = ""
     private var matches: [EmojiMatch] = []
@@ -51,7 +55,9 @@ final class EmojiPickerController {
         focusModel: any SuggestionFocusProviding,
         inputMonitor: any EmojiInputIntercepting,
         inserter: any EmojiTextInserting,
-        isEnabled: @escaping () -> Bool
+        isEnabled: @escaping () -> Bool,
+        emojiPreferences: @escaping () -> EmojiVariantPreferences,
+        acceptKeyLabel: @escaping () -> String?
     ) {
         self.matcher = matcher
         self.panel = panel
@@ -59,6 +65,8 @@ final class EmojiPickerController {
         self.inputMonitor = inputMonitor
         self.inserter = inserter
         self.isEnabled = isEnabled
+        self.emojiPreferences = emojiPreferences
+        self.acceptKeyLabel = acceptKeyLabel
     }
 
     func start() {
@@ -151,7 +159,10 @@ final class EmojiPickerController {
         case 123, 124, 117:               // Left, Right, Forward-Delete: caret moved, end capture
             return .dismissExternally
         case 51:
-            return .backspace
+            // Option + Backspace deletes a whole word, which the single-character query model can't
+            // track, so treat it as a dismissal rather than a one-character backspace. (Command +
+            // Backspace is already handled by the modifier check above.)
+            return modifiers.contains(.option) ? .dismissExternally : .backspace
         default:
             break
         }
@@ -271,18 +282,24 @@ final class EmojiPickerController {
 
     private func refreshMatches(query: String) {
         currentQuery = query
-        matches = matcher.matches(for: query)
+        matches = EmojiVariantResolver.resolve(matcher.matches(for: query), preferences: emojiPreferences())
         selectedIndex = 0
     }
 
     private func presentPanel() {
         let caretRect = lastCaretRect ?? focusModel.snapshot.context?.caretRect ?? .zero
-        panel.show(query: currentQuery, matches: matches, selectedIndex: selectedIndex, caretRect: caretRect)
+        panel.show(
+            query: currentQuery,
+            matches: matches,
+            selectedIndex: selectedIndex,
+            caretRect: caretRect,
+            acceptKeyLabel: acceptKeyLabel()
+        )
     }
 
     private func bestGlyphForClosingColon(query: String) -> String? {
         let lowercased = query.lowercased()
-        let results = matcher.matches(for: query)
+        let results = EmojiVariantResolver.resolve(matcher.matches(for: query), preferences: emojiPreferences())
         if let exact = results.first(where: { $0.entry.aliases.contains(lowercased) }) {
             return exact.glyph
         }
@@ -337,7 +354,8 @@ final class EmojiPickerController {
             query: currentQuery,
             matches: matches,
             selectedIndex: selectedIndex,
-            caretRect: context.caretRect
+            caretRect: context.caretRect,
+            acceptKeyLabel: acceptKeyLabel()
         )
     }
 

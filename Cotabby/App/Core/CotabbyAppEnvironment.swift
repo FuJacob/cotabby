@@ -163,7 +163,9 @@ final class CotabbyAppEnvironment {
             focusModel: focusModel,
             inputMonitor: inputMonitor,
             inserter: suggestionInserter,
-            isEnabled: { suggestionSettings.isEmojiPickerEnabled }
+            isEnabled: { suggestionSettings.isEmojiPickerEnabled },
+            emojiPreferences: { suggestionSettings.emojiVariantPreferences },
+            acceptKeyLabel: { suggestionSettings.acceptanceHintLabel }
         )
         // Give the picker first look at every keystroke the coordinator receives, so it can detect the
         // `:` trigger and drive its state machine without changing who owns `inputMonitor.onEvent`.

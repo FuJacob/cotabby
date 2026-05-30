@@ -28,12 +28,85 @@ struct EmojiEntry: Equatable, Decodable {
 struct EmojiMatch: Equatable, Identifiable {
     let entry: EmojiEntry
 
-    var id: String { entry.glyph }
-    var glyph: String { entry.glyph }
+    /// The glyph to display and insert. Defaults to `entry.glyph`; the variant resolver overrides it
+    /// with a skin-toned composition (e.g. 👋 -> 👋🏽) while keeping the source `entry` for ranking and
+    /// the `:alias:` label.
+    let displayGlyph: String
+
+    init(entry: EmojiEntry, displayGlyph: String? = nil) {
+        self.entry = entry
+        self.displayGlyph = displayGlyph ?? entry.glyph
+    }
+
+    /// Identity is the displayed glyph so a neutral row and its skin-toned sibling (same `entry`)
+    /// stay distinct in SwiftUI lists.
+    var id: String { displayGlyph }
+    var glyph: String { displayGlyph }
 
     /// Label shown next to the glyph. Falls back to the human description when an entry somehow has
     /// no aliases, so a row is never blank.
     var primaryAlias: String { entry.aliases.first ?? entry.name }
+}
+
+/// User-selectable skin tone applied to emoji that support Fitzpatrick modifiers.
+enum EmojiSkinTone: String, CaseIterable, Equatable, Sendable {
+    case neutral, light, mediumLight, medium, mediumDark, dark
+
+    /// The Fitzpatrick modifier scalar inserted after a modifier-base scalar; `nil` for neutral.
+    var modifier: String? {
+        switch self {
+        case .neutral: return nil
+        case .light: return "\u{1F3FB}"
+        case .mediumLight: return "\u{1F3FC}"
+        case .medium: return "\u{1F3FD}"
+        case .mediumDark: return "\u{1F3FE}"
+        case .dark: return "\u{1F3FF}"
+        }
+    }
+
+    var displayName: String {
+        switch self {
+        case .neutral: return "Neutral"
+        case .light: return "Light"
+        case .mediumLight: return "Medium-Light"
+        case .medium: return "Medium"
+        case .mediumDark: return "Medium-Dark"
+        case .dark: return "Dark"
+        }
+    }
+
+    /// A waving hand rendered in this tone, for the settings picker label.
+    var sampleGlyph: String { "\u{1F44B}" + (modifier ?? "") }
+}
+
+/// User-selectable gender preference for emoji that ship neutral / man / woman variants.
+enum EmojiGender: String, CaseIterable, Equatable, Sendable {
+    case neutral, male, female
+
+    var displayName: String {
+        switch self {
+        case .neutral: return "Gender-Neutral"
+        case .male: return "Male"
+        case .female: return "Female"
+        }
+    }
+
+    var sampleGlyph: String {
+        switch self {
+        case .neutral: return "\u{1F9D1}"   // 🧑
+        case .male: return "\u{1F468}"      // 👨
+        case .female: return "\u{1F469}"    // 👩
+        }
+    }
+}
+
+/// Snapshot of the emoji-customization settings the variant resolver reads at match time.
+struct EmojiVariantPreferences: Equatable, Sendable {
+    let skinTone: EmojiSkinTone
+    let includeNeutral: Bool
+    let gender: EmojiGender
+
+    static let `default` = EmojiVariantPreferences(skinTone: .neutral, includeNeutral: false, gender: .neutral)
 }
 
 // MARK: - Trigger state machine vocabulary
