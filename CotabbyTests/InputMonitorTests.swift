@@ -1,5 +1,3 @@
-import ApplicationServices
-import CoreGraphics
 import XCTest
 @testable import Cotabby
 
@@ -9,65 +7,69 @@ import XCTest
 /// must not perform acceptance because it cannot consume the original key event. The active default
 /// tap owns acceptance so "insert suggestion" and "swallow this key" stay one decision.
 final class InputMonitorTests: XCTestCase {
-    func test_observerTapIgnoresPrimaryAcceptKeyWhenConsumingTapOwnsIt() throws {
-        try runOnMainActor {
+    /// XCTest's app-host memory checker can deallocate `@MainActor` service objects outside the
+    /// executor context Swift expects, which currently crashes in the runtime's actor deinit path.
+    /// These tests create only a small fixed number of monitors, so retaining them for the test
+    /// process lifetime keeps the tests focused on routing behavior instead of deinit mechanics.
+    @MainActor private static var retainedMonitors: [InputMonitor] = []
+
+    func test_observerTapIgnoresPrimaryAcceptKeyWhenConsumingTapOwnsIt() {
+        runOnMainActor {
             let monitor = makeMonitor()
             monitor.isAcceptTapOwningAcceptKeys = true
-            let event = try makeKeyboardEvent(keyCode: 48)
             var observedKinds: [CapturedInputEvent.Kind] = []
             monitor.onEvent = { event in
                 observedKinds.append(event.kind)
                 return true
             }
 
-            let callbackResult = monitor.handleObserverTap(type: .keyDown, event: event)
+            let capturedEvent = monitor.handleObserverKeyDown(InputMonitorKeyEvent(keyCode: 48))
 
-            XCTAssertNotNil(callbackResult)
+            XCTAssertNil(capturedEvent)
             XCTAssertTrue(observedKinds.isEmpty)
         }
     }
 
-    func test_observerTapIgnoresFullAcceptKeyWhenConsumingTapOwnsIt() throws {
-        try runOnMainActor {
+    func test_observerTapIgnoresFullAcceptKeyWhenConsumingTapOwnsIt() {
+        runOnMainActor {
             let monitor = makeMonitor()
             monitor.isAcceptTapOwningAcceptKeys = true
             monitor.fullAcceptanceKeyCodeProvider = { 50 }
-            let event = try makeKeyboardEvent(keyCode: 50)
             var observedKinds: [CapturedInputEvent.Kind] = []
             monitor.onEvent = { event in
                 observedKinds.append(event.kind)
                 return true
             }
 
-            let callbackResult = monitor.handleObserverTap(type: .keyDown, event: event)
+            let capturedEvent = monitor.handleObserverKeyDown(InputMonitorKeyEvent(keyCode: 50))
 
-            XCTAssertNotNil(callbackResult)
+            XCTAssertNil(capturedEvent)
             XCTAssertTrue(observedKinds.isEmpty)
         }
     }
 
-    func test_observerTapTreatsBarePrintableAcceptKeyAsTypingWhenConsumingTapIsInactive() throws {
-        try runOnMainActor {
+    func test_observerTapTreatsBarePrintableAcceptKeyAsTypingWhenConsumingTapIsInactive() {
+        runOnMainActor {
             let monitor = makeMonitor()
             monitor.acceptanceKeyCodeProvider = { 0 }
-            let event = try makeKeyboardEvent(keyCode: 0, characters: "a")
             var observedKinds: [CapturedInputEvent.Kind] = []
             monitor.onEvent = { event in
                 observedKinds.append(event.kind)
                 return false
             }
 
-            let callbackResult = monitor.handleObserverTap(type: .keyDown, event: event)
+            let capturedEvent = monitor.handleObserverKeyDown(
+                InputMonitorKeyEvent(keyCode: 0, characters: "a")
+            )
 
-            XCTAssertNotNil(callbackResult)
+            XCTAssertEqual(capturedEvent?.kind, .textMutation)
             XCTAssertEqual(observedKinds, [.textMutation])
         }
     }
 
-    func test_acceptTapConsumesOriginalKeyWhenCoordinatorAccepts() throws {
-        try runOnMainActor {
+    func test_acceptTapConsumesOriginalKeyWhenCoordinatorAccepts() {
+        runOnMainActor {
             let monitor = makeMonitor()
-            let event = try makeKeyboardEvent(keyCode: 48)
             var observedKinds: [CapturedInputEvent.Kind] = []
             monitor.shouldConsumeAcceptKeyProvider = { true }
             monitor.onEvent = { event in
@@ -75,17 +77,16 @@ final class InputMonitorTests: XCTestCase {
                 return true
             }
 
-            let callbackResult = monitor.handleAcceptTap(type: .keyDown, event: event)
+            let decision = monitor.handleAcceptKeyDown(InputMonitorKeyEvent(keyCode: 48))
 
-            XCTAssertNil(callbackResult)
+            XCTAssertEqual(decision, .consume)
             XCTAssertEqual(observedKinds, [.acceptance])
         }
     }
 
-    func test_acceptTapPassesOriginalKeyThroughWhenCoordinatorDeclines() throws {
-        try runOnMainActor {
+    func test_acceptTapPassesOriginalKeyThroughWhenCoordinatorDeclines() {
+        runOnMainActor {
             let monitor = makeMonitor()
-            let event = try makeKeyboardEvent(keyCode: 48)
             var observedKinds: [CapturedInputEvent.Kind] = []
             monitor.shouldConsumeAcceptKeyProvider = { true }
             monitor.onEvent = { event in
@@ -93,34 +94,32 @@ final class InputMonitorTests: XCTestCase {
                 return false
             }
 
-            let callbackResult = monitor.handleAcceptTap(type: .keyDown, event: event)
+            let decision = monitor.handleAcceptKeyDown(InputMonitorKeyEvent(keyCode: 48))
 
-            XCTAssertNotNil(callbackResult)
+            XCTAssertEqual(decision, .passThrough)
             XCTAssertEqual(observedKinds, [.acceptance])
         }
     }
 
-    func test_acceptTapPassesOriginalKeyThroughWhenPreflightFails() throws {
-        try runOnMainActor {
+    func test_acceptTapPassesOriginalKeyThroughWhenPreflightFails() {
+        runOnMainActor {
             let monitor = makeMonitor()
-            let event = try makeKeyboardEvent(keyCode: 48)
             monitor.shouldConsumeAcceptKeyProvider = { false }
             monitor.onEvent = { _ in
                 XCTFail("Stale accept taps should not invoke coordinator acceptance.")
                 return true
             }
 
-            let callbackResult = monitor.handleAcceptTap(type: .keyDown, event: event)
+            let decision = monitor.handleAcceptKeyDown(InputMonitorKeyEvent(keyCode: 48))
 
-            XCTAssertNotNil(callbackResult)
+            XCTAssertEqual(decision, .passThrough)
         }
     }
 
-    func test_acceptTapConsumesBarePrintableBoundKeyWhenCoordinatorAccepts() throws {
-        try runOnMainActor {
+    func test_acceptTapConsumesBarePrintableBoundKeyWhenCoordinatorAccepts() {
+        runOnMainActor {
             let monitor = makeMonitor()
             monitor.acceptanceKeyCodeProvider = { 0 }
-            let event = try makeKeyboardEvent(keyCode: 0)
             var observedKinds: [CapturedInputEvent.Kind] = []
             monitor.shouldConsumeAcceptKeyProvider = { true }
             monitor.onEvent = { event in
@@ -128,52 +127,37 @@ final class InputMonitorTests: XCTestCase {
                 return true
             }
 
-            let callbackResult = monitor.handleAcceptTap(type: .keyDown, event: event)
+            let decision = monitor.handleAcceptKeyDown(InputMonitorKeyEvent(keyCode: 0))
 
-            XCTAssertNil(callbackResult)
+            XCTAssertEqual(decision, .consume)
             XCTAssertEqual(observedKinds, [.acceptance])
         }
     }
 
-    func test_acceptTapPassesBarePrintableBoundKeyThroughWhenNoVisibleSessionExists() throws {
-        try runOnMainActor {
+    func test_acceptTapPassesBarePrintableBoundKeyThroughWhenNoVisibleSuggestionExists() {
+        runOnMainActor {
             let monitor = makeMonitor()
             monitor.acceptanceKeyCodeProvider = { 0 }
-            let event = try makeKeyboardEvent(keyCode: 0)
             monitor.shouldConsumeAcceptKeyProvider = { false }
             monitor.onEvent = { _ in
-                XCTFail("Bare printable shortcuts should only route into acceptance for visible sessions.")
+                XCTFail("Bare printable shortcuts should only route into acceptance for visible suggestions.")
                 return true
             }
 
-            let callbackResult = monitor.handleAcceptTap(type: .keyDown, event: event)
+            let decision = monitor.handleAcceptKeyDown(InputMonitorKeyEvent(keyCode: 0))
 
-            XCTAssertNotNil(callbackResult)
+            XCTAssertEqual(decision, .passThrough)
         }
     }
 
     @MainActor
     private func makeMonitor() -> InputMonitor {
-        InputMonitor(
+        let monitor = InputMonitor(
             permissionProvider: { true },
             suppressionController: InputSuppressionController()
         )
-    }
-
-    @MainActor
-    private func makeKeyboardEvent(keyCode: CGKeyCode, characters: String? = nil) throws -> CGEvent {
-        let source = try XCTUnwrap(CGEventSource(stateID: .hidSystemState))
-        let event = try XCTUnwrap(CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true))
-        if let characters {
-            let utf16 = Array(characters.utf16)
-            utf16.withUnsafeBufferPointer { buffer in
-                event.keyboardSetUnicodeString(
-                    stringLength: buffer.count,
-                    unicodeString: buffer.baseAddress
-                )
-            }
-        }
-        return event
+        Self.retainedMonitors.append(monitor)
+        return monitor
     }
 }
 

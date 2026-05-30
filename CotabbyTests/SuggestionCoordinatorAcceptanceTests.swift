@@ -11,6 +11,13 @@ import XCTest
 final class SuggestionCoordinatorAcceptanceTests: XCTestCase {
     private static var retainedCoordinators: [SuggestionCoordinator] = []
 
+    override func tearDown() {
+        runOnMainActor {
+            Self.retainedCoordinators.removeAll()
+        }
+        super.tearDown()
+    }
+
     func test_acceptCurrentSuggestionAllowsVisibleSessionWhileDebugStateIsDebouncing() {
         runOnMainActor {
             let snapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello")
@@ -39,7 +46,7 @@ final class SuggestionCoordinatorAcceptanceTests: XCTestCase {
 
             XCTAssertTrue(
                 inputMonitor.shouldConsumeAcceptKeyProvider(),
-                "Preflight should depend on visible overlay + active session, not `.ready`."
+                "Preflight should depend on visible overlay, not `.ready`."
             )
             XCTAssertTrue(coordinator.acceptCurrentSuggestion())
 
@@ -50,6 +57,38 @@ final class SuggestionCoordinatorAcceptanceTests: XCTestCase {
                 return
             }
             XCTAssertEqual(remainingText, " again")
+        }
+    }
+
+    func test_acceptCurrentSuggestionCleansVisibleOverlayWhenSessionDisappears() {
+        runOnMainActor {
+            let snapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello")
+            let context = FocusedInputContext(snapshot: snapshot, generation: 7)
+            let overlayState = OverlayState.visible(
+                text: " stale",
+                geometry: CotabbyTestFixtures.overlayGeometry(caretRect: context.caretRect),
+                mode: .inline
+            )
+            let inputMonitor = StubSuggestionInputMonitor()
+            let inserter = StubSuggestionInserter()
+            let coordinator = makeCoordinator(
+                snapshot: snapshot,
+                overlayState: overlayState,
+                inputMonitor: inputMonitor,
+                inserter: inserter,
+                interactionState: SuggestionInteractionState()
+            )
+            coordinator.state = .debouncing
+
+            XCTAssertTrue(
+                inputMonitor.shouldConsumeAcceptKeyProvider(),
+                "A visible stale overlay should still route the accept key into the coordinator for cleanup."
+            )
+            XCTAssertFalse(coordinator.acceptCurrentSuggestion())
+
+            XCTAssertTrue(inserter.insertedChunks.isEmpty)
+            XCTAssertFalse(coordinator.overlayState.isVisible)
+            XCTAssertEqual(coordinator.state, .idle)
         }
     }
 
@@ -127,7 +166,7 @@ private final class StubSuggestionFocusProvider: SuggestionFocusProviding {
 private final class StubSuggestionInputMonitor: SuggestionInputMonitoring {
     var onEvent: ((CapturedInputEvent) -> Bool)?
     var onSuppressedSyntheticInput: (() -> Void)?
-    var shouldConsumeAcceptKeyProvider: @MainActor () -> Bool = { false }
+    var shouldConsumeAcceptKeyProvider: @MainActor @Sendable () -> Bool = { false }
     private(set) var acceptInterceptionRequests: [Bool] = []
 
     func setAcceptInterceptionActive(_ active: Bool) {

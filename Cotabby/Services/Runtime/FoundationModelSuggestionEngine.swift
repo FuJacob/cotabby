@@ -46,16 +46,30 @@ final class FoundationModelSuggestionEngine {
     func generateSuggestion(for request: SuggestionRequest) async throws -> SuggestionResult {
         availabilityService.refresh()
 
+        let baseMetadata: Logger.Metadata = [
+            "request_id": .string(request.requestID),
+            "engine": .string("apple_intelligence")
+        ]
+
         guard availabilityService.isAvailable else {
             let message = availabilityService.userVisibleMessage
-            CotabbyLogger.suggestion.debug("Foundation model unavailable: \(message)")
+            CotabbyLogger.suggestion.debug(
+                "Foundation model unavailable: \(message)",
+                metadata: baseMetadata
+            )
             throw SuggestionClientError.unavailable(message)
         }
 
         do {
             let promptBytes = request.prompt.count
             let maxTokens = request.maxPredictionTokens
-            CotabbyLogger.suggestion.debug("Foundation model generating: prompt=\(promptBytes) bytes, max_tokens=\(maxTokens)")
+            CotabbyLogger.suggestion.debug(
+                "Foundation model generating",
+                metadata: baseMetadata.merging([
+                    "prompt_bytes": .stringConvertible(promptBytes),
+                    "max_tokens": .stringConvertible(maxTokens)
+                ]) { _, new in new }
+            )
             let startTime = Date()
             let prompt = FoundationModelPromptRenderer.prompt(for: request)
             // In production, `isAvailable == true` implies `systemLanguageModel` is non-nil because
@@ -106,7 +120,25 @@ final class FoundationModelSuggestionEngine {
             let normalizedChars = normalizedSuggestion.count
             let latencyMs = Int(latency * 1000)
             CotabbyLogger.suggestion.debug(
-                "Foundation model generated: raw=\(rawChars) chars, normalized=\(normalizedChars) chars, latency=\(latencyMs)ms"
+                "Foundation model generated",
+                metadata: baseMetadata.merging([
+                    "raw_chars": .stringConvertible(rawChars),
+                    "normalized_chars": .stringConvertible(normalizedChars),
+                    "latency_ms": .stringConvertible(latencyMs)
+                ]) { _, new in new }
+            )
+            CotabbyLogger.llmIO.debug(
+                "foundation_model generation",
+                metadata: baseMetadata.merging([
+                    "prompt": .string(prompt),
+                    "completion_raw": .string(rawSuggestion),
+                    "completion_normalized": .string(normalizedSuggestion),
+                    "prompt_bytes": .stringConvertible(prompt.utf8.count),
+                    "raw_chars": .stringConvertible(rawChars),
+                    "normalized_chars": .stringConvertible(normalizedChars),
+                    "latency_ms": .stringConvertible(latencyMs),
+                    "max_tokens": .stringConvertible(request.maxPredictionTokens)
+                ]) { _, new in new }
             )
             return SuggestionResult(
                 generation: request.generation,
@@ -115,15 +147,21 @@ final class FoundationModelSuggestionEngine {
                 latency: latency
             )
         } catch is CancellationError {
-            CotabbyLogger.suggestion.debug("Foundation model generation cancelled")
+            CotabbyLogger.suggestion.debug("Foundation model generation cancelled", metadata: baseMetadata)
             throw SuggestionClientError.cancelled
         } catch let error as LanguageModelSession.GenerationError {
-            CotabbyLogger.suggestion.error("Foundation model generation error: \(error.localizedDescription)")
+            CotabbyLogger.suggestion.error(
+                "Foundation model generation error: \(error.localizedDescription)",
+                metadata: baseMetadata
+            )
             throw mapGenerationError(error)
         } catch let error as SuggestionClientError {
             throw error
         } catch {
-            CotabbyLogger.suggestion.error("Foundation model unexpected error: \(error.localizedDescription)")
+            CotabbyLogger.suggestion.error(
+                "Foundation model unexpected error: \(error.localizedDescription)",
+                metadata: baseMetadata
+            )
             throw SuggestionClientError.generationFailed(error.localizedDescription)
         }
     }

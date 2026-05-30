@@ -61,6 +61,11 @@ final class SuggestionCoordinator: ObservableObject {
     // barrier task that the next generation must cross before it can ask the runtime for output.
     var cacheResetSequence: UInt64 = 0
     var pendingCacheReset: (sequence: UInt64, task: Task<Void, Never>)?
+    /// Correlation ID for the most recently built `SuggestionRequest`. Stamped onto every
+    /// state-transition log line so all events tied to one suggestion (debounce → generating →
+    /// ready → accepted/rejected) can be joined with a single `jq` filter on `request_id`.
+    /// `nil` between sessions; replaced when `+Prediction` builds the next request.
+    var latestRequestID: String?
 
     init(
         permissionManager: any SuggestionPermissionProviding,
@@ -136,13 +141,12 @@ final class SuggestionCoordinator: ObservableObject {
         }
 
         // Fail-open preflight for the active accept tap. The tap should only route a matching key
-        // into the coordinator while a visible overlay has a buffered session behind it. We
-        // deliberately do not require `.ready`: a background refresh can put `state` into
-        // `.debouncing` while the visible ghost text is still valid and accept-worthy. The
-        // acceptance path performs the expensive live AX/session validation before the tap consumes.
+        // into the coordinator while there is visible suggestion UI. We deliberately do not require
+        // `.ready` or even an active session here: a background refresh can move `state`, and if the
+        // session has gone stale the coordinator still needs one chance to hide the stale overlay
+        // before the tap passes the original key through.
         inputMonitor.shouldConsumeAcceptKeyProvider = { [weak self] in
             guard let self else { return false }
-            guard self.interactionState.activeSession != nil else { return false }
             guard self.overlayState.isVisible else { return false }
             return true
         }

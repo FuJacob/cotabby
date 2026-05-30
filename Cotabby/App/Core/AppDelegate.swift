@@ -31,6 +31,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let activationIndicatorController: ActivationIndicatorController
     private let focusDebugOverlayController: FocusDebugOverlayController?
     private var cancellables = Set<AnyCancellable>()
+    private var didStartServices = false
 
     override init() {
         CotabbyLogger.bootstrap()
@@ -112,6 +113,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Starts runtime and polling services once AppKit reports that app launch finished.
     func applicationDidFinishLaunching(_ notification: Notification) {
+        guard !Self.isRunningUnderXCTest else {
+            CotabbyLogger.app.info("Unit test host detected; skipping production service startup")
+            return
+        }
+
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
         CotabbyLogger.app.info("Cotabby \(version) (build \(build)) launching on macOS \(ProcessInfo.processInfo.operatingSystemVersionString)")
@@ -122,6 +128,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         suggestionCoordinator.start()
         welcomeCoordinator.presentIfNeeded()
         welcomeCoordinator.presentPermissionReminderIfNeeded()
+        didStartServices = true
         CotabbyLogger.app.info("All services started")
     }
 
@@ -140,6 +147,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// generation is genuinely stuck, we accept the small risk of the original ggml crash over
     /// the larger UX bug of a broken permission flow.
     func applicationWillTerminate(_ notification: Notification) {
+        guard didStartServices else {
+            return
+        }
+
         CotabbyLogger.app.info("Cotabby terminating, releasing services")
         activationIndicatorController.hide(reason: "Activation indicator hidden because Cotabby is terminating.")
         focusDebugOverlayController?.hide()
@@ -185,5 +196,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func handleModelDirectoryChange() {
         runtimeModel.refreshAvailableModels()
         startRuntimeIfPreferredEngineRequiresIt()
+    }
+
+    /// Xcode's app-hosted unit tests launch the real menu-bar app binary before loading the test
+    /// bundle. Those tests instantiate focused services directly, so starting global taps, focus
+    /// polling, Sparkle, and the llama runtime in the host process only adds side effects and can
+    /// crash before a test assertion runs. The environment variable is supplied by XCTest only.
+    private static var isRunningUnderXCTest: Bool {
+        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
     }
 }

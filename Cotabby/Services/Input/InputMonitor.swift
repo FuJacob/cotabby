@@ -10,6 +10,34 @@ import Logging
 /// `CapturedInputEvent` now lives in `Models/InputModels.swift` so the rest of the app can depend
 /// on the semantic event type without importing this event-tap implementation.
 
+/// Snapshot of the key data `InputMonitor` needs after a raw `CGEvent` enters the tap callback.
+///
+/// Keeping this as a tiny value type lets unit tests exercise tap ownership without constructing
+/// synthetic CoreGraphics events. That matters because app-hosted macOS tests can crash in CGEvent
+/// allocation/teardown even when the production code path is correct.
+struct InputMonitorKeyEvent {
+    let keyCode: CGKeyCode
+    let characters: String
+    let flags: CGEventFlags
+
+    init(keyCode: CGKeyCode, characters: String = "", flags: CGEventFlags = []) {
+        self.keyCode = keyCode
+        self.characters = characters
+        self.flags = flags
+    }
+}
+
+/// The consuming tap has three possible outcomes for a key-down event.
+///
+/// `notHandled` means the key was not one of Cotabby's configured accept keys. `passThrough`
+/// means it was an accept key but Cotabby declined to consume it. `consume` means the coordinator
+/// accepted successfully and the original key event should be swallowed.
+enum InputMonitorAcceptTapDecision: Equatable {
+    case notHandled
+    case passThrough
+    case consume
+}
+
 /// Installs two taps:
 /// - A steady-state `.listenOnly` observer at the head of the chain. Listen-only taps do not gate
 ///   event delivery on the callback's return, so a slow main actor cannot stall global keystrokes
@@ -45,7 +73,7 @@ final class InputMonitor {
     /// Fail-open authorization for routing a matching accept key into the active accept tap.
     /// The tap still consumes only when the coordinator successfully accepts the event; this
     /// preflight keeps stale or misinstalled taps from even attempting acceptance.
-    var shouldConsumeAcceptKeyProvider: @MainActor () -> Bool = { false }
+    var shouldConsumeAcceptKeyProvider: @MainActor @Sendable () -> Bool = { false }
 
     private let permissionProvider: @MainActor () -> Bool
     private let suppressionController: InputSuppressionController
@@ -256,20 +284,29 @@ final class InputMonitor {
                 return Unmanaged.passUnretained(event)
             }
 
-            let capturedEvent = classify(event: event, recognizesAcceptance: isAcceptTapOwningAcceptKeys)
-            guard !capturedEvent.kind.isAcceptance else {
-                // Acceptance is handled by the active default tap, because only that callback can
-                // make insertion and "consume the original key" one atomic decision. If the active
-                // tap is absent, printable accept bindings are classified as ordinary typing.
-                return Unmanaged.passUnretained(event)
-            }
-
-            _ = onEvent?(capturedEvent)
+            _ = routeObserverKeyDown(
+                InputMonitorKeyEvent(
+                    keyCode: keyCode(from: event),
+                    characters: event.unicodeString,
+                    flags: event.flags
+                )
+            )
             return Unmanaged.passUnretained(event)
 
         default:
             return Unmanaged.passUnretained(event)
         }
+    }
+
+    /// Testable observer path for semantic key snapshots.
+    ///
+    /// Production still enters through `handleObserverTap`; this method exists so tests can verify
+    /// ownership rules without depending on CoreGraphics event allocation.
+    func handleObserverKeyDown(_ keyEvent: InputMonitorKeyEvent) -> CapturedInputEvent? {
+        guard shouldProcessEventsProvider() else {
+            return nil
+        }
+        return routeObserverKeyDown(keyEvent)
     }
 
     /// Active accept tap: only consumes the configured accept keys, so the focused application
@@ -293,87 +330,99 @@ final class InputMonitor {
                 return Unmanaged.passUnretained(event)
             }
 
-            let keyCode = CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode))
-            // Normalize to just the four bits we honor — caps lock, fn, numeric pad, and device
-            // flags must not influence shortcut equality.
-            let eventModifiers = ShortcutModifierMask(eventFlags: event.flags)
-
-            let fullAcceptMatches = keyCode == fullAcceptanceKeyCodeProvider()
-                && eventModifiers == fullAcceptanceKeyModifiersProvider()
-            let acceptMatches = keyCode == acceptanceKeyCodeProvider()
-                && eventModifiers == acceptanceKeyModifiersProvider()
-
-            if fullAcceptMatches || acceptMatches {
-                // Fail-open preflight. A stale accept tap should never ask the coordinator to
-                // insert text. The coordinator still performs full AX/session validation below
-                // before this callback consumes the original key.
-                guard shouldConsumeAcceptKeyProvider() else {
-                    let message = "Accept tap declining to consume keyCode=\(keyCode): "
-                        + "coordinator reports no visible active session"
-                    CotabbyLogger.app.debug("\(message)")
-                    return Unmanaged.passUnretained(event)
-                }
-
-                guard let onEvent else {
-                    CotabbyLogger.app.debug("Accept tap declining to consume keyCode=\(keyCode): no event handler")
-                    return Unmanaged.passUnretained(event)
-                }
-
-                let kind: CapturedInputEvent.Kind = fullAcceptMatches ? .fullAcceptance : .acceptance
-                let capturedEvent = CapturedInputEvent(
-                    kind: kind,
-                    keyCode: keyCode,
-                    characters: "",
+            let decision = handleAcceptKeyDown(
+                InputMonitorKeyEvent(
+                    keyCode: keyCode(from: event),
                     flags: event.flags
                 )
-                guard onEvent(capturedEvent) else {
-                    CotabbyLogger.app.debug(
-                        "Accept tap passed keyCode=\(keyCode) through because coordinator declined acceptance"
-                    )
-                    return Unmanaged.passUnretained(event)
-                }
+            )
 
-                CotabbyLogger.app.debug(
-                    "Accept tap consumed keyCode=\(keyCode) modifiers=\(eventModifiers.rawValue)"
-                )
+            switch decision {
+            case .consume:
                 return nil
+            case .notHandled, .passThrough:
+                return Unmanaged.passUnretained(event)
             }
-            return Unmanaged.passUnretained(event)
 
         default:
             return Unmanaged.passUnretained(event)
         }
     }
 
-    /// Reduces a raw CGEvent into the smaller event categories the suggestion coordinator understands.
-    private func classify(event: CGEvent, recognizesAcceptance: Bool = true) -> CapturedInputEvent {
-        let keyCode = CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode))
-        let flags = event.flags
+    /// Testable accept-tap path for semantic key snapshots.
+    ///
+    /// Returning a decision instead of a CoreGraphics callback result keeps the ownership rule easy
+    /// to test: a successful coordinator accept is the only path that consumes the original key.
+    func handleAcceptKeyDown(_ keyEvent: InputMonitorKeyEvent) -> InputMonitorAcceptTapDecision {
+        guard shouldProcessEventsProvider() else {
+            return .passThrough
+        }
+
+        guard let kind = acceptanceKind(for: keyEvent) else {
+            return .notHandled
+        }
+
+        // Fail open. A stale accept tap with no visible suggestion should never steal the user's
+        // key. When a visible overlay exists, the coordinator remains the final validator and can
+        // clean up stale UI before this method passes the original key through.
+        guard shouldConsumeAcceptKeyProvider() else {
+            let message = "Accept tap declining to consume keyCode=\(keyEvent.keyCode): "
+                + "coordinator reports no visible suggestion"
+            CotabbyLogger.app.debug("\(message)")
+            return .passThrough
+        }
+
+        guard let onEvent else {
+            CotabbyLogger.app.debug("Accept tap declining to consume keyCode=\(keyEvent.keyCode): no event handler")
+            return .passThrough
+        }
+
+        let capturedEvent = CapturedInputEvent(
+            kind: kind,
+            keyCode: keyEvent.keyCode,
+            characters: "",
+            flags: keyEvent.flags
+        )
+        guard onEvent(capturedEvent) else {
+            CotabbyLogger.app.debug(
+                "Accept tap passed keyCode=\(keyEvent.keyCode) through because coordinator declined acceptance"
+            )
+            return .passThrough
+        }
+
+        let eventModifiers = ShortcutModifierMask(eventFlags: keyEvent.flags)
+        CotabbyLogger.app.debug(
+            "Accept tap consumed keyCode=\(keyEvent.keyCode) modifiers=\(eventModifiers.rawValue)"
+        )
+        return .consume
+    }
+
+    private func routeObserverKeyDown(_ keyEvent: InputMonitorKeyEvent) -> CapturedInputEvent? {
+        let capturedEvent = classify(keyEvent: keyEvent, recognizesAcceptance: isAcceptTapOwningAcceptKeys)
+        guard !capturedEvent.kind.isAcceptance else {
+            // Acceptance is handled by the active default tap, because only that callback can
+            // make insertion and "consume the original key" one atomic decision. If the active
+            // tap is absent, printable accept bindings are classified as ordinary typing.
+            return nil
+        }
+
+        _ = onEvent?(capturedEvent)
+        return capturedEvent
+    }
+
+    private func keyCode(from event: CGEvent) -> CGKeyCode {
+        CGKeyCode(event.getIntegerValueField(.keyboardEventKeycode))
+    }
+
+    /// Reduces a key snapshot into the smaller event categories the suggestion coordinator understands.
+    private func classify(keyEvent: InputMonitorKeyEvent, recognizesAcceptance: Bool = true) -> CapturedInputEvent {
+        let keyCode = keyEvent.keyCode
+        let flags = keyEvent.flags
 
         // Normalize to just the four bits we care about — `CGEventFlags` also carries caps lock,
         // numeric pad, secondary fn, and device flags that must not influence shortcut equality.
-        let eventModifiers = ShortcutModifierMask(eventFlags: flags)
-
-        if recognizesAcceptance {
-            // Read shortcut state from the model at event time so changes are always current.
-            let fullAcceptKey = fullAcceptanceKeyCodeProvider()
-            let fullAcceptModifiers = fullAcceptanceKeyModifiersProvider()
-            let acceptKey = acceptanceKeyCodeProvider()
-            let acceptModifiers = acceptanceKeyModifiersProvider()
-
-            // Full-suggestion acceptance takes priority so pressing the full-accept key
-            // doesn't silently fall through to word-accept when both are assigned.
-            // The acceptance checks run before the Command-key branch below so a binding like
-            // `⌘Tab` is classified as acceptance instead of being eaten by the shortcutMutation
-            // path. The bound modifier set must match the masked event modifiers exactly, so
-            // `Tab` and `⇧Tab` are distinct bindings and neither one triggers the other.
-            if keyCode == fullAcceptKey, eventModifiers == fullAcceptModifiers {
-                return CapturedInputEvent(kind: .fullAcceptance, keyCode: keyCode, characters: "", flags: flags)
-            }
-
-            if keyCode == acceptKey, eventModifiers == acceptModifiers {
-                return CapturedInputEvent(kind: .acceptance, keyCode: keyCode, characters: "", flags: flags)
-            }
+        if recognizesAcceptance, let kind = acceptanceKind(for: keyEvent) {
+            return CapturedInputEvent(kind: kind, keyCode: keyCode, characters: "", flags: flags)
         }
 
         // We classify events by behavior instead of raw key codes alone.
@@ -403,12 +452,35 @@ final class InputMonitor {
             return CapturedInputEvent(kind: kind, keyCode: keyCode, characters: "", flags: flags)
         }
 
-        let characters = event.unicodeString
+        let characters = keyEvent.characters
         if !characters.trimmingCharacters(in: .controlCharacters).isEmpty {
             return CapturedInputEvent(kind: .textMutation, keyCode: keyCode, characters: characters, flags: flags)
         }
 
         return CapturedInputEvent(kind: .other, keyCode: keyCode, characters: characters, flags: flags)
+    }
+
+    private func acceptanceKind(for keyEvent: InputMonitorKeyEvent) -> CapturedInputEvent.Kind? {
+        let eventModifiers = ShortcutModifierMask(eventFlags: keyEvent.flags)
+
+        // Read shortcut state from the model at event time so changes are always current.
+        let fullAcceptKey = fullAcceptanceKeyCodeProvider()
+        let fullAcceptModifiers = fullAcceptanceKeyModifiersProvider()
+        let acceptKey = acceptanceKeyCodeProvider()
+        let acceptModifiers = acceptanceKeyModifiersProvider()
+
+        // Full-suggestion acceptance takes priority so pressing the full-accept key doesn't
+        // silently fall through to word-accept when both are assigned. The bound modifier set must
+        // match exactly after normalization, so `Tab` and `Shift+Tab` remain distinct bindings.
+        if keyEvent.keyCode == fullAcceptKey, eventModifiers == fullAcceptModifiers {
+            return .fullAcceptance
+        }
+
+        if keyEvent.keyCode == acceptKey, eventModifiers == acceptModifiers {
+            return .acceptance
+        }
+
+        return nil
     }
 }
 

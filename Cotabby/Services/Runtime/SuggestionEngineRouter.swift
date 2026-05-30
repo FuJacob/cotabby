@@ -22,21 +22,40 @@ final class SuggestionEngineRouter {
     }
 
     func generateSuggestion(for request: SuggestionRequest) async throws -> SuggestionResult {
+        let metadata: Logger.Metadata = [
+            "request_id": .string(request.requestID),
+            "engine": .string(engineMetadataLabel(for: suggestionSettings.selectedEngine))
+        ]
         switch suggestionSettings.selectedEngine {
         case .appleIntelligence:
-            CotabbyLogger.suggestion.debug("Routing to Apple Intelligence engine")
+            CotabbyLogger.suggestion.debug("Routing to Apple Intelligence engine", metadata: metadata)
             do {
                 return try await foundationModelEngine.generateSuggestion(for: request)
             } catch SuggestionClientError.unsupportedLanguageOrLocale(let message) {
-                CotabbyLogger.suggestion.info("Apple Intelligence unsupported for locale, falling back to open-source: \(message)")
+                CotabbyLogger.suggestion.info(
+                    "Apple Intelligence unsupported for locale, falling back to open-source: \(message)",
+                    metadata: metadata.merging([
+                        "fallback_engine": .string("llama"),
+                        "reason": .string(message)
+                    ]) { _, new in new }
+                )
                 return try await generateOpenSourceFallback(
                     for: request,
                     appleFailureMessage: message
                 )
             }
         case .llamaOpenSource:
-            CotabbyLogger.suggestion.debug("Routing to open-source llama engine")
+            CotabbyLogger.suggestion.debug("Routing to open-source llama engine", metadata: metadata)
             return try await llamaEngine.generateSuggestion(for: request)
+        }
+    }
+
+    private func engineMetadataLabel(for kind: SuggestionEngineKind) -> String {
+        switch kind {
+        case .appleIntelligence:
+            return "apple_intelligence"
+        case .llamaOpenSource:
+            return "llama"
         }
     }
 

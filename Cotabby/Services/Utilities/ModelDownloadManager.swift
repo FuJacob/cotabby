@@ -204,6 +204,10 @@ final class ModelDownloadManager: ObservableObject {
         do {
             try ensureRuntimeDirectoryExists()
         } catch {
+            CotabbyLogger.models.error(
+                "Failed to ensure runtime directory before opening: \(error.localizedDescription)",
+                metadata: ["directory": .string(runtimeDirectoryURL.path)]
+            )
             return
         }
 
@@ -224,6 +228,10 @@ final class ModelDownloadManager: ObservableObject {
         do {
             try ensureRuntimeDirectoryExists()
         } catch {
+            CotabbyLogger.models.error(
+                "Failed to ensure runtime directory before import: \(error.localizedDescription)",
+                metadata: ["directory": .string(runtimeDirectoryURL.path)]
+            )
             return
         }
 
@@ -240,7 +248,13 @@ final class ModelDownloadManager: ObservableObject {
                 do {
                     try fileManager.copyItem(at: sourceURL, to: destinationURL)
                 } catch {
-                    print("Failed to import \(sourceURL.lastPathComponent): \(error.localizedDescription)")
+                    CotabbyLogger.models.error(
+                        "Failed to import \(sourceURL.lastPathComponent): \(error.localizedDescription)",
+                        metadata: [
+                            "source": .string(sourceURL.path),
+                            "destination": .string(destinationURL.path)
+                        ]
+                    )
                 }
             }
             await MainActor.run { [weak self] in

@@ -37,11 +37,23 @@ enum CotabbyDebugOptions {
 /// additionally fan out to `FileLogHandler`, which writes JSONL to
 /// `~/Library/Logs/Cotabby/cotabby.jsonl` for AI-assisted debugging without copy-paste.
 enum CotabbyLogger {
+    /// Reserved label that routes only to the dedicated LLM I/O sink, never to OSLog or the main
+    /// JSONL file. Kept out of OSLog because full prompts/completions can be many KB per request
+    /// and would dominate Console.app; kept out of `cotabby.jsonl` because it would drown the
+    /// orchestration signal an AI debugger wants to skim.
+    static let llmIOLabel = "com.cotabby.llm-io"
+
     private static let bootstrapOnce: Void = {
         // The debug-flag check happens once, at bootstrap time. Toggling it requires a relaunch,
         // which matches how every other launch-arg in the app behaves.
         let installFileHandler = CotabbyDebugOptions.isEnabled
         LoggingSystem.bootstrap { label in
+            if label == llmIOLabel {
+                // LLM I/O records are debug-only by design — installing the handler unconditionally
+                // would let release builds write full prompts to disk.
+                guard installFileHandler else { return SwiftLogNoOpLogHandler() }
+                return LLMIOFileHandler(label: label)
+            }
             let osHandler = OSLogHandler(label: label)
             guard installFileHandler else { return osHandler }
             return MultiplexLogHandler([osHandler, FileLogHandler(label: label)])
@@ -60,6 +72,9 @@ enum CotabbyLogger {
     static let updates = Logger(label: "com.cotabby.updates")
     static let models = Logger(label: "com.cotabby.models")
     static let suggestion = Logger(label: "com.cotabby.suggestion")
+    /// Full prompts and completions, one structured JSON record per generation. Writes to
+    /// `~/Library/Logs/Cotabby/llm-io.jsonl` only when `-cotabby-debug` is set.
+    static let llmIO = Logger(label: llmIOLabel)
 }
 
 /// Bridges swift-log into Apple's Unified Logging so every log line appears in Console.app

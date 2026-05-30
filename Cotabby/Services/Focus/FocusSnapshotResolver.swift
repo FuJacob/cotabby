@@ -18,10 +18,20 @@ struct FocusSnapshotResolver {
     /// Carries deep-walk throttle state across the value-typed resolver's non-mutating polls.
     private let deepWalkThrottle = DeepGeometryWalkThrottle()
 
-    // MARK: - Debug AX tree dump (temporary — remove after caret placement is fixed)
-    /// Set to true to print the AX tree every time focus changes. Check Xcode console.
-    private static let dumpAXTree = false
+    // MARK: - Debug AX tree dump
+    /// Bundle identifier we automatically dump the AX tree for when `-cotabby-debug` is on.
+    /// Chrome's contenteditable surfaces are the source of most caret-placement and host-AX-publish
+    /// reports, so the dump exists primarily for triaging those — extend the gate (or replace the
+    /// constant) once another bundle needs the same treatment.
+    private static let dumpAXBundleIdentifier = "com.google.Chrome"
+    /// Last focused-element identifier we wrote to disk. The dump only runs when this changes, so
+    /// rapid focus events inside the same field don't repeatedly overwrite the file mid-inspection.
     private static var lastDumpedElementID: String?
+    private static let dumpTimestampFormatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
 
     init(geometryResolver: AXTextGeometryResolver? = nil) {
         self.geometryResolver = geometryResolver ?? AXTextGeometryResolver()
@@ -46,11 +56,18 @@ struct FocusSnapshotResolver {
         let focusedElementIdentifier = AXHelper.elementIdentifier(
             for: focusedElement, bundleIdentifier: bundleIdentifier)
 
-        // Dump once per element change so it doesn't spam on repeated focus/value notifications.
-        if Self.dumpAXTree, Self.lastDumpedElementID != focusedElementIdentifier {
+        // Auto-dump on debug builds only, and only when focus lands on the configured bundle
+        // (currently Chrome). Debounced by element identity so rapid focus/value notifications
+        // inside the same field don't overwrite the file mid-inspection.
+        if CotabbyDebugOptions.isEnabled,
+           bundleIdentifier == Self.dumpAXBundleIdentifier,
+           Self.lastDumpedElementID != focusedElementIdentifier {
             Self.lastDumpedElementID = focusedElementIdentifier
-            printAXTreeDump(
-                focusedElement: focusedElement, app: applicationName, bundle: bundleIdentifier)
+            writeAXTreeDumpToDesktop(
+                focusedElement: focusedElement,
+                app: applicationName,
+                bundle: bundleIdentifier
+            )
         }
 
         let candidates = candidateElements(around: focusedElement).map {
@@ -508,8 +525,17 @@ struct FocusSnapshotResolver {
 
     // MARK: - Debug AX tree dump
 
-    private func printAXTreeDump(focusedElement: AXUIElement, app: String, bundle: String) {
-        var out = "\n========== AX TREE DUMP ==========\n"
+    /// Renders the focused element plus its ancestors and children to plain text and overwrites
+    /// `~/Desktop/cotabby-ax-dump.txt`. The file is overwritten so the user (or an AI debugger)
+    /// always inspects the latest snapshot at a stable path. The dump is debounced to one write
+    /// per focused-element identity change (see the call site).
+    ///
+    /// Writes are best-effort: a failed disk write is logged through `CotabbyLogger.focus` and
+    /// does not propagate, since AX dumping is purely diagnostic.
+    private func writeAXTreeDumpToDesktop(focusedElement: AXUIElement, app: String, bundle: String) {
+        let timestamp = Self.dumpTimestampFormatter.string(from: Date())
+        var out = "========== AX TREE DUMP ==========\n"
+        out += "Timestamp: \(timestamp)\n"
         out += "App: \(app) (\(bundle))\n\n"
 
         out += "-- Focused + ancestors --\n"
@@ -529,7 +555,28 @@ struct FocusSnapshotResolver {
         dumpChildrenRecursive(of: focusedElement, into: &out, indent: "", depth: 0)
 
         out += "========== END DUMP ==========\n"
-        CotabbyLogger.focus.debug("\(out)")
+
+        guard let desktopURL = FileManager.default
+            .urls(for: .desktopDirectory, in: .userDomainMask).first else {
+            CotabbyLogger.focus.error("AX dump skipped: no Desktop directory available")
+            return
+        }
+        let targetURL = desktopURL.appendingPathComponent("cotabby-ax-dump.txt", isDirectory: false)
+        do {
+            try out.write(to: targetURL, atomically: true, encoding: .utf8)
+            CotabbyLogger.focus.debug(
+                "Wrote AX dump",
+                metadata: [
+                    "path": .string(targetURL.path),
+                    "bundle": .string(bundle)
+                ]
+            )
+        } catch {
+            CotabbyLogger.focus.error(
+                "Failed to write AX dump: \(error.localizedDescription)",
+                metadata: ["path": .string(targetURL.path)]
+            )
+        }
     }
 
     private func dumpChildrenRecursive(

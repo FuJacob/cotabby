@@ -2,26 +2,22 @@ import Foundation
 import Logging
 
 /// File overview:
-/// A swift-log `LogHandler` that appends one JSON record per line to a file under
-/// `~/Library/Logs/Cotabby/`. This is the on-disk sink an AI debugging agent can read
-/// directly without copy-pasting from Console.app.
+/// Dedicated JSONL sink for full LLM prompts and completions.
 ///
-/// The handler is only installed when `-cotabby-debug` is passed at launch (see
-/// `CotabbyLogger.bootstrap`). When the file grows past `sizeCapBytes` it is rotated: the
-/// current file becomes `cotabby.jsonl.1` (overwriting any prior rotation) and a fresh empty
-/// `cotabby.jsonl` is opened. The previous truncate-to-zero behavior threw away the *most
-/// recent* history at exactly the moment a debugger most needed it; one-step rotation keeps
-/// roughly the last 2× cap of events on disk.
-
-/// Shared writer that owns the on-disk file handle. swift-log can call handlers from any
-/// thread, so an `NSLock` serializes writes and the size check that may trigger a wipe.
+/// Kept separate from `cotabby.jsonl` so the main event stream stays readable: a single generation
+/// can carry several KB of prompt text, and inlining that into every other log line would drown
+/// the orchestration signal an AI debugger actually wants to follow.
 ///
-/// `@unchecked Sendable`: the only mutable state is `handle` and `currentByteOffset`,
-/// both guarded by `lock`. FileHandle itself is not Sendable so we cannot mark it cleanly.
-final class FileLogWriter: @unchecked Sendable {
-    static let shared = FileLogWriter()
+/// One record per generation, written to `~/Library/Logs/Cotabby/llm-io.jsonl`. Records share a
+/// `request_id` with the main log so a debugger can join across files.
+///
+/// Like `FileLogHandler`, this handler is only installed when `-cotabby-debug` is set, so a release
+/// build never touches the user's disk with prompt or completion text.
+final class LLMIOFileWriter: @unchecked Sendable {
+    static let shared = LLMIOFileWriter()
 
-    /// Default cap of 10 MB. Large enough for hours of debug output without ballooning disk.
+    /// Same 10 MB cap as the main log. LLM I/O records are larger per line, so this corresponds to
+    /// fewer events — fine for the debug-only use case.
     private let sizeCapBytes: UInt64 = 10 * 1024 * 1024
 
     private let lock = NSLock()
@@ -38,21 +34,14 @@ final class FileLogWriter: @unchecked Sendable {
     private let sizeCapBytesOverride: UInt64?
     private var effectiveCap: UInt64 { sizeCapBytesOverride ?? sizeCapBytes }
 
-    /// Returns the on-disk path the handler writes to, if available. Useful for surfacing in
-    /// settings and for tests.
     var fileURL: URL? { logFileURL }
 
-    /// Appends one already-rendered line. Caller is responsible for the trailing newline.
     func write(_ line: String) {
         guard let data = line.data(using: .utf8) else { return }
 
         lock.lock()
         defer { lock.unlock() }
 
-        // Rotating when *already over* the cap means the line that pushes us past gets stored
-        // in the new file rather than the old one. That keeps the file's tail readable.
-        // The rotation replaces `self.handle`, so we must read it AFTER the check — binding it
-        // before would write the first post-cap line into a closed descriptor and drop it.
         if currentByteOffset >= effectiveCap {
             rotateLocked()
         }
@@ -63,17 +52,13 @@ final class FileLogWriter: @unchecked Sendable {
             try handle.write(contentsOf: data)
             currentByteOffset += UInt64(data.count)
         } catch {
-            // Failing to write a debug log line must never disrupt the app. Swallow.
+            // Debug-only sink. Failing to write must never disrupt the app.
         }
     }
 
-    /// Test-only hook to force a rotation.
-    func wipeForTesting() {
-        lock.lock()
-        defer { lock.unlock() }
-        rotateLocked()
-    }
-
+    /// One-step rotation: rename the current file to `*.1` (overwriting any prior rotation), then
+    /// open a fresh empty file. Keeps roughly the last 2× cap of history instead of the previous
+    /// truncate-to-zero, which destroyed the *most recent* logs the moment the cap was hit.
     private func rotateLocked() {
         guard let logFileURL else { return }
         do {
@@ -82,12 +67,9 @@ final class FileLogWriter: @unchecked Sendable {
             // Closing a stale handle should not block re-opening a fresh one.
         }
         handle = nil
-        // One-step rotation: move the current file to `*.jsonl.1`, overwriting any prior rotation,
-        // then open a fresh empty file. Keeps the most recent ~cap of history on disk that the
-        // previous truncate-to-zero behavior was dropping at the exact moment it was useful.
-        // Only create a fresh empty file when the rotation actually displaced the old one — see
-        // `rotateOnDisk`. Otherwise we would silently overwrite the still-present log with an
-        // empty file, destroying exactly the history rotation was meant to preserve.
+        // Only overwrite with a fresh empty file when the rotation actually displaced the old
+        // one. A silent `moveItem` failure (transient FS error, concurrent external rewrite)
+        // would otherwise destroy the live log we just failed to preserve.
         let didRotate = rotateOnDisk(currentURL: logFileURL)
         if didRotate {
             FileManager.default.createFile(atPath: logFileURL.path, contents: nil)
@@ -95,10 +77,6 @@ final class FileLogWriter: @unchecked Sendable {
         openHandleLocked()
     }
 
-    /// Returns `true` when the current file was successfully moved aside (or did not exist in the
-    /// first place, which makes "create a fresh empty file" the correct next step). Returns
-    /// `false` only when the source still occupies `currentURL` after the attempted move; the
-    /// caller must then skip the `createFile` step so it does not destroy live log data.
     private func rotateOnDisk(currentURL: URL) -> Bool {
         let fileManager = FileManager.default
         let rotatedURL = currentURL.deletingPathExtension()
@@ -145,21 +123,22 @@ final class FileLogWriter: @unchecked Sendable {
             .appendingPathComponent("Logs", isDirectory: true)
             .appendingPathComponent(bundleName, isDirectory: true)
         try? fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
-        return directory.appendingPathComponent("cotabby.jsonl")
+        return directory.appendingPathComponent("llm-io.jsonl")
     }
 }
 
-/// swift-log handler that serializes each event to one JSON object per line and forwards it
-/// to a shared `FileLogWriter`. Metadata fields (e.g. `prompt`, `raw_output`) are emitted as
-/// top-level keys so they can be filtered with `jq` without unpacking strings.
-struct FileLogHandler: LogHandler {
+/// swift-log handler that mirrors `FileLogHandler` but writes to the separate LLM I/O file. The
+/// caller is expected to pass the full prompt and completion text via `Logger.Metadata`; the
+/// handler does not inspect log levels because every event routed to `CotabbyLogger.llmIO` is
+/// intentional.
+struct LLMIOFileHandler: LogHandler {
     var metadata: Logging.Logger.Metadata = [:]
     var logLevel: Logging.Logger.Level = .trace
 
     private let label: String
-    private let writer: FileLogWriter
+    private let writer: LLMIOFileWriter
 
-    init(label: String, writer: FileLogWriter = .shared) {
+    init(label: String, writer: LLMIOFileWriter = .shared) {
         self.label = label
         self.writer = writer
     }
@@ -170,16 +149,14 @@ struct FileLogHandler: LogHandler {
     }
 
     func log(event: borrowing Logging.LogEvent) {
-        let category = Self.category(from: label)
-        // swift-log's `LogEvent` does not carry an emission timestamp, so the handler must stamp
-        // its own. Under sustained load this can lag the call site by a small number of ms; live
-        // with that until swift-log surfaces emission time on the event itself.
-        let timestamp = ISO8601DateFormatter.shared.string(from: Date())
+        // See FileLogHandler for the matching note: swift-log's `LogEvent` has no emission
+        // timestamp, so the handler stamps its own.
+        let timestamp = ISO8601DateFormatter.llmIOShared.string(from: Date())
 
         var record: [String: Any] = [
             "timestamp": timestamp,
             "level": "\(event.level)",
-            "category": category,
+            "category": "llm-io",
             "message": "\(event.message)"
         ]
 
@@ -198,13 +175,6 @@ struct FileLogHandler: LogHandler {
             return
         }
         writer.write(json + "\n")
-    }
-
-    /// `com.cotabby.runtime` → `runtime`. Matches `OSLogHandler`'s category convention so the
-    /// JSON `category` field lines up with what Console.app shows.
-    private static func category(from label: String) -> String {
-        let parts = label.split(separator: ".", maxSplits: 2)
-        return parts.count > 2 ? String(parts[2]) : label
     }
 
     private static func jsonValue(of value: Logging.Logger.Metadata.Value) -> Any {
@@ -226,8 +196,7 @@ struct FileLogHandler: LogHandler {
 }
 
 private extension ISO8601DateFormatter {
-    /// Shared formatter avoids allocating a new one per log line. ISO8601 is thread-safe.
-    static let shared: ISO8601DateFormatter = {
+    static let llmIOShared: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter

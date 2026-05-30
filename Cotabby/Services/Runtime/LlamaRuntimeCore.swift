@@ -1,4 +1,5 @@
 import Foundation
+import Logging
 import CotabbyInference
 
 /// File overview:
@@ -56,6 +57,15 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
             shutdown()
         }
 
+        CotabbyLogger.runtime.info(
+            "Loading model",
+            metadata: [
+                "model_path": .string(resolvedRuntime.modelFileURL.path),
+                "context_window_tokens": .stringConvertible(configuration.contextWindowTokens),
+                "batch_size": .stringConvertible(configuration.batchSize),
+                "gpu_layers": .stringConvertible(configuration.gpuLayerCount)
+            ]
+        )
         let status = engine.loadModel(
             resolvedRuntime.modelFileURL.path,
             configuration.gpuLayerCount,
@@ -64,6 +74,13 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         )
 
         guard status == .ok else {
+            CotabbyLogger.runtime.error(
+                "Model load failed",
+                metadata: [
+                    "model": .string(resolvedRuntime.modelDisplayName),
+                    "model_path": .string(resolvedRuntime.modelFileURL.path)
+                ]
+            )
             throw LlamaRuntimeError.unavailable(
                 "Unable to load \(resolvedRuntime.modelDisplayName) with CotabbyInferenceEngine."
             )
@@ -78,6 +95,17 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
             backendName: "CotabbyInferenceEngine (llama.cpp in-process)"
         )
         self.preparedRuntime = result
+        CotabbyLogger.runtime.info(
+            "Model loaded",
+            metadata: [
+                "model": .string(resolvedRuntime.modelDisplayName),
+                "context_window_tokens": .stringConvertible(result.contextWindowTokens),
+                "batch_size": .stringConvertible(result.batchSize),
+                "threads": .stringConvertible(result.threadCount),
+                "gpu_layers": .stringConvertible(result.gpuLayerCount),
+                "backend": .string(result.backendName)
+            ]
+        )
         return result
     }
 
@@ -112,8 +140,21 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         let promptBytes = Array(prompt.utf8)
         let allPromptTokens = tokenize(prompt)
         guard !allPromptTokens.isEmpty else {
+            CotabbyLogger.runtime.error(
+                "Tokenization returned no prompt tokens",
+                metadata: ["prompt_bytes": .stringConvertible(promptBytes.count)]
+            )
             throw LlamaRuntimeError.generationFailed("Tokenization returned no prompt tokens.")
         }
+        CotabbyLogger.runtime.debug(
+            "Decode start",
+            metadata: [
+                "kind": .string("generate"),
+                "prompt_tokens": .stringConvertible(allPromptTokens.count),
+                "max_tokens": .stringConvertible(options.maxPredictionTokens),
+                "cached_prefix_bytes": .string(cachedPrefixBytes.map(String.init) ?? "none")
+            ]
+        )
 
         let maxPromptTokens = max(1, preparedRuntime.contextWindowTokens - options.maxPredictionTokens)
         let promptTokens: [Int32]
@@ -148,23 +189,44 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         }
 
         var generatedText = ""
+        var tokensGenerated = 0
+        var stopReason = "budget_exhausted"
 
         for _ in 0 ..< options.maxPredictionTokens {
             // Cooperative cancellation: when the wrapping Task is cancelled (caller hit a new
             // keystroke, focus changed, Compose started), bail before the next sampleNext call so
             // we release `autocompleteLock` instead of running the full prediction budget and
             // making the next autocomplete wait behind us.
-            if Task.isCancelled { break }
+            if Task.isCancelled {
+                stopReason = "cancelled"
+                break
+            }
 
             let result = engine.sampleNext(sequenceID)
 
-            if result.was_cancelled || result.is_eos {
+            if result.was_cancelled {
+                stopReason = "engine_cancelled"
+                break
+            }
+            if result.is_eos {
+                stopReason = "eos"
                 break
             }
 
             let piece = Self.extractPiece(result)
             generatedText += piece
+            tokensGenerated += 1
         }
+
+        CotabbyLogger.runtime.debug(
+            "Decode end",
+            metadata: [
+                "kind": .string("generate"),
+                "tokens_generated": .stringConvertible(tokensGenerated),
+                "chars_generated": .stringConvertible(generatedText.count),
+                "stop_reason": .string(stopReason)
+            ]
+        )
 
         return generatedText
     }
@@ -241,6 +303,10 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         defer { autocompleteLock.unlock() }
 
         if autocompleteSequenceID >= 0 {
+            CotabbyLogger.runtime.debug(
+                "Prompt cache reset",
+                metadata: ["sequence_id": .stringConvertible(autocompleteSequenceID)]
+            )
             engine.destroySequence(autocompleteSequenceID)
         }
         autocompleteSequenceID = -1
@@ -257,6 +323,12 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
     /// with `engine.unloadModel()` so the caller (typically `applicationWillTerminate`) does not
     /// hang the main thread on a runaway generation. A nil timeout waits indefinitely.
     func shutdown(timeoutSeconds: TimeInterval? = nil) {
+        CotabbyLogger.runtime.info(
+            "Runtime shutdown requested",
+            metadata: [
+                "timeout_seconds": .string(timeoutSeconds.map { String(format: "%.1f", $0) } ?? "unbounded")
+            ]
+        )
         lifecycleCondition.lock()
         isShuttingDown = true
 
@@ -275,6 +347,7 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         resetPromptCache()
         engine.unloadModel()
         preparedRuntime = nil
+        CotabbyLogger.runtime.info("Runtime shutdown complete")
 
         lifecycleCondition.lock()
         isShuttingDown = false

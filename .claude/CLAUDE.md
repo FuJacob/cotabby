@@ -97,6 +97,71 @@ change as shipping to end users, not as an exercise.
 - Do not show dev-only diagnostics as normal user settings unless the feature is
   intentionally productized.
 
+## Debugging & Logs
+
+Cotabby ships a structured logging system built for AI-assisted debugging. During development
+the app is launched with `-cotabby-debug`, which enables on-disk JSONL sinks in addition to
+the always-on Console.app stream.
+
+**Log file locations** (only populated when `-cotabby-debug` is set):
+
+- `~/Library/Logs/Cotabby/cotabby.jsonl` — main event stream. One JSON object per line. All
+  metadata (request IDs, engine names, token counts, latencies, error reasons) is flattened
+  as top-level fields so it can be filtered with `jq`.
+- `~/Library/Logs/Cotabby/llm-io.jsonl` — full LLM prompts and completions, one record per
+  generation. Shares `request_id` with the main log so a single suggestion can be joined
+  across files.
+- `~/Desktop/cotabby-ax-dump.txt` — most recent Chrome AX tree snapshot. Overwritten on each
+  Chrome focus change (debounced by focused-element identity).
+- Rotated previous logs: `*.jsonl.1` (one-step rotation when a file exceeds 10 MB).
+
+**Correlation IDs.** Every prediction gets a `request_id` like `req_a3f9k2lq`, stamped on
+every log line that touches that request (coordinator state transitions, router selection,
+engine generation, LLM I/O capture). To pull the complete history of one suggestion:
+
+```bash
+jq 'select(.request_id == "req_a3f9k2lq")' ~/Library/Logs/Cotabby/cotabby.jsonl
+jq 'select(.request_id == "req_a3f9k2lq")' ~/Library/Logs/Cotabby/llm-io.jsonl
+```
+
+**Useful `jq` recipes:**
+
+```bash
+# Recent errors across the app
+jq 'select(.level == "error")' ~/Library/Logs/Cotabby/cotabby.jsonl
+
+# Llama generations slower than 500 ms
+jq 'select(.engine == "llama" and .latency_ms > 500)' ~/Library/Logs/Cotabby/llm-io.jsonl
+
+# Coordinator state transitions
+jq 'select(.category == "suggestion" and .stage != null)' ~/Library/Logs/Cotabby/cotabby.jsonl
+
+# Runtime model load/decode events
+jq 'select(.category == "runtime")' ~/Library/Logs/Cotabby/cotabby.jsonl
+```
+
+**Symptom → category map** (jump straight to the right filter):
+
+- Ghost text didn't appear → `suggestion` + `focus`
+- Wrong text inserted → look up the request in `llm-io.jsonl`, then walk `suggestion` for
+  acceptance
+- Model won't load / decode fails → `runtime` + `models`
+- Permission dialog loop → `app` (permission state transitions)
+- Chrome-specific weirdness → start with `~/Desktop/cotabby-ax-dump.txt`, then `focus`
+- Wrong backend chosen → `suggestion` router selection log (`engine`, `fallback_engine`)
+
+**Console.app fallback** (when `-cotabby-debug` wasn't set or the user hasn't relaunched yet):
+
+```bash
+log show --predicate 'subsystem == "com.cotabby.app"' --last 10m
+log stream --predicate 'subsystem == "com.cotabby.app"' --level debug
+```
+
+**Rule of thumb.** When a user reports a bug, first `tail` / `jq` the relevant file with the
+symptom → category map. Do not ask the user to re-explain symptoms before checking the logs.
+If `-cotabby-debug` clearly isn't on (no JSONL files exist), use the `log show` fallback
+first; only ask for a relaunch with the flag if the OSLog stream is genuinely insufficient.
+
 ## Validation
 
 Prefer the narrowest useful validation first, then broaden when the change touches

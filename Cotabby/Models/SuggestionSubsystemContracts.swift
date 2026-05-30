@@ -37,7 +37,7 @@ protocol SuggestionInputMonitoring: AnyObject {
     /// Fail-open preflight for the active accept tap. The tap only routes a matching key into the
     /// coordinator when this closure returns `true` at event time. The coordinator still performs
     /// full session validation before the tap consumes the original key.
-    var shouldConsumeAcceptKeyProvider: @MainActor () -> Bool { get set }
+    var shouldConsumeAcceptKeyProvider: @MainActor @Sendable () -> Bool { get set }
 
     /// Drives the lifecycle of the active accept-key tap. The coordinator turns this on while
     /// a suggestion overlay is visible and off otherwise, so Cotabby only sits in the synchronous

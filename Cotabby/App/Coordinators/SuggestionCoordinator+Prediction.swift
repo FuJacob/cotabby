@@ -98,6 +98,7 @@ extension SuggestionCoordinator {
         latestPromptPreview = requestBuildResult.promptPreview
         latestRawModelOutput = nil
         let request = requestBuildResult.request
+        latestRequestID = request.requestID
 
         state = .generating
         logStage(
@@ -396,6 +397,10 @@ extension SuggestionCoordinator {
             latestPromptPreview = nil
             latestRawModelOutput = nil
             latestGenerationNumber = nil
+            // Clear so the next session's terminal logStage doesn't carry the previous
+            // request_id forward. `+Acceptance.logStage` falls back to "req_none" on nil,
+            // preserving the join-key contract documented on `latestRequestID`.
+            latestRequestID = nil
         }
     }
 
