@@ -25,9 +25,10 @@ struct SettingsSidebarView: View {
         .safeAreaInset(edge: .top, spacing: 0) {
             Color.clear.frame(height: 12)
         }
-        // Flat list with no section headers means no disclosure-chevron gutter eating label space.
-        // "Engine & Model" is the longest label (~14 chars) and fits comfortably at 180pt.
-        .navigationSplitViewColumnWidth(min: 180, ideal: 200, max: 220)
+        // A single fixed width (not a min/ideal/max range) so `.balanced` can't squeeze the column
+        // down to where labels truncate — the exact failure mode of the previous ranged width.
+        // 260pt comfortably fits the longest label ("Engine & Model") with room to spare.
+        .navigationSplitViewColumnWidth(260)
     }
 
     @ViewBuilder

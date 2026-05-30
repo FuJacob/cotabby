@@ -51,10 +51,10 @@ struct SettingsContainerView: View {
                 .toolbar(removing: .sidebarToggle)
         }
         .navigationSplitViewStyle(.balanced)
-        // Sidebar idles at ~200pt and the detail pane caps its content at 600pt
-        // (see `SettingsPaneScaffold`). 200 + 600 + a little chrome ≈ 820pt at the floor; the
-        // window can grow but the centered content column stays fixed so rows don't stretch.
-        .frame(minWidth: 820, minHeight: 560)
+        // The window owns the size (see `SettingsCoordinator`): a sensible 860pt default the user
+        // can still resize. The split view just fills it — a fixed 260pt sidebar and the remainder
+        // for the detail pane.
+        .frame(maxWidth: .infinity, minHeight: 560, maxHeight: .infinity)
         .onChange(of: columnVisibility) { _, newValue in
             // Snap back to `.all` if something tries to collapse the sidebar. Cheaper than wiring
             // a custom binding and reads as the same intent: the sidebar is never optional here.
