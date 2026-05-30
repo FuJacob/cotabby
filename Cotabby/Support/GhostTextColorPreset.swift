@@ -9,7 +9,7 @@ import Foundation
 /// real editors while still satisfying the request. Each preset is just the hex string the settings
 /// model already persists (`nil` for the adaptive "Automatic" gray the overlay falls back to), so no
 /// new persistence format is introduced.
-struct GhostTextColorPreset: Identifiable, Equatable {
+nonisolated struct GhostTextColorPreset: Identifiable, Equatable {
     let id: String
     let name: String
     /// Persisted hex (uppercased, 6 digits), or `nil` for the adaptive automatic gray.

@@ -10,7 +10,7 @@ import Foundation
 /// The enum lives in `Models/` rather than `Support/` because both the policy (which picks the mode)
 /// and `OverlayState` (which records which mode the panel is currently in) need to spell out the
 /// same case names without depending on rendering code.
-enum CompletionRenderMode: Equatable, Sendable {
+nonisolated enum CompletionRenderMode: Equatable, Sendable {
     /// Ghost text drawn next to the live caret. The default for hosts with trustworthy AX geometry.
     case inline
 
@@ -21,7 +21,7 @@ enum CompletionRenderMode: Equatable, Sendable {
 
     /// Why mirror mode was chosen for this presentation. Surfaced in the focus debug overlay and
     /// in `OverlayState.detail` so operators can confirm the policy is firing as expected.
-    enum MirrorReason: String, Equatable, Sendable {
+    nonisolated enum MirrorReason: String, Equatable, Sendable {
         /// Caret quality came back `.estimated`, meaning the host did not expose `AXBoundsForRange`
         /// or any of the derived geometry paths. Inline rendering would land at a guessed X that
         /// drifts as the user types.

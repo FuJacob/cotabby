@@ -7,7 +7,7 @@ import Foundation
 /// spread across multiple views and services. Pulling that information into a model gives the app
 /// a single source of truth for permission semantics, while leaving the actual permission checks in
 /// `PermissionManager`.
-enum PermissionGuidanceStyle: Sendable {
+nonisolated enum PermissionGuidanceStyle: Equatable, Sendable {
     /// Launch System Settings and show Cotabby's drag-and-drop helper overlay.
     case guidedOverlay
 

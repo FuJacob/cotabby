@@ -21,7 +21,7 @@ struct FocusedInputIdentity: Equatable, Sendable {
 /// the same way. Exact and derived rects are safe to anchor UI to aggressively. Estimated rects
 /// are useful for "there is a field here" signaling, but should be handled conservatively to avoid
 /// visibly marching away from the real insertion point.
-enum CaretGeometryQuality: Equatable, Sendable {
+nonisolated enum CaretGeometryQuality: Equatable, Sendable {
     case exact
     case derived
     case estimated

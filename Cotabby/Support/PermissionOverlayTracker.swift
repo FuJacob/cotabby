@@ -9,8 +9,8 @@ import CoreGraphics
 /// the window on *every* tick, so the helper flickered as focus bounced between System Settings, the
 /// macOS permission dialog, and Cotabby's own windows. Keeping the rule pure makes the no-op paths
 /// cheap to test.
-enum PermissionOverlayTracker {
-    enum Transition: Equatable {
+nonisolated enum PermissionOverlayTracker {
+    nonisolated enum Transition: Equatable {
         /// First appearance this session — the controller plays the fly-in animation.
         case present
         /// Move to / ensure visible at a new frame, without replaying the animation.
