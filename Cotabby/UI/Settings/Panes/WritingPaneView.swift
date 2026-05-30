@@ -11,10 +11,16 @@ struct WritingPaneView: View {
     var body: some View {
         SettingsPaneScaffold {
             Section("Length") {
-                Picker("Length", selection: selectedWordCountPresetBinding) {
+                Picker(selection: selectedWordCountPresetBinding) {
                     ForEach(SuggestionWordCountPreset.allCases) { preset in
                         Text(preset.displayLabel).tag(preset)
                     }
+                } label: {
+                    SettingsRowLabel(
+                        title: "Length",
+                        description: "How many words Cotabby aims for per suggestion. Shorter is snappier; " +
+                            "longer covers more thoughts but takes longer to generate."
+                    )
                 }
             }
 

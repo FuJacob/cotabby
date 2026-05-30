@@ -19,7 +19,7 @@ struct ShortcutsPaneView: View {
             }
 
             Section("Keys") {
-                LabeledContent("Accept Word") {
+                LabeledContent {
                     KeybindRow(
                         label: suggestionSettings.acceptanceKeyLabel,
                         keyCode: suggestionSettings.acceptanceKeyCode,
@@ -43,9 +43,14 @@ struct ShortcutsPaneView: View {
                         onClear: { suggestionSettings.clearAcceptanceKey() },
                         clearHelp: "Unbind this shortcut. No key will accept word-by-word."
                     )
+                } label: {
+                    SettingsRowLabel(
+                        title: "Accept Word",
+                        description: "Insert the next word of the suggestion."
+                    )
                 }
 
-                LabeledContent("Accept Entire Suggestion") {
+                LabeledContent {
                     KeybindRow(
                         label: suggestionSettings.fullAcceptanceKeyLabel,
                         keyCode: suggestionSettings.fullAcceptanceKeyCode,
@@ -69,12 +74,17 @@ struct ShortcutsPaneView: View {
                         onClear: { suggestionSettings.clearFullAcceptanceKey() },
                         clearHelp: "Unbind this shortcut. No key will accept the whole suggestion at once."
                     )
+                } label: {
+                    SettingsRowLabel(
+                        title: "Accept Entire Suggestion",
+                        description: "Insert the whole remaining suggestion in one keystroke."
+                    )
                 }
 
                 // No factory default — the hotkey is opt-in, so the only "reset" gesture that
                 // makes sense is "unbind", which the Clear button already covers. Passing
                 // `onReset: nil` hides the Reset button entirely instead of making it a duplicate.
-                LabeledContent("Toggle Tabby") {
+                LabeledContent {
                     KeybindRow(
                         label: suggestionSettings.globalToggleKeyLabel,
                         keyCode: suggestionSettings.globalToggleKeyCode,
@@ -91,6 +101,11 @@ struct ShortcutsPaneView: View {
                         onReset: nil,
                         onClear: { suggestionSettings.clearGlobalToggleKey() },
                         clearHelp: "Unbind this shortcut. No key will toggle Tabby on or off."
+                    )
+                } label: {
+                    SettingsRowLabel(
+                        title: "Toggle Tabby",
+                        description: "Turn Cotabby on or off globally without opening the menu bar."
                     )
                 }
             }

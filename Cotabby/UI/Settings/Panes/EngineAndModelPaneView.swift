@@ -18,10 +18,17 @@ struct EngineAndModelPaneView: View {
     var body: some View {
         SettingsPaneScaffold(callout: callout) {
             Section("Engine") {
-                Picker("Engine", selection: selectedEngineBinding) {
+                Picker(selection: selectedEngineBinding) {
                     ForEach(SuggestionEngineKind.allCases) { engine in
                         Text(engine.displayLabel).tag(engine)
                     }
+                } label: {
+                    SettingsRowLabel(
+                        title: "Engine",
+                        description: "Apple Intelligence runs on-device using macOS's built-in model " +
+                            "(newer Apple Silicon Macs only). Open Source runs a model file you download " +
+                            "and pick below."
+                    )
                 }
                 .pickerStyle(.menu)
             }
@@ -65,11 +72,17 @@ struct EngineAndModelPaneView: View {
     @ViewBuilder
     private var openSourceSections: some View {
         Section("Runtime") {
-            LabeledContent("Status") {
+            LabeledContent {
                 Text(runtimeModel.state.summary)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.trailing)
                     .fixedSize(horizontal: false, vertical: true)
+            } label: {
+                SettingsRowLabel(
+                    title: "Status",
+                    description: "Whether the local model is loaded and ready to generate. " +
+                        "Loading takes a few seconds the first time."
+                )
             }
         }
 
@@ -82,10 +95,16 @@ struct EngineAndModelPaneView: View {
                 Text("No local GGUF models found. Download one below or add your own model file.")
                     .foregroundStyle(.secondary)
             } else {
-                Picker("Selected Model", selection: selectedModelBinding) {
+                Picker(selection: selectedModelBinding) {
                     ForEach(runtimeModel.availableModels) { model in
                         Text(model.displayName).tag(model.filename)
                     }
+                } label: {
+                    SettingsRowLabel(
+                        title: "Selected Model",
+                        description: "Which downloaded model file generates suggestions. " +
+                            "Larger models are slower but write better."
+                    )
                 }
             }
 

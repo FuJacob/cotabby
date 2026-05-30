@@ -16,9 +16,15 @@ struct AcceptanceModePickerView: View {
     }
 
     var body: some View {
-        Picker("Acceptance Mode", selection: acceptanceGranularityBinding) {
-            Text("Accept Word").tag(AcceptanceGranularity.word)
+        Picker(selection: acceptanceGranularityBinding) {
+            Text("Word").tag(AcceptanceGranularity.word)
             Text("Phrase").tag(AcceptanceGranularity.phrase)
+        } label: {
+            SettingsRowLabel(
+                title: "Acceptance Mode",
+                description: "What the Accept Word key takes per press. Word inserts one word at a time; " +
+                    "Phrase inserts up to the next sentence break."
+            )
         }
         .pickerStyle(.menu)
     }
