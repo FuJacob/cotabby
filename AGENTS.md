@@ -144,8 +144,8 @@ the core should own native correctness.
 - `ActivationIndicatorController` owns the optional caret/field-edge indicator.
 - `FocusDebugOverlayController` is for developer visibility and should stay gated behind debug
   options, not normal user settings.
-- `SettingsView` and onboarding views should remain presentation-focused. Push behavior into
-  services, models, or support helpers.
+- Settings panes (under `Cotabby/UI/Settings/Panes/`) and onboarding views should remain
+  presentation-focused. Push behavior into services, models, or support helpers.
 
 ## Swift And Concurrency Rules
 
