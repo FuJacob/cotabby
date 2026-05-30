@@ -405,5 +405,19 @@ extension SuggestionCoordinator {
             rawOutput: rawOutput,
             normalizedOutput: normalizedOutput
         )
+
+        // Mirror the stage into the structured JSONL stream so an AI debugger can join every event
+        // touching one suggestion via `request_id`. `latestRequestID` is set when `+Prediction`
+        // builds the request and cleared between sessions; logs outside an active request still
+        // carry a placeholder so the field shape is stable for `jq`.
+        var metadata: Logger.Metadata = [
+            "stage": .string(stage),
+            "work_id": .stringConvertible(workID),
+            "request_id": .string(latestRequestID ?? "req_none")
+        ]
+        if let generation {
+            metadata["generation"] = .stringConvertible(generation)
+        }
+        CotabbyLogger.suggestion.debug(.init(stringLiteral: message), metadata: metadata)
     }
 }

@@ -98,6 +98,7 @@ extension SuggestionCoordinator {
         latestPromptPreview = requestBuildResult.promptPreview
         latestRawModelOutput = nil
         let request = requestBuildResult.request
+        latestRequestID = request.requestID
 
         state = .generating
         logStage(

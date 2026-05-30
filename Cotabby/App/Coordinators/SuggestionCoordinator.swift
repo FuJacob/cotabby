@@ -61,6 +61,11 @@ final class SuggestionCoordinator: ObservableObject {
     // barrier task that the next generation must cross before it can ask the runtime for output.
     var cacheResetSequence: UInt64 = 0
     var pendingCacheReset: (sequence: UInt64, task: Task<Void, Never>)?
+    /// Correlation ID for the most recently built `SuggestionRequest`. Stamped onto every
+    /// state-transition log line so all events tied to one suggestion (debounce → generating →
+    /// ready → accepted/rejected) can be joined with a single `jq` filter on `request_id`.
+    /// `nil` between sessions; replaced when `+Prediction` builds the next request.
+    var latestRequestID: String?
 
     init(
         permissionManager: any SuggestionPermissionProviding,

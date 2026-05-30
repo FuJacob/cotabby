@@ -19,12 +19,21 @@ final class LlamaSuggestionEngine {
 
     /// Executes one generation request and packages the raw and normalized result for the coordinator.
     func generateSuggestion(for request: SuggestionRequest) async throws -> SuggestionResult {
+        let baseMetadata: Logger.Metadata = [
+            "request_id": .string(request.requestID),
+            "engine": .string("llama")
+        ]
         do {
             let startTime = Date()
             let cachedPrefixBytes = promptCacheHintTracker.cachedPrefixBytes(for: request)
             let hintDesc = cachedPrefixBytes.map(String.init) ?? "none"
             CotabbyLogger.suggestion.debug(
-                "Llama generating: prompt=\(request.prompt.count)B cache_hint=\(hintDesc) max_tokens=\(request.maxPredictionTokens)"
+                "Llama generating",
+                metadata: baseMetadata.merging([
+                    "prompt_bytes": .stringConvertible(request.prompt.count),
+                    "cache_hint_bytes": .string(hintDesc),
+                    "max_tokens": .stringConvertible(request.maxPredictionTokens)
+                ]) { _, new in new }
             )
             let rawSuggestion = try await runtimeManager.generate(
                 prompt: request.prompt,
@@ -48,7 +57,26 @@ final class LlamaSuggestionEngine {
             let normalizedChars = normalizedSuggestion.count
             let latencyMs = Int(latency * 1000)
             CotabbyLogger.suggestion.debug(
-                "Llama generated: raw=\(rawChars) chars, normalized=\(normalizedChars) chars, latency=\(latencyMs)ms"
+                "Llama generated",
+                metadata: baseMetadata.merging([
+                    "raw_chars": .stringConvertible(rawChars),
+                    "normalized_chars": .stringConvertible(normalizedChars),
+                    "latency_ms": .stringConvertible(latencyMs)
+                ]) { _, new in new }
+            )
+            CotabbyLogger.llmIO.debug(
+                "llama generation",
+                metadata: baseMetadata.merging([
+                    "prompt": .string(request.prompt),
+                    "completion_raw": .string(rawSuggestion),
+                    "completion_normalized": .string(normalizedSuggestion),
+                    "prompt_bytes": .stringConvertible(request.prompt.utf8.count),
+                    "raw_chars": .stringConvertible(rawChars),
+                    "normalized_chars": .stringConvertible(normalizedChars),
+                    "latency_ms": .stringConvertible(latencyMs),
+                    "cache_hint_bytes": .string(hintDesc),
+                    "max_tokens": .stringConvertible(request.maxPredictionTokens)
+                ]) { _, new in new }
             )
             return SuggestionResult(
                 generation: request.generation,
@@ -57,18 +85,27 @@ final class LlamaSuggestionEngine {
                 latency: latency
             )
         } catch is CancellationError {
-            CotabbyLogger.suggestion.debug("Llama generation cancelled")
+            CotabbyLogger.suggestion.debug("Llama generation cancelled", metadata: baseMetadata)
             throw SuggestionClientError.cancelled
         } catch let error as LlamaRuntimeError {
-            CotabbyLogger.suggestion.error("Llama runtime error, resetting cache: \(error.localizedDescription)")
+            CotabbyLogger.suggestion.error(
+                "Llama runtime error, resetting cache: \(error.localizedDescription)",
+                metadata: baseMetadata
+            )
             await resetCachedGenerationContext()
             throw SuggestionClientError.unavailable(error.localizedDescription)
         } catch let error as SuggestionClientError {
-            CotabbyLogger.suggestion.error("Suggestion client error, resetting cache: \(error.localizedDescription)")
+            CotabbyLogger.suggestion.error(
+                "Suggestion client error, resetting cache: \(error.localizedDescription)",
+                metadata: baseMetadata
+            )
             await resetCachedGenerationContext()
             throw error
         } catch {
-            CotabbyLogger.suggestion.error("Unexpected generation error, resetting cache: \(error.localizedDescription)")
+            CotabbyLogger.suggestion.error(
+                "Unexpected generation error, resetting cache: \(error.localizedDescription)",
+                metadata: baseMetadata
+            )
             await resetCachedGenerationContext()
             throw SuggestionClientError.generationFailed(error.localizedDescription)
         }

@@ -89,7 +89,8 @@ enum SuggestionRequestFactory {
             languageInstruction: languageInstruction,
             clipboardContext: boundedClipboardContext,
             visualContextSummary: boundedVisualContextSummary,
-            isMultiLineEnabled: settings.isMultiLineEnabled
+            isMultiLineEnabled: settings.isMultiLineEnabled,
+            requestID: RequestID.generate()
         )
 
         return SuggestionRequestBuildResult(
