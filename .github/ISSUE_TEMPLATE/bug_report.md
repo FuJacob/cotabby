@@ -6,6 +6,14 @@ labels: bug
 assignees: ""
 ---
 
+## Category
+
+Check all that apply:
+
+- [ ] Keystroke / Input (Tab not working, keystrokes swallowed, input blocked)
+- [ ] App Compatibility (bug only in a specific app: Word, Outlook, Mail, browser, etc.)
+- [ ] Performance / Crash (slow response, hang, or crash)
+
 ## Summary
 
 Describe the bug in one or two sentences.
