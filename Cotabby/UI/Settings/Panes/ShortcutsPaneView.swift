@@ -10,6 +10,7 @@ struct ShortcutsPaneView: View {
 
     @State private var isRecordingKeybind = false
     @State private var isRecordingFullAcceptKeybind = false
+    @State private var isRecordingGlobalToggleKeybind = false
 
     var body: some View {
         SettingsPaneScaffold {
@@ -67,6 +68,29 @@ struct ShortcutsPaneView: View {
                         clearHelp: "Unbind this shortcut. No key will accept the whole suggestion at once."
                     )
                 }
+
+                // No factory default — the hotkey is opt-in, so the only "reset" gesture that
+                // makes sense is "unbind", which the Clear button already covers. Passing
+                // `onReset: nil` hides the Reset button entirely instead of making it a duplicate.
+                LabeledContent("Toggle Tabby") {
+                    KeybindRow(
+                        label: suggestionSettings.globalToggleKeyLabel,
+                        keyCode: suggestionSettings.globalToggleKeyCode,
+                        modifiers: suggestionSettings.globalToggleKeyModifiers,
+                        defaultKeyCode: SuggestionSettingsModel.disabledKeyCode,
+                        isRecording: $isRecordingGlobalToggleKeybind,
+                        onRecord: { keyCode, modifiers, label in
+                            suggestionSettings.setGlobalToggleKey(
+                                keyCode: keyCode,
+                                modifiers: modifiers,
+                                label: label
+                            )
+                        },
+                        onReset: nil,
+                        onClear: { suggestionSettings.clearGlobalToggleKey() },
+                        clearHelp: "Unbind this shortcut. No key will toggle Tabby on or off."
+                    )
+                }
             }
         }
     }
@@ -82,7 +106,9 @@ private struct KeybindRow: View {
     let defaultKeyCode: CGKeyCode
     @Binding var isRecording: Bool
     let onRecord: (CGKeyCode, ShortcutModifierMask, String) -> Void
-    let onReset: () -> Void
+    /// `nil` hides the Reset button — used by bindings whose only sensible "reset" is unbind, which
+    /// the Clear button already covers (e.g. the opt-in global-toggle hotkey).
+    let onReset: (() -> Void)?
     let onClear: () -> Void
     let clearHelp: String
 
@@ -110,7 +136,7 @@ private struct KeybindRow: View {
                 }
             }
 
-            if keyCode != defaultKeyCode || !modifiers.isEmpty {
+            if let onReset, keyCode != defaultKeyCode || !modifiers.isEmpty {
                 Button("Reset") {
                     onReset()
                     isRecording = false

@@ -49,12 +49,14 @@ extension SuggestionCoordinator {
             )
         }
 
-        // `acceptEntireSuggestion` forces the full-acceptance path regardless of granularity so the
-        // dedicated full-accept key stays a per-press override. `acceptCurrentSuggestion` honors
-        // the user-selected granularity for the primary accept key.
+        // `acceptEntireSuggestion` forces the full-acceptance path so the dedicated full-accept key
+        // stays a per-press override. `acceptCurrentSuggestion` honors the user-selected
+        // granularity for the primary accept key — the granularity enum is intentionally limited to
+        // partial modes (`.word`, `.phrase`), since whole-suggestion acceptance is exclusively the
+        // dedicated full-accept key's job.
         let primaryGranularity = settingsSnapshot.acceptanceGranularity
         let preparation: SuggestionAcceptancePreparation
-        if fullText || primaryGranularity == .full {
+        if fullText {
             preparation = interactionState.prepareFullAcceptance(from: rawContext, overlayState: overlayState)
         } else {
             preparation = interactionState.prepareAcceptance(

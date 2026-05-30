@@ -41,6 +41,11 @@ final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var fullAcceptanceKeyCode: CGKeyCode
     @Published private(set) var fullAcceptanceKeyModifiers: ShortcutModifierMask
     @Published private(set) var fullAcceptanceKeyLabel: String
+    /// User-configurable hotkey that flips `isGloballyEnabled`. Defaults to unbound so the user has
+    /// to opt in; without a binding the listener tap for this hotkey is never installed.
+    @Published private(set) var globalToggleKeyCode: CGKeyCode
+    @Published private(set) var globalToggleKeyModifiers: ShortcutModifierMask
+    @Published private(set) var globalToggleKeyLabel: String
     @Published private(set) var acceptanceGranularity: AcceptanceGranularity
     private let userDefaults: UserDefaults
 
@@ -72,6 +77,9 @@ final class SuggestionSettingsModel: ObservableObject {
     private static let fullAcceptanceKeyCodeDefaultsKey = "cotabbyFullAcceptanceKeyCode"
     private static let fullAcceptanceKeyModifiersDefaultsKey = "cotabbyFullAcceptanceKeyModifiers"
     private static let fullAcceptanceKeyLabelDefaultsKey = "cotabbyFullAcceptanceKeyLabel"
+    private static let globalToggleKeyCodeDefaultsKey = "cotabbyGlobalToggleKeyCode"
+    private static let globalToggleKeyModifiersDefaultsKey = "cotabbyGlobalToggleKeyModifiers"
+    private static let globalToggleKeyLabelDefaultsKey = "cotabbyGlobalToggleKeyLabel"
     private static let acceptanceGranularityDefaultsKey = "cotabbyAcceptanceGranularity"
 
     static let defaultAcceptanceKeyCode: CGKeyCode = 48
@@ -210,6 +218,18 @@ final class SuggestionSettingsModel: ObservableObject {
         )
         let resolvedFullAcceptanceKeyLabel = userDefaults.string(forKey: Self.fullAcceptanceKeyLabelDefaultsKey)
             ?? Self.defaultFullAcceptanceKeyLabel
+
+        // Default is unbound. An absent UserDefaults entry must NOT fall back to a real key code —
+        // the hotkey is opt-in, and silently binding something would surprise existing users.
+        let resolvedGlobalToggleKeyCode = CGKeyCode(
+            userDefaults.object(forKey: Self.globalToggleKeyCodeDefaultsKey) as? Int
+                ?? Int(Self.disabledKeyCode)
+        )
+        let resolvedGlobalToggleKeyModifiers = ShortcutModifierMask(
+            rawValue: UInt32(userDefaults.object(forKey: Self.globalToggleKeyModifiersDefaultsKey) as? Int ?? 0)
+        )
+        let resolvedGlobalToggleKeyLabel = userDefaults.string(forKey: Self.globalToggleKeyLabelDefaultsKey)
+            ?? Self.disabledKeyLabel
         // Default `.word` preserves the pre-feature behavior for existing installs that have no
         // value persisted yet. Invalid persisted values fall back to `.word` rather than crashing
         // so a hand-edited UserDefault can't strand the user.
@@ -243,6 +263,9 @@ final class SuggestionSettingsModel: ObservableObject {
         fullAcceptanceKeyCode = resolvedFullAcceptanceKeyCode
         fullAcceptanceKeyModifiers = resolvedFullAcceptanceKeyModifiers
         fullAcceptanceKeyLabel = resolvedFullAcceptanceKeyLabel
+        globalToggleKeyCode = resolvedGlobalToggleKeyCode
+        globalToggleKeyModifiers = resolvedGlobalToggleKeyModifiers
+        globalToggleKeyLabel = resolvedGlobalToggleKeyLabel
         acceptanceGranularity = resolvedAcceptanceGranularity
 
         userDefaults.set(resolvedGloballyEnabled, forKey: Self.isGloballyEnabledDefaultsKey)
@@ -273,6 +296,12 @@ final class SuggestionSettingsModel: ObservableObject {
             forKey: Self.fullAcceptanceKeyModifiersDefaultsKey
         )
         userDefaults.set(resolvedFullAcceptanceKeyLabel, forKey: Self.fullAcceptanceKeyLabelDefaultsKey)
+        userDefaults.set(Int(resolvedGlobalToggleKeyCode), forKey: Self.globalToggleKeyCodeDefaultsKey)
+        userDefaults.set(
+            Int(resolvedGlobalToggleKeyModifiers.rawValue),
+            forKey: Self.globalToggleKeyModifiersDefaultsKey
+        )
+        userDefaults.set(resolvedGlobalToggleKeyLabel, forKey: Self.globalToggleKeyLabelDefaultsKey)
         userDefaults.set(resolvedAcceptanceGranularity.rawValue, forKey: Self.acceptanceGranularityDefaultsKey)
 
         // The custom indicator icon feature was removed; scrub any previously-persisted PNG so
@@ -662,6 +691,36 @@ final class SuggestionSettingsModel: ObservableObject {
 
     func clearFullAcceptanceKey() {
         setFullAcceptanceKey(keyCode: Self.disabledKeyCode, modifiers: [], label: Self.disabledKeyLabel)
+    }
+
+    /// Persists a new global-toggle hotkey. Modifiers are normalized to empty when the key code is
+    /// `disabledKeyCode` so the listener tap can rely on `(disabled, [])` meaning "do not install
+    /// the tap at all" without inspecting the modifier set separately.
+    func setGlobalToggleKey(keyCode: CGKeyCode, modifiers: ShortcutModifierMask, label: String) {
+        let normalizedModifiers = keyCode == Self.disabledKeyCode ? [] : modifiers
+        guard globalToggleKeyCode != keyCode
+            || globalToggleKeyModifiers != normalizedModifiers
+            || globalToggleKeyLabel != label
+        else {
+            return
+        }
+
+        globalToggleKeyCode = keyCode
+        globalToggleKeyModifiers = normalizedModifiers
+        globalToggleKeyLabel = label
+        userDefaults.set(Int(keyCode), forKey: Self.globalToggleKeyCodeDefaultsKey)
+        userDefaults.set(Int(normalizedModifiers.rawValue), forKey: Self.globalToggleKeyModifiersDefaultsKey)
+        userDefaults.set(label, forKey: Self.globalToggleKeyLabelDefaultsKey)
+    }
+
+    func clearGlobalToggleKey() {
+        setGlobalToggleKey(keyCode: Self.disabledKeyCode, modifiers: [], label: Self.disabledKeyLabel)
+    }
+
+    /// Convenience used by the hotkey callback. Wrapping the flip here keeps the InputMonitor
+    /// closure trivial and gives the menu bar / tests a single entry point.
+    func toggleGloballyEnabled() {
+        setGloballyEnabled(!isGloballyEnabled)
     }
 
     private func persistSelectedEngine(_ engine: SuggestionEngineKind) {

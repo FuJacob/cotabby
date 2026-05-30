@@ -105,9 +105,9 @@ final class SuggestionInteractionState {
     /// The returned value gives the coordinator the exact chunk to insert and the context it should
     /// use for diagnostics and overlay updates.
     ///
-    /// `granularity` selects between word-by-word and phrase-by-phrase acceptance. `.full` is
-    /// rejected here because the coordinator routes full accepts to `prepareFullAcceptance`, which
-    /// keeps a distinct invalid-reason message for the dedicated full-accept key.
+    /// `granularity` selects between word-by-word and phrase-by-phrase acceptance. Whole-
+    /// suggestion acceptance is the dedicated full-accept key's responsibility and is routed
+    /// through `prepareFullAcceptance`, so the granularity enum has no case for it here.
     func prepareAcceptance(
         from snapshot: FocusedInputSnapshot,
         overlayState: OverlayState,
@@ -131,12 +131,6 @@ final class SuggestionInteractionState {
                 from: session.remainingText,
                 autoAcceptTrailingPunctuation: autoAcceptTrailingPunctuation
             )
-        case .full:
-            // The coordinator routes full accepts to `prepareFullAcceptance`, so `.full` should never
-            // reach here. Trap in debug, but degrade gracefully in release by passing the key through
-            // rather than crashing a shipping process — matching the other `.invalid` branches here.
-            assertionFailure("prepareAcceptance should not receive .full — route to prepareFullAcceptance instead")
-            return .invalid("Key passed through because .full granularity was routed incorrectly.")
         }
 
         guard !chunk.isEmpty else {
