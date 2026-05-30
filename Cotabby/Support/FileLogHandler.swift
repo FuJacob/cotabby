@@ -85,20 +85,35 @@ final class FileLogWriter: @unchecked Sendable {
         // One-step rotation: move the current file to `*.jsonl.1`, overwriting any prior rotation,
         // then open a fresh empty file. Keeps the most recent ~cap of history on disk that the
         // previous truncate-to-zero behavior was dropping at the exact moment it was useful.
-        rotateOnDisk(currentURL: logFileURL)
-        FileManager.default.createFile(atPath: logFileURL.path, contents: nil)
+        // Only create a fresh empty file when the rotation actually displaced the old one — see
+        // `rotateOnDisk`. Otherwise we would silently overwrite the still-present log with an
+        // empty file, destroying exactly the history rotation was meant to preserve.
+        let didRotate = rotateOnDisk(currentURL: logFileURL)
+        if didRotate {
+            FileManager.default.createFile(atPath: logFileURL.path, contents: nil)
+        }
         openHandleLocked()
     }
 
-    private func rotateOnDisk(currentURL: URL) {
+    /// Returns `true` when the current file was successfully moved aside (or did not exist in the
+    /// first place, which makes "create a fresh empty file" the correct next step). Returns
+    /// `false` only when the source still occupies `currentURL` after the attempted move; the
+    /// caller must then skip the `createFile` step so it does not destroy live log data.
+    private func rotateOnDisk(currentURL: URL) -> Bool {
         let fileManager = FileManager.default
         let rotatedURL = currentURL.deletingPathExtension()
             .appendingPathExtension("jsonl.1")
         if fileManager.fileExists(atPath: rotatedURL.path) {
             try? fileManager.removeItem(at: rotatedURL)
         }
-        if fileManager.fileExists(atPath: currentURL.path) {
-            try? fileManager.moveItem(at: currentURL, to: rotatedURL)
+        guard fileManager.fileExists(atPath: currentURL.path) else {
+            return true
+        }
+        do {
+            try fileManager.moveItem(at: currentURL, to: rotatedURL)
+            return true
+        } catch {
+            return false
         }
     }
 
@@ -156,6 +171,9 @@ struct FileLogHandler: LogHandler {
 
     func log(event: borrowing Logging.LogEvent) {
         let category = Self.category(from: label)
+        // swift-log's `LogEvent` does not carry an emission timestamp, so the handler must stamp
+        // its own. Under sustained load this can lag the call site by a small number of ms; live
+        // with that until swift-log surfaces emission time on the event itself.
         let timestamp = ISO8601DateFormatter.shared.string(from: Date())
 
         var record: [String: Any] = [

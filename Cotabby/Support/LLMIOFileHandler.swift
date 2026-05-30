@@ -67,20 +67,31 @@ final class LLMIOFileWriter: @unchecked Sendable {
             // Closing a stale handle should not block re-opening a fresh one.
         }
         handle = nil
-        rotateOnDisk(currentURL: logFileURL)
-        FileManager.default.createFile(atPath: logFileURL.path, contents: nil)
+        // Only overwrite with a fresh empty file when the rotation actually displaced the old
+        // one. A silent `moveItem` failure (transient FS error, concurrent external rewrite)
+        // would otherwise destroy the live log we just failed to preserve.
+        let didRotate = rotateOnDisk(currentURL: logFileURL)
+        if didRotate {
+            FileManager.default.createFile(atPath: logFileURL.path, contents: nil)
+        }
         openHandleLocked()
     }
 
-    private func rotateOnDisk(currentURL: URL) {
+    private func rotateOnDisk(currentURL: URL) -> Bool {
         let fileManager = FileManager.default
         let rotatedURL = currentURL.deletingPathExtension()
             .appendingPathExtension("jsonl.1")
         if fileManager.fileExists(atPath: rotatedURL.path) {
             try? fileManager.removeItem(at: rotatedURL)
         }
-        if fileManager.fileExists(atPath: currentURL.path) {
-            try? fileManager.moveItem(at: currentURL, to: rotatedURL)
+        guard fileManager.fileExists(atPath: currentURL.path) else {
+            return true
+        }
+        do {
+            try fileManager.moveItem(at: currentURL, to: rotatedURL)
+            return true
+        } catch {
+            return false
         }
     }
 
@@ -138,6 +149,8 @@ struct LLMIOFileHandler: LogHandler {
     }
 
     func log(event: borrowing Logging.LogEvent) {
+        // See FileLogHandler for the matching note: swift-log's `LogEvent` has no emission
+        // timestamp, so the handler stamps its own.
         let timestamp = ISO8601DateFormatter.llmIOShared.string(from: Date())
 
         var record: [String: Any] = [
