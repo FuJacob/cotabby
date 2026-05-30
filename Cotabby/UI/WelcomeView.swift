@@ -27,6 +27,11 @@ struct WelcomeView: View {
 
     @State private var step: WelcomeStep = .welcome
     @State private var selectedTemplate: OnboardingTemplate?
+    /// The engine chosen at the top of the template step. Defaulted once when that step first
+    /// appears (Apple Intelligence when the Mac supports it, otherwise Open Source); the tier cards
+    /// resolve their plan against this.
+    @State private var selectedEngine: SuggestionEngineKind = .llamaOpenSource
+    @State private var didDefaultEngine = false
     @State private var isRecordingOnboardingKeybind = false
     @State private var isRecordingOnboardingFullAcceptKeybind = false
     @State private var isRecordingOnboardingGlobalToggleKeybind = false
@@ -133,9 +138,12 @@ extension WelcomeView {
                 modelDownloadManager: modelDownloadManager,
                 foundationModelAvailabilityService: foundationModelAvailabilityService,
                 hardware: hardware,
+                selectedEngine: $selectedEngine,
                 selectedTemplate: $selectedTemplate,
+                onSelectEngine: selectEngine,
                 onSelect: applyTemplate
             )
+            .onAppear(perform: applyDefaultEngineIfNeeded)
         case .aboutYou:
             aboutYouStep
         case .writingStyle:
@@ -600,10 +608,33 @@ extension WelcomeView {
     }
 
     fileprivate func resolvedPlan(for template: OnboardingTemplate) -> ResolvedTemplatePlan {
-        OnboardingTemplateRecommender.resolvePlan(
-            for: template,
-            appleIntelligenceAvailable: foundationModelAvailabilityService.isAvailable
-        )
+        OnboardingTemplateRecommender.resolvePlan(for: template, engine: selectedEngine)
+    }
+
+    /// Applies the one-shot engine default when the template step first appears: Apple Intelligence
+    /// when the Mac supports it, otherwise Open Source. Guarded so a later user choice is not
+    /// overwritten if the step reappears (e.g. navigating Back then forward).
+    fileprivate func applyDefaultEngineIfNeeded() {
+        guard !didDefaultEngine else {
+            return
+        }
+        didDefaultEngine = true
+        selectedEngine = foundationModelAvailabilityService.isAvailable
+            ? .appleIntelligence : .llamaOpenSource
+    }
+
+    /// Switches the engine. Re-applies the already-selected tier under the new engine so the
+    /// persisted settings and any download stay consistent; switching to Open Source after a tier
+    /// is chosen starts that tier's download (the tap is the user's consent), while Apple
+    /// Intelligence needs none. No download is started until a tier has been chosen.
+    fileprivate func selectEngine(_ engine: SuggestionEngineKind) {
+        guard selectedEngine != engine else {
+            return
+        }
+        selectedEngine = engine
+        if let template = selectedTemplate {
+            applyTemplate(template)
+        }
     }
 
     /// Applies a template's settings and starts its model download (if any). Selecting a card is the
