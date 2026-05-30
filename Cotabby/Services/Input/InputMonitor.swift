@@ -65,6 +65,18 @@ final class InputMonitor {
     /// Modifier mask required alongside the full-accept key code. Empty means the bare key.
     var fullAcceptanceKeyModifiersProvider: @MainActor () -> ShortcutModifierMask = { [] }
 
+    /// Reads the global-toggle hotkey at event time. `disabledKeyCode` (UInt16.max) means unbound;
+    /// the dedicated toggle tap is torn down whenever the provider returns that sentinel so users
+    /// who never set the hotkey pay no per-keystroke cost.
+    var globalToggleKeyCodeProvider: @MainActor () -> CGKeyCode = { CGKeyCode(UInt16.max) }
+
+    /// Modifier mask required alongside the global-toggle hotkey. Empty means the bare key.
+    var globalToggleKeyModifiersProvider: @MainActor () -> ShortcutModifierMask = { [] }
+
+    /// Fired when a key event matches the configured global-toggle hotkey. Wired to flip the
+    /// `isGloballyEnabled` setting; the keystroke is then consumed so the host app never sees it.
+    var onGlobalToggleHotkey: (@MainActor () -> Void)?
+
     /// When false, the observer passes keystrokes through without classifying or notifying the
     /// coordinator. This eliminates per-keystroke overhead in apps where Cotabby will never act
     /// (terminals, globally disabled, per-app disabled).
@@ -83,6 +95,12 @@ final class InputMonitor {
 
     private var acceptTap: CFMachPort?
     private var acceptRunLoopSource: CFRunLoopSource?
+
+    /// Dedicated consuming tap for the global-toggle hotkey. Lives independently of the accept tap
+    /// because it must fire even when no suggestion is visible — and even when Cotabby is globally
+    /// disabled, since the whole purpose of the hotkey is to flip that switch back on.
+    private var toggleTap: CFMachPort?
+    private var toggleRunLoopSource: CFRunLoopSource?
 
     /// Tracks whether the consuming tap currently owns accept-key semantics. This is separate
     /// from "a suggestion exists": the observer should only suppress accept-key callbacks when a
@@ -110,6 +128,7 @@ final class InputMonitor {
     func stop() {
         CotabbyLogger.app.info("Input monitor stopping")
         destroyAcceptTap()
+        destroyToggleTap()
         destroyObserverTap()
     }
 
@@ -119,11 +138,30 @@ final class InputMonitor {
     func refresh() {
         if permissionProvider() {
             installObserverTapIfNeeded()
+            refreshToggleTap()
         } else {
             destroyAcceptTap()
+            destroyToggleTap()
             destroyObserverTap()
         }
     }
+
+    /// Installs or removes the global-toggle tap to match the current binding. Called by the
+    /// environment whenever the user changes or clears the toggle hotkey, so the tap's lifetime
+    /// tracks "binding exists" without paying for it when nothing is bound.
+    func refreshToggleTap() {
+        guard permissionProvider() else {
+            destroyToggleTap()
+            return
+        }
+        if globalToggleKeyCodeProvider() == Self.disabledKeyCode {
+            destroyToggleTap()
+        } else {
+            installToggleTapIfNeeded()
+        }
+    }
+
+    private static let disabledKeyCode: CGKeyCode = CGKeyCode(UInt16.max)
 
     /// How long the accept tap lingers (fail-open) after the overlay hides before its mach port is
     /// invalidated. A final-chunk accept runs *inside* this tap's own callback: it posts the
@@ -249,6 +287,51 @@ final class InputMonitor {
         isAcceptTapOwningAcceptKeys = true
     }
 
+    private func installToggleTapIfNeeded() {
+        guard toggleTap == nil else {
+            return
+        }
+
+        let mask = (1 << CGEventType.keyDown.rawValue)
+        let callback: CGEventTapCallBack = { _, type, event, userInfo in
+            guard let userInfo else {
+                return Unmanaged.passUnretained(event)
+            }
+
+            let monitor = Unmanaged<InputMonitor>.fromOpaque(userInfo).takeUnretainedValue()
+            return MainActor.assumeIsolated {
+                monitor.handleToggleTap(type: type, event: event)
+            }
+        }
+
+        // Head-inserted so the toggle hotkey is decided before any other tap (including the accept
+        // tap) gets a chance to consume the keystroke. The callback returns `nil` only when the
+        // event matches the bound hotkey, so unrelated keys still drain through to the rest of the
+        // chain in their normal order.
+        guard let tap = CGEvent.tapCreate(
+            tap: .cgSessionEventTap,
+            place: .headInsertEventTap,
+            options: .defaultTap,
+            eventsOfInterest: CGEventMask(mask),
+            callback: callback,
+            userInfo: Unmanaged.passUnretained(self).toOpaque()
+        ) else {
+            CotabbyLogger.app.warning("Failed to create CGEvent toggle tap")
+            return
+        }
+        CotabbyLogger.app.info("CGEvent toggle tap installed (active, toggle-hotkey only)")
+
+        toggleTap = tap
+        let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
+        toggleRunLoopSource = source
+
+        if let source {
+            CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
+        }
+
+        CGEvent.tapEnable(tap: tap, enable: true)
+    }
+
     private func destroyObserverTap() {
         if let source = observerRunLoopSource {
             CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
@@ -276,6 +359,61 @@ final class InputMonitor {
         }
         acceptTap = nil
         CotabbyLogger.app.info("CGEvent accept tap removed")
+    }
+
+    private func destroyToggleTap() {
+        guard toggleTap != nil || toggleRunLoopSource != nil else {
+            return
+        }
+        if let source = toggleRunLoopSource {
+            CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
+        }
+        toggleRunLoopSource = nil
+
+        if let tap = toggleTap {
+            CFMachPortInvalidate(tap)
+        }
+        toggleTap = nil
+        CotabbyLogger.app.info("CGEvent toggle tap removed")
+    }
+
+    /// Active toggle tap: consumes a keystroke only when it matches the configured global-toggle
+    /// hotkey. The match is intentionally evaluated against the providers (not a cached snapshot)
+    /// so a settings change is picked up on the very next keystroke. Runs independently of
+    /// `shouldProcessEventsProvider` because the hotkey must work even when Cotabby is globally
+    /// disabled — that is its only job.
+    func handleToggleTap(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
+        switch type {
+        case .tapDisabledByTimeout, .tapDisabledByUserInput:
+            CotabbyLogger.app.warning("Toggle tap was disabled by system, re-enabling")
+            if let toggleTap {
+                CGEvent.tapEnable(tap: toggleTap, enable: true)
+            }
+            return Unmanaged.passUnretained(event)
+
+        case .keyDown:
+            if suppressionController.isSynthetic(event) {
+                return Unmanaged.passUnretained(event)
+            }
+
+            let bound = globalToggleKeyCodeProvider()
+            guard bound != Self.disabledKeyCode else {
+                return Unmanaged.passUnretained(event)
+            }
+
+            let keyCode = keyCode(from: event)
+            let modifiers = ShortcutModifierMask(eventFlags: event.flags)
+            guard keyCode == bound, modifiers == globalToggleKeyModifiersProvider() else {
+                return Unmanaged.passUnretained(event)
+            }
+
+            onGlobalToggleHotkey?()
+            CotabbyLogger.app.debug("Toggle tap consumed keyCode=\(keyCode) modifiers=\(modifiers.rawValue)")
+            return nil
+
+        default:
+            return Unmanaged.passUnretained(event)
+        }
     }
 
     /// Listen-only observer: classifies the event and notifies the coordinator. The return value

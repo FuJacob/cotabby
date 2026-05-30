@@ -17,9 +17,8 @@ struct AcceptanceModePickerView: View {
 
     var body: some View {
         Picker("Acceptance Mode", selection: acceptanceGranularityBinding) {
-            Text("Word").tag(AcceptanceGranularity.word)
+            Text("Accept Word").tag(AcceptanceGranularity.word)
             Text("Phrase").tag(AcceptanceGranularity.phrase)
-            Text("Full Suggestion").tag(AcceptanceGranularity.full)
         }
         .pickerStyle(.menu)
     }

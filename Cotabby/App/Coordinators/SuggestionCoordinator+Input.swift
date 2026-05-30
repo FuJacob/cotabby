@@ -184,6 +184,12 @@ extension SuggestionCoordinator {
     /// burning CPU on AX queries that are themselves 5–15ms each.
     private static let hostPublishPollIntervalMs = 30
 
+    /// First-retry interval after the immediate (elapsed 0) poll, which runs inside the keystroke's
+    /// own tap callback before the host has even processed the key and therefore always misses. A
+    /// short first retry catches fast-publishing native apps in ~10ms instead of making them wait a
+    /// full steady interval; slow Chromium hosts fall through to `hostPublishPollIntervalMs` below.
+    private static let hostPublishFirstPollIntervalMs = 10
+
     /// Schedules a fresh prediction once the host app has actually published the new
     /// contenteditable text to AX. The previous fix waited a fixed 150ms — see PR #376 — but the
     /// logs in #381 showed Chromium's publish lag can exceed that ceiling on a busy page, so the
@@ -231,13 +237,17 @@ extension SuggestionCoordinator {
         // Ceiling: stop polling and generate anyway. Without this fallback a host that genuinely
         // produces no AX change (rare but possible — e.g. dead-key composition) would never get
         // its next prediction.
-        let nextElapsed = elapsedMs + Self.hostPublishPollIntervalMs
+        // Short first retry, then steady cadence: the immediate poll above always misses (it runs
+        // before the host processed the key), so a 10ms first retry shaves ~20ms off every
+        // fast-publishing host without doubling AX queries across the slow-Chromium tail.
+        let interval = elapsedMs == 0 ? Self.hostPublishFirstPollIntervalMs : Self.hostPublishPollIntervalMs
+        let nextElapsed = elapsedMs + interval
         guard nextElapsed < Self.hostPublishWaitCeilingMs else {
             schedulePrediction()
             return
         }
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(Self.hostPublishPollIntervalMs)) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(interval)) { [weak self] in
             self?.pollForHostPublish(
                 baselineText: baselineText,
                 baselineElementID: baselineElementID,

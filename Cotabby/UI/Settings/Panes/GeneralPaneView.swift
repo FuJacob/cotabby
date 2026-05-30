@@ -14,7 +14,7 @@ struct GeneralPaneView: View {
 
     var body: some View {
         SettingsPaneScaffold {
-            Section {
+            Section("Status") {
                 Toggle("Enable Globally", isOn: globallyEnabledBinding)
 
                 // Fast Mode is the most user-facing performance lever, so it gets prime real
@@ -92,7 +92,7 @@ struct GeneralPaneView: View {
                 }
             }
 
-            Section {
+            Section("Help") {
                 LabeledContent("Onboarding") {
                     Button("Open Welcome Guide") {
                         onShowWelcome()

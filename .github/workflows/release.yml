@@ -1,14 +1,14 @@
 # Tag-driven release pipeline for Cotabby.
 #
-# Release ordering matters:
-# 1. build and Developer ID sign the app
-# 2. package and notarize the DMG
-# 3. Sparkle-sign the final bytes
-# 4. create the GitHub Release with the DMG attached
-# 5. publish appcast.xml to Pages last
+# Discrete jobs so a failure at one stage doesn't force a full re-run:
 #
-# The appcast is the update pointer Sparkle clients poll. Publishing it before
-# the release asset exists would expose users to a broken update.
+# 1. build:    validate metadata, archive + Developer ID sign, package DMG
+# 2. notarize: submit DMG to Apple notarization, poll, staple
+# 3. publish:  Sparkle-sign appcast, create GitHub Release, deploy Pages
+# 4. update-homebrew-cask: dispatch version bump to the tap (publish only)
+#
+# The DMG flows between jobs as a GitHub Actions artifact. Sparkle tools are
+# re-downloaded in publish (fast curl) rather than carried as an artifact.
 
 name: Release
 
@@ -54,17 +54,24 @@ env:
   SPARKLE_SHA256: c0dde519fd2a43ddfc6a1eb76aec284d7d888fe281414f9177de3164d98ba4c7
 
 jobs:
-  release:
-    name: Build, notarize, sign, and publish
+  # ---------------------------------------------------------------------------
+  # 1. BUILD
+  # Validate metadata, import certificates, xcodebuild archive, re-sign nested
+  # code, package the DMG. Uploads the unsigned-but-signed DMG as an artifact
+  # for the notarize job.
+  # ---------------------------------------------------------------------------
+  build:
+    name: Build, sign, and package DMG
     runs-on: macos-26
-    timeout-minutes: 180
+    timeout-minutes: 120
     outputs:
       release_version: ${{ steps.metadata.outputs.release_version }}
+      release_tag: ${{ steps.metadata.outputs.release_tag }}
+      build_number: ${{ steps.metadata.outputs.build_number }}
       publish: ${{ steps.metadata.outputs.publish }}
-      dmg_sha256: ${{ steps.dmg-sha.outputs.dmg_sha256 }}
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy-pages.outputs.page_url }}
+      is_prerelease: ${{ steps.metadata.outputs.is_prerelease }}
+      sparkle_version: ${{ steps.sparkle-version.outputs.sparkle_version }}
+      has_sparkle_key: ${{ steps.sparkle-key.outputs.has_key }}
 
     steps:
       - uses: actions/checkout@v6
@@ -291,19 +298,6 @@ jobs:
             -k "${keychain_password}" \
             "${keychain_path}"
 
-      - name: Configure Apple notarization credentials
-        env:
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-        run: |
-          set -euo pipefail
-
-          xcrun notarytool store-credentials "cotabby-notarytool-profile" \
-            --apple-id "${APPLE_ID}" \
-            --team-id "${APPLE_TEAM_ID}" \
-            --password "${APPLE_APP_SPECIFIC_PASSWORD}"
-
       - name: Archive signed app
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
@@ -422,6 +416,57 @@ jobs:
             "${dmg_path}"
 
           codesign --verify --strict --verbose=2 "${dmg_path}"
+
+      - name: Upload DMG for notarization
+        uses: actions/upload-artifact@v7
+        with:
+          name: cotabby-dmg
+          path: build/${{ env.DMG_NAME }}
+          # Short retention — the notarized copy is what matters long-term.
+          retention-days: 1
+
+      - name: Upload build diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: build-artifacts
+          path: build/${{ env.APP_NAME }}.xcarchive/
+          if-no-files-found: ignore
+
+  # ---------------------------------------------------------------------------
+  # 2. NOTARIZE
+  # Downloads the signed DMG, submits to Apple notarization, polls until
+  # Accepted (or times out / is rejected), staples the ticket, then uploads
+  # the stapled DMG for the publish job. Separated so a notarization rejection
+  # or Apple-server timeout can be retried without rebuilding.
+  # ---------------------------------------------------------------------------
+  notarize:
+    name: Notarize and staple DMG
+    needs: build
+    runs-on: macos-26
+    timeout-minutes: 90
+    outputs:
+      dmg_sha256: ${{ steps.dmg-sha.outputs.dmg_sha256 }}
+
+    steps:
+      - name: Download DMG artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: cotabby-dmg
+          path: build
+
+      - name: Configure Apple notarization credentials
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          xcrun notarytool store-credentials "cotabby-notarytool-profile" \
+            --apple-id "${APPLE_ID}" \
+            --team-id "${APPLE_TEAM_ID}" \
+            --password "${APPLE_APP_SPECIFIC_PASSWORD}"
 
       - name: Notarize and staple DMG
         run: |
@@ -584,12 +629,100 @@ jobs:
           echo "dmg_sha256=${dmg_sha256}" >> "$GITHUB_OUTPUT"
           echo "Cotabby.dmg SHA-256: ${dmg_sha256}"
 
+      - name: Upload notarized DMG
+        uses: actions/upload-artifact@v7
+        with:
+          name: cotabby-dmg-notarized
+          path: build/${{ env.DMG_NAME }}
+          retention-days: 1
+
+      - name: Upload notarization diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: notarization-diagnostics
+          path: build/notarization/**
+          if-no-files-found: ignore
+
+  # ---------------------------------------------------------------------------
+  # 3. PUBLISH
+  # Downloads the stapled DMG, Sparkle-signs the appcast, creates the GitHub
+  # Release, and deploys the appcast to Pages. Only runs when publish=true.
+  # Separated so a Pages deploy failure or appcast signing hiccup doesn't
+  # require a full rebuild + re-notarization.
+  # ---------------------------------------------------------------------------
+  publish:
+    name: Sign appcast, create release, and deploy Pages
+    needs: [build, notarize]
+    if: needs.build.outputs.publish == 'true'
+    runs-on: macos-26
+    timeout-minutes: 30
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy-pages.outputs.page_url }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Select Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+
+      - name: Download notarized DMG
+        uses: actions/download-artifact@v7
+        with:
+          name: cotabby-dmg-notarized
+          path: build
+
+      - name: Download Sparkle tools
+        id: sparkle-tools
+        env:
+          SPARKLE_VERSION: ${{ needs.build.outputs.sparkle_version }}
+        run: |
+          set -euo pipefail
+
+          sparkle_dir="${RUNNER_TEMP}/sparkle-tools"
+          mkdir -p "${sparkle_dir}"
+
+          curl -fsSL \
+            "https://github.com/sparkle-project/Sparkle/releases/download/${SPARKLE_VERSION}/Sparkle-${SPARKLE_VERSION}.tar.xz" \
+            -o "${sparkle_dir}/Sparkle.tar.xz"
+
+          echo "${SPARKLE_SHA256}  ${sparkle_dir}/Sparkle.tar.xz" | shasum -a 256 --check
+
+          tar -xf "${sparkle_dir}/Sparkle.tar.xz" -C "${sparkle_dir}"
+
+          sign_update="${sparkle_dir}/bin/sign_update"
+          if [[ ! -x "${sign_update}" ]]; then
+            echo "sign_update tool not found in Sparkle ${SPARKLE_VERSION} archive." >&2
+            ls -la "${sparkle_dir}/bin/" >&2 || true
+            exit 1
+          fi
+
+          echo "sign_update=${sign_update}" >> "$GITHUB_OUTPUT"
+
+      - name: Write Sparkle private key
+        env:
+          SPARKLE_ED25519_PRIVATE_KEY: ${{ secrets.SPARKLE_ED25519_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${SPARKLE_ED25519_PRIVATE_KEY}" ]]; then
+            echo "SPARKLE_ED25519_PRIVATE_KEY is not configured — cannot publish." >&2
+            exit 1
+          fi
+
+          sparkle_key_file="${RUNNER_TEMP}/sparkle-ed25519-private-key.txt"
+          printf '%s' "${SPARKLE_ED25519_PRIVATE_KEY}" > "${sparkle_key_file}"
+          chmod 600 "${sparkle_key_file}"
+          echo "SPARKLE_KEY_FILE=${sparkle_key_file}" >> "$GITHUB_ENV"
+
       - name: Generate signed appcast
-        if: steps.sparkle-key.outputs.has_key == 'true'
         env:
           SIGN_UPDATE_TOOL: ${{ steps.sparkle-tools.outputs.sign_update }}
-          RELEASE_VERSION: ${{ steps.metadata.outputs.release_version }}
-          BUILD_NUMBER: ${{ steps.metadata.outputs.build_number }}
+          RELEASE_VERSION: ${{ needs.build.outputs.release_version }}
+          BUILD_NUMBER: ${{ needs.build.outputs.build_number }}
         run: |
           set -euo pipefail
 
@@ -609,7 +742,6 @@ jobs:
           grep -q 'length="' build/appcast.xml
 
       - name: Verify Sparkle signature against final DMG
-        if: steps.sparkle-key.outputs.has_key == 'true'
         env:
           SIGN_UPDATE_TOOL: ${{ steps.sparkle-tools.outputs.sign_update }}
         run: |
@@ -628,12 +760,11 @@ jobs:
             "${signature}"
 
       - name: Create GitHub Release
-        if: steps.metadata.outputs.publish == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ steps.metadata.outputs.release_tag }}
-          RELEASE_VERSION: ${{ steps.metadata.outputs.release_version }}
-          IS_PRERELEASE: ${{ steps.metadata.outputs.is_prerelease }}
+          RELEASE_TAG: ${{ needs.build.outputs.release_tag }}
+          RELEASE_VERSION: ${{ needs.build.outputs.release_version }}
+          IS_PRERELEASE: ${{ needs.build.outputs.is_prerelease }}
         run: |
           set -euo pipefail
 
@@ -652,13 +783,13 @@ jobs:
             "${release_flags[@]}"
 
       - name: Release summary
-        if: always() && steps.metadata.outputs.release_version != ''
+        if: always()
         env:
-          RELEASE_TAG: ${{ steps.metadata.outputs.release_tag }}
-          RELEASE_VERSION: ${{ steps.metadata.outputs.release_version }}
-          BUILD_NUMBER: ${{ steps.metadata.outputs.build_number }}
-          IS_PRERELEASE: ${{ steps.metadata.outputs.is_prerelease }}
-          PUBLISH: ${{ steps.metadata.outputs.publish }}
+          RELEASE_TAG: ${{ needs.build.outputs.release_tag }}
+          RELEASE_VERSION: ${{ needs.build.outputs.release_version }}
+          BUILD_NUMBER: ${{ needs.build.outputs.build_number }}
+          IS_PRERELEASE: ${{ needs.build.outputs.is_prerelease }}
+          PUBLISH: ${{ needs.build.outputs.publish }}
         run: |
           {
             echo "### Release"
@@ -673,7 +804,6 @@ jobs:
           } >> "${GITHUB_STEP_SUMMARY}"
 
       - name: Prepare Pages artifact
-        if: steps.metadata.outputs.publish == 'true'
         run: |
           set -euo pipefail
 
@@ -683,21 +813,18 @@ jobs:
           printf '%s\n' "${PAGES_CUSTOM_DOMAIN}" > build/pages/CNAME
 
       - name: Configure GitHub Pages
-        if: steps.metadata.outputs.publish == 'true'
         uses: actions/configure-pages@v5
 
       - name: Upload GitHub Pages artifact
-        if: steps.metadata.outputs.publish == 'true'
         uses: actions/upload-pages-artifact@v5
         with:
           path: build/pages
 
       - name: Deploy GitHub Pages
-        if: steps.metadata.outputs.publish == 'true'
         id: deploy-pages
         uses: actions/deploy-pages@v5
 
-      - name: Upload local release artifacts
+      - name: Upload release artifacts
         if: always()
         uses: actions/upload-artifact@v7
         with:
@@ -705,17 +832,20 @@ jobs:
           path: |
             build/${{ env.DMG_NAME }}
             build/appcast.xml
-            build/notarization/**
           if-no-files-found: ignore
 
-  # Tell the Homebrew tap to point at the DMG this run just published. The tap's
-  # own update-cask.yml workflow listens for this repository_dispatch and rewrites
-  # Casks/cotabby.rb from the payload, so the cask-editing logic stays in the tap.
-  # Runs only after a real publish so dry-run validation builds never bump the cask.
+  # ---------------------------------------------------------------------------
+  # 4. UPDATE HOMEBREW CASK
+  # Tell the Homebrew tap to point at the DMG this run just published. The
+  # tap's own update-cask.yml workflow listens for this repository_dispatch
+  # and rewrites Casks/cotabby.rb from the payload, so the cask-editing logic
+  # stays in the tap. Runs only after a real publish so dry-run validation
+  # builds never bump the cask.
+  # ---------------------------------------------------------------------------
   update-homebrew-cask:
     name: Update Homebrew cask
-    needs: release
-    if: needs.release.outputs.publish == 'true'
+    needs: [build, notarize, publish]
+    if: needs.build.outputs.publish == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Dispatch cask update to the tap
@@ -723,13 +853,13 @@ jobs:
           # PAT with contents:write on FuJacob/homebrew-cotabby — the built-in
           # GITHUB_TOKEN cannot reach another repository.
           GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-          VERSION: ${{ needs.release.outputs.release_version }}
-          DMG_SHA256: ${{ needs.release.outputs.dmg_sha256 }}
+          VERSION: ${{ needs.build.outputs.release_version }}
+          DMG_SHA256: ${{ needs.notarize.outputs.dmg_sha256 }}
         run: |
           set -euo pipefail
 
           if [[ -z "${DMG_SHA256}" ]]; then
-            echo "The release job did not produce a DMG checksum." >&2
+            echo "The notarize job did not produce a DMG checksum." >&2
             exit 1
           fi
 

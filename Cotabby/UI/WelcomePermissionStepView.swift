@@ -1,11 +1,14 @@
 import SwiftUI
 
 /// File overview:
-/// Renders the onboarding permission step with a centered, card-based layout.
+/// Renders the onboarding permission step's content (header + permission cards).
 ///
 /// Each permission is a glass-material card with an icon badge, title, short description, and
 /// an Allow button or Done state. The view stays subscribed to live permission state so cards
 /// update in real time as the user grants access through System Settings.
+///
+/// Navigation (Back/Continue) is owned by `WelcomeView`'s pinned footer rather than this view, so
+/// the Continue button can never scroll off-screen behind tall content.
 ///
 /// The onboarding list is derived from `CotabbyPermissionKind.isRequiredForAutocomplete` so the
 /// product's permission model and first-run UI cannot drift apart.
@@ -13,8 +16,6 @@ struct WelcomePermissionStepView: View {
     @ObservedObject var permissionManager: PermissionManager
 
     let permissionGuidanceController: PermissionGuidanceController
-    let onBack: () -> Void
-    let onContinue: () -> Void
 
     /// Only show permissions that block core autocomplete.
     private var onboardingPermissions: [CotabbyPermissionKind] {
@@ -42,14 +43,6 @@ struct WelcomePermissionStepView: View {
                     )
                 }
             }
-
-            WelcomeNavigation(
-                canGoBack: true,
-                canContinue: permissionManager.requiredPermissionsGranted,
-                disabledHint: "Grant all permissions to continue.",
-                onBack: onBack,
-                onContinue: onContinue
-            )
         }
         .onDisappear {
             permissionGuidanceController.dismiss()

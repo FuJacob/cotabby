@@ -9,6 +9,11 @@ import SwiftUI
 struct CustomRulesEditor: View {
     @ObservedObject var suggestionSettings: SuggestionSettingsModel
 
+    /// When false, the editor drops its own "Rules" title so an enclosing `Section("Rules")` can
+    /// supply the heading without duplicating it. The Clear control stays in place either way.
+    /// Defaults to true so standalone uses (e.g. onboarding) keep their inline title.
+    var showsTitleHeader: Bool = true
+
     @State private var inputText: String = ""
 
     private var rules: [String] { suggestionSettings.customRules }
@@ -27,17 +32,21 @@ struct CustomRulesEditor: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Text("Rules")
-                    .font(.system(size: 13, weight: .medium))
-                Spacer()
-                if canClear {
-                    Button("Clear") {
-                        suggestionSettings.clearRules()
+            if showsTitleHeader || canClear {
+                HStack {
+                    if showsTitleHeader {
+                        Text("Rules")
+                            .font(.system(size: 13, weight: .medium))
                     }
-                    .buttonStyle(.plain)
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
+                    Spacer()
+                    if canClear {
+                        Button("Clear") {
+                            suggestionSettings.clearRules()
+                        }
+                        .buttonStyle(.plain)
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                    }
                 }
             }
 

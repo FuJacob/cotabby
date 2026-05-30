@@ -52,6 +52,11 @@ final class CotabbyAppEnvironment {
         inputMonitor.acceptanceKeyModifiersProvider = { suggestionSettings.acceptanceKeyModifiers }
         inputMonitor.fullAcceptanceKeyCodeProvider = { suggestionSettings.fullAcceptanceKeyCode }
         inputMonitor.fullAcceptanceKeyModifiersProvider = { suggestionSettings.fullAcceptanceKeyModifiers }
+        inputMonitor.globalToggleKeyCodeProvider = { suggestionSettings.globalToggleKeyCode }
+        inputMonitor.globalToggleKeyModifiersProvider = { suggestionSettings.globalToggleKeyModifiers }
+        inputMonitor.onGlobalToggleHotkey = { [weak suggestionSettings] in
+            suggestionSettings?.toggleGloballyEnabled()
+        }
         let focusModel = FocusTrackingModel(
             permissionProvider: { permissionManager.accessibilityGranted },
             ignoredBundleIdentifier: Bundle.main.bundleIdentifier,
@@ -179,5 +184,15 @@ final class CotabbyAppEnvironment {
 
         // Key code changes reach InputMonitor through closures that read from the model
         // at event time (set above), so no Combine subscription is needed here.
+
+        // The global-toggle hotkey is the exception: its tap is install-on-demand so a user who
+        // never binds it pays zero per-keystroke cost. Install/uninstall whenever the binding
+        // crosses the unbound/bound boundary or when the key code itself changes.
+        suggestionSettings.$globalToggleKeyCode
+            .removeDuplicates()
+            .sink { [weak inputMonitor] _ in
+                inputMonitor?.refreshToggleTap()
+            }
+            .store(in: &cancellables)
     }
 }

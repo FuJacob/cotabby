@@ -10,7 +10,7 @@ struct WritingPaneView: View {
 
     var body: some View {
         SettingsPaneScaffold {
-            Section("Writing") {
+            Section("Length") {
                 Picker("Length", selection: selectedWordCountPresetBinding) {
                     ForEach(SuggestionWordCountPreset.allCases) { preset in
                         Text(preset.displayLabel).tag(preset)
@@ -19,10 +19,13 @@ struct WritingPaneView: View {
             }
 
             Section("Profile") {
-                VStack(alignment: .leading, spacing: 24) {
-                    Text("This information is passed to the AI to help personalize your completions.")
+                VStack(alignment: .leading, spacing: 16) {
+                    // The caption introduces all three personalization inputs (name, languages,
+                    // rules) since each is passed to the AI, even though they live in separate cards.
+                    Text("Your name, languages, and rules are passed to the AI to help personalize your completions.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
 
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Name")
@@ -34,12 +37,20 @@ struct WritingPaneView: View {
                         ))
                         .textFieldStyle(.roundedBorder)
                     }
-
-                    LanguageTagsEditor(suggestionSettings: suggestionSettings)
-
-                    CustomRulesEditor(suggestionSettings: suggestionSettings)
                 }
-                .padding(.vertical, 10)
+                .padding(.vertical, 6)
+            }
+
+            // The editors suppress their own titles here so the Section headers ("Languages"/"Rules")
+            // carry the heading, matching the explicit-header pattern used across the pane.
+            Section("Languages") {
+                LanguageTagsEditor(suggestionSettings: suggestionSettings, showsTitleHeader: false)
+                    .padding(.vertical, 6)
+            }
+
+            Section("Rules") {
+                CustomRulesEditor(suggestionSettings: suggestionSettings, showsTitleHeader: false)
+                    .padding(.vertical, 6)
             }
         }
     }

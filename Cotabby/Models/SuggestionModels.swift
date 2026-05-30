@@ -98,9 +98,9 @@ struct SuggestionConfiguration: Equatable, Sendable {
     static let standard = SuggestionConfiguration(
         // Keep completions short so ghost text stays fast and easy to accept.
         maxPredictionTokens: 8,
-        // Aggressive debounce: 50ms is enough for most apps to publish AX state. The KV cache
-        // reuse path handles prefix changes gracefully if AX is occasionally one char stale.
-        debounceMilliseconds: 50,
+        // Aggressive debounce: 30ms keeps time-to-first-suggestion low while still collapsing
+        // bursts (superseded generations are cancelled; the host-publish poll absorbs AX lag).
+        debounceMilliseconds: 30,
         // Low temperature keeps inline completions stable and less likely to drift.
         temperature: 0.1,
         topK: 20,

@@ -46,14 +46,13 @@ struct DisabledApplicationRule: Codable, Equatable, Identifiable, Sendable {
 }
 
 /// How much of a buffered suggestion the primary accept key takes per press. The dedicated
-/// full-accept key always takes the entire remaining tail regardless of this setting.
+/// full-accept key always takes the entire remaining tail regardless of this setting, so this
+/// enum intentionally does not include a "full" case — that would duplicate the dedicated key.
 enum AcceptanceGranularity: String, CaseIterable, Codable, Sendable {
     /// One word (with the existing trailing-punctuation policy applied per chunk).
     case word
     /// Words accumulated until a sentence terminator (`.`, `!`, `?`, `\n`) or the tail runs out.
     case phrase
-    /// The entire remaining suggestion at once — same outcome as the dedicated full-accept key.
-    case full
 }
 
 /// A compact snapshot of the autocomplete settings the coordinator actually needs at generation

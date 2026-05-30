@@ -51,15 +51,10 @@ struct SettingsContainerView: View {
                 .toolbar(removing: .sidebarToggle)
         }
         .navigationSplitViewStyle(.balanced)
-        // Sized so the sidebar's `ideal` width (240) plus a detail pane that comfortably holds the
-        // grouped Form (~500pt) fits without forcing `.balanced` to squeeze the sidebar below the
-        // longest label. The previous 1180pt floor came from an earlier sidebar experiment that
-        // doubled column widths; with the sidebar tightened back down, that floor leaves the
-        // detail pane oversized for the actual content.
-        // Sidebar grew (min 260 / ideal 280) to fit the longest sub-row label without truncation.
-        // Bump the container floor in step so the detail pane keeps a comfortable working width
-        // (sidebar 260 + detail ~560 ≈ 820pt).
-        .frame(minWidth: 820, minHeight: 560)
+        // The window owns the size (see `SettingsCoordinator`): a sensible 860pt default the user
+        // can still resize. The split view just fills it — a fixed 260pt sidebar and the remainder
+        // for the detail pane.
+        .frame(maxWidth: .infinity, minHeight: 560, maxHeight: .infinity)
         .onChange(of: columnVisibility) { _, newValue in
             // Snap back to `.all` if something tries to collapse the sidebar. Cheaper than wiring
             // a custom binding and reads as the same intent: the sidebar is never optional here.
@@ -68,7 +63,10 @@ struct SettingsContainerView: View {
             }
         }
         .onAppear {
-            selection = SettingsCategory(rawValue: storedCategoryRawValue) ?? .general
+            // Migration: the previous sidebar had two engine sub-rows (`appleIntelligence`,
+            // `openSource`). Users whose persisted selection still points to either should land on
+            // the unified Engine & Model pane rather than fall back to General.
+            selection = Self.restoreSelection(from: storedCategoryRawValue)
             launchAtLoginService.refresh()
             permissionManager.refresh()
             // Set the title unconditionally on open: when the restored selection equals the
@@ -108,16 +106,6 @@ struct SettingsContainerView: View {
             EngineAndModelPaneView(
                 suggestionSettings: suggestionSettings,
                 foundationModelAvailabilityService: foundationModelAvailabilityService,
-                runtimeModel: runtimeModel
-            )
-        case .appleIntelligence:
-            AppleIntelligencePaneView(
-                suggestionSettings: suggestionSettings,
-                foundationModelAvailabilityService: foundationModelAvailabilityService
-            )
-        case .openSource:
-            OpenSourcePaneView(
-                suggestionSettings: suggestionSettings,
                 runtimeModel: runtimeModel,
                 modelDownloadManager: modelDownloadManager,
                 huggingFaceSearchService: huggingFaceSearchService
@@ -133,6 +121,17 @@ struct SettingsContainerView: View {
         case .about:
             AboutPaneView(appUpdateManager: appUpdateManager)
         }
+    }
+
+    private static func restoreSelection(from rawValue: String) -> SettingsCategory {
+        if let category = SettingsCategory(rawValue: rawValue) {
+            return category
+        }
+        // Legacy sub-row raw values from the prior nested layout.
+        if rawValue == "appleIntelligence" || rawValue == "openSource" {
+            return .engineAndModel
+        }
+        return .general
     }
 
     /// Mirrors the chosen pane into the hosting `NSWindow.title` so the title bar reflects the

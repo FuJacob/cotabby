@@ -34,12 +34,10 @@ enum SettingsAttentionEvaluator {
         switch inputs.selectedEngine {
         case .appleIntelligence:
             if !inputs.foundationModelAvailable {
-                categories.insert(.appleIntelligence)
                 categories.insert(.engineAndModel)
             }
         case .llamaOpenSource:
             if inputs.llamaRuntimeFailedReason != nil {
-                categories.insert(.openSource)
                 categories.insert(.engineAndModel)
             }
         }
@@ -57,19 +55,19 @@ enum SettingsAttentionEvaluator {
             guard !inputs.permissionsGranted else { return nil }
             return "Cotabby needs more access to run. Grant the permissions below to enable autocomplete."
 
-        case .appleIntelligence:
-            guard inputs.selectedEngine == .appleIntelligence,
-                  !inputs.foundationModelAvailable,
-                  !inputs.foundationModelMessage.isEmpty else { return nil }
-            return inputs.foundationModelMessage
+        case .engineAndModel:
+            switch inputs.selectedEngine {
+            case .appleIntelligence:
+                guard !inputs.foundationModelAvailable,
+                      !inputs.foundationModelMessage.isEmpty else { return nil }
+                return inputs.foundationModelMessage
+            case .llamaOpenSource:
+                guard let reason = inputs.llamaRuntimeFailedReason,
+                      !reason.isEmpty else { return nil }
+                return reason
+            }
 
-        case .openSource:
-            guard inputs.selectedEngine == .llamaOpenSource,
-                  let reason = inputs.llamaRuntimeFailedReason,
-                  !reason.isEmpty else { return nil }
-            return reason
-
-        case .engineAndModel, .general, .writing, .shortcuts, .apps, .about:
+        case .general, .writing, .shortcuts, .apps, .about:
             return nil
         }
     }
