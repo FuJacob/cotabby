@@ -11,7 +11,7 @@ import SwiftUI
 /// the controller, so the picker works while the user keeps typing in another app. This controller is
 /// a thin AppKit shell: all selection and lifecycle logic lives in `EmojiPickerController`.
 @MainActor
-final class EmojiPickerPanelController {
+final class EmojiPickerPanelController: EmojiPickerPanelPresenting {
     /// Called with the row index when the user clicks a match.
     var onSelectIndex: ((Int) -> Void)?
 

@@ -1,4 +1,5 @@
 import Combine
+import CoreGraphics
 import Foundation
 
 /// File overview:
@@ -57,6 +58,10 @@ protocol EmojiInputIntercepting: AnyObject {
     /// Keeps the active tap installed for the emoji-capture reason (parallel to the suggestion
     /// overlay's `setAcceptInterceptionActive`).
     func setCaptureInterceptionActive(_ active: Bool)
+
+    /// True when the key matches the user's configured word-accept binding. The emoji picker commits
+    /// on this key so its commit stays consistent with accepting a suggestion word.
+    func isWordAcceptKey(_ keyEvent: InputMonitorKeyEvent) -> Bool
 }
 
 @MainActor
@@ -114,6 +119,18 @@ protocol SuggestionInserting: AnyObject {
 @MainActor
 protocol EmojiTextInserting: AnyObject {
     func replace(deletingUTF16Count: Int, with text: String) -> Bool
+}
+
+/// The emoji picker's slice of its floating panel: present/move/hide the match list. Behind a
+/// protocol so `EmojiPickerController` can be unit-tested without constructing a real `NSPanel`.
+@MainActor
+protocol EmojiPickerPanelPresenting: AnyObject {
+    var onSelectIndex: ((Int) -> Void)? { get set }
+    var onClickOutside: (() -> Void)? { get set }
+
+    func show(query: String, matches: [EmojiMatch], selectedIndex: Int, caretRect: CGRect)
+    func setSelectedIndex(_ index: Int)
+    func hide()
 }
 
 @MainActor
