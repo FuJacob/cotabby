@@ -146,6 +146,8 @@ struct SettingsView: View {
 
             Toggle("Show Indicator", isOn: showIndicatorBinding)
 
+            Toggle("Show Word Count in Menu Bar", isOn: menuBarWordCountVisibleBinding)
+
             Toggle(isOn: showAcceptanceHintBinding) {
                 HStack(spacing: 4) {
                     Text("Show")
@@ -689,6 +691,13 @@ struct SettingsView: View {
         Binding(
             get: { suggestionSettings.isFastModeEnabled },
             set: { suggestionSettings.setFastModeEnabled($0) }
+        )
+    }
+
+    private var menuBarWordCountVisibleBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.isMenuBarWordCountVisible },
+            set: { suggestionSettings.setMenuBarWordCountVisible($0) }
         )
     }
 

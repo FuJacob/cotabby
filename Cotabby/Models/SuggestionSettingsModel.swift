@@ -23,6 +23,9 @@ final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var selectedWordCountPreset: SuggestionWordCountPreset
     @Published private(set) var isClipboardContextEnabled: Bool
     @Published private(set) var isFastModeEnabled: Bool
+    /// Whether the accepted-word counter is drawn next to the menu bar icon. Off hides the badge
+    /// entirely; the count itself keeps accruing so toggling it back on restores the running total.
+    @Published private(set) var isMenuBarWordCountVisible: Bool
     /// How suggestions are presented (inline ghost text vs popup card vs auto).
     @Published private(set) var mirrorPreference: MirrorPreference
     @Published private(set) var userName: String
@@ -52,6 +55,7 @@ final class SuggestionSettingsModel: ObservableObject {
     private static let selectedWordCountPresetDefaultsKey = "cotabbySelectedWordCountPreset"
     private static let clipboardContextEnabledDefaultsKey = "cotabbyClipboardContextEnabled"
     private static let fastModeEnabledDefaultsKey = "cotabbyFastModeEnabled"
+    private static let menuBarWordCountVisibleDefaultsKey = "cotabbyMenuBarWordCountVisible"
     private static let mirrorPreferenceDefaultsKey = "cotabbyMirrorPreference"
     private static let userNameDefaultsKey = "cotabbyUserName"
     private static let customRulesDefaultsKey = "cotabbyCustomRules"
@@ -126,6 +130,10 @@ final class SuggestionSettingsModel: ObservableObject {
         // into fast mode turns it off.
         let resolvedFastModeEnabled =
             userDefaults.object(forKey: Self.fastModeEnabledDefaultsKey) as? Bool ?? false
+        // Default to visible so existing installs keep the running-word-count badge they're used
+        // to seeing. The toggle lets users who find the badge noisy hide it from the menu bar.
+        let resolvedMenuBarWordCountVisible =
+            userDefaults.object(forKey: Self.menuBarWordCountVisibleDefaultsKey) as? Bool ?? true
         // Default `.auto` keeps existing users on the byte-for-byte original inline rendering for
         // hosts that report exact/derived caret geometry; only `.estimated` hosts see the new popup
         // card. Power users can pin one mode from Settings or the menu bar.
@@ -220,6 +228,7 @@ final class SuggestionSettingsModel: ObservableObject {
         selectedWordCountPreset = resolvedWordCountPreset
         isClipboardContextEnabled = resolvedClipboardContextEnabled
         isFastModeEnabled = resolvedFastModeEnabled
+        isMenuBarWordCountVisible = resolvedMenuBarWordCountVisible
         mirrorPreference = resolvedMirrorPreference
         userName = resolvedUserName
         customRules = resolvedCustomRules
@@ -246,6 +255,7 @@ final class SuggestionSettingsModel: ObservableObject {
         persistSelectedWordCountPreset(resolvedWordCountPreset)
         persistClipboardContextEnabled(resolvedClipboardContextEnabled)
         persistFastModeEnabled(resolvedFastModeEnabled)
+        persistMenuBarWordCountVisible(resolvedMenuBarWordCountVisible)
         persistMirrorPreference(resolvedMirrorPreference)
         persistUserName(resolvedUserName)
         persistCustomRules(resolvedCustomRules)
@@ -329,6 +339,15 @@ final class SuggestionSettingsModel: ObservableObject {
 
         isFastModeEnabled = enabled
         persistFastModeEnabled(enabled)
+    }
+
+    func setMenuBarWordCountVisible(_ visible: Bool) {
+        guard isMenuBarWordCountVisible != visible else {
+            return
+        }
+
+        isMenuBarWordCountVisible = visible
+        persistMenuBarWordCountVisible(visible)
     }
 
     func setMirrorPreference(_ preference: MirrorPreference) {
@@ -659,6 +678,10 @@ final class SuggestionSettingsModel: ObservableObject {
 
     private func persistFastModeEnabled(_ enabled: Bool) {
         userDefaults.set(enabled, forKey: Self.fastModeEnabledDefaultsKey)
+    }
+
+    private func persistMenuBarWordCountVisible(_ visible: Bool) {
+        userDefaults.set(visible, forKey: Self.menuBarWordCountVisibleDefaultsKey)
     }
 
     private func persistMirrorPreference(_ preference: MirrorPreference) {

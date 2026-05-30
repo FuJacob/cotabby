@@ -9,6 +9,7 @@ import SwiftUI
 /// SwiftUI knows when to redraw the menu bar item as the accepted word count changes.
 struct MenuBarStatusLabelView: View {
     @ObservedObject var suggestionCoordinator: SuggestionCoordinator
+    @ObservedObject var suggestionSettings: SuggestionSettingsModel
 
     var body: some View {
         HStack(spacing: 2) {
@@ -18,9 +19,10 @@ struct MenuBarStatusLabelView: View {
                 .scaledToFit()
                 .frame(height: 16)
 
-            if let label = WordCountFormatter.compactLabel(
-                for: suggestionCoordinator.totalTabAcceptedWordCount
-            ) {
+            if suggestionSettings.isMenuBarWordCountVisible,
+               let label = WordCountFormatter.compactLabel(
+                   for: suggestionCoordinator.totalTabAcceptedWordCount
+               ) {
                 Text(label)
                     .font(.system(size: 10, weight: .medium).monospacedDigit())
             }
