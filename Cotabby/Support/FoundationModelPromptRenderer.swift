@@ -166,7 +166,7 @@ enum FoundationModelPromptRenderer {
         if chatBundlePrefixes.contains(where: { lower.hasPrefix($0) }) {
             return "The user is in a chat app, so keep the continuation short and informal."
         }
-        if browserBundlePrefixes.contains(where: { lower.hasPrefix($0) }) {
+        if BrowserAppDetector.isBrowser(bundleIdentifier: lower) {
             return "The user is typing inside a browser, so keep the continuation concise."
         }
         return nil
@@ -201,16 +201,8 @@ enum FoundationModelPromptRenderer {
         "net.whatsapp.whatsapp"
     ]
 
-    private static let browserBundlePrefixes: [String] = [
-        "com.apple.safari",
-        "com.apple.safaritechnologypreview",
-        "com.google.chrome",
-        "com.google.chrome.canary",
-        "org.mozilla.firefox",
-        "company.thebrowser.browser",  // Arc
-        "com.brave.browser",
-        "com.microsoft.edgemac"
-    ]
+    // Browser detection now lives in the shared `BrowserAppDetector` so the AX recovery paths and
+    // the prompt tone hint classify apps identically.
 
     /// Diagnostics need to show both payloads Apple receives: the high-priority instructions and
     /// the shorter request prompt. Keeping this renderer-owned prevents the menu/debug preview from
