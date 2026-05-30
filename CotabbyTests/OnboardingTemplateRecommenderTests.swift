@@ -2,8 +2,10 @@ import XCTest
 @testable import Cotabby
 
 /// Tests for the pure rules that turn an onboarding template into a concrete plan and decide which
-/// templates to recommend, warn about, or disable on a given Mac. Each case pins one product
-/// decision so a future tweak to the thresholds has to update an obvious assertion.
+/// templates to recommend, warn about, or disable on a given Mac. The engine is now an explicit
+/// input (chosen at the top of the onboarding step), so every tier follows the selected engine:
+/// Apple Intelligence downloads nothing, Open Source maps each tier to its local GGUF. Each case
+/// pins one product decision so a future tweak has to update an obvious assertion.
 final class OnboardingTemplateRecommenderTests: XCTestCase {
     private func hardware(gigabytes: Double, appleSilicon: Bool = true) -> HardwareCapability {
         HardwareCapability(
@@ -12,49 +14,49 @@ final class OnboardingTemplateRecommenderTests: XCTestCase {
         )
     }
 
-    // MARK: - resolvePlan
+    // MARK: - resolvePlan: Apple Intelligence engine (no downloads, tier tunes behavior)
 
-    func testQuickAlwaysResolvesToLocalMiniModel() {
-        let plan = OnboardingTemplateRecommender.resolvePlan(for: .quick, appleIntelligenceAvailable: true)
-
-        XCTAssertEqual(plan.engine, .llamaOpenSource)
-        XCTAssertEqual(plan.modelToDownload?.filename, "Qwen3-0.6B-Q4_K_M.gguf")
-        XCTAssertEqual(plan.wordCountPreset, .threeToSeven)
-        XCTAssertTrue(plan.enablesFastMode)
-        XCTAssertFalse(plan.enablesMultiLine)
+    func testAppleIntelligenceTiersDownloadNothing() {
+        for template in OnboardingTemplate.allCases {
+            let plan = OnboardingTemplateRecommender.resolvePlan(for: template, engine: .appleIntelligence)
+            XCTAssertEqual(plan.engine, .appleIntelligence)
+            XCTAssertNil(plan.modelToDownload, "\(template) on Apple Intelligence must download nothing.")
+        }
     }
 
-    func testEverydayUsesAppleIntelligenceWhenAvailable() {
-        let plan = OnboardingTemplateRecommender.resolvePlan(for: .everyday, appleIntelligenceAvailable: true)
+    func testAppleIntelligenceStillCarriesTierBehaviorFlags() {
+        let quick = OnboardingTemplateRecommender.resolvePlan(for: .quick, engine: .appleIntelligence)
+        XCTAssertEqual(quick.wordCountPreset, .threeToSeven)
+        XCTAssertTrue(quick.enablesFastMode)
+        XCTAssertFalse(quick.enablesMultiLine)
 
-        XCTAssertEqual(plan.engine, .appleIntelligence)
-        XCTAssertNil(plan.modelToDownload, "Apple Intelligence plans download nothing.")
-        XCTAssertEqual(plan.wordCountPreset, .sevenToTwelve)
+        let powerful = OnboardingTemplateRecommender.resolvePlan(for: .powerful, engine: .appleIntelligence)
+        XCTAssertEqual(powerful.wordCountPreset, .twelveToTwenty)
+        XCTAssertTrue(powerful.enablesMultiLine)
     }
 
-    func testEverydayFallsBackToLocalBaseModelWithoutAppleIntelligence() {
-        let plan = OnboardingTemplateRecommender.resolvePlan(for: .everyday, appleIntelligenceAvailable: false)
+    // MARK: - resolvePlan: Open Source engine (each tier maps to its GGUF)
 
-        XCTAssertEqual(plan.engine, .llamaOpenSource)
-        XCTAssertEqual(plan.modelToDownload?.filename, "gemma-4-E2B-it-Q4_K_M.gguf")
+    func testOpenSourceTiersMapToTheirLocalModels() {
+        let expected: [OnboardingTemplate: String] = [
+            .quick: "Qwen3-0.6B-Q4_K_M.gguf",
+            .everyday: "gemma-4-E2B-it-Q4_K_M.gguf",
+            .powerful: "gemma-4-E4B-it-Q4_K_M.gguf"
+        ]
+        for (template, filename) in expected {
+            let plan = OnboardingTemplateRecommender.resolvePlan(for: template, engine: .llamaOpenSource)
+            XCTAssertEqual(plan.engine, .llamaOpenSource)
+            XCTAssertEqual(plan.modelToDownload?.filename, filename)
+        }
     }
 
-    func testPowerfulAlwaysResolvesToLocalProModel() {
-        let plan = OnboardingTemplateRecommender.resolvePlan(for: .powerful, appleIntelligenceAvailable: true)
+    // MARK: - availability gating (Open Source engine)
 
-        XCTAssertEqual(plan.engine, .llamaOpenSource)
-        XCTAssertEqual(plan.modelToDownload?.filename, "gemma-4-E4B-it-Q4_K_M.gguf")
-        XCTAssertEqual(plan.wordCountPreset, .twelveToTwenty)
-        XCTAssertTrue(plan.enablesMultiLine)
-    }
-
-    // MARK: - availability gating
-
-    func testPowerfulDisabledOnLowMemoryMac() {
+    func testPowerfulDisabledOnLowMemoryMacOpenSource() {
         let availability = OnboardingTemplateRecommender.availability(
             for: .powerful,
             hardware: hardware(gigabytes: 8),
-            appleIntelligenceAvailable: false
+            engine: .llamaOpenSource
         )
 
         XCTAssertTrue(availability.isDisabled)
@@ -65,7 +67,7 @@ final class OnboardingTemplateRecommenderTests: XCTestCase {
         let availability = OnboardingTemplateRecommender.availability(
             for: .powerful,
             hardware: hardware(gigabytes: 12),
-            appleIntelligenceAvailable: false
+            engine: .llamaOpenSource
         )
 
         XCTAssertFalse(availability.isDisabled)
@@ -76,39 +78,43 @@ final class OnboardingTemplateRecommenderTests: XCTestCase {
         let availability = OnboardingTemplateRecommender.availability(
             for: .powerful,
             hardware: hardware(gigabytes: 32),
-            appleIntelligenceAvailable: false
+            engine: .llamaOpenSource
         )
 
         XCTAssertFalse(availability.isDisabled)
         XCTAssertNil(availability.warning)
     }
 
-    func testEverydayWarnsOnLowMemoryWithoutAppleIntelligence() {
+    func testEverydayWarnsOnLowMemoryUnderOpenSource() {
         let availability = OnboardingTemplateRecommender.availability(
             for: .everyday,
             hardware: hardware(gigabytes: 6),
-            appleIntelligenceAvailable: false
+            engine: .llamaOpenSource
         )
 
         XCTAssertFalse(availability.isDisabled)
         XCTAssertNotNil(availability.warning)
     }
 
-    func testEverydayNoWarningWhenAppleIntelligenceAvailableEvenOnLowMemory() {
-        let availability = OnboardingTemplateRecommender.availability(
-            for: .everyday,
-            hardware: hardware(gigabytes: 6),
-            appleIntelligenceAvailable: true
-        )
+    // MARK: - availability gating (Apple Intelligence engine: never blocked)
 
-        XCTAssertNil(availability.warning)
+    func testAppleIntelligenceNeverDisablesOrWarnsEvenOnLowMemory() {
+        for template in OnboardingTemplate.allCases {
+            let availability = OnboardingTemplateRecommender.availability(
+                for: template,
+                hardware: hardware(gigabytes: 6),
+                engine: .appleIntelligence
+            )
+            XCTAssertFalse(availability.isDisabled, "\(template) must be available on Apple Intelligence.")
+            XCTAssertNil(availability.warning, "\(template) must not warn on Apple Intelligence.")
+        }
     }
 
     func testQuickIsNeverDisabledOrWarned() {
         let availability = OnboardingTemplateRecommender.availability(
             for: .quick,
             hardware: hardware(gigabytes: 4),
-            appleIntelligenceAvailable: false
+            engine: .llamaOpenSource
         )
 
         XCTAssertFalse(availability.isDisabled)
@@ -117,28 +123,28 @@ final class OnboardingTemplateRecommenderTests: XCTestCase {
 
     // MARK: - recommendation
 
-    func testRecommendsEverydayWhenAppleIntelligenceAvailable() {
+    func testRecommendsEverydayOnAppleIntelligence() {
         let recommended = OnboardingTemplateRecommender.recommendedTemplate(
             hardware: hardware(gigabytes: 8),
-            appleIntelligenceAvailable: true
+            engine: .appleIntelligence
         )
 
         XCTAssertEqual(recommended, .everyday)
     }
 
-    func testRecommendsQuickOnLowMemoryWithoutAppleIntelligence() {
+    func testRecommendsQuickOnLowMemoryOpenSource() {
         let recommended = OnboardingTemplateRecommender.recommendedTemplate(
             hardware: hardware(gigabytes: 6),
-            appleIntelligenceAvailable: false
+            engine: .llamaOpenSource
         )
 
         XCTAssertEqual(recommended, .quick)
     }
 
-    func testRecommendsEverydayOnCapableMemoryWithoutAppleIntelligence() {
+    func testRecommendsEverydayOnCapableMemoryOpenSource() {
         let recommended = OnboardingTemplateRecommender.recommendedTemplate(
             hardware: hardware(gigabytes: 16),
-            appleIntelligenceAvailable: false
+            engine: .llamaOpenSource
         )
 
         XCTAssertEqual(recommended, .everyday)
@@ -149,7 +155,7 @@ final class OnboardingTemplateRecommenderTests: XCTestCase {
         let availability = OnboardingTemplateRecommender.availability(
             for: .everyday,
             hardware: host,
-            appleIntelligenceAvailable: false
+            engine: .llamaOpenSource
         )
 
         XCTAssertTrue(availability.isRecommended)
@@ -157,7 +163,7 @@ final class OnboardingTemplateRecommenderTests: XCTestCase {
         let quickAvailability = OnboardingTemplateRecommender.availability(
             for: .quick,
             hardware: host,
-            appleIntelligenceAvailable: false
+            engine: .llamaOpenSource
         )
         XCTAssertFalse(quickAvailability.isRecommended)
     }

@@ -16,14 +16,17 @@ enum OnboardingTemplateRecommender {
     /// relevant when Apple Intelligence is unavailable; the Apple Intelligence path has no such cost.
     static let everydayWarnBelowGigabytes = 8.0
 
-    /// Resolves the engine, model, and behavior flags for a template given runtime facts.
+    /// Resolves the model and behavior flags for a template under an explicitly chosen engine.
+    ///
+    /// The engine is now picked by the user at the top of the onboarding step rather than inferred
+    /// from the tier, so a tier only contributes its behavior flags. Apple Intelligence downloads
+    /// nothing; Open Source maps each tier to its local GGUF.
     static func resolvePlan(
         for template: OnboardingTemplate,
-        appleIntelligenceAvailable: Bool
+        engine: SuggestionEngineKind
     ) -> ResolvedTemplatePlan {
-        let usesAppleIntelligence = template.prefersAppleIntelligence && appleIntelligenceAvailable
-        let engine: SuggestionEngineKind = usesAppleIntelligence ? .appleIntelligence : .llamaOpenSource
-        let model = usesAppleIntelligence
+        let model: DownloadableRuntimeModel? =
+            engine == .appleIntelligence
             ? nil
             : downloadableModel(filename: template.openSourceModelFilename)
 
@@ -37,34 +40,37 @@ enum OnboardingTemplateRecommender {
         )
     }
 
-    /// Whether a template should be recommended, disabled, or warned about on this Mac.
+    /// Whether a template should be recommended, disabled, or warned about under the chosen engine.
+    ///
+    /// Apple Intelligence has no per-tier download, so every tier is available there. The hardware
+    /// disable/warn rules only apply to the Open Source engine, where each tier is a local model of
+    /// a specific size.
     static func availability(
         for template: OnboardingTemplate,
         hardware: HardwareCapability,
-        appleIntelligenceAvailable: Bool
+        engine: SuggestionEngineKind
     ) -> OnboardingTemplateAvailability {
         let gigabytes = hardware.physicalMemoryGigabytes
-        let recommended = recommendedTemplate(
-            hardware: hardware,
-            appleIntelligenceAvailable: appleIntelligenceAvailable
-        )
+        let recommended = recommendedTemplate(hardware: hardware, engine: engine)
 
         var isDisabled = false
         var warning: String?
 
-        switch template {
-        case .quick:
-            break
-        case .everyday:
-            if !appleIntelligenceAvailable, gigabytes < everydayWarnBelowGigabytes {
-                warning = "Uses a ~3 GB model, which may run slowly on this Mac."
-            }
-        case .powerful:
-            if gigabytes < powerfulDisableBelowGigabytes {
-                isDisabled = true
-                warning = "Needs more memory than this Mac has (uses a ~5 GB model)."
-            } else if gigabytes < powerfulWarnBelowGigabytes {
-                warning = "Uses a ~5 GB model; may run slowly with less than 16 GB of memory."
+        if engine == .llamaOpenSource {
+            switch template {
+            case .quick:
+                break
+            case .everyday:
+                if gigabytes < everydayWarnBelowGigabytes {
+                    warning = "Uses a ~3 GB model, which may run slowly on this Mac."
+                }
+            case .powerful:
+                if gigabytes < powerfulDisableBelowGigabytes {
+                    isDisabled = true
+                    warning = "Needs more memory than this Mac has (uses a ~5 GB model)."
+                } else if gigabytes < powerfulWarnBelowGigabytes {
+                    warning = "Uses a ~5 GB model; may run slowly with less than 16 GB of memory."
+                }
             }
         }
 
@@ -76,14 +82,15 @@ enum OnboardingTemplateRecommender {
         )
     }
 
-    /// The single template to highlight as the safe default. Apple Intelligence makes Everyday the
-    /// obvious choice; otherwise we keep low-memory Macs on Quick and everyone else on Everyday.
-    /// Powerful is never the default — it is an opt-in for users who deliberately want the big model.
+    /// The single tier to highlight as the safe default under the chosen engine. Apple Intelligence
+    /// has no size cost, so Everyday is the obvious balance; on Open Source we keep low-memory Macs
+    /// on Quick and everyone else on Everyday. Powerful is never the default — it is an opt-in for
+    /// users who deliberately want the big model.
     static func recommendedTemplate(
         hardware: HardwareCapability,
-        appleIntelligenceAvailable: Bool
+        engine: SuggestionEngineKind
     ) -> OnboardingTemplate {
-        if appleIntelligenceAvailable {
+        if engine == .appleIntelligence {
             return .everyday
         }
         if hardware.physicalMemoryGigabytes < everydayWarnBelowGigabytes {
