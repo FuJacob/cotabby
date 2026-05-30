@@ -544,10 +544,20 @@ struct SettingsView: View {
                 .buttonStyle(.borderedProminent)
                 .tint(.blue)
             } label: {
-                Text(
-                    "Cotabby is free and open source, maintained by two university students in our free time. "
-                    + "If it's useful to you, please consider supporting development."
-                )
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(
+                        "Cotabby started from a simple belief: AI should run on your device, respect your privacy, "
+                        + "and remain open to everyone. That's why Cotabby is open source, local-first, and built "
+                        + "to give users full control over their own hardware and data."
+                    )
+
+                    Text(
+                        "We're building Cotabby in our spare time, one release at a time. Every feature, bug fix, "
+                        + "and support reply takes real time and care from two university students trying to keep "
+                        + "this project alive. If Cotabby has been useful to you, please consider supporting our "
+                        + "mission."
+                    )
+                }
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             }
