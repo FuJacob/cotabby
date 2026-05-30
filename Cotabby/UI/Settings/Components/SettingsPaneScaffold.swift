@@ -10,6 +10,7 @@ import SwiftUI
 /// surfaces attention per pane: when a pane is in a degraded state (missing permission, runtime
 /// unavailable) we render an inline callout above the form so the actionable surface lives next to
 /// the controls that fix it.
+///
 /// Centers the pane's grouped form in a fixed-width column inside the detail pane. macOS's own
 /// System Settings uses the same trick: rows sit in a comfortable reading column rather than
 /// stretching to the full window width, so toggles don't end up far away from their labels when
