@@ -29,6 +29,7 @@ struct WelcomeView: View {
     @State private var selectedTemplate: OnboardingTemplate?
     @State private var isRecordingOnboardingKeybind = false
     @State private var isRecordingOnboardingFullAcceptKeybind = false
+    @State private var isRecordingOnboardingGlobalToggleKeybind = false
 
     /// Probed once for the view's lifetime: installed memory and architecture don't change during
     /// onboarding. `@State` (not a stored `let`) ensures `ProcessInfo` is read a single time rather
@@ -404,6 +405,22 @@ extension WelcomeView {
                             label: SuggestionSettingsModel.defaultFullAcceptanceKeyLabel
                         )
                     } : nil
+                )
+
+                // No `onReset` here: the toggle hotkey is opt-in and has no factory default, so the
+                // only meaningful "reset" is unbind, which the Clear gesture in the recorder covers.
+                keybindRow(
+                    title: "Toggle Tabby",
+                    keyLabel: suggestionSettings.globalToggleKeyLabel,
+                    isRecording: $isRecordingOnboardingGlobalToggleKeybind,
+                    onKeyRecorded: { keyCode, modifiers, label in
+                        suggestionSettings.setGlobalToggleKey(
+                            keyCode: keyCode,
+                            modifiers: modifiers,
+                            label: label
+                        )
+                    },
+                    onReset: nil
                 )
             }
         }
