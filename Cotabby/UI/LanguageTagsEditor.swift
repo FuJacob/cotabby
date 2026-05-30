@@ -8,6 +8,11 @@ import SwiftUI
 struct LanguageTagsEditor: View {
     @ObservedObject var suggestionSettings: SuggestionSettingsModel
 
+    /// When false, the editor drops its own "Languages" title so an enclosing `Section("Languages")`
+    /// can supply the heading without duplicating it. The Clear control stays in place either way.
+    /// Defaults to true so standalone uses (e.g. onboarding) keep their inline title.
+    var showsTitleHeader: Bool = true
+
     @State private var inputText: String = ""
 
     private var languages: [String] { suggestionSettings.responseLanguages }
@@ -26,17 +31,21 @@ struct LanguageTagsEditor: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Text("Languages")
-                    .font(.system(size: 13, weight: .medium))
-                Spacer()
-                if canClear {
-                    Button("Clear") {
-                        suggestionSettings.clearLanguages()
+            if showsTitleHeader || canClear {
+                HStack {
+                    if showsTitleHeader {
+                        Text("Languages")
+                            .font(.system(size: 13, weight: .medium))
                     }
-                    .buttonStyle(.plain)
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
+                    Spacer()
+                    if canClear {
+                        Button("Clear") {
+                            suggestionSettings.clearLanguages()
+                        }
+                        .buttonStyle(.plain)
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                    }
                 }
             }
 

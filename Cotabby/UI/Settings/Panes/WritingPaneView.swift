@@ -20,9 +20,12 @@ struct WritingPaneView: View {
 
             Section("Profile") {
                 VStack(alignment: .leading, spacing: 16) {
-                    Text("This information is passed to the AI to help personalize your completions.")
+                    // The caption introduces all three personalization inputs (name, languages,
+                    // rules) since each is passed to the AI, even though they live in separate cards.
+                    Text("Your name, languages, and rules are passed to the AI to help personalize your completions.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
 
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Name")
@@ -38,13 +41,15 @@ struct WritingPaneView: View {
                 .padding(.vertical, 6)
             }
 
-            Section {
-                LanguageTagsEditor(suggestionSettings: suggestionSettings)
+            // The editors suppress their own titles here so the Section headers ("Languages"/"Rules")
+            // carry the heading, matching the explicit-header pattern used across the pane.
+            Section("Languages") {
+                LanguageTagsEditor(suggestionSettings: suggestionSettings, showsTitleHeader: false)
                     .padding(.vertical, 6)
             }
 
-            Section {
-                CustomRulesEditor(suggestionSettings: suggestionSettings)
+            Section("Rules") {
+                CustomRulesEditor(suggestionSettings: suggestionSettings, showsTitleHeader: false)
                     .padding(.vertical, 6)
             }
         }
