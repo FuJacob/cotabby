@@ -18,7 +18,7 @@ import Foundation
 final class EmojiPickerController {
     private var machine = EmojiTriggerStateMachine()
     private let matcher: EmojiMatcher
-    private let panel: EmojiPickerPanelController
+    private let panel: any EmojiPickerPanelPresenting
     private let focusModel: any SuggestionFocusProviding
     private let inputMonitor: any EmojiInputIntercepting
     private let inserter: any EmojiTextInserting
@@ -47,7 +47,7 @@ final class EmojiPickerController {
 
     init(
         matcher: EmojiMatcher,
-        panel: EmojiPickerPanelController,
+        panel: any EmojiPickerPanelPresenting,
         focusModel: any SuggestionFocusProviding,
         inputMonitor: any EmojiInputIntercepting,
         inserter: any EmojiTextInserting,
@@ -226,8 +226,9 @@ final class EmojiPickerController {
         }
         let glyph = matches[selectedIndex].glyph
         let fallback = currentQuery.utf16.count + 1   // ":" + query
+        let focusSequence = captureFocusSequence
         teardownCapture()
-        replaceEmojiQuery(with: glyph, fallbackUTF16: fallback)
+        scheduleReplaceEmojiQuery(with: glyph, fallbackUTF16: fallback, expectedFocusSequence: focusSequence)
     }
 
     /// Mode B: the passed-through closing `:`. The field will hold `:query:` once the colon lands, so
@@ -236,11 +237,10 @@ final class EmojiPickerController {
         let query = currentQuery
         let glyph = bestGlyphForClosingColon(query: query)
         let fallback = query.utf16.count + 2   // ":" + query + ":"
+        let focusSequence = captureFocusSequence
         teardownCapture()
         guard let glyph else { return }   // no match: leave the literal ":query:" untouched
-        DispatchQueue.main.async { [weak self] in
-            self?.replaceEmojiQuery(with: glyph, fallbackUTF16: fallback)
-        }
+        scheduleReplaceEmojiQuery(with: glyph, fallbackUTF16: fallback, expectedFocusSequence: focusSequence)
     }
 
     private func cancelCapture() {
@@ -283,12 +283,30 @@ final class EmojiPickerController {
         return results.first?.glyph
     }
 
-    private func replaceEmojiQuery(with glyph: String, fallbackUTF16: Int) {
-        let preceding = focusModel.snapshot.context?.precedingText ?? ""
-        let deleteCount = EmojiQueryRun.trailingRunUTF16Length(in: preceding) ?? fallbackUTF16
+    /// Posts the delete+glyph replace on the next runloop tick. Both commit modes defer through here
+    /// so the synthetic events are never posted re-entrantly from inside the keystroke's own tap
+    /// callback (EMOJI.md §4.4, §5.5). Posting them synchronously from the observer pass was the
+    /// source of the flaky "panel vanished but no emoji landed" Enter/Tab commits; deferring also
+    /// lets the field settle before we measure the run to delete.
+    private func scheduleReplaceEmojiQuery(with glyph: String, fallbackUTF16: Int, expectedFocusSequence: UInt64?) {
+        DispatchQueue.main.async { [weak self] in
+            self?.replaceEmojiQuery(with: glyph, fallbackUTF16: fallbackUTF16, expectedFocusSequence: expectedFocusSequence)
+        }
+    }
+
+    private func replaceEmojiQuery(with glyph: String, fallbackUTF16: Int, expectedFocusSequence: UInt64?) {
+        // Read the field fresh: this runs a tick after teardown and the focus poll may not yet reflect
+        // the user's latest query characters. Measuring a stale snapshot deletes the wrong unit count.
+        focusModel.refreshNow()
+        guard let context = focusModel.snapshot.context,
+              context.focusChangeSequence == expectedFocusSequence else {
+            // Focus moved during the deferral tick: deleting in a field we no longer own would corrupt
+            // unrelated text, so abort rather than guess at the run length.
+            return
+        }
+        let deleteCount = EmojiQueryRun.trailingRunUTF16Length(in: context.precedingText) ?? fallbackUTF16
         _ = inserter.replace(deletingUTF16Count: deleteCount, with: glyph)
-        // Let the focus pipeline re-read the field immediately so any pending suggestion uses the
-        // post-insertion text instead of the stale `:query` we just removed.
+        // Re-read so any pending suggestion uses the post-insertion text instead of the stale `:query`.
         focusModel.refreshNow()
     }
 
