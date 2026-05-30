@@ -135,9 +135,14 @@ final class OverlayController: SuggestionOverlayControlling {
     /// Inline ghost text drawn next to the caret. This is the original rendering path; the body
     /// stays unchanged from the pre-mirror behavior aside from being extracted into its own method.
     private func showInline(text: String, geometry: SuggestionOverlayGeometry) {
+        // Key the stabilizer on the field's identity rather than `focusChangeSequence`. The polling
+        // signature in `FocusTracker` bumps `focusChangeSequence` whenever the field's frame
+        // changes, which includes the common "input grew taller as text wrapped" case. Using the
+        // identity key keeps the per-session caret-height minimum alive across that growth and
+        // still resets on genuine field switches.
         let stabilizedCaretHeight = ghostFontStabilizer.stabilizedCaretHeight(
             geometry.caretRect.height,
-            focusSessionKey: geometry.focusChangeSequence
+            focusSessionKey: geometry.focusedInputIdentityKey
         )
         let fontSize = resolvedGhostFontSize(
             forCaretHeight: stabilizedCaretHeight,
