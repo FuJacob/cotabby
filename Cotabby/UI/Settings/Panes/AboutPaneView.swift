@@ -55,15 +55,11 @@ struct AboutPaneView: View {
 
     @ViewBuilder
     private var supportRow: some View {
-        LabeledContent {
-            if let supportURL = URL(string: "https://ko-fi.com/cotabby") {
-                Link(destination: supportURL) {
-                    Label("Support Cotabby", systemImage: "heart.fill")
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(.blue)
-            }
-        } label: {
+        // Stack the support copy and the call-to-action vertically so the button sits below the
+        // paragraphs instead of competing with them on the right edge of the row. `LabeledContent`
+        // placed the value column next to the label, which made the wall of text visually compete
+        // with a small button — the natural reading order is paragraphs first, then action.
+        VStack(alignment: .leading, spacing: 12) {
             VStack(alignment: .leading, spacing: 8) {
                 Text(
                     "Cotabby started from a simple belief: AI should run on your device, "
@@ -77,6 +73,14 @@ struct AboutPaneView: View {
             }
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
+
+            if let supportURL = URL(string: "https://ko-fi.com/cotabby") {
+                Link(destination: supportURL) {
+                    Label("Support Cotabby", systemImage: "heart.fill")
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.blue)
+            }
         }
     }
 
