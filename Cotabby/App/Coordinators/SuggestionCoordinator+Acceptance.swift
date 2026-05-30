@@ -100,6 +100,9 @@ extension SuggestionCoordinator {
             clearSuggestion(clearDiagnostics: true)
             hideOverlay(reason: "Overlay hidden because suggestion insertion failed.")
             state = .idle
+            if let originalEvent, originalEvent.replaysWhenAcceptanceRejected {
+                inputMonitor.replayConsumedAcceptKey(keyCode: originalEvent.keyCode, flags: originalEvent.flags)
+            }
             logStage(
                 "insert-failed",
                 workID: currentWorkID,
@@ -167,19 +170,16 @@ extension SuggestionCoordinator {
 
     /// Returns control of the accept key to the host app and clears stale suggestion UI.
     ///
-    /// When `replay` is supplied (the original captured event from `handleInputEvent`), this
-    /// re-posts that key to the focused app *after* hiding the overlay — `hideOverlay` flips the
-    /// overlay state to `.hidden`, which tears down the active accept tap, so the replay reaches
-    /// the focused app without the tap re-consuming it. This is the only thing standing between
-    /// the user and a silently-swallowed Tab when the coordinator bails on acceptance after the
-    /// accept tap already consumed the keystroke (notably Gmail / browser AX races).
+    /// When the active accept tap has already consumed the original key, a rejected accept must
+    /// replay that key after clearing stale UI. Listen-only observations do not request replay
+    /// because the host app still receives the original event.
     func passTabThrough(reason: String, replay: CapturedInputEvent? = nil) -> Bool {
         let generation = latestGenerationNumber
         cancelPredictionWork()
         clearSuggestion(clearDiagnostics: true)
         hideOverlay(reason: reason)
         state = .idle
-        if let replay {
+        if let replay, replay.replaysWhenAcceptanceRejected {
             inputMonitor.replayConsumedAcceptKey(keyCode: replay.keyCode, flags: replay.flags)
         }
         logStage(
