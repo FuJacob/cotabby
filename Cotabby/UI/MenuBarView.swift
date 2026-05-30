@@ -34,6 +34,7 @@ struct MenuBarView: View {
         }
         .padding(16)
         .frame(width: 340)
+        .modifier(MenuBarWindowBackgroundModifier())
         .background(
             MenuBarPresentationObserver {
                 permissionManager.refresh()
@@ -365,4 +366,25 @@ struct MenuBarView: View {
         permissionManager.requiredPermissionsGranted
     }
 
+}
+
+/// Applies the menu panel's fill at the native window-container level when the OS supports it.
+///
+/// `MenuBarView` owns the menu contents, but SwiftUI owns the actual `NSWindow` created by
+/// `MenuBarExtra`. Keeping this as a dedicated modifier gives the UI a narrow boundary for one
+/// platform-specific presentation rule without mixing availability checks into the main view body.
+private struct MenuBarWindowBackgroundModifier: ViewModifier {
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(macOS 15.0, *) {
+            // MenuBarExtra's `.window` style already gives us native rounded window chrome.
+            // On newer macOS builds, leaving the root fill implicit can make SwiftUI draw a
+            // second, inset window-colored rectangle inside that chrome. A container background
+            // belongs to the hosting window instead of this view's local bounds, so the fill
+            // reaches the native rounded frame and avoids the double-border look.
+            content.containerBackground(.windowBackground, for: .window)
+        } else {
+            content
+        }
+    }
 }
