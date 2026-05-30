@@ -10,6 +10,11 @@ import UniformTypeIdentifiers
 struct AppsPaneView: View {
     @ObservedObject var suggestionSettings: SuggestionSettingsModel
 
+    /// Snapshotted at view-appear time. We deliberately don't subscribe to NSWorkspace launch
+    /// notifications: the panel is not a live process inspector, and re-rendering as random apps
+    /// open and close would make the chips flicker while the user is mid-task.
+    @State private var runningAppSuggestions: [RunningAppSuggestion] = []
+
     var body: some View {
         SettingsPaneScaffold {
             Section("Disabled Apps") {
@@ -32,7 +37,57 @@ struct AppsPaneView: View {
                     presentDisabledAppPicker()
                 }
             }
+
+            if !filteredRunningAppSuggestions.isEmpty {
+                Section("Suggestions") {
+                    Text("Currently running apps you can disable with one click.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(filteredRunningAppSuggestions) { suggestion in
+                            runningAppSuggestionRow(suggestion)
+                        }
+                    }
+                }
+            }
         }
+        .onAppear {
+            runningAppSuggestions = RunningAppSuggestion.collect()
+        }
+    }
+
+    /// Hide suggestions that are already in the disabled list so the row never shows a
+    /// no-op chip. Recomputed on every redraw because `disabledAppRules` is observed.
+    private var filteredRunningAppSuggestions: [RunningAppSuggestion] {
+        let disabled = Set(suggestionSettings.disabledAppRules.map(\.bundleIdentifier))
+        return runningAppSuggestions.filter { !disabled.contains($0.bundleIdentifier) }
+    }
+
+    @ViewBuilder
+    private func runningAppSuggestionRow(_ suggestion: RunningAppSuggestion) -> some View {
+        Button {
+            suggestionSettings.disableApplication(
+                bundleIdentifier: suggestion.bundleIdentifier,
+                displayName: suggestion.displayName
+            )
+        } label: {
+            HStack(spacing: 10) {
+                Image(nsImage: suggestion.icon)
+                    .resizable()
+                    .frame(width: 20, height: 20)
+                    .accessibilityHidden(true)
+
+                Text(suggestion.displayName)
+
+                Spacer(minLength: 0)
+
+                Image(systemName: "plus.circle")
+                    .foregroundStyle(.secondary)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     @ViewBuilder
@@ -104,5 +159,43 @@ struct AppsPaneView: View {
                 displayName: metadata.displayName
             )
         }
+    }
+}
+
+/// One disable-able app surfaced from the running-process list. Captures the icon up front so the
+/// row doesn't have to hit NSWorkspace again on every redraw.
+private struct RunningAppSuggestion: Identifiable {
+    let bundleIdentifier: String
+    let displayName: String
+    let icon: NSImage
+
+    var id: String { bundleIdentifier }
+
+    /// Snapshot the user-launched apps (`activationPolicy == .regular`) excluding Cotabby itself,
+    /// sorted alphabetically and capped at 8 so the section stays glanceable.
+    static func collect() -> [RunningAppSuggestion] {
+        let ownBundleIdentifier = Bundle.main.bundleIdentifier
+        let candidates = NSWorkspace.shared.runningApplications
+            .filter { $0.activationPolicy == .regular }
+            .filter { $0.bundleIdentifier != ownBundleIdentifier }
+
+        var seen = Set<String>()
+        let suggestions: [RunningAppSuggestion] = candidates.compactMap { app in
+            guard let bundleIdentifier = app.bundleIdentifier, !bundleIdentifier.isEmpty else {
+                return nil
+            }
+            guard seen.insert(bundleIdentifier).inserted else { return nil }
+            let displayName = app.localizedName ?? bundleIdentifier
+            let icon = app.icon ?? NSWorkspace.shared.icon(for: .applicationBundle)
+            return RunningAppSuggestion(
+                bundleIdentifier: bundleIdentifier,
+                displayName: displayName,
+                icon: icon
+            )
+        }
+        return suggestions
+            .sorted { $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending }
+            .prefix(8)
+            .map { $0 }
     }
 }

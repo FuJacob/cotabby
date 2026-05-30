@@ -26,9 +26,13 @@ struct CotabbyApp: App {
                     appDelegate.settingsCoordinator.showSettings()
                 },
                 onReportFeedback: {
-                    if let feedbackURL = URL(string: "https://www.cotabby.app/feedback") {
-                        NSWorkspace.shared.open(feedbackURL)
+                    guard let baseURL = URL(string: "https://www.cotabby.app/feedback") else {
+                        return
                     }
+                    // Attach host details so the landing form can pre-fill the Environment block
+                    // (Cotabby + macOS + hardware) and the user only has to write the actual report.
+                    let url = DeviceInfo.snapshot().appending(to: baseURL)
+                    NSWorkspace.shared.open(url)
                 }
             )
         } label: {
