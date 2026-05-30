@@ -10,7 +10,7 @@ struct WritingPaneView: View {
 
     var body: some View {
         SettingsPaneScaffold {
-            Section("Writing") {
+            Section("Length") {
                 Picker("Length", selection: selectedWordCountPresetBinding) {
                     ForEach(SuggestionWordCountPreset.allCases) { preset in
                         Text(preset.displayLabel).tag(preset)
@@ -19,7 +19,7 @@ struct WritingPaneView: View {
             }
 
             Section("Profile") {
-                VStack(alignment: .leading, spacing: 24) {
+                VStack(alignment: .leading, spacing: 16) {
                     Text("This information is passed to the AI to help personalize your completions.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -34,12 +34,18 @@ struct WritingPaneView: View {
                         ))
                         .textFieldStyle(.roundedBorder)
                     }
-
-                    LanguageTagsEditor(suggestionSettings: suggestionSettings)
-
-                    CustomRulesEditor(suggestionSettings: suggestionSettings)
                 }
-                .padding(.vertical, 10)
+                .padding(.vertical, 6)
+            }
+
+            Section {
+                LanguageTagsEditor(suggestionSettings: suggestionSettings)
+                    .padding(.vertical, 6)
+            }
+
+            Section {
+                CustomRulesEditor(suggestionSettings: suggestionSettings)
+                    .padding(.vertical, 6)
             }
         }
     }

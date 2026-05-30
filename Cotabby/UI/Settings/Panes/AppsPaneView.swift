@@ -13,7 +13,7 @@ struct AppsPaneView: View {
 
     var body: some View {
         SettingsPaneScaffold {
-            Section("Apps") {
+            Section("Disabled Apps") {
                 Text("Cotabby won't autocomplete in these apps. Add an app you can't disable from the "
                     + "menu bar, like a launcher that closes the moment it loses focus.")
                     .font(.caption)
