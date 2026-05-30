@@ -30,9 +30,10 @@ struct WelcomeView: View {
     @State private var isRecordingOnboardingKeybind = false
     @State private var isRecordingOnboardingFullAcceptKeybind = false
 
-    /// Probed once: installed memory and architecture don't change during onboarding, and re-reading
-    /// `ProcessInfo` on every body evaluation would be wasteful.
-    private let hardware = HardwareCapabilityProbe.current()
+    /// Probed once for the view's lifetime: installed memory and architecture don't change during
+    /// onboarding. `@State` (not a stored `let`) ensures `ProcessInfo` is read a single time rather
+    /// than on every struct re-creation that an `@ObservedObject` publish (e.g. a download tick) causes.
+    @State private var hardware = HardwareCapabilityProbe.current()
 
     private var preferredWindowSize: NSSize {
         step.preferredWindowSize

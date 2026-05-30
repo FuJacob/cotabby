@@ -195,8 +195,9 @@ private struct TemplateCard: View {
                     ProgressView(value: progress)
                         .progressViewStyle(.linear)
                 } else {
+                    // No fraction reported yet: fall back to the default (circular) spinner, since
+                    // macOS's linear style renders nothing for an indeterminate ProgressView.
                     ProgressView()
-                        .progressViewStyle(.linear)
                 }
                 Text(state.statusText)
                     .font(.system(size: 11))
