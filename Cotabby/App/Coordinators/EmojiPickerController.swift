@@ -131,11 +131,19 @@ final class EmojiPickerController {
             return .dismissExternally
         }
 
+        // Commit only on the user's configured word-accept binding (keyCode + modifiers), matched the
+        // same way the suggestion accept path matches it, so the picker stays consistent with
+        // accepting a word. Checked before the keyCode switch so a rebind wins (Tab by default), and
+        // so Return is no longer a commit key.
+        if inputMonitor.isWordAcceptKey(InputMonitorKeyEvent(keyCode: event.keyCode, flags: event.flags)) {
+            return .commitKey
+        }
+
         switch event.keyCode {
         case 53:
             return .escape
-        case 36, 76, 48:                  // Return, Keypad Enter, Tab
-            return .commitKey
+        case 36, 76:                      // Return, Keypad Enter: dismiss and pass through, never commit
+            return .dismissExternally
         case 126:
             return .navigate(.up)
         case 125:
@@ -226,9 +234,8 @@ final class EmojiPickerController {
         }
         let glyph = matches[selectedIndex].glyph
         let fallback = currentQuery.utf16.count + 1   // ":" + query
-        let focusSequence = captureFocusSequence
         teardownCapture()
-        scheduleReplaceEmojiQuery(with: glyph, fallbackUTF16: fallback, expectedFocusSequence: focusSequence)
+        scheduleReplaceEmojiQuery(with: glyph, fallbackUTF16: fallback)
     }
 
     /// Mode B: the passed-through closing `:`. The field will hold `:query:` once the colon lands, so
@@ -237,10 +244,9 @@ final class EmojiPickerController {
         let query = currentQuery
         let glyph = bestGlyphForClosingColon(query: query)
         let fallback = query.utf16.count + 2   // ":" + query + ":"
-        let focusSequence = captureFocusSequence
         teardownCapture()
         guard let glyph else { return }   // no match: leave the literal ":query:" untouched
-        scheduleReplaceEmojiQuery(with: glyph, fallbackUTF16: fallback, expectedFocusSequence: focusSequence)
+        scheduleReplaceEmojiQuery(with: glyph, fallbackUTF16: fallback)
     }
 
     private func cancelCapture() {
@@ -288,25 +294,23 @@ final class EmojiPickerController {
     /// callback (EMOJI.md §4.4, §5.5). Posting them synchronously from the observer pass was the
     /// source of the flaky "panel vanished but no emoji landed" Enter/Tab commits; deferring also
     /// lets the field settle before we measure the run to delete.
-    private func scheduleReplaceEmojiQuery(with glyph: String, fallbackUTF16: Int, expectedFocusSequence: UInt64?) {
+    private func scheduleReplaceEmojiQuery(with glyph: String, fallbackUTF16: Int) {
         DispatchQueue.main.async { [weak self] in
-            self?.replaceEmojiQuery(with: glyph, fallbackUTF16: fallbackUTF16, expectedFocusSequence: expectedFocusSequence)
+            self?.replaceEmojiQuery(with: glyph, fallbackUTF16: fallbackUTF16)
         }
     }
 
-    private func replaceEmojiQuery(with glyph: String, fallbackUTF16: Int, expectedFocusSequence: UInt64?) {
-        // Read the field fresh: this runs a tick after teardown and the focus poll may not yet reflect
-        // the user's latest query characters. Measuring a stale snapshot deletes the wrong unit count.
-        focusModel.refreshNow()
-        guard let context = focusModel.snapshot.context,
-              context.focusChangeSequence == expectedFocusSequence else {
-            // Focus moved during the deferral tick: deleting in a field we no longer own would corrupt
-            // unrelated text, so abort rather than guess at the run length.
-            return
-        }
-        let deleteCount = EmojiQueryRun.trailingRunUTF16Length(in: context.precedingText) ?? fallbackUTF16
+    private func replaceEmojiQuery(with glyph: String, fallbackUTF16: Int) {
+        // Measure the literal run from the field and replace it. `trailingRunUTF16Length` returns nil
+        // when the field no longer ends in a `:query` run, so we fall back to the known typed length;
+        // that nil-check is what keeps a stray commit from deleting unrelated text. We deliberately do
+        // NOT force a fresh AX resolve + `focusChangeSequence` guard here: the resolve re-stamped the
+        // sequence and made the guard abort legitimate commits (the panel vanished with no emoji).
+        let preceding = focusModel.snapshot.context?.precedingText ?? ""
+        let deleteCount = EmojiQueryRun.trailingRunUTF16Length(in: preceding) ?? fallbackUTF16
         _ = inserter.replace(deletingUTF16Count: deleteCount, with: glyph)
-        // Re-read so any pending suggestion uses the post-insertion text instead of the stale `:query`.
+        // Let the focus pipeline re-read the field so any pending suggestion uses the post-insertion
+        // text instead of the stale `:query` we just removed.
         focusModel.refreshNow()
     }
 

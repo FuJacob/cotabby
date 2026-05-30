@@ -1,7 +1,10 @@
 import Combine
 import CoreGraphics
 import XCTest
-@testable import Cotabby
+// `@preconcurrency`: the fakes conform to `@MainActor` protocols whose closure properties (e.g.
+// `emojiCaptureKeyDecider`) are not `@Sendable`, which trips a cross-module Swift 6 sendability
+// warning on the conformance. The suppression is test-only and does not affect production code.
+@preconcurrency @testable import Cotabby
 
 /// Composition tests for the inline `:emoji:` commit path. The pure machine/matcher/run are covered
 /// elsewhere; these lock down the controller <-> focus <-> inserter seam where the commit flakiness
@@ -15,14 +18,14 @@ final class EmojiPickerControllerTests: XCTestCase {
         super.tearDown()
     }
 
-    func test_enterCommitInsertsSelectedGlyphAfterRunloopTick() {
+    func test_acceptKeyCommitInsertsSelectedGlyphAfterRunloopTick() {
         runOnMainActor {
-            let harness = Harness(precedingText: ":smile")
+            let harness = Harness(precedingText: ":smile")   // accept-word key defaults to Tab (48)
             harness.openAndType(":smile")
 
-            // Enter is handled and consumed, but the replace must be deferred, not posted
-            // synchronously from inside the keystroke's tap callback.
-            XCTAssertTrue(harness.controller.observe(Harness.keyEvent(36)))
+            // The accept-word key commits, but the replace must be deferred, not posted synchronously
+            // from inside the keystroke's tap callback.
+            XCTAssertTrue(harness.controller.observe(Harness.keyEvent(48)))
             XCTAssertTrue(
                 harness.inserter.calls.isEmpty,
                 "The replace must be deferred off the keystroke's tap callback."
@@ -36,34 +39,47 @@ final class EmojiPickerControllerTests: XCTestCase {
         }
     }
 
-    func test_commitAbortsWhenFocusChangesDuringDeferral() {
+    func test_returnDoesNotCommitAndPassesThroughEvenWithMatches() {
         runOnMainActor {
             let harness = Harness(precedingText: ":smile")
-            harness.openAndType(":smile")
-            XCTAssertTrue(harness.controller.observe(Harness.keyEvent(36)))
+            harness.openAndType(":smile")   // matches present
 
-            // The focused field changes before the deferred replace runs.
-            harness.focus.update(precedingText: "different", focusChangeSequence: 99)
+            // Return is no longer a commit key: it dismisses the picker and reaches the host.
+            XCTAssertTrue(harness.controller.observe(Harness.keyEvent(36)))
             harness.flushMainQueue()
 
-            XCTAssertTrue(
-                harness.inserter.calls.isEmpty,
-                "A focus change during the deferral must abort the replace so we never edit the wrong field."
-            )
+            XCTAssertTrue(harness.inserter.calls.isEmpty, "Return must not insert the emoji.")
+            XCTAssertEqual(harness.controller.decideCaptureKey(Harness.monitorKey(36)), .passThrough)
+            XCTAssertTrue(harness.panel.isHidden)
         }
     }
 
-    func test_enterWithNoMatchesPassesThroughWithoutInserting() {
+    func test_rebindingAcceptKeyIsHonoredForCommit() {
+        runOnMainActor {
+            let harness = Harness(precedingText: ":smile")
+            harness.monitor.wordAcceptKeyCode = 50          // user rebinds accept-word to backtick (50)
+            harness.openAndType(":smile")
+
+            XCTAssertTrue(harness.controller.observe(Harness.keyEvent(50)))
+            harness.flushMainQueue()
+
+            XCTAssertEqual(harness.inserter.calls.map(\.text), ["😄"])
+            XCTAssertEqual(harness.inserter.calls.first?.deleteCount, 6)
+        }
+    }
+
+    func test_acceptKeyWithNoMatchesPassesThroughWithoutInserting() {
         runOnMainActor {
             let harness = Harness(precedingText: ":zzzzz")
             harness.openAndType(":zzzzz")   // no catalog match
 
-            XCTAssertTrue(harness.controller.observe(Harness.keyEvent(36)))
+            // The accept key with no match must not be stolen from the host, so a real word-accept
+            // still reaches the suggestion pipeline.
+            XCTAssertTrue(harness.controller.observe(Harness.keyEvent(48)))
             harness.flushMainQueue()
 
             XCTAssertTrue(harness.inserter.calls.isEmpty, "Nothing to commit, so nothing is inserted.")
-            // The picker must not steal Enter from the host when there is no match to commit.
-            XCTAssertEqual(harness.controller.decideCaptureKey(Harness.monitorKey(36)), .passThrough)
+            XCTAssertEqual(harness.controller.decideCaptureKey(Harness.monitorKey(48)), .passThrough)
         }
     }
 
@@ -144,10 +160,6 @@ private final class FakeFocus: SuggestionFocusProviding {
 
     func refreshNow() {}
 
-    func update(precedingText: String, focusChangeSequence: UInt64) {
-        snapshot = FakeFocus.make(precedingText: precedingText, focusChangeSequence: focusChangeSequence)
-    }
-
     private static func make(precedingText: String, focusChangeSequence: UInt64) -> FocusSnapshot {
         let context = CotabbyTestFixtures.focusedInputSnapshot(
             precedingText: precedingText,
@@ -166,8 +178,14 @@ private final class FakeFocus: SuggestionFocusProviding {
 @MainActor
 private final class FakeInputMonitor: EmojiInputIntercepting {
     var emojiCaptureKeyDecider: (@MainActor (InputMonitorKeyEvent) -> InputMonitorAcceptTapDecision)?
+    var wordAcceptKeyCode: CGKeyCode = 48   // default Tab, matching the shipped accept-word default
     private(set) var captureActiveCalls: [Bool] = []
+
     func setCaptureInterceptionActive(_ active: Bool) { captureActiveCalls.append(active) }
+
+    func isWordAcceptKey(_ keyEvent: InputMonitorKeyEvent) -> Bool {
+        keyEvent.keyCode == wordAcceptKeyCode
+    }
 }
 
 @MainActor

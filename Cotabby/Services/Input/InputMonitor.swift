@@ -668,6 +668,13 @@ final class InputMonitor {
         return CapturedInputEvent(kind: .other, keyCode: keyCode, characters: characters, flags: flags)
     }
 
+    /// True when the key matches the user's configured word-accept binding (keyCode + modifiers),
+    /// using the same match the suggestion accept path uses. The emoji picker commits on this key so
+    /// its commit stays consistent with accepting a suggestion word instead of hardcoding Tab/Return.
+    func isWordAcceptKey(_ keyEvent: InputMonitorKeyEvent) -> Bool {
+        acceptanceKind(for: keyEvent) == .acceptance
+    }
+
     private func acceptanceKind(for keyEvent: InputMonitorKeyEvent) -> CapturedInputEvent.Kind? {
         let eventModifiers = ShortcutModifierMask(eventFlags: keyEvent.flags)
 

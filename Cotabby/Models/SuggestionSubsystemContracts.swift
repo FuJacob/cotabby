@@ -58,6 +58,10 @@ protocol EmojiInputIntercepting: AnyObject {
     /// Keeps the active tap installed for the emoji-capture reason (parallel to the suggestion
     /// overlay's `setAcceptInterceptionActive`).
     func setCaptureInterceptionActive(_ active: Bool)
+
+    /// True when the key matches the user's configured word-accept binding. The emoji picker commits
+    /// on this key so its commit stays consistent with accepting a suggestion word.
+    func isWordAcceptKey(_ keyEvent: InputMonitorKeyEvent) -> Bool
 }
 
 @MainActor

@@ -213,6 +213,25 @@ final class InputMonitorTests: XCTestCase {
         }
     }
 
+    func test_isWordAcceptKey_matchesOnlyTheConfiguredWordAcceptBinding() {
+        runOnMainActor {
+            let monitor = makeMonitor()
+            monitor.acceptanceKeyCodeProvider = { 48 }          // Tab is the word-accept key
+            monitor.acceptanceKeyModifiersProvider = { [] }
+            monitor.fullAcceptanceKeyCodeProvider = { 50 }      // backtick is full-accept
+
+            XCTAssertTrue(monitor.isWordAcceptKey(InputMonitorKeyEvent(keyCode: 48)))
+            XCTAssertFalse(
+                monitor.isWordAcceptKey(InputMonitorKeyEvent(keyCode: 50)),
+                "The full-accept key must not count as the word-accept key."
+            )
+            XCTAssertFalse(
+                monitor.isWordAcceptKey(InputMonitorKeyEvent(keyCode: 36)),
+                "Return must not count as the word-accept key."
+            )
+        }
+    }
+
     @MainActor
     private func makeMonitor() -> InputMonitor {
         let monitor = InputMonitor(

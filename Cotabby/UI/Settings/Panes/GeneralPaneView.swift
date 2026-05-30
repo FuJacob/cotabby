@@ -58,7 +58,7 @@ struct GeneralPaneView: View {
                     SettingsRowLabel(
                         title: "Inline Emoji Picker",
                         description: "Type a colon and a name like :smile to pick an emoji inline, " +
-                            "then press Tab or Return to insert it."
+                            "then press your accept-word key (Tab by default) to insert it."
                     )
                 }
             }
