@@ -10,7 +10,7 @@ import CoreGraphics
 /// macOS permission dialog, and Cotabby's own windows. Keeping the rule pure makes the no-op paths
 /// cheap to test.
 nonisolated enum PermissionOverlayTracker {
-    enum Transition: Equatable {
+    nonisolated enum Transition: Equatable {
         /// First appearance this session — the controller plays the fly-in animation.
         case present
         /// Move to / ensure visible at a new frame, without replaying the animation.
