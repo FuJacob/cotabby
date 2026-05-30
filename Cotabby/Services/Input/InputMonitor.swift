@@ -125,6 +125,17 @@ final class InputMonitor {
         }
     }
 
+    /// How long the accept tap lingers (fail-open) after the overlay hides before its mach port is
+    /// invalidated. A final-chunk accept runs *inside* this tap's own callback: it posts the
+    /// synthetic insertion to `.cghidEventTap` and then hides the overlay, which routes back here to
+    /// tear the tap down. Invalidating the mach port in that same run-loop turn pulls the tap out of
+    /// the session tap chain before the just-posted synthetic keystroke drains through it, so the
+    /// last accepted word never reaches the host (non-final words keep the overlay visible and never
+    /// hit this path, which is why only the final word failed to commit). Deferring the invalidation
+    /// one short hop lets the synthetic event finish delivery first. This is the invariant PR #385
+    /// ("Fix last tab issue") protected before the two-tap ownership rewrite dropped it.
+    private static let acceptTapTeardownDelaySeconds: TimeInterval = 0.05
+
     /// Installs (when `active == true`) or removes (when `false`) the narrow active tap that can
     /// consume the accept key. The coordinator calls this when a suggestion becomes visible or
     /// hidden, so Cotabby only enters the synchronous event path while there is something to accept.
@@ -136,7 +147,18 @@ final class InputMonitor {
         if active {
             installAcceptTapIfNeeded()
         } else {
-            destroyAcceptTap()
+            // Stop owning the accept key synchronously so the listen-only observer resumes handling
+            // it and the fail-open preflight (`overlayState.isVisible`, now false) passes keys
+            // through. Defer only the mach-port invalidation, so a final-chunk accept's synthetic
+            // insertion can drain before the tap is removed. See `acceptTapTeardownDelaySeconds`.
+            isAcceptTapOwningAcceptKeys = false
+            DispatchQueue.main.asyncAfter(deadline: .now() + Self.acceptTapTeardownDelaySeconds) { [weak self] in
+                // Skip if a new suggestion re-armed the tap during the delay.
+                guard let self, !self.isAcceptTapOwningAcceptKeys else {
+                    return
+                }
+                self.destroyAcceptTap()
+            }
         }
     }
 
@@ -326,6 +348,14 @@ final class InputMonitor {
             return Unmanaged.passUnretained(event)
 
         case .keyDown:
+            // The consuming tap has no suppression countdown of its own (the observer owns that), so
+            // it recognizes Cotabby's synthetic insertion events by identity instead. Without this an
+            // accept key bound to keyCode 0 (the inserter's placeholder virtualKey) would make the tap
+            // swallow our own inserted text. Pass synthetic events straight through.
+            if suppressionController.isSynthetic(event) {
+                return Unmanaged.passUnretained(event)
+            }
+
             guard shouldProcessEventsProvider() else {
                 return Unmanaged.passUnretained(event)
             }

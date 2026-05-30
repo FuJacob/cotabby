@@ -66,6 +66,11 @@ final class SuggestionCoordinator: ObservableObject {
     /// ready → accepted/rejected) can be joined with a single `jq` filter on `request_id`.
     /// `nil` between sessions; replaced when `+Prediction` builds the next request.
     var latestRequestID: String?
+    /// Set when a full acceptance commits its final chunk; consumed by the next `apply`. Lets the
+    /// coordinator drop a regeneration that only re-proposes the just-accepted tail before the host
+    /// publishes the insert, the Chromium AX-publish race that otherwise loops accept/regenerate/
+    /// accept on the last word. See `SuggestionSessionReconciler.isStaleAcceptanceEcho`.
+    var lastAcceptedTail: AcceptedSuggestionTail?
 
     init(
         permissionManager: any SuggestionPermissionProviding,

@@ -420,6 +420,29 @@ enum SuggestionSessionReconciler {
             .count
     }
 
+    /// True when a freshly generated suggestion only reproduces the chunk the user just fully
+    /// accepted while the live field still shows the exact pre-acceptance text. That pairing is the
+    /// signature of the Chromium AX-publish race: the synthetic insert has not surfaced in AX yet, so
+    /// the model regenerated against stale text and proposed the same tail again. Dropping it breaks
+    /// the final-word accept/regenerate/accept loop. Any change to the preceding text (the insert
+    /// landed, or the user typed) flips this to false so a legitimately repeated continuation still
+    /// shows.
+    static func isStaleAcceptanceEcho(
+        resultText: String,
+        acceptedChunk: String,
+        currentPrecedingText: String,
+        acceptedPrecedingText: String
+    ) -> Bool {
+        let trimmedChunk = acceptedChunk.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedChunk.isEmpty else {
+            return false
+        }
+        guard resultText.trimmingCharacters(in: .whitespacesAndNewlines) == trimmedChunk else {
+            return false
+        }
+        return currentPrecedingText == acceptedPrecedingText
+    }
+
     static func overlayHideReason(for event: CapturedInputEvent) -> String {
         switch event.kind {
         case .textMutation, .shortcutMutation:

@@ -196,7 +196,7 @@ extension SuggestionCoordinator {
     /// reached we generate against whatever's there, matching the old fixed-delay behavior.
     /// `schedulePrediction()` internally `replaceDebouncedWork`s, so back-to-back keystrokes
     /// still collapse cleanly.
-    private func schedulePredictionAfterHostPublishDelay() {
+    func schedulePredictionAfterHostPublishDelay() {
         let baseline = focusModel.snapshot.context
         pollForHostPublish(
             baselineText: baseline?.precedingText,

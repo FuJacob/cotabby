@@ -360,6 +360,16 @@ struct ActiveSuggestionSession: Equatable, Sendable {
     }
 }
 
+/// Records the chunk committed by the most recent full acceptance and the field text it was
+/// appended after. The coordinator stamps this on a final-chunk accept and consumes it on the next
+/// generation. If the model only re-proposes `text` while the live preceding text still equals
+/// `precedingText`, the host has not published our insert yet (the Chromium AX-publish race), so the
+/// suggestion is dropped instead of looping accept/regenerate/accept on the last word.
+struct AcceptedSuggestionTail: Equatable, Sendable {
+    let text: String
+    let precedingText: String
+}
+
 /// High-level suggestion states surfaced to the menu and overlay logic.
 enum SuggestionDebugState: Equatable {
     case idle

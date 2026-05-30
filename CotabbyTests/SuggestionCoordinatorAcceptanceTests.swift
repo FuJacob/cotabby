@@ -92,6 +92,46 @@ final class SuggestionCoordinatorAcceptanceTests: XCTestCase {
         }
     }
 
+    func test_acceptingFinalChunkDefersRegenerationAndRecordsAcceptedTail() {
+        runOnMainActor {
+            let snapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "what's on your mind")
+            let context = FocusedInputContext(snapshot: snapshot, generation: 7)
+            let interactionState = SuggestionInteractionState()
+            let session = interactionState.startSession(
+                fullText: " today",
+                liveContext: context,
+                latency: 0.1
+            )
+            let overlayState = OverlayState.visible(
+                text: session.remainingText,
+                geometry: CotabbyTestFixtures.overlayGeometry(caretRect: context.caretRect),
+                mode: .inline
+            )
+            let inputMonitor = StubSuggestionInputMonitor()
+            let inserter = StubSuggestionInserter()
+            let coordinator = makeCoordinator(
+                snapshot: snapshot,
+                overlayState: overlayState,
+                inputMonitor: inputMonitor,
+                inserter: inserter,
+                interactionState: interactionState
+            )
+
+            XCTAssertTrue(coordinator.acceptCurrentSuggestion())
+
+            XCTAssertEqual(inserter.insertedChunks, [" today"])
+            // The final-chunk accept must not immediately re-enter debouncing. It waits for the host
+            // to publish the insert, so synchronously the coordinator is idle with the overlay hidden.
+            XCTAssertEqual(coordinator.state, .idle)
+            XCTAssertFalse(coordinator.overlayState.isVisible)
+            // It records what it committed so `apply` can drop a stale echo of the same tail.
+            XCTAssertEqual(
+                coordinator.lastAcceptedTail,
+                AcceptedSuggestionTail(text: " today", precedingText: "what's on your mind")
+            )
+        }
+    }
+
     @MainActor
     private func makeCoordinator(
         snapshot: FocusedInputSnapshot,

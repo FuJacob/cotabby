@@ -121,6 +121,10 @@ extension SuggestionCoordinator {
             hideOverlay(reason: "Overlay hidden because \(keyName) accepted the final suggestion chunk.")
             latestAcceptanceAction = "Accepted final chunk with \(keyName)."
             state = .idle
+            // Remember what we just committed and the text it followed. `apply` consumes this to drop
+            // a regeneration that only re-proposes the same tail before the host publishes the insert
+            // (see the `schedulePredictionAfterHostPublishDelay` rationale below).
+            lastAcceptedTail = AcceptedSuggestionTail(text: acceptedChunk, precedingText: liveContext.precedingText)
             logStage(
                 "\(keyName)-accepted-final-chunk",
                 workID: currentWorkID,
@@ -128,7 +132,14 @@ extension SuggestionCoordinator {
                 message: "Inserted the final suggestion chunk and queued a refresh.",
                 normalizedOutput: acceptedChunk
             )
-            schedulePrediction()
+            // Wait for the host to actually publish the inserted text before regenerating. A bare
+            // `schedulePrediction()` here reads pre-insertion AX in Chromium editors (the publish lags
+            // the synthetic keystroke), so the model re-proposes the word just accepted and the next
+            // accept re-inserts it. That is the final-word accept/regenerate/accept loop reported as
+            // the suggestion "flickering" without committing. Polling until the insert surfaces (the
+            // same path typing uses) makes the regeneration read the settled text and return a genuine
+            // next suggestion, or nothing.
+            schedulePredictionAfterHostPublishDelay()
             return true
 
         case let .advanced(advancedSession, _):

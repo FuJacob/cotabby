@@ -36,6 +36,12 @@ final class SuggestionInserter {
 
         let utf16CodeUnits = Array(normalized.utf16)
         suppressionController.registerSyntheticInsertion(expectedKeyDownCount: 1)
+        // Tag the synthetic events so both taps ignore them by identity. The observer also has a
+        // countdown, but the consuming accept tap relies on this marker because these events arrive
+        // with the placeholder `virtualKey: 0`, which would otherwise match an accept key bound to
+        // keyCode 0.
+        suppressionController.markSynthetic(keyDownEvent)
+        suppressionController.markSynthetic(keyUpEvent)
         keyDownEvent.keyboardSetUnicodeString(stringLength: utf16CodeUnits.count, unicodeString: utf16CodeUnits)
         keyUpEvent.keyboardSetUnicodeString(stringLength: utf16CodeUnits.count, unicodeString: utf16CodeUnits)
         keyDownEvent.post(tap: .cghidEventTap)
