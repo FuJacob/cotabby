@@ -32,7 +32,7 @@ struct VisualContextConfiguration: Equatable, Sendable {
 /// High-level lifecycle for screenshot-derived prompt context.
 /// The coordinator publishes this directly so the menu can surface useful progress without
 /// dumping low-level OCR or capture internals into the UI.
-enum VisualContextStatus: Equatable, Sendable {
+nonisolated enum VisualContextStatus: Equatable, Sendable {
     case idle
     case capturing
     case extractingText
@@ -62,14 +62,14 @@ enum VisualContextStatus: Equatable, Sendable {
 /// The final visual-context excerpt eventually injected into the completion prompt.
 /// This may be a model-generated summary when a summarizer is configured, or bounded normalized
 /// OCR text in tests/fallback wiring where no summarizer exists.
-struct VisualContextExcerpt: Equatable, Sendable {
+nonisolated struct VisualContextExcerpt: Equatable, Sendable {
     let text: String
 }
 
 /// Session-scoped state for screenshot-derived context tied to one focused field.
 /// This is separate from `ActiveSuggestionSession` because the screenshot context belongs to the
 /// focused input session itself, not to any one individual completion result.
-struct FocusedInputAugmentationSession: Equatable, Sendable {
+nonisolated struct FocusedInputAugmentationSession: Equatable, Sendable {
     let sessionID: UUID
     let elementIdentifier: String
     /// Mirrors the monotonic counter from `FocusedInputSnapshot`. The coordinator compares this
