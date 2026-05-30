@@ -23,6 +23,7 @@ final class CotabbyAppEnvironment {
     let foundationModelAvailabilityService: FoundationModelAvailabilityService
     let clipboardContextProvider: ClipboardContextProvider
     let suggestionCoordinator: SuggestionCoordinator
+    let emojiPickerController: EmojiPickerController
     let welcomeCoordinator: WelcomeCoordinator
     let huggingFaceSearchService: HuggingFaceSearchService
     let settingsCoordinator: SettingsCoordinator
@@ -154,6 +155,22 @@ final class CotabbyAppEnvironment {
             configuration: configuration
         )
 
+        // The emoji picker is a sibling to the suggestion coordinator. It reuses the input monitor,
+        // focus model, and inserter, but owns its own trigger state machine and floating panel.
+        let emojiPickerController = EmojiPickerController(
+            matcher: EmojiMatcher(catalog: EmojiCatalog.bundled()),
+            panel: EmojiPickerPanelController(),
+            focusModel: focusModel,
+            inputMonitor: inputMonitor,
+            inserter: suggestionInserter,
+            isEnabled: { suggestionSettings.isEmojiPickerEnabled }
+        )
+        // Give the picker first look at every keystroke the coordinator receives, so it can detect the
+        // `:` trigger and drive its state machine without changing who owns `inputMonitor.onEvent`.
+        suggestionCoordinator.emojiInputObserver = { [weak emojiPickerController] event in
+            emojiPickerController?.observe(event) ?? false
+        }
+
         self.permissionManager = permissionManager
         self.runtimeModel = runtimeModel
         self.modelDownloadManager = modelDownloadManager
@@ -166,6 +183,7 @@ final class CotabbyAppEnvironment {
         self.foundationModelAvailabilityService = foundationModelAvailabilityService
         self.clipboardContextProvider = clipboardContextProvider
         self.suggestionCoordinator = suggestionCoordinator
+        self.emojiPickerController = emojiPickerController
         self.welcomeCoordinator = welcomeCoordinator
         self.huggingFaceSearchService = huggingFaceSearchService
         self.settingsCoordinator = settingsCoordinator

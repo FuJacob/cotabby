@@ -29,6 +29,12 @@ struct GeneralPaneView: View {
                 Toggle("Allow Multi-line Suggestions", isOn: multiLineEnabledBinding)
 
                 Toggle("Accept Punctuation With Word", isOn: autoAcceptTrailingPunctuationBinding)
+
+                Toggle("Inline Emoji Picker", isOn: emojiPickerEnabledBinding)
+                    .help(
+                        "Type a colon and a name like :smile to pick an emoji inline, " +
+                        "then press Tab or Return to insert it."
+                    )
             }
 
             Section("Display") {
@@ -136,6 +142,13 @@ struct GeneralPaneView: View {
         Binding(
             get: { suggestionSettings.isMultiLineEnabled },
             set: { suggestionSettings.setMultiLineEnabled($0) }
+        )
+    }
+
+    private var emojiPickerEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.isEmojiPickerEnabled },
+            set: { suggestionSettings.setEmojiPickerEnabled($0) }
         )
     }
 

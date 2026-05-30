@@ -45,6 +45,20 @@ protocol SuggestionInputMonitoring: AnyObject {
     func setAcceptInterceptionActive(_ active: Bool)
 }
 
+/// The emoji picker's slice of the input monitor. Kept separate from `SuggestionInputMonitoring` so
+/// the suggestion coordinator stays unaware of emoji concerns and vice versa, even though one
+/// `InputMonitor` satisfies both.
+@MainActor
+protocol EmojiInputIntercepting: AnyObject {
+    /// Per-key consume decision consulted by the active tap while an emoji capture is open. The
+    /// controller computes the decision during the observer pass and this closure returns it.
+    var emojiCaptureKeyDecider: (@MainActor (InputMonitorKeyEvent) -> InputMonitorAcceptTapDecision)? { get set }
+
+    /// Keeps the active tap installed for the emoji-capture reason (parallel to the suggestion
+    /// overlay's `setAcceptInterceptionActive`).
+    func setCaptureInterceptionActive(_ active: Bool)
+}
+
 @MainActor
 protocol SuggestionGenerating: AnyObject {
     func generateSuggestion(for request: SuggestionRequest) async throws -> SuggestionResult
@@ -93,6 +107,13 @@ protocol SuggestionInserting: AnyObject {
     var lastErrorMessage: String? { get }
 
     func insert(_ suggestion: String) -> Bool
+}
+
+/// The emoji picker's slice of the inserter: replace a run of already-typed characters (the literal
+/// `:query`) with the chosen glyph in one suppressed synthetic burst.
+@MainActor
+protocol EmojiTextInserting: AnyObject {
+    func replace(deletingUTF16Count: Int, with text: String) -> Bool
 }
 
 @MainActor

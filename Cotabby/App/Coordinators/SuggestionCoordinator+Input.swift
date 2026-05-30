@@ -129,6 +129,19 @@ extension SuggestionCoordinator {
     }
 
     func handleInputEvent(_ event: CapturedInputEvent) -> Bool {
+        // Give the emoji picker first look at every keystroke so it can drive its trigger state
+        // machine. When a capture is involved, the picker owns the interaction: the suggestion
+        // pipeline stands down and any lingering ghost text is cleared so it does not show behind the
+        // panel. Consumption still happens through the active tap's `emojiCaptureKeyDecider`.
+        if emojiInputObserver?(event) == true {
+            if overlayState.isVisible || interactionState.activeSession != nil {
+                cancelPredictionWork()
+                clearSuggestion(clearDiagnostics: true)
+                hideOverlay(reason: "Overlay hidden because the emoji picker is active.")
+            }
+            return false
+        }
+
         if let disabledReason = SuggestionAvailabilityEvaluator.disabledReason(
             globallyEnabled: settingsSnapshot.isGloballyEnabled,
             disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
