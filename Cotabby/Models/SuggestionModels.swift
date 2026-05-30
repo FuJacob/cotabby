@@ -177,6 +177,21 @@ struct FocusedInputContext: Equatable, Sendable {
         )
     }
 
+    /// Stable per-process key for the focused field, intentionally NOT including the input frame
+    /// rect. The polling signature in `FocusTracker` bumps `focusChangeSequence` whenever the
+    /// field's frame changes (e.g., a chat composer growing taller as the user types wraps onto a
+    /// second line). For consumers that should treat self-resizing as "same field" — chief among
+    /// them ghost-font stabilization — this key gives them a session identity that survives field
+    /// growth. `hashValue` is randomized per process, which is fine: the key is only ever compared
+    /// within one process's lifetime.
+    var focusedInputIdentityKey: UInt64 {
+        var hasher = Hasher()
+        hasher.combine(bundleIdentifier)
+        hasher.combine(processIdentifier)
+        hasher.combine(elementIdentifier)
+        return UInt64(bitPattern: Int64(hasher.finalize()))
+    }
+
     /// Content-only fingerprint — mirrors `FocusedInputSnapshot.contentSignature`.
     /// See that type's doc comment for why `elementIdentifier` is excluded.
     var contentSignature: String {
@@ -431,6 +446,12 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
     /// per-session font-size stabilization on this value, so a field switch (or focus loss) starts
     /// a fresh size baseline. Defaults to 0 for tests that do not exercise session-scoped behavior.
     let focusChangeSequence: UInt64
+    /// Stable identity for the focused input field, used to scope ghost-font stabilization.
+    /// Unlike `focusChangeSequence`, this does NOT change when the field resizes (e.g., a chat
+    /// composer growing taller as text wraps), so the stabilizer's per-session minimum survives
+    /// self-growing inputs. It DOES change when the user focuses a genuinely different field.
+    /// Defaults to 0 for tests that do not exercise session-scoped behavior.
+    let focusedInputIdentityKey: UInt64
 
     init(
         caretRect: CGRect,
@@ -438,7 +459,8 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
         caretQuality: CaretGeometryQuality,
         observedCharWidth: CGFloat?,
         isRightToLeft: Bool,
-        focusChangeSequence: UInt64 = 0
+        focusChangeSequence: UInt64 = 0,
+        focusedInputIdentityKey: UInt64 = 0
     ) {
         self.caretRect = caretRect
         self.inputFrameRect = inputFrameRect
@@ -446,6 +468,7 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
         self.observedCharWidth = observedCharWidth
         self.isRightToLeft = isRightToLeft
         self.focusChangeSequence = focusChangeSequence
+        self.focusedInputIdentityKey = focusedInputIdentityKey
     }
 }
 

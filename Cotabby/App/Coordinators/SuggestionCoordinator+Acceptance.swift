@@ -374,7 +374,8 @@ extension SuggestionCoordinator {
             caretQuality: context.caretQuality,
             observedCharWidth: context.observedCharWidth,
             isRightToLeft: isRightToLeft,
-            focusChangeSequence: context.focusChangeSequence
+            focusChangeSequence: context.focusChangeSequence,
+            focusedInputIdentityKey: context.focusedInputIdentityKey
         )
         if let message = overlayPresenter.present(
             text: text,
