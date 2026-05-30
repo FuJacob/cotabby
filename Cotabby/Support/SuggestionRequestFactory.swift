@@ -65,11 +65,24 @@ enum SuggestionRequestFactory {
             clipboardContext: boundedClipboardContext,
             visualContextSummary: boundedVisualContextSummary
         )
+        // Role-split variant for chat-template-capable local models. Built unconditionally and
+        // cheaply; the runtime decides per-model whether to use it or fall back to `prompt`.
+        let llamaChatPrompt = LlamaPromptRenderer.messages(
+            prefixText: prefixText,
+            applicationName: context.applicationName,
+            completionLengthInstruction: completionLengthInstruction,
+            userName: userName,
+            customRules: customRules,
+            languageInstruction: languageInstruction,
+            clipboardContext: boundedClipboardContext,
+            visualContextSummary: boundedVisualContextSummary
+        )
 
         let request = SuggestionRequest(
             context: context,
             prefixText: prefixText,
             prompt: prompt,
+            llamaChatPrompt: llamaChatPrompt,
             generation: context.generation,
             maxPredictionTokens: activeMaxPredictionTokens(
                 configuration: configuration,

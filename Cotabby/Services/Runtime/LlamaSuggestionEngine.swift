@@ -37,6 +37,7 @@ final class LlamaSuggestionEngine {
             )
             let rawSuggestion = try await runtimeManager.generate(
                 prompt: request.prompt,
+                chatPrompt: request.llamaChatPrompt,
                 cachedPrefixBytes: cachedPrefixBytes,
                 options: LlamaGenerationOptions(
                     maxPredictionTokens: request.maxPredictionTokens,

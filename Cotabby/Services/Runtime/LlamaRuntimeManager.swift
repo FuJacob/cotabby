@@ -90,6 +90,7 @@ final class LlamaRuntimeManager: ObservableObject {
     /// still validates the token prefix before trusting any native KV state.
     func generate(
         prompt: String,
+        chatPrompt: LlamaPromptRenderer.ChatPrompt? = nil,
         cachedPrefixBytes: Int? = nil,
         options: LlamaGenerationOptions
     ) async throws -> String {
@@ -104,6 +105,7 @@ final class LlamaRuntimeManager: ObservableObject {
             let task = Task.detached {
                 try core.generate(
                     prompt: prompt,
+                    chatPrompt: chatPrompt,
                     cachedPrefixBytes: cachedPrefixBytes,
                     options: options
                 )

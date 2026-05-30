@@ -115,6 +115,7 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
     /// Holds `autocompleteLock` for the full call to prevent concurrent KV cache mutation.
     func generate(
         prompt: String,
+        chatPrompt: LlamaPromptRenderer.ChatPrompt? = nil,
         cachedPrefixBytes: Int? = nil,
         options: LlamaGenerationOptions
     ) throws -> String {
@@ -137,8 +138,23 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
             lifecycleCondition.unlock()
         }
 
-        let promptBytes = Array(prompt.utf8)
-        let allPromptTokens = tokenize(prompt)
+        // Prefer the model's own chat template when it ships one and the caller supplied a
+        // role-split prompt; otherwise fall back to the raw single-string path that base models
+        // need. Both branches derive `promptBytes` from the SAME string they tokenize, so the
+        // KV-cache reuse comparison downstream stays self-consistent (the external byte hint is
+        // only ever used as an upper bound via `min`, so a mismatched hint clamps reuse safely).
+        let promptBytes: [UInt8]
+        let allPromptTokens: [Int32]
+        let promptStyle: String
+        if let chatPrompt, let templated = templatedPromptTokens(chatPrompt) {
+            promptBytes = templated.bytes
+            allPromptTokens = templated.tokens
+            promptStyle = "chat_template"
+        } else {
+            promptBytes = Array(prompt.utf8)
+            allPromptTokens = tokenize(prompt)
+            promptStyle = "raw"
+        }
         guard !allPromptTokens.isEmpty else {
             CotabbyLogger.runtime.error(
                 "Tokenization returned no prompt tokens",
@@ -150,6 +166,7 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
             "Decode start",
             metadata: [
                 "kind": .string("generate"),
+                "prompt_style": .string(promptStyle),
                 "prompt_tokens": .stringConvertible(allPromptTokens.count),
                 "max_tokens": .stringConvertible(options.maxPredictionTokens),
                 "cached_prefix_bytes": .string(cachedPrefixBytes.map(String.init) ?? "none")
@@ -441,6 +458,48 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         guard utf8Count > 0 else { return [] }
         let vec = engine.tokenize(text, Int32(utf8Count))
         return Array(vec)
+    }
+
+    /// Renders `chatPrompt` through the loaded model's own chat template (via the engine's C-ABI
+    /// buffer accessor) and tokenizes the result with special tokens parsed, so the template's
+    /// control markers become real token IDs. Returns `nil` when the model ships no template or
+    /// rendering fails, signaling `generate` to fall back to the raw single-string prompt path.
+    ///
+    /// `add_special` is true on the tokenize call so BOS is added per the model's metadata,
+    /// matching the raw `tokenize` path; chat templates emit their own role markers but not BOS,
+    /// and `llama_tokenize` only injects specials the model is actually configured to add.
+    private func templatedPromptTokens(
+        _ chatPrompt: LlamaPromptRenderer.ChatPrompt
+    ) -> (bytes: [UInt8], tokens: [Int32])? {
+        guard engine.hasChatTemplate() else { return nil }
+
+        // applyChatTemplate writes the rendered prompt into our buffer and returns the byte count;
+        // a negative return is -(required size) when the buffer was too small, so resize once and
+        // retry; 0 means render failure → fall back to raw.
+        var buffer = [CChar](repeating: 0, count: 4096)
+        var written = engine.applyChatTemplate(
+            chatPrompt.system, chatPrompt.user, true, &buffer, Int32(buffer.count)
+        )
+        if written < 0 {
+            buffer = [CChar](repeating: 0, count: Int(-written))
+            written = engine.applyChatTemplate(
+                chatPrompt.system, chatPrompt.user, true, &buffer, Int32(buffer.count)
+            )
+        }
+        guard written > 0 else { return nil }
+
+        // `buffer` is CChar (Int8); reinterpret the written prefix as UTF-8 bytes. The failable
+        // initializer returns nil on invalid UTF-8, which we treat as a render failure (fall back).
+        let renderedBytes = buffer.prefix(Int(written)).map { UInt8(bitPattern: $0) }
+        guard let rendered = String(bytes: renderedBytes, encoding: .utf8), !rendered.isEmpty else {
+            return nil
+        }
+
+        let vec = engine.tokenizeWithOptions(rendered, Int32(rendered.utf8.count), true, true)
+        let tokens = Array(vec)
+        guard !tokens.isEmpty else { return nil }
+
+        return (Array(rendered.utf8), tokens)
     }
 
     private static func extractPiece(_ result: SampleResult) -> String {

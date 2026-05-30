@@ -89,4 +89,82 @@ enum LlamaPromptRenderer {
 
         return sections.joined(separator: "\n")
     }
+
+    /// A system/user message pair for the chat-template path. The system turn carries every rule
+    /// and context block; the user turn carries only the text to continue, so when the model's
+    /// own template opens an assistant turn after it, the model continues the user's text as its
+    /// own rather than answering it.
+    struct ChatPrompt: Equatable, Sendable {
+        let system: String
+        let user: String
+    }
+
+    /// Renders the same policy as `prompt(...)` but split into chat roles, for models that ship a
+    /// chat template (see `CotabbyInferenceEngine.hasChatTemplate`). The raw `prompt(...)` stays the
+    /// fallback for base models with no template.
+    ///
+    /// Why the split matters: the single-string `prompt(...)` ends on a `Text before caret:` label
+    /// because a raw model needs that scaffolding to know where the continuation begins. A templated
+    /// model instead gets the rules in the system turn and the bare prefix in the user turn, so the
+    /// label scaffolding (the thing small models echo back as `App:` / `Text before caret:`) is gone
+    /// entirely. The framing mirrors `FoundationModelPromptRenderer`: continue, do not converse.
+    static func messages(
+        prefixText: String,
+        applicationName: String,
+        completionLengthInstruction: String,
+        userName: String?,
+        customRules: [String] = [],
+        languageInstruction: String? = nil,
+        clipboardContext: String? = nil,
+        visualContextSummary: String? = nil
+    ) -> ChatPrompt {
+        var sections = [
+            "You complete partially-typed text. The user is the author; produce the next few words "
+                + "they would type, continuing directly from where their text stops.",
+            "This is autocomplete, not chat. Do not answer the user, greet them, or start a "
+                + "conversation.",
+            "Never repeat, restate, or quote the text the user has already typed.",
+            "Match the existing language, register, casing, and punctuation.",
+            "Use clipboard or screen context only when it directly helps the inline continuation.",
+            "Return plain text only: no thinking, labels, bullets, markdown, quotes, or explanation."
+        ]
+
+        if let name = userName, !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            sections.append("")
+            sections.append("User Profile Context:")
+            sections.append("- The user's name is \(name).")
+        }
+
+        let trimmedRules = customRules
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        if !trimmedRules.isEmpty {
+            sections.append("")
+            sections.append("Your style preferences:")
+            sections.append(contentsOf: trimmedRules.map { "- \($0)" })
+            sections.append("Apply these only when they fit the continuation naturally; never break the rules above.")
+        }
+
+        sections.append("")
+        sections.append("Screen context:")
+        sections.append("User is on \(applicationName).")
+        if let summary = visualContextSummary, !summary.isEmpty {
+            sections.append("Screen content:")
+            sections.append(summary)
+        }
+        if let clipboardContext, !clipboardContext.isEmpty {
+            sections.append("User's clipboard:")
+            sections.append(clipboardContext)
+        }
+
+        // Length is governed by the token budget for the local path (see `prompt(...)`), so the
+        // explicit word-range cue stays omitted here too; the parameter is kept wired for symmetry.
+        _ = completionLengthInstruction
+        if let languageInstruction, !languageInstruction.isEmpty {
+            sections.append("")
+            sections.append(languageInstruction)
+        }
+
+        return ChatPrompt(system: sections.joined(separator: "\n"), user: prefixText)
+    }
 }

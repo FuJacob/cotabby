@@ -216,6 +216,11 @@ struct SuggestionRequest: Equatable, Sendable {
     /// Engines that prefer a separate instructions channel can derive their own request text from
     /// `prefixText` and the other shared fields instead of consuming this string directly.
     let prompt: String
+    /// The same llama policy as `prompt`, split into chat roles for models that ship a chat
+    /// template. `nil` for backends/paths that do not use it (e.g. Apple Intelligence). The local
+    /// runtime renders this through the model's own template when available and falls back to the
+    /// single-string `prompt` for base models with no template.
+    let llamaChatPrompt: LlamaPromptRenderer.ChatPrompt?
     let generation: UInt64
     let maxPredictionTokens: Int
     let temperature: Double
@@ -257,6 +262,7 @@ struct SuggestionRequest: Equatable, Sendable {
         context: FocusedInputContext,
         prefixText: String,
         prompt: String,
+        llamaChatPrompt: LlamaPromptRenderer.ChatPrompt? = nil,
         generation: UInt64,
         maxPredictionTokens: Int,
         temperature: Double,
@@ -278,6 +284,7 @@ struct SuggestionRequest: Equatable, Sendable {
         self.context = context
         self.prefixText = prefixText
         self.prompt = prompt
+        self.llamaChatPrompt = llamaChatPrompt
         self.generation = generation
         self.maxPredictionTokens = maxPredictionTokens
         self.temperature = temperature
