@@ -53,6 +53,18 @@ enum SuggestionTextNormalizer {
         // continuation that followed.
         normalized = normalized.trimmingCharacters(in: .newlines)
 
+        // Backstop for prompt-scaffolding hallucination. Small instruct models sometimes parrot the
+        // prompt's section headers ("App:", "Text before caret:", "Continuation:") as the first
+        // thing they emit: sometimes as their own line, sometimes inline before the real text, and
+        // sometimes as labels the model invents that were never in our prompt at all. None of these
+        // are valid ghost text. Stripping a leading run of known labels runs before the single-line
+        // collapse so a model that stacks "Task:\nText before caret:\nreal continuation" still
+        // surfaces the real continuation instead of collapsing to the first label line. This is a
+        // best-effort catch, not the fix: the durable fix is feeding instruct models their own chat
+        // template so instructions never read as content in the first place.
+        normalized = stripLeadingScaffoldingLabels(normalized)
+        normalized = normalized.trimmingCharacters(in: .newlines)
+
         if request.isMultiLineEnabled {
             // Multi-line mode: keep content up to the first blank-line boundary (double newline)
             // to prevent runaway paragraph generation while still allowing multi-line completions.
@@ -143,5 +155,48 @@ enum SuggestionTextNormalizer {
         let lastEchoedWord = suggestionWords[bestOverlap - 1]
         let afterLastEchoed = lastEchoedWord.endIndex
         return String(suggestion[afterLastEchoed...])
+    }
+
+    /// Section-header labels Cotabby's prompts use, plus close variants small models tend to
+    /// hallucinate. Matching is anchored to this known set so legitimate user text that merely
+    /// contains a colon ("Note: buy milk", "TODO: ship it") is never treated as scaffolding.
+    /// Ordered longest-first at match time so "Text before the caret:" wins over "Text before".
+    private static let scaffoldingLabels: [String] = [
+        "Text before the caret:",
+        "Text before caret:",
+        "Text after the caret:",
+        "Text after caret:",
+        "User Profile Context:",
+        "Your style preferences:",
+        "Final instruction:",
+        "Screen context:",
+        "Screen content:",
+        "User's clipboard:",
+        "Continuation:",
+        "Application:",
+        "Task:",
+        "App:"
+    ]
+
+    /// Removes a leading run of known prompt-scaffolding labels (see `scaffoldingLabels`), whether
+    /// each sits on its own line or inline before the continuation. Only labels at the very start
+    /// are stripped; a label appearing later in the text is left alone because by then it is far
+    /// more likely to be real user content than echoed scaffolding.
+    private static func stripLeadingScaffoldingLabels(_ text: String) -> String {
+        let labelsByLengthDescending = scaffoldingLabels.sorted { $0.count > $1.count }
+        var working = text
+
+        while true {
+            // Look past leading whitespace/newlines to find the first real token. We only commit to
+            // dropping that whitespace if a label actually matches; otherwise `working` is returned
+            // untouched so the caller's existing leading-space handling still sees the original.
+            let leading = String(working.drop(while: { $0.isWhitespace }))
+            guard let label = labelsByLengthDescending.first(where: {
+                leading.range(of: $0, options: [.caseInsensitive, .anchored]) != nil
+            }) else {
+                return working
+            }
+            working = String(leading.dropFirst(label.count))
+        }
     }
 }
