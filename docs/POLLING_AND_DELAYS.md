@@ -22,7 +22,7 @@ Update this file whenever you add, remove, or change a timing constant.
 
 | Location | Value | Purpose |
 |----------|-------|---------|
-| `Cotabby/Models/SuggestionModels.swift:103` | 30 ms | Default suggestion debounce (fresh-install fallback; persisted per install, so existing users keep their value). User-configurable, clamped to [10, 500]. Wait after the last keystroke before triggering generation. |
+| `Cotabby/Models/SuggestionModels.swift:103` | 30 ms | Default suggestion debounce. Persisted values are capped to this default on load (`SuggestionSettingsModel.swift:181`) so existing installs with the old 50 ms default get the improvement; the stepper is hidden from the UI today, so any persisted value is a previous default rather than a user choice. Clamped to [10, 500]. |
 | `Cotabby/Services/Suggestion/SuggestionWorkController.swift:32` | (configured) | Converts the user debounce setting from ms to nanoseconds for `Task.sleep`. |
 
 ## Acceptance and Input

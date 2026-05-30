@@ -181,7 +181,11 @@ final class SuggestionSettingsModel: ObservableObject {
         let resolvedDebounceMilliseconds: Int = {
             let raw = userDefaults.object(forKey: Self.debounceMillisecondsDefaultsKey) as? Int
                 ?? configuration.debounceMilliseconds
-            return max(10, min(500, raw))
+            // Existing installs may have the old 50ms first-launch default persisted. Cap at the
+            // shipped default so the latency improvement reaches them — the stepper is hidden from
+            // the UI today, so any persisted value is a previous default rather than a user choice.
+            let capped = min(raw, configuration.debounceMilliseconds)
+            return max(10, min(500, capped))
         }()
         let resolvedFocusPollIntervalMilliseconds: Int = {
             let raw = userDefaults.object(forKey: Self.focusPollIntervalMillisecondsDefaultsKey) as? Int
