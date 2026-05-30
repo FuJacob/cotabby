@@ -430,7 +430,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: build-artifacts
-          path: build/${{ env.DMG_NAME }}
+          path: build/${{ env.APP_NAME }}.xcarchive/
           if-no-files-found: ignore
 
   # ---------------------------------------------------------------------------
@@ -450,7 +450,7 @@ jobs:
 
     steps:
       - name: Download DMG artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: cotabby-dmg
           path: build
@@ -670,7 +670,7 @@ jobs:
           python-version: "3.13"
 
       - name: Download notarized DMG
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: cotabby-dmg-notarized
           path: build
@@ -707,6 +707,11 @@ jobs:
           SPARKLE_ED25519_PRIVATE_KEY: ${{ secrets.SPARKLE_ED25519_PRIVATE_KEY }}
         run: |
           set -euo pipefail
+
+          if [[ -z "${SPARKLE_ED25519_PRIVATE_KEY}" ]]; then
+            echo "SPARKLE_ED25519_PRIVATE_KEY is not configured — cannot publish." >&2
+            exit 1
+          fi
 
           sparkle_key_file="${RUNNER_TEMP}/sparkle-ed25519-private-key.txt"
           printf '%s' "${SPARKLE_ED25519_PRIVATE_KEY}" > "${sparkle_key_file}"
