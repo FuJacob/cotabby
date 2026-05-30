@@ -129,6 +129,9 @@ targets:
         SWIFT_OBJC_INTEROP_MODE: objcxx
         SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY: YES
         SWIFT_VERSION: "5.0"
+      configs:
+        Debug:
+          CODE_SIGN_ENTITLEMENTS: Cotabby-Debug.entitlements
   CotabbyTests:
     type: bundle.unit-test
     platform: macOS
@@ -141,7 +144,6 @@ targets:
       base:
         BUNDLE_LOADER: $(TEST_HOST)
         CODE_SIGN_IDENTITY: "-"
-        CODE_SIGNING_ALLOWED: NO
         CODE_SIGNING_REQUIRED: NO
         CODE_SIGN_STYLE: Automatic
         GENERATE_INFOPLIST_FILE: YES
