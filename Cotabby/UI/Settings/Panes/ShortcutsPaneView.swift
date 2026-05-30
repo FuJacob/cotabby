@@ -2,9 +2,7 @@ import SwiftUI
 
 /// File overview:
 /// "Shortcuts" detail pane of the redesigned Settings window. Surfaces the two keybindings that
-/// drive suggestion acceptance: word-by-word and full-suggestion. Lifted from the legacy
-/// `SettingsView.shortcutsSection` so binding capture, conflict resolution, and reset / clear
-/// semantics are preserved exactly.
+/// drive suggestion acceptance: word-by-word and full-suggestion.
 struct ShortcutsPaneView: View {
     @ObservedObject var suggestionSettings: SuggestionSettingsModel
 

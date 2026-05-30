@@ -3,8 +3,7 @@ import SwiftUI
 /// File overview:
 /// "Writing" detail pane of the redesigned Settings window. Owns how the completion reads:
 /// preferred length, profile (display name), preferred response languages, and the user's custom
-/// style rules. Lifted from the legacy `SettingsView.writingSection` so the controls inside the
-/// pane behave identically; only the wrapping form scaffold is new.
+/// style rules.
 struct WritingPaneView: View {
     @ObservedObject var suggestionSettings: SuggestionSettingsModel
 

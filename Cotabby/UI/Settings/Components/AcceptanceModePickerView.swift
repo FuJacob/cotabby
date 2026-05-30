@@ -1,10 +1,7 @@
 import SwiftUI
 
 /// File overview:
-/// Shared "Acceptance Mode" picker for the primary accept key. Used by both the legacy
-/// `SettingsView.shortcutsSection` and the redesigned `ShortcutsPaneView`, so the granularity
-/// labels and cases live in one place — adding or renaming a mode can't drift between the two
-/// settings shells.
+/// Shared "Acceptance Mode" picker for the primary accept key, used by `ShortcutsPaneView`.
 struct AcceptanceModePickerView: View {
     @ObservedObject var suggestionSettings: SuggestionSettingsModel
 

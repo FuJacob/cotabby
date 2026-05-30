@@ -135,7 +135,6 @@
 		A147C5EC3F2214A670F7556E /* FocusPollBackoffTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 273B4DC844F79B4BE2C8910F /* FocusPollBackoffTests.swift */; };
 		A2B3F4D38BCB0FED452B2A3F /* FocusTrackingModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6D42CD456B4B3C988B148A6 /* FocusTrackingModel.swift */; };
 		A36481222BB5B2A67349D389 /* ApplicationBundleMetadataTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A168A7B6A7AD11559B60C56B /* ApplicationBundleMetadataTests.swift */; };
-		A440C596EFD9CD1E44F2579B /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E0F6AFF229D20B73CF14C6C /* SettingsView.swift */; };
 		A5A6CE0EF01CA6A9AFA7A400 /* RequestID.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DC693E00430F46E41CB56E6 /* RequestID.swift */; };
 		A87978083EBE1AC294377F7C /* HuggingFaceSearchService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F426127917FCB1096134732 /* HuggingFaceSearchService.swift */; };
 		A93A741C8C3973687D28F0B6 /* SuggestionEngineModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADBE3E6CC585C1683787C877 /* SuggestionEngineModels.swift */; };
@@ -217,7 +216,6 @@
 		0A3D1125B962CBE0269EEDDB /* SuggestionInserter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionInserter.swift; sourceTree = "<group>"; };
 		0C383AE85B971A9605787358 /* FocusModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusModels.swift; sourceTree = "<group>"; };
 		0D80CC2CCAAFE3F23FB8C37A /* PromptContextSanitizerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptContextSanitizerTests.swift; sourceTree = "<group>"; };
-		0E0F6AFF229D20B73CF14C6C /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		0F5E263AB69029D5E13D5EE8 /* FocusDebugOverlayController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusDebugOverlayController.swift; sourceTree = "<group>"; };
 		110CB0B53016644EF7840301 /* HuggingFaceAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HuggingFaceAPIClient.swift; sourceTree = "<group>"; };
 		12DD19BCE610808F1E38702D /* PermissionOverlayTrackerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionOverlayTrackerTests.swift; sourceTree = "<group>"; };
@@ -644,7 +642,6 @@
 				9AA0117B322C625F6D4BBEAB /* MenuBarView.swift */,
 				656F58E56FE9BC087B6F1D33 /* PermissionReminderView.swift */,
 				5484C8A04B9C00CF79D589EB /* ScreenFrameReader.swift */,
-				0E0F6AFF229D20B73CF14C6C /* SettingsView.swift */,
 				FB317C82CE2CBC69056BA4B8 /* TagChip.swift */,
 				58C0F017699EE44C81C095CA /* TagsInputView.swift */,
 				67586807ACE8EB13C9014535 /* TickMarkSlider.swift */,
@@ -961,7 +958,6 @@
 				644EEF959D07D54CC779BBF6 /* SettingsCoordinator.swift in Sources */,
 				4B93D26BACEEA932E92B1A19 /* SettingsPaneScaffold.swift in Sources */,
 				27D4F5CACADE171F142178B4 /* SettingsSidebarView.swift in Sources */,
-				A440C596EFD9CD1E44F2579B /* SettingsView.swift in Sources */,
 				12995E5DDB11E3395E6AF82F /* ShortcutsPaneView.swift in Sources */,
 				4F369F5284DDCEABF082E59B /* SuggestionAvailabilityEvaluator.swift in Sources */,
 				A0657CE0488F69F0BD559CBC /* SuggestionCoordinator+Acceptance.swift in Sources */,

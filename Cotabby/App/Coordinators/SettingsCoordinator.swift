@@ -45,24 +45,6 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
         self.onShowWelcome = onShowWelcome
     }
 
-    /// UserDefaults key that toggles between the legacy single-form Settings and the redesigned
-    /// sidebar Settings. Defaults to `true` now that the redesigned panes cover every legacy
-    /// control; the legacy view is retained as a one-`defaults write` rollback for one release
-    /// cycle before it is deleted. The key is intentionally narrow so a regression can be
-    /// reverted with `defaults write com.jacobfu.tabby cotabbySettingsRedesignEnabled -bool NO`
-    /// without redeploying the app.
-    static let redesignEnabledDefaultsKey = "cotabbySettingsRedesignEnabled"
-
-    private var isRedesignEnabled: Bool {
-        // `bool(forKey:)` cannot distinguish "user explicitly set false" from "key absent". Read
-        // the raw object so the absent case can default to true without overwriting an explicit
-        // opt-out from someone who set the key to false.
-        guard let stored = UserDefaults.standard.object(forKey: Self.redesignEnabledDefaultsKey) as? Bool else {
-            return true
-        }
-        return stored
-    }
-
     /// Shows the settings window, reusing the existing instance if it is already open.
     /// Reusing one window avoids subtle state duplication and matches standard macOS settings
     /// behavior where there is a single shared preferences surface for the app.
@@ -73,56 +55,30 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
             return
         }
 
-        let hostingController: NSHostingController<AnyView>
-        let initialFrame: CGRect
-        let minSize: NSSize
-        let autosaveName: String
-
-        if isRedesignEnabled {
-            hostingController = NSHostingController(
-                rootView: AnyView(
-                    SettingsContainerView(
-                        appUpdateManager: appUpdateManager,
-                        launchAtLoginService: launchAtLoginService,
-                        permissionManager: permissionManager,
-                        suggestionSettings: suggestionSettings,
-                        foundationModelAvailabilityService: foundationModelAvailabilityService,
-                        runtimeModel: runtimeModel,
-                        modelDownloadManager: modelDownloadManager,
-                        huggingFaceSearchService: huggingFaceSearchService,
-                        onShowWelcome: onShowWelcome
-                    )
+        let hostingController = NSHostingController(
+            rootView: AnyView(
+                SettingsContainerView(
+                    appUpdateManager: appUpdateManager,
+                    launchAtLoginService: launchAtLoginService,
+                    permissionManager: permissionManager,
+                    suggestionSettings: suggestionSettings,
+                    foundationModelAvailabilityService: foundationModelAvailabilityService,
+                    runtimeModel: runtimeModel,
+                    modelDownloadManager: modelDownloadManager,
+                    huggingFaceSearchService: huggingFaceSearchService,
+                    onShowWelcome: onShowWelcome
                 )
             )
-            // Sized to fit the actual content: a fixed 260pt sidebar (see `SettingsSidebarView`)
-            // plus a ~600pt detail column for the grouped form. The previous 1320x820 default with
-            // a 1180 minimum was far wider than any pane's content, which is exactly what left the
-            // detail area looking stretched and the window feeling empty.
-            initialFrame = CGRect(x: 0, y: 0, width: 860, height: 700)
-            minSize = NSSize(width: 820, height: 560)
-            // Bump the autosave name so anyone holding a saved 1320-wide V3 frame gets the new
-            // right-sized default once, instead of restoring the oversized window.
-            autosaveName = "CotabbySettingsWindowV4"
-        } else {
-            hostingController = NSHostingController(
-                rootView: AnyView(
-                    SettingsView(
-                        appUpdateManager: appUpdateManager,
-                        launchAtLoginService: launchAtLoginService,
-                        permissionManager: permissionManager,
-                        suggestionSettings: suggestionSettings,
-                        foundationModelAvailabilityService: foundationModelAvailabilityService,
-                        runtimeModel: runtimeModel,
-                        modelDownloadManager: modelDownloadManager,
-                        huggingFaceSearchService: huggingFaceSearchService,
-                        onShowWelcome: onShowWelcome
-                    )
-                )
-            )
-            initialFrame = CGRect(x: 0, y: 0, width: 700, height: 620)
-            minSize = NSSize(width: 640, height: 520)
-            autosaveName = "CotabbySettingsWindow"
-        }
+        )
+        // Sized to fit the actual content: a fixed 260pt sidebar (see `SettingsSidebarView`)
+        // plus a ~600pt detail column for the grouped form. The previous 1320x820 default with
+        // a 1180 minimum was far wider than any pane's content, which is exactly what left the
+        // detail area looking stretched and the window feeling empty.
+        let initialFrame = CGRect(x: 0, y: 0, width: 860, height: 700)
+        let minSize = NSSize(width: 820, height: 560)
+        // Bump the autosave name so anyone holding a saved 1320-wide V3 frame gets the new
+        // right-sized default once, instead of restoring the oversized window.
+        let autosaveName = "CotabbySettingsWindowV4"
 
         let window = NSWindow(
             contentRect: initialFrame,
