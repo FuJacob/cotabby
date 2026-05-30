@@ -53,6 +53,14 @@ struct GeneralPaneView: View {
                             "(commas, periods) so you don't have to type it."
                     )
                 }
+
+                Toggle(isOn: emojiPickerEnabledBinding) {
+                    SettingsRowLabel(
+                        title: "Inline Emoji Picker",
+                        description: "Type a colon and a name like :smile to pick an emoji inline, " +
+                            "then press Tab or Return to insert it."
+                    )
+                }
             }
 
             Section("Display") {
@@ -179,6 +187,13 @@ struct GeneralPaneView: View {
         Binding(
             get: { suggestionSettings.isMultiLineEnabled },
             set: { suggestionSettings.setMultiLineEnabled($0) }
+        )
+    }
+
+    private var emojiPickerEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.isEmojiPickerEnabled },
+            set: { suggestionSettings.setEmojiPickerEnabled($0) }
         )
     }
 

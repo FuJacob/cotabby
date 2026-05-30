@@ -52,6 +52,13 @@ final class InputMonitor {
     var onEvent: ((CapturedInputEvent) -> Bool)?
     var onSuppressedSyntheticInput: (() -> Void)?
 
+    /// While an emoji capture session is active, the picker controller decides per key whether the
+    /// active tap should swallow it (navigation, Return/Tab, Escape) or let it reach the field
+    /// (query characters). `.notHandled` means no capture is active, so the accept tap falls through
+    /// to its normal accept-key logic. The decision is computed by the observer pass for the same
+    /// event, so this closure is a fast, side-effect-free read.
+    var emojiCaptureKeyDecider: (@MainActor (InputMonitorKeyEvent) -> InputMonitorAcceptTapDecision)?
+
     /// Reads the current word-accept key code from the model at event time, avoiding
     /// Combine delivery lag between settings changes and the event classifier.
     var acceptanceKeyCodeProvider: @MainActor () -> CGKeyCode = { 48 }
@@ -109,6 +116,13 @@ final class InputMonitor {
     /// Internal instead of private so unit tests can exercise observer routing without installing
     /// global event taps.
     var isAcceptTapOwningAcceptKeys = false
+
+    /// The two independent reasons to keep the active tap installed. A visible suggestion needs to
+    /// consume the accept key; an in-progress emoji capture needs to consume navigation and commit
+    /// keys. Tracking them separately means neither feature removes the tap while the other still
+    /// needs it, and the tap is gone entirely when both are idle (the issue #328 invariant).
+    private var suggestionInterceptionActive = false
+    private var captureInterceptionActive = false
 
     init(
         permissionProvider: @escaping @MainActor () -> Bool,
@@ -174,27 +188,45 @@ final class InputMonitor {
     /// ("Fix last tab issue") protected before the two-tap ownership rewrite dropped it.
     private static let acceptTapTeardownDelaySeconds: TimeInterval = 0.05
 
-    /// Installs (when `active == true`) or removes (when `false`) the narrow active tap that can
-    /// consume the accept key. The coordinator calls this when a suggestion becomes visible or
-    /// hidden, so Cotabby only enters the synchronous event path while there is something to accept.
+    /// Suggestion-overlay reason for the active tap. The coordinator calls this when a suggestion
+    /// becomes visible or hidden, so Cotabby only enters the synchronous event path while there is
+    /// something to accept.
     func setAcceptInterceptionActive(_ active: Bool) {
-        guard permissionProvider() else {
-            destroyAcceptTap()
-            return
-        }
-        if active {
+        suggestionInterceptionActive = active
+        updateAcceptTapState()
+    }
+
+    /// Emoji-capture reason for the active tap. The emoji controller calls this when a `:query`
+    /// capture opens or closes, so the tap can consume navigation and commit keys for the duration.
+    func setCaptureInterceptionActive(_ active: Bool) {
+        captureInterceptionActive = active
+        updateAcceptTapState()
+    }
+
+    /// Installs the active tap when either reason wants it and tears it down otherwise. Recomputes
+    /// accept-key ownership: only a visible suggestion claims the accept key at the observer layer.
+    /// When the tap exists solely for emoji capture, the observer must keep routing the accept key
+    /// (Tab) to the coordinator so the emoji controller — not the suggestion accept path — acts on it.
+    private func updateAcceptTapState() {
+        let wantsTap = permissionProvider() && (suggestionInterceptionActive || captureInterceptionActive)
+        // Only a visible suggestion claims the accept key at the observer layer. When the tap exists
+        // solely for emoji capture, the observer must keep routing the accept key (Tab) to the
+        // coordinator so the emoji controller — not the suggestion accept path — acts on it. Setting
+        // this synchronously (even on teardown) lets the fail-open preflight resume passing keys
+        // through immediately.
+        isAcceptTapOwningAcceptKeys = wantsTap && suggestionInterceptionActive
+        if wantsTap {
             installAcceptTapIfNeeded()
         } else {
-            // Stop owning the accept key synchronously so the listen-only observer resumes handling
-            // it and the fail-open preflight (`overlayState.isVisible`, now false) passes keys
-            // through. Defer only the mach-port invalidation, so a final-chunk accept's synthetic
-            // insertion can drain before the tap is removed. See `acceptTapTeardownDelaySeconds`.
-            isAcceptTapOwningAcceptKeys = false
+            // Defer only the mach-port invalidation, so a final-chunk accept's synthetic insertion can
+            // drain before the tap is removed (see `acceptTapTeardownDelaySeconds`). Re-check both
+            // reasons at fire time so a suggestion or an emoji capture that re-armed the tap during the
+            // delay keeps it installed.
             DispatchQueue.main.asyncAfter(deadline: .now() + Self.acceptTapTeardownDelaySeconds) { [weak self] in
-                // Skip if a new suggestion re-armed the tap during the delay.
-                guard let self, !self.isAcceptTapOwningAcceptKeys else {
-                    return
-                }
+                guard let self else { return }
+                let stillWanted = self.permissionProvider()
+                    && (self.suggestionInterceptionActive || self.captureInterceptionActive)
+                guard !stillWanted else { return }
                 self.destroyAcceptTap()
             }
         }
@@ -242,8 +274,9 @@ final class InputMonitor {
     }
 
     private func installAcceptTapIfNeeded() {
+        // Ownership of the accept key is decided by `updateAcceptTapState`, not here, so this method
+        // only guarantees the tap exists.
         guard acceptTap == nil else {
-            isAcceptTapOwningAcceptKeys = true
             return
         }
 
@@ -284,7 +317,6 @@ final class InputMonitor {
         }
 
         CGEvent.tapEnable(tap: tap, enable: true)
-        isAcceptTapOwningAcceptKeys = true
     }
 
     private func installToggleTapIfNeeded() {
@@ -498,14 +530,8 @@ final class InputMonitor {
                 return Unmanaged.passUnretained(event)
             }
 
-            let decision = handleAcceptKeyDown(
-                InputMonitorKeyEvent(
-                    keyCode: keyCode(from: event),
-                    flags: event.flags
-                )
-            )
-
-            switch decision {
+            let keyEvent = InputMonitorKeyEvent(keyCode: keyCode(from: event), flags: event.flags)
+            switch resolveAcceptKeyDown(keyEvent) {
             case .consume:
                 return nil
             case .notHandled, .passThrough:
@@ -515,6 +541,20 @@ final class InputMonitor {
         default:
             return Unmanaged.passUnretained(event)
         }
+    }
+
+    /// Testable resolution of a keydown at the active tap: the emoji decider wins while a capture is
+    /// open, otherwise the suggestion accept-key logic decides. `.notHandled` from the emoji decider
+    /// means no capture is active, so the accept-key path takes over. Mirrors `handleAcceptTap`'s
+    /// keydown branch without CoreGraphics event allocation.
+    func resolveAcceptKeyDown(_ keyEvent: InputMonitorKeyEvent) -> InputMonitorAcceptTapDecision {
+        if let emojiCaptureKeyDecider {
+            let decision = emojiCaptureKeyDecider(keyEvent)
+            if decision != .notHandled {
+                return decision
+            }
+        }
+        return handleAcceptKeyDown(keyEvent)
     }
 
     /// Testable accept-tap path for semantic key snapshots.
@@ -653,6 +693,7 @@ final class InputMonitor {
 }
 
 extension InputMonitor: SuggestionInputMonitoring {}
+extension InputMonitor: EmojiInputIntercepting {}
 
 private extension CapturedInputEvent.Kind {
     /// Acceptance is the one event family that must be handled by the consuming tap, not the

@@ -6,8 +6,7 @@ import UniformTypeIdentifiers
 /// "Apps" detail pane of the redesigned Settings window. Lists every app where Cotabby is
 /// disabled, lets the user remove individual rules, and offers a file-picker entry point for apps
 /// that can't be reached from the menu-bar toggle (launchers like Raycast or Spotlight that
-/// dismiss themselves the moment the menu bar is clicked). Lifted from the legacy
-/// `SettingsView.appsSection` so behavior is preserved.
+/// dismiss themselves the moment the menu bar is clicked).
 struct AppsPaneView: View {
     @ObservedObject var suggestionSettings: SuggestionSettingsModel
 

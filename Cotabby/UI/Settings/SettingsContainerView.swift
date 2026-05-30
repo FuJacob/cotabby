@@ -10,9 +10,6 @@ import SwiftUI
 /// Selection is persisted via `@AppStorage` so reopening Settings lands on the last-used pane.
 /// `.id(selection)` on the detail body is the documented workaround for the macOS 14 split-view
 /// selection bug where the first sidebar pick doesn't always re-render the detail column.
-///
-/// The view takes the same observable graph as the legacy `SettingsView` so the coordinator can
-/// swap hosting controllers behind a feature flag without rewiring dependencies.
 struct SettingsContainerView: View {
     let appUpdateManager: AppUpdateManager
 

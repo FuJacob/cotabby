@@ -25,6 +25,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let suggestionSettings: SuggestionSettingsModel
     let foundationModelAvailabilityService: FoundationModelAvailabilityService
     let suggestionCoordinator: SuggestionCoordinator
+    let emojiPickerController: EmojiPickerController
     let welcomeCoordinator: WelcomeCoordinator
     let settingsCoordinator: SettingsCoordinator
 
@@ -51,6 +52,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         suggestionSettings = environment.suggestionSettings
         foundationModelAvailabilityService = environment.foundationModelAvailabilityService
         suggestionCoordinator = environment.suggestionCoordinator
+        emojiPickerController = environment.emojiPickerController
         welcomeCoordinator = environment.welcomeCoordinator
         settingsCoordinator = environment.settingsCoordinator
         activationIndicatorController = environment.activationIndicatorController
@@ -126,6 +128,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         inputMonitor.start()
         appUpdateManager.start()
         suggestionCoordinator.start()
+        emojiPickerController.start()
         welcomeCoordinator.presentIfNeeded()
         welcomeCoordinator.presentPermissionReminderIfNeeded()
         didStartServices = true
@@ -155,6 +158,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         activationIndicatorController.hide(reason: "Activation indicator hidden because Cotabby is terminating.")
         focusDebugOverlayController?.hide()
         suggestionCoordinator.stop()
+        emojiPickerController.stop()
         inputMonitor.stop()
         focusModel.stop()
 
