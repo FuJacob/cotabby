@@ -24,6 +24,12 @@ struct SettingsContainerView: View {
     @ObservedObject var modelDownloadManager: ModelDownloadManager
     @ObservedObject var huggingFaceSearchService: HuggingFaceSearchService
 
+    /// Live router used by the Advanced pane's "try it" playground so users can see the effect of
+    /// Extended Context (and other prompt inputs) without leaving Settings. Threaded through the
+    /// container rather than constructed locally so the playground reuses the same router the
+    /// autocomplete pipeline uses.
+    let suggestionEngine: any SuggestionGenerating
+    let configuration: SuggestionConfiguration
     let onShowWelcome: () -> Void
 
     @AppStorage("cotabbySettingsSelectedCategoryV2")
@@ -112,6 +118,12 @@ struct SettingsContainerView: View {
             )
         case .writing:
             WritingPaneView(suggestionSettings: suggestionSettings)
+        case .advanced:
+            AdvancedPaneView(
+                suggestionSettings: suggestionSettings,
+                suggestionEngine: suggestionEngine,
+                configuration: configuration
+            )
         case .shortcuts:
             ShortcutsPaneView(suggestionSettings: suggestionSettings)
         case .apps:

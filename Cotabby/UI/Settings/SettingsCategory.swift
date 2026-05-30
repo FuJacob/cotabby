@@ -10,6 +10,7 @@ enum SettingsCategory: String, CaseIterable, Hashable, Identifiable {
     case general
     case engineAndModel
     case writing
+    case advanced
     case shortcuts
     case apps
     case permissions
@@ -22,6 +23,7 @@ enum SettingsCategory: String, CaseIterable, Hashable, Identifiable {
         case .general: return "General"
         case .engineAndModel: return "Engine & Model"
         case .writing: return "Writing"
+        case .advanced: return "Advanced"
         case .shortcuts: return "Shortcuts"
         case .apps: return "Apps"
         case .permissions: return "Permissions"
@@ -35,6 +37,7 @@ enum SettingsCategory: String, CaseIterable, Hashable, Identifiable {
         case .general: return "gearshape.fill"
         case .engineAndModel: return "cpu.fill"
         case .writing: return "square.and.pencil"
+        case .advanced: return "slider.horizontal.3"
         case .shortcuts: return "keyboard.fill"
         case .apps: return "app.badge.fill"
         case .permissions: return "lock.shield.fill"

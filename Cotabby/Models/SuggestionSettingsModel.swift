@@ -31,6 +31,10 @@ final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var userName: String
     @Published private(set) var customRules: [String]
     @Published private(set) var responseLanguages: [String]
+    /// Free-form user-authored context (glossary, jargon, style notes) injected into every
+    /// completion request. Empty string when unset. Trimmed and length-capped on write so an
+    /// accidental paste of a huge document can't blow out the model's context window.
+    @Published private(set) var extendedContext: String
     @Published private(set) var debounceMilliseconds: Int
     @Published private(set) var focusPollIntervalMilliseconds: Int
     @Published private(set) var isMultiLineEnabled: Bool
@@ -64,6 +68,7 @@ final class SuggestionSettingsModel: ObservableObject {
     private static let mirrorPreferenceDefaultsKey = "cotabbyMirrorPreference"
     private static let userNameDefaultsKey = "cotabbyUserName"
     private static let customRulesDefaultsKey = "cotabbyCustomRules"
+    private static let extendedContextDefaultsKey = "cotabbyExtendedContext"
     private static let responseLanguagesDefaultsKey = "cotabbyResponseLanguages"
     /// Legacy single-select key, read once to migrate the previous value into `responseLanguages`.
     private static let legacyResponseLanguageDefaultsKey = "cotabbyResponseLanguage"
@@ -99,6 +104,13 @@ final class SuggestionSettingsModel: ObservableObject {
     static let maximumGhostTextOpacity: Double = 1.0
     static let defaultGhostTextOpacity: Double = 1.0
     static let ghostTextOpacityStep: Double = 0.1
+
+    /// Hard upper bound on the persisted Extended Context blob, in characters. Sized so the user
+    /// can paste a meaningful glossary or style guide without crowding the model's shared context:
+    /// roughly ~1000 tokens of English, which still leaves headroom for instructions, prefix text,
+    /// clipboard, and visual context inside Apple's 4096-token window. Larger pastes are truncated
+    /// at write time so the cost is bounded on every subsequent request.
+    static let maximumExtendedContextCharacters: Int = 4_000
 
     init(
         configuration: SuggestionConfiguration,
@@ -166,6 +178,10 @@ final class SuggestionSettingsModel: ObservableObject {
         } else {
             CustomRulesCatalog.normalize(userDefaults.stringArray(forKey: Self.customRulesDefaultsKey) ?? [])
         }
+
+        let resolvedExtendedContext = Self.normalizedExtendedContext(
+            userDefaults.string(forKey: Self.extendedContextDefaultsKey) ?? ""
+        )
 
         // Prefer the multi-language value once the user has touched it (key present, even if empty).
         // Otherwise migrate the previous single-select choice exactly once; a fresh install gets the
@@ -252,6 +268,7 @@ final class SuggestionSettingsModel: ObservableObject {
         mirrorPreference = resolvedMirrorPreference
         userName = resolvedUserName
         customRules = resolvedCustomRules
+        extendedContext = resolvedExtendedContext
         responseLanguages = resolvedResponseLanguages
         debounceMilliseconds = resolvedDebounceMilliseconds
         focusPollIntervalMilliseconds = resolvedFocusPollIntervalMilliseconds
@@ -282,6 +299,7 @@ final class SuggestionSettingsModel: ObservableObject {
         persistMirrorPreference(resolvedMirrorPreference)
         persistUserName(resolvedUserName)
         persistCustomRules(resolvedCustomRules)
+        persistExtendedContext(resolvedExtendedContext)
         persistResponseLanguages(resolvedResponseLanguages)
         userDefaults.set(resolvedDebounceMilliseconds, forKey: Self.debounceMillisecondsDefaultsKey)
         userDefaults.set(resolvedFocusPollIntervalMilliseconds, forKey: Self.focusPollIntervalMillisecondsDefaultsKey)
@@ -323,6 +341,7 @@ final class SuggestionSettingsModel: ObservableObject {
             isClipboardContextEnabled: isClipboardContextEnabled,
             userName: userName,
             customRules: customRules,
+            extendedContext: extendedContext,
             responseLanguages: responseLanguages,
             debounceMilliseconds: debounceMilliseconds,
             focusPollIntervalMilliseconds: focusPollIntervalMilliseconds,
@@ -610,6 +629,20 @@ final class SuggestionSettingsModel: ObservableObject {
         setRules(CustomRulesCatalog.defaultRules)
     }
 
+    /// All extended-context mutations funnel through here so storage stays bounded — leading and
+    /// trailing whitespace is trimmed and the body is hard-capped at
+    /// `maximumExtendedContextCharacters` so a runaway paste cannot blow out the model's context
+    /// window on every subsequent request.
+    func setExtendedContext(_ context: String) {
+        let normalized = Self.normalizedExtendedContext(context)
+        guard extendedContext != normalized else {
+            return
+        }
+
+        extendedContext = normalized
+        persistExtendedContext(normalized)
+    }
+
     /// All language mutations funnel through here so storage stays normalized (trimmed, deduped,
     /// capped), mirroring `setRules`.
     func setLanguages(_ languages: [String]) {
@@ -858,6 +891,30 @@ final class SuggestionSettingsModel: ObservableObject {
         userDefaults.set(rules, forKey: Self.customRulesDefaultsKey)
     }
 
+    private func persistExtendedContext(_ context: String) {
+        if context.isEmpty {
+            userDefaults.removeObject(forKey: Self.extendedContextDefaultsKey)
+        } else {
+            userDefaults.set(context, forKey: Self.extendedContextDefaultsKey)
+        }
+    }
+
+    /// Length-cap the persisted body at `maximumExtendedContextCharacters` so an accidental paste
+    /// of a huge document can't blow out the model's context window on every subsequent request.
+    ///
+    /// Whitespace is intentionally NOT trimmed here. The TextEditor binding writes back through
+    /// `setExtendedContext` on every keystroke, so any trim — including a trailing-space trim —
+    /// would strip whitespace the user is mid-way through typing, making it impossible to type a
+    /// space at the end of a word. Whitespace-only content is collapsed back to "no value" in
+    /// `SuggestionRequestFactory` instead, where the cost is paid once per request rather than once
+    /// per keystroke.
+    private static func normalizedExtendedContext(_ context: String) -> String {
+        guard context.count > maximumExtendedContextCharacters else {
+            return context
+        }
+        return String(context.prefix(maximumExtendedContextCharacters))
+    }
+
     private func persistResponseLanguages(_ languages: [String]) {
         userDefaults.set(languages, forKey: Self.responseLanguagesDefaultsKey)
     }
@@ -899,8 +956,11 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                 $autoAcceptTrailingPunctuation
             )
         )
-        return Publishers.CombineLatest(primary, $acceptanceGranularity)
-            .map { primaryTuple, granularity in
+        // The outer CombineLatest stack is already at Combine's per-operator cap, so each new
+        // top-level setting gets layered above via another `CombineLatest`. `extendedContext` joins
+        // alongside `acceptanceGranularity` here for the same reason.
+        return Publishers.CombineLatest3(primary, $acceptanceGranularity, $extendedContext)
+            .map { primaryTuple, granularity, extendedContext in
                 let (combinedSettings, presentationToggles, profile, timing) = primaryTuple
                 let (globallyEnabled, disabledAppRules, engine, wordCountPreset) = combinedSettings
                 let (clipboardContextEnabled, fastModeEnabled, mirrorPreference) = presentationToggles
@@ -914,6 +974,7 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                     isClipboardContextEnabled: clipboardContextEnabled,
                     userName: userName,
                     customRules: customRules,
+                    extendedContext: extendedContext,
                     responseLanguages: responseLanguages,
                     debounceMilliseconds: debounce,
                     focusPollIntervalMilliseconds: focusPoll,

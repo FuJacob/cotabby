@@ -221,6 +221,11 @@ struct SuggestionRequest: Equatable, Sendable {
     /// User-authored style rules rendered as additional prompt directives, subordinate to the base
     /// autocomplete/safety rules. Empty when the user has none.
     let customRules: [String]
+    /// User-authored free-form context (glossary, jargon, style notes) injected verbatim into the
+    /// prompt. Already trimmed and length-capped upstream so renderers can treat it as a ready-to-use
+    /// string. `nil` when the user has not set it, distinguishing it from an empty-but-set value so
+    /// renderers can skip the heading entirely.
+    let extendedContext: String?
     /// Pre-rendered language hint built from the user's declared languages (e.g. "The user usually
     /// writes in German and English…"). `nil` when none are declared. Deliberately a hint, not an
     /// override: it tells the model to match the surrounding text and only fall back to the declared
@@ -254,6 +259,7 @@ struct SuggestionRequest: Equatable, Sendable {
         completionLengthInstruction: String,
         userName: String?,
         customRules: [String],
+        extendedContext: String? = nil,
         languageInstruction: String?,
         clipboardContext: String?,
         visualContextSummary: String?,
@@ -275,6 +281,7 @@ struct SuggestionRequest: Equatable, Sendable {
         self.completionLengthInstruction = completionLengthInstruction
         self.userName = userName
         self.customRules = customRules
+        self.extendedContext = extendedContext
         self.languageInstruction = languageInstruction
         self.clipboardContext = clipboardContext
         self.visualContextSummary = visualContextSummary

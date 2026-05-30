@@ -69,6 +69,10 @@ struct SuggestionSettingsSnapshot: Equatable, Sendable {
     /// User-authored style rules, carried in the snapshot so generation uses the same value the
     /// Settings UI shows.
     let customRules: [String]
+    /// Free-form glossary / terminology / style notes pasted by the user in the Extended Context
+    /// settings pane. Already trimmed and length-capped by `SuggestionSettingsModel`; empty string
+    /// when the user has not set it. Travels in the snapshot so generation reflects the live value.
+    let extendedContext: String
     /// The languages the user has declared they write in. Used to build a soft prompt hint; an empty
     /// set emits no directive (the renderers then just match the surrounding text). Never forces a
     /// language, so a code-switcher's other languages are preserved.

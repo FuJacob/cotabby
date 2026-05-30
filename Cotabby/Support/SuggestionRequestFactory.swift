@@ -45,6 +45,13 @@ enum SuggestionRequestFactory {
         let userName = activeUserName(settings: settings)
         // Already normalized (trimmed/deduped/capped) by SuggestionSettingsModel.setRules.
         let customRules = settings.customRules
+        // The settings model length-caps but does NOT trim whitespace (trimming on every keystroke
+        // would prevent the user from typing a space at the end of a word in the editor). Do the
+        // trim here, once per request, and collapse a whitespace-only body back to nil so renderers
+        // skip the section heading entirely.
+        let trimmedExtendedContext = settings.extendedContext
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let activeExtendedContext = trimmedExtendedContext.isEmpty ? nil : trimmedExtendedContext
         // nil when the user declared no languages — the renderers then just match the surrounding text.
         let languageInstruction = LanguageCatalog.promptInstruction(for: settings.responseLanguages)
         let boundedClipboardContext = activeClipboardContext(
@@ -61,6 +68,7 @@ enum SuggestionRequestFactory {
             completionLengthInstruction: completionLengthInstruction,
             userName: userName,
             customRules: customRules,
+            extendedContext: activeExtendedContext,
             languageInstruction: languageInstruction,
             clipboardContext: boundedClipboardContext,
             visualContextSummary: boundedVisualContextSummary
@@ -86,6 +94,7 @@ enum SuggestionRequestFactory {
             completionLengthInstruction: completionLengthInstruction,
             userName: userName,
             customRules: customRules,
+            extendedContext: activeExtendedContext,
             languageInstruction: languageInstruction,
             clipboardContext: boundedClipboardContext,
             visualContextSummary: boundedVisualContextSummary,
