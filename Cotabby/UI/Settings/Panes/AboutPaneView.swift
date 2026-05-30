@@ -14,7 +14,7 @@ struct AboutPaneView: View {
         SettingsPaneScaffold {
             Section { aboutHeader }
             Section("Support") { supportRow }
-            Section("Links") { linksRow }
+            Section("Resources") { linksRow }
             Section("Uninstall") { uninstallText }
         }
         .sheet(isPresented: $isShowingAcknowledgements) {
@@ -58,7 +58,7 @@ struct AboutPaneView: View {
         LabeledContent {
             if let supportURL = URL(string: "https://ko-fi.com/cotabby") {
                 Link(destination: supportURL) {
-                    Label("Support", systemImage: "heart.fill")
+                    Label("Support Cotabby", systemImage: "heart.fill")
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.blue)
@@ -66,16 +66,13 @@ struct AboutPaneView: View {
         } label: {
             VStack(alignment: .leading, spacing: 8) {
                 Text(
-                    "Cotabby started from a simple belief: AI should run on your device, respect your privacy, "
-                    + "and remain open to everyone. That's why Cotabby is open source, local-first, and built "
-                    + "to give users full control over their own hardware and data."
+                    "Cotabby started from a simple belief: AI should run on your device, "
+                    + "respect your privacy, and remain open to everyone."
                 )
 
                 Text(
-                    "We're building Cotabby in our spare time, one release at a time. Every feature, bug fix, "
-                    + "and support reply takes real time and care from two university students trying to keep "
-                    + "this project alive. If Cotabby has been useful to you, please consider supporting our "
-                    + "mission."
+                    "We're building Cotabby in our spare time, one release at a time. "
+                    + "If Cotabby has helped you, your support helps us keep improving it."
                 )
             }
             .foregroundStyle(.secondary)
@@ -108,9 +105,8 @@ struct AboutPaneView: View {
     @ViewBuilder
     private var uninstallText: some View {
         Text(
-            "Drag Cotabby.app from Applications to the Trash. "
-            + "To remove leftover data, also delete ~/Library/Application Support/Cotabby. "
-            + "Privacy permissions can only be revoked in System Settings → Privacy & Security."
+            "Remove Cotabby from Applications. To fully clean up app data, "
+            + "delete ~/Library/Application Support/Cotabby."
         )
         .font(.caption)
         .foregroundStyle(.secondary)
