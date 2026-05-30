@@ -12,7 +12,12 @@ final class WelcomeCoordinator: NSObject, NSWindowDelegate {
     private enum Layout {
         /// Match the first welcome step so the window does not flash at an oversized default before
         /// SwiftUI has a chance to report its preferred content size.
-        static let initialContentSize = NSSize(width: 500, height: 320)
+        static let initialContentSize = NSSize(width: 500, height: 360)
+
+        /// Keep a margin between the onboarding window and the screen edges when a step's preferred
+        /// height would otherwise exceed the visible screen. The SwiftUI content scrolls to absorb
+        /// the difference, so clamping here only ever shrinks the window, never clips the footer.
+        static let screenEdgeMargin: CGFloat = 24
     }
 
     private let permissionManager: PermissionManager
@@ -207,20 +212,59 @@ final class WelcomeCoordinator: NSObject, NSWindowDelegate {
             return
         }
 
+        // Clamp the requested height so a tall step can never push the window taller than the screen,
+        // which on smaller or scaled MacBook displays used to leave the bottom (and the Continue
+        // button) off-screen with no way to reach it. The content scrolls to fill any shortfall.
+        let clampedContentSize = clampedContentSize(contentSize, for: window)
+
         let currentContentSize = window.contentLayoutRect.size
-        guard Swift.abs(currentContentSize.width - contentSize.width) > 0.5
-            || Swift.abs(currentContentSize.height - contentSize.height) > 0.5 else {
+        guard Swift.abs(currentContentSize.width - clampedContentSize.width) > 0.5
+            || Swift.abs(currentContentSize.height - clampedContentSize.height) > 0.5 else {
             return
         }
 
-        let targetWindowFrame = window.frameRect(forContentRect: NSRect(origin: .zero, size: contentSize))
+        let targetWindowFrame = window.frameRect(forContentRect: NSRect(origin: .zero, size: clampedContentSize))
         let currentFrame = window.frame
         let centeredOrigin = NSPoint(
             x: currentFrame.midX - (targetWindowFrame.width / 2),
             y: currentFrame.midY - (targetWindowFrame.height / 2)
         )
-        let centeredFrame = NSRect(origin: centeredOrigin, size: targetWindowFrame.size).integral
+        let centeredFrame = constrainedToScreen(
+            NSRect(origin: centeredOrigin, size: targetWindowFrame.size),
+            for: window
+        )
 
-        window.setFrame(centeredFrame, display: true, animate: true)
+        window.setFrame(centeredFrame.integral, display: true, animate: true)
+    }
+
+    /// Shrinks the requested content height to what fits within the active screen's visible frame
+    /// (minus chrome and a margin). Width is left untouched.
+    private func clampedContentSize(_ contentSize: NSSize, for window: NSWindow) -> NSSize {
+        guard let visibleFrame = (window.screen ?? NSScreen.main)?.visibleFrame else {
+            return contentSize
+        }
+
+        let chromeHeight = window.frameRect(forContentRect: .zero).height
+        let maxContentHeight = visibleFrame.height - chromeHeight - (Layout.screenEdgeMargin * 2)
+        guard maxContentHeight > 0 else {
+            return contentSize
+        }
+
+        return NSSize(width: contentSize.width, height: min(contentSize.height, maxContentHeight))
+    }
+
+    /// Nudges a proposed window frame so it stays fully within the visible screen after recentering.
+    private func constrainedToScreen(_ frame: NSRect, for window: NSWindow) -> NSRect {
+        guard let visibleFrame = (window.screen ?? NSScreen.main)?.visibleFrame else {
+            return frame
+        }
+
+        var origin = frame.origin
+        origin.x = min(max(origin.x, visibleFrame.minX + Layout.screenEdgeMargin),
+                       visibleFrame.maxX - frame.width - Layout.screenEdgeMargin)
+        origin.y = min(max(origin.y, visibleFrame.minY + Layout.screenEdgeMargin),
+                       visibleFrame.maxY - frame.height - Layout.screenEdgeMargin)
+
+        return NSRect(origin: origin, size: frame.size)
     }
 }

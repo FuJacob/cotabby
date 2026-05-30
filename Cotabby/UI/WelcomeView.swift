@@ -2,12 +2,18 @@ import AppKit
 import SwiftUI
 
 /// File overview:
-/// Renders the first-run onboarding wizard as a five-step flow:
-/// welcome -> profile -> permissions -> choose model -> ready.
+/// Renders the first-run onboarding wizard as a guided flow:
+/// welcome -> permissions -> choose template -> about you -> writing style -> keybinds -> done.
 ///
-/// The engine and model download screens are merged into one step with progressive disclosure:
-/// selecting the open-source engine expands its card to reveal downloadable models inline.
-/// Each step earns its screen by teaching one thing or collecting one decision.
+/// Two layout invariants this file protects:
+///   1. The Back/Continue footer is pinned outside the scrolling content, so a tall step can never
+///      push its own Continue button off-screen (the failure that previously stranded users on the
+///      profile step).
+///   2. Each middle step shows a progress indicator so the flow reads as finite and "where am I"
+///      stays answerable.
+///
+/// Picking a template applies a curated settings bundle and starts the recommended model download in
+/// the background, so it can finish while the user fills out the remaining steps.
 struct WelcomeView: View {
     @ObservedObject var permissionManager: PermissionManager
     @ObservedObject var runtimeModel: RuntimeBootstrapModel
@@ -20,46 +26,167 @@ struct WelcomeView: View {
     let onDismiss: () -> Void
 
     @State private var step: WelcomeStep = .welcome
+    @State private var selectedTemplate: OnboardingTemplate?
     @State private var isRecordingOnboardingKeybind = false
     @State private var isRecordingOnboardingFullAcceptKeybind = false
 
-    /// The window should follow the active screen instead of staying pinned to the tallest step.
-    /// This keeps small steps like "You're all set" feeling intentional rather than like empty
-    /// modal shells that inherited the model-picker's height.
+    /// Probed once: installed memory and architecture don't change during onboarding, and re-reading
+    /// `ProcessInfo` on every body evaluation would be wasteful.
+    private let hardware = HardwareCapabilityProbe.current()
+
     private var preferredWindowSize: NSSize {
-        step.preferredWindowSize(selectedEngine: suggestionSettings.selectedEngine)
+        step.preferredWindowSize
     }
 
     var body: some View {
+        content
+            .frame(width: preferredWindowSize.width)
+            .background(.ultraThinMaterial)
+            .animation(.easeInOut(duration: 0.25), value: preferredWindowSize)
+            .onAppear {
+                onPreferredWindowSizeChange(preferredWindowSize)
+            }
+            .onChange(of: preferredWindowSize) { _, newValue in
+                onPreferredWindowSizeChange(newValue)
+            }
+            // When the selected template's model finishes downloading, re-scan disk so the runtime
+            // can discover and load it.
+            .onChange(of: selectedModelDownloadState) { _, newState in
+                guard newState == .downloaded else {
+                    return
+                }
+                modelDownloadManager.refreshModelStates()
+                runtimeModel.refreshAvailableModels()
+            }
+            // Once the chosen model appears in the available list, make it the active runtime model.
+            // Doing this reactively (rather than right after kicking the download) avoids racing the
+            // asynchronous disk re-scan.
+            .onChange(of: runtimeModel.availableModels) { _, models in
+                activateChosenModelIfAvailable(in: models)
+            }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        switch step {
+        case .welcome:
+            terminalLayout { welcomeStep }
+        case .done:
+            terminalLayout { doneStep }
+        default:
+            scrollLayout
+        }
+    }
+}
+
+// MARK: - Layout scaffolds
+
+extension WelcomeView {
+    /// Compact, centered layout for the intro and outro steps, which are short and never scroll.
+    fileprivate func terminalLayout<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
         VStack(spacing: 0) {
             Spacer(minLength: 0)
-
-            switch step {
-            case .welcome:
-                welcomeStep
-            case .profile:
-                profileStep
-            case .permissions:
-                permissionsStep
-            case .chooseModel:
-                chooseModelStep
-            case .keybind:
-                keybindStep
-            case .done:
-                doneStep
-            }
-
+            content()
             Spacer(minLength: 0)
         }
         .padding(36)
-        .frame(width: preferredWindowSize.width)
-        .background(.ultraThinMaterial)
-        .animation(.easeInOut(duration: 0.25), value: preferredWindowSize)
-        .onAppear {
-            onPreferredWindowSizeChange(preferredWindowSize)
+    }
+
+    /// Scaffold for middle steps: a progress header, scrolling content, and a pinned footer. The
+    /// footer stays put while the content scrolls, which is the core fix for "I can't find Continue."
+    fileprivate var scrollLayout: some View {
+        VStack(spacing: 0) {
+            if let progressIndex = step.progressIndex {
+                WelcomeStepProgress(current: progressIndex, total: WelcomeStep.totalProgressSteps)
+                    .padding(.horizontal, 36)
+                    .padding(.top, 28)
+                    .padding(.bottom, 6)
+            }
+
+            ScrollView {
+                stepContent
+                    .padding(.horizontal, 36)
+                    .padding(.top, step.progressIndex == nil ? 36 : 16)
+                    .padding(.bottom, 16)
+                    .frame(maxWidth: .infinity)
+            }
+
+            stepFooter
+                .padding(.horizontal, 36)
+                .padding(.top, 8)
+                .padding(.bottom, 28)
         }
-        .onChange(of: preferredWindowSize) { _, newValue in
-            onPreferredWindowSizeChange(newValue)
+    }
+
+    @ViewBuilder
+    fileprivate var stepContent: some View {
+        switch step {
+        case .permissions:
+            WelcomePermissionStepView(
+                permissionManager: permissionManager,
+                permissionGuidanceController: permissionGuidanceController
+            )
+        case .template:
+            WelcomeTemplateStepView(
+                modelDownloadManager: modelDownloadManager,
+                foundationModelAvailabilityService: foundationModelAvailabilityService,
+                hardware: hardware,
+                selectedTemplate: $selectedTemplate,
+                onSelect: applyTemplate
+            )
+        case .aboutYou:
+            aboutYouStep
+        case .writingStyle:
+            writingStyleStep
+        case .keybind:
+            keybindStep
+        case .welcome, .done:
+            EmptyView()
+        }
+    }
+
+    @ViewBuilder
+    fileprivate var stepFooter: some View {
+        switch step {
+        case .permissions:
+            WelcomeNavigation(
+                canGoBack: true,
+                canContinue: permissionManager.requiredPermissionsGranted,
+                disabledHint: "Grant all permissions to continue.",
+                onBack: { step = .welcome },
+                onContinue: { step = .template }
+            )
+        case .template:
+            WelcomeNavigation(
+                canGoBack: true,
+                canContinue: canContinueFromTemplate,
+                disabledHint: templateStepDisabledHint,
+                onBack: { step = .permissions },
+                onContinue: { step = .aboutYou }
+            )
+        case .aboutYou:
+            WelcomeNavigation(
+                canGoBack: true,
+                canContinue: true,
+                onBack: { step = .template },
+                onContinue: { step = .writingStyle }
+            )
+        case .writingStyle:
+            WelcomeNavigation(
+                canGoBack: true,
+                canContinue: true,
+                onBack: { step = .aboutYou },
+                onContinue: { step = .keybind }
+            )
+        case .keybind:
+            WelcomeNavigation(
+                canGoBack: true,
+                canContinue: true,
+                onBack: { step = .writingStyle },
+                onContinue: { step = .done }
+            )
+        case .welcome, .done:
+            EmptyView()
         }
     }
 }
@@ -68,9 +195,10 @@ struct WelcomeView: View {
 
 private enum WelcomeStep: Int, Comparable {
     case welcome
-    case profile
     case permissions
-    case chooseModel
+    case template
+    case aboutYou
+    case writingStyle
     case keybind
     case done
 
@@ -78,27 +206,46 @@ private enum WelcomeStep: Int, Comparable {
         lhs.rawValue < rhs.rawValue
     }
 
-    /// These sizes are product decisions rather than pure layout math.
-    /// The coordinator uses them to animate the AppKit window, while SwiftUI uses the width so the
-    /// content and the host window stay in sync.
-    func preferredWindowSize(selectedEngine: SuggestionEngineKind) -> NSSize {
+    /// Number of steps shown in the progress indicator (the middle, non-terminal steps).
+    static let totalProgressSteps = 5
+
+    /// 1-based position within the progress indicator, or `nil` for the intro/outro steps that
+    /// intentionally sit outside the counted flow.
+    var progressIndex: Int? {
+        switch self {
+        case .welcome, .done:
+            return nil
+        case .permissions:
+            return 1
+        case .template:
+            return 2
+        case .aboutYou:
+            return 3
+        case .writingStyle:
+            return 4
+        case .keybind:
+            return 5
+        }
+    }
+
+    /// Product-chosen window sizes. The coordinator clamps the height to the visible screen, and the
+    /// scrolling content absorbs any overflow, so these are targets rather than hard guarantees.
+    var preferredWindowSize: NSSize {
         switch self {
         case .welcome:
-            return NSSize(width: 500, height: 320)
-        case .profile:
-            return NSSize(width: 540, height: 420)
+            return NSSize(width: 500, height: 360)
         case .permissions:
-            return NSSize(width: 540, height: 480)
-        case .chooseModel:
-            if selectedEngine == .llamaOpenSource {
-                return NSSize(width: 540, height: 520)
-            }
-
-            return NSSize(width: 540, height: 360)
+            return NSSize(width: 540, height: 540)
+        case .template:
+            return NSSize(width: 560, height: 640)
+        case .aboutYou:
+            return NSSize(width: 560, height: 560)
+        case .writingStyle:
+            return NSSize(width: 560, height: 560)
         case .keybind:
-            return NSSize(width: 540, height: 500)
+            return NSSize(width: 540, height: 520)
         case .done:
-            return NSSize(width: 500, height: 340)
+            return NSSize(width: 500, height: 380)
         }
     }
 }
@@ -125,159 +272,72 @@ extension WelcomeView {
             }
 
             WelcomeButton(title: "Get Started") {
-                step = .profile
+                step = .permissions
             }
             .padding(.top, 4)
         }
     }
 }
 
-// MARK: - Step 2: Profile
+// MARK: - Step: About You (name + languages)
 
 extension WelcomeView {
-    fileprivate var profileStep: some View {
-        WelcomeProfileStepView(
-            suggestionSettings: suggestionSettings,
-            onBack: { step = .welcome },
-            onContinue: { step = .permissions }
-        )
-    }
-}
-
-// MARK: - Step 3: Permissions
-
-extension WelcomeView {
-    fileprivate var permissionsStep: some View {
-        WelcomePermissionStepView(
-            permissionManager: permissionManager,
-            permissionGuidanceController: permissionGuidanceController,
-            onBack: { step = .profile },
-            onContinue: { step = .chooseModel }
-        )
-    }
-}
-
-// MARK: - Step 4: Choose Model (combined engine + model)
-
-extension WelcomeView {
-    fileprivate var chooseModelStep: some View {
+    fileprivate var aboutYouStep: some View {
         VStack(spacing: 24) {
             VStack(spacing: 8) {
-                Text("Choose a Model")
+                Text("Tell Cotabby about yourself")
                     .font(.system(size: 24, weight: .semibold, design: .rounded))
 
-                Text("Pick how Cotabby generates completions.")
+                Text("This personalizes your suggestions. Everything here is optional.")
                     .font(.system(size: 14, design: .rounded))
                     .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
             }
 
-            VStack(spacing: 10) {
-                appleIntelligenceCard
-                llamaOpenSourceCard
-            }
+            VStack(alignment: .leading, spacing: 20) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Name")
+                        .font(.system(size: 13, weight: .medium))
 
-            WelcomeNavigation(
-                canGoBack: true,
-                canContinue: canContinueFromModelStep,
-                disabledHint: modelStepDisabledHint,
-                onBack: { step = .permissions },
-                onContinue: { step = .keybind }
-            )
-        }
-    }
-
-    fileprivate var appleIntelligenceCard: some View {
-        let isSelected = suggestionSettings.selectedEngine == .appleIntelligence
-        let isAvailable = foundationModelAvailabilityService.isAvailable
-
-        return EngineCard(
-            artworkName: "apple_intelligence",
-            title: "Apple Intelligence",
-            subtitle: isAvailable
-                ? "Built into macOS. No download needed."
-                : "Requires Apple Silicon and macOS 26.",
-            isSelected: isSelected && isAvailable,
-            isAvailable: isAvailable
-        ) {
-            suggestionSettings.selectEngine(.appleIntelligence)
-        }
-    }
-
-    fileprivate var llamaOpenSourceCard: some View {
-        let isSelected = suggestionSettings.selectedEngine == .llamaOpenSource
-
-        return VStack(spacing: 0) {
-            EngineCard(
-                artworkName: "llama",
-                title: "Open Source",
-                subtitle: "Runs locally on this Mac. Download a model to get started.",
-                isSelected: isSelected,
-                isAvailable: true
-            ) {
-                suggestionSettings.selectEngine(.llamaOpenSource)
-            }
-
-            if isSelected {
-                VStack(spacing: 0) {
-                    Divider()
-                        .padding(.horizontal, 18)
-
-                    DownloadableModelCatalogView(
-                        modelDownloadManager: modelDownloadManager,
-                        onRefreshModels: {
-                            modelDownloadManager.refreshModelStates()
-                            runtimeModel.refreshAvailableModels()
-                        }
-                    )
-                    .padding(18)
+                    TextField("What should Cotabby call you?", text: Binding(
+                        get: { suggestionSettings.userName },
+                        set: { suggestionSettings.setUserName($0) }
+                    ))
+                    .textFieldStyle(.roundedBorder)
+                    .controlSize(.large)
                 }
-                .background(
-                    UnevenRoundedRectangle(
-                        topLeadingRadius: 0,
-                        bottomLeadingRadius: 16,
-                        bottomTrailingRadius: 16,
-                        topTrailingRadius: 0,
-                        style: .continuous
-                    )
-                    .fill(.regularMaterial.opacity(0.5))
-                )
-                .transition(.opacity.combined(with: .move(edge: .top)))
+
+                LanguageTagsEditor(suggestionSettings: suggestionSettings)
             }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
         }
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(.white.opacity(0.08), lineWidth: 0.5)
-        )
-        .animation(.spring(duration: 0.3), value: isSelected)
-    }
-
-    fileprivate var canContinueFromModelStep: Bool {
-        switch suggestionSettings.selectedEngine {
-        case .appleIntelligence:
-            return foundationModelAvailabilityService.isAvailable
-        case .llamaOpenSource:
-            return hasAtLeastOneModel
-        }
-    }
-
-    fileprivate var modelStepDisabledHint: String {
-        switch suggestionSettings.selectedEngine {
-        case .appleIntelligence:
-            return "Apple Intelligence is not available on this Mac."
-        case .llamaOpenSource:
-            return "Add or download at least one model to continue."
-        }
-    }
-
-    fileprivate var hasAtLeastOneModel: Bool {
-        modelDownloadManager.models.contains { model in
-            modelDownloadManager.state(for: model) == .downloaded
-        } || !runtimeModel.availableModels.isEmpty
     }
 }
 
-// MARK: - Step 5: Keybind
+// MARK: - Step: Writing Style (custom rules)
+
+extension WelcomeView {
+    fileprivate var writingStyleStep: some View {
+        VStack(spacing: 24) {
+            VStack(spacing: 8) {
+                Text("Your writing style")
+                    .font(.system(size: 24, weight: .semibold, design: .rounded))
+
+                Text("Add rules to shape tone and style. Skip it and add them later if you'd rather.")
+                    .font(.system(size: 14, design: .rounded))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+
+            CustomRulesEditor(suggestionSettings: suggestionSettings)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+        }
+    }
+}
+
+// MARK: - Step: Keybind
 
 extension WelcomeView {
     fileprivate var keybindStep: some View {
@@ -345,13 +405,6 @@ extension WelcomeView {
                     } : nil
                 )
             }
-
-            WelcomeNavigation(
-                canGoBack: true,
-                canContinue: true,
-                onBack: { step = .chooseModel },
-                onContinue: { step = .done }
-            )
         }
     }
 
@@ -405,7 +458,7 @@ extension WelcomeView {
     }
 }
 
-// MARK: - Step 6: Done
+// MARK: - Step: Done
 
 extension WelcomeView {
     fileprivate var doneStep: some View {
@@ -430,6 +483,8 @@ extension WelcomeView {
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
             }
+
+            doneStepModelStatus
 
             HStack(spacing: 6) {
                 Image(systemName: "menubar.arrow.up.rectangle")
@@ -457,111 +512,154 @@ extension WelcomeView {
         }
         return "Start typing anywhere.\nPress \(wordKey) to accept."
     }
-}
 
-// MARK: - Engine Card
-
-/// Selectable engine card with glass-material background.
-/// When selected, shows an accent-tinted border and checkmark. When unavailable, dims the content.
-private struct EngineCard: View {
-    let artworkName: String
-    let title: String
-    let subtitle: String
-    let isSelected: Bool
-    let isAvailable: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(
-            action: {
-                if isAvailable {
-                    action()
+    /// A compact reassurance line on the final step when a local model is still downloading or has
+    /// finished. Hidden for Apple Intelligence plans, which download nothing.
+    @ViewBuilder
+    private var doneStepModelStatus: some View {
+        switch selectedModelDownloadState {
+        case .downloading(let progress):
+            HStack(spacing: 6) {
+                ProgressView()
+                    .controlSize(.small)
+                if let progress {
+                    Text("Downloading your model… \(Int((progress * 100).rounded()))%")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("Downloading your model…")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
                 }
-            },
-            label: {
-                HStack(spacing: 14) {
-                    EngineArtworkThumbnail(
-                        artworkName: artworkName,
-                        isSelected: isSelected,
-                        isAvailable: isAvailable
-                    )
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(title)
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundStyle(isAvailable ? .primary : .tertiary)
-
-                        Text(subtitle)
-                            .font(.system(size: 12))
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Spacer(minLength: 0)
-
-                    if isSelected && isAvailable {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 18))
-                            .foregroundColor(.accentColor)
-                    }
-                }
-                .padding(18)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(.regularMaterial)
-                        .shadow(color: .black.opacity(0.06), radius: 2, y: 1)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .stroke(
-                            isSelected && isAvailable
-                                ? Color.accentColor.opacity(0.4) : Color.white.opacity(0.08),
-                            lineWidth: isSelected && isAvailable ? 1.5 : 0.5
-                        )
-                )
             }
-        )
-        .buttonStyle(.plain)
-        .disabled(!isAvailable)
+        case .downloaded:
+            Label("Your model is ready", systemImage: "checkmark.circle.fill")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.green)
+        case .failed, .idle, .none:
+            EmptyView()
+        }
     }
 }
 
-/// Purpose-built thumbnail tile for onboarding engine artwork.
-/// We use `scaledToFill` inside a fixed rounded frame so square and landscape assets can share
-/// one card layout while still cropping intentionally instead of shrinking into an icon box.
-private struct EngineArtworkThumbnail: View {
-    let artworkName: String
-    let isSelected: Bool
-    let isAvailable: Bool
+// MARK: - Template application
+
+extension WelcomeView {
+    /// The download state of the currently selected template's model, or `nil` for Apple Intelligence
+    /// templates (and before any template is chosen).
+    fileprivate var selectedModelDownloadState: ModelDownloadState? {
+        guard let template = selectedTemplate else {
+            return nil
+        }
+        let plan = resolvedPlan(for: template)
+        guard let model = plan.modelToDownload else {
+            return nil
+        }
+        return modelDownloadManager.state(for: model)
+    }
+
+    fileprivate var canContinueFromTemplate: Bool {
+        guard let template = selectedTemplate else {
+            return false
+        }
+        let plan = resolvedPlan(for: template)
+        switch plan.engine {
+        case .appleIntelligence:
+            return true
+        case .llamaOpenSource:
+            // Allow continuing once the download is at least underway; it finishes in the background.
+            guard let state = selectedModelDownloadState else {
+                return false
+            }
+            return state == .downloaded || state.isDownloading
+        }
+    }
+
+    fileprivate var templateStepDisabledHint: String {
+        selectedTemplate == nil
+            ? "Choose a starting point to continue."
+            : "Hang on while your model starts downloading."
+    }
+
+    fileprivate func resolvedPlan(for template: OnboardingTemplate) -> ResolvedTemplatePlan {
+        OnboardingTemplateRecommender.resolvePlan(
+            for: template,
+            appleIntelligenceAvailable: foundationModelAvailabilityService.isAvailable
+        )
+    }
+
+    /// Applies a template's settings and starts its model download (if any). Selecting a card is the
+    /// user's explicit consent to download, so a multi-gigabyte fetch only ever starts from here.
+    fileprivate func applyTemplate(_ template: OnboardingTemplate) {
+        selectedTemplate = template
+
+        let plan = resolvedPlan(for: template)
+        suggestionSettings.selectEngine(plan.engine)
+        suggestionSettings.selectWordCountPreset(plan.wordCountPreset)
+        suggestionSettings.setFastModeEnabled(plan.enablesFastMode)
+        suggestionSettings.setMultiLineEnabled(plan.enablesMultiLine)
+
+        guard let model = plan.modelToDownload else {
+            return
+        }
+
+        if modelDownloadManager.isModelInstalled(filename: model.filename) {
+            // Already on disk (e.g. re-running onboarding): make sure the runtime can see and load it.
+            modelDownloadManager.refreshModelStates()
+            runtimeModel.refreshAvailableModels()
+        } else {
+            modelDownloadManager.download(model)
+        }
+    }
+
+    /// Selects the chosen template's model as the active runtime model once it shows up in the
+    /// available list. No-ops for Apple Intelligence plans and when it is already selected.
+    fileprivate func activateChosenModelIfAvailable(in models: [RuntimeModelOption]) {
+        guard let template = selectedTemplate else {
+            return
+        }
+        guard let filename = resolvedPlan(for: template).modelToDownload?.filename else {
+            return
+        }
+        guard models.contains(where: { $0.filename == filename }) else {
+            return
+        }
+        guard runtimeModel.selectedModelFilename != filename else {
+            return
+        }
+
+        Task {
+            await runtimeModel.selectModel(filename)
+        }
+    }
+}
+
+// MARK: - Progress indicator
+
+/// A small "Step X of Y" row with filled capsule pips, shown on the middle steps so the flow reads
+/// as finite and the user always knows how far along they are.
+private struct WelcomeStepProgress: View {
+    let current: Int
+    let total: Int
 
     var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(
-                    isSelected
-                        ? AnyShapeStyle(Color.accentColor.opacity(0.08))
-                        : AnyShapeStyle(.quaternary.opacity(0.45))
-                )
+        VStack(spacing: 8) {
+            HStack(spacing: 6) {
+                ForEach(1...total, id: \.self) { index in
+                    Capsule()
+                        .fill(index <= current ? Color.accentColor : Color.secondary.opacity(0.25))
+                        .frame(width: index == current ? 22 : 16, height: 5)
+                        .animation(.easeInOut(duration: 0.2), value: current)
+                }
+            }
 
-            Image(artworkName)
-                .resizable()
-                .interpolation(.high)
-                .scaledToFill()
-                .frame(width: 76, height: 56)
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                .opacity(isAvailable ? 1.0 : 0.55)
+            Text("Step \(current) of \(total)")
+                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .foregroundStyle(.tertiary)
         }
-        .frame(width: 76, height: 56)
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(
-                    isSelected && isAvailable
-                        ? Color.accentColor.opacity(0.22)
-                        : Color.white.opacity(0.08),
-                    lineWidth: isSelected && isAvailable ? 1.0 : 0.5
-                )
-        )
-        .accessibilityHidden(true)
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Step \(current) of \(total)")
     }
 }
 

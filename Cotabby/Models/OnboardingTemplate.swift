@@ -1,0 +1,139 @@
+import Foundation
+
+/// File overview:
+/// Value types for the onboarding "starting point" templates. A template is a curated bundle of
+/// settings plus a recommended model, so a new user can pick one card instead of reasoning about
+/// engines, model sizes, and completion length on their own.
+///
+/// The template only declares *intent* (which tier, which length, which behavior flags). The
+/// concrete engine and downloadable model are resolved by `OnboardingTemplateRecommender` because
+/// that decision depends on runtime facts (Apple Intelligence availability, installed RAM) that a
+/// static value type should not capture. Keeping the data here and the rules in `Support/` keeps the
+/// resolution pure and unit-testable.
+
+/// One of the three onboarding starting points the user chooses from.
+enum OnboardingTemplate: String, CaseIterable, Identifiable, Equatable, Sendable {
+    case quick
+    case everyday
+    case powerful
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .quick:
+            return "Quick"
+        case .everyday:
+            return "Everyday"
+        case .powerful:
+            return "Powerful"
+        }
+    }
+
+    /// One-line summary shown under the title on the card.
+    var tagline: String {
+        switch self {
+        case .quick:
+            return "Fast and lightweight"
+        case .everyday:
+            return "Balanced for daily writing"
+        case .powerful:
+            return "Highest quality"
+        }
+    }
+
+    /// Longer supporting copy describing the trade-off the user is opting into.
+    var detail: String {
+        switch self {
+        case .quick:
+            return "A small local model that keeps up with your typing and is gentle on memory and battery."
+        case .everyday:
+            return "A good balance of speed and quality. Uses Apple Intelligence when your Mac supports it."
+        case .powerful:
+            return "The largest local model for the most capable suggestions. Best on Macs with lots of memory."
+        }
+    }
+
+    var systemImageName: String {
+        switch self {
+        case .quick:
+            return "hare.fill"
+        case .everyday:
+            return "sparkles"
+        case .powerful:
+            return "bolt.fill"
+        }
+    }
+
+    var wordCountPreset: SuggestionWordCountPreset {
+        switch self {
+        case .quick:
+            return .threeToSeven
+        case .everyday:
+            return .sevenToTwelve
+        case .powerful:
+            return .twelveToTwenty
+        }
+    }
+
+    /// Quick favors low latency by skipping screen-context extraction.
+    var enablesFastMode: Bool {
+        self == .quick
+    }
+
+    /// Powerful opts into multi-line continuations since its model can sustain them.
+    var enablesMultiLine: Bool {
+        self == .powerful
+    }
+
+    /// Whether this template should use Apple Intelligence when it is available. Only Everyday does;
+    /// Quick and Powerful are deliberately tied to specific local models so their size/quality
+    /// trade-off is predictable regardless of the host.
+    var prefersAppleIntelligence: Bool {
+        self == .everyday
+    }
+
+    /// The local GGUF this template installs when it is not using Apple Intelligence.
+    var openSourceModelFilename: String {
+        switch self {
+        case .quick:
+            return "Qwen3-0.6B-Q4_K_M.gguf"
+        case .everyday:
+            return "gemma-4-E2B-it-Q4_K_M.gguf"
+        case .powerful:
+            return "gemma-4-E4B-it-Q4_K_M.gguf"
+        }
+    }
+}
+
+/// The concrete configuration a template resolves to once runtime facts are known.
+/// `modelToDownload` is `nil` when the plan uses Apple Intelligence, since nothing is downloaded.
+struct ResolvedTemplatePlan: Equatable, Sendable {
+    let template: OnboardingTemplate
+    let engine: SuggestionEngineKind
+    let modelToDownload: DownloadableRuntimeModel?
+    let wordCountPreset: SuggestionWordCountPreset
+    let enablesFastMode: Bool
+    let enablesMultiLine: Bool
+}
+
+/// Whether a template can be offered on the current Mac, plus optional advisory copy.
+/// `isDisabled` means the machine cannot reasonably run the template's model at all; `warning` is a
+/// softer "this will work but may be slow" note shown without blocking selection.
+struct OnboardingTemplateAvailability: Equatable, Sendable {
+    let template: OnboardingTemplate
+    let isRecommended: Bool
+    let isDisabled: Bool
+    let warning: String?
+}
+
+/// A snapshot of the host's capability relevant to model selection.
+struct HardwareCapability: Equatable, Sendable {
+    let physicalMemoryBytes: UInt64
+    let isAppleSilicon: Bool
+
+    /// Binary gigabytes (GiB), matching how macOS reports installed memory.
+    var physicalMemoryGigabytes: Double {
+        Double(physicalMemoryBytes) / 1_073_741_824
+    }
+}
