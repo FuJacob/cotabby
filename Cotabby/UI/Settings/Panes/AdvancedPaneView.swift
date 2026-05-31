@@ -273,6 +273,13 @@ final class ExtendedContextPlaygroundModel: ObservableObject {
     private let suggestionEngine: any SuggestionGenerating
     private let configuration: SuggestionConfiguration
     private var generationTask: Task<Void, Never>?
+    /// Identifies the in-flight generation. Each `runCompletion` stamps a fresh UUID; only the
+    /// task whose stamped ID still matches `currentGenerationID` is allowed to update UI state.
+    /// This keeps a stale task (one that was superseded by a newer Run click, or cancelled by a
+    /// future cancel button) from racing the active task to clear the spinner or overwrite
+    /// `lastResult`. Equivalent to a per-request generation counter; UUID keeps the comparison
+    /// trivially cheap on the main actor.
+    private var currentGenerationID: UUID?
 
     init(
         suggestionSettings: SuggestionSettingsModel,
@@ -311,6 +318,8 @@ final class ExtendedContextPlaygroundModel: ObservableObject {
         let configuration = self.configuration
         let engine = self.suggestionEngine
         let prefixText = testInput
+        let generationID = UUID()
+        currentGenerationID = generationID
 
         generationTask?.cancel()
         generationTask = Task { @MainActor [weak self] in
@@ -323,22 +332,38 @@ final class ExtendedContextPlaygroundModel: ObservableObject {
             let startedAt = Date()
             do {
                 let suggestion = try await engine.generateSuggestion(for: result.request)
-                guard let self, !Task.isCancelled else { return }
+                guard let self, self.currentGenerationID == generationID else { return }
                 self.lastResult = suggestion.text
                 self.lastError = nil
                 self.lastLatencyMilliseconds = Int(Date().timeIntervalSince(startedAt) * 1000)
+                self.currentGenerationID = nil
                 self.isGenerating = false
             } catch is CancellationError {
-                guard let self, !Task.isCancelled else { return }
-                self.isGenerating = false
+                // Stale task — a newer `runCompletion` (or a future cancel handler) has already
+                // stamped a fresh `currentGenerationID` or cleared it, so leave the spinner state
+                // for whoever owns the current generation. Touching `isGenerating` here would
+                // race with the active task.
+                return
             } catch {
-                guard let self, !Task.isCancelled else { return }
+                guard let self, self.currentGenerationID == generationID else { return }
                 self.lastError = error.localizedDescription
                 self.lastResult = nil
                 self.lastLatencyMilliseconds = nil
+                self.currentGenerationID = nil
                 self.isGenerating = false
             }
         }
+    }
+
+    /// Cancels any in-flight generation and clears the spinner. Currently unused by the UI but
+    /// kept on the model so a cancel button (or window-dismiss handler) can call into it without
+    /// re-deriving the cancellation protocol. The generation-ID flip is the load-bearing piece —
+    /// it tells the in-flight task to silently exit instead of clearing state itself.
+    func cancelGeneration() {
+        generationTask?.cancel()
+        generationTask = nil
+        currentGenerationID = nil
+        isGenerating = false
     }
 
     /// Builds a `FocusedInputContext` from the user's test text. The values are intentionally
