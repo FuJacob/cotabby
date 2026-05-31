@@ -201,6 +201,11 @@ struct LlamaGenerationOptions: Equatable, Sendable {
     let repetitionPenalty: Double
     var seed: UInt32?
 
+    /// Masks line-break tokens so single-line fields never receive a multi-line completion.
+    var singleLine: Bool = false
+    /// Constrains the first generated token to continue the current word (mid-word carets only).
+    var forceWordContinuation: Bool = false
+
     static func summary(maxPredictionTokens: Int, temperature: Double) -> LlamaGenerationOptions {
         LlamaGenerationOptions(
             maxPredictionTokens: maxPredictionTokens,

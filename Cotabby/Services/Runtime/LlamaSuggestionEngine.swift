@@ -45,7 +45,12 @@ final class LlamaSuggestionEngine {
                     topP: request.topP,
                     minP: request.minP,
                     repetitionPenalty: request.repetitionPenalty,
-                    seed: request.randomSeed
+                    seed: request.randomSeed,
+                    singleLine: !request.isMultiLineEnabled,
+                    forceWordContinuation: MidWordContinuationPolicy.shouldForceContinuation(
+                        precedingText: request.context.precedingText,
+                        trailingText: request.context.trailingText
+                    )
                 )
             )
             try Task.checkCancellation()
