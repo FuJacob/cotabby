@@ -70,15 +70,14 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
                 )
             )
         )
-        // Sized to fit the actual content: a fixed 260pt sidebar (see `SettingsSidebarView`)
-        // plus a ~600pt detail column for the grouped form. The previous 1320x820 default with
-        // a 1180 minimum was far wider than any pane's content, which is exactly what left the
-        // detail area looking stretched and the window feeling empty.
-        let initialFrame = CGRect(x: 0, y: 0, width: 860, height: 700)
-        let minSize = NSSize(width: 820, height: 560)
-        // Bump the autosave name so anyone holding a saved 1320-wide V3 frame gets the new
-        // right-sized default once, instead of restoring the oversized window.
-        let autosaveName = "CotabbySettingsWindowV4"
+        // Sized to fit the actual content: a fixed 340pt sidebar (see `SettingsSidebarView`)
+        // plus a ~600pt detail column for the grouped form.
+        let initialFrame = CGRect(x: 0, y: 0, width: 940, height: 700)
+        let minSize = NSSize(width: 900, height: 560)
+        // Bump the autosave name so anyone holding a saved frame from the previous default gets
+        // the new right-sized default once, instead of restoring a window where the wider sidebar
+        // squeezes the detail column.
+        let autosaveName = "CotabbySettingsWindowV5"
 
         let window = NSWindow(
             contentRect: initialFrame,

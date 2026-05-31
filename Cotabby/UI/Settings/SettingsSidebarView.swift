@@ -27,8 +27,7 @@ struct SettingsSidebarView: View {
         }
         // A single fixed width (not a min/ideal/max range) so `.balanced` can't squeeze the column
         // down to where labels truncate — the exact failure mode of the previous ranged width.
-        // 260pt comfortably fits the longest label ("Engine & Model") with room to spare.
-        .navigationSplitViewColumnWidth(260)
+        .navigationSplitViewColumnWidth(340)
     }
 
     @ViewBuilder
