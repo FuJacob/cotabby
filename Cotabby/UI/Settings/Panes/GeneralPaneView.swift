@@ -79,9 +79,11 @@ struct GeneralPaneView: View {
                         )
                     }
 
-                    Picker(selection: emojiGenderBinding) {
-                        ForEach(EmojiGender.allCases, id: \.self) { gender in
-                            Text("\(gender.displayName)  \(gender.sampleGlyph)").tag(gender)
+                    LabeledContent {
+                        HStack(spacing: 8) {
+                            ForEach(EmojiGender.allCases, id: \.self) { gender in
+                                emojiGenderOption(for: gender)
+                            }
                         }
                     } label: {
                         SettingsRowLabel(
@@ -233,13 +235,6 @@ struct GeneralPaneView: View {
         )
     }
 
-    private var emojiGenderBinding: Binding<EmojiGender> {
-        Binding(
-            get: { suggestionSettings.preferredEmojiGender },
-            set: { suggestionSettings.setPreferredEmojiGender($0) }
-        )
-    }
-
     private var autoAcceptTrailingPunctuationBinding: Binding<Bool> {
         Binding(
             get: { suggestionSettings.autoAcceptTrailingPunctuation },
@@ -348,6 +343,45 @@ struct GeneralPaneView: View {
         .buttonStyle(.plain)
         .help("\(tone.displayName) skin tone")
         .accessibilityLabel("\(tone.displayName) skin tone")
+        .accessibilityValue(isSelected ? "Selected" : "")
+    }
+
+    @ViewBuilder
+    private func emojiGenderOption(for gender: EmojiGender) -> some View {
+        let isSelected = suggestionSettings.preferredEmojiGender == gender
+
+        Button {
+            suggestionSettings.setPreferredEmojiGender(gender)
+        } label: {
+            ZStack(alignment: .bottomTrailing) {
+                Text(gender.sampleGlyph)
+                    .font(.system(size: 19))
+                    .frame(width: 34, height: 30)
+                    .background(
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            .fill(isSelected ? Color.accentColor.opacity(0.16) : Color.primary.opacity(0.06))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            .strokeBorder(
+                                isSelected ? Color.accentColor : Color.primary.opacity(0.16),
+                                lineWidth: isSelected ? 2 : 1
+                            )
+                    )
+
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(Color.accentColor)
+                        .background(Circle().fill(Color(nsColor: .controlBackgroundColor)))
+                        .offset(x: 3, y: 3)
+                }
+            }
+            .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .help("\(gender.displayName) variant")
+        .accessibilityLabel("\(gender.displayName) variant")
         .accessibilityValue(isSelected ? "Selected" : "")
     }
 
