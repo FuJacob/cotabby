@@ -43,7 +43,6 @@ final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var isEmojiPickerEnabled: Bool
     /// Emoji-customization preferences, read live by the picker's variant resolver at match time.
     @Published private(set) var preferredEmojiSkinTone: EmojiSkinTone
-    @Published private(set) var includeNeutralEmojiVariant: Bool
     @Published private(set) var preferredEmojiGender: EmojiGender
     @Published private(set) var autoAcceptTrailingPunctuation: Bool
     @Published private(set) var acceptanceKeyCode: CGKeyCode
@@ -84,7 +83,6 @@ final class SuggestionSettingsModel: ObservableObject {
     private static let multiLineEnabledDefaultsKey = "cotabbyMultiLineEnabled"
     private static let emojiPickerEnabledDefaultsKey = "cotabbyEmojiPickerEnabled"
     private static let preferredEmojiSkinToneDefaultsKey = "cotabbyPreferredEmojiSkinTone"
-    private static let includeNeutralEmojiVariantDefaultsKey = "cotabbyIncludeNeutralEmojiVariant"
     private static let preferredEmojiGenderDefaultsKey = "cotabbyPreferredEmojiGender"
     private static let autoAcceptTrailingPunctuationDefaultsKey = "cotabbyAutoAcceptTrailingPunctuation"
     private static let acceptanceKeyCodeDefaultsKey = "cotabbyAcceptanceKeyCode"
@@ -228,8 +226,6 @@ final class SuggestionSettingsModel: ObservableObject {
         let resolvedEmojiPickerEnabled = userDefaults.object(forKey: Self.emojiPickerEnabledDefaultsKey) as? Bool ?? true
         let resolvedPreferredEmojiSkinTone = userDefaults.string(forKey: Self.preferredEmojiSkinToneDefaultsKey)
             .flatMap(EmojiSkinTone.init(rawValue:)) ?? .neutral
-        let resolvedIncludeNeutralEmojiVariant =
-            userDefaults.object(forKey: Self.includeNeutralEmojiVariantDefaultsKey) as? Bool ?? false
         let resolvedPreferredEmojiGender = userDefaults.string(forKey: Self.preferredEmojiGenderDefaultsKey)
             .flatMap(EmojiGender.init(rawValue:)) ?? .neutral
         let resolvedAutoAcceptTrailingPunctuation =
@@ -297,7 +293,6 @@ final class SuggestionSettingsModel: ObservableObject {
         isMultiLineEnabled = resolvedMultiLineEnabled
         isEmojiPickerEnabled = resolvedEmojiPickerEnabled
         preferredEmojiSkinTone = resolvedPreferredEmojiSkinTone
-        includeNeutralEmojiVariant = resolvedIncludeNeutralEmojiVariant
         preferredEmojiGender = resolvedPreferredEmojiGender
         autoAcceptTrailingPunctuation = resolvedAutoAcceptTrailingPunctuation
         acceptanceKeyCode = resolvedAcceptanceKeyCode
@@ -332,7 +327,6 @@ final class SuggestionSettingsModel: ObservableObject {
         userDefaults.set(resolvedMultiLineEnabled, forKey: Self.multiLineEnabledDefaultsKey)
         userDefaults.set(resolvedEmojiPickerEnabled, forKey: Self.emojiPickerEnabledDefaultsKey)
         userDefaults.set(resolvedPreferredEmojiSkinTone.rawValue, forKey: Self.preferredEmojiSkinToneDefaultsKey)
-        userDefaults.set(resolvedIncludeNeutralEmojiVariant, forKey: Self.includeNeutralEmojiVariantDefaultsKey)
         userDefaults.set(resolvedPreferredEmojiGender.rawValue, forKey: Self.preferredEmojiGenderDefaultsKey)
         userDefaults.set(resolvedAutoAcceptTrailingPunctuation, forKey: Self.autoAcceptTrailingPunctuationDefaultsKey)
         userDefaults.set(Int(resolvedAcceptanceKeyCode), forKey: Self.acceptanceKeyCodeDefaultsKey)
@@ -459,12 +453,6 @@ final class SuggestionSettingsModel: ObservableObject {
         userDefaults.set(tone.rawValue, forKey: Self.preferredEmojiSkinToneDefaultsKey)
     }
 
-    func setIncludeNeutralEmojiVariant(_ included: Bool) {
-        guard includeNeutralEmojiVariant != included else { return }
-        includeNeutralEmojiVariant = included
-        userDefaults.set(included, forKey: Self.includeNeutralEmojiVariantDefaultsKey)
-    }
-
     func setPreferredEmojiGender(_ gender: EmojiGender) {
         guard preferredEmojiGender != gender else { return }
         preferredEmojiGender = gender
@@ -475,7 +463,6 @@ final class SuggestionSettingsModel: ObservableObject {
     var emojiVariantPreferences: EmojiVariantPreferences {
         EmojiVariantPreferences(
             skinTone: preferredEmojiSkinTone,
-            includeNeutral: includeNeutralEmojiVariant,
             gender: preferredEmojiGender
         )
     }
@@ -637,6 +624,12 @@ final class SuggestionSettingsModel: ObservableObject {
             return fullAcceptanceKeyLabel
         }
         return nil
+    }
+
+    /// The emoji picker commits with the word-accept shortcut specifically. This is separate from
+    /// `acceptanceHintLabel` because hiding ghost-text hints should not hide the picker instruction.
+    var emojiPickerAcceptKeyLabel: String? {
+        acceptanceKeyCode == Self.disabledKeyCode ? nil : acceptanceKeyLabel
     }
 
     func setCustomSuggestionTextColorHex(_ hex: String?) {

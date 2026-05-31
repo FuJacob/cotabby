@@ -19,30 +19,23 @@ final class EmojiVariantResolverTests: XCTestCase {
 
     private func prefs(
         skinTone: EmojiSkinTone = .neutral,
-        includeNeutral: Bool = false,
         gender: EmojiGender = .neutral
     ) -> EmojiVariantPreferences {
-        EmojiVariantPreferences(skinTone: skinTone, includeNeutral: includeNeutral, gender: gender)
+        EmojiVariantPreferences(skinTone: skinTone, gender: gender)
     }
 
     // MARK: - Skin tone
 
-    func test_skinTone_composesModifierOntoSupportedEmoji() {
+    func test_skinTone_keepsDefaultVariantAfterPreferredTone() {
         let wave = match(glyph: "\u{1F44B}", name: "waving hand", aliases: ["wave"])
         let resolved = EmojiVariantResolver.resolve([wave], preferences: prefs(skinTone: .medium))
-        XCTAssertEqual(resolved.map(\.glyph), ["\u{1F44B}\u{1F3FD}"])
+        XCTAssertEqual(resolved.map(\.glyph), ["\u{1F44B}\u{1F3FD}", "\u{1F44B}"])
     }
 
     func test_skinTone_leavesUnsupportedEmojiUntoned() {
         let dog = match(glyph: "\u{1F436}", name: "dog face", aliases: ["dog"])
         let resolved = EmojiVariantResolver.resolve([dog], preferences: prefs(skinTone: .dark))
         XCTAssertEqual(resolved.map(\.glyph), ["\u{1F436}"])
-    }
-
-    func test_skinTone_includeNeutralKeepsBothVariantsTonedFirst() {
-        let wave = match(glyph: "\u{1F44B}", name: "waving hand", aliases: ["wave"])
-        let resolved = EmojiVariantResolver.resolve([wave], preferences: prefs(skinTone: .light, includeNeutral: true))
-        XCTAssertEqual(resolved.map(\.glyph), ["\u{1F44B}\u{1F3FB}", "\u{1F44B}"])
     }
 
     func test_skinTone_neutralLeavesGlyphsUnchanged() {
@@ -55,7 +48,10 @@ final class EmojiVariantResolverTests: XCTestCase {
         // 🧑‍🚒 -> 🧑🏽‍🚒: modifier after the person scalar, before the ZWJ.
         let firefighter = match(glyph: "\u{1F9D1}\u{200D}\u{1F692}", name: "firefighter", aliases: ["firefighter"])
         let resolved = EmojiVariantResolver.resolve([firefighter], preferences: prefs(skinTone: .medium))
-        XCTAssertEqual(resolved.map(\.glyph), ["\u{1F9D1}\u{1F3FD}\u{200D}\u{1F692}"])
+        XCTAssertEqual(
+            resolved.map(\.glyph),
+            ["\u{1F9D1}\u{1F3FD}\u{200D}\u{1F692}", "\u{1F9D1}\u{200D}\u{1F692}"]
+        )
     }
 
     // MARK: - Gender

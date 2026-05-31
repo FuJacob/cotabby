@@ -3,17 +3,15 @@ import Foundation
 /// File overview:
 /// Pure rules that turn raw matcher results into the variant-aware rows the picker shows: prefer the
 /// configured gender variant (collapsing neutral/man/woman siblings of the same concept), then
-/// compose the configured skin tone onto emoji that support it. Dependency-free so it is trivially
-/// unit testable; the bundled catalog carries no skin-tone/gender metadata, so the policy lives here.
+/// compose the configured skin tone onto emoji that support it. When a non-default skin tone exists,
+/// the default glyph remains available as the next row so users can still choose the unmodified
+/// variant. Dependency-free so it is trivially unit testable; the bundled catalog carries no
+/// skin-tone/gender metadata, so the policy lives here.
 enum EmojiVariantResolver {
     /// Applies gender preference first (so skin tone composes onto the chosen variant), then skin tone.
     static func resolve(_ matches: [EmojiMatch], preferences: EmojiVariantPreferences) -> [EmojiMatch] {
         let genderResolved = applyGender(matches, gender: preferences.gender)
-        return applySkinTone(
-            genderResolved,
-            skinTone: preferences.skinTone,
-            includeNeutral: preferences.includeNeutral
-        )
+        return applySkinTone(genderResolved, skinTone: preferences.skinTone)
     }
 
     // MARK: - Gender
@@ -57,8 +55,7 @@ enum EmojiVariantResolver {
 
     private static func applySkinTone(
         _ matches: [EmojiMatch],
-        skinTone: EmojiSkinTone,
-        includeNeutral: Bool
+        skinTone: EmojiSkinTone
     ) -> [EmojiMatch] {
         guard let modifier = skinTone.modifier else { return matches }   // neutral: nothing to apply
 
@@ -67,7 +64,7 @@ enum EmojiVariantResolver {
                 return [match]   // emoji does not support skin tone
             }
             let tonedMatch = EmojiMatch(entry: match.entry, displayGlyph: toned)
-            return includeNeutral ? [tonedMatch, match] : [tonedMatch]
+            return [tonedMatch, match]
         }
     }
 

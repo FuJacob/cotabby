@@ -11,6 +11,7 @@ enum EmojiPickerMetrics {
     static let width: CGFloat = 300
     static let rowHeight: CGFloat = 30
     static let headerHeight: CGFloat = 26
+    static let footerHeight: CGFloat = 28
     static let dividerHeight: CGFloat = 1
     static let listVerticalPadding: CGFloat = 8
     static let maxVisibleRows = 8
@@ -20,7 +21,10 @@ enum EmojiPickerMetrics {
     static func contentSize(matchCount: Int) -> CGSize {
         let rows = matchCount == 0 ? 1 : min(matchCount, maxVisibleRows)
         let listHeight = CGFloat(rows) * rowHeight + (matchCount == 0 ? 0 : listVerticalPadding)
-        return CGSize(width: width, height: headerHeight + dividerHeight + listHeight)
+        return CGSize(
+            width: width,
+            height: headerHeight + dividerHeight + listHeight + dividerHeight + footerHeight
+        )
     }
 }
 

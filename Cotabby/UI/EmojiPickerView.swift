@@ -15,7 +15,7 @@ final class EmojiPickerViewModel: ObservableObject {
     @Published var query: String = ""
     @Published var matches: [EmojiMatch] = []
     @Published var selectedIndex: Int = 0
-    /// The accept-word key label shown as a keycap on the highlighted row; `nil` hides it.
+    /// The accept-word key label shown in the footer; `nil` means there is no keyboard commit hint.
     @Published var acceptKeyLabel: String?
 }
 
@@ -28,6 +28,8 @@ struct EmojiPickerView: View {
             header
             Divider()
             content
+            Divider()
+            footer
         }
         .frame(width: EmojiPickerMetrics.width)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
@@ -67,8 +69,7 @@ struct EmojiPickerView: View {
                         ForEach(model.matches.indices, id: \.self) { index in
                             EmojiPickerRow(
                                 match: model.matches[index],
-                                isSelected: index == model.selectedIndex,
-                                acceptKeyLabel: index == model.selectedIndex ? model.acceptKeyLabel : nil
+                                isSelected: index == model.selectedIndex
                             )
                             .id(index)
                             .contentShape(Rectangle())
@@ -83,14 +84,31 @@ struct EmojiPickerView: View {
             }
         }
     }
+
+    private var footer: some View {
+        HStack(spacing: 6) {
+            if model.matches.isEmpty {
+                Text("Keep typing to search")
+            } else if let acceptKeyLabel = model.acceptKeyLabel {
+                Text("Press")
+                EmojiKeycap(label: acceptKeyLabel)
+                Text("to insert")
+            } else {
+                Text("Click an emoji to insert")
+            }
+            Spacer(minLength: 0)
+        }
+        .font(.system(size: 11, weight: .medium))
+        .foregroundStyle(.secondary)
+        .lineLimit(1)
+        .padding(.horizontal, 10)
+        .frame(height: EmojiPickerMetrics.footerHeight)
+    }
 }
 
 private struct EmojiPickerRow: View {
     let match: EmojiMatch
     let isSelected: Bool
-    /// When non-nil (the highlighted row), a right-aligned keycap tells the user which key inserts
-    /// this emoji, mirroring the ghost-text acceptance hint.
-    let acceptKeyLabel: String?
 
     var body: some View {
         HStack(spacing: 8) {
@@ -102,9 +120,6 @@ private struct EmojiPickerRow: View {
                 .lineLimit(1)
                 .truncationMode(.tail)
             Spacer(minLength: 0)
-            if let acceptKeyLabel {
-                EmojiKeycap(label: acceptKeyLabel, onAccent: isSelected)
-            }
         }
         .padding(.horizontal, 10)
         .frame(height: EmojiPickerMetrics.rowHeight)
@@ -116,26 +131,23 @@ private struct EmojiPickerRow: View {
     }
 }
 
-/// Small keycap pill shown on the highlighted picker row, mirroring the ghost-text acceptance hint so
-/// the user knows which key inserts the highlighted emoji.
+/// Small keycap pill shown in the footer, mirroring the user's configured word-accept shortcut.
 private struct EmojiKeycap: View {
     let label: String
-    /// `true` when the row has the accent highlight, so the pill flips to a legible on-accent style.
-    let onAccent: Bool
 
     var body: some View {
         Text(label)
             .font(.system(size: 10, weight: .medium, design: .rounded))
-            .foregroundStyle(onAccent ? Color.white : Color.secondary)
+            .foregroundStyle(Color.secondary)
             .padding(.horizontal, 5)
             .padding(.vertical, 2)
             .background(
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(onAccent ? Color.white.opacity(0.22) : Color.primary.opacity(0.08))
+                    .fill(Color.primary.opacity(0.08))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .stroke(onAccent ? Color.white.opacity(0.35) : Color.primary.opacity(0.15), lineWidth: 1)
+                    .stroke(Color.primary.opacity(0.15), lineWidth: 1)
             )
             .fixedSize()
     }

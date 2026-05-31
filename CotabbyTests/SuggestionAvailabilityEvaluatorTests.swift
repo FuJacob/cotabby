@@ -648,6 +648,18 @@ final class SuggestionSettingsModelDisabledAppsTests: XCTestCase {
         }
     }
 
+    func test_emojiPickerAcceptKeyLabel_ignoresGhostHintToggleAndRequiresWordAccept() {
+        runOnMainActor {
+            let model = makeModel()
+
+            model.setShowAcceptanceHint(false)
+            XCTAssertEqual(model.emojiPickerAcceptKeyLabel, SuggestionSettingsModel.defaultAcceptanceKeyLabel)
+
+            model.clearAcceptanceKey()
+            XCTAssertNil(model.emojiPickerAcceptKeyLabel)
+        }
+    }
+
     @MainActor
     private func makeModel(
         userDefaults: UserDefaults? = nil

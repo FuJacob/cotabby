@@ -176,7 +176,7 @@ final class CotabbyAppEnvironment {
             inserter: suggestionInserter,
             isEnabled: { suggestionSettings.isEmojiPickerEnabled },
             emojiPreferences: { suggestionSettings.emojiVariantPreferences },
-            acceptKeyLabel: { suggestionSettings.acceptanceHintLabel }
+            acceptKeyLabel: { suggestionSettings.emojiPickerAcceptKeyLabel }
         )
         // Give the picker first look at every keystroke the coordinator receives, so it can detect the
         // `:` trigger and drive its state machine without changing who owns `inputMonitor.onEvent`.

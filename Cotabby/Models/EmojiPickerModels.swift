@@ -66,17 +66,23 @@ enum EmojiSkinTone: String, CaseIterable, Equatable, Sendable {
 
     var displayName: String {
         switch self {
-        case .neutral: return "Neutral"
+        case .neutral: return "Default"
         case .light: return "Light"
-        case .mediumLight: return "Medium-Light"
+        case .mediumLight: return "Medium Light"
         case .medium: return "Medium"
-        case .mediumDark: return "Medium-Dark"
+        case .mediumDark: return "Medium Dark"
         case .dark: return "Dark"
         }
     }
 
-    /// A waving hand rendered in this tone, for the settings picker label.
-    var sampleGlyph: String { "\u{1F44B}" + (modifier ?? "") }
+    /// A victory hand rendered in this tone, used by the settings swatch row. The neutral glyph
+    /// needs the emoji variation selector so macOS does not fall back to the plain text symbol.
+    var sampleGlyph: String {
+        guard let modifier else {
+            return "\u{270C}\u{FE0F}"
+        }
+        return "\u{270C}" + modifier
+    }
 }
 
 /// User-selectable gender preference for emoji that ship neutral / man / woman variants.
@@ -85,9 +91,9 @@ enum EmojiGender: String, CaseIterable, Equatable, Sendable {
 
     var displayName: String {
         switch self {
-        case .neutral: return "Gender-Neutral"
-        case .male: return "Male"
-        case .female: return "Female"
+        case .neutral: return "Person"
+        case .male: return "Man"
+        case .female: return "Woman"
         }
     }
 
@@ -103,10 +109,9 @@ enum EmojiGender: String, CaseIterable, Equatable, Sendable {
 /// Snapshot of the emoji-customization settings the variant resolver reads at match time.
 struct EmojiVariantPreferences: Equatable, Sendable {
     let skinTone: EmojiSkinTone
-    let includeNeutral: Bool
     let gender: EmojiGender
 
-    static let `default` = EmojiVariantPreferences(skinTone: .neutral, includeNeutral: false, gender: .neutral)
+    static let `default` = EmojiVariantPreferences(skinTone: .neutral, gender: .neutral)
 }
 
 // MARK: - Trigger state machine vocabulary

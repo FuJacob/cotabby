@@ -12,16 +12,27 @@ final class EmojiPickerPanelLayoutTests: XCTestCase {
 
     func test_contentSize_reservesOneRowWhenEmpty() {
         let size = EmojiPickerMetrics.contentSize(matchCount: 0)
+        let expectedHeight = EmojiPickerMetrics.headerHeight
+            + EmojiPickerMetrics.dividerHeight
+            + EmojiPickerMetrics.rowHeight
+            + EmojiPickerMetrics.dividerHeight
+            + EmojiPickerMetrics.footerHeight
 
         XCTAssertEqual(size.width, EmojiPickerMetrics.width)
-        XCTAssertEqual(size.height, 26 + 1 + 30)
+        XCTAssertEqual(size.height, expectedHeight)
     }
 
     func test_contentSize_capsAtMaxVisibleRows() {
         let size = EmojiPickerMetrics.contentSize(matchCount: 20)
+        let visibleRowsHeight = CGFloat(EmojiPickerMetrics.maxVisibleRows) * EmojiPickerMetrics.rowHeight
+            + EmojiPickerMetrics.listVerticalPadding
+        let expectedHeight = EmojiPickerMetrics.headerHeight
+            + EmojiPickerMetrics.dividerHeight
+            + visibleRowsHeight
+            + EmojiPickerMetrics.dividerHeight
+            + EmojiPickerMetrics.footerHeight
 
-        // header + divider + 8 rows + list padding
-        XCTAssertEqual(size.height, 26 + 1 + (8 * 30 + 8))
+        XCTAssertEqual(size.height, expectedHeight)
     }
 
     func test_frame_sitsBelowCaretWhenItFits() {
