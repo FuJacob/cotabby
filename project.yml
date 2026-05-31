@@ -129,14 +129,6 @@ targets:
         SWIFT_OBJC_INTEROP_MODE: objcxx
         SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY: YES
         SWIFT_VERSION: "5.0"
-      configs:
-        Debug:
-          CODE_SIGN_ENTITLEMENTS: Cotabby-Debug.entitlements
-          # Xcode's signing phase merges injected entitlements (get-task-allow for Debug)
-          # into the on-disk file, which then trips the "modified during the build" guard.
-          # Allowed only for Debug; Release archives reference no entitlements file, so
-          # notarized builds are unaffected.
-          CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION: YES
   CotabbyTests:
     type: bundle.unit-test
     platform: macOS
