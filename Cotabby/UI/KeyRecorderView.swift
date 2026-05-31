@@ -11,18 +11,26 @@ import SwiftUI
 struct KeyRecorderView: View {
     let onKeyRecorded: (CGKeyCode, ShortcutModifierMask, String) -> Void
     var onCancelled: (() -> Void)?
+    /// Returns the name of the action already bound to a proposed combo, or `nil` if it's free.
+    /// When it reports a conflict the recorder refuses to commit and keeps listening, so a shortcut
+    /// can never be assigned to two actions at once.
+    var conflictChecker: ((CGKeyCode, ShortcutModifierMask) -> String?)?
 
     @State private var monitor: Any?
     @State private var liveModifiers: ShortcutModifierMask = []
+    @State private var conflictMessage: String?
 
     var body: some View {
         Text(promptText)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(conflictMessage == nil ? .secondary : Color.red)
             .onAppear { installMonitor() }
             .onDisappear { removeMonitor() }
     }
 
     private var promptText: String {
+        if let conflictMessage {
+            return conflictMessage
+        }
         let glyphs = KeyCodeLabels.modifierGlyphs(liveModifiers)
         return glyphs.isEmpty ? "Press a key…" : "\(glyphs) + key…"
     }
@@ -60,6 +68,14 @@ struct KeyRecorderView: View {
         // consumes the key while a suggestion is visible (otherwise it passes through and does
         // its normal job). So even Return/Delete or `⌘V` are safe to bind — they only intercept
         // in the moment a suggestion is showing.
+        // Reject a combo that another action already owns. Staying in recording mode (rather than
+        // committing or cancelling) lets the user immediately try a different key, and the red
+        // prompt explains why the press was ignored.
+        if let conflict = conflictChecker?(keyCode, modifiers) {
+            conflictMessage = "Already used by \(conflict). Try another key."
+            return nil
+        }
+
         let label = KeyCodeLabels.label(
             for: keyCode,
             modifiers: modifiers,

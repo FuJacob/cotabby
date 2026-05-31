@@ -39,7 +39,14 @@ struct ShortcutsPaneView: View {
                             )
                         },
                         onClear: { suggestionSettings.clearAcceptanceKey() },
-                        clearHelp: "Unbind this shortcut. No key will accept word-by-word."
+                        clearHelp: "Unbind this shortcut. No key will accept word-by-word.",
+                        conflictChecker: { keyCode, modifiers in
+                            suggestionSettings.conflictingShortcutName(
+                                keyCode: keyCode,
+                                modifiers: modifiers,
+                                excluding: .acceptWord
+                            )
+                        }
                     )
                 } label: {
                     SettingsRowLabel(
@@ -70,7 +77,14 @@ struct ShortcutsPaneView: View {
                             )
                         },
                         onClear: { suggestionSettings.clearFullAcceptanceKey() },
-                        clearHelp: "Unbind this shortcut. No key will accept the whole suggestion at once."
+                        clearHelp: "Unbind this shortcut. No key will accept the whole suggestion at once.",
+                        conflictChecker: { keyCode, modifiers in
+                            suggestionSettings.conflictingShortcutName(
+                                keyCode: keyCode,
+                                modifiers: modifiers,
+                                excluding: .acceptEntireSuggestion
+                            )
+                        }
                     )
                 } label: {
                     SettingsRowLabel(
@@ -98,7 +112,14 @@ struct ShortcutsPaneView: View {
                         },
                         onReset: nil,
                         onClear: { suggestionSettings.clearGlobalToggleKey() },
-                        clearHelp: "Unbind this shortcut. No key will toggle Tabby on or off."
+                        clearHelp: "Unbind this shortcut. No key will toggle Tabby on or off.",
+                        conflictChecker: { keyCode, modifiers in
+                            suggestionSettings.conflictingShortcutName(
+                                keyCode: keyCode,
+                                modifiers: modifiers,
+                                excluding: .toggleTabby
+                            )
+                        }
                     )
                 } label: {
                     SettingsRowLabel(
@@ -126,6 +147,8 @@ private struct KeybindRow: View {
     let onReset: (() -> Void)?
     let onClear: () -> Void
     let clearHelp: String
+    /// Names the action that already owns a proposed combo so the recorder can block duplicates.
+    let conflictChecker: (CGKeyCode, ShortcutModifierMask) -> String?
 
     var body: some View {
         HStack(spacing: 8) {
@@ -143,7 +166,8 @@ private struct KeybindRow: View {
                         onRecord(keyCode, modifiers, label)
                         isRecording = false
                     },
-                    onCancelled: { isRecording = false }
+                    onCancelled: { isRecording = false },
+                    conflictChecker: conflictChecker
                 )
             } else {
                 Button("Change") {

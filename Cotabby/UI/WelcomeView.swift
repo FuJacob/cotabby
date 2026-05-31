@@ -401,6 +401,7 @@ extension WelcomeView {
                     keybindRow(
                         title: "Accept Word",
                         keyLabel: suggestionSettings.acceptanceKeyLabel,
+                        action: .acceptWord,
                         isRecording: $isRecordingOnboardingKeybind,
                         onKeyRecorded: { keyCode, modifiers, label in
                             suggestionSettings.setAcceptanceKey(
@@ -424,6 +425,7 @@ extension WelcomeView {
                     keybindRow(
                         title: "Accept Entire Suggestion",
                         keyLabel: suggestionSettings.fullAcceptanceKeyLabel,
+                        action: .acceptEntireSuggestion,
                         isRecording: $isRecordingOnboardingFullAcceptKeybind,
                         onKeyRecorded: { keyCode, modifiers, label in
                             suggestionSettings.setFullAcceptanceKey(
@@ -450,6 +452,7 @@ extension WelcomeView {
                 keybindRow(
                     title: "Toggle Tabby",
                     keyLabel: suggestionSettings.globalToggleKeyLabel,
+                    action: .toggleTabby,
                     isRecording: $isRecordingOnboardingGlobalToggleKeybind,
                     onKeyRecorded: { keyCode, modifiers, label in
                         suggestionSettings.setGlobalToggleKey(
@@ -468,6 +471,7 @@ extension WelcomeView {
     fileprivate func keybindRow(
         title: String,
         keyLabel: String,
+        action: ShortcutAction,
         isRecording: Binding<Bool>,
         onKeyRecorded: @escaping (CGKeyCode, ShortcutModifierMask, String) -> Void,
         onReset: (() -> Void)? = nil
@@ -495,6 +499,13 @@ extension WelcomeView {
                         },
                         onCancelled: {
                             isRecording.wrappedValue = false
+                        },
+                        conflictChecker: { keyCode, modifiers in
+                            suggestionSettings.conflictingShortcutName(
+                                keyCode: keyCode,
+                                modifiers: modifiers,
+                                excluding: action
+                            )
                         }
                     )
                 } else {

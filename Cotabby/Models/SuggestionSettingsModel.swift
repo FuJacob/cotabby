@@ -2,6 +2,22 @@ import ApplicationServices
 import Combine
 import Foundation
 
+/// Identifies one of the three user-configurable keyboard shortcuts so the recorder can ask which
+/// other action (if any) already owns a proposed key combination before committing it.
+enum ShortcutAction: CaseIterable {
+    case acceptWord
+    case acceptEntireSuggestion
+    case toggleTabby
+
+    var displayName: String {
+        switch self {
+        case .acceptWord: return "Accept Word"
+        case .acceptEntireSuggestion: return "Accept Entire Suggestion"
+        case .toggleTabby: return "Toggle Tabby"
+        }
+    }
+}
+
 /// File overview:
 /// Owns the durable autocomplete preferences that are shared across the app:
 /// engine selection, completion length, indicator appearance, and profile
@@ -817,6 +833,42 @@ final class SuggestionSettingsModel: ObservableObject {
     /// closure trivial and gives the menu bar / tests a single entry point.
     func toggleGloballyEnabled() {
         setGloballyEnabled(!isGloballyEnabled)
+    }
+
+    /// Returns the user-facing name of the shortcut action already bound to `(keyCode, modifiers)`,
+    /// excluding `action` itself, or `nil` when the combo is free.
+    ///
+    /// This is the single source of truth the recorder consults before committing a new binding.
+    /// Without it the global-toggle hotkey can silently collide with an accept key: the toggle tap
+    /// is head-inserted but the accept tap (installed later while a suggestion is visible) sits ahead
+    /// of it and consumes the shared key first, so the toggle never fires. Blocking the duplicate up
+    /// front keeps every binding unambiguous. The disabled sentinel never conflicts — several actions
+    /// may be left unbound at once.
+    func conflictingShortcutName(
+        keyCode: CGKeyCode,
+        modifiers: ShortcutModifierMask,
+        excluding action: ShortcutAction
+    ) -> String? {
+        guard keyCode != Self.disabledKeyCode else { return nil }
+
+        for other in ShortcutAction.allCases where other != action {
+            let binding = shortcutBinding(for: other)
+            if binding.keyCode == keyCode, binding.modifiers == modifiers {
+                return other.displayName
+            }
+        }
+        return nil
+    }
+
+    private func shortcutBinding(for action: ShortcutAction) -> (keyCode: CGKeyCode, modifiers: ShortcutModifierMask) {
+        switch action {
+        case .acceptWord:
+            return (acceptanceKeyCode, acceptanceKeyModifiers)
+        case .acceptEntireSuggestion:
+            return (fullAcceptanceKeyCode, fullAcceptanceKeyModifiers)
+        case .toggleTabby:
+            return (globalToggleKeyCode, globalToggleKeyModifiers)
+        }
     }
 
     private func persistSelectedEngine(_ engine: SuggestionEngineKind) {
