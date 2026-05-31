@@ -292,11 +292,15 @@ struct GeneralPaneView: View {
         )
     }
 
-    /// Prefers the OS-provided status detail (approval needed / unavailable) and then any
-    /// registration error, falling back to the plain explanation, so the row always reflects the
-    /// real login-item state rather than just the toggle position.
+    /// An enabled login item has nothing to explain, so never surface a leftover detail/error string
+    /// under a working toggle. Otherwise prefer the OS-provided status detail (approval needed / move
+    /// to Applications), then any registration error from the most recent toggle attempt, falling back
+    /// to the plain explanation — so the row reflects real login-item state, not just the switch.
     private var launchAtLoginDescription: String {
-        launchAtLoginService.state.detail
+        if launchAtLoginService.state.isEnabled {
+            return "Start Cotabby automatically when you log in to your Mac."
+        }
+        return launchAtLoginService.state.detail
             ?? launchAtLoginService.lastErrorMessage
             ?? "Start Cotabby automatically when you log in to your Mac."
     }

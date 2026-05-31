@@ -56,15 +56,28 @@ final class LaunchAtLoginService: ObservableObject {
         state = Self.map(appService.status)
     }
 
-    /// Re-reads the current login-item status from macOS.
-    /// This lets the Settings UI reflect out-of-band changes made in System Settings.
+    /// Re-reads the login-item status from macOS for an out-of-band refresh (e.g. the Settings
+    /// window reopened after the user changed the item in System Settings).
+    ///
+    /// Clears any prior `lastErrorMessage` first: that message described an *earlier* toggle attempt,
+    /// and the freshly read status is now authoritative. Without this, a one-time failure (such as
+    /// registering while outside /Applications) would keep showing as the row's subtext even after
+    /// the user fixes the cause and macOS reports the item enabled or cleanly disabled.
     func refresh() {
+        lastErrorMessage = nil
+        reloadState()
+    }
+
+    /// Re-reads status from macOS *without* touching `lastErrorMessage`. `setEnabled` uses this so a
+    /// failure it just captured survives the post-mutation re-read — routing through `refresh()`
+    /// would wipe the error before the UI could explain why the toggle did not take effect.
+    private func reloadState() {
         state = Self.map(appService.status)
     }
 
     /// Registers or unregisters the main app as a login item.
-    /// We immediately refresh after mutation so the UI reflects the actual OS state rather than
-    /// assuming the request succeeded.
+    /// We re-read OS state after mutation (rather than assuming the request succeeded) via
+    /// `reloadState()` — deliberately not `refresh()`, so a freshly captured error is preserved.
     func setEnabled(_ enabled: Bool) {
         do {
             if enabled {
@@ -78,7 +91,7 @@ final class LaunchAtLoginService: ObservableObject {
             lastErrorMessage = error.localizedDescription
         }
 
-        refresh()
+        reloadState()
     }
 
     private static func map(_ status: SMAppService.Status) -> LaunchAtLoginState {
