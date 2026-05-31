@@ -56,12 +56,16 @@ struct EmojiPickerView: View {
     @ViewBuilder
     private var content: some View {
         if model.matches.isEmpty {
-            Text(model.query.isEmpty ? "Type to search emoji" : "No emoji found")
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 10)
-                .frame(height: EmojiPickerMetrics.rowHeight)
+            if model.query.isEmpty {
+                Color.clear.frame(height: EmojiPickerMetrics.rowHeight)
+            } else {
+                Text("No emoji found")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 10)
+                    .frame(height: EmojiPickerMetrics.rowHeight)
+            }
         } else {
             ScrollViewReader { proxy in
                 ScrollView {
