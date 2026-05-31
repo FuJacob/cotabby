@@ -181,6 +181,33 @@ struct GeneralPaneView: View {
                     }
                 }
             }
+
+            if let kofiURL = URL(string: "https://ko-fi.com/cotabby") {
+                Section {
+                    HStack(spacing: 12) {
+                        Text("Enjoying Cotabby? Please consider supporting open-source")
+                            .font(.subheadline)
+                            .foregroundStyle(.white)
+                            .lineLimit(1)
+                        Spacer(minLength: 0)
+                        Link(destination: kofiURL) {
+                            HStack(spacing: 5) {
+                                Image(systemName: "heart.fill")
+                                    .foregroundStyle(.pink)
+                                Text("Support")
+                                    .fontWeight(.semibold)
+                            }
+                            .font(.subheadline)
+                            .foregroundStyle(Color.accentColor)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(Color.white, in: Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .listRowBackground(Color.accentColor)
+                }
+            }
         }
     }
 
