@@ -190,6 +190,103 @@ final class LlamaPromptRendererTests: XCTestCase {
         XCTAssertFalse(prompt.contains("Screen content:"))
     }
 
+    // MARK: - messages() chat-template path
+    //
+    // The chat-template path (used when the model ships a template) splits the prompt into a
+    // system turn (rules + context) and a user turn (the bare prefix). These tests guard the
+    // invariant that fixes the prompt-scaffolding echo bug: the user turn must be exactly the
+    // text to continue, with none of the "Text before caret:" / "Task:" labels that small
+    // instruct models were parroting back into the ghost text.
+
+    func test_messages_userTurnIsExactlyThePrefixWithNoScaffolding() {
+        let chat = LlamaPromptRenderer.messages(
+            prefixText: "I was just about to",
+            applicationName: "TextEdit",
+            completionLengthInstruction: "Return only the next 3 to 7 words.",
+            userName: nil,
+            customRules: []
+        )
+
+        XCTAssertEqual(chat.user, "I was just about to")
+    }
+
+    func test_messages_systemTurnDropsRawLabelScaffolding() {
+        let chat = LlamaPromptRenderer.messages(
+            prefixText: "hello",
+            applicationName: "TextEdit",
+            completionLengthInstruction: "",
+            userName: nil,
+            customRules: []
+        )
+
+        XCTAssertFalse(chat.system.contains("Text before caret:"))
+        XCTAssertFalse(chat.system.contains("Final instruction:"))
+    }
+
+    func test_messages_systemTurnDoesNotContainThePrefix() {
+        let chat = LlamaPromptRenderer.messages(
+            prefixText: "Zxqv distinctive prefix marker",
+            applicationName: "TextEdit",
+            completionLengthInstruction: "",
+            userName: nil,
+            customRules: []
+        )
+
+        XCTAssertFalse(chat.system.contains("Zxqv distinctive prefix marker"))
+    }
+
+    func test_messages_systemTurnCarriesAutocompleteRules() {
+        let chat = LlamaPromptRenderer.messages(
+            prefixText: "x",
+            applicationName: "TextEdit",
+            completionLengthInstruction: "",
+            userName: nil,
+            customRules: []
+        )
+
+        XCTAssertTrue(chat.system.contains("autocomplete, not chat"))
+        XCTAssertTrue(chat.system.contains("User is on TextEdit"))
+    }
+
+    func test_messages_systemTurnIncludesProfileRulesContextWhenProvided() {
+        let chat = LlamaPromptRenderer.messages(
+            prefixText: "x",
+            applicationName: "TextEdit",
+            completionLengthInstruction: "",
+            userName: "Jacob",
+            customRules: ["Always be concise"],
+            languageInstruction: "Respond in German.",
+            clipboardContext: "copied text",
+            visualContextSummary: "a login form"
+        )
+
+        XCTAssertTrue(chat.system.contains("Jacob"))
+        XCTAssertTrue(chat.system.contains("Always be concise"))
+        XCTAssertTrue(chat.system.contains("Respond in German."))
+        XCTAssertTrue(chat.system.contains("copied text"))
+        XCTAssertTrue(chat.system.contains("a login form"))
+    }
+
+    func test_messages_omitsOptionalContextWhenAbsent() {
+        let chat = LlamaPromptRenderer.messages(
+            prefixText: "x",
+            applicationName: "TextEdit",
+            completionLengthInstruction: "",
+            userName: nil,
+            customRules: [],
+            clipboardContext: nil,
+            visualContextSummary: nil
+        )
+
+        // Assert the optional *content blocks* are absent, not rule words: the base rules always
+        // mention "clipboard" ("Use clipboard or screen context only when it directly helps"), so
+        // the block header "User's clipboard:" is the correct absence check.
+        XCTAssertFalse(chat.system.contains("User's clipboard:"))
+        XCTAssertFalse(chat.system.contains("Screen content:"))
+        XCTAssertFalse(chat.system.contains("User Profile Context:"))
+        XCTAssertFalse(chat.system.contains("Your style preferences:"))
+    }
+
     private func makeRequest(
         prompt: String,
         elementIdentifier: String = "field",
