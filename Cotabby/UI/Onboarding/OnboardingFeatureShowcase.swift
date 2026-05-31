@@ -20,6 +20,9 @@ struct OnboardingFeatureShowcase: View {
             GhostTextDemoCard()
             EmojiPickerDemoCard()
         }
+        // Purely decorative looping demo: hide it from VoiceOver so the
+        // mid-animation text fragments are never read out to AT users.
+        .accessibilityHidden(true)
     }
 }
 
@@ -136,6 +139,7 @@ private struct GhostTextDemoCard: View {
             withAnimation(.easeInOut(duration: 0.30)) {
                 showGhost = false
                 accepted = false
+                typedCount = 0
             }
             try? await Task.sleep(nanoseconds: 600 * nsPerMillisecond)
         }
@@ -277,7 +281,7 @@ private struct DemoEmojiPopup: View {
             Divider()
 
             VStack(spacing: 0) {
-                ForEach(Array(candidates.enumerated()), id: \.offset) { index, candidate in
+                ForEach(Array(candidates.enumerated()), id: \.element.alias) { index, candidate in
                     DemoEmojiRow(glyph: candidate.glyph, alias: candidate.alias, isSelected: index == 0)
                 }
             }
