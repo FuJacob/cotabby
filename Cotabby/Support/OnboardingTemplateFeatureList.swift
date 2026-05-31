@@ -43,8 +43,8 @@ enum OnboardingTemplateFeatureList {
                 value: template.enablesFastMode ? .enabled : .disabled
             ),
             OnboardingTemplateFeatureRow(
-                title: "Multi-line completions",
-                value: template.enablesMultiLine ? .enabled : .disabled
+                title: "Clipboard context",
+                value: template.enablesClipboardContext ? .enabled : .disabled
             )
         ]
     }

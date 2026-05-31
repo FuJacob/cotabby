@@ -29,17 +29,24 @@ final class OnboardingTemplateRecommenderTests: XCTestCase {
         XCTAssertEqual(quick.wordCountPreset, .threeToSeven)
         XCTAssertTrue(quick.enablesFastMode)
         XCTAssertFalse(quick.enablesMultiLine)
+        XCTAssertFalse(quick.enablesClipboardContext)
+
+        let everyday = OnboardingTemplateRecommender.resolvePlan(for: .everyday, engine: .appleIntelligence)
+        XCTAssertFalse(everyday.enablesFastMode)
+        XCTAssertFalse(everyday.enablesMultiLine)
+        XCTAssertTrue(everyday.enablesClipboardContext)
 
         let powerful = OnboardingTemplateRecommender.resolvePlan(for: .powerful, engine: .appleIntelligence)
         XCTAssertEqual(powerful.wordCountPreset, .twelveToTwenty)
-        XCTAssertTrue(powerful.enablesMultiLine)
+        XCTAssertFalse(powerful.enablesMultiLine)
+        XCTAssertTrue(powerful.enablesClipboardContext)
     }
 
     // MARK: - resolvePlan: Open Source engine (each tier maps to its GGUF)
 
     func testOpenSourceTiersMapToTheirLocalModels() {
         let expected: [OnboardingTemplate: String] = [
-            .quick: "Qwen3-0.6B-Q4_K_M.gguf",
+            .quick: "SmolLM2-135M-Instruct-q8_0.gguf",
             .everyday: "gemma-4-E2B-it-Q4_K_M.gguf",
             .powerful: "gemma-4-E4B-it-Q4_K_M.gguf"
         ]

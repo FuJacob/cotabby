@@ -660,6 +660,7 @@ extension WelcomeView {
         suggestionSettings.selectWordCountPreset(plan.wordCountPreset)
         suggestionSettings.setFastModeEnabled(plan.enablesFastMode)
         suggestionSettings.setMultiLineEnabled(plan.enablesMultiLine)
+        suggestionSettings.setClipboardContextEnabled(plan.enablesClipboardContext)
 
         guard let model = plan.modelToDownload else {
             return

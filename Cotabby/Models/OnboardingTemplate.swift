@@ -52,7 +52,7 @@ enum OnboardingTemplate: String, CaseIterable, Identifiable, Equatable, Sendable
         case .everyday:
             return "A balance of speed and quality for everyday writing."
         case .powerful:
-            return "Longer, multi-line suggestions for the most capable completions."
+            return "Longer suggestions and higher quality on harder prompts."
         }
     }
 
@@ -83,16 +83,21 @@ enum OnboardingTemplate: String, CaseIterable, Identifiable, Equatable, Sendable
         self == .quick
     }
 
-    /// Powerful opts into multi-line continuations since its model can sustain them.
-    var enablesMultiLine: Bool {
-        self == .powerful
+    /// Multi-line is off in every tier — the onboarding presets stay single-line so a fresh user
+    /// doesn't get long block completions before they've chosen that tradeoff in General.
+    var enablesMultiLine: Bool { false }
+
+    /// Quick stays lean by skipping the per-keystroke clipboard read and the extra prompt bytes
+    /// it adds; Everyday and Powerful pay that small cost for the extra signal.
+    var enablesClipboardContext: Bool {
+        self != .quick
     }
 
     /// The local GGUF this template installs when the Open Source engine is selected.
     var openSourceModelFilename: String {
         switch self {
         case .quick:
-            return "Qwen3-0.6B-Q4_K_M.gguf"
+            return "SmolLM2-135M-Instruct-q8_0.gguf"
         case .everyday:
             return "gemma-4-E2B-it-Q4_K_M.gguf"
         case .powerful:
@@ -110,6 +115,7 @@ struct ResolvedTemplatePlan: Equatable, Sendable {
     let wordCountPreset: SuggestionWordCountPreset
     let enablesFastMode: Bool
     let enablesMultiLine: Bool
+    let enablesClipboardContext: Bool
 }
 
 /// Whether a template can be offered on the current Mac, plus optional advisory copy.

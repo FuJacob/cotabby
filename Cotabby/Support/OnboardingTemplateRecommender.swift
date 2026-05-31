@@ -36,7 +36,8 @@ enum OnboardingTemplateRecommender {
             modelToDownload: model,
             wordCountPreset: template.wordCountPreset,
             enablesFastMode: template.enablesFastMode,
-            enablesMultiLine: template.enablesMultiLine
+            enablesMultiLine: template.enablesMultiLine,
+            enablesClipboardContext: template.enablesClipboardContext
         )
     }
 

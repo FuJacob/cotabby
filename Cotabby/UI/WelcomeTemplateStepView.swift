@@ -301,8 +301,8 @@ private struct TemplateCard: View {
         case .appleIntelligence:
             return "Apple Intelligence · built into macOS"
         case .llamaOpenSource:
-            let size = plan.modelToDownload?.approximateSizeLabel ?? ""
-            return "Local model · \(size) download"
+            guard let model = plan.modelToDownload else { return "Local model" }
+            return "\(model.displayName) · \(model.approximateSizeLabel) download"
         }
     }
 
