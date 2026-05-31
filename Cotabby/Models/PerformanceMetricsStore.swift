@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import Logging
 
 /// File overview:
 /// In-memory + UserDefaults-backed ring buffer of the most recent LLM generation latencies.
@@ -66,10 +67,18 @@ final class PerformanceMetricsStore: ObservableObject {
     }
 
     private func persist(_ entries: [PerformanceMetricEntry]) {
-        guard let data = try? JSONEncoder().encode(entries) else {
-            return
+        // Encoding `[PerformanceMetricEntry]` (UUID/Date/String/Int) shouldn't fail in practice, but
+        // a silent return here would make "metrics vanish between sessions" undiagnosable. Log the
+        // underlying error so the cause shows up in the standard JSONL stream when it does happen.
+        do {
+            let data = try JSONEncoder().encode(entries)
+            userDefaults.set(data, forKey: Self.entriesDefaultsKey)
+        } catch {
+            CotabbyLogger.app.error(
+                "Failed to persist performance metrics: \(error.localizedDescription)",
+                metadata: ["entry_count": .stringConvertible(entries.count)]
+            )
         }
-        userDefaults.set(data, forKey: Self.entriesDefaultsKey)
     }
 
     private static func loadEntries(from userDefaults: UserDefaults) -> [PerformanceMetricEntry] {
