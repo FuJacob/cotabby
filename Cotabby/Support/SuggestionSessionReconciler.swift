@@ -270,10 +270,11 @@ enum SuggestionSessionReconciler {
     /// quoted-prose case (`"done." Next` → stop after the closing quote). Without the walk-back,
     /// the chunk's last character would be `"` rather than `.` and phrase mode would over-accept
     /// the next sentence. Token-interior punctuation like the dots in `U.S.A` does NOT trigger
-    /// an early break because the chunk's tail (after walking) is `A`, not `.`. The known
-    /// false-positive is when the tail itself ends with `U.S.A.` — the trailing period reads as
-    /// a sentence terminator and the user has to press once more for the next phrase. Rule-based
-    /// scanners can't disambiguate that without NLP; Cursor and Copilot behave the same way.
+    /// an early break because the chunk's tail (after walking) is `A`, not `.`. Periods are further
+    /// disambiguated by `SentenceBoundaryClassifier`, so decimals ("1.2"), list numbers ("1."),
+    /// single-letter initials, and common abbreviations ("e.g.", "U.S.") do not end a phrase. Truly
+    /// ambiguous cases (a real sentence ending in an abbreviation) lean toward continuing, which is
+    /// the safe default for phrase acceptance.
     ///
     /// The `autoAcceptTrailingPunctuation` flag is passed through to each underlying chunk call
     /// but does not change the final phrase output: a tail like `you?` with the flag off yields
@@ -333,7 +334,16 @@ enum SuggestionSessionReconciler {
             return false
         }
         let prev = text.index(before: index)
-        return text[prev].isPhraseSentenceTerminator
+        guard text[prev].isPhraseSentenceTerminator else {
+            return false
+        }
+        // `!` and `?` always end a sentence. A period is ambiguous: decimals, list/ordinal numbers,
+        // single-letter initials, and common abbreviations are not sentence ends, so consult the
+        // classifier rather than treating every "." as terminal.
+        if text[prev] == "." {
+            return SentenceBoundaryClassifier.isTerminalPeriod(in: text, at: prev)
+        }
+        return true
     }
 
     /// Returns the index just past a word token's final alphanumeric character when that token has
