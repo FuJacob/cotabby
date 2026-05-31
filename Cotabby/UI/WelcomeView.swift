@@ -278,7 +278,7 @@ private enum WelcomeStep: Int, Comparable {
         case .writingStyle:
             return NSSize(width: 560, height: 560)
         case .keybind:
-            return NSSize(width: 540, height: 520)
+            return NSSize(width: 640, height: 460)
         case .done:
             return NSSize(width: 520, height: 672)
         }
@@ -393,52 +393,57 @@ extension WelcomeView {
                     .multilineTextAlignment(.center)
             }
 
-            VStack(spacing: 16) {
-                keybindRow(
-                    title: "Accept Word",
-                    keyLabel: suggestionSettings.acceptanceKeyLabel,
-                    isRecording: $isRecordingOnboardingKeybind,
-                    onKeyRecorded: { keyCode, modifiers, label in
-                        suggestionSettings.setAcceptanceKey(
-                            keyCode: keyCode,
-                            modifiers: modifiers,
-                            label: label
-                        )
-                    },
-                    onReset: (
-                        suggestionSettings.acceptanceKeyCode != SuggestionSettingsModel.defaultAcceptanceKeyCode
-                            || !suggestionSettings.acceptanceKeyModifiers.isEmpty
-                    ) ? {
-                        suggestionSettings.setAcceptanceKey(
-                            keyCode: SuggestionSettingsModel.defaultAcceptanceKeyCode,
-                            modifiers: [],
-                            label: SuggestionSettingsModel.defaultAcceptanceKeyLabel
-                        )
-                    } : nil
-                )
+            // 2x2 layout: the two suggestion-acceptance keys stack in the left column, while the
+            // opt-in Toggle Tabby hotkey sits on the right. `.top` alignment keeps the left column's
+            // first row visually aligned with the single right-column row.
+            HStack(alignment: .top, spacing: 32) {
+                VStack(spacing: 16) {
+                    keybindRow(
+                        title: "Accept Word",
+                        keyLabel: suggestionSettings.acceptanceKeyLabel,
+                        isRecording: $isRecordingOnboardingKeybind,
+                        onKeyRecorded: { keyCode, modifiers, label in
+                            suggestionSettings.setAcceptanceKey(
+                                keyCode: keyCode,
+                                modifiers: modifiers,
+                                label: label
+                            )
+                        },
+                        onReset: (
+                            suggestionSettings.acceptanceKeyCode != SuggestionSettingsModel.defaultAcceptanceKeyCode
+                                || !suggestionSettings.acceptanceKeyModifiers.isEmpty
+                        ) ? {
+                            suggestionSettings.setAcceptanceKey(
+                                keyCode: SuggestionSettingsModel.defaultAcceptanceKeyCode,
+                                modifiers: [],
+                                label: SuggestionSettingsModel.defaultAcceptanceKeyLabel
+                            )
+                        } : nil
+                    )
 
-                keybindRow(
-                    title: "Accept Entire Suggestion",
-                    keyLabel: suggestionSettings.fullAcceptanceKeyLabel,
-                    isRecording: $isRecordingOnboardingFullAcceptKeybind,
-                    onKeyRecorded: { keyCode, modifiers, label in
-                        suggestionSettings.setFullAcceptanceKey(
-                            keyCode: keyCode,
-                            modifiers: modifiers,
-                            label: label
-                        )
-                    },
-                    onReset: (
-                        suggestionSettings.fullAcceptanceKeyCode != SuggestionSettingsModel.defaultFullAcceptanceKeyCode
-                            || !suggestionSettings.fullAcceptanceKeyModifiers.isEmpty
-                    ) ? {
-                        suggestionSettings.setFullAcceptanceKey(
-                            keyCode: SuggestionSettingsModel.defaultFullAcceptanceKeyCode,
-                            modifiers: [],
-                            label: SuggestionSettingsModel.defaultFullAcceptanceKeyLabel
-                        )
-                    } : nil
-                )
+                    keybindRow(
+                        title: "Accept Entire Suggestion",
+                        keyLabel: suggestionSettings.fullAcceptanceKeyLabel,
+                        isRecording: $isRecordingOnboardingFullAcceptKeybind,
+                        onKeyRecorded: { keyCode, modifiers, label in
+                            suggestionSettings.setFullAcceptanceKey(
+                                keyCode: keyCode,
+                                modifiers: modifiers,
+                                label: label
+                            )
+                        },
+                        onReset: (
+                            suggestionSettings.fullAcceptanceKeyCode != SuggestionSettingsModel.defaultFullAcceptanceKeyCode
+                                || !suggestionSettings.fullAcceptanceKeyModifiers.isEmpty
+                        ) ? {
+                            suggestionSettings.setFullAcceptanceKey(
+                                keyCode: SuggestionSettingsModel.defaultFullAcceptanceKeyCode,
+                                modifiers: [],
+                                label: SuggestionSettingsModel.defaultFullAcceptanceKeyLabel
+                            )
+                        } : nil
+                    )
+                }
 
                 // No `onReset` here: the toggle hotkey is opt-in and has no factory default, so the
                 // only meaningful "reset" is unbind, which the Clear gesture in the recorder covers.
