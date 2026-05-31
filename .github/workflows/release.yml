@@ -793,6 +793,14 @@ jobs:
           IS_PRERELEASE: ${{ needs.build.outputs.is_prerelease }}
           PUBLISH: ${{ needs.build.outputs.publish }}
         run: |
+          # Prereleases do not publish to the appcast feed (see the Pages steps above), so report
+          # the feed as untouched rather than printing a URL that was not actually updated.
+          if [[ "${IS_PRERELEASE}" == "true" ]]; then
+            appcast_status="not published (prerelease — download-only)"
+          else
+            appcast_status="https://${PAGES_CUSTOM_DOMAIN}/appcast.xml"
+          fi
+
           {
             echo "### Release"
             echo "| Field | Value |"
@@ -802,10 +810,17 @@ jobs:
             echo "| Build number | ${BUILD_NUMBER} |"
             echo "| Prerelease | ${IS_PRERELEASE} |"
             echo "| Published | ${PUBLISH} |"
-            echo "| Appcast URL | https://${PAGES_CUSTOM_DOMAIN}/appcast.xml |"
+            echo "| Appcast | ${appcast_status} |"
           } >> "${GITHUB_STEP_SUMMARY}"
 
+      # Prereleases are download-only GitHub releases: they must NOT overwrite the production
+      # appcast at updates.cotabby.app, or every auto-update user (who all sit on Sparkle's
+      # default channel, with no channel opt-in) would be force-updated to the beta. So the
+      # appcast deploy and the Homebrew cask bump are gated to stable releases. The appcast is
+      # still generated above for prereleases (it validates signing and is kept as an artifact),
+      # it just is not published to the feed.
       - name: Prepare Pages artifact
+        if: needs.build.outputs.is_prerelease != 'true'
         run: |
           set -euo pipefail
 
@@ -815,15 +830,18 @@ jobs:
           printf '%s\n' "${PAGES_CUSTOM_DOMAIN}" > build/pages/CNAME
 
       - name: Configure GitHub Pages
+        if: needs.build.outputs.is_prerelease != 'true'
         uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
 
       - name: Upload GitHub Pages artifact
+        if: needs.build.outputs.is_prerelease != 'true'
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: build/pages
 
       - name: Deploy GitHub Pages
         id: deploy-pages
+        if: needs.build.outputs.is_prerelease != 'true'
         uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0
 
       - name: Upload release artifacts
@@ -847,7 +865,8 @@ jobs:
   update-homebrew-cask:
     name: Update Homebrew cask
     needs: [build, notarize, publish]
-    if: needs.build.outputs.publish == 'true'
+    # Stable only: a prerelease must not bump the Homebrew cask that `brew install` resolves.
+    if: needs.build.outputs.publish == 'true' && needs.build.outputs.is_prerelease != 'true'
     runs-on: ubuntu-latest
     permissions: {}
     steps:

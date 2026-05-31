@@ -25,7 +25,10 @@ import sys
 
 
 DEFAULT_OWNER = "FuJacob"
-DEFAULT_REPOSITORY = "Cotabby"
+# Canonical (lowercase) repository name. GitHub redirects mixed-case paths, but the enclosure URL
+# lands in a signed appcast that ships to every user, so pin the canonical name rather than relying
+# on a redirect that a repo rename or transfer could one day drop.
+DEFAULT_REPOSITORY = "cotabby"
 # Sparkle's <releaseNotesLink> is fetched by the update alert's embedded WKWebView.
 # Point it at the dedicated slim route on the landing site rather than GitHub's
 # full release page, which pulls in GitHub's chrome and is unreadable in the small
