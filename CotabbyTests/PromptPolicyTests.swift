@@ -306,7 +306,9 @@ final class SuggestionEngineRouterTests: XCTestCase {
         let router = SuggestionEngineRouter(
             suggestionSettings: settings,
             foundationModelEngine: appleEngine,
-            llamaEngine: openSourceEngine
+            llamaEngine: openSourceEngine,
+            performanceMetricsStore: PerformanceMetricsStore(userDefaults: makeUserDefaults()),
+            llamaModelNameProvider: { nil }
         )
 
         let result = try await router.generateSuggestion(for: request)

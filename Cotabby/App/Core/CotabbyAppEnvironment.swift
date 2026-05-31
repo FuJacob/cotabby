@@ -31,6 +31,7 @@ final class CotabbyAppEnvironment {
     let emojiPickerController: EmojiPickerController
     let welcomeCoordinator: WelcomeCoordinator
     let huggingFaceSearchService: HuggingFaceSearchService
+    let performanceMetricsStore: PerformanceMetricsStore
     let settingsCoordinator: SettingsCoordinator
     let activationIndicatorController: ActivationIndicatorController
     let focusDebugOverlayController: FocusDebugOverlayController?
@@ -92,6 +93,7 @@ final class CotabbyAppEnvironment {
             foundationModelAvailabilityService: foundationModelAvailabilityService
         )
         let huggingFaceSearchService = HuggingFaceSearchService()
+        let performanceMetricsStore = PerformanceMetricsStore()
         // Settings coordinator construction is deferred below until after `suggestionEngine` is
         // built — the Advanced pane's "try it" playground needs the engine so it can fire ad-hoc
         // generations using the same router the autocomplete pipeline does.
@@ -129,7 +131,11 @@ final class CotabbyAppEnvironment {
         let suggestionEngine: any SuggestionGenerating = SuggestionEngineRouter(
             suggestionSettings: suggestionSettings,
             foundationModelEngine: foundationModelEngine,
-            llamaEngine: LlamaSuggestionEngine(runtimeManager: runtimeManager)
+            llamaEngine: LlamaSuggestionEngine(runtimeManager: runtimeManager),
+            performanceMetricsStore: performanceMetricsStore,
+            llamaModelNameProvider: { [weak runtimeManager] in
+                runtimeManager?.currentModelFilename
+            }
         )
 
         let settingsCoordinator = SettingsCoordinator(
@@ -143,6 +149,7 @@ final class CotabbyAppEnvironment {
             huggingFaceSearchService: huggingFaceSearchService,
             suggestionEngine: suggestionEngine,
             configuration: configuration,
+            performanceMetricsStore: performanceMetricsStore,
             onShowWelcome: { [weak welcomeCoordinator] in
                 welcomeCoordinator?.showWelcome()
             }
@@ -200,6 +207,7 @@ final class CotabbyAppEnvironment {
         self.emojiPickerController = emojiPickerController
         self.welcomeCoordinator = welcomeCoordinator
         self.huggingFaceSearchService = huggingFaceSearchService
+        self.performanceMetricsStore = performanceMetricsStore
         self.settingsCoordinator = settingsCoordinator
         self.activationIndicatorController = activationIndicatorController
         self.focusDebugOverlayController = FocusDebugOverlayController.isEnabled

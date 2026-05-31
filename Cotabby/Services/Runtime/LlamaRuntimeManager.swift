@@ -23,6 +23,14 @@ final class LlamaRuntimeManager: ObservableObject {
     private var cachedRuntime: PreparedLlamaRuntime?
     private var selectedModelFilename: String?
 
+    /// Read-only view of the model currently selected for autocomplete generation. Used by
+    /// downstream observers (the performance metrics recorder) that want to label a recorded
+    /// request with the actual GGUF filename, e.g. `Qwen3-0.6B-Q8_0.gguf`. Returns nil when no
+    /// model has been configured yet.
+    var currentModelFilename: String? {
+        selectedModelFilename
+    }
+
     convenience init() {
         self.init(
             configuration: .default,

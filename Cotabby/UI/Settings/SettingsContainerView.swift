@@ -20,6 +20,7 @@ struct SettingsContainerView: View {
     @ObservedObject var runtimeModel: RuntimeBootstrapModel
     @ObservedObject var modelDownloadManager: ModelDownloadManager
     @ObservedObject var huggingFaceSearchService: HuggingFaceSearchService
+    @ObservedObject var performanceMetricsStore: PerformanceMetricsStore
 
     /// Live router used by the Advanced pane's "try it" playground so users can see the effect of
     /// Extended Context (and other prompt inputs) without leaving Settings. Threaded through the
@@ -121,6 +122,11 @@ struct SettingsContainerView: View {
             AppsPaneView(suggestionSettings: suggestionSettings)
         case .permissions:
             PermissionsPaneView(permissionManager: permissionManager)
+        case .performance:
+            PerformancePaneView(
+                suggestionSettings: suggestionSettings,
+                performanceMetricsStore: performanceMetricsStore
+            )
         case .about:
             AboutPaneView(appUpdateManager: appUpdateManager)
         }

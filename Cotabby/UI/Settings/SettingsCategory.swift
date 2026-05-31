@@ -14,6 +14,7 @@ enum SettingsCategory: String, CaseIterable, Hashable, Identifiable {
     case shortcuts
     case apps
     case permissions
+    case performance
     case about
 
     var id: String { rawValue }
@@ -27,6 +28,7 @@ enum SettingsCategory: String, CaseIterable, Hashable, Identifiable {
         case .shortcuts: return "Shortcuts"
         case .apps: return "Apps"
         case .permissions: return "Permissions"
+        case .performance: return "Performance"
         case .about: return "About"
         }
     }
@@ -41,6 +43,7 @@ enum SettingsCategory: String, CaseIterable, Hashable, Identifiable {
         case .shortcuts: return "keyboard.fill"
         case .apps: return "app.badge.fill"
         case .permissions: return "lock.shield.fill"
+        case .performance: return "speedometer"
         case .about: return "info.circle.fill"
         }
     }

@@ -21,6 +21,7 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
     private let huggingFaceSearchService: HuggingFaceSearchService
     private let suggestionEngine: any SuggestionGenerating
     private let configuration: SuggestionConfiguration
+    private let performanceMetricsStore: PerformanceMetricsStore
     private let onShowWelcome: () -> Void
 
     private var settingsWindowController: NSWindowController?
@@ -36,6 +37,7 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
         huggingFaceSearchService: HuggingFaceSearchService,
         suggestionEngine: any SuggestionGenerating,
         configuration: SuggestionConfiguration,
+        performanceMetricsStore: PerformanceMetricsStore,
         onShowWelcome: @escaping () -> Void
     ) {
         self.appUpdateManager = appUpdateManager
@@ -48,6 +50,7 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
         self.huggingFaceSearchService = huggingFaceSearchService
         self.suggestionEngine = suggestionEngine
         self.configuration = configuration
+        self.performanceMetricsStore = performanceMetricsStore
         self.onShowWelcome = onShowWelcome
     }
 
@@ -72,6 +75,7 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
                     runtimeModel: runtimeModel,
                     modelDownloadManager: modelDownloadManager,
                     huggingFaceSearchService: huggingFaceSearchService,
+                    performanceMetricsStore: performanceMetricsStore,
                     suggestionEngine: suggestionEngine,
                     configuration: configuration,
                     onShowWelcome: onShowWelcome

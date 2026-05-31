@@ -39,6 +39,10 @@ final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var selectedWordCountPreset: SuggestionWordCountPreset
     @Published private(set) var isClipboardContextEnabled: Bool
     @Published private(set) var isFastModeEnabled: Bool
+    /// Whether the Performance pane is recording per-request latency. Defaults to false so the
+    /// default user never pays any extra storage or write cost — recording only kicks in once the
+    /// user opts in from Settings.
+    @Published private(set) var isPerformanceTrackingEnabled: Bool
     /// Whether the accepted-word counter is drawn next to the menu bar icon. Off hides the badge
     /// entirely; the count itself keeps accruing so toggling it back on restores the running total.
     @Published private(set) var isMenuBarWordCountVisible: Bool
@@ -86,6 +90,7 @@ final class SuggestionSettingsModel: ObservableObject {
     private static let selectedWordCountPresetDefaultsKey = "cotabbySelectedWordCountPreset"
     private static let clipboardContextEnabledDefaultsKey = "cotabbyClipboardContextEnabled"
     private static let fastModeEnabledDefaultsKey = "cotabbyFastModeEnabled"
+    private static let performanceTrackingEnabledDefaultsKey = "cotabbyPerformanceTrackingEnabled"
     private static let menuBarWordCountVisibleDefaultsKey = "cotabbyMenuBarWordCountVisible"
     private static let mirrorPreferenceDefaultsKey = "cotabbyMirrorPreference"
     private static let userNameDefaultsKey = "cotabbyUserName"
@@ -175,6 +180,10 @@ final class SuggestionSettingsModel: ObservableObject {
         // into fast mode turns it off.
         let resolvedFastModeEnabled =
             userDefaults.object(forKey: Self.fastModeEnabledDefaultsKey) as? Bool ?? false
+        // Defaults to false so the metrics ring buffer stays empty until the user explicitly opts
+        // in from the Performance pane.
+        let resolvedPerformanceTrackingEnabled =
+            userDefaults.object(forKey: Self.performanceTrackingEnabledDefaultsKey) as? Bool ?? false
         // Default to visible so existing installs keep the running-word-count badge they're used
         // to seeing. The toggle lets users who find the badge noisy hide it from the menu bar.
         let resolvedMenuBarWordCountVisible =
@@ -299,6 +308,7 @@ final class SuggestionSettingsModel: ObservableObject {
         selectedWordCountPreset = resolvedWordCountPreset
         isClipboardContextEnabled = resolvedClipboardContextEnabled
         isFastModeEnabled = resolvedFastModeEnabled
+        isPerformanceTrackingEnabled = resolvedPerformanceTrackingEnabled
         isMenuBarWordCountVisible = resolvedMenuBarWordCountVisible
         mirrorPreference = resolvedMirrorPreference
         userName = resolvedUserName
@@ -333,6 +343,7 @@ final class SuggestionSettingsModel: ObservableObject {
         persistSelectedWordCountPreset(resolvedWordCountPreset)
         persistClipboardContextEnabled(resolvedClipboardContextEnabled)
         persistFastModeEnabled(resolvedFastModeEnabled)
+        persistPerformanceTrackingEnabled(resolvedPerformanceTrackingEnabled)
         persistMenuBarWordCountVisible(resolvedMenuBarWordCountVisible)
         persistMirrorPreference(resolvedMirrorPreference)
         persistUserName(resolvedUserName)
@@ -428,6 +439,15 @@ final class SuggestionSettingsModel: ObservableObject {
 
         isFastModeEnabled = enabled
         persistFastModeEnabled(enabled)
+    }
+
+    func setPerformanceTrackingEnabled(_ enabled: Bool) {
+        guard isPerformanceTrackingEnabled != enabled else {
+            return
+        }
+
+        isPerformanceTrackingEnabled = enabled
+        persistPerformanceTrackingEnabled(enabled)
     }
 
     func setMenuBarWordCountVisible(_ visible: Bool) {
@@ -886,6 +906,10 @@ final class SuggestionSettingsModel: ObservableObject {
 
     private func persistFastModeEnabled(_ enabled: Bool) {
         userDefaults.set(enabled, forKey: Self.fastModeEnabledDefaultsKey)
+    }
+
+    private func persistPerformanceTrackingEnabled(_ enabled: Bool) {
+        userDefaults.set(enabled, forKey: Self.performanceTrackingEnabledDefaultsKey)
     }
 
     private func persistMenuBarWordCountVisible(_ visible: Bool) {
