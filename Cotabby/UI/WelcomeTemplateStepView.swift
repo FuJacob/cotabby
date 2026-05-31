@@ -236,6 +236,7 @@ private struct TemplateCard: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.bottom, 12)
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
     }
