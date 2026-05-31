@@ -280,7 +280,7 @@ private enum WelcomeStep: Int, Comparable {
         case .keybind:
             return NSSize(width: 540, height: 520)
         case .done:
-            return NSSize(width: 500, height: 380)
+            return NSSize(width: 520, height: 672)
         }
     }
 }
@@ -534,6 +534,8 @@ extension WelcomeView {
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
             }
+
+            OnboardingFeatureShowcase()
 
             doneStepModelStatus
 
