@@ -31,7 +31,19 @@ final class WelcomeCoordinator: NSObject, NSWindowDelegate {
     private var welcomeWindowController: NSWindowController?
     private var permissionReminderWindowController: NSWindowController?
 
-    private static let onboardingCompletedDefaultsKey = "cotabbyOnboardingCompleted"
+    /// Bump whenever onboarding is revamped enough that users who already finished an older version
+    /// should experience it again. `presentIfNeeded` re-shows the wizard for anyone whose stored
+    /// completed version is below this, and completing the wizard writes this value back.
+    private static let currentOnboardingVersion = 2
+
+    /// Stores the onboarding version the user last *completed* (reached "done" and dismissed), not a
+    /// yes/no flag. An absent key reads as `0`, so both brand-new users and users who finished an
+    /// older onboarding fall below `currentOnboardingVersion` and get the current flow exactly once.
+    ///
+    /// Replaces the legacy boolean `cotabbyOnboardingCompleted` key. That key is intentionally not
+    /// migrated: reading it as "version 1 completed" would let upgrading users skip the revamped
+    /// flow, which is the opposite of what a version bump is for.
+    private static let onboardingCompletedVersionKey = "cotabbyOnboardingCompletedVersion"
 
     init(
         permissionManager: PermissionManager,
@@ -51,14 +63,14 @@ final class WelcomeCoordinator: NSObject, NSWindowDelegate {
         self.userDefaults = userDefaults
     }
 
-    /// Whether the user completed the full onboarding wizard (reached "done" and dismissed).
+    /// Whether the user completed the *current* onboarding version (reached "done" and dismissed).
     ///
-    /// The legacy `hasShownWelcomeWindow` key is intentionally NOT migrated here. That key was
-    /// set at presentation time (before the user finished), so treating it as "completed" would
-    /// skip profile and model selection for upgrading users. Forcing one more pass through the
-    /// wizard on upgrade is better than silently dropping steps.
+    /// Versioned rather than boolean so a revamp can re-show the wizard: a stored value below
+    /// `currentOnboardingVersion` (including the `0` returned for an absent key) counts as not yet
+    /// completed. The legacy `hasShownWelcomeWindow` key is likewise not migrated, since it was set
+    /// at presentation time (before the user finished) and would skip profile and model selection.
     private var isOnboardingCompleted: Bool {
-        userDefaults.bool(forKey: Self.onboardingCompletedDefaultsKey)
+        userDefaults.integer(forKey: Self.onboardingCompletedVersionKey) >= Self.currentOnboardingVersion
     }
 
     /// Presents the welcome wizard if the user has never completed onboarding.
@@ -153,10 +165,12 @@ final class WelcomeCoordinator: NSObject, NSWindowDelegate {
         }
     }
 
-    /// Called when the user completes the full onboarding wizard ("Start Using Cotabby").
-    /// Persists the completion flag so the wizard does not reappear.
+    /// Called when the user completes the full onboarding wizard ("Start Using Cotabby"). Stamps the
+    /// current onboarding version so the wizard does not reappear until the next revamp bumps it.
+    /// This is the only thing that clears the gate: closing the window mid-flow leaves the stored
+    /// version unchanged, so the wizard returns on next launch.
     private func completeOnboarding() {
-        userDefaults.set(true, forKey: Self.onboardingCompletedDefaultsKey)
+        userDefaults.set(Self.currentOnboardingVersion, forKey: Self.onboardingCompletedVersionKey)
         permissionGuidanceController.dismiss()
         welcomeWindowController?.close()
     }
