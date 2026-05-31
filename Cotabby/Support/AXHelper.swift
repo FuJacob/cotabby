@@ -25,6 +25,27 @@ enum AXHelper {
         kAXMenuItemRole as String
     ]
 
+    // MARK: - Messaging Timeout
+
+    /// Per-poll AX messaging timeout, in seconds.
+    ///
+    /// Every `AXUIElement` call is a synchronous cross-process request that blocks the calling
+    /// (main) thread until the target app replies or this timeout fires. The OS default is ~6s,
+    /// which on our 80ms focus poll means a single slow or wedged app can beachball typing. A
+    /// short timeout makes such an app degrade to "no suggestion this tick" instead of stalling
+    /// the UI; callers already treat a nil/`.cannotComplete` result as a normal miss.
+    private static let pollMessagingTimeout: Float = 0.05
+
+    /// Returns a system-wide AX element with the poll messaging timeout applied. Setting the
+    /// timeout on the system-wide object establishes the default for every element that does not
+    /// set its own (per `AXUIElementSetMessagingTimeout` semantics), so this is the single choke
+    /// point for both focus and hit-test queries.
+    static func systemWideElement() -> AXUIElement {
+        let element = AXUIElementCreateSystemWide()
+        AXUIElementSetMessagingTimeout(element, pollMessagingTimeout)
+        return element
+    }
+
     // MARK: - Attribute Reading
 
     /// Returns the AX attribute names exposed by an element.
@@ -181,6 +202,110 @@ enum AXHelper {
         return rect
     }
 
+    // MARK: - Text Markers (Chromium / WebKit contenteditable selection)
+
+    private static let selectedTextMarkerRangeAttribute = "AXSelectedTextMarkerRange" as CFString
+    private static let startTextMarkerAttribute = "AXStartTextMarker" as CFString
+    private static let endTextMarkerAttribute = "AXEndTextMarker" as CFString
+    private static let startMarkerForRangeAttribute = "AXStartTextMarkerForTextMarkerRange" as CFString
+    private static let endMarkerForRangeAttribute = "AXEndTextMarkerForTextMarkerRange" as CFString
+    private static let markerRangeForMarkersAttribute = "AXTextMarkerRangeForUnorderedTextMarkers" as CFString
+    private static let stringForMarkerRangeAttribute = "AXStringForTextMarkerRange" as CFString
+
+    /// Synthesizes an `NSRange` selection plus caret-windowed text for a Chromium/WebKit
+    /// `contenteditable` that exposes selection only through the opaque text-marker API and not
+    /// through `kAXSelectedTextRangeAttribute`.
+    ///
+    /// Without this, such fields (Gmail body, Slack/Notion/Discord web, ClickUp chat) fail the
+    /// focus capability gate for "missing selection range" even though the caret is perfectly
+    /// readable. The arithmetic lives in `MarkerSelectionSynthesizer`; this method only does the AX
+    /// I/O and hands the three caret-adjacent text fragments to it.
+    ///
+    /// Returns nil (so the field stays unsupported, no regression) unless the full marker query
+    /// surface is present and the before-caret text resolves, since that fragment drives the caret
+    /// offset and a wrong offset would mis-split the model's context. Marker objects are treated as
+    /// opaque `CFTypeRef`: never inspected, never cached across ticks or threads.
+    static func synthesizeMarkerSelection(
+        on element: AXUIElement,
+        parameterizedAttributes: Set<String>
+    ) -> MarkerSelection? {
+        // Guard on advertised parameterized attributes so apps without marker support degrade to
+        // nil instead of issuing doomed cross-process AX calls on every poll.
+        guard parameterizedAttributes.contains(startMarkerForRangeAttribute as String),
+            parameterizedAttributes.contains(endMarkerForRangeAttribute as String),
+            parameterizedAttributes.contains(markerRangeForMarkersAttribute as String),
+            parameterizedAttributes.contains(stringForMarkerRangeAttribute as String)
+        else {
+            return nil
+        }
+
+        guard let selectionRange = copyOpaqueAttribute(selectedTextMarkerRangeAttribute, on: element),
+            let documentStart = copyOpaqueAttribute(startTextMarkerAttribute, on: element),
+            let documentEnd = copyOpaqueAttribute(endTextMarkerAttribute, on: element),
+            let selectionStart = copyOpaqueParameterized(
+                startMarkerForRangeAttribute, parameter: selectionRange, on: element),
+            let selectionEnd = copyOpaqueParameterized(
+                endMarkerForRangeAttribute, parameter: selectionRange, on: element)
+        else {
+            return nil
+        }
+
+        // Before-caret text is required: its length is the caret offset. An empty-but-present
+        // result (caret at document start) is valid; a failed query is not.
+        guard let preRange = markerRange(from: documentStart, to: selectionStart, on: element),
+            let beforeText = stringForMarkerRange(preRange, on: element)
+        else {
+            return nil
+        }
+
+        let selectedText = stringForMarkerRange(selectionRange, on: element) ?? ""
+
+        // After-caret context is nice-to-have, not required for offset correctness.
+        var afterText = ""
+        if let postRange = markerRange(from: selectionEnd, to: documentEnd, on: element),
+            let trailing = stringForMarkerRange(postRange, on: element) {
+            afterText = trailing
+        }
+
+        return MarkerSelectionSynthesizer.make(
+            beforeCaret: beforeText, selected: selectedText, afterCaret: afterText)
+    }
+
+    /// Builds an `AXTextMarkerRange` spanning two markers via `AXTextMarkerRangeForUnorderedTextMarkers`.
+    private static func markerRange(
+        from start: CFTypeRef, to end: CFTypeRef, on element: AXUIElement
+    ) -> CFTypeRef? {
+        let markers = [start, end] as CFArray
+        return copyOpaqueParameterized(markerRangeForMarkersAttribute, parameter: markers, on: element)
+    }
+
+    /// Reads the plain text spanned by an opaque marker range.
+    private static func stringForMarkerRange(_ range: CFTypeRef, on element: AXUIElement) -> String? {
+        copyOpaqueParameterized(stringForMarkerRangeAttribute, parameter: range, on: element) as? String
+    }
+
+    /// Reads an attribute whose value is an opaque marker / marker-range object. Unlike the typed
+    /// readers above, the value is returned without inspection because text markers are an opaque
+    /// serialization that must only be passed back to other marker APIs.
+    private static func copyOpaqueAttribute(_ attribute: CFString, on element: AXUIElement) -> CFTypeRef? {
+        var value: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, attribute, &value) == .success else {
+            return nil
+        }
+        return value
+    }
+
+    /// Parameterized counterpart of `copyOpaqueAttribute` for marker queries.
+    private static func copyOpaqueParameterized(
+        _ attribute: CFString, parameter: CFTypeRef, on element: AXUIElement
+    ) -> CFTypeRef? {
+        var value: CFTypeRef?
+        guard AXUIElementCopyParameterizedAttributeValue(element, attribute, parameter, &value) == .success else {
+            return nil
+        }
+        return value
+    }
+
     /// Reads a raw AX attribute value and leaves type interpretation to the caller.
     /// This is the lowest-level helper in the file; the typed helpers above build on top of it.
     static func copyAttributeValue(_ attribute: CFString, on element: AXUIElement) -> AnyObject? {
@@ -197,7 +322,7 @@ enum AXHelper {
 
     /// Returns the currently focused UI element from the system-wide AX object.
     static func focusedElement() -> AXUIElement? {
-        let systemWideElement = AXUIElementCreateSystemWide()
+        let systemWideElement = systemWideElement()
         var value: CFTypeRef?
         let result = AXUIElementCopyAttributeValue(systemWideElement, kAXFocusedUIElementAttribute as CFString, &value)
         guard result == .success, let element = value else {
@@ -225,6 +350,94 @@ enum AXHelper {
             return nil
         }
         return NSRunningApplication(processIdentifier: pid)
+    }
+
+    /// Returns the focused element scoped to a specific application process. Some web inputs that
+    /// the system-wide focused-element query misses are reachable through the app-scoped query, so
+    /// this is the intermediate link before falling back to cursor hit-testing.
+    static func focusedElement(forApplicationPID pid: pid_t) -> AXUIElement? {
+        guard pid > 0 else { return nil }
+        let appElement = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(appElement, pollMessagingTimeout)
+        var value: CFTypeRef?
+        let result = AXUIElementCopyAttributeValue(
+            appElement, kAXFocusedUIElementAttribute as CFString, &value)
+        guard result == .success, let element = value,
+            CFGetTypeID(element) == AXUIElementGetTypeID()
+        else {
+            return nil
+        }
+        return unsafeBitCast(element, to: AXUIElement.self)
+    }
+
+    /// Sets `AXManualAccessibility` on an application's process element to wake a dormant web
+    /// accessibility tree (Chromium/Electron build it lazily, only once an assistive client asks).
+    ///
+    /// Set on the **browser process** element only: renderer subprocesses have no OS-level AX
+    /// element, and the composed tree lives in the browser process, which fans the request out to
+    /// renderers over IPC. `AXManualAccessibility` is used in preference to `AXEnhancedUserInterface`
+    /// because the latter has a documented side effect of glitching window managers. Returns the raw
+    /// `AXError` so callers can distinguish "unsupported" (Electron builds that don't advertise it)
+    /// from a transient failure worth retrying.
+    @discardableResult
+    static func setManualAccessibility(_ enabled: Bool, forApplicationPID pid: pid_t) -> AXError {
+        guard pid > 0 else { return .failure }
+        let appElement = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(appElement, pollMessagingTimeout)
+        let value: CFBoolean = enabled ? kCFBooleanTrue : kCFBooleanFalse
+        return AXUIElementSetAttributeValue(appElement, "AXManualAccessibility" as CFString, value)
+    }
+
+    /// Hit-tests the Accessibility tree at a Cocoa screen point (bottom-left origin) by converting
+    /// to the top-left origin that `AXUIElementCopyElementAtPosition` expects.
+    ///
+    /// This is the only query that crosses Chrome's out-of-process-iframe boundary (the window
+    /// server resolves on-screen geometry across processes), so it is the last resort for OOPIF
+    /// editors like Gmail compose that surface through no focused-element attribute.
+    static func element(atCocoaPoint point: CGPoint) -> AXUIElement? {
+        // AX screen space is anchored to the top-left of the primary display (the screen at origin
+        // (0,0), conventionally `screens.first`). Flipping against its height keeps multi-monitor
+        // hit-tests correct because AX uses one global top-left origin.
+        guard let primaryHeight = NSScreen.screens.first?.frame.height else {
+            return nil
+        }
+        let axX = Float(point.x)
+        let axY = Float(primaryHeight - point.y)
+        var element: AXUIElement?
+        guard AXUIElementCopyElementAtPosition(systemWideElement(), axX, axY, &element) == .success else {
+            return nil
+        }
+        return element
+    }
+
+    /// Reads whether an element currently holds focus. A cheap (single round-trip) re-validation for
+    /// a cached hit-test element; a stale web handle returns false or errors, which callers treat as
+    /// "re-resolve".
+    static func isFocused(_ element: AXUIElement) -> Bool {
+        boolValue(for: kAXFocusedAttribute as CFString, on: element) ?? false
+    }
+
+    /// Climbs at most `maxClimb` ancestors from a hit-test result to the nearest container that
+    /// looks like an editable text target: a known editable role, an explicit editable flag, or a
+    /// Chromium contenteditable that exposes the selected text-marker range. Returns the original
+    /// element if none is found, leaving final candidate selection to `FocusSnapshotResolver`.
+    static func nearestEditable(from element: AXUIElement, maxClimb: Int = 5) -> AXUIElement {
+        var current = element
+        for _ in 0...maxClimb {
+            let role = stringValue(for: kAXRoleAttribute as CFString, on: current) ?? ""
+            let attributes = Set(attributeNames(on: current))
+            let explicitEditable =
+                attributes.contains("AXEditable")
+                ? boolValue(for: "AXEditable" as CFString, on: current) : nil
+            if isKnownEditableRole(role)
+                || hasStrongEditabilitySignal(role: role, explicitEditableFlag: explicitEditable)
+                || attributes.contains(selectedTextMarkerRangeAttribute as String) {
+                return current
+            }
+            guard let parent = parentElement(of: current) else { break }
+            current = parent
+        }
+        return element
     }
 
     /// Returns the parent AX node when the current element exposes one.

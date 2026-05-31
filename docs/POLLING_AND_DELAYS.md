@@ -14,14 +14,15 @@ Update this file whenever you add, remove, or change a timing constant.
 | `Cotabby/Services/Focus/FocusTracker.swift:41` | 80 ms | Base focus poll interval (AX tree walk). Backed off automatically by `FocusPollBackoff` up to ~800 ms during idle. |
 | `Cotabby/Services/Focus/FocusSnapshotResolver.swift:16` | 100 ms | Deep-walk throttle. Caps the expensive caret BFS used in Chromium-style contenteditable trees. |
 | `Cotabby/App/Coordinators/SuggestionCoordinator+Input.swift:180` | 400 ms | Chromium AX-publish wait ceiling. Maximum time we wait for the host app to publish its updated contenteditable text after a keystroke before giving up on this prediction cycle. |
-| `Cotabby/App/Coordinators/SuggestionCoordinator+Input.swift:185` | 30 ms | Host-publish poll interval. AX is requeried every 30 ms while waiting up to the 400 ms ceiling above. |
+| `Cotabby/App/Coordinators/SuggestionCoordinator+Input.swift:185` | 30 ms | Host-publish poll interval (steady cadence). AX is requeried at this interval while waiting up to the 400 ms ceiling above. |
+| `Cotabby/App/Coordinators/SuggestionCoordinator+Input.swift:191` | 10 ms | Host-publish first-retry interval. The immediate poll always misses (it runs before the host processes the key), so the first retry is short to catch fast native-app publishes; later retries use the 30 ms steady cadence. |
 | `Cotabby/Support/FocusPollBackoff.swift:17` | 60 ticks | Idle capture cap for focus poll backoff. After this many unchanged polls the stride saturates. |
 
 ## Suggestion Pipeline
 
 | Location | Value | Purpose |
 |----------|-------|---------|
-| `Cotabby/Models/SuggestionModels.swift:103` | 50 ms | Default suggestion debounce. User-configurable. Wait after the last keystroke before triggering generation. |
+| `Cotabby/Models/SuggestionModels.swift:103` | 30 ms | Default suggestion debounce. Persisted values are capped to this default on load (`SuggestionSettingsModel.swift:181`) so existing installs with the old 50 ms default get the improvement; the stepper is hidden from the UI today, so any persisted value is a previous default rather than a user choice. Clamped to [10, 500]. |
 | `Cotabby/Services/Suggestion/SuggestionWorkController.swift:32` | (configured) | Converts the user debounce setting from ms to nanoseconds for `Task.sleep`. |
 
 ## Acceptance and Input
@@ -58,9 +59,11 @@ Update this file whenever you add, remove, or change a timing constant.
 
 The hottest loops, ordered by CPU impact:
 
-1. **30 ms host-publish poll** inside the 400 ms Chromium ceiling. Bumping to
-   50 to 60 ms roughly halves AX queries during the wait window with minimal
-   added latency.
+1. **Host-publish poll** inside the 400 ms Chromium ceiling: a 10 ms first
+   retry (the immediate poll always misses, so this catches fast native-app
+   publishes) then a 30 ms steady cadence. Raising the steady interval to
+   50 to 60 ms roughly halves AX queries during the wait with minimal added
+   latency; leave the short first retry alone.
 2. **80 ms focus poll base** in `FocusTracker`. Already protected by
    `FocusPollBackoff` once idle, so this is the active-typing cadence.
 3. **400 ms Chromium ceiling**. Raising it reduces the rate at which we give

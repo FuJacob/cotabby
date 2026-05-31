@@ -42,15 +42,17 @@ enum OnboardingTemplate: String, CaseIterable, Identifiable, Equatable, Sendable
         }
     }
 
-    /// Longer supporting copy describing the trade-off the user is opting into.
+    /// Longer supporting copy describing the trade-off the user is opting into. Kept engine-neutral
+    /// because the engine (and any download size) is now chosen separately above the tier and shown
+    /// in the per-tier footer; the tier itself only tunes speed/length.
     var detail: String {
         switch self {
         case .quick:
-            return "A small local model that keeps up with your typing and is gentle on memory and battery."
+            return "Short, snappy completions that keep up with fast typing and stay light on resources."
         case .everyday:
-            return "A good balance of speed and quality. Uses Apple Intelligence when your Mac supports it."
+            return "A balance of speed and quality for everyday writing."
         case .powerful:
-            return "The largest local model for the most capable suggestions. Best on Macs with lots of memory."
+            return "Longer, multi-line suggestions for the most capable completions."
         }
     }
 
@@ -86,14 +88,7 @@ enum OnboardingTemplate: String, CaseIterable, Identifiable, Equatable, Sendable
         self == .powerful
     }
 
-    /// Whether this template should use Apple Intelligence when it is available. Only Everyday does;
-    /// Quick and Powerful are deliberately tied to specific local models so their size/quality
-    /// trade-off is predictable regardless of the host.
-    var prefersAppleIntelligence: Bool {
-        self == .everyday
-    }
-
-    /// The local GGUF this template installs when it is not using Apple Intelligence.
+    /// The local GGUF this template installs when the Open Source engine is selected.
     var openSourceModelFilename: String {
         switch self {
         case .quick:

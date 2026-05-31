@@ -17,18 +17,24 @@ struct PermissionsPaneView: View {
 
                 permissionRow(
                     title: "Accessibility",
+                    description: "Lets Cotabby see which text field has focus and read its contents " +
+                        "so it knows what to continue.",
                     granted: permissionManager.accessibilityGranted,
                     action: permissionManager.openAccessibilitySettings
                 )
 
                 permissionRow(
                     title: "Input Monitoring",
+                    description: "Lets Cotabby see your keystrokes so it can detect when to suggest " +
+                        "and which key you used to accept.",
                     granted: permissionManager.inputMonitoringGranted,
                     action: permissionManager.openInputMonitoringSettings
                 )
 
                 permissionRow(
                     title: "Screen Recording",
+                    description: "Lets Cotabby take a screenshot of the focused window to use as " +
+                        "additional context. Optional — Fast Mode skips this.",
                     granted: permissionManager.screenRecordingGranted,
                     action: permissionManager.openScreenRecordingSettings
                 )
@@ -60,11 +66,12 @@ struct PermissionsPaneView: View {
     @ViewBuilder
     private func permissionRow(
         title: String,
+        description: String,
         granted: Bool,
         action: @escaping () -> Void
     ) -> some View {
         HStack(spacing: 10) {
-            Text(title)
+            SettingsRowLabel(title: title, description: description)
             Spacer(minLength: 0)
             Text(granted ? "Granted" : "Needs Access")
                 .font(.caption.weight(.medium))

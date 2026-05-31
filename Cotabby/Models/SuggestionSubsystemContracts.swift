@@ -1,4 +1,5 @@
 import Combine
+import CoreGraphics
 import Foundation
 
 /// File overview:
@@ -43,6 +44,24 @@ protocol SuggestionInputMonitoring: AnyObject {
     /// a suggestion overlay is visible and off otherwise, so Cotabby only sits in the synchronous
     /// keystroke path during the brief windows it actually needs to consume the accept key.
     func setAcceptInterceptionActive(_ active: Bool)
+}
+
+/// The emoji picker's slice of the input monitor. Kept separate from `SuggestionInputMonitoring` so
+/// the suggestion coordinator stays unaware of emoji concerns and vice versa, even though one
+/// `InputMonitor` satisfies both.
+@MainActor
+protocol EmojiInputIntercepting: AnyObject {
+    /// Per-key consume decision consulted by the active tap while an emoji capture is open. The
+    /// controller computes the decision during the observer pass and this closure returns it.
+    var emojiCaptureKeyDecider: (@MainActor (InputMonitorKeyEvent) -> InputMonitorAcceptTapDecision)? { get set }
+
+    /// Keeps the active tap installed for the emoji-capture reason (parallel to the suggestion
+    /// overlay's `setAcceptInterceptionActive`).
+    func setCaptureInterceptionActive(_ active: Bool)
+
+    /// True when the key matches the user's configured word-accept binding. The emoji picker commits
+    /// on this key so its commit stays consistent with accepting a suggestion word.
+    func isWordAcceptKey(_ keyEvent: InputMonitorKeyEvent) -> Bool
 }
 
 @MainActor
@@ -93,6 +112,25 @@ protocol SuggestionInserting: AnyObject {
     var lastErrorMessage: String? { get }
 
     func insert(_ suggestion: String) -> Bool
+}
+
+/// The emoji picker's slice of the inserter: replace a run of already-typed characters (the literal
+/// `:query`) with the chosen glyph in one suppressed synthetic burst.
+@MainActor
+protocol EmojiTextInserting: AnyObject {
+    func replace(deletingUTF16Count: Int, with text: String) -> Bool
+}
+
+/// The emoji picker's slice of its floating panel: present/move/hide the match list. Behind a
+/// protocol so `EmojiPickerController` can be unit-tested without constructing a real `NSPanel`.
+@MainActor
+protocol EmojiPickerPanelPresenting: AnyObject {
+    var onSelectIndex: ((Int) -> Void)? { get set }
+    var onClickOutside: (() -> Void)? { get set }
+
+    func show(query: String, matches: [EmojiMatch], selectedIndex: Int, caretRect: CGRect, acceptKeyLabel: String?)
+    func setSelectedIndex(_ index: Int)
+    func hide()
 }
 
 @MainActor

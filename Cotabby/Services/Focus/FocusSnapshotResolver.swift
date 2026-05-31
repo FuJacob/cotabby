@@ -70,7 +70,13 @@ struct FocusSnapshotResolver {
             )
         }
 
-        let candidates = candidateElements(around: focusedElement).map {
+        // Chromium/Electron focus a wrapper several levels above the real editable, so for those
+        // apps we additionally search descendants for the editable node.
+        let deepDescendants = BrowserAppDetector.needsWebAccessibilityPriming(
+            bundleIdentifier: bundleIdentifier)
+        let candidates = candidateElements(
+            around: focusedElement, deepDescendants: deepDescendants
+        ).map {
             candidateSnapshot(for: $0, bundleIdentifier: bundleIdentifier)
         }
         let resolution = FocusCapabilityResolver.resolve(
@@ -239,7 +245,9 @@ struct FocusSnapshotResolver {
         )
     }
 
-    private func candidateElements(around focusedElement: AXUIElement) -> [AXUIElement] {
+    private func candidateElements(
+        around focusedElement: AXUIElement, deepDescendants: Bool = false
+    ) -> [AXUIElement] {
         var ordered: [AXUIElement] = []
         var seen = Set<String>()
 
@@ -283,7 +291,69 @@ struct FocusSnapshotResolver {
             }
         }
 
+        // Chromium reports focus on a wrapper above the editable (AXWebArea → AXGroup → … →
+        // AXTextField), so the shallow walk above can miss the real target. Search descendants for
+        // editable-looking nodes, bounded in depth and count and appending only likely editables
+        // (not every visited node) so per-tick candidateSnapshot cost stays in check.
+        if deepDescendants {
+            appendEditableDescendants(of: [focusedElement] + ancestors, append: append)
+        }
+
         return ordered
+    }
+
+    /// Bounded BFS for editable-looking descendants, used only for Chromium/Electron. Traverses up
+    /// to `maxVisits` nodes / `maxDepth` deep but appends at most `maxAppended` likely-editable
+    /// nodes, keeping the downstream snapshotting cost roughly constant.
+    private func appendEditableDescendants(
+        of roots: [AXUIElement], append: (AXUIElement?) -> Void
+    ) {
+        let maxDepth = 6
+        let maxVisits = 200
+        let maxAppended = 12
+        var visited = 0
+        var appended = 0
+        var seenIdentity = Set<String>()
+        var queue: [(element: AXUIElement, depth: Int)] = roots.map { ($0, 0) }
+
+        while !queue.isEmpty, visited < maxVisits, appended < maxAppended {
+            let (element, depth) = queue.removeFirst()
+            guard seenIdentity.insert(AXHelper.elementIdentity(for: element)).inserted else {
+                continue
+            }
+            visited += 1
+
+            if looksEditable(element) {
+                append(element)
+                appended += 1
+            }
+
+            if depth < maxDepth {
+                for child in AXHelper.childElements(of: element) {
+                    queue.append((child, depth + 1))
+                }
+            }
+        }
+    }
+
+    /// Cheap editability probe for the descendant search: a known editable role, an explicit
+    /// editable flag, or either selection surface (native range or Chromium text markers). Cheaper
+    /// than a full `candidateSnapshot`, so it is safe to run across the bounded BFS.
+    private func looksEditable(_ element: AXUIElement) -> Bool {
+        let role = AXHelper.stringValue(for: kAXRoleAttribute as CFString, on: element) ?? ""
+        if AXHelper.isKnownEditableRole(role) {
+            return true
+        }
+        let attributes = Set(AXHelper.attributeNames(on: element))
+        if attributes.contains("AXSelectedTextMarkerRange")
+            || attributes.contains(kAXSelectedTextRangeAttribute as String) {
+            return true
+        }
+        if attributes.contains("AXEditable"),
+            AXHelper.boolValue(for: "AXEditable" as CFString, on: element) == true {
+            return true
+        }
+        return false
     }
 
     /// Runs deep geometry search from the resolved editable candidate first, then falls back to
@@ -420,14 +490,38 @@ struct FocusSnapshotResolver {
             supportedAttributes.contains("AXEditable")
             ? AXHelper.boolValue(for: "AXEditable" as CFString, on: element)
             : nil
-        let textValue =
-            supportedAttributes.contains(kAXValueAttribute as String)
-            ? AXHelper.stringValue(for: kAXValueAttribute as CFString, on: element)
-            : nil
-        let selection =
+        let nativeSelection =
             supportedAttributes.contains(kAXSelectedTextRangeAttribute as String)
             ? AXHelper.rangeValue(for: kAXSelectedTextRangeAttribute as CFString, on: element)
             : nil
+
+        // Chromium/WebKit contenteditables (Gmail body, Slack/Notion/Discord web, ClickUp chat)
+        // expose selection only through the opaque AXTextMarker API, never kAXSelectedTextRange,
+        // so they would otherwise fail the capability gate for a missing selection. Synthesize an
+        // NSRange + caret-windowed text from the markers, but only when the native range is absent.
+        let markerSelection =
+            nativeSelection == nil
+            ? AXHelper.synthesizeMarkerSelection(
+                on: element, parameterizedAttributes: supportedParameterizedAttributes)
+            : nil
+        let selection = nativeSelection ?? markerSelection?.selection
+
+        // Prefer the marker-windowed text when we synthesized one so `selection` (window-relative)
+        // and `textValue` stay consistent; otherwise read the native value.
+        let textValue =
+            markerSelection?.text
+            ?? (supportedAttributes.contains(kAXValueAttribute as String)
+                ? AXHelper.stringValue(for: kAXValueAttribute as CFString, on: element)
+                : nil)
+
+        if let markerSelection {
+            let textLength = (markerSelection.text as NSString).length
+            let location = markerSelection.selection.location
+            let length = markerSelection.selection.length
+            CotabbyLogger.focus.trace(
+                "CHROME-CONTENTEDITABLE synthesized selection loc=\(location) len=\(length) textLen=\(textLength)")
+        }
+
         var inputFrameRect =
             supportedAttributes.contains("AXFrame")
             ? geometryResolver.resolveInputFrameRect(for: element)
@@ -464,8 +558,12 @@ struct FocusSnapshotResolver {
             geometryResolver.resolveCaretRect(
                 for: element,
                 selection: $0,
-                supportsBoundsForRange: supportedParameterizedAttributes.contains(
-                    kAXBoundsForRangeParameterizedAttribute as String),
+                // A marker-synthesized selection's location is window-relative, not a document
+                // offset, so NSRange-based BoundsForRange would resolve the wrong caret. Disable it
+                // for those so resolution falls to the text-marker geometry path (Branch 1.5).
+                supportsBoundsForRange: markerSelection == nil
+                    && supportedParameterizedAttributes.contains(
+                        kAXBoundsForRangeParameterizedAttribute as String),
                 supportsFrame: supportedAttributes.contains("AXFrame"),
                 cocoaAnchorFrame: inputFrameRect,
                 textValue: textValue

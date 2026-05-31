@@ -141,7 +141,6 @@ targets:
       base:
         BUNDLE_LOADER: $(TEST_HOST)
         CODE_SIGN_IDENTITY: "-"
-        CODE_SIGNING_ALLOWED: NO
         CODE_SIGNING_REQUIRED: NO
         CODE_SIGN_STYLE: Automatic
         GENERATE_INFOPLIST_FILE: YES

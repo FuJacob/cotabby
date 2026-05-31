@@ -15,51 +15,137 @@ struct GeneralPaneView: View {
     var body: some View {
         SettingsPaneScaffold {
             Section("Status") {
-                Toggle("Enable Globally", isOn: globallyEnabledBinding)
+                Toggle(isOn: globallyEnabledBinding) {
+                    SettingsRowLabel(
+                        title: "Enable Globally",
+                        description: "Turn Cotabby off everywhere without quitting the app."
+                    )
+                }
 
-                // Fast Mode is the most user-facing performance lever, so it gets prime real
-                // estate at the top. The "(no screen context)" suffix tells the user concretely
-                // what gets skipped so they can decide whether they care.
-                Toggle("Fast Mode (no screen context)", isOn: fastModeEnabledBinding)
+                Toggle(isOn: fastModeEnabledBinding) {
+                    SettingsRowLabel(
+                        title: "Fast Mode",
+                        description: "Skip the screenshot-based context step for faster suggestions. " +
+                            "Suggestions rely only on the text you've typed."
+                    )
+                }
             }
 
             Section("Behavior") {
-                Toggle("Include Clipboard Context", isOn: clipboardContextEnabledBinding)
+                Toggle(isOn: clipboardContextEnabledBinding) {
+                    SettingsRowLabel(
+                        title: "Include Clipboard Context",
+                        description: "Let suggestions reference whatever you most recently copied."
+                    )
+                }
 
-                Toggle("Allow Multi-line Suggestions", isOn: multiLineEnabledBinding)
+                Toggle(isOn: multiLineEnabledBinding) {
+                    SettingsRowLabel(
+                        title: "Allow Multi-line Suggestions",
+                        description: "Allow continuations that span more than one line. Off keeps suggestions to a single line."
+                    )
+                }
 
-                Toggle("Accept Punctuation With Word", isOn: autoAcceptTrailingPunctuationBinding)
+                Toggle(isOn: autoAcceptTrailingPunctuationBinding) {
+                    SettingsRowLabel(
+                        title: "Accept Punctuation With Word",
+                        description: "When you accept a word, also accept the punctuation that follows it " +
+                            "(commas, periods) so you don't have to type it."
+                    )
+                }
+
+                Toggle(isOn: emojiPickerEnabledBinding) {
+                    SettingsRowLabel(
+                        title: "Inline Emoji Picker",
+                        description: "Type a colon and a name like :smile to pick an emoji inline, " +
+                            "then press your accept-word key (Tab by default) to insert it."
+                    )
+                }
+            }
+
+            if suggestionSettings.isEmojiPickerEnabled {
+                Section("Emoji Customization") {
+                    Picker(selection: emojiSkinToneBinding) {
+                        ForEach(EmojiSkinTone.allCases, id: \.self) { tone in
+                            Text("\(tone.displayName)  \(tone.sampleGlyph)").tag(tone)
+                        }
+                    } label: {
+                        SettingsRowLabel(
+                            title: "Preferred Skin Tone",
+                            description: "Applied to emoji that support skin tone modifiers."
+                        )
+                    }
+
+                    Toggle(isOn: includeNeutralEmojiVariantBinding) {
+                        SettingsRowLabel(
+                            title: "Include Neutral Variant",
+                            description: "When enabled, the neutral (default) skin tone variant is included " +
+                                "alongside your preferred skin tone in emoji suggestions."
+                        )
+                    }
+
+                    Picker(selection: emojiGenderBinding) {
+                        ForEach(EmojiGender.allCases, id: \.self) { gender in
+                            Text("\(gender.displayName)  \(gender.sampleGlyph)").tag(gender)
+                        }
+                    } label: {
+                        SettingsRowLabel(
+                            title: "Preferred Gender",
+                            description: "Applies to people emoji that have separate male/female variants " +
+                                "(e.g., firefighters, doctors, artists)."
+                        )
+                    }
+                }
             }
 
             Section("Display") {
-                Picker("Suggestion Display", selection: mirrorPreferenceBinding) {
+                // The `.help()` tooltip was promoted to inline subtext so a novice can read the
+                // same guidance without knowing to hover.
+                Picker(selection: mirrorPreferenceBinding) {
                     ForEach(MirrorPreference.allCases) { preference in
                         Text(preference.displayLabel).tag(preference)
                     }
+                } label: {
+                    SettingsRowLabel(
+                        title: "Suggestion Display",
+                        description: "Auto picks inline ghost text when the app's caret position is reliable, " +
+                            "and a popup card when it isn't. Inline or Popup pins one style for every app."
+                    )
                 }
                 .pickerStyle(.menu)
-                .help(
-                    "Auto uses inline ghost text when the focused field exposes a reliable cursor " +
-                    "position, and switches to a popup card when it doesn't (some Electron and web " +
-                    "editors). Choose Inline or Popup to pin one style for every app."
-                )
 
-                Toggle("Show Indicator", isOn: showIndicatorBinding)
+                Toggle(isOn: showIndicatorBinding) {
+                    SettingsRowLabel(
+                        title: "Show Field Indicator",
+                        description: "Show a small icon at the edge of a field when Cotabby is ready to suggest."
+                    )
+                }
 
-                Toggle("Show Word Count in Menu Bar", isOn: menuBarWordCountVisibleBinding)
+                Toggle(isOn: menuBarWordCountVisibleBinding) {
+                    SettingsRowLabel(
+                        title: "Show Word Count in Menu Bar",
+                        description: "Show a running count of words you've accepted next to the menu bar icon."
+                    )
+                }
 
                 Toggle(isOn: showAcceptanceHintBinding) {
-                    HStack(spacing: 4) {
-                        Text("Show")
-                        Text(suggestionSettings.acceptanceKeyLabel)
-                            .font(.system(.body, design: .rounded).weight(.semibold))
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 1)
-                            .background(
-                                RoundedRectangle(cornerRadius: 4, style: .continuous)
-                                    .fill(.quaternary)
-                            )
-                        Text("Key Hint")
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 4) {
+                            Text("Show")
+                            Text(suggestionSettings.acceptanceKeyLabel)
+                                .font(.system(.body, design: .rounded).weight(.semibold))
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 1)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                        .fill(.quaternary)
+                                )
+                            Text("Key Hint")
+                        }
+                        Text("Show the accept-key badge next to the ghost text so you remember which key inserts it.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
             }
@@ -136,6 +222,34 @@ struct GeneralPaneView: View {
         Binding(
             get: { suggestionSettings.isMultiLineEnabled },
             set: { suggestionSettings.setMultiLineEnabled($0) }
+        )
+    }
+
+    private var emojiPickerEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.isEmojiPickerEnabled },
+            set: { suggestionSettings.setEmojiPickerEnabled($0) }
+        )
+    }
+
+    private var emojiSkinToneBinding: Binding<EmojiSkinTone> {
+        Binding(
+            get: { suggestionSettings.preferredEmojiSkinTone },
+            set: { suggestionSettings.setPreferredEmojiSkinTone($0) }
+        )
+    }
+
+    private var includeNeutralEmojiVariantBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.includeNeutralEmojiVariant },
+            set: { suggestionSettings.setIncludeNeutralEmojiVariant($0) }
+        )
+    }
+
+    private var emojiGenderBinding: Binding<EmojiGender> {
+        Binding(
+            get: { suggestionSettings.preferredEmojiGender },
+            set: { suggestionSettings.setPreferredEmojiGender($0) }
         )
     }
 

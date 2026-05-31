@@ -38,6 +38,13 @@ final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var debounceMilliseconds: Int
     @Published private(set) var focusPollIntervalMilliseconds: Int
     @Published private(set) var isMultiLineEnabled: Bool
+    /// Whether the inline `:emoji:` picker is active. Read live by `EmojiPickerController` at event
+    /// time, so toggling it takes effect on the next keystroke without restarting capture.
+    @Published private(set) var isEmojiPickerEnabled: Bool
+    /// Emoji-customization preferences, read live by the picker's variant resolver at match time.
+    @Published private(set) var preferredEmojiSkinTone: EmojiSkinTone
+    @Published private(set) var includeNeutralEmojiVariant: Bool
+    @Published private(set) var preferredEmojiGender: EmojiGender
     @Published private(set) var autoAcceptTrailingPunctuation: Bool
     @Published private(set) var acceptanceKeyCode: CGKeyCode
     @Published private(set) var acceptanceKeyModifiers: ShortcutModifierMask
@@ -75,6 +82,10 @@ final class SuggestionSettingsModel: ObservableObject {
     private static let debounceMillisecondsDefaultsKey = "cotabbyDebounceMilliseconds"
     private static let focusPollIntervalMillisecondsDefaultsKey = "cotabbyFocusPollIntervalMilliseconds"
     private static let multiLineEnabledDefaultsKey = "cotabbyMultiLineEnabled"
+    private static let emojiPickerEnabledDefaultsKey = "cotabbyEmojiPickerEnabled"
+    private static let preferredEmojiSkinToneDefaultsKey = "cotabbyPreferredEmojiSkinTone"
+    private static let includeNeutralEmojiVariantDefaultsKey = "cotabbyIncludeNeutralEmojiVariant"
+    private static let preferredEmojiGenderDefaultsKey = "cotabbyPreferredEmojiGender"
     private static let autoAcceptTrailingPunctuationDefaultsKey = "cotabbyAutoAcceptTrailingPunctuation"
     private static let acceptanceKeyCodeDefaultsKey = "cotabbyAcceptanceKeyCode"
     private static let acceptanceKeyModifiersDefaultsKey = "cotabbyAcceptanceKeyModifiers"
@@ -197,7 +208,11 @@ final class SuggestionSettingsModel: ObservableObject {
         let resolvedDebounceMilliseconds: Int = {
             let raw = userDefaults.object(forKey: Self.debounceMillisecondsDefaultsKey) as? Int
                 ?? configuration.debounceMilliseconds
-            return max(10, min(500, raw))
+            // Existing installs may have the old 50ms first-launch default persisted. Cap at the
+            // shipped default so the latency improvement reaches them — the stepper is hidden from
+            // the UI today, so any persisted value is a previous default rather than a user choice.
+            let capped = min(raw, configuration.debounceMilliseconds)
+            return max(10, min(500, capped))
         }()
         let resolvedFocusPollIntervalMilliseconds: Int = {
             let raw = userDefaults.object(forKey: Self.focusPollIntervalMillisecondsDefaultsKey) as? Int
@@ -210,6 +225,13 @@ final class SuggestionSettingsModel: ObservableObject {
         }()
 
         let resolvedMultiLineEnabled = userDefaults.object(forKey: Self.multiLineEnabledDefaultsKey) as? Bool ?? false
+        let resolvedEmojiPickerEnabled = userDefaults.object(forKey: Self.emojiPickerEnabledDefaultsKey) as? Bool ?? true
+        let resolvedPreferredEmojiSkinTone = userDefaults.string(forKey: Self.preferredEmojiSkinToneDefaultsKey)
+            .flatMap(EmojiSkinTone.init(rawValue:)) ?? .neutral
+        let resolvedIncludeNeutralEmojiVariant =
+            userDefaults.object(forKey: Self.includeNeutralEmojiVariantDefaultsKey) as? Bool ?? false
+        let resolvedPreferredEmojiGender = userDefaults.string(forKey: Self.preferredEmojiGenderDefaultsKey)
+            .flatMap(EmojiGender.init(rawValue:)) ?? .neutral
         let resolvedAutoAcceptTrailingPunctuation =
             userDefaults.object(forKey: Self.autoAcceptTrailingPunctuationDefaultsKey) as? Bool ?? true
 
@@ -273,6 +295,10 @@ final class SuggestionSettingsModel: ObservableObject {
         debounceMilliseconds = resolvedDebounceMilliseconds
         focusPollIntervalMilliseconds = resolvedFocusPollIntervalMilliseconds
         isMultiLineEnabled = resolvedMultiLineEnabled
+        isEmojiPickerEnabled = resolvedEmojiPickerEnabled
+        preferredEmojiSkinTone = resolvedPreferredEmojiSkinTone
+        includeNeutralEmojiVariant = resolvedIncludeNeutralEmojiVariant
+        preferredEmojiGender = resolvedPreferredEmojiGender
         autoAcceptTrailingPunctuation = resolvedAutoAcceptTrailingPunctuation
         acceptanceKeyCode = resolvedAcceptanceKeyCode
         acceptanceKeyModifiers = resolvedAcceptanceKeyModifiers
@@ -304,6 +330,10 @@ final class SuggestionSettingsModel: ObservableObject {
         userDefaults.set(resolvedDebounceMilliseconds, forKey: Self.debounceMillisecondsDefaultsKey)
         userDefaults.set(resolvedFocusPollIntervalMilliseconds, forKey: Self.focusPollIntervalMillisecondsDefaultsKey)
         userDefaults.set(resolvedMultiLineEnabled, forKey: Self.multiLineEnabledDefaultsKey)
+        userDefaults.set(resolvedEmojiPickerEnabled, forKey: Self.emojiPickerEnabledDefaultsKey)
+        userDefaults.set(resolvedPreferredEmojiSkinTone.rawValue, forKey: Self.preferredEmojiSkinToneDefaultsKey)
+        userDefaults.set(resolvedIncludeNeutralEmojiVariant, forKey: Self.includeNeutralEmojiVariantDefaultsKey)
+        userDefaults.set(resolvedPreferredEmojiGender.rawValue, forKey: Self.preferredEmojiGenderDefaultsKey)
         userDefaults.set(resolvedAutoAcceptTrailingPunctuation, forKey: Self.autoAcceptTrailingPunctuationDefaultsKey)
         userDefaults.set(Int(resolvedAcceptanceKeyCode), forKey: Self.acceptanceKeyCodeDefaultsKey)
         userDefaults.set(Int(resolvedAcceptanceKeyModifiers.rawValue), forKey: Self.acceptanceKeyModifiersDefaultsKey)
@@ -413,6 +443,41 @@ final class SuggestionSettingsModel: ObservableObject {
         }
         isMultiLineEnabled = enabled
         userDefaults.set(enabled, forKey: Self.multiLineEnabledDefaultsKey)
+    }
+
+    func setEmojiPickerEnabled(_ enabled: Bool) {
+        guard isEmojiPickerEnabled != enabled else {
+            return
+        }
+        isEmojiPickerEnabled = enabled
+        userDefaults.set(enabled, forKey: Self.emojiPickerEnabledDefaultsKey)
+    }
+
+    func setPreferredEmojiSkinTone(_ tone: EmojiSkinTone) {
+        guard preferredEmojiSkinTone != tone else { return }
+        preferredEmojiSkinTone = tone
+        userDefaults.set(tone.rawValue, forKey: Self.preferredEmojiSkinToneDefaultsKey)
+    }
+
+    func setIncludeNeutralEmojiVariant(_ included: Bool) {
+        guard includeNeutralEmojiVariant != included else { return }
+        includeNeutralEmojiVariant = included
+        userDefaults.set(included, forKey: Self.includeNeutralEmojiVariantDefaultsKey)
+    }
+
+    func setPreferredEmojiGender(_ gender: EmojiGender) {
+        guard preferredEmojiGender != gender else { return }
+        preferredEmojiGender = gender
+        userDefaults.set(gender.rawValue, forKey: Self.preferredEmojiGenderDefaultsKey)
+    }
+
+    /// Live snapshot the emoji picker's variant resolver reads at match time.
+    var emojiVariantPreferences: EmojiVariantPreferences {
+        EmojiVariantPreferences(
+            skinTone: preferredEmojiSkinTone,
+            includeNeutral: includeNeutralEmojiVariant,
+            gender: preferredEmojiGender
+        )
     }
 
     func setAutoAcceptTrailingPunctuation(_ enabled: Bool) {

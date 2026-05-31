@@ -150,6 +150,88 @@ final class InputMonitorTests: XCTestCase {
         }
     }
 
+    // MARK: - Emoji capture decider
+
+    func test_emojiDecider_consumeTakesPrecedenceOverAcceptLogic() {
+        runOnMainActor {
+            let monitor = makeMonitor()
+            monitor.emojiCaptureKeyDecider = { _ in .consume }
+            monitor.shouldConsumeAcceptKeyProvider = { false }
+            monitor.onEvent = { _ in
+                XCTFail("Emoji capture should resolve the key before the accept-key path runs.")
+                return true
+            }
+
+            // Down arrow (125) is not an accept key, yet the emoji decider consumes it during capture.
+            let decision = monitor.resolveAcceptKeyDown(InputMonitorKeyEvent(keyCode: 125))
+
+            XCTAssertEqual(decision, .consume)
+        }
+    }
+
+    func test_emojiDecider_passThroughTakesPrecedenceOverAcceptKey() {
+        runOnMainActor {
+            let monitor = makeMonitor()
+            monitor.emojiCaptureKeyDecider = { _ in .passThrough }
+            // The accept key (48) would normally consume, but the emoji decider lets it through.
+            monitor.shouldConsumeAcceptKeyProvider = { true }
+            monitor.onEvent = { _ in true }
+
+            let decision = monitor.resolveAcceptKeyDown(InputMonitorKeyEvent(keyCode: 48))
+
+            XCTAssertEqual(decision, .passThrough)
+        }
+    }
+
+    func test_emojiDecider_notHandledFallsThroughToAcceptLogic() {
+        runOnMainActor {
+            let monitor = makeMonitor()
+            monitor.emojiCaptureKeyDecider = { _ in .notHandled }
+            var observedKinds: [CapturedInputEvent.Kind] = []
+            monitor.shouldConsumeAcceptKeyProvider = { true }
+            monitor.onEvent = { event in
+                observedKinds.append(event.kind)
+                return true
+            }
+
+            let decision = monitor.resolveAcceptKeyDown(InputMonitorKeyEvent(keyCode: 48))
+
+            XCTAssertEqual(decision, .consume)
+            XCTAssertEqual(observedKinds, [.acceptance], "Accept-key path still runs when no capture is active")
+        }
+    }
+
+    func test_noEmojiDecider_usesAcceptLogicUnchanged() {
+        runOnMainActor {
+            let monitor = makeMonitor()
+            monitor.shouldConsumeAcceptKeyProvider = { true }
+            monitor.onEvent = { _ in true }
+
+            let decision = monitor.resolveAcceptKeyDown(InputMonitorKeyEvent(keyCode: 48))
+
+            XCTAssertEqual(decision, .consume)
+        }
+    }
+
+    func test_isWordAcceptKey_matchesOnlyTheConfiguredWordAcceptBinding() {
+        runOnMainActor {
+            let monitor = makeMonitor()
+            monitor.acceptanceKeyCodeProvider = { 48 }          // Tab is the word-accept key
+            monitor.acceptanceKeyModifiersProvider = { [] }
+            monitor.fullAcceptanceKeyCodeProvider = { 50 }      // backtick is full-accept
+
+            XCTAssertTrue(monitor.isWordAcceptKey(InputMonitorKeyEvent(keyCode: 48)))
+            XCTAssertFalse(
+                monitor.isWordAcceptKey(InputMonitorKeyEvent(keyCode: 50)),
+                "The full-accept key must not count as the word-accept key."
+            )
+            XCTAssertFalse(
+                monitor.isWordAcceptKey(InputMonitorKeyEvent(keyCode: 36)),
+                "Return must not count as the word-accept key."
+            )
+        }
+    }
+
     @MainActor
     private func makeMonitor() -> InputMonitor {
         let monitor = InputMonitor(

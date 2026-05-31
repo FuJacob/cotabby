@@ -55,9 +55,18 @@ struct MenuBarView: View {
             Text("Cotabby")
                 .font(.headline)
 
+            // Ko-fi tip jar lives next to the title because the menu bar surface is the most
+            // frequented entry point. Using a Link lets SwiftUI hand the URL to NSWorkspace and
+            // dismiss the popover; a Button would need its own handler plumbing for the same effect.
+            if let kofiURL = URL(string: "https://ko-fi.com/cotabby") {
+                Link("Support Us", destination: kofiURL)
+                    .buttonStyle(.borderless)
+                    .font(.subheadline)
+            }
+
             Spacer(minLength: 0)
 
-            Button("Report Bug / Feedback", action: onReportFeedback)
+            Button("Report Bug", action: onReportFeedback)
                 .buttonStyle(.borderless)
                 .font(.subheadline)
         }

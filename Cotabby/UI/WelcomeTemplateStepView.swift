@@ -14,7 +14,9 @@ struct WelcomeTemplateStepView: View {
     @ObservedObject var foundationModelAvailabilityService: FoundationModelAvailabilityService
 
     let hardware: HardwareCapability
+    let selectedEngine: SuggestionEngineKind
     @Binding var selectedTemplate: OnboardingTemplate?
+    let onSelectEngine: (SuggestionEngineKind) -> Void
     let onSelect: (OnboardingTemplate) -> Void
 
     var body: some View {
@@ -29,16 +31,18 @@ struct WelcomeTemplateStepView: View {
                     .multilineTextAlignment(.center)
             }
 
+            engineSelector
+
             VStack(spacing: 10) {
                 ForEach(OnboardingTemplate.allCases) { template in
                     let availability = OnboardingTemplateRecommender.availability(
                         for: template,
                         hardware: hardware,
-                        appleIntelligenceAvailable: foundationModelAvailabilityService.isAvailable
+                        engine: selectedEngine
                     )
                     let plan = OnboardingTemplateRecommender.resolvePlan(
                         for: template,
-                        appleIntelligenceAvailable: foundationModelAvailabilityService.isAvailable
+                        engine: selectedEngine
                     )
 
                     TemplateCard(
@@ -51,6 +55,34 @@ struct WelcomeTemplateStepView: View {
                     )
                 }
             }
+        }
+    }
+
+    /// The top-level engine choice: the two cards that decide whether every tier below runs on
+    /// Apple Intelligence or a local open-source model. Apple Intelligence is disabled (with the
+    /// availability reason as its subtitle) when the Mac cannot run it.
+    private var engineSelector: some View {
+        let appleAvailable = foundationModelAvailabilityService.isAvailable
+        return HStack(spacing: 10) {
+            EngineChoiceCard(
+                title: SuggestionEngineKind.appleIntelligence.displayLabel,
+                subtitle: appleAvailable
+                    ? "Built into macOS"
+                    : foundationModelAvailabilityService.userVisibleMessage,
+                systemImageName: "apple.logo",
+                isSelected: selectedEngine == .appleIntelligence,
+                isDisabled: !appleAvailable,
+                onTap: { onSelectEngine(.appleIntelligence) }
+            )
+
+            EngineChoiceCard(
+                title: SuggestionEngineKind.llamaOpenSource.displayLabel,
+                subtitle: "Local models on your Mac",
+                systemImageName: "internaldrive",
+                isSelected: selectedEngine == .llamaOpenSource,
+                isDisabled: false,
+                onTap: { onSelectEngine(.llamaOpenSource) }
+            )
         }
     }
 
@@ -213,6 +245,71 @@ private struct TemplateCard: View {
                 .foregroundStyle(.orange)
                 .fixedSize(horizontal: false, vertical: true)
         }
+    }
+}
+
+// MARK: - Engine Choice Card
+
+/// One of the two top-level engine cards (Apple Intelligence / Open Source). Visually lighter than
+/// `TemplateCard` so the tier cards below stay the primary focus, but selectable in the same way.
+private struct EngineChoiceCard: View {
+    let title: String
+    let subtitle: String
+    let systemImageName: String
+    let isSelected: Bool
+    let isDisabled: Bool
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 8) {
+                    Image(systemName: systemImageName)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(iconStyle)
+
+                    Text(title)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(isDisabled ? .tertiary : .primary)
+
+                    Spacer(minLength: 0)
+
+                    if isSelected && !isDisabled {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 15))
+                            .foregroundColor(.accentColor)
+                    }
+                }
+
+                Text(subtitle)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(.regularMaterial)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(
+                        isSelected && !isDisabled
+                            ? Color.accentColor.opacity(0.45) : Color.white.opacity(0.08),
+                        lineWidth: isSelected && !isDisabled ? 1.5 : 0.5
+                    )
+            )
+            .opacity(isDisabled ? 0.55 : 1.0)
+        }
+        .buttonStyle(.plain)
+        .disabled(isDisabled)
+    }
+
+    private var iconStyle: HierarchicalShapeStyle {
+        // `.primary` when selected reads as active without introducing a second accent color.
+        isSelected && !isDisabled ? .primary : .secondary
     }
 }
 

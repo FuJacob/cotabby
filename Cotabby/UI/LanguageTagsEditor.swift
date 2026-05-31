@@ -3,13 +3,13 @@ import SwiftUI
 /// File overview:
 /// Editor for the languages the user writes in. Mirrors `CustomRulesEditor`: declared languages are
 /// removable chips, added by tapping a suggestion (shown with its native name) or typing a custom
-/// one. "Clear" removes them all. The baseline is empty, which means "just follow the surrounding
-/// text." The chip and flow-layout primitives are shared via `TagChip.swift`.
+/// one. A bottom "Reset" button restores the default language set. The chip and flow-layout
+/// primitives are shared via `TagChip.swift`.
 struct LanguageTagsEditor: View {
     @ObservedObject var suggestionSettings: SuggestionSettingsModel
 
     /// When false, the editor drops its own "Languages" title so an enclosing `Section("Languages")`
-    /// can supply the heading without duplicating it. The Clear control stays in place either way.
+    /// can supply the heading without duplicating it. The Reset control stays in place either way.
     /// Defaults to true so standalone uses (e.g. onboarding) keep their inline title.
     var showsTitleHeader: Bool = true
 
@@ -31,22 +31,9 @@ struct LanguageTagsEditor: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            if showsTitleHeader || canClear {
-                HStack {
-                    if showsTitleHeader {
-                        Text("Languages")
-                            .font(.system(size: 13, weight: .medium))
-                    }
-                    Spacer()
-                    if canClear {
-                        Button("Clear") {
-                            suggestionSettings.clearLanguages()
-                        }
-                        .buttonStyle(.plain)
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
-                    }
-                }
+            if showsTitleHeader {
+                Text("Languages")
+                    .font(.system(size: 13, weight: .medium))
             }
 
             if !languages.isEmpty {
@@ -93,6 +80,18 @@ struct LanguageTagsEditor: View {
                 + "set of languages, and local models vary, so some languages may not work.")
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
+
+            if canClear {
+                HStack {
+                    Spacer()
+                    Button {
+                        suggestionSettings.clearLanguages()
+                    } label: {
+                        Label("Reset", systemImage: "arrow.counterclockwise")
+                    }
+                    .controlSize(.small)
+                }
+            }
         }
     }
 
