@@ -106,7 +106,35 @@ private struct TemplateCard: View {
     let downloadState: ModelDownloadState?
     let onTap: () -> Void
 
+    /// Each card tracks its own disclosure state so opening one doesn't expand the others.
+    /// Collapsed by default — users who trust the recommendation should never have to see the
+    /// row list, and short cards preserve the "pick one" feel of this step.
+    @State private var isFeatureListExpanded = false
+
     var body: some View {
+        VStack(spacing: 0) {
+            selectionButton
+            featureDisclosure
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(.regularMaterial)
+                .shadow(color: .black.opacity(0.06), radius: 2, y: 1)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(
+                    isSelected && !availability.isDisabled
+                        ? Color.accentColor.opacity(0.45) : Color.white.opacity(0.08),
+                    lineWidth: isSelected && !availability.isDisabled ? 1.5 : 0.5
+                )
+        )
+        .opacity(availability.isDisabled ? 0.55 : 1.0)
+    }
+
+    /// Main card surface that selects the template. The feature disclosure is rendered as a sibling
+    /// view below this button so its toggle taps never double-fire selection.
+    private var selectionButton: some View {
         Button(action: onTap) {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 14) {
@@ -166,23 +194,88 @@ private struct TemplateCard: View {
             }
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(.regularMaterial)
-                    .shadow(color: .black.opacity(0.06), radius: 2, y: 1)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(
-                        isSelected && !availability.isDisabled
-                            ? Color.accentColor.opacity(0.45) : Color.white.opacity(0.08),
-                        lineWidth: isSelected && !availability.isDisabled ? 1.5 : 0.5
-                    )
-            )
-            .opacity(availability.isDisabled ? 0.55 : 1.0)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .disabled(availability.isDisabled)
+    }
+
+    /// Collapsible "what's included" section. Rendering it outside the selection button keeps the
+    /// expand/collapse tap target separate so opening the list doesn't change the selected card.
+    private var featureDisclosure: some View {
+        let rows = OnboardingTemplateFeatureList.rows(for: template)
+        return VStack(alignment: .leading, spacing: 0) {
+            Divider().opacity(0.4)
+
+            Button {
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    isFeatureListExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Text(isFeatureListExpanded ? "Hide details" : "What's included")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .rotationEffect(.degrees(isFeatureListExpanded ? 0 : -90))
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 9)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if isFeatureListExpanded {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(rows) { row in
+                        featureRowView(row)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 12)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func featureRowView(_ row: OnboardingTemplateFeatureRow) -> some View {
+        HStack(spacing: 8) {
+            featureRowIcon(for: row.value)
+                .frame(width: 14, alignment: .center)
+
+            Text(row.title)
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+
+            Spacer(minLength: 4)
+
+            if case .detail(let value) = row.value {
+                Text(value)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func featureRowIcon(for value: OnboardingTemplateFeatureValue) -> some View {
+        switch value {
+        case .enabled:
+            Image(systemName: "checkmark")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(Color.accentColor)
+        case .disabled:
+            Image(systemName: "minus")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.tertiary)
+        case .detail:
+            Image(systemName: "slider.horizontal.3")
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.tertiary)
+        }
     }
 
     private var iconBadge: some View {
