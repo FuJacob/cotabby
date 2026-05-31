@@ -24,6 +24,10 @@ struct MenuBarView: View {
     let onOpenSettings: () -> Void
     let onReportFeedback: () -> Void
 
+    /// Captures the popover's host window so `Button` actions that open another window can dismiss
+    /// the popover behind them. SwiftUI's `\.dismiss` does not work for `MenuBarExtra(.window)`.
+    @StateObject private var popoverDismisser = MenuBarPopoverDismisser()
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             headerSection
@@ -41,6 +45,7 @@ struct MenuBarView: View {
                 runtimeModel.refreshAvailableModels()
             }
         )
+        .background(MenuBarPopoverDismisserBinder(dismisser: popoverDismisser))
         .onAppear {
             permissionManager.refresh()
             runtimeModel.refreshAvailableModels()
@@ -238,8 +243,13 @@ struct MenuBarView: View {
             .padding(.bottom, 10)
 
         HStack {
-            Button("Settings", action: onOpenSettings)
-                .buttonStyle(.borderless)
+            Button("Settings") {
+                // Dismiss the popover before opening the Settings window so the popover doesn't
+                // remain on top of (and obscure) the Settings pane. See issue #455.
+                popoverDismisser.dismiss()
+                onOpenSettings()
+            }
+            .buttonStyle(.borderless)
 
             Button("Check for Updates") {
                 appUpdateManager.checkForUpdates()
