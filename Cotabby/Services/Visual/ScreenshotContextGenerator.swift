@@ -110,33 +110,12 @@ final class ScreenshotContextGenerator {
             )
         }
 
-        var contextSource = ContextSource.ocrFallback
-        var finalContextText = boundedSummaryText(normalizedText)
-        if let summarizer = summarizer {
-            await onStatusChange?(.summarizingText)
-            do {
-                let summaryText = try await summarizer.summarize(
-                    text: normalizedText,
-                    applicationName: context.applicationName
-                )
-                let boundedSummary = boundedSummaryText(summaryText)
-                if hasMeaningfulSignal(boundedSummary) {
-                    contextSource = .summary
-                    finalContextText = boundedSummary
-                } else {
-                    CotabbyLogger.app.debug(
-                        "Visual context summary empty after sanitization; using sanitized OCR fallback"
-                    )
-                }
-            } catch {
-                // Summarization can fail when no GGUF model is available (e.g. the user
-                // hasn't downloaded one yet), hits its timeout, or returns no usable text.
-                // A non-empty sanitized OCR body is still better than discarding visual context.
-                CotabbyLogger.app.debug(
-                    "Visual context summary unavailable; using sanitized OCR fallback reason=\(error.localizedDescription)"
-                )
-            }
-        }
+        let (contextSource, finalContextText) = await resolvedContextText(
+            ocrFallback: boundedSummaryText(normalizedText),
+            normalizedText: normalizedText,
+            applicationName: context.applicationName,
+            onStatusChange: onStatusChange
+        )
 
         guard hasMeaningfulSignal(finalContextText) else {
             throw ScreenshotContextGenerationError.unavailable(
@@ -149,6 +128,44 @@ final class ScreenshotContextGenerator {
         )
 
         return VisualContextExcerpt(text: finalContextText)
+    }
+
+    /// Prefers a model summary over the raw sanitized OCR body, falling back to the OCR text when no
+    /// summarizer is configured, the summary sanitizes to nothing, or summarization fails.
+    ///
+    /// Extracted from `generateContext` to keep that method's branching readable. Summarization
+    /// failures (no GGUF model downloaded yet, timeout, empty output) are intentionally non-fatal:
+    /// a non-empty sanitized OCR body is still better context than discarding it entirely.
+    private func resolvedContextText(
+        ocrFallback: String,
+        normalizedText: String,
+        applicationName: String,
+        onStatusChange: (@Sendable (VisualContextStatus) async -> Void)?
+    ) async -> (source: ContextSource, text: String) {
+        guard let summarizer = summarizer else {
+            return (.ocrFallback, ocrFallback)
+        }
+
+        await onStatusChange?(.summarizingText)
+        do {
+            let summaryText = try await summarizer.summarize(
+                text: normalizedText,
+                applicationName: applicationName
+            )
+            let boundedSummary = boundedSummaryText(summaryText)
+            guard hasMeaningfulSignal(boundedSummary) else {
+                CotabbyLogger.app.debug(
+                    "Visual context summary empty after sanitization; using sanitized OCR fallback"
+                )
+                return (.ocrFallback, ocrFallback)
+            }
+            return (.summary, boundedSummary)
+        } catch {
+            CotabbyLogger.app.debug(
+                "Visual context summary unavailable; using sanitized OCR fallback reason=\(error.localizedDescription)"
+            )
+            return (.ocrFallback, ocrFallback)
+        }
     }
 
     private func captureScreenshot(
