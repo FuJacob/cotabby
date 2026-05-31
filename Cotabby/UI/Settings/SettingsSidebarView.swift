@@ -25,9 +25,9 @@ struct SettingsSidebarView: View {
         .safeAreaInset(edge: .top, spacing: 0) {
             Color.clear.frame(height: 12)
         }
-        // A single fixed width (not a min/ideal/max range) so `.balanced` can't squeeze the column
-        // down to where labels truncate — the exact failure mode of the previous ranged width.
-        .navigationSplitViewColumnWidth(340)
+        // This is a range instead of a fixed width: the default opens wide enough for labels like
+        // "Engine & Model", but users and SwiftUI still get normal split-view flexibility.
+        .navigationSplitViewColumnWidth(min: 300, ideal: 340, max: 420)
     }
 
     @ViewBuilder

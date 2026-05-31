@@ -3,9 +3,9 @@ import SwiftUI
 
 /// File overview:
 /// Root of the redesigned Settings window. A `NavigationSplitView` with a sidebar of categorized
-/// rows on the left and a switching detail pane on the right. The detail body is built from
-/// `SettingsCategory`, so adding a new pane is a matter of adding an enum case and a `case` in the
-/// switch below.
+/// rows sits on the left and a switching detail pane fills the right side. The detail body is built
+/// from `SettingsCategory`, so adding a new pane is a matter of adding an enum case and a `case` in
+/// the switch below.
 ///
 /// Selection is persisted via `@AppStorage` so reopening Settings lands on the last-used pane.
 /// `.id(selection)` on the detail body is the documented workaround for the macOS 14 split-view
@@ -27,11 +27,8 @@ struct SettingsContainerView: View {
     private var storedCategoryRawValue: String = SettingsCategory.general.rawValue
 
     @State private var selection: SettingsCategory = .general
-    // Pinning visibility to `.all` and binding it as constant tells NavigationSplitView the user
-    // is never allowed to collapse the sidebar. That removes the default toggle button from the
-    // title bar (which otherwise teleports between the sidebar header and the content header as
-    // the column collapses) and keeps the sidebar always present, which is what users expect from
-    // a Settings window.
+    // Settings should behave like a traditional two-column preferences window: the sidebar is
+    // always visible, but SwiftUI can still manage the native navigation/split-view chrome.
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
 
     var body: some View {
@@ -47,18 +44,10 @@ struct SettingsContainerView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .toolbar(removing: .sidebarToggle)
         }
-        .navigationSplitViewStyle(.balanced)
-        // The window owns the size (see `SettingsCoordinator`): a sensible 860pt default the user
-        // can still resize. The split view just fills it — a fixed 260pt sidebar and the remainder
-        // for the detail pane.
+        // Keep the native split view, but pin the outer Settings window to a practical minimum.
+        // The sidebar itself provides a width range, so the default opens readable without forcing
+        // an exact column size forever.
         .frame(maxWidth: .infinity, minHeight: 560, maxHeight: .infinity)
-        .onChange(of: columnVisibility) { _, newValue in
-            // Snap back to `.all` if something tries to collapse the sidebar. Cheaper than wiring
-            // a custom binding and reads as the same intent: the sidebar is never optional here.
-            if newValue != .all {
-                columnVisibility = .all
-            }
-        }
         .onAppear {
             // Migration: the previous sidebar had two engine sub-rows (`appleIntelligence`,
             // `openSource`). Users whose persisted selection still points to either should land on
@@ -73,6 +62,11 @@ struct SettingsContainerView: View {
         .onChange(of: selection) { _, newValue in
             storedCategoryRawValue = newValue.rawValue
             syncWindowTitle(for: newValue)
+        }
+        .onChange(of: columnVisibility) { _, newValue in
+            if newValue != .all {
+                columnVisibility = .all
+            }
         }
     }
 

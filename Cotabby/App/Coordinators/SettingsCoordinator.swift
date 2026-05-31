@@ -70,14 +70,13 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
                 )
             )
         )
-        // Sized to fit the actual content: a fixed 340pt sidebar (see `SettingsSidebarView`)
-        // plus a ~600pt detail column for the grouped form.
-        let initialFrame = CGRect(x: 0, y: 0, width: 940, height: 700)
+        // Sized so the native split view opens with a readable sidebar and a comfortable grouped
+        // detail form. The user can still resize from here; the sidebar provides its own range.
+        let initialFrame = CGRect(x: 0, y: 0, width: 980, height: 700)
         let minSize = NSSize(width: 900, height: 560)
-        // Bump the autosave name so anyone holding a saved frame from the previous default gets
-        // the new right-sized default once, instead of restoring a window where the wider sidebar
-        // squeezes the detail column.
-        let autosaveName = "CotabbySettingsWindowV5"
+        // Bump the autosave name to reset everyone onto the current default instead of restoring
+        // any narrower frame saved by the previous sidebar experiments.
+        let autosaveName = "CotabbySettingsWindowV6"
 
         let window = NSWindow(
             contentRect: initialFrame,
