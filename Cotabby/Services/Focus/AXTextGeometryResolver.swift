@@ -53,8 +53,11 @@ struct AXTextGeometryResolver {
         supportsBoundsForRange: Bool,
         supportsFrame: Bool,
         cocoaAnchorFrame: CGRect?,
-        textValue: String? = nil
+        textValue: String? = nil,
+        textSelection: NSRange? = nil
     ) -> CaretGeometryResult? {
+        let selectionInTextValue = textSelection ?? selection
+
         // Branch 1: Zero-length BoundsForRange at the caret position — ideal case.
         // Gated on `supportsBoundsForRange` because the API is a synchronous cross-process
         // call into the focused app's AX implementation. In Chrome that's a round-trip into
@@ -123,7 +126,7 @@ struct AXTextGeometryResolver {
         if let parentText = textValue, !parentText.isEmpty {
             if let result = resolveCaretFromChildTextRuns(
                 element: element,
-                parentSelection: selection,
+                parentSelection: selectionInTextValue,
                 parentText: parentText
             ) {
                 return result
@@ -138,7 +141,7 @@ struct AXTextGeometryResolver {
                 let estimatedX = conservativeEstimatedCaretX(
                     in: cocoaRect,
                     text: text,
-                    selection: selection
+                    selection: selectionInTextValue
                 )
                 let clampedX = min(estimatedX, cocoaRect.maxX)
                 return CaretGeometryResult(

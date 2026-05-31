@@ -438,6 +438,7 @@ extension SuggestionCoordinator {
 
     /// Cancels debounce/generation tasks and advances the work id so late completions are ignored.
     func cancelPredictionWork() {
+        hostPublishPollGeneration &+= 1
         workController.cancelAll()
     }
 

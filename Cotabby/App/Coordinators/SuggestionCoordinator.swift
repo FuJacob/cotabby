@@ -68,6 +68,13 @@ final class SuggestionCoordinator: ObservableObject {
     // barrier task that the next generation must cross before it can ask the runtime for output.
     var cacheResetSequence: UInt64 = 0
     var pendingCacheReset: (sequence: UInt64, task: Task<Void, Never>)?
+    /// Monotonic cancellation token for the "wait until the host publishes typed text to AX" loop.
+    ///
+    /// Keystrokes can arrive faster than Chromium publishes contenteditable updates. Without this
+    /// token, every key starts its own delayed polling chain and those chains stack up, each doing
+    /// synchronous `refreshNow()` calls on the main actor. Bumping the token makes older chains
+    /// no-op before they can perform another expensive AX read.
+    var hostPublishPollGeneration: UInt64 = 0
     /// Correlation ID for the most recently built `SuggestionRequest`. Stamped onto every
     /// state-transition log line so all events tied to one suggestion (debounce → generating →
     /// ready → accepted/rejected) can be joined with a single `jq` filter on `request_id`.

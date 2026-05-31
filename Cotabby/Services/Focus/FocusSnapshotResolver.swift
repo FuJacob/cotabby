@@ -14,6 +14,13 @@ struct FocusSnapshotResolver {
     /// Throttle window for the deep caret BFS. ~100ms keeps the walk off the per-keystroke hot path
     /// in Chromium editors while staying short enough that caret lag during fast typing stays minor.
     private static let deepWalkThrottleInterval: TimeInterval = 0.1
+    /// Maximum UTF-16 units kept on each side of the caret in focus snapshots.
+    ///
+    /// The prompt builder uses a much smaller suffix of `precedingText`, and autocomplete only needs
+    /// a short trailing window for normalization. Keeping the focus snapshot bounded prevents a
+    /// large editor buffer from flowing through equality checks, Combine publishes, and stale-result
+    /// signatures on every AX refresh.
+    private static let focusedTextContextWindowUTF16 = 4096
 
     /// Carries deep-walk throttle state across the value-typed resolver's non-mutating polls.
     private let deepWalkThrottle = DeepGeometryWalkThrottle()
@@ -74,30 +81,25 @@ struct FocusSnapshotResolver {
         // apps we additionally search descendants for the editable node.
         let deepDescendants = BrowserAppDetector.needsWebAccessibilityPriming(
             bundleIdentifier: bundleIdentifier)
-        let candidates = candidateElements(
-            around: focusedElement, deepDescendants: deepDescendants
-        ).map {
-            candidateSnapshot(for: $0, bundleIdentifier: bundleIdentifier)
-        }
-        let resolution = FocusCapabilityResolver.resolve(
-            candidates: candidates.map(\.resolverCandidate))
-        let selectedCandidate = resolution.bestDiagnosticCandidate.flatMap { candidate in
-            candidates.first(where: { $0.elementIdentifier == candidate.elementIdentifier })
-        }
+        let candidateResolution = resolveCandidate(
+            around: focusedElement,
+            bundleIdentifier: bundleIdentifier,
+            deepDescendants: deepDescendants
+        )
+        let resolution = candidateResolution.resolution
+        let diagnosticCandidate = candidateResolution.diagnosticCandidate
         let inspection = FocusInspectionSnapshot(
             focusedElementIdentifier: focusedElementIdentifier,
             focusedRole: focusedRole,
             focusedSubrole: focusedSubrole,
-            resolvedElementIdentifier: selectedCandidate?.elementIdentifier,
-            resolvedRole: selectedCandidate?.role,
-            resolvedSubrole: selectedCandidate?.subrole,
+            resolvedElementIdentifier: diagnosticCandidate?.elementIdentifier,
+            resolvedRole: diagnosticCandidate?.role,
+            resolvedSubrole: diagnosticCandidate?.subrole,
             missingCapabilities: resolution.resolvedCandidate == nil
                 ? resolution.missingCapabilities : []
         )
 
-        guard let resolvedCandidate = selectedCandidate,
-            resolution.resolvedCandidate != nil
-        else {
+        guard let resolvedCandidate = candidateResolution.resolvedCandidate else {
             CotabbyLogger.focus.trace("Focus unsupported in \(applicationName): \(resolution.unsupportedReason)")
             return FocusSnapshot(
                 applicationName: applicationName,
@@ -194,9 +196,10 @@ struct FocusSnapshotResolver {
         let caretQuality = caret.quality
         let observedCharWidth = caret.observedCharWidth
 
-        let nsValue = value as NSString
-        let safeSelectionLocation = min(selection.location, nsValue.length)
-        let trailingStart = min(selection.location + selection.length, nsValue.length)
+        let contextWindow = boundedContextWindow(text: value, selection: selection)
+        let nsValue = contextWindow.text as NSString
+        let safeSelectionLocation = min(contextWindow.selection.location, nsValue.length)
+        let trailingStart = min(contextWindow.selection.location + contextWindow.selection.length, nsValue.length)
         let context = FocusedInputSnapshot(
             applicationName: applicationName,
             bundleIdentifier: bundleIdentifier,
@@ -211,7 +214,7 @@ struct FocusSnapshotResolver {
             observedCharWidth: observedCharWidth,
             precedingText: nsValue.substring(to: safeSelectionLocation),
             trailingText: nsValue.substring(from: trailingStart),
-            selection: selection,
+            selection: contextWindow.selection,
             isSecure: resolvedCandidate.isSecure,
             focusChangeSequence: focusChangeSequence
         )
@@ -242,6 +245,84 @@ struct FocusSnapshotResolver {
             capability: .supported,
             context: context,
             inspection: inspection
+        )
+    }
+
+    /// Resolves candidate elements lazily and stops as soon as the first fully capable editable
+    /// target is found.
+    ///
+    /// The old eager map built an `AXFocusCandidate` for every nearby Chromium node before asking
+    /// `FocusCapabilityResolver` to pick the first supported one. In large web editors that meant
+    /// reading text/selection/caret data from many wrapper and static-text nodes even after the real
+    /// input target had already been discovered. This preserves the resolver's "first full
+    /// capability wins" policy while avoiding unnecessary synchronous AX IPC.
+    private func resolveCandidate(
+        around focusedElement: AXUIElement,
+        bundleIdentifier: String,
+        deepDescendants: Bool
+    ) -> FocusCandidateResolution {
+        var bestPartial: (candidate: AXFocusCandidate, evaluation: FocusCapabilityCandidateEvaluation)?
+        var inspectedCount = 0
+
+        for element in candidateElements(around: focusedElement, deepDescendants: deepDescendants) {
+            inspectedCount += 1
+            let candidate = candidateSnapshot(for: element, bundleIdentifier: bundleIdentifier)
+            let evaluation = FocusCapabilityResolver.evaluate(candidate.resolverCandidate)
+
+            if evaluation.hasFullCapabilities {
+                return FocusCandidateResolution(
+                    resolvedCandidate: candidate,
+                    diagnosticCandidate: candidate,
+                    resolution: FocusCapabilityResolution(
+                        selectedEvaluation: evaluation,
+                        inspectedCandidateCount: inspectedCount
+                    )
+                )
+            }
+
+            if bestPartial == nil || evaluation.score > bestPartial!.evaluation.score {
+                bestPartial = (candidate, evaluation)
+            }
+        }
+
+        return FocusCandidateResolution(
+            resolvedCandidate: nil,
+            diagnosticCandidate: bestPartial?.candidate,
+            resolution: FocusCapabilityResolution(
+                selectedEvaluation: bestPartial?.evaluation,
+                inspectedCandidateCount: inspectedCount
+            )
+        )
+    }
+
+    /// Returns a caret-adjacent text window and rewrites `selection` into that window's coordinate
+    /// space. `NSRange` is UTF-16 based, so all slicing goes through `NSString`.
+    private func boundedContextWindow(text: String, selection: NSRange) -> (text: String, selection: NSRange) {
+        let nsText = text as NSString
+        guard nsText.length > 0 else {
+            return (text, NSRange(location: 0, length: 0))
+        }
+
+        let safeLocation = min(max(selection.location, 0), nsText.length)
+        let requestedEnd = selection.location > Int.max - selection.length
+            ? Int.max
+            : selection.location + selection.length
+        let safeEnd = min(max(requestedEnd, safeLocation), nsText.length)
+        let beforeStart = max(0, safeLocation - Self.focusedTextContextWindowUTF16)
+        let afterEnd = min(nsText.length, safeEnd + Self.focusedTextContextWindowUTF16)
+        let rawWindow = NSRange(location: beforeStart, length: afterEnd - beforeStart)
+        let composedWindow = nsText.rangeOfComposedCharacterSequences(for: rawWindow)
+        let windowText = nsText.substring(with: composedWindow)
+
+        let adjustedLocation = max(0, safeLocation - composedWindow.location)
+        let adjustedLength = min(
+            safeEnd - safeLocation,
+            max(0, composedWindow.length - adjustedLocation)
+        )
+
+        return (
+            windowText,
+            NSRange(location: adjustedLocation, length: adjustedLength)
         )
     }
 
@@ -343,6 +424,9 @@ struct FocusSnapshotResolver {
         let role = AXHelper.stringValue(for: kAXRoleAttribute as CFString, on: element) ?? ""
         if AXHelper.isKnownEditableRole(role) {
             return true
+        }
+        if AXHelper.isKnownReadOnlyRole(role) {
+            return false
         }
         let attributes = Set(AXHelper.attributeNames(on: element))
         if attributes.contains("AXSelectedTextMarkerRange")
@@ -490,8 +574,18 @@ struct FocusSnapshotResolver {
             supportedAttributes.contains("AXEditable")
             ? AXHelper.boolValue(for: "AXEditable" as CFString, on: element)
             : nil
+        let editableHintScore = AXHelper.editabilityHintScore(
+            role: role,
+            explicitEditableFlag: explicitEditableFlag
+        )
+        let hasStrongEditabilitySignal = AXHelper.hasStrongEditabilitySignal(
+            role: role,
+            explicitEditableFlag: explicitEditableFlag
+        )
+        let isKnownReadOnlyRole = AXHelper.isKnownReadOnlyRole(role)
+        let canBeEditableTarget = hasStrongEditabilitySignal && !isKnownReadOnlyRole
         let nativeSelection =
-            supportedAttributes.contains(kAXSelectedTextRangeAttribute as String)
+            canBeEditableTarget && supportedAttributes.contains(kAXSelectedTextRangeAttribute as String)
             ? AXHelper.rangeValue(for: kAXSelectedTextRangeAttribute as CFString, on: element)
             : nil
 
@@ -500,19 +594,28 @@ struct FocusSnapshotResolver {
         // so they would otherwise fail the capability gate for a missing selection. Synthesize an
         // NSRange + caret-windowed text from the markers, but only when the native range is absent.
         let markerSelection =
-            nativeSelection == nil
+            canBeEditableTarget && nativeSelection == nil
             ? AXHelper.synthesizeMarkerSelection(
                 on: element, parameterizedAttributes: supportedParameterizedAttributes)
             : nil
-        let selection = nativeSelection ?? markerSelection?.selection
 
+        let nativeTextSelection = nativeSelection.flatMap {
+            nativeTextWindow(
+                on: element,
+                selection: $0,
+                supportedAttributes: supportedAttributes,
+                supportedParameterizedAttributes: supportedParameterizedAttributes
+            )
+        }
         // Prefer the marker-windowed text when we synthesized one so `selection` (window-relative)
-        // and `textValue` stay consistent; otherwise read the native value.
-        let textValue =
-            markerSelection?.text
-            ?? (supportedAttributes.contains(kAXValueAttribute as String)
-                ? AXHelper.stringValue(for: kAXValueAttribute as CFString, on: element)
-                : nil)
+        // and `textValue` stay consistent; otherwise use a bounded native text window when the host
+        // supports `AXStringForRange`, falling back to the full value for older/native controls.
+        let textSelection = markerSelection.map {
+            AXTextSelection(text: $0.text, selection: $0.selection)
+        } ?? nativeTextSelection
+        let selection = textSelection?.selection
+        let selectionForGeometry = nativeSelection ?? markerSelection?.selection
+        let textValue = textSelection?.text
 
         if let markerSelection {
             let textLength = (markerSelection.text as NSString).length
@@ -554,19 +657,21 @@ struct FocusSnapshotResolver {
                 height: currentFrame.height
             )
         }
-        let caretResult = selection.flatMap {
+        let caretResult = selectionForGeometry.flatMap {
             geometryResolver.resolveCaretRect(
                 for: element,
                 selection: $0,
                 // A marker-synthesized selection's location is window-relative, not a document
-                // offset, so NSRange-based BoundsForRange would resolve the wrong caret. Disable it
-                // for those so resolution falls to the text-marker geometry path (Branch 1.5).
+                // offset, so NSRange-based BoundsForRange would resolve the wrong caret. Native
+                // selections keep their document offset here, while `textSelection` below carries
+                // the bounded-window offset for text-based geometry fallbacks.
                 supportsBoundsForRange: markerSelection == nil
                     && supportedParameterizedAttributes.contains(
                         kAXBoundsForRangeParameterizedAttribute as String),
                 supportsFrame: supportedAttributes.contains("AXFrame"),
                 cocoaAnchorFrame: inputFrameRect,
-                textValue: textValue
+                textValue: textValue,
+                textSelection: selection
             )
         }
         let caretRect = caretResult?.rect
@@ -578,11 +683,9 @@ struct FocusSnapshotResolver {
             elementIdentifier: elementIdentifier,
             role: role,
             subrole: subrole,
-            editableHintScore: AXHelper.editabilityHintScore(
-                role: role, explicitEditableFlag: explicitEditableFlag),
-            hasStrongEditabilitySignal: AXHelper.hasStrongEditabilitySignal(
-                role: role, explicitEditableFlag: explicitEditableFlag),
-            isKnownReadOnlyRole: AXHelper.isKnownReadOnlyRole(role),
+            editableHintScore: editableHintScore,
+            hasStrongEditabilitySignal: hasStrongEditabilitySignal,
+            isKnownReadOnlyRole: isKnownReadOnlyRole,
             hasTextValue: textValue != nil,
             hasSelectionRange: selection != nil,
             hasCaretBounds: caretRect != nil,
@@ -602,6 +705,94 @@ struct FocusSnapshotResolver {
             inputFrameRect: inputFrameRect,
             isSecure: isSecure,
             resolverCandidate: resolverCandidate
+        )
+    }
+
+    /// Reads the smallest native text window the host can provide around the current selection.
+    ///
+    /// `AXStringForRange` is the important fast path for large Chrome and WebKit fields: instead of
+    /// pulling the whole `AXValue`, we ask for at most `focusedTextContextWindowUTF16` units before
+    /// and after the caret. Apps that do not expose the parameterized string API still fall back to
+    /// `AXValue`, preserving compatibility.
+    private func nativeTextWindow(
+        on element: AXUIElement,
+        selection: NSRange,
+        supportedAttributes: Set<String>,
+        supportedParameterizedAttributes: Set<String>
+    ) -> AXTextSelection? {
+        func fullTextSelection() -> AXTextSelection? {
+            guard supportedAttributes.contains(kAXValueAttribute as String),
+                  let value = AXHelper.stringValue(for: kAXValueAttribute as CFString, on: element)
+            else {
+                return nil
+            }
+
+            return AXTextSelection(text: value, selection: selection)
+        }
+
+        guard supportedParameterizedAttributes.contains(kAXStringForRangeParameterizedAttribute as String),
+              supportedAttributes.contains(kAXNumberOfCharactersAttribute as String),
+              let rawDocumentLength = AXHelper.intValue(
+                  for: kAXNumberOfCharactersAttribute as CFString,
+                  on: element
+              ),
+              rawDocumentLength >= 0
+        else {
+            return fullTextSelection()
+        }
+
+        let documentLength = rawDocumentLength
+        let safeLocation = min(max(selection.location, 0), documentLength)
+        let requestedEnd = selection.location > Int.max - selection.length
+            ? Int.max
+            : selection.location + selection.length
+        let safeEnd = min(max(requestedEnd, safeLocation), documentLength)
+
+        let beforeLength = min(safeLocation, Self.focusedTextContextWindowUTF16)
+        let beforeStart = safeLocation - beforeLength
+        let afterStart = safeEnd
+        let afterLength = min(max(documentLength - afterStart, 0), Self.focusedTextContextWindowUTF16)
+
+        guard let beforeText = AXHelper.parameterizedStringValue(
+            for: kAXStringForRangeParameterizedAttribute as CFString,
+            range: NSRange(location: beforeStart, length: beforeLength),
+            on: element
+        ) else {
+            return fullTextSelection()
+        }
+
+        let selectedText: String
+        if safeEnd > safeLocation {
+            guard let nativeSelectedText = AXHelper.parameterizedStringValue(
+                for: kAXStringForRangeParameterizedAttribute as CFString,
+                range: NSRange(location: safeLocation, length: safeEnd - safeLocation),
+                on: element
+            ) else {
+                return fullTextSelection()
+            }
+            selectedText = nativeSelectedText
+        } else {
+            selectedText = ""
+        }
+
+        let trailingText: String
+        if afterLength > 0 {
+            trailingText = AXHelper.parameterizedStringValue(
+                for: kAXStringForRangeParameterizedAttribute as CFString,
+                range: NSRange(location: afterStart, length: afterLength),
+                on: element
+            ) ?? ""
+        } else {
+            trailingText = ""
+        }
+
+        let text = beforeText + selectedText + trailingText
+        return AXTextSelection(
+            text: text,
+            selection: NSRange(
+                location: (beforeText as NSString).length,
+                length: (selectedText as NSString).length
+            )
         )
     }
 
@@ -793,6 +984,17 @@ final class DeepGeometryWalkThrottle {
         cachedResult = result
         return result
     }
+}
+
+private struct FocusCandidateResolution {
+    let resolvedCandidate: AXFocusCandidate?
+    let diagnosticCandidate: AXFocusCandidate?
+    let resolution: FocusCapabilityResolution
+}
+
+private struct AXTextSelection {
+    let text: String
+    let selection: NSRange
 }
 
 /// AX data read from one candidate element near the current focus.

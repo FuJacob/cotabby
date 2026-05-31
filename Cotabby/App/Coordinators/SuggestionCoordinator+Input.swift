@@ -214,15 +214,28 @@ extension SuggestionCoordinator {
     /// at `hostPublishWaitCeilingMs` so a silent host can't hang the pipeline — once the cap is
     /// reached we generate against whatever's there, matching the old fixed-delay behavior.
     /// `schedulePrediction()` internally `replaceDebouncedWork`s, so back-to-back keystrokes
-    /// still collapse cleanly.
+    /// still collapse cleanly. The `hostPublishPollGeneration` token adds the missing outer
+    /// coalescing layer: only the newest keystroke's polling chain may keep reading AX.
     func schedulePredictionAfterHostPublishDelay() {
+        hostPublishPollGeneration &+= 1
+        let pollGeneration = hostPublishPollGeneration
         let baseline = focusModel.snapshot.context
-        pollForHostPublish(
-            baselineText: baseline?.precedingText,
-            baselineElementID: baseline?.elementIdentifier,
-            baselineSelectionLocation: baseline?.selection.location,
-            elapsedMs: 0
-        )
+
+        // The event tap fires before the host processes the key, so an immediate `refreshNow()`
+        // almost always reads the pre-keystroke value while still paying the full AX cost. Start at
+        // the first retry instead; this keeps fast native fields responsive and removes one
+        // guaranteed-stale read from every keypress.
+        DispatchQueue.main.asyncAfter(
+            deadline: .now() + .milliseconds(Self.hostPublishFirstPollIntervalMs)
+        ) { [weak self] in
+            self?.pollForHostPublish(
+                baselineText: baseline?.precedingText,
+                baselineElementID: baseline?.elementIdentifier,
+                baselineSelectionLocation: baseline?.selection.location,
+                pollGeneration: pollGeneration,
+                elapsedMs: Self.hostPublishFirstPollIntervalMs
+            )
+        }
     }
 
     /// Drives the snapshot-changed gate. Reads the live focus snapshot, fires `schedulePrediction`
@@ -232,9 +245,18 @@ extension SuggestionCoordinator {
         baselineText: String?,
         baselineElementID: String?,
         baselineSelectionLocation: Int?,
+        pollGeneration: UInt64,
         elapsedMs: Int
     ) {
+        guard pollGeneration == hostPublishPollGeneration else {
+            return
+        }
+
         focusModel.refreshNow()
+        guard pollGeneration == hostPublishPollGeneration else {
+            return
+        }
+
         let currentContext = focusModel.snapshot.context
 
         // No focus context at all means the user moved away from any editable field — let
@@ -250,10 +272,9 @@ extension SuggestionCoordinator {
         // Ceiling: stop polling and generate anyway. Without this fallback a host that genuinely
         // produces no AX change (rare but possible — e.g. dead-key composition) would never get
         // its next prediction.
-        // Short first retry, then steady cadence: the immediate poll above always misses (it runs
-        // before the host processed the key), so a 10ms first retry shaves ~20ms off every
-        // fast-publishing host without doubling AX queries across the slow-Chromium tail.
-        let interval = elapsedMs == 0 ? Self.hostPublishFirstPollIntervalMs : Self.hostPublishPollIntervalMs
+        // We already waited the short first interval before entering this method; remaining polls
+        // use the steady cadence until the ceiling.
+        let interval = Self.hostPublishPollIntervalMs
         let nextElapsed = elapsedMs + interval
         guard nextElapsed < Self.hostPublishWaitCeilingMs else {
             schedulePrediction()
@@ -265,6 +286,7 @@ extension SuggestionCoordinator {
                 baselineText: baselineText,
                 baselineElementID: baselineElementID,
                 baselineSelectionLocation: baselineSelectionLocation,
+                pollGeneration: pollGeneration,
                 elapsedMs: nextElapsed
             )
         }

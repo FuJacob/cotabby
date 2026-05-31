@@ -98,6 +98,14 @@ enum AXHelper {
         return number.boolValue
     }
 
+    static func intValue(for attribute: CFString, on element: AXUIElement) -> Int? {
+        guard let number = copyAttributeValue(attribute, on: element) as? NSNumber else {
+            return nil
+        }
+
+        return number.intValue
+    }
+
     /// Converts loosely typed Accessibility values into `AXValue` only after verifying the Core
     /// Foundation type id. This keeps the unsafe CF boundary in one place and avoids force casts in
     /// the higher-level helpers below.
@@ -163,6 +171,38 @@ enum AXHelper {
         }
 
         return rect
+    }
+
+    /// Reads a parameterized string range without asking the host app to serialize the whole field.
+    ///
+    /// Large browser editors can expose many thousands of characters through `AXValue`. Pulling the
+    /// entire value on every focus refresh is expensive because each read is synchronous IPC into
+    /// the host process. `AXStringForRange` lets callers request only the caret-adjacent window that
+    /// autocomplete actually needs, while preserving the normal full-value fallback for apps that
+    /// do not implement the parameterized string API.
+    static func parameterizedStringValue(
+        for attribute: CFString,
+        range: NSRange,
+        on element: AXUIElement
+    ) -> String? {
+        var cfRange = CFRange(location: range.location, length: range.length)
+        guard let parameter = AXValueCreate(.cfRange, &cfRange) else {
+            return nil
+        }
+
+        var value: CFTypeRef?
+        let result = AXUIElementCopyParameterizedAttributeValue(element, attribute, parameter, &value)
+        guard result == .success, let value else { return nil }
+
+        if let string = value as? String {
+            return string
+        }
+
+        if let attributedString = value as? NSAttributedString {
+            return attributedString.string
+        }
+
+        return nil
     }
 
     /// Some applications (like Chromium and WebKit browsers) do not properly support `AXBoundsForRange`
