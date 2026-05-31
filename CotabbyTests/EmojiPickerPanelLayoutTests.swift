@@ -15,8 +15,6 @@ final class EmojiPickerPanelLayoutTests: XCTestCase {
         let expectedHeight = EmojiPickerMetrics.headerHeight
             + EmojiPickerMetrics.dividerHeight
             + EmojiPickerMetrics.rowHeight
-            + EmojiPickerMetrics.dividerHeight
-            + EmojiPickerMetrics.footerHeight
 
         XCTAssertEqual(size.width, EmojiPickerMetrics.width)
         XCTAssertEqual(size.height, expectedHeight)
@@ -29,8 +27,6 @@ final class EmojiPickerPanelLayoutTests: XCTestCase {
         let expectedHeight = EmojiPickerMetrics.headerHeight
             + EmojiPickerMetrics.dividerHeight
             + visibleRowsHeight
-            + EmojiPickerMetrics.dividerHeight
-            + EmojiPickerMetrics.footerHeight
 
         XCTAssertEqual(size.height, expectedHeight)
     }
