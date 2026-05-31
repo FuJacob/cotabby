@@ -104,15 +104,9 @@ struct MenuBarView: View {
             Divider()
 
             // Context-shaping toggles that change what the model is fed.
-            Group {
-                Toggle("Include Clipboard Context", isOn: clipboardContextEnabledBinding)
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
-
-                Toggle("Allow Multi-line Suggestions", isOn: multiLineEnabledBinding)
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
-            }
+            Toggle("Include Clipboard Context", isOn: clipboardContextEnabledBinding)
+                .toggleStyle(.switch)
+                .controlSize(.small)
 
             Divider()
 
@@ -153,16 +147,6 @@ struct MenuBarView: View {
                     .pickerStyle(.menu)
                 }
 
-                MenuBarPickerRow(title: "Display") {
-                    Picker("Display", selection: mirrorPreferenceBinding) {
-                        ForEach(MirrorPreference.allCases) { preference in
-                            Text(preference.displayLabel)
-                                .tag(preference)
-                        }
-                    }
-                    .labelsHidden()
-                    .pickerStyle(.menu)
-                }
             }
         }
         .padding(.bottom, 12)
@@ -322,26 +306,12 @@ struct MenuBarView: View {
         )
     }
 
-    private var multiLineEnabledBinding: Binding<Bool> {
-        Binding(
-            get: { suggestionSettings.isMultiLineEnabled },
-            set: { suggestionSettings.setMultiLineEnabled($0) }
-        )
-    }
-
     private var selectedWordCountPresetBinding: Binding<SuggestionWordCountPreset> {
         Binding(
             get: { suggestionSettings.selectedWordCountPreset },
             set: { preset in
                 suggestionSettings.selectWordCountPreset(preset)
             }
-        )
-    }
-
-    private var mirrorPreferenceBinding: Binding<MirrorPreference> {
-        Binding(
-            get: { suggestionSettings.mirrorPreference },
-            set: { suggestionSettings.setMirrorPreference($0) }
         )
     }
 
