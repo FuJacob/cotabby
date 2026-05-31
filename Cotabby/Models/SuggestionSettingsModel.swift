@@ -815,6 +815,11 @@ final class SuggestionSettingsModel: ObservableObject {
         setGlobalToggleKey(keyCode: Self.disabledKeyCode, modifiers: [], label: Self.disabledKeyLabel)
     }
 
+    // All stored state is thread-safe to release (Combine subjects, UserDefaults). The
+    // nonisolated deinit prevents Swift from scheduling the teardown through the
+    // back-deployment main-actor executor shim, which has a StopLookupScope bug on macOS 26.
+    nonisolated deinit {}
+
     /// Convenience used by the hotkey callback. Wrapping the flip here keeps the InputMonitor
     /// closure trivial and gives the menu bar / tests a single entry point.
     func toggleGloballyEnabled() {
