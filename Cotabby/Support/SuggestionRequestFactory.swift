@@ -81,6 +81,7 @@ enum SuggestionRequestFactory {
             completionLengthInstruction: completionLengthInstruction,
             userName: userName,
             customRules: customRules,
+            extendedContext: activeExtendedContext,
             languageInstruction: languageInstruction,
             clipboardContext: boundedClipboardContext,
             visualContextSummary: boundedVisualContextSummary

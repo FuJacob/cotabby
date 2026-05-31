@@ -239,7 +239,7 @@ final class SuggestionRequestFactoryTests: XCTestCase {
         )
 
         XCTAssertEqual(result.request.clipboardContext, "Copied project notes.")
-        XCTAssertTrue(result.promptPreview.contains("User's clipboard:"))
+        XCTAssertTrue(result.promptPreview.contains("clipboard currently contains"))
         XCTAssertTrue(result.promptPreview.contains("Copied project notes."))
     }
 
@@ -272,7 +272,7 @@ final class SuggestionRequestFactoryTests: XCTestCase {
         )
 
         XCTAssertNil(result.request.clipboardContext)
-        XCTAssertFalse(result.promptPreview.contains("User's clipboard:"))
+        XCTAssertFalse(result.promptPreview.contains("clipboard currently contains"))
         XCTAssertFalse(result.promptPreview.contains("Copied project notes."))
     }
 
