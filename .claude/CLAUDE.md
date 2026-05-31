@@ -168,9 +168,18 @@ Prefer the narrowest useful validation first, then broaden when the change touch
 shared behavior:
 
 ```bash
-xcodebuild -project Cotabby.xcodeproj -scheme Cotabby -destination 'platform=macOS' build
-xcodebuild -project Cotabby.xcodeproj -scheme Cotabby -destination 'platform=macOS' build-for-testing
+xcodebuild -project Cotabby.xcodeproj -scheme Cotabby -destination 'platform=macOS' build \
+  -derivedDataPath build/DerivedData
+xcodebuild -project Cotabby.xcodeproj -scheme Cotabby -destination 'platform=macOS' build-for-testing \
+  -derivedDataPath build/DerivedData
 ```
+
+Always pass `-derivedDataPath build/DerivedData` so output lands in the
+repo-scoped `build/` (already gitignored) instead of accumulating under
+`~/Library/Developer/Xcode/DerivedData/Cotabby-*`, where every build leaves a
+fresh multi-GB module cache and SwiftPM checkout that nothing trims. When a
+task is done and the build artifacts are no longer needed, `rm -rf
+build/DerivedData` before reporting completion.
 
 Run targeted tests when possible. If app-hosted tests fail because of local signing
 or Team ID mismatch, report the exact failure and still run `build-for-testing`.

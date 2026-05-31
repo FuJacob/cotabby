@@ -254,9 +254,17 @@ Use the narrowest meaningful validation first, then broaden if the change touche
 Common commands:
 
 ```bash
-xcodebuild -project Cotabby.xcodeproj -scheme Cotabby -destination 'platform=macOS' build
-xcodebuild -project Cotabby.xcodeproj -scheme Cotabby -destination 'platform=macOS' build-for-testing
+xcodebuild -project Cotabby.xcodeproj -scheme Cotabby -destination 'platform=macOS' build \
+  -derivedDataPath build/DerivedData
+xcodebuild -project Cotabby.xcodeproj -scheme Cotabby -destination 'platform=macOS' build-for-testing \
+  -derivedDataPath build/DerivedData
 ```
+
+Always pass `-derivedDataPath build/DerivedData` so the output lands in the repo-scoped `build/`
+directory (already gitignored) instead of accumulating under
+`~/Library/Developer/Xcode/DerivedData/Cotabby-*`, where every build leaves a fresh multi-GB module
+cache and SwiftPM checkout that nothing trims. When a task is done and the artifacts are no longer
+needed, `rm -rf build/DerivedData` before reporting completion.
 
 Run targeted tests for changed pure logic when available. If `xcodebuild test` fails locally because
 of app-hosted test bundle signing or Team ID mismatch, report the exact failure and still provide the
