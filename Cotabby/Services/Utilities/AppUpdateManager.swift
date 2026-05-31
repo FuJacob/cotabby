@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 import Logging
 import Sparkle
@@ -10,7 +11,7 @@ import Sparkle
 /// We keep it in `Services/` so the rest of the app only depends on a tiny, explicit surface:
 /// `start()` for lifecycle wiring and `checkForUpdates()` for a future settings screen.
 @MainActor
-final class AppUpdateManager {
+final class AppUpdateManager: ObservableObject {
     /// The updater is created once and retained for the lifetime of the process, just like the
     /// runtime manager and the focus tracker. Sparkle expects its controller to stay alive.
     private let updaterController: SPUStandardUpdaterController
@@ -54,7 +55,14 @@ final class AppUpdateManager {
         // `checkForUpdates()`, which always shows a result dialog and is reserved for the manual
         // "Check for Updates" button. The daily `SUScheduledCheckInterval` then covers long-running
         // sessions where the app stays open for days.
-        updaterController.updater.checkForUpdatesInBackground()
+        // Respect the user's "Automatically check for updates" preference: when they have turned
+        // automatic checks off, skip even this launch check so the toggle fully governs background
+        // update activity. Sparkle's daily scheduled check already honors the same flag.
+        if automaticallyChecksForUpdates {
+            updaterController.updater.checkForUpdatesInBackground()
+        } else {
+            log("Skipping launch update check because automatic checks are disabled.")
+        }
 
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains(Self.debugCheckForUpdatesOnLaunchArgument) {
@@ -73,6 +81,23 @@ final class AppUpdateManager {
         }
 
         updaterController.checkForUpdates(nil)
+    }
+
+    /// Whether Sparkle performs automatic update checks: the once-per-launch background check in
+    /// `start()` and Sparkle's daily scheduled check. This proxies Sparkle's own persisted
+    /// preference (`SUEnableAutomaticChecks`, defaulted to `true` in Info.plist) instead of storing a
+    /// second copy, so the Settings toggle and the updater can never disagree. The setter notifies
+    /// SwiftUI observers so a bound toggle re-renders, and Sparkle persists the value for next launch.
+    var automaticallyChecksForUpdates: Bool {
+        get { updaterController.updater.automaticallyChecksForUpdates }
+        set {
+            guard newValue != updaterController.updater.automaticallyChecksForUpdates else {
+                return
+            }
+            objectWillChange.send()
+            updaterController.updater.automaticallyChecksForUpdates = newValue
+            log("Automatic update checks \(newValue ? "enabled" : "disabled") by user preference.")
+        }
     }
 
     private var hasUsableConfiguration: Bool {

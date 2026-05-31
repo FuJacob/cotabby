@@ -6,13 +6,14 @@ import SwiftUI
 /// three legacy sections (header, support CTA, uninstall) plus a new Acknowledgements modal that
 /// lists the third-party packages Cotabby ships with.
 struct AboutPaneView: View {
-    let appUpdateManager: AppUpdateManager
+    @ObservedObject var appUpdateManager: AppUpdateManager
 
     @State private var isShowingAcknowledgements = false
 
     var body: some View {
         SettingsPaneScaffold {
             Section { aboutHeader }
+            Section("Updates") { updatesRow }
             Section("Support") { supportRow }
             Section("Resources") { linksRow }
             Section("Uninstall") { uninstallText }
@@ -51,6 +52,26 @@ struct AboutPaneView: View {
             }
         }
         .padding(.vertical, 4)
+    }
+
+    @ViewBuilder
+    private var updatesRow: some View {
+        Toggle(isOn: automaticUpdateChecksBinding) {
+            SettingsRowLabel(
+                title: "Automatically Check for Updates",
+                description: "Let Cotabby check for new versions in the background on launch and once " +
+                    "a day. Turn this off to only update when you press Check for Updates."
+            )
+        }
+    }
+
+    /// Reads and writes Sparkle's own persisted preference through `AppUpdateManager` so the toggle
+    /// reflects the real updater state instead of a separate mirror that could drift out of sync.
+    private var automaticUpdateChecksBinding: Binding<Bool> {
+        Binding(
+            get: { appUpdateManager.automaticallyChecksForUpdates },
+            set: { appUpdateManager.automaticallyChecksForUpdates = $0 }
+        )
     }
 
     @ViewBuilder
