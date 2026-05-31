@@ -31,11 +31,6 @@ on:
         default: false
         type: boolean
 
-permissions:
-  contents: write
-  pages: write
-  id-token: write
-
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
@@ -64,6 +59,8 @@ jobs:
     name: Build, sign, and package DMG
     runs-on: macos-26
     timeout-minutes: 120
+    permissions:
+      contents: read
     outputs:
       release_version: ${{ steps.metadata.outputs.release_version }}
       release_tag: ${{ steps.metadata.outputs.release_tag }}
@@ -74,15 +71,15 @@ jobs:
       has_sparkle_key: ${{ steps.sparkle-key.outputs.has_key }}
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Select Xcode
-        uses: maxim-lobanov/setup-xcode@v1
+        uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
         with:
           xcode-version: latest-stable
 
       - name: Select Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: "3.13"
 
@@ -418,7 +415,7 @@ jobs:
           codesign --verify --strict --verbose=2 "${dmg_path}"
 
       - name: Upload DMG for notarization
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: cotabby-dmg
           path: build/${{ env.DMG_NAME }}
@@ -427,7 +424,7 @@ jobs:
 
       - name: Upload build diagnostics
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: build-artifacts
           path: build/${{ env.APP_NAME }}.xcarchive/
@@ -445,12 +442,13 @@ jobs:
     needs: build
     runs-on: macos-26
     timeout-minutes: 90
+    permissions: {}
     outputs:
       dmg_sha256: ${{ steps.dmg-sha.outputs.dmg_sha256 }}
 
     steps:
       - name: Download DMG artifact
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           name: cotabby-dmg
           path: build
@@ -630,7 +628,7 @@ jobs:
           echo "Cotabby.dmg SHA-256: ${dmg_sha256}"
 
       - name: Upload notarized DMG
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: cotabby-dmg-notarized
           path: build/${{ env.DMG_NAME }}
@@ -638,7 +636,7 @@ jobs:
 
       - name: Upload notarization diagnostics
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: notarization-diagnostics
           path: build/notarization/**
@@ -657,20 +655,24 @@ jobs:
     if: needs.build.outputs.publish == 'true'
     runs-on: macos-26
     timeout-minutes: 30
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deploy-pages.outputs.page_url }}
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Select Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: "3.13"
 
       - name: Download notarized DMG
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           name: cotabby-dmg-notarized
           path: build
@@ -813,20 +815,20 @@ jobs:
           printf '%s\n' "${PAGES_CUSTOM_DOMAIN}" > build/pages/CNAME
 
       - name: Configure GitHub Pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
 
       - name: Upload GitHub Pages artifact
-        uses: actions/upload-pages-artifact@v5
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: build/pages
 
       - name: Deploy GitHub Pages
         id: deploy-pages
-        uses: actions/deploy-pages@v5
+        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5.0.0
 
       - name: Upload release artifacts
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: release-artifacts
           path: |
@@ -847,6 +849,7 @@ jobs:
     needs: [build, notarize, publish]
     if: needs.build.outputs.publish == 'true'
     runs-on: ubuntu-latest
+    permissions: {}
     steps:
       - name: Dispatch cask update to the tap
         env:
