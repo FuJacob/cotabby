@@ -30,6 +30,36 @@ final class InputMonitorTests: XCTestCase {
         }
     }
 
+    /// Regression: while an emoji `:query` capture is open, the observer must keep routing the accept
+    /// key (Tab) to `onEvent` even when a ghost suggestion is concurrently visible (which sets
+    /// `isAcceptTapOwningAcceptKeys`). The emoji commit fires from this observer pass; suppressing the
+    /// key here let a late async suggestion steal the first Tab, so the emoji never landed on the first
+    /// try and only worked once the suggestion had cleared.
+    func test_observerTapRoutesAcceptKeyToEmojiObserverWhileCapturingDespiteVisibleSuggestion() {
+        runOnMainActor {
+            let monitor = makeMonitor()
+            monitor.acceptanceKeyCodeProvider = { 48 }   // Tab is the word-accept key
+            // Stage both conditions: a visible suggestion owns the accept key, AND an emoji capture is
+            // open. (Set after the capture flag because `setCaptureInterceptionActive` recomputes
+            // ownership; we stage it directly to avoid installing real CGEvent taps in the test host.)
+            monitor.captureInterceptionActive = true
+            monitor.isAcceptTapOwningAcceptKeys = true
+            var observedKinds: [CapturedInputEvent.Kind] = []
+            monitor.onEvent = { event in
+                observedKinds.append(event.kind)
+                return false
+            }
+
+            let capturedEvent = monitor.handleObserverKeyDown(InputMonitorKeyEvent(keyCode: 48))
+
+            // The key must reach the emoji observer and must NOT be classified as acceptance.
+            XCTAssertNotNil(capturedEvent)
+            XCTAssertNotEqual(capturedEvent?.kind, .acceptance)
+            XCTAssertEqual(observedKinds.count, 1)
+            XCTAssertNotEqual(observedKinds.first, .acceptance)
+        }
+    }
+
     func test_observerTapIgnoresFullAcceptKeyWhenConsumingTapOwnsIt() {
         runOnMainActor {
             let monitor = makeMonitor()

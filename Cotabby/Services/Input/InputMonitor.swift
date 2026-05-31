@@ -122,7 +122,10 @@ final class InputMonitor {
     /// keys. Tracking them separately means neither feature removes the tap while the other still
     /// needs it, and the tap is gone entirely when both are idle (the issue #328 invariant).
     private var suggestionInterceptionActive = false
-    private var captureInterceptionActive = false
+    /// Internal (not private) for the same reason as `isAcceptTapOwningAcceptKeys`: tests stage the
+    /// "emoji capture open" state directly to exercise observer routing without installing real taps.
+    /// Production only mutates this through `setCaptureInterceptionActive(_:)`.
+    var captureInterceptionActive = false
 
     init(
         permissionProvider: @escaping @MainActor () -> Bool,
@@ -606,7 +609,15 @@ final class InputMonitor {
     }
 
     private func routeObserverKeyDown(_ keyEvent: InputMonitorKeyEvent) -> CapturedInputEvent? {
-        let capturedEvent = classify(keyEvent: keyEvent, recognizesAcceptance: isAcceptTapOwningAcceptKeys)
+        // While an emoji capture is open, the accept key must reach the observer's `onEvent` so the
+        // emoji controller can commit on it. The emoji commit fires from the listen-only observer pass
+        // (the accept tap only swallows the key afterward), so suppressing the accept key here — which
+        // we do whenever a ghost suggestion is concurrently visible (`isAcceptTapOwningAcceptKeys`) —
+        // would freeze the emoji controller out of its own commit key and route Tab to the suggestion
+        // accept path instead. Excluding capture from acceptance recognition keeps the emoji picker's
+        // "first look at every keystroke" invariant intact even when a suggestion overlay is showing.
+        let recognizesAcceptance = isAcceptTapOwningAcceptKeys && !captureInterceptionActive
+        let capturedEvent = classify(keyEvent: keyEvent, recognizesAcceptance: recognizesAcceptance)
         guard !capturedEvent.kind.isAcceptance else {
             // Acceptance is handled by the active default tap, because only that callback can
             // make insertion and "consume the original key" one atomic decision. If the active

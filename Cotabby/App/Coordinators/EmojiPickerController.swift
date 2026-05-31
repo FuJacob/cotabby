@@ -1,6 +1,7 @@
 import Combine
 import CoreGraphics
 import Foundation
+import Logging
 
 /// File overview:
 /// Orchestrates the inline `:emoji:` picker. It is a sibling to `SuggestionCoordinator`, not part of
@@ -196,6 +197,11 @@ final class EmojiPickerController {
 
     private func beginCapture(query: String) {
         guard canTrigger(), let context = focusModel.snapshot.context else {
+            // A `:` opened the trigger but the field is unsupported/secure or its AX context has not
+            // resolved yet (AX is eventually consistent right after a focus change). Aborting here
+            // looks to the user like "the picker did nothing on the first try"; log it so that
+            // first-keystroke failure is distinguishable from a commit-path failure.
+            CotabbyLogger.suggestion.debug("emoji capture aborted at open: no triggerable focus context")
             machine.reset()
             return
         }
@@ -205,6 +211,7 @@ final class EmojiPickerController {
         refreshMatches(query: query)
         presentPanel()
         armLongPauseTimer()
+        CotabbyLogger.suggestion.debug("emoji capture opened query=\"\(query)\" matches=\(matches.count)")
     }
 
     private func updateQuery(_ query: String) {
@@ -240,11 +247,13 @@ final class EmojiPickerController {
     /// insert the highlighted glyph.
     private func commitSelectedMatch() {
         guard selectedIndex >= 0, selectedIndex < matches.count else {
+            CotabbyLogger.suggestion.debug("emoji commit (key) skipped: no selectable match query=\"\(currentQuery)\"")
             cancelCapture()
             return
         }
         let glyph = matches[selectedIndex].glyph
         let fallback = currentQuery.utf16.count + 1   // ":" + query
+        CotabbyLogger.suggestion.debug("emoji commit (key) glyph=\(glyph) query=\"\(currentQuery)\"")
         teardownCapture()
         scheduleReplaceEmojiQuery(with: glyph, fallbackUTF16: fallback)
     }
@@ -324,7 +333,11 @@ final class EmojiPickerController {
         // NOT force a fresh AX resolve + `focusChangeSequence` guard here: the resolve re-stamped the
         // sequence and made the guard abort legitimate commits (the panel vanished with no emoji).
         let preceding = focusModel.snapshot.context?.precedingText ?? ""
-        let deleteCount = EmojiQueryRun.trailingRunUTF16Length(in: preceding) ?? fallbackUTF16
+        let measured = EmojiQueryRun.trailingRunUTF16Length(in: preceding)
+        let deleteCount = measured ?? fallbackUTF16
+        CotabbyLogger.suggestion.debug(
+            "emoji replace glyph=\(glyph) deleteUTF16=\(deleteCount) measured=\(measured != nil)"
+        )
         _ = inserter.replace(deletingUTF16Count: deleteCount, with: glyph)
         // Let the focus pipeline re-read the field so any pending suggestion uses the post-insertion
         // text instead of the stale `:query` we just removed.
@@ -345,6 +358,9 @@ final class EmojiPickerController {
         guard let context = snapshot.context,
               !context.isSecure,
               context.focusChangeSequence == captureFocusSequence else {
+            // The field changed (or went secure) under an open capture. This is the other common
+            // "panel vanished mid-query" cause, so record it distinctly from a user cancel.
+            CotabbyLogger.suggestion.debug("emoji capture cancelled: focus changed during capture")
             cancelCapture()
             return
         }
