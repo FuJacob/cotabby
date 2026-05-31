@@ -387,7 +387,7 @@ extension WelcomeView {
                 Text("Keybinds")
                     .font(.system(size: 24, weight: .semibold, design: .rounded))
 
-                Text("Choose keys to accept suggestions.\nYou can change these later in Settings.")
+                Text("You can change these later in Settings.")
                     .font(.system(size: 14, design: .rounded))
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
