@@ -69,9 +69,11 @@ final class LanguageSupportTests: XCTestCase {
 
     // MARK: - rendering
 
-    func test_llamaRenderer_placesLanguageHintInFinalBlock() {
-        // The length cue is no longer rendered (token-budget-only experiment), so this guards that
-        // the language hint still lands in the late, high-attention final-instruction block.
+    func test_llamaRenderer_placesLanguageHintLateRightBeforePrefix() {
+        // The length cue is no longer rendered (token-budget-only experiment), and the prompt is now
+        // prose with no "Final instruction:" header. This guards that the language hint still lands
+        // late — after the app-context sentence and immediately before the prefix, its
+        // high-attention slot — so small models actually weigh it.
         let prompt = LlamaPromptRenderer.prompt(
             prefixText: "Hola",
             applicationName: "Notes",
@@ -82,12 +84,16 @@ final class LanguageSupportTests: XCTestCase {
 
         XCTAssertFalse(prompt.contains("UNIQUE_LENGTH_CUE"))
 
-        guard let finalRange = prompt.range(of: "Final instruction:"),
-              let langRange = prompt.range(of: "Spanish") else {
-            XCTFail("Expected final instruction header and language hint in the prompt")
+        guard let contextRange = prompt.range(of: "writing in Notes"),
+              let langRange = prompt.range(of: "Spanish"),
+              let prefixRange = prompt.range(of: "Hola") else {
+            XCTFail("Expected app-context sentence, language hint, and prefix in the prompt")
             return
         }
-        XCTAssertLessThan(finalRange.lowerBound, langRange.lowerBound)
+        // Order: app context → language hint → prefix (last).
+        XCTAssertLessThan(contextRange.lowerBound, langRange.lowerBound)
+        XCTAssertLessThan(langRange.lowerBound, prefixRange.lowerBound)
+        XCTAssertTrue(prompt.hasSuffix("Hola"))
     }
 
     func test_llamaRenderer_emitsNoLanguageLineWhenNoneDeclared() {

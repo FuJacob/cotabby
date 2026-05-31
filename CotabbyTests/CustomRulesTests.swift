@@ -46,14 +46,15 @@ final class CustomRulesTests: XCTestCase {
             customRules: ["Use British spelling", "Never use em dashes"]
         )
 
-        XCTAssertTrue(prompt.contains("Your style preferences:"))
-        XCTAssertTrue(prompt.contains("- Use British spelling"))
-        XCTAssertTrue(prompt.contains("- Never use em dashes"))
+        // The prompt is prose now (no "Your style preferences:" label block), but the user's rules
+        // and the subordination clause must still be present.
+        XCTAssertTrue(prompt.contains("Use British spelling"))
+        XCTAssertTrue(prompt.contains("Never use em dashes"))
         XCTAssertTrue(prompt.contains("never break the rules above"))
 
-        // The base task rules must precede the user style section.
-        let baseIndex = try? XCTUnwrap(prompt.range(of: "Task:"))
-        let rulesIndex = try? XCTUnwrap(prompt.range(of: "Your style preferences:"))
+        // The base autocomplete rules must precede the user style preferences.
+        let baseIndex = try? XCTUnwrap(prompt.range(of: "autocomplete, not chat"))
+        let rulesIndex = try? XCTUnwrap(prompt.range(of: "Use British spelling"))
         if let baseIndex, let rulesIndex {
             XCTAssertLessThan(baseIndex.lowerBound, rulesIndex.lowerBound)
         }
@@ -68,6 +69,8 @@ final class CustomRulesTests: XCTestCase {
             customRules: []
         )
 
+        // No user rules → no style-preferences sentence (and no leftover label form either).
+        XCTAssertFalse(prompt.contains("writing preferences"))
         XCTAssertFalse(prompt.contains("Your style preferences:"))
     }
 

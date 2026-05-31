@@ -60,10 +60,11 @@ final class LlamaPromptRendererTests: XCTestCase {
 
     // MARK: - instruction prompt
 
-    /// The structural contract for local instruct models: stable task rules first, supporting
-    /// context in the middle, then a late length cue right before the prefix the model must
-    /// continue. Losing one of these sections tends to degrade prompt-following without throwing.
-    func test_instructionPrompt_containsTaskScreenContextAndFinalInstruction() {
+    /// The prose contract for the raw single-string prompt: autocomplete rules, then context as
+    /// sentences, then the bare prefix as the final payload. No standalone `Label:` lines (the
+    /// thing small models echo into ghost text), and the prefix stays last so the model continues
+    /// from where the user stopped.
+    func test_instructionPrompt_carriesAutocompleteRulesAndAppContextAsProse() {
         let prompt = LlamaPromptRenderer.prompt(
             prefixText: "Once upon",
             applicationName: "Messages",
@@ -71,16 +72,32 @@ final class LlamaPromptRendererTests: XCTestCase {
             userName: nil
         )
 
-        XCTAssertTrue(prompt.contains("Task:"), "instruction prompt should include Task section")
-        XCTAssertTrue(
-            prompt.contains("Screen context:"),
-            "instruction prompt should include Screen context section"
+        XCTAssertTrue(prompt.contains("autocomplete, not chat"))
+        XCTAssertTrue(prompt.contains("writing in Messages"))
+    }
+
+    /// No standalone `Label:` line may appear, even with every context block populated — those are
+    /// exactly what small instruct models parrot back as ghost text.
+    func test_instructionPrompt_containsNoLabelScaffolding() {
+        let prompt = LlamaPromptRenderer.prompt(
+            prefixText: "Once upon",
+            applicationName: "Messages",
+            completionLengthInstruction: "Keep completion short.",
+            userName: "Jacob",
+            customRules: ["Be concise"],
+            languageInstruction: "Respond in German.",
+            clipboardContext: "clip",
+            visualContextSummary: "a form"
         )
-        XCTAssertTrue(
-            prompt.contains("Final instruction:"),
-            "instruction prompt should include a late final instruction section"
-        )
-        XCTAssertTrue(prompt.contains("Text before caret:"), "instruction prompt should include the prefix header")
+
+        XCTAssertFalse(prompt.contains("Task:"))
+        XCTAssertFalse(prompt.contains("Screen context:"))
+        XCTAssertFalse(prompt.contains("Screen content:"))
+        XCTAssertFalse(prompt.contains("Final instruction:"))
+        XCTAssertFalse(prompt.contains("Text before caret:"))
+        XCTAssertFalse(prompt.contains("User Profile Context:"))
+        XCTAssertFalse(prompt.contains("Your style preferences:"))
+        XCTAssertFalse(prompt.contains("User's clipboard:"))
     }
 
     func test_instructionPrompt_includesApplicationNameAndPrefix() {
@@ -91,16 +108,13 @@ final class LlamaPromptRendererTests: XCTestCase {
             userName: nil
         )
 
-        XCTAssertTrue(prompt.contains("User is on Slack."))
+        XCTAssertTrue(prompt.contains("writing in Slack"))
         XCTAssertTrue(prompt.contains("My prefix text here"))
     }
 
     /// Length is enforced by the token budget, not by an in-prompt word range, so the
     /// completion-length cue must never reach the local-model prompt even if a caller passes one.
     func test_instructionPrompt_omitsCompletionLengthInstruction() {
-        // Experiment: the local-model prompt no longer carries the word-range cue; length is
-        // governed solely by the token budget. The cue must not leak into the prompt even when a
-        // caller still passes one.
         let prompt = LlamaPromptRenderer.prompt(
             prefixText: "PREFIX_BODY_XYZ",
             applicationName: "App",
@@ -109,14 +123,8 @@ final class LlamaPromptRendererTests: XCTestCase {
         )
 
         XCTAssertFalse(prompt.contains("UNIQUE_LENGTH_MARKER_7_TO_12_WORDS"))
-
-        guard let finalInstructionRange = prompt.range(of: "Final instruction:"),
-              let prefixRange = prompt.range(of: "PREFIX_BODY_XYZ") else {
-            XCTFail("Expected final instruction header and prefix in the prompt")
-            return
-        }
-
-        XCTAssertLessThan(finalInstructionRange.lowerBound, prefixRange.lowerBound)
+        // The prefix is still the last payload regardless.
+        XCTAssertTrue(prompt.hasSuffix("PREFIX_BODY_XYZ"))
     }
 
     func test_instructionPrompt_includesProfileContextWhenProvided() {
@@ -131,9 +139,9 @@ final class LlamaPromptRendererTests: XCTestCase {
                       "instruction prompt should carry user-provided profile name")
     }
 
-    /// The prefix remains the last payload in the prompt so the model still ends on the actual
-    /// text it must continue, even though the length cue is moved later in the prompt.
-    func test_instructionPrompt_prefixAppearsAfterScreenContextAndEndsPrompt() {
+    /// The prefix remains the last payload in the prompt so the model ends on the actual text it
+    /// must continue. This is the one structural invariant the prose rewrite must preserve.
+    func test_instructionPrompt_prefixAppearsAfterContextAndEndsPrompt() {
         let prompt = LlamaPromptRenderer.prompt(
             prefixText: "PREFIX_BODY_XYZ",
             applicationName: "App",
@@ -141,14 +149,14 @@ final class LlamaPromptRendererTests: XCTestCase {
             userName: nil
         )
 
-        guard let contextRange = prompt.range(of: "Screen context:"),
+        guard let contextRange = prompt.range(of: "writing in App"),
               let prefixRange = prompt.range(of: "PREFIX_BODY_XYZ") else {
-            XCTFail("Expected both Screen context: and PREFIX_BODY_XYZ in the prompt")
+            XCTFail("Expected both the app-context sentence and PREFIX_BODY_XYZ in the prompt")
             return
         }
 
         XCTAssertLessThan(contextRange.lowerBound, prefixRange.lowerBound,
-                          "prefix must appear after the Screen context header")
+                          "prefix must appear after the app-context sentence")
         XCTAssertTrue(prompt.hasSuffix("PREFIX_BODY_XYZ"))
     }
 
@@ -161,7 +169,7 @@ final class LlamaPromptRendererTests: XCTestCase {
             visualContextSummary: "A window describing a cat."
         )
 
-        XCTAssertTrue(prompt.contains("Screen content:"))
+        XCTAssertTrue(prompt.contains("Nearby on screen, the user can see"))
         XCTAssertTrue(prompt.contains("A window describing a cat."))
     }
 
@@ -174,7 +182,7 @@ final class LlamaPromptRendererTests: XCTestCase {
             clipboardContext: "UNIQUE_CLIPBOARD_MARKER"
         )
 
-        XCTAssertTrue(prompt.contains("User's clipboard:"))
+        XCTAssertTrue(prompt.contains("clipboard currently contains"))
         XCTAssertTrue(prompt.contains("UNIQUE_CLIPBOARD_MARKER"))
     }
 
@@ -187,7 +195,7 @@ final class LlamaPromptRendererTests: XCTestCase {
             visualContextSummary: nil
         )
 
-        XCTAssertFalse(prompt.contains("Screen content:"))
+        XCTAssertFalse(prompt.contains("Nearby on screen"))
     }
 
     // MARK: - messages() chat-template path
@@ -245,7 +253,9 @@ final class LlamaPromptRendererTests: XCTestCase {
         )
 
         XCTAssertTrue(chat.system.contains("autocomplete, not chat"))
-        XCTAssertTrue(chat.system.contains("User is on TextEdit"))
+        // App context is now prose ("The user is writing in TextEdit."), not a "Screen context:"
+        // label block — but the application name itself must still be present.
+        XCTAssertTrue(chat.system.contains("writing in TextEdit"))
     }
 
     func test_messages_systemTurnIncludesProfileRulesContextWhenProvided() {
@@ -265,6 +275,14 @@ final class LlamaPromptRendererTests: XCTestCase {
         XCTAssertTrue(chat.system.contains("Respond in German."))
         XCTAssertTrue(chat.system.contains("copied text"))
         XCTAssertTrue(chat.system.contains("a login form"))
+
+        // The prose invariant: even with every context block populated, the system turn must carry
+        // no standalone "Label:" lines — those are exactly what small models echoed into ghost text.
+        XCTAssertFalse(chat.system.contains("User Profile Context:"))
+        XCTAssertFalse(chat.system.contains("Your style preferences:"))
+        XCTAssertFalse(chat.system.contains("Screen context:"))
+        XCTAssertFalse(chat.system.contains("Screen content:"))
+        XCTAssertFalse(chat.system.contains("User's clipboard:"))
     }
 
     func test_messages_omitsOptionalContextWhenAbsent() {
