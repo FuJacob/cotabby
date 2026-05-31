@@ -17,7 +17,7 @@ struct GeneralPaneView: View {
             if let kofiURL = URL(string: "https://ko-fi.com/cotabby") {
                 Section {
                     HStack(spacing: 12) {
-                        Text("Enjoying Cotabby? Please consider supporting open-source")
+                        Text("Enjoying Cotabby? Please consider supporting free open-source software")
                             .font(.subheadline)
                             .foregroundStyle(.white)
                             .lineLimit(1)
