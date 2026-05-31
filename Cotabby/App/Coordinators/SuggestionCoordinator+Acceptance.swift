@@ -255,17 +255,27 @@ extension SuggestionCoordinator {
         }
     }
 
-    /// Ends the post-exhaustion window and returns the accept key to the host unless a suggestion is
-    /// now visible (in which case the normal overlay path keeps owning it). Idempotent. This is the
-    /// backstop release; the common, prompt release is `onStateChange(.hidden)` clearing the same
-    /// flags as soon as any teardown hides the overlay.
-    func releasePostExhaustionAcceptanceWindow() {
-        guard isPostExhaustionAcceptanceArmed || hasQueuedPostExhaustionAccept else { return }
+    /// Clears the window flags and invalidates the backstop token, so a timer still pending from
+    /// `armPostExhaustionAcceptance` fires as a no-op once the window has ended. Interception is left
+    /// to the caller: whether Tab ownership should drop depends on why the window ended (a fresh
+    /// suggestion keeps owning it; a teardown or the backstop drops it).
+    func clearPostExhaustionAcceptanceWindow() {
         isPostExhaustionAcceptanceArmed = false
         hasQueuedPostExhaustionAccept = false
+        // Cancel any pending backstop, which is keyed to the generation captured at arm time.
+        postExhaustionAcceptanceGeneration &+= 1
+    }
+
+    /// Ends the post-exhaustion window and returns the accept key to the host unless a suggestion is
+    /// now visible (in which case the normal overlay path keeps owning it). Idempotent. This is the
+    /// backstop release; the common, prompt release is `onStateChange(.hidden)` ending the window as
+    /// soon as any teardown hides the overlay.
+    func releasePostExhaustionAcceptanceWindow() {
+        guard isPostExhaustionAcceptanceArmed || hasQueuedPostExhaustionAccept else { return }
         if !overlayState.isVisible {
             inputMonitor.setAcceptInterceptionActive(false)
         }
+        clearPostExhaustionAcceptanceWindow()
     }
 
     /// Once a regenerated continuation is on screen, accepts its first word if the user pressed Tab
@@ -274,12 +284,21 @@ extension SuggestionCoordinator {
     /// end of `apply`'s success path, after the new session and overlay exist.
     func flushQueuedPostExhaustionAcceptIfNeeded() {
         let shouldAccept = isPostExhaustionAcceptanceArmed && hasQueuedPostExhaustionAccept
-        // Normal acceptance has resumed now that a fresh suggestion is visible, so leave the armed
-        // state regardless of whether a press was queued.
-        isPostExhaustionAcceptanceArmed = false
-        hasQueuedPostExhaustionAccept = false
+        // Normal acceptance has resumed now that a fresh suggestion is visible, so end the window
+        // regardless of whether a press was queued (this also cancels the now-redundant backstop).
+        clearPostExhaustionAcceptanceWindow()
         guard shouldAccept else { return }
-        _ = acceptCurrentSuggestion()
+        // A queued accept can still legitimately fail (the new continuation no longer reconciles with
+        // live AX, or insertion fails). `acceptSuggestion` cleans up its own state on failure, so log
+        // the rare miss for diagnosis instead of letting the swallowed Tab vanish without a trace.
+        if !acceptCurrentSuggestion() {
+            logStage(
+                "flush-queued-accept-failed",
+                workID: currentWorkID,
+                generation: latestGenerationNumber,
+                message: "Flushed a queued post-exhaustion Tab, but the follow-up acceptance returned false."
+            )
+        }
     }
 
     /// Advances the active session from the user's directly typed characters when they match the

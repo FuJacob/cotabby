@@ -202,12 +202,11 @@ final class SuggestionCoordinator: ObservableObject {
             case .hidden:
                 self.inputMonitor.setAcceptInterceptionActive(false)
                 // A hidden overlay ends any post-exhaustion Tab-ownership window. Every teardown and
-                // abort path hides the overlay, so clearing the flags here is the single catch-all
-                // that returns the accept key to the host once the window is genuinely over. The
-                // `.exhausted` accept re-arms *after* its own `hideOverlay` call, so this never
-                // cancels a window that was just opened.
-                self.isPostExhaustionAcceptanceArmed = false
-                self.hasQueuedPostExhaustionAccept = false
+                // abort path hides the overlay, so ending the window here is the single catch-all
+                // that returns the accept key to the host (and cancels the backstop timer) once the
+                // window is genuinely over. The `.exhausted` accept re-arms *after* its own
+                // `hideOverlay` call, so this never cancels a window that was just opened.
+                self.clearPostExhaustionAcceptanceWindow()
             }
         }
 
