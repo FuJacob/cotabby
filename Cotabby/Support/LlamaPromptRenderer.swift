@@ -1,12 +1,15 @@
 import Foundation
 
 /// File overview:
-/// Renders the single prompt string consumed by the local llama runtime.
+/// Renders the prompts consumed by the local llama runtime, in two shapes: `prompt(...)` for the
+/// raw single-string path (base / no-template models) and `messages(...)` for the chat-template
+/// path (instruct models that ship a template). Both are plain prose with no standalone `Label:`
+/// lines, because small instruct models echo a bare label line straight into the ghost text.
 ///
 /// Why this file exists:
 /// llama.cpp does not give us a separate "instructions" channel the way Foundation Models does.
-/// That means all base behavior, user preferences, and request context must be composed into one
-/// prompt string. Keeping that composition isolated here prevents prompt policy from leaking into
+/// That means all base behavior, user preferences, and request context must be composed by us.
+/// Keeping that composition isolated here prevents prompt policy from leaking into
 /// `SuggestionRequestFactory` or the runtime lifecycle layer.
 enum LlamaPromptRenderer {
     /// Renders Cotabby's local-model prompt.
