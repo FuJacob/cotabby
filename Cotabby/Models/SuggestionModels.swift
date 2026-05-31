@@ -98,9 +98,9 @@ struct SuggestionConfiguration: Equatable, Sendable {
     static let standard = SuggestionConfiguration(
         // Keep completions short so ghost text stays fast and easy to accept.
         maxPredictionTokens: 8,
-        // Aggressive debounce: 30ms keeps time-to-first-suggestion low while still collapsing
+        // Aggressive debounce: 20ms keeps time-to-first-suggestion low while still collapsing
         // bursts (superseded generations are cancelled; the host-publish poll absorbs AX lag).
-        debounceMilliseconds: 30,
+        debounceMilliseconds: 20,
         // Low temperature keeps inline completions stable and less likely to drift.
         temperature: 0.1,
         topK: 20,
@@ -122,7 +122,7 @@ struct SuggestionConfiguration: Equatable, Sendable {
         // Seed the profile settings with lightweight defaults on first launch.
         defaultUserName: "Jacob",
         defaultWordCountPreset: .twelveToTwenty,
-        focusPollIntervalMilliseconds: 80
+        focusPollIntervalMilliseconds: 50
     )
 }
 

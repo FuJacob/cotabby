@@ -26,7 +26,7 @@ final class VisualContextCoordinator {
     /// doesn't keep re-arming the timer.
     private var pendingStartTask: Task<Void, Never>?
     private var pendingStartContext: FocusedInputSnapshot?
-    private static let sessionStartSettleNanoseconds: UInt64 = 350_000_000
+    private static let sessionStartSettleNanoseconds: UInt64 = 250_000_000
 
     private static let permissionMissingReason =
         "Screen Recording permission is required for screenshot-derived prompt context."
