@@ -26,14 +26,19 @@ enum ScreenshotContextGenerationError: LocalizedError {
 
 @MainActor
 final class ScreenshotContextGenerator {
-    private let screenshotService: WindowScreenshotService
-    private let textExtractor: ScreenTextExtractor
+    private enum ContextSource: String {
+        case summary
+        case ocrFallback = "ocr_fallback"
+    }
+
+    private let screenshotService: any WindowScreenshotCapturing
+    private let textExtractor: any ScreenTextExtracting
     private let summarizer: VisualContextSummarizing?
     private let configuration: VisualContextConfiguration
 
     init(
-        screenshotService: WindowScreenshotService? = nil,
-        textExtractor: ScreenTextExtractor? = nil,
+        screenshotService: (any WindowScreenshotCapturing)? = nil,
+        textExtractor: (any ScreenTextExtracting)? = nil,
         summarizer: VisualContextSummarizing? = nil,
         configuration: VisualContextConfiguration? = nil
     ) {
@@ -63,17 +68,25 @@ final class ScreenshotContextGenerator {
         do {
             extractedText = try await textExtractor.extractText(from: screenshot.image).text
         } catch ScreenTextExtractionError.noRecognizedText {
-            guard let windowTitle = screenshot.windowTitle,
-                hasMeaningfulSignal(windowTitle)
+            guard let windowTitle = screenshot.windowTitle else {
+                throw ScreenshotContextGenerationError.unavailable(
+                    "The screenshot did not contain enough visible text to build prompt context."
+                )
+            }
+
+            let normalizedTitle = normalizeRecognizedText(windowTitle)
+            guard hasMeaningfulSignal(normalizedTitle)
             else {
                 throw ScreenshotContextGenerationError.unavailable(
                     "The screenshot did not contain enough visible text to build prompt context."
                 )
             }
 
-            return VisualContextExcerpt(
-                text: boundedSummaryText(normalizeRecognizedText(windowTitle))
+            let finalTitleContext = boundedSummaryText(normalizedTitle)
+            CotabbyLogger.app.debug(
+                "Visual context ready source=\(ContextSource.ocrFallback.rawValue) chars=\(finalTitleContext.count)"
             )
+            return VisualContextExcerpt(text: finalTitleContext)
         } catch let error as ScreenTextExtractionError {
             throw ScreenshotContextGenerationError.unavailable(error.localizedDescription)
         } catch {
@@ -97,34 +110,45 @@ final class ScreenshotContextGenerator {
             )
         }
 
-        let generatedContextText: String
+        var contextSource = ContextSource.ocrFallback
+        var finalContextText = boundedSummaryText(normalizedText)
         if let summarizer = summarizer {
             await onStatusChange?(.summarizingText)
             do {
-                generatedContextText = try await summarizer.summarize(
+                let summaryText = try await summarizer.summarize(
                     text: normalizedText,
                     applicationName: context.applicationName
                 )
+                let boundedSummary = boundedSummaryText(summaryText)
+                if hasMeaningfulSignal(boundedSummary) {
+                    contextSource = .summary
+                    finalContextText = boundedSummary
+                } else {
+                    CotabbyLogger.app.debug(
+                        "Visual context summary empty after sanitization; using sanitized OCR fallback"
+                    )
+                }
             } catch {
                 // Summarization can fail when no GGUF model is available (e.g. the user
-                // hasn't downloaded one yet, or is using Apple Intelligence). Fall back to
-                // the raw OCR text so visual context still reaches the prompt.
-                generatedContextText = normalizedText
+                // hasn't downloaded one yet), hits its timeout, or returns no usable text.
+                // A non-empty sanitized OCR body is still better than discarding visual context.
+                CotabbyLogger.app.debug(
+                    "Visual context summary unavailable; using sanitized OCR fallback reason=\(error.localizedDescription)"
+                )
             }
-        } else {
-            generatedContextText = normalizedText
         }
 
-        let finalContextText = boundedSummaryText(generatedContextText)
         guard hasMeaningfulSignal(finalContextText) else {
             throw ScreenshotContextGenerationError.unavailable(
                 "The screenshot did not contain enough visible text to build prompt context."
             )
         }
 
-        return VisualContextExcerpt(
-            text: finalContextText
+        CotabbyLogger.app.debug(
+            "Visual context ready source=\(contextSource.rawValue) chars=\(finalContextText.count)"
         )
+
+        return VisualContextExcerpt(text: finalContextText)
     }
 
     private func captureScreenshot(

@@ -146,6 +146,9 @@
 		96782E57CA26A16409368B69 /* TextDirectionDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 328847A0F494360033366791 /* TextDirectionDetector.swift */; };
 		9706D778FB549E9E7AE05F4F /* EmojiMatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1441B2D89DAE6878DAD11F17 /* EmojiMatcher.swift */; };
 		98E2E14A069384C1088CDB44 /* PromptContextSanitizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA4B45B91D4DEAC979C3113E /* PromptContextSanitizer.swift */; };
+		AA1000010000000000000001 /* VisualContextSummaryPromptRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA1000010000000000000002 /* VisualContextSummaryPromptRenderer.swift */; };
+		AA1000010000000000000003 /* ScreenshotContextGeneratorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA1000010000000000000004 /* ScreenshotContextGeneratorTests.swift */; };
+		AA1000010000000000000005 /* VisualContextSummaryPromptRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA1000010000000000000006 /* VisualContextSummaryPromptRendererTests.swift */; };
 		9ABF75CDA78B27453C3F5B34 /* WelcomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 264CA64B2AB1611F82E5B760 /* WelcomeView.swift */; };
 		9F2FDCABCC941CBECAA3B4AB /* CotabbyInference in Frameworks */ = {isa = PBXBuildFile; productRef = 48A46AD6B613CF06072603E4 /* CotabbyInference */; };
 		A0657CE0488F69F0BD559CBC /* SuggestionCoordinator+Acceptance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72B13136DF7318F3E96DF0D3 /* SuggestionCoordinator+Acceptance.swift */; };
@@ -353,6 +356,9 @@
 		9AA0117B322C625F6D4BBEAB /* MenuBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarView.swift; sourceTree = "<group>"; };
 		9B55A4362AB7F0528C661C4C /* SuggestionTextNormalizerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionTextNormalizerTests.swift; sourceTree = "<group>"; };
 		9B84BAE361626891F19DC9DB /* ScreenshotContextGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotContextGenerator.swift; sourceTree = "<group>"; };
+		AA1000010000000000000002 /* VisualContextSummaryPromptRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisualContextSummaryPromptRenderer.swift; sourceTree = "<group>"; };
+		AA1000010000000000000004 /* ScreenshotContextGeneratorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotContextGeneratorTests.swift; sourceTree = "<group>"; };
+		AA1000010000000000000006 /* VisualContextSummaryPromptRendererTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisualContextSummaryPromptRendererTests.swift; sourceTree = "<group>"; };
 		9C8F07AC52C7A482F5FE34C5 /* SuggestionSessionReconcilerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionSessionReconcilerTests.swift; sourceTree = "<group>"; };
 		9CF4FB0EC6C1BEB4EA74910A /* ClipboardContextProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipboardContextProvider.swift; sourceTree = "<group>"; };
 		9D598CC3134879999D567455 /* SuggestionOverlayPresenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionOverlayPresenter.swift; sourceTree = "<group>"; };
@@ -699,6 +705,7 @@
 				E7F42112F14026E6253BB865 /* PermissionAndContextModelTests.swift */,
 				12DD19BCE610808F1E38702D /* PermissionOverlayTrackerTests.swift */,
 				0D80CC2CCAAFE3F23FB8C37A /* PromptContextSanitizerTests.swift */,
+				AA1000010000000000000004 /* ScreenshotContextGeneratorTests.swift */,
 				4696A84D17890B154533A08F /* PromptPolicyTests.swift */,
 				2BC293F6125E2B14DCF05AD9 /* SettingsAttentionEvaluatorTests.swift */,
 				0850B07CCDBA67C756C6EC59 /* ShortcutConflictTests.swift */,
@@ -713,6 +720,7 @@
 				43E37A7E835D3BDE6265843C /* TerminalAppDetectorTests.swift */,
 				FC24FD54860CE6737E65EF65 /* TextDirectionDetectorTests.swift */,
 				050D929E13BE52E6282B64D2 /* VisualContextStartCoalescerTests.swift */,
+				AA1000010000000000000006 /* VisualContextSummaryPromptRendererTests.swift */,
 				1E0513E3B23937B099A3CFF2 /* WordCountFormatterTests.swift */,
 			);
 			path = CotabbyTests;
@@ -838,6 +846,7 @@
 				FA878B447441BB4F3E327CC8 /* OnboardingTemplateRecommender.swift */,
 				E6423D6CC8CC371D2DA899DE /* PermissionOverlayTracker.swift */,
 				FA4B45B91D4DEAC979C3113E /* PromptContextSanitizer.swift */,
+				AA1000010000000000000002 /* VisualContextSummaryPromptRenderer.swift */,
 				6DC693E00430F46E41CB56E6 /* RequestID.swift */,
 				2A02336442BB735EE2E8D064 /* SettingsAttentionEvaluator.swift */,
 				3609CC88A5280B3AA40414DF /* SuggestionAvailabilityEvaluator.swift */,
@@ -1075,6 +1084,7 @@
 				90DC9508F27F712EB61EEB06 /* PermissionReminderView.swift in Sources */,
 				39571AB31481959CD5C223AE /* PermissionsPaneView.swift in Sources */,
 				98E2E14A069384C1088CDB44 /* PromptContextSanitizer.swift in Sources */,
+				AA1000010000000000000001 /* VisualContextSummaryPromptRenderer.swift in Sources */,
 				A5A6CE0EF01CA6A9AFA7A400 /* RequestID.swift in Sources */,
 				82D4ADEAF05337ABDE4C586C /* RuntimeBootstrapModel.swift in Sources */,
 				2C6159231472A849F15BD0AE /* ScreenFrameReader.swift in Sources */,
@@ -1170,6 +1180,7 @@
 				15FA56CEF6FB5FF54C2FBA6F /* PermissionAndContextModelTests.swift in Sources */,
 				4F38CE1C2602CF4F41323032 /* PermissionOverlayTrackerTests.swift in Sources */,
 				934885ACC2DEA20B27F10948 /* PromptContextSanitizerTests.swift in Sources */,
+				AA1000010000000000000003 /* ScreenshotContextGeneratorTests.swift in Sources */,
 				3CF1A4E39F24917DF0470A7D /* PromptPolicyTests.swift in Sources */,
 				C618C5595DA9C57C806A3E03 /* SettingsAttentionEvaluatorTests.swift in Sources */,
 				8441299082E6B68F7F88911B /* ShortcutConflictTests.swift in Sources */,
@@ -1184,6 +1195,7 @@
 				DE236C9285635C686D66A2F6 /* TerminalAppDetectorTests.swift in Sources */,
 				5A441797D71A880A7482077D /* TextDirectionDetectorTests.swift in Sources */,
 				D5CAF3B590E5EC2AFC72E57A /* VisualContextStartCoalescerTests.swift in Sources */,
+				AA1000010000000000000005 /* VisualContextSummaryPromptRendererTests.swift in Sources */,
 				6AE0B46FB52D189D94E1F79A /* WordCountFormatterTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

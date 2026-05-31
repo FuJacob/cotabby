@@ -6,8 +6,8 @@ import Logging
 
 /// File overview:
 /// Polls and exposes the three system permissions Cotabby depends on: Accessibility for reading
-/// focus state, Input Monitoring for global key capture, and Screen Recording for legacy screenshot
-/// experiments that are currently deprecated in the autocomplete request path.
+/// focus state, Input Monitoring for global key capture, and Screen Recording for screenshot
+/// context that improves autocomplete relevance.
 ///
 /// `@MainActor` guarantees permission state is mutated on the UI thread.
 @MainActor
@@ -127,7 +127,7 @@ final class PermissionManager: ObservableObject {
         openSettings(for: .inputMonitoring)
     }
 
-    /// Opens System Settings directly to the Screen Recording pane for legacy screenshot tooling.
+    /// Opens System Settings directly to the Screen Recording pane for visual context capture.
     func openScreenRecordingSettings() {
         openSettings(for: .screenRecording)
     }

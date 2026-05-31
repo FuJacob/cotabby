@@ -95,11 +95,11 @@ final class VisualContextModelTests: XCTestCase {
 
     func test_defaultConfiguration_hasExpectedValues() {
         let config = VisualContextConfiguration.default
-        XCTAssertEqual(config.snapshotDimension, 500)
-        XCTAssertEqual(config.maxImageDimension, 900)
+        XCTAssertEqual(config.snapshotDimension, 700)
+        XCTAssertEqual(config.maxImageDimension, 1600)
         XCTAssertEqual(config.minRecognizedCharacterCount, 12)
-        XCTAssertEqual(config.maxRecognizedCharacters, 2000)
-        XCTAssertEqual(config.maxSummaryCharacters, 900)
+        XCTAssertEqual(config.maxRecognizedCharacters, 5000)
+        XCTAssertEqual(config.maxSummaryCharacters, 1500)
     }
 
     func test_focusedInputAugmentationSession_equatableConformance() {

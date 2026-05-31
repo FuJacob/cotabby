@@ -34,7 +34,7 @@ struct PermissionsPaneView: View {
                 permissionRow(
                     title: "Screen Recording",
                     description: "Lets Cotabby take a screenshot of the focused window to use as " +
-                        "additional context. Optional — Fast Mode skips this.",
+                        "additional context. Required even when Fast Mode skips capture.",
                     granted: permissionManager.screenRecordingGranted,
                     action: permissionManager.openScreenRecordingSettings
                 )

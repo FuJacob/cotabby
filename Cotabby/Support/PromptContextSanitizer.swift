@@ -44,10 +44,13 @@ enum PromptContextSanitizer {
         return boundedText.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    /// Stricter sanitization for OCR text headed to the summarizer. On top of the base sanitize
-    /// pass, this drops single/two-character noise tokens and standalone numbers that come from
-    /// UI chrome (PID numbers, CPU percentages, pixel dimensions). Lines that become mostly empty
-    /// after filtering are dropped entirely.
+    /// Stricter sanitization for OCR text headed to the summarizer.
+    ///
+    /// OCR adds a second failure mode beyond ordinary prompt injection: Vision can hallucinate
+    /// short mixed-case blobs, random alphanumeric IDs, repeated glyphs, and numeric UI chrome.
+    /// Those fragments are especially harmful for autocomplete because the model may copy them as
+    /// the next token. The line pass below keeps real prose and technical terms, but drops a line
+    /// when most of its original tokens score as OCR noise.
     static func sanitizeOCR(_ rawText: String, maxCharacters: Int? = nil) -> String {
         let baseSanitized = sanitize(rawText, maxCharacters: nil)
         let filteredLines = baseSanitized
@@ -77,27 +80,164 @@ enum PromptContextSanitizer {
         "to", "up", "us", "we"
     ]
 
-    /// Filters a single OCR line: drops short noise tokens and standalone numbers, then drops
-    /// the entire line if fewer than half its original tokens survived.
+    /// Short technical words and acronyms that are semantically valuable even though generic OCR
+    /// filters would treat them as too short or vowel-free.
+    private static let preservedTechnicalTokens: Set<String> = [
+        "ai", "api", "app", "apps", "ax", "bug", "bugs", "ci", "cmd", "css",
+        "dom", "git", "gpu", "html", "http", "id", "ids", "io", "json", "llm",
+        "ocr", "pdf", "pr", "prs", "qa", "sql", "ui", "url", "ux", "xpc"
+    ]
+
+    private static let commonAcronyms: Set<String> = [
+        "AI", "API", "AX", "CI", "CPU", "CSS", "DOM", "GPU", "HTML", "HTTP",
+        "ID", "IO", "JSON", "LLM", "OCR", "PDF", "PR", "QA", "SQL", "UI",
+        "URL", "UX", "XPC"
+    ]
+
+    private static let knownWordSignals = [
+        "accept", "app", "autocomplete", "button", "chat", "chrome", "class",
+        "code", "context", "cotabby", "document", "email", "error", "field",
+        "file", "fix", "function", "github", "google", "issue", "jira", "linear",
+        "message", "model", "notion", "pane", "prompt", "pull", "request",
+        "safari", "screen", "setting", "slack", "summary", "swift", "task",
+        "test", "token", "user", "view", "xcode"
+    ]
+
+    private struct OCRTokenAssessment {
+        let shouldKeep: Bool
+        let isStrongSignal: Bool
+    }
+
+    /// Filters a single OCR line with deterministic token scoring, then drops the entire line if
+    /// fewer than half its original tokens survived.
     private static func filterOCRNoiseLine(_ line: String) -> String? {
         let tokens = line.components(separatedBy: " ").filter { !$0.isEmpty }
         guard !tokens.isEmpty else { return nil }
 
-        let kept = tokens.filter { token in
-            // Drop standalone numbers (UI chrome: "50", "424", "102")
-            if token.allSatisfy(\.isNumber) { return false }
-            // Keep common short English words; drop other 1-2 char noise ("l", "I", "iD3")
-            if token.count <= 2 {
-                return preservedShortWords.contains(token.lowercased())
-            }
-            return true
+        let assessedTokens = tokens.map { token in
+            (token: token, assessment: assessOCRToken(token))
         }
+        let kept = assessedTokens
+            .filter(\.assessment.shouldKeep)
+            .map(\.token)
 
         // If more than half the tokens were noise, the whole line is probably UI chrome.
         guard kept.count * 2 >= tokens.count else { return nil }
+        guard assessedTokens.contains(where: { $0.assessment.shouldKeep && $0.assessment.isStrongSignal }) else {
+            return nil
+        }
 
         let result = kept.joined(separator: " ")
         return result.isEmpty ? nil : result
+    }
+
+    private static func assessOCRToken(_ token: String) -> OCRTokenAssessment {
+        let lowercasedToken = token.lowercased()
+
+        if token.allSatisfy(\.isNumber) {
+            return OCRTokenAssessment(shouldKeep: false, isStrongSignal: false)
+        }
+
+        if isEmailLikeToken(token) || isFileOrDomainLikeToken(token) {
+            return OCRTokenAssessment(shouldKeep: true, isStrongSignal: true)
+        }
+
+        if preservedTechnicalTokens.contains(lowercasedToken) || commonAcronyms.contains(token) {
+            return OCRTokenAssessment(shouldKeep: true, isStrongSignal: true)
+        }
+
+        if token.count <= 2 {
+            let shouldKeep = preservedShortWords.contains(lowercasedToken)
+            return OCRTokenAssessment(shouldKeep: shouldKeep, isStrongSignal: false)
+        }
+
+        if isRepeatedGlyphJunk(token) {
+            return OCRTokenAssessment(shouldKeep: false, isStrongSignal: false)
+        }
+
+        if containsLettersAndNumbers(token) {
+            let hasKnownWord = containsKnownWordSignal(token)
+            return OCRTokenAssessment(shouldKeep: hasKnownWord, isStrongSignal: hasKnownWord)
+        }
+
+        if isLikelyShortMixedCaseNoise(token) {
+            return OCRTokenAssessment(shouldKeep: false, isStrongSignal: false)
+        }
+
+        let shouldKeep = hasWordSignal(token)
+        return OCRTokenAssessment(shouldKeep: shouldKeep, isStrongSignal: shouldKeep)
+    }
+
+    private static func isEmailLikeToken(_ token: String) -> Bool {
+        let parts = token.split(separator: "@", omittingEmptySubsequences: false)
+        guard parts.count == 2 else { return false }
+        return containsLetter(String(parts[0])) && isFileOrDomainLikeToken(String(parts[1]))
+    }
+
+    private static func isFileOrDomainLikeToken(_ token: String) -> Bool {
+        let parts = token.split(separator: ".", omittingEmptySubsequences: false)
+        guard parts.count >= 2, parts.allSatisfy({ !$0.isEmpty }) else { return false }
+        return parts.contains { containsLetter(String($0)) }
+    }
+
+    private static func containsLettersAndNumbers(_ token: String) -> Bool {
+        containsLetter(token) && token.contains(where: \.isNumber)
+    }
+
+    private static func containsLetter(_ token: String) -> Bool {
+        token.contains(where: \.isLetter)
+    }
+
+    private static func containsKnownWordSignal(_ token: String) -> Bool {
+        let lowercasedToken = token.lowercased()
+        return knownWordSignals.contains { lowercasedToken.contains($0) }
+    }
+
+    private static func hasWordSignal(_ token: String) -> Bool {
+        guard containsLetter(token) else { return false }
+        let lowercasedToken = token.lowercased()
+        if containsKnownWordSignal(lowercasedToken) {
+            return true
+        }
+
+        return lowercasedToken.unicodeScalars.contains { scalar in
+            CharacterSet(charactersIn: "aeiouy").contains(scalar)
+        }
+    }
+
+    private static func isRepeatedGlyphJunk(_ token: String) -> Bool {
+        let scalars = token.lowercased().unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) }
+        guard scalars.count >= 4 else { return false }
+
+        var frequencies: [UnicodeScalar: Int] = [:]
+        for scalar in scalars {
+            frequencies[scalar, default: 0] += 1
+        }
+
+        let mostCommonCount = frequencies.values.max() ?? 0
+        return mostCommonCount * 2 >= scalars.count
+    }
+
+    private static func isLikelyShortMixedCaseNoise(_ token: String) -> Bool {
+        let letters = token.filter(\.isLetter)
+        guard token.count <= 12, letters.count >= 4 else { return false }
+
+        let uppercaseCount = letters.filter(\.isUppercase).count
+        let lowercaseCount = letters.filter(\.isLowercase).count
+        guard uppercaseCount > 0, lowercaseCount > 0 else { return false }
+
+        if containsKnownWordSignal(token) {
+            return false
+        }
+
+        // A single leading capital is normal prose ("Safari", "Cotabby"). Multiple capitals in
+        // a short token without a known technical word is usually OCR garbage ("gLVWrt", "bDokE").
+        let firstCharacterIsUppercase = letters.first?.isUppercase == true
+        if firstCharacterIsUppercase && uppercaseCount == 1 {
+            return false
+        }
+
+        return uppercaseCount >= 2 || !firstCharacterIsUppercase
     }
 
     private static func collapseInlineWhitespace(in line: String) -> String {

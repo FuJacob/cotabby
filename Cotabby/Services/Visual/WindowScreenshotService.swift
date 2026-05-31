@@ -17,6 +17,18 @@ struct CapturedWindowScreenshot {
     let windowTitle: String?
 }
 
+/// Test seam for screen capture.
+///
+/// ScreenCaptureKit is permissioned, asynchronous, and window-manager dependent. Keeping this
+/// protocol narrow lets `ScreenshotContextGenerator` tests focus on context policy instead of
+/// requiring a live macOS desktop capture.
+protocol WindowScreenshotCapturing {
+    func captureSnapshot(
+        around context: FocusedInputSnapshot,
+        snapshotDimension: Int
+    ) async throws -> CapturedWindowScreenshot
+}
+
 enum WindowScreenshotError: LocalizedError {
     case screenRecordingPermissionMissing
     case noVisibleWindowForProcess(pid_t)
@@ -34,15 +46,15 @@ enum WindowScreenshotError: LocalizedError {
     }
 }
 
-struct WindowScreenshotService {
+struct WindowScreenshotService: WindowScreenshotCapturing {
     private enum CaptureMetrics {
         /// Extra horizontal context captured around the focused field. ScreenCaptureKit works in
         /// display points here, which map to physical pixels later through `backingScaleFactor`.
-        static let horizontalPadding: CGFloat = 100
+        static let horizontalPadding: CGFloat = 160
 
         /// Capture a taller band above the input so OCR can see nearby labels, messages, and
         /// surrounding page content instead of only the field chrome.
-        static let verticalContextHeight: CGFloat = 600
+        static let verticalContextHeight: CGFloat = 800
     }
 
     /// Finds the most relevant visible window for the focused process and captures an expanded

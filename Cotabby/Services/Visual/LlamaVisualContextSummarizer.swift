@@ -10,6 +10,17 @@ protocol VisualContextSummarizing: AnyObject, Sendable {
     func summarize(text: String, applicationName: String) async throws -> String
 }
 
+enum VisualContextSummarizationError: LocalizedError {
+    case emptyResult
+
+    var errorDescription: String? {
+        switch self {
+        case .emptyResult:
+            return "Visual context summarization produced no usable text."
+        }
+    }
+}
+
 /// Local-model implementation of visual-context summarization.
 ///
 /// This type owns only the summarization prompt. Screenshot capture, OCR, prompt-injection limits,
@@ -17,7 +28,7 @@ protocol VisualContextSummarizing: AnyObject, Sendable {
 /// hidden owner of the visual-context lifecycle.
 @MainActor
 final class LlamaVisualContextSummarizer: VisualContextSummarizing {
-    private static let timeoutSeconds: UInt64 = 3
+    private static let timeoutSeconds: UInt64 = 6
     private let runtimeManager: LlamaRuntimeManager
 
     init(runtimeManager: LlamaRuntimeManager) {
@@ -32,37 +43,31 @@ final class LlamaVisualContextSummarizer: VisualContextSummarizing {
         // repeating signal without losing any unique content.
         let deduplicatedText = deduplicateConsecutiveLines(text)
 
-        let prompt = [
-            "Task: Write a concise, 4-sentence summary of what the provided text from the application '\(applicationName)' is about.",
-            "",
-            "Rules:",
-            "1. Output exactly and ONLY the summary text.",
-            "2. DO NOT add conversational filler (e.g., 'Here is the summary').",
-            "3. DO NOT add extra instructions or meta-commentary.",
-            "4. DO NOT repeat the prompt.",
-            "",
-            "--- START SCREEN TEXT ---",
-            deduplicatedText,
-            "--- END SCREEN TEXT ---",
-            "",
-            "Summary:"
-        ].joined(separator: "\n")
+        let prompt = VisualContextSummaryPromptRenderer.prompt(
+            applicationName: applicationName,
+            screenText: deduplicatedText
+        )
 
-        let result = await summarizeWithTimeout(prompt: prompt)
+        let result = try await summarizeWithTimeout(prompt: prompt)
         let trimmedResult = result.trimmingCharacters(in: .whitespacesAndNewlines)
-        return truncateAtRepeatedBlock(trimmedResult)
+        let cleanedResult = truncateAtRepeatedBlock(trimmedResult)
+        guard !cleanedResult.isEmpty else {
+            throw VisualContextSummarizationError.emptyResult
+        }
+
+        return cleanedResult
     }
 
     /// Soft timeout: runs generation in a child Task and cancels it after the deadline.
     /// `LlamaRuntimeCore.summarize()` checks `Task.isCancelled` each token and returns whatever
     /// partial text it has accumulated, so the result is the best-effort summary — not a failure.
-    private func summarizeWithTimeout(prompt: String) async -> String {
+    private func summarizeWithTimeout(prompt: String) async throws -> String {
         let manager = runtimeManager
 
         let generationTask = Task {
             try await manager.summarize(
                 prompt: prompt,
-                maxPredictionTokens: 80,
+                maxPredictionTokens: 160,
                 temperature: 0
             )
         }
@@ -72,16 +77,11 @@ final class LlamaVisualContextSummarizer: VisualContextSummarizing {
             generationTask.cancel()
         }
 
-        // Wait for generation to finish. On timeout, cancel fires → Task.isCancelled breaks
-        // the token loop → core.summarize() returns partial text → task.value returns it.
-        let result: String
-        do {
-            result = try await generationTask.value
-        } catch {
-            CotabbyLogger.app.warning("Visual context summarization failed: \(error.localizedDescription)")
-            result = ""
-        }
-        timeoutTask.cancel()
+        defer { timeoutTask.cancel() }
+
+        // Wait for generation to finish. On timeout, cancellation either returns a partial summary
+        // from the runtime or throws; both paths are useful because the caller can fall back to OCR.
+        let result = try await generationTask.value
         if result.isEmpty {
             CotabbyLogger.app.debug("Summarization produced empty result")
         } else {

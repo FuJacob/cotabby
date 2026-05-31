@@ -8,15 +8,20 @@ import Logging
 /// This is the bridge between raw image capture and the existing text-only local LLM runtime.
 ///
 /// We deliberately downsample very large screenshots before OCR. The goal is not archival fidelity;
-/// it is fast, good-enough semantic extraction for autocomplete context.
-///
-/// DEPRECATED:
-/// The current autocomplete request path no longer injects OCR-derived context.
-/// Keep this extractor only for legacy experiments until the context rewrite lands.
+/// it is bounded semantic extraction for autocomplete context. This pass favors useful text
+/// recovery over minimum latency because the output is captured once per focused field.
 
 struct ExtractedScreenText: Sendable {
     let text: String
     let lineCount: Int
+}
+
+/// Test seam for screenshot OCR.
+///
+/// `ScreenshotContextGenerator` owns orchestration, while this protocol lets tests inject
+/// deterministic OCR without depending on Vision, Screen Recording permission, or real pixels.
+protocol ScreenTextExtracting {
+    func extractText(from image: CGImage) async throws -> ExtractedScreenText
 }
 
 enum ScreenTextExtractionError: LocalizedError {
@@ -33,7 +38,7 @@ enum ScreenTextExtractionError: LocalizedError {
     }
 }
 
-struct ScreenTextExtractor {
+struct ScreenTextExtractor: ScreenTextExtracting {
     let maxImageDimension: Int
     let maxRecognizedCharacters: Int
 
@@ -98,9 +103,11 @@ struct ScreenTextExtractor {
                     continuation.resume(returning: ExtractedScreenText(text: cappedText, lineCount: orderedLines.count))
                 }
 
-                request.recognitionLevel = .fast
+                // Accurate OCR is slower, but visual context is only captured once per focused
+                // field and the result can materially improve autocomplete relevance.
+                request.recognitionLevel = .accurate
                 request.usesLanguageCorrection = false
-                request.minimumTextHeight = 0.012
+                request.minimumTextHeight = 0.008
 
                 do {
                     let handler = VNImageRequestHandler(cgImage: preparedImage, options: [:])

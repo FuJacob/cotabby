@@ -18,14 +18,15 @@ struct VisualContextConfiguration: Equatable, Sendable {
     let maxSummaryCharacters: Int
 
     static let `default` = VisualContextConfiguration(
-        // Capture a compact area around the focused field instead of an entire window.
-        snapshotDimension: 500,
-        // Retina screenshots may still arrive at ~2x backing scale, so keep a small OCR ceiling.
-        maxImageDimension: 900,
+        // Capture a wider field-centered area so OCR can see nearby labels and conversation turns.
+        snapshotDimension: 700,
+        // Vision's accurate mode benefits from more pixels, especially on dense document UIs.
+        maxImageDimension: 1600,
         minRecognizedCharacterCount: 12,
-        // OCR text is injected directly into the completion prompt, so keep it intentionally short.
-        maxRecognizedCharacters: 2000,
-        maxSummaryCharacters: 900
+        // The summarizer needs enough raw OCR to recover task, filenames, and nearby messages.
+        maxRecognizedCharacters: 5000,
+        // The final prompt still stays bounded even when summarization falls back to OCR.
+        maxSummaryCharacters: 1500
     )
 }
 
