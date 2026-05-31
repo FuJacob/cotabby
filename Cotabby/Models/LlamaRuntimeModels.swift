@@ -206,6 +206,10 @@ struct LlamaGenerationOptions: Equatable, Sendable {
     /// Constrains the first generated token to continue the current word (mid-word carets only).
     var forceWordContinuation: Bool = false
 
+    /// Average per-token log-probability below which a completion is suppressed as low-confidence.
+    /// Defaults to -infinity, which disables suppression entirely.
+    var confidenceFloor: Double = -.infinity
+
     static func summary(maxPredictionTokens: Int, temperature: Double) -> LlamaGenerationOptions {
         LlamaGenerationOptions(
             maxPredictionTokens: maxPredictionTokens,
