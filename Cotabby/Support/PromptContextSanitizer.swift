@@ -146,13 +146,32 @@ enum PromptContextSanitizer {
             return OCRTokenAssessment(shouldKeep: true, isStrongSignal: true)
         }
 
+        if isRepeatedGlyphJunk(token) {
+            return OCRTokenAssessment(shouldKeep: false, isStrongSignal: false)
+        }
+
+        // Non-Latin scripts (CJK, Cyrillic, Greek, Arabic, Hebrew, Thai, ...) and accented Latin
+        // (café, Zürich, naïve) carry real context but have no ASCII vowel and never match the
+        // English word lists, so the Latin-tuned heuristics below would strip them to nothing and
+        // leave non-English users with no visual context at all. Numbers and repeated-glyph junk
+        // are already rejected above, so a token carrying genuine non-ASCII letters is real OCR
+        // text: keep it as strong signal. (Splitting the Latin tail into its own helper also keeps
+        // this function under the cyclomatic-complexity limit.)
+        if containsNonASCIILetter(token) {
+            return OCRTokenAssessment(shouldKeep: true, isStrongSignal: true)
+        }
+
+        return assessLatinToken(token, lowercased: lowercasedToken)
+    }
+
+    /// Scores an ASCII-only token. Reached only after `assessOCRToken` has handled numbers, emails,
+    /// file/domain tokens, acronyms, repeated-glyph junk, and any token carrying non-ASCII letters.
+    private static func assessLatinToken(_ token: String, lowercased lowercasedToken: String) -> OCRTokenAssessment {
+        // A token this short can never be repeated-glyph junk (that needs >= 4 scalars), so the
+        // earlier ordering relative to that check does not change the outcome.
         if token.count <= 2 {
             let shouldKeep = preservedShortWords.contains(lowercasedToken)
             return OCRTokenAssessment(shouldKeep: shouldKeep, isStrongSignal: false)
-        }
-
-        if isRepeatedGlyphJunk(token) {
-            return OCRTokenAssessment(shouldKeep: false, isStrongSignal: false)
         }
 
         if containsLettersAndNumbers(token) {
@@ -166,6 +185,14 @@ enum PromptContextSanitizer {
 
         let shouldKeep = hasWordSignal(token)
         return OCRTokenAssessment(shouldKeep: shouldKeep, isStrongSignal: shouldKeep)
+    }
+
+    /// True when the token carries a letter outside ASCII: CJK, Cyrillic, Greek, Arabic, Hebrew,
+    /// Thai, Devanagari, accented Latin, and so on. ASCII letters stay on the Latin-tuned path.
+    private static func containsNonASCIILetter(_ token: String) -> Bool {
+        token.unicodeScalars.contains { scalar in
+            scalar.value > 127 && CharacterSet.letters.contains(scalar)
+        }
     }
 
     private static func isEmailLikeToken(_ token: String) -> Bool {

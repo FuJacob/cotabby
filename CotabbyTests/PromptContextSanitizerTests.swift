@@ -144,6 +144,36 @@ final class PromptContextSanitizerTests: XCTestCase {
         XCTAssertEqual(result, "")
     }
 
+    func test_sanitizeOCR_preservesNonLatinScripts() {
+        // CJK, Cyrillic, and accented Latin carry real context but have no ASCII vowel and never
+        // match the English word lists. They must survive OCR filtering so non-English users are
+        // not left with empty visual context.
+        let input = """
+        会議の議題を確認してください
+        Привет команда смотрите задачу
+        Préparez la réunion à Zürich
+        """
+
+        let result = PromptContextSanitizer.sanitizeOCR(input)
+
+        XCTAssertTrue(result.contains("会議の議題を確認してください"))
+        XCTAssertTrue(result.contains("Привет"))
+        XCTAssertTrue(result.contains("задачу"))
+        XCTAssertTrue(result.contains("réunion"))
+        XCTAssertTrue(result.contains("Zürich"))
+    }
+
+    func test_sanitizeOCR_keepsNonLatinButStillDropsAsciiNoiseOnSameLine() {
+        // The non-Latin allowance must not become a backdoor for ASCII OCR garbage on the same line.
+        let input = "東京 gLVWrt オフィス 54tbdbDX"
+        let result = PromptContextSanitizer.sanitizeOCR(input)
+
+        XCTAssertTrue(result.contains("東京"))
+        XCTAssertTrue(result.contains("オフィス"))
+        XCTAssertFalse(result.contains("gLVWrt"))
+        XCTAssertFalse(result.contains("54tbdbDX"))
+    }
+
     // MARK: - containsAlphanumericSignal
 
     func test_containsAlphanumericSignal_returnsTrueForMixedInput() {
