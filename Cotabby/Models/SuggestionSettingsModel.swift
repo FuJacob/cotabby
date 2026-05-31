@@ -88,6 +88,9 @@ final class SuggestionSettingsModel: ObservableObject {
     private static let ghostTextOpacityDefaultsKey = "cotabbyGhostTextOpacity"
     private static let selectedEngineDefaultsKey = "cotabbySelectedEngine"
     private static let selectedWordCountPresetDefaultsKey = "cotabbySelectedWordCountPreset"
+    /// Pre-#475 raw value for the shortest length tier. Kept here only so the read path can
+    /// rewrite it to `.fourToSeven` on launch; never re-emitted to UserDefaults.
+    private static let legacyShortPresetRawValue = "3-7"
     private static let clipboardContextEnabledDefaultsKey = "cotabbyClipboardContextEnabled"
     private static let fastModeEnabledDefaultsKey = "cotabbyFastModeEnabled"
     private static let performanceTrackingEnabledDefaultsKey = "cotabbyPerformanceTrackingEnabled"
@@ -170,10 +173,17 @@ final class SuggestionSettingsModel: ObservableObject {
             .string(forKey: Self.selectedEngineDefaultsKey)
             .flatMap(SuggestionEngineKind.init(rawValue:))
             ?? .llamaOpenSource
-        let resolvedWordCountPreset = userDefaults
-            .string(forKey: Self.selectedWordCountPresetDefaultsKey)
-            .flatMap(SuggestionWordCountPreset.init(rawValue:))
-            ?? configuration.defaultWordCountPreset
+        let resolvedWordCountPreset: SuggestionWordCountPreset = {
+            let storedRaw = userDefaults.string(forKey: Self.selectedWordCountPresetDefaultsKey)
+            // Migrate the retired "3-7" raw value to its replacement "4-7" so users who picked
+            // the short preset don't silently jump to the default after #475 split the short
+            // tier into 2-4 and 4-7.
+            if storedRaw == Self.legacyShortPresetRawValue {
+                return .fourToSeven
+            }
+            return storedRaw.flatMap(SuggestionWordCountPreset.init(rawValue:))
+                ?? configuration.defaultWordCountPreset
+        }()
         let resolvedClipboardContextEnabled =
             userDefaults.object(forKey: Self.clipboardContextEnabledDefaultsKey) as? Bool ?? false
         // Defaults to false so the visual-context pipeline keeps running for existing users; opting

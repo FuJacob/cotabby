@@ -12,7 +12,8 @@ import Foundation
 /// User-facing presets that bound how long one inline suggestion may be.
 /// Treating this as an enum keeps the UI and prompt policy in one source of truth.
 enum SuggestionWordCountPreset: String, CaseIterable, Equatable, Hashable, Sendable, Identifiable {
-    case threeToSeven = "3-7"
+    case twoToFour = "2-4"
+    case fourToSeven = "4-7"
     case sevenToTwelve = "7-12"
     case twelveToTwenty = "12-20"
 
@@ -30,8 +31,10 @@ enum SuggestionWordCountPreset: String, CaseIterable, Equatable, Hashable, Senda
 
     var promptInstruction: String {
         switch self {
-        case .threeToSeven:
-            return "Return only the next 3 to 7 words."
+        case .twoToFour:
+            return "Return only the next 2 to 4 words."
+        case .fourToSeven:
+            return "Return only the next 4 to 7 words."
         case .sevenToTwelve:
             return "Return only the next 7 to 12 words."
         case .twelveToTwenty:
@@ -43,10 +46,12 @@ enum SuggestionWordCountPreset: String, CaseIterable, Equatable, Hashable, Senda
     /// word-range cue was removed), so it must track the upper word bound closely. Sized at
     /// ~1.5x the upper word count to leave headroom for multi-token words (contractions, proper
     /// nouns, punctuation) without overrunning the preset. The earlier 50% bump (17/27/45) let
-    /// completions blow past the setting — e.g. ~12 words on the 3-7 preset (#271).
+    /// completions blow past the setting, e.g. ~12 words on the shortest preset (#271).
     var suggestedPredictionTokenBudget: Int {
         switch self {
-        case .threeToSeven:
+        case .twoToFour:
+            return 6
+        case .fourToSeven:
             return 11
         case .sevenToTwelve:
             return 18

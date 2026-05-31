@@ -26,7 +26,7 @@ final class OnboardingTemplateRecommenderTests: XCTestCase {
 
     func testAppleIntelligenceStillCarriesTierBehaviorFlags() {
         let quick = OnboardingTemplateRecommender.resolvePlan(for: .quick, engine: .appleIntelligence)
-        XCTAssertEqual(quick.wordCountPreset, .threeToSeven)
+        XCTAssertEqual(quick.wordCountPreset, .fourToSeven)
         XCTAssertTrue(quick.enablesFastMode)
         XCTAssertFalse(quick.enablesMultiLine)
         XCTAssertFalse(quick.enablesClipboardContext)

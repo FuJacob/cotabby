@@ -70,7 +70,7 @@ enum OnboardingTemplate: String, CaseIterable, Identifiable, Equatable, Sendable
     var wordCountPreset: SuggestionWordCountPreset {
         switch self {
         case .quick:
-            return .threeToSeven
+            return .fourToSeven
         case .everyday:
             return .sevenToTwelve
         case .powerful:
