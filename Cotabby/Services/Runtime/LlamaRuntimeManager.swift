@@ -325,3 +325,5 @@ final class LlamaRuntimeManager: ObservableObject {
         state = .ready("Loaded \(preparedRuntime.resolvedRuntime.modelDisplayName) in-process.")
     }
 }
+
+extension LlamaRuntimeManager: LlamaRuntimeGenerating {}

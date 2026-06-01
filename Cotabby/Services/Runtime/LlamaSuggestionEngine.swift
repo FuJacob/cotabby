@@ -10,7 +10,7 @@ import Logging
 /// That separation matters because prompt strategy changes far more often than model lifecycle code.
 @MainActor
 final class LlamaSuggestionEngine {
-    private let runtimeManager: LlamaRuntimeManager
+    private let runtimeManager: LlamaRuntimeGenerating
     private var promptCacheHintTracker = LlamaPromptCacheHintTracker()
 
     /// UserDefaults key (no UI) that routes llama generation through the deterministic constrained
@@ -22,7 +22,7 @@ final class LlamaSuggestionEngine {
         UserDefaults.standard.bool(forKey: constrainedDecoderDefaultsKey)
     }
 
-    init(runtimeManager: LlamaRuntimeManager) {
+    init(runtimeManager: LlamaRuntimeGenerating) {
         self.runtimeManager = runtimeManager
     }
 
@@ -101,6 +101,22 @@ final class LlamaSuggestionEngine {
             )
         } catch is CancellationError {
             CotabbyLogger.suggestion.debug("Llama generation cancelled", metadata: baseMetadata)
+            throw SuggestionClientError.cancelled
+        } catch LlamaRuntimeError.cancelled {
+            // A cancelled generation is NOT a runtime failure, so it must not reset the KV cache.
+            // `LlamaRuntimeManager.generate` surfaces an outer-Task cancellation as
+            // `LlamaRuntimeError.cancelled` (its `catch is CancellationError` rethrows it so callers
+            // share one error vocabulary). Without this branch that case falls through to the generic
+            // `LlamaRuntimeError` handler below and wipes the native KV sequence on every cancel.
+            //
+            // During fast typing nearly every keystroke supersedes the previous in-flight generation,
+            // so that path fired ~twice a second — each time synchronously destroying the prompt KV on
+            // the main actor (contending with the keystroke-delivery run loop) and forcing the next
+            // keystroke to re-decode the whole prompt from scratch. The cooperative cancel inside
+            // `LlamaRuntimeCore.generate` already unwound cleanly (its KV-trim defer restored
+            // prompt-only state), so the cache is still valid and reusable. Route this to the same
+            // quiet path as `CancellationError` and leave the cache intact.
+            CotabbyLogger.suggestion.debug("Llama generation cancelled (runtime task)", metadata: baseMetadata)
             throw SuggestionClientError.cancelled
         } catch let error as LlamaRuntimeError {
             CotabbyLogger.suggestion.error(
