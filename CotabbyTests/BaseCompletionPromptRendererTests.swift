@@ -50,7 +50,7 @@ final class BaseCompletionPromptRendererTests: XCTestCase {
             customRules: ["friendly", "professional"],
             languageInstruction: "Write in English."
         )
-        XCTAssertTrue(prompt.contains("written by Jacob"))
+        XCTAssertTrue(prompt.contains("Written by Jacob"))
         XCTAssertTrue(prompt.contains("friendly, professional"))
         XCTAssertTrue(prompt.contains("Write in English."))
         XCTAssertTrue(prompt.hasSuffix("Hi team,"))
