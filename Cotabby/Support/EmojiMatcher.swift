@@ -231,7 +231,9 @@ struct EmojiMatcher {
             matched += 1
             if matched == needle.count { return true }
         }
-        return matched == needle.count
+        // The in-loop guard returns true the instant all of `needle` is matched, so reaching here
+        // means the haystack was exhausted first.
+        return false
     }
 
     /// Optimal string alignment distance: Levenshtein plus adjacent transpositions as a single edit.

@@ -29,9 +29,11 @@ final class EmojiPickerController {
     /// The accept-word key label shown as a keycap on the highlighted row; `nil` hides the hint.
     private let acceptKeyLabel: () -> String?
     /// Live personal usage snapshot, read at match time to rank favorites and seed the bare-`:` panel.
-    private let emojiUsage: () -> EmojiUsageSnapshot
+    /// `@MainActor`: it reads main-actor `EmojiUsageStore` state, matching where the picker runs.
+    private let emojiUsage: @MainActor () -> EmojiUsageSnapshot
     /// Records a committed emoji's primary alias so future ranking and recents reflect it.
-    private let recordEmojiUsage: (String) -> Void
+    /// `@MainActor`: it mutates main-actor `EmojiUsageStore` state.
+    private let recordEmojiUsage: @MainActor (String) -> Void
 
     private var currentQuery = ""
     private var matches: [EmojiMatch] = []
@@ -63,8 +65,8 @@ final class EmojiPickerController {
         isEnabled: @escaping () -> Bool,
         emojiPreferences: @escaping () -> EmojiVariantPreferences,
         acceptKeyLabel: @escaping () -> String?,
-        emojiUsage: @escaping () -> EmojiUsageSnapshot,
-        recordEmojiUsage: @escaping (String) -> Void
+        emojiUsage: @MainActor @escaping () -> EmojiUsageSnapshot,
+        recordEmojiUsage: @MainActor @escaping (String) -> Void
     ) {
         self.matcher = matcher
         self.panel = panel
