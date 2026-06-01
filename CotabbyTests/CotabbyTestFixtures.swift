@@ -224,6 +224,7 @@ enum CotabbyTestFixtures {
         isMultiLineEnabled: Bool = false,
         autoAcceptTrailingPunctuation: Bool = true,
         isFastModeEnabled: Bool = false,
+        useBaseCompletionPipeline: Bool = false,
         mirrorPreference: MirrorPreference = .auto,
         acceptanceGranularity: AcceptanceGranularity = .word
     ) -> SuggestionSettingsSnapshot {
@@ -242,6 +243,7 @@ enum CotabbyTestFixtures {
             isMultiLineEnabled: isMultiLineEnabled,
             autoAcceptTrailingPunctuation: autoAcceptTrailingPunctuation,
             isFastModeEnabled: isFastModeEnabled,
+            useBaseCompletionPipeline: useBaseCompletionPipeline,
             mirrorPreference: mirrorPreference,
             acceptanceGranularity: acceptanceGranularity
         )

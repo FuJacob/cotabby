@@ -62,17 +62,33 @@ enum SuggestionRequestFactory {
         let boundedVisualContextSummary = activeVisualContextSummary(
             rawSummary: visualContextSummary
         )
-        let prompt = LlamaPromptRenderer.prompt(
-            prefixText: prefixText,
-            applicationName: context.applicationName,
-            completionLengthInstruction: completionLengthInstruction,
-            userName: userName,
-            customRules: customRules,
-            extendedContext: activeExtendedContext,
-            languageInstruction: languageInstruction,
-            clipboardContext: boundedClipboardContext,
-            visualContextSummary: boundedVisualContextSummary
-        )
+        let prompt: String
+        if settings.useBaseCompletionPipeline, settings.selectedEngine == .llamaOpenSource {
+            // Base-model continuation path: no instruction blob, prefix last, trailing-trimmed.
+            // Custom instructions/persona condition the output rather than being obeyed.
+            prompt = BaseCompletionPromptRenderer.prompt(
+                prefixText: prefixText,
+                applicationName: context.applicationName,
+                userName: userName,
+                customRules: customRules,
+                extendedContext: activeExtendedContext,
+                languageInstruction: languageInstruction,
+                clipboardContext: boundedClipboardContext,
+                visualContextSummary: boundedVisualContextSummary
+            )
+        } else {
+            prompt = LlamaPromptRenderer.prompt(
+                prefixText: prefixText,
+                applicationName: context.applicationName,
+                completionLengthInstruction: completionLengthInstruction,
+                userName: userName,
+                customRules: customRules,
+                extendedContext: activeExtendedContext,
+                languageInstruction: languageInstruction,
+                clipboardContext: boundedClipboardContext,
+                visualContextSummary: boundedVisualContextSummary
+            )
+        }
 
         let request = SuggestionRequest(
             context: context,

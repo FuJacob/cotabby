@@ -39,6 +39,9 @@ final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var selectedWordCountPreset: SuggestionWordCountPreset
     @Published private(set) var isClipboardContextEnabled: Bool
     @Published private(set) var isFastModeEnabled: Bool
+    /// Experimental, opt-in via the `cotabbyBaseCompletionPipelineEnabled` default. Routes the local
+    /// llama path through the base-model continuation prompt. No UI yet; read at launch.
+    @Published private(set) var useBaseCompletionPipeline: Bool
     /// Whether the Performance pane is recording per-request latency. Defaults to false so the
     /// default user never pays any extra storage or write cost — recording only kicks in once the
     /// user opts in from Settings.
@@ -93,6 +96,7 @@ final class SuggestionSettingsModel: ObservableObject {
     private static let legacyShortPresetRawValue = "3-7"
     private static let clipboardContextEnabledDefaultsKey = "cotabbyClipboardContextEnabled"
     private static let fastModeEnabledDefaultsKey = "cotabbyFastModeEnabled"
+    private static let baseCompletionPipelineEnabledDefaultsKey = "cotabbyBaseCompletionPipelineEnabled"
     private static let performanceTrackingEnabledDefaultsKey = "cotabbyPerformanceTrackingEnabled"
     private static let menuBarWordCountVisibleDefaultsKey = "cotabbyMenuBarWordCountVisible"
     private static let mirrorPreferenceDefaultsKey = "cotabbyMirrorPreference"
@@ -190,6 +194,10 @@ final class SuggestionSettingsModel: ObservableObject {
         // into fast mode turns it off.
         let resolvedFastModeEnabled =
             userDefaults.object(forKey: Self.fastModeEnabledDefaultsKey) as? Bool ?? false
+        // Experimental base-model pipeline. Defaults to false so the merged-but-dark path changes
+        // nothing for existing users until the flag is explicitly set.
+        let resolvedBaseCompletionPipelineEnabled =
+            userDefaults.object(forKey: Self.baseCompletionPipelineEnabledDefaultsKey) as? Bool ?? false
         // Defaults to false so the metrics ring buffer stays empty until the user explicitly opts
         // in from the Performance pane.
         let resolvedPerformanceTrackingEnabled =
@@ -318,6 +326,7 @@ final class SuggestionSettingsModel: ObservableObject {
         selectedWordCountPreset = resolvedWordCountPreset
         isClipboardContextEnabled = resolvedClipboardContextEnabled
         isFastModeEnabled = resolvedFastModeEnabled
+        useBaseCompletionPipeline = resolvedBaseCompletionPipelineEnabled
         isPerformanceTrackingEnabled = resolvedPerformanceTrackingEnabled
         isMenuBarWordCountVisible = resolvedMenuBarWordCountVisible
         mirrorPreference = resolvedMirrorPreference
@@ -353,6 +362,7 @@ final class SuggestionSettingsModel: ObservableObject {
         persistSelectedWordCountPreset(resolvedWordCountPreset)
         persistClipboardContextEnabled(resolvedClipboardContextEnabled)
         persistFastModeEnabled(resolvedFastModeEnabled)
+        userDefaults.set(resolvedBaseCompletionPipelineEnabled, forKey: Self.baseCompletionPipelineEnabledDefaultsKey)
         persistPerformanceTrackingEnabled(resolvedPerformanceTrackingEnabled)
         persistMenuBarWordCountVisible(resolvedMenuBarWordCountVisible)
         persistMirrorPreference(resolvedMirrorPreference)
@@ -410,6 +420,7 @@ final class SuggestionSettingsModel: ObservableObject {
             isMultiLineEnabled: isMultiLineEnabled,
             autoAcceptTrailingPunctuation: autoAcceptTrailingPunctuation,
             isFastModeEnabled: isFastModeEnabled,
+            useBaseCompletionPipeline: useBaseCompletionPipeline,
             mirrorPreference: mirrorPreference,
             acceptanceGranularity: acceptanceGranularity
         )
@@ -1109,8 +1120,8 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
         // The outer CombineLatest stack is already at Combine's per-operator cap, so each new
         // top-level setting gets layered above via another `CombineLatest`. `extendedContext` joins
         // alongside `acceptanceGranularity` here for the same reason.
-        return Publishers.CombineLatest3(primary, $acceptanceGranularity, $extendedContext)
-            .map { primaryTuple, granularity, extendedContext in
+        return Publishers.CombineLatest4(primary, $acceptanceGranularity, $extendedContext, $useBaseCompletionPipeline)
+            .map { primaryTuple, granularity, extendedContext, baseCompletionEnabled in
                 let (combinedSettings, presentationToggles, profile, timing) = primaryTuple
                 let (globallyEnabled, disabledAppRules, engine, wordCountPreset) = combinedSettings
                 let (clipboardContextEnabled, fastModeEnabled, mirrorPreference) = presentationToggles
@@ -1131,6 +1142,7 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                     isMultiLineEnabled: multiLine,
                     autoAcceptTrailingPunctuation: autoAcceptPunctuation,
                     isFastModeEnabled: fastModeEnabled,
+                    useBaseCompletionPipeline: baseCompletionEnabled,
                     mirrorPreference: mirrorPreference,
                     acceptanceGranularity: granularity
                 )

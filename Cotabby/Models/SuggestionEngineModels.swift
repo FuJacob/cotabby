@@ -86,6 +86,10 @@ struct SuggestionSettingsSnapshot: Equatable, Sendable {
     /// When true, the screenshot/OCR visual-context pipeline is skipped entirely for lower-latency
     /// suggestions. Defaults to false. Only affects visual context — predictions still run.
     let isFastModeEnabled: Bool
+    /// Experimental: when true and the Open Source engine is selected, the local path uses the
+    /// base-model continuation prompt (no instruction preamble, prefix last) instead of the
+    /// instruction-rendered prompt. Default false, so existing installs are byte-for-byte unchanged.
+    let useBaseCompletionPipeline: Bool
     /// User preference for how suggestions are presented (inline ghost text vs popup card vs auto
     /// based on caret geometry quality). Travels in the snapshot so consumers can react to changes
     /// without subscribing to the settings model directly.
