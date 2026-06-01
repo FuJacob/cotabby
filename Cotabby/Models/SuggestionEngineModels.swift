@@ -63,7 +63,7 @@ struct SuggestionSettingsSnapshot: Equatable, Sendable {
     let selectedEngine: SuggestionEngineKind
     let selectedWordCountPreset: SuggestionWordCountPreset
     let isClipboardContextEnabled: Bool
-    /// User-authored profile data for Cotabby's single instruction-rendered completion prompt.
+    /// User-authored profile data for Cotabby's base-model completion prompt.
     /// This travels in the snapshot so generation uses the same value the Settings UI shows.
     let userName: String
     /// User-authored style rules, carried in the snapshot so generation uses the same value the

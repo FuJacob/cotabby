@@ -48,7 +48,7 @@ enum FoundationModelPromptRenderer {
 
         // We intentionally do NOT inject the user's name here. On the chat-tuned system model a
         // stated name is the single biggest trigger for breaking character ("Jacob, how are
-        // you"). The llama backend still personalizes via `LlamaPromptRenderer`; Apple's model
+        // you"). The llama backend personalizes via `BaseCompletionPromptRenderer`; Apple's model
         // does not get the name until we can scope it to contexts that actually need it.
 
         // Two few-shot examples (down from five) carry the heavy anti-drift signal. The first

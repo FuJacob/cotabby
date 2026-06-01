@@ -3,11 +3,9 @@ import Foundation
 /// File overview:
 /// Renders the prompt for Cotabby's base-model completion pipeline (the Open Source / llama path).
 ///
-/// Why this exists separately from `LlamaPromptRenderer`:
-/// `LlamaPromptRenderer` wraps the user's text in an instruction blob ("Task: ... do not answer the
-/// user ...") for instruction-tuned models. A *base* model has no instruction-following channel and
-/// will happily continue a bare "Task:" line as if it were the document, so that prompt shape leaks
-/// scaffolding into the ghost text. This renderer instead treats the model as a pure text continuer:
+/// Design: a *base* model has no instruction-following channel and will happily continue a bare
+/// "Task:" line as if it were the document, so an instruction-blob prompt would leak scaffolding into
+/// the ghost text. This renderer instead treats the model as a pure text continuer:
 ///
 /// - No task preamble and no standalone `Label:` lines.
 /// - Custom instructions work by *conditioning*, not obedience: persona, voice, and language are

@@ -113,46 +113,8 @@ final class ExtendedContextTests: XCTestCase {
             configuration: .standard
         )
 
-        XCTAssertTrue(result.promptPreview.contains("Reference notes from the user:"))
+        XCTAssertTrue(result.promptPreview.contains("Notes the writer keeps in mind:"))
         XCTAssertTrue(result.promptPreview.contains("RULE: Every other word should be 'meow'"))
-    }
-
-    // MARK: - llama rendering
-
-    func test_llamaRenderer_emitsReferenceNotesAfterCustomRulesWithSubordination() {
-        let prompt = LlamaPromptRenderer.prompt(
-            prefixText: "Hello",
-            applicationName: "Notes",
-            completionLengthInstruction: "Return only the next few words.",
-            userName: nil,
-            customRules: ["Use British spelling"],
-            extendedContext: "Project codenames: Aurora = the iOS app. Borealis = the macOS app."
-        )
-
-        XCTAssertTrue(prompt.contains("Reference notes from the user:"))
-        XCTAssertTrue(prompt.contains("Project codenames: Aurora = the iOS app."))
-        XCTAssertTrue(prompt.contains("never break the rules above"))
-
-        // Reference notes must follow custom rules, which must themselves follow the base task block.
-        guard let baseRange = prompt.range(of: "Task:"),
-              let rulesRange = prompt.range(of: "Your style preferences:"),
-              let notesRange = prompt.range(of: "Reference notes from the user:")
-        else {
-            return XCTFail("expected base/rules/notes sections to be present")
-        }
-        XCTAssertLessThan(baseRange.lowerBound, rulesRange.lowerBound)
-        XCTAssertLessThan(rulesRange.lowerBound, notesRange.lowerBound)
-    }
-
-    func test_llamaRenderer_emitsNoReferenceNotesSectionWhenNil() {
-        let prompt = LlamaPromptRenderer.prompt(
-            prefixText: "Hello",
-            applicationName: "Notes",
-            completionLengthInstruction: "Return only the next few words.",
-            userName: nil
-        )
-
-        XCTAssertFalse(prompt.contains("Reference notes from the user:"))
     }
 
     // MARK: - foundation model rendering
