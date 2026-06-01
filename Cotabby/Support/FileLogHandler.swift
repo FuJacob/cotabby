@@ -67,13 +67,6 @@ final class FileLogWriter: @unchecked Sendable {
         }
     }
 
-    /// Test-only hook to force a rotation.
-    func wipeForTesting() {
-        lock.lock()
-        defer { lock.unlock() }
-        rotateLocked()
-    }
-
     private func rotateLocked() {
         guard let logFileURL else { return }
         do {

@@ -27,19 +27,6 @@ enum MirrorPreference: String, Codable, CaseIterable, Identifiable, Equatable, S
             return "Popup"
         }
     }
-
-    /// One-sentence explanation suitable for `.help()` tooltips next to the picker. Read as a group
-    /// the three help strings teach the user when each option is the right pick.
-    var helpDescription: String {
-        switch self {
-        case .auto:
-            return "Inline ghost text when caret position is reliable; popup card when it isn't (some Electron and web editors)."
-        case .alwaysInline:
-            return "Always draw ghost text next to the caret, even when caret position may drift."
-        case .alwaysMirror:
-            return "Always show suggestions in a popup card anchored below the focused field."
-        }
-    }
 }
 
 /// Pure rule that translates "what kind of geometry do we have, and what does the user want?" into

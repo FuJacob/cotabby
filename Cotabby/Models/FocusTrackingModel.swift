@@ -74,22 +74,6 @@ final class FocusTrackingModel: ObservableObject {
         tracker.updatePollInterval(TimeInterval(milliseconds) / 1000.0)
     }
 
-    /// The menu bar needs a compact status string, not the full diagnostic reason.
-    var menuBarStatusText: String {
-        snapshot.capability.shortLabel
-    }
-
-    var menuBarSymbolName: String {
-        switch snapshot.capability {
-        case .supported:
-            return "checkmark.circle"
-        case .blocked:
-            return "hand.raised.circle"
-        case .unsupported:
-            return "xmark.circle"
-        }
-    }
-
     private func updateLatestExternalApplication(from snapshot: FocusSnapshot) {
         guard let application = snapshot.externalApplicationIdentity(
             ignoredBundleIdentifier: ignoredBundleIdentifier

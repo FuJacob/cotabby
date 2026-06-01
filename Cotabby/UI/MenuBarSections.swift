@@ -5,27 +5,6 @@ import SwiftUI
 /// Small, focused components used by the menu-bar panel.
 /// These stay purely presentational — all state derivation lives in `MenuBarView`.
 
-/// Colored pill that communicates Cotabby's overall readiness at a glance.
-/// Green = ready, orange = degraded/needs attention, red = broken, gray = transitional.
-struct StatusPill: View {
-    let text: String
-    let color: Color
-
-    var body: some View {
-        HStack(spacing: 5) {
-            Circle()
-                .fill(color)
-                .frame(width: 7, height: 7)
-
-            Text(text)
-                .font(.subheadline.weight(.medium))
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 4)
-        .background(color.opacity(0.12), in: Capsule())
-    }
-}
-
 /// Compact labeled row for menu-bar pickers. Keeps label width consistent across
 /// Engine / Model / Length rows without a heavy generic layout container.
 struct MenuBarPickerRow<Content: View>: View {

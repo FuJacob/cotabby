@@ -278,13 +278,6 @@ struct GeneralPaneView: View {
         )
     }
 
-    private var emojiSkinToneBinding: Binding<EmojiSkinTone> {
-        Binding(
-            get: { suggestionSettings.preferredEmojiSkinTone },
-            set: { suggestionSettings.setPreferredEmojiSkinTone($0) }
-        )
-    }
-
     private var autoAcceptTrailingPunctuationBinding: Binding<Bool> {
         Binding(
             get: { suggestionSettings.autoAcceptTrailingPunctuation },

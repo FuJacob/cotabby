@@ -530,26 +530,6 @@ final class SuggestionSettingsModel: ObservableObject {
         userDefaults.set(granularity.rawValue, forKey: Self.acceptanceGranularityDefaultsKey)
     }
 
-    func setDebounceMilliseconds(_ value: Int) {
-        let clamped = max(10, min(500, value))
-        guard debounceMilliseconds != clamped else {
-            return
-        }
-
-        debounceMilliseconds = clamped
-        userDefaults.set(clamped, forKey: Self.debounceMillisecondsDefaultsKey)
-    }
-
-    func setFocusPollIntervalMilliseconds(_ value: Int) {
-        let clamped = max(10, min(500, value))
-        guard focusPollIntervalMilliseconds != clamped else {
-            return
-        }
-
-        focusPollIntervalMilliseconds = clamped
-        userDefaults.set(clamped, forKey: Self.focusPollIntervalMillisecondsDefaultsKey)
-    }
-
     func setGloballyEnabled(_ enabled: Bool) {
         guard isGloballyEnabled != enabled else {
             return

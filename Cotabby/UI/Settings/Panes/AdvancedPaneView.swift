@@ -355,17 +355,6 @@ final class ExtendedContextPlaygroundModel: ObservableObject {
         }
     }
 
-    /// Cancels any in-flight generation and clears the spinner. Currently unused by the UI but
-    /// kept on the model so a cancel button (or window-dismiss handler) can call into it without
-    /// re-deriving the cancellation protocol. The generation-ID flip is the load-bearing piece —
-    /// it tells the in-flight task to silently exit instead of clearing state itself.
-    func cancelGeneration() {
-        generationTask?.cancel()
-        generationTask = nil
-        currentGenerationID = nil
-        isGenerating = false
-    }
-
     /// Builds a `FocusedInputContext` from the user's test text. The values are intentionally
     /// generic — the playground is a prompt-shape demo, not an attempt to mimic a specific host
     /// app's accessibility surface.

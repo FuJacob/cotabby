@@ -191,15 +191,6 @@ final class ModelDownloadManager: ObservableObject {
         task.cancel()
     }
 
-    /// Cancels every in-flight model download before destructive app cleanup.
-    /// Uninstall should not race an active download that may still be writing into Cotabby's model
-    /// directory while the folder is being removed.
-    func cancelAllDownloads() {
-        for task in downloadTasks.values {
-            task.cancel()
-        }
-    }
-
     func openModelsDirectory() {
         do {
             try ensureRuntimeDirectoryExists()

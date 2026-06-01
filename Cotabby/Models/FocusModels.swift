@@ -103,26 +103,6 @@ struct FocusInspectionSnapshot: Equatable {
     let resolvedRole: String?
     let resolvedSubrole: String?
     let missingCapabilities: [FocusCapabilityRequirement]
-
-    var focusedRoleSummary: String {
-        "\(focusedRole) / \(focusedSubrole ?? "n/a")"
-    }
-
-    var resolvedRoleSummary: String {
-        guard let resolvedRole else {
-            return "Unavailable"
-        }
-
-        return "\(resolvedRole) / \(resolvedSubrole ?? "n/a")"
-    }
-
-    var missingCapabilitySummary: String {
-        guard !missingCapabilities.isEmpty else {
-            return "None"
-        }
-
-        return missingCapabilities.map(\.summary).joined(separator: ", ")
-    }
 }
 
 /// This snapshot is the future handoff point into suggestion generation.
@@ -220,12 +200,6 @@ struct FocusedInputSnapshot: Equatable {
             trailingText,
             isSecure ? "secure" : "plain"
         ].joined(separator: "::")
-    }
-
-    var textPreview: String {
-        let prefix = String(precedingText.suffix(32))
-        let suffix = String(trailingText.prefix(32))
-        return "\(prefix)|\(suffix)"
     }
 }
 
