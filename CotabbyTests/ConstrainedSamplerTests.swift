@@ -162,6 +162,32 @@ final class ConstrainedSamplerTests: XCTestCase {
         XCTAssertEqual(first, 1)
     }
 
+    func test_select_skipsBlockedTokens() {
+        // Token 1 has the highest logit but is blocked (e.g. by the repetition guard), so the
+        // next-highest unblocked token wins.
+        let logits: [Float] = [0.1, 5.0, 2.0, 1.0]
+        let id = ConstrainedSampler.selectToken(
+            logits: logits,
+            profile: plainProfile(count: 4),
+            admissibleTokenIDs: nil,
+            topK: 4,
+            blockedTokenIDs: [1]
+        )
+        XCTAssertEqual(id, 2)
+    }
+
+    func test_select_allBlocked_returnsNil() {
+        let logits: [Float] = [1.0, 2.0, 3.0]
+        let id = ConstrainedSampler.selectToken(
+            logits: logits,
+            profile: plainProfile(count: 3),
+            admissibleTokenIDs: nil,
+            topK: 3,
+            blockedTokenIDs: [0, 1, 2]
+        )
+        XCTAssertNil(id)
+    }
+
     // MARK: - averageLogProb
 
     func test_averageLogProb_uniformRow_matchesNegativeLogVocab() {

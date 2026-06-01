@@ -205,6 +205,11 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
 
     // MARK: - Decoders
 
+    /// No-repeat-ngram order for the constrained decoder: forbid re-emitting any 3-gram already in the
+    /// output. 3 is the conventional choice — it breaks phrase loops ("I think that I think that") and
+    /// single-token runs after a few repeats, without blocking ordinary short repeats like "very very".
+    private static let noRepeatNgramSize = 3
+
     /// The shipping decoder: delegates token selection to the engine's built-in sampler
     /// (`sampleNext`), which applies temperature / top-k / top-p / min-p and commits each token.
     private func runEngineSampledDecode(sequenceID: Int32, options: LlamaGenerationOptions) -> String {
@@ -275,6 +280,9 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         let topK = options.topK > 0 ? options.topK : vocabSize
 
         var generatedBytes: [UInt8] = []
+        // Token-id history feeds the no-repeat-ngram guard; tracked separately from bytes because the
+        // guard reasons over token ids, not decoded text.
+        var generatedTokenIDs: [Int] = []
         var tokensGenerated = 0
         var sumLogprob = 0.0
         var stopReason = "budget_exhausted"
@@ -294,11 +302,18 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
                 break
             }
 
+            // Block any token that would close an n-gram already emitted, so greedy argmax cannot fall
+            // into a repetition loop (the engine's repetition penalty does not reach this raw-logit path).
+            let blockedTokenIDs = RepetitionGuard.blockedTokens(
+                history: generatedTokenIDs,
+                ngramSize: Self.noRepeatNgramSize
+            )
             guard let tokenID = ConstrainedSampler.selectToken(
                 logits: logits,
                 profile: profile,
                 admissibleTokenIDs: nil,
-                topK: topK
+                topK: topK,
+                blockedTokenIDs: blockedTokenIDs
             ) else {
                 stopReason = "no_admissible_token"
                 break
@@ -321,6 +336,7 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
                 sumLogprob += logProb
             }
             generatedBytes.append(contentsOf: profile.bytes(for: tokenID))
+            generatedTokenIDs.append(tokenID)
             tokensGenerated += 1
 
             if engine.acceptToken(sequenceID, Int32(tokenID)) != .ok {

@@ -28,11 +28,16 @@ enum ConstrainedSampler {
     ///
     /// Determinism note: ties on logit are broken by the lower token id, so equal-logit inputs still
     /// produce a single stable result.
+    ///
+    /// `blockedTokenIDs` is a per-step block-list (defaults to empty) layered on top of the static
+    /// profile exclusions: a blocked id is skipped exactly like a control token. The decoder uses it
+    /// for dynamic constraints such as no-repeat-ngram, which the static profile cannot express.
     static func selectToken(
         logits: [Float],
         profile: TokenProfile,
         admissibleTokenIDs: Set<Int>?,
-        topK: Int
+        topK: Int,
+        blockedTokenIDs: Set<Int> = []
     ) -> Int? {
         guard topK > 0, !logits.isEmpty else {
             return nil
@@ -48,6 +53,9 @@ enum ConstrainedSampler {
         var bestLogit: Float = -.infinity
         for id in candidates {
             if profile.isExcluded(id) {
+                continue
+            }
+            if blockedTokenIDs.contains(id) {
                 continue
             }
             if let admissible = admissibleTokenIDs, !admissible.contains(id) {

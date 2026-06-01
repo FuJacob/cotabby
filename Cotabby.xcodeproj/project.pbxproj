@@ -14,6 +14,7 @@
 		046C133967B32BBF9205EBB1 /* LLMIOFileHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D610FCA3A97249DCCE7D0B8 /* LLMIOFileHandler.swift */; };
 		078FDE669437D756678E9AB7 /* SettingsRowLabel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 907549CB913B40C28B953A5D /* SettingsRowLabel.swift */; };
 		07D046D406411ED85AC5758A /* InputMonitorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAC01317B0B68E3C4125E421 /* InputMonitorTests.swift */; };
+		097B59F01FEC03651D5732A3 /* RepetitionGuard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04FAB8DC9CC29F7A3EB8C91F /* RepetitionGuard.swift */; };
 		0A2DDD946654076675AC0FC6 /* LanguageCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF4BB93056F291FD24EFAD22 /* LanguageCatalog.swift */; };
 		0A3443AEE6540F11E5E6BF8F /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3E8E86A14090BC7BD13BA76 /* AppDelegate.swift */; };
 		0A658BF137DBD0898E40B87F /* AcknowledgementsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B7A28471B8526C2693FFF65 /* AcknowledgementsView.swift */; };
@@ -234,6 +235,7 @@
 		E9E4CC657771DF9F4C56183C /* VisualContextCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A854CAFB1F557BC4CAED8819 /* VisualContextCoordinator.swift */; };
 		EB13A392BFA5349DD8A0DD25 /* EmojiUsageStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE35C7770405ED368AA02448 /* EmojiUsageStore.swift */; };
 		ED0843752B297D7E9DB2C468 /* EmojiTriggerStateMachineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 723E1EFA85D2E61B6C5F33E8 /* EmojiTriggerStateMachineTests.swift */; };
+		ED642B8D6D0EAF52E3907DE5 /* RepetitionGuardTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D957E76B6EA508DE3510F98 /* RepetitionGuardTests.swift */; };
 		ED9C51B0D7056F0753AADF2D /* GhostSuggestionLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 043E8AA850F930222DD112C0 /* GhostSuggestionLayout.swift */; };
 		EE87886AC1BFC8BB3DE09762 /* HuggingFaceModelBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78E49BDA7F3A42455C4C5350 /* HuggingFaceModelBrowserView.swift */; };
 		EF0DE5E045F328F1E912A02A /* AppsPaneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9C1C921A1CDA2ADFC39EA01 /* AppsPaneView.swift */; };
@@ -271,6 +273,7 @@
 		043E8AA850F930222DD112C0 /* GhostSuggestionLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GhostSuggestionLayout.swift; sourceTree = "<group>"; };
 		04D853218B0A77B0CE090828 /* BrowserAppDetectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserAppDetectorTests.swift; sourceTree = "<group>"; };
 		04E25414C307A20B6F9F20EC /* FocusSnapshotResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusSnapshotResolver.swift; sourceTree = "<group>"; };
+		04FAB8DC9CC29F7A3EB8C91F /* RepetitionGuard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepetitionGuard.swift; sourceTree = "<group>"; };
 		050D929E13BE52E6282B64D2 /* VisualContextStartCoalescerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisualContextStartCoalescerTests.swift; sourceTree = "<group>"; };
 		06FF2B0A3094A952A8EBA9B5 /* ConfidenceSuppressionPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfidenceSuppressionPolicyTests.swift; sourceTree = "<group>"; };
 		07480CE96ED0EBD94817C6B1 /* GeneralPaneView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneralPaneView.swift; sourceTree = "<group>"; };
@@ -351,6 +354,7 @@
 		5C4E5869D103865486AAAEEC /* ModelFileValidator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelFileValidator.swift; sourceTree = "<group>"; };
 		5C9FDF029F7828CAF3FE8850 /* FocusTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusTracker.swift; sourceTree = "<group>"; };
 		5D0AEFF86F8210CBE7CFCBAD /* SettingsCategory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsCategory.swift; sourceTree = "<group>"; };
+		5D957E76B6EA508DE3510F98 /* RepetitionGuardTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RepetitionGuardTests.swift; sourceTree = "<group>"; };
 		5EED3CD2BC7B48DF35DEE562 /* OCRTextHygieneTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OCRTextHygieneTests.swift; sourceTree = "<group>"; };
 		5F2C764D29C8D50D0C854FF8 /* PermissionGuidanceController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionGuidanceController.swift; sourceTree = "<group>"; };
 		5F34AE24BB7C99D66E1F3904 /* InputModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputModels.swift; sourceTree = "<group>"; };
@@ -775,6 +779,7 @@
 				0D80CC2CCAAFE3F23FB8C37A /* PromptContextSanitizerTests.swift */,
 				4696A84D17890B154533A08F /* PromptPolicyTests.swift */,
 				E260C4D08C786CDBD527B329 /* PromptSectionBudgetTests.swift */,
+				5D957E76B6EA508DE3510F98 /* RepetitionGuardTests.swift */,
 				B2BFD19A159680A495EE02FD /* ScreenshotContextGeneratorTests.swift */,
 				2D7360A6D4261989A66658ED /* SentenceBoundaryClassifierTests.swift */,
 				2BC293F6125E2B14DCF05AD9 /* SettingsAttentionEvaluatorTests.swift */,
@@ -928,6 +933,7 @@
 				E6423D6CC8CC371D2DA899DE /* PermissionOverlayTracker.swift */,
 				FA4B45B91D4DEAC979C3113E /* PromptContextSanitizer.swift */,
 				AFCFCCCB69C29A86E726B10A /* PromptSectionBudget.swift */,
+				04FAB8DC9CC29F7A3EB8C91F /* RepetitionGuard.swift */,
 				6DC693E00430F46E41CB56E6 /* RequestID.swift */,
 				D4B56C250DDEF3E81F9DCBD7 /* SentenceBoundaryClassifier.swift */,
 				2A02336442BB735EE2E8D064 /* SettingsAttentionEvaluator.swift */,
@@ -1180,6 +1186,7 @@
 				39571AB31481959CD5C223AE /* PermissionsPaneView.swift in Sources */,
 				98E2E14A069384C1088CDB44 /* PromptContextSanitizer.swift in Sources */,
 				3C561CD717064F9250200667 /* PromptSectionBudget.swift in Sources */,
+				097B59F01FEC03651D5732A3 /* RepetitionGuard.swift in Sources */,
 				A5A6CE0EF01CA6A9AFA7A400 /* RequestID.swift in Sources */,
 				82D4ADEAF05337ABDE4C586C /* RuntimeBootstrapModel.swift in Sources */,
 				2C6159231472A849F15BD0AE /* ScreenFrameReader.swift in Sources */,
@@ -1291,6 +1298,7 @@
 				934885ACC2DEA20B27F10948 /* PromptContextSanitizerTests.swift in Sources */,
 				3CF1A4E39F24917DF0470A7D /* PromptPolicyTests.swift in Sources */,
 				7EB20783E0D36715D1230A5C /* PromptSectionBudgetTests.swift in Sources */,
+				ED642B8D6D0EAF52E3907DE5 /* RepetitionGuardTests.swift in Sources */,
 				1B3FFCB9A979F49BF86EAAD4 /* ScreenshotContextGeneratorTests.swift in Sources */,
 				1D1C6FF0B8F50AC14A1000F4 /* SentenceBoundaryClassifierTests.swift in Sources */,
 				C618C5595DA9C57C806A3E03 /* SettingsAttentionEvaluatorTests.swift in Sources */,
