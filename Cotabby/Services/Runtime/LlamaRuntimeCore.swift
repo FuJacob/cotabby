@@ -190,6 +190,7 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
 
         var generatedText = ""
         var tokensGenerated = 0
+        var sumLogprob = 0.0
         var stopReason = "budget_exhausted"
 
         for _ in 0 ..< options.maxPredictionTokens {
@@ -216,6 +217,7 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
             let piece = Self.extractPiece(result)
             generatedText += piece
             tokensGenerated += 1
+            sumLogprob += Double(result.logprob)
         }
 
         CotabbyLogger.runtime.debug(
@@ -227,6 +229,23 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
                 "stop_reason": .string(stopReason)
             ]
         )
+
+        // Confidence suppression: drop completions the model itself was unsure about. Disabled by
+        // default (confidenceFloor == -infinity); the KV-trim defer above still runs on early return.
+        if tokensGenerated > 0,
+           ConfidenceSuppressionPolicy.shouldSuppress(
+               averageLogprob: sumLogprob / Double(tokensGenerated),
+               floor: options.confidenceFloor
+           ) {
+            CotabbyLogger.runtime.debug(
+                "Suppressed low-confidence completion",
+                metadata: [
+                    "tokens_generated": .stringConvertible(tokensGenerated),
+                    "avg_logprob": .stringConvertible(sumLogprob / Double(tokensGenerated))
+                ]
+            )
+            return ""
+        }
 
         return generatedText
     }
@@ -387,6 +406,9 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
 
                     let remaining = Array(promptTokens[reusableTokenCount...])
                     if !remaining.isEmpty {
+                        // Seed for the reuse path is sampled at the end of this decodePrompt; apply
+                        // the word-continuation constraint to it just like the fresh path does.
+                        engine.setForceWordContinuation(autocompleteSequenceID, options.forceWordContinuation)
                         var mutableRemaining = remaining
                         let status = engine.decodePrompt(
                             autocompleteSequenceID,
@@ -422,6 +444,10 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         guard seqID >= 0 else {
             throw LlamaRuntimeError.generationFailed("Unable to create inference sequence.")
         }
+
+        // The engine samples the first (seed) token at the end of decodePrompt, so set the
+        // word-continuation constraint here, before decoding.
+        engine.setForceWordContinuation(seqID, options.forceWordContinuation)
 
         var tokens = promptTokens
         let status = engine.decodePrompt(seqID, &tokens, Int32(tokens.count), 0)
@@ -460,7 +486,8 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
             top_p: Float(options.topP),
             min_p: Float(options.minP),
             repetition_penalty: Float(options.repetitionPenalty),
-            seed: options.seed ?? 0
+            seed: options.seed ?? 0,
+            single_line: options.singleLine
         )
     }
 
