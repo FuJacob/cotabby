@@ -60,9 +60,9 @@ final class ScreenshotContextGenerator {
 
         await onStatusChange?(.extractingText)
 
-        let extractedText: String
+        let extracted: ExtractedScreenText
         do {
-            extractedText = try await textExtractor.extractText(from: screenshot.image).text
+            extracted = try await textExtractor.extractText(from: screenshot.image)
         } catch ScreenTextExtractionError.noRecognizedText {
             guard let windowTitle = screenshot.windowTitle else {
                 throw ScreenshotContextGenerationError.unavailable(
@@ -94,9 +94,7 @@ final class ScreenshotContextGenerator {
         // safety. No model summarization: a base model conditions fine on cleaned raw context, and
         // the old summary step cost an extra generation per refresh and could hallucinate.
         let cleanedOCR = OCRTextHygiene.clean(
-            lines: extractedText
-                .split(separator: "\n", omittingEmptySubsequences: true)
-                .map { OCRTextHygiene.OCRLine(text: String($0), confidence: 1.0) },
+            lines: extracted.lines,
             fieldText: context.precedingText + " " + context.trailingText,
             maxChars: configuration.maxRecognizedCharacters
         )
@@ -105,7 +103,7 @@ final class ScreenshotContextGenerator {
         if CotabbyDebugOptions.isEnabled {
             saveDebugScreenshot(
                 screenshot.image,
-                text: extractedText,
+                text: extracted.text,
                 name: sanitizedDebugName(from: context.applicationName)
             )
         }

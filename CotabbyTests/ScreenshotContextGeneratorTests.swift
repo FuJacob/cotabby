@@ -45,15 +45,63 @@ final class ScreenshotContextGeneratorTests: XCTestCase {
         extractedText: String,
         configuration: VisualContextConfiguration = .default
     ) -> ScreenshotContextGenerator {
+        // Mirror the real extractor: split into per-line OCR with a confidence above the hygiene
+        // threshold, so these cases keep exercising the non-confidence filters exactly as before.
+        let lines = extractedText
+            .split(separator: "\n", omittingEmptySubsequences: true)
+            .map { OCRTextHygiene.OCRLine(text: String($0), confidence: 0.9) }
+        return makeGenerator(
+            extracted: ExtractedScreenText(text: extractedText, lineCount: lines.count, lines: lines),
+            configuration: configuration
+        )
+    }
+
+    private func makeGenerator(
+        lines: [OCRTextHygiene.OCRLine],
+        configuration: VisualContextConfiguration = .default
+    ) -> ScreenshotContextGenerator {
+        let joined = lines.map(\.text).joined(separator: "\n")
+        return makeGenerator(
+            extracted: ExtractedScreenText(text: joined, lineCount: lines.count, lines: lines),
+            configuration: configuration
+        )
+    }
+
+    private func makeGenerator(
+        extracted: ExtractedScreenText,
+        configuration: VisualContextConfiguration
+    ) -> ScreenshotContextGenerator {
         ScreenshotContextGenerator(
             screenshotService: StubScreenshotCapture(
                 screenshot: CapturedWindowScreenshot(image: makeImage(), windowTitle: nil)
             ),
-            textExtractor: StubTextExtractor(
-                result: .success(ExtractedScreenText(text: extractedText, lineCount: 1))
-            ),
+            textExtractor: StubTextExtractor(result: .success(extracted)),
             configuration: configuration
         )
+    }
+
+    func test_generateContext_dropsLowConfidenceOCRLines() async throws {
+        // A clean, plausible sentence at low confidence must be dropped even though no other hygiene
+        // filter would catch it, proving real per-line Vision confidence now reaches the hygiene pass.
+        let configuration = VisualContextConfiguration(
+            snapshotDimension: 700,
+            maxImageDimension: 1600,
+            minRecognizedCharacterCount: 12,
+            maxRecognizedCharacters: 500,
+            maxSummaryCharacters: 200
+        )
+        let generator = makeGenerator(
+            lines: [
+                OCRTextHygiene.OCRLine(text: "The quarterly report is due on Friday afternoon.", confidence: 0.2),
+                OCRTextHygiene.OCRLine(text: "Please review the attached budget spreadsheet carefully.", confidence: 0.95)
+            ],
+            configuration: configuration
+        )
+
+        let excerpt = try await generator.generateContext(for: makeSnapshot())
+
+        XCTAssertFalse(excerpt.text.contains("quarterly report"))
+        XCTAssertTrue(excerpt.text.contains("budget spreadsheet"))
     }
 
     private func makeSnapshot() -> FocusedInputSnapshot {

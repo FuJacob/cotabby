@@ -14,6 +14,17 @@ import Logging
 struct ExtractedScreenText: Sendable {
     let text: String
     let lineCount: Int
+    /// Per-line OCR text paired with Vision's recognition confidence, in reading order. Carries the
+    /// confidence that the joined `text` discards, so `OCRTextHygiene.dropLowConfidence` can filter on
+    /// real values instead of a synthesized constant. Defaults to empty for callers (and tests) that
+    /// only supply joined text.
+    let lines: [OCRTextHygiene.OCRLine]
+
+    init(text: String, lineCount: Int, lines: [OCRTextHygiene.OCRLine] = []) {
+        self.text = text
+        self.lineCount = lineCount
+        self.lines = lines
+    }
 }
 
 /// Test seam for screenshot OCR.
@@ -72,7 +83,10 @@ struct ScreenTextExtractor: ScreenTextExtracting {
                     }
 
                     let observations = (request.results as? [VNRecognizedTextObservation]) ?? []
-                    let orderedLines = observations
+                    // Keep each line's confidence (from its top candidate) so the hygiene pass can drop
+                    // the recognizer's weakest guesses; the joined `text` below is for logging and the
+                    // window-title fallback only.
+                    let recognizedLines: [OCRTextHygiene.OCRLine] = observations
                         .sorted {
                             if Swift.abs($0.boundingBox.minY - $1.boundingBox.minY) > 0.02 {
                                 return $0.boundingBox.minY > $1.boundingBox.minY
@@ -80,27 +94,36 @@ struct ScreenTextExtractor: ScreenTextExtracting {
 
                             return $0.boundingBox.minX < $1.boundingBox.minX
                         }
-                        .compactMap { $0.topCandidates(1).first?.string }
-                        .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                        .filter { !$0.isEmpty }
+                        .compactMap { observation -> OCRTextHygiene.OCRLine? in
+                            guard let candidate = observation.topCandidates(1).first else { return nil }
+                            let trimmed = candidate.string.trimmingCharacters(in: .whitespacesAndNewlines)
+                            guard !trimmed.isEmpty else { return nil }
+                            return OCRTextHygiene.OCRLine(text: trimmed, confidence: candidate.confidence)
+                        }
 
-                    let joinedText = orderedLines.joined(separator: "\n")
+                    let joinedText = recognizedLines.map(\.text).joined(separator: "\n")
                     let cappedText = String(joinedText.prefix(maxRecognizedCharacters))
 
                     guard !cappedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                         let elapsedMilliseconds = Int(Date().timeIntervalSince(startedAt) * 1000)
-                        self.log("ocr-empty elapsed_ms=\(elapsedMilliseconds) lines=\(orderedLines.count)")
+                        self.log("ocr-empty elapsed_ms=\(elapsedMilliseconds) lines=\(recognizedLines.count)")
                         continuation.resume(throwing: ScreenTextExtractionError.noRecognizedText)
                         return
                     }
 
                     let elapsedMilliseconds = Int(Date().timeIntervalSince(startedAt) * 1000)
                     self.log(
-                        "ocr-success elapsed_ms=\(elapsedMilliseconds) lines=\(orderedLines.count) chars=\(cappedText.count) " +
+                        "ocr-success elapsed_ms=\(elapsedMilliseconds) lines=\(recognizedLines.count) chars=\(cappedText.count) " +
                             "preview=\(self.preview(cappedText))"
                     )
 
-                    continuation.resume(returning: ExtractedScreenText(text: cappedText, lineCount: orderedLines.count))
+                    continuation.resume(
+                        returning: ExtractedScreenText(
+                            text: cappedText,
+                            lineCount: recognizedLines.count,
+                            lines: recognizedLines
+                        )
+                    )
                 }
 
                 // Accurate OCR is slower, but visual context is only captured once per focused

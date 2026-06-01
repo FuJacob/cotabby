@@ -21,7 +21,7 @@ enum OCRTextHygiene {
     /// Confidence is carried alongside the text because the cheapest, highest-signal filter
     /// (`dropLowConfidence`) needs it. The orchestrating extractor currently discards Vision's
     /// per-candidate confidence; surfacing it into this value type is what lets filter #1 run.
-    struct OCRLine: Equatable {
+    struct OCRLine: Equatable, Sendable {
         let text: String
         let confidence: Float
 
