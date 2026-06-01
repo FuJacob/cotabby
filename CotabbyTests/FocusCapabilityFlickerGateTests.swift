@@ -72,6 +72,24 @@ final class FocusCapabilityFlickerGateTests: XCTestCase {
         XCTAssertEqual(gate.evaluate(blockedSnapshot(elementID: "field-A")), .apply)
     }
 
+    func testSupportedWithoutContextDoesNotArmTheGate() {
+        var gate = FocusCapabilityFlickerGate()
+
+        // A Supported snapshot with no context (rare but possible — e.g. capability inferred from
+        // app identity before AX details settle) cannot be used as a reference for "same element"
+        // checks, so the next Blocked must propagate immediately rather than be silently
+        // suppressed.
+        let supportedWithoutContext = FocusSnapshot(
+            applicationName: "Calendar",
+            bundleIdentifier: "com.apple.iCal",
+            capability: .supported,
+            context: nil,
+            inspection: nil
+        )
+        XCTAssertEqual(gate.evaluate(supportedWithoutContext), .apply)
+        XCTAssertEqual(gate.evaluate(blockedSnapshot(elementID: "field-A")), .apply)
+    }
+
     func testBlockedWithMissingContextIsAppliedEvenAfterSupported() {
         var gate = FocusCapabilityFlickerGate()
         _ = gate.evaluate(supportedSnapshot(elementID: "field-A"))
