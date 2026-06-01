@@ -37,7 +37,6 @@ Update this file whenever you add, remove, or change a timing constant.
 | Location | Value | Purpose |
 |----------|-------|---------|
 | `Cotabby/Services/Visual/VisualContextCoordinator.swift:29` | 250 ms | Session-start settle delay. Debounces visual context capture on focus change so a flapping Chromium focus doesn't retrigger screenshots and OCR. |
-| `Cotabby/Services/Visual/LlamaVisualContextSummarizer.swift:20` | 3 s | Llama visual context summarization soft timeout. Cancels generation after 3 s and returns whatever partial text was produced. |
 
 ## Permissions
 

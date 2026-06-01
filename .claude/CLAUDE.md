@@ -46,11 +46,13 @@ change as shipping to end users, not as an exercise.
 - Focus comes from `FocusTracker`, `FocusSnapshotResolver`, `AXTextGeometryResolver`,
   and `AXHelper`. Treat AX data as eventually consistent and app-specific.
 - Visual context flows through `VisualContextCoordinator`,
-  `ScreenshotContextGenerator`, `ScreenTextExtractor`, `WindowScreenshotService`,
-  and `LlamaVisualContextSummarizer`.
+  `ScreenshotContextGenerator`, `ScreenTextExtractor`, and `WindowScreenshotService`.
+  OCR text is cleaned by the pure `OCRTextHygiene`; there is no model summarization step.
 - Runtime generation flows through `SuggestionEngineRouter`,
   `FoundationModelSuggestionEngine`, `LlamaSuggestionEngine`,
-  `LlamaRuntimeManager`, and the serialized `LlamaRuntimeCore` actor.
+  `LlamaRuntimeManager`, and the serialized `LlamaRuntimeCore` actor. The OSS
+  (llama.cpp) path drives base models via `BaseCompletionPromptRenderer`; Apple
+  Foundation Models stays instruct via `FoundationModelPromptRenderer`.
 
 ## Comments
 

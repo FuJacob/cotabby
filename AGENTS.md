@@ -54,7 +54,8 @@ When adding a `struct`, `class`, `enum`, actor, or protocol, explain:
   reconciliation, geometry helpers, and low-level bridging utilities.
 - `CotabbyTests/`: unit and microbench tests. Prefer testing pure `Support/` and `Models/` logic
   when possible.
-- `LlamaRuntime/`: local llama.swift / llama.cpp integration artifacts.
+- `CotabbyInference`: the llama.cpp wrapper, consumed as a SwiftPM package
+  (`github.com/FuJacob/cotabbyinference`, pinned to `main`) rather than vendored in-tree.
 
 ## App Ownership
 
@@ -112,10 +113,11 @@ native AppKit fields, and secure fields expose different AX shapes. Preserve sta
 Visual context currently flows through:
 
 - `VisualContextCoordinator`: field-scoped visual-context session lifecycle.
-- `ScreenshotContextGenerator`: screenshot -> OCR -> optional summary -> bounded excerpt.
+- `ScreenshotContextGenerator`: screenshot -> OCR -> `OCRTextHygiene` cleanup -> bounded excerpt.
 - `WindowScreenshotService`: captures the relevant window or region.
-- `ScreenTextExtractor`: Vision OCR extraction.
-- `LlamaVisualContextSummarizer`: optional local summary using the selected llama runtime.
+- `ScreenTextExtractor`: Vision OCR extraction, carrying per-line recognition confidence.
+- `OCRTextHygiene`: pure cleanup of raw OCR (drops low-confidence lines and chrome noise). There is
+  no model summarization step; a base model conditions fine on cleaned raw context.
 - `VisualContextModels`: configuration, status, and excerpt values.
 
 Do not put raw screenshots, unbounded OCR dumps, or noisy AX tree text directly into prompts.
@@ -131,8 +133,15 @@ Runtime generation is split by responsibility:
 - `LlamaSuggestionEngine`: request-to-prompt, llama result handling, and cache reset handoff.
 - `LlamaRuntimeManager`: UI-facing runtime state, model selection, warmup, and lifecycle control.
 - `LlamaRuntimeCore`: serialized actor around mutable llama.cpp pointers, prompt tokenization,
-  KV-cache reuse, sampling, and shutdown.
-- `LlamaPromptRenderer`: prompt construction.
+  KV-cache reuse, sampling, an optional deterministic constrained decoder
+  (`runConstrainedDecode`, gated behind the default-off `cotabbyConstrainedDecoderEnabled`), and
+  shutdown.
+- `BaseCompletionPromptRenderer`: prompt construction for the Open Source path. The llama models are
+  now *base* (non-instruct) GGUFs, so this renders a pure text continuation: no instruction preamble,
+  custom rules and context fold into a short conditioning preface (a base model conditions on
+  description, it does not obey commands), sections are character-budgeted via `PromptSectionBudget`,
+  and the caret prefix comes last. `FoundationModelPromptRenderer` stays instruct-shaped because
+  Apple's Foundation Models path gives us a first-class instructions channel.
 
 Keep llama.cpp pointer work serialized inside `LlamaRuntimeCore`. The manager should publish state;
 the core should own native correctness.

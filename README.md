@@ -85,14 +85,17 @@ Everything runs on-device. No hosted API, no cloud round-trip.
 
 **Apple Intelligence**: uses Apple's on-device `FoundationModels` runtime on macOS 26 or later, no download required.
 
-**Open Source**: runs local GGUF models in-process through llama.cpp via `CotabbyInference`. Cotabby ships with four built-in downloadable models:
+**Open Source**: runs local GGUF *base* models in-process through llama.cpp via `CotabbyInference`. Rather than instructing an instruction-tuned model, Cotabby treats the model as a pure text continuer and conditions it on your persona, style, language, and on-screen context. Cotabby ships with five built-in downloadable models:
 
-| Model          | File                              | Size    | Source                                                                                                  |
-| -------------- | --------------------------------- | ------- | ------------------------------------------------------------------------------------------------------- |
-| `tabby-1-nano` | `SmolLM2-135M-Instruct-q8_0.gguf` | ~0.1 GB | [Mungert/SmolLM2-135M-Instruct-GGUF](https://huggingface.co/Mungert/SmolLM2-135M-Instruct-GGUF)         |
-| `tabby-1-mini` | `Qwen3-0.6B-Q4_K_M.gguf`          | ~0.4 GB | [unsloth/Qwen3-0.6B-GGUF](https://huggingface.co/unsloth/Qwen3-0.6B-GGUF)                               |
-| `tabby-1-base` | `gemma-4-E2B-it-Q4_K_M.gguf`      | ~3.1 GB | [unsloth/gemma-4-E2B-it-GGUF](https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF)                       |
-| `tabby-1-pro`  | `gemma-4-E4B-it-Q4_K_M.gguf`      | ~5.0 GB | [unsloth/gemma-4-E4B-it-GGUF](https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF)                       |
+| Model                | File                                 | Size    | Source                                                                                                          |
+| -------------------- | ------------------------------------ | ------- | --------------------------------------------------------------------------------------------------------------- |
+| `tabby-2-mini`       | `Qwen3.5-0.8B-Base.i1-Q6_K.gguf`     | ~0.8 GB | [mradermacher/Qwen3.5-0.8B-Base-i1-GGUF](https://huggingface.co/mradermacher/Qwen3.5-0.8B-Base-i1-GGUF)         |
+| `tabby-2-base`       | `Qwen3.5-2B-Base.i1-Q4_K_M.gguf`     | ~1.4 GB | [mradermacher/Qwen3.5-2B-Base-i1-GGUF](https://huggingface.co/mradermacher/Qwen3.5-2B-Base-i1-GGUF)             |
+| `tabby-2-pro`        | `Qwen3.5-4B-Base.i1-Q4_K_M.gguf`     | ~2.6 GB | [mradermacher/Qwen3.5-4B-Base-i1-GGUF](https://huggingface.co/mradermacher/Qwen3.5-4B-Base-i1-GGUF)             |
+| `tabby-2-gemma-mini` | `gemma-4-E2B.i1-Q6_K.gguf`           | ~4.5 GB | [mradermacher/gemma-4-E2B-i1-GGUF](https://huggingface.co/mradermacher/gemma-4-E2B-i1-GGUF)                     |
+| `tabby-2-gemma-pro`  | `gemma-4-E4B.i1-Q4_K_M.gguf`         | ~5.0 GB | [mradermacher/gemma-4-E4B-i1-GGUF](https://huggingface.co/mradermacher/gemma-4-E4B-i1-GGUF)                     |
+
+`tabby-2-base` is the default. Apple Intelligence remains instruction-tuned and is unaffected by the base-model path.
 
 ### Bring your own model
 
