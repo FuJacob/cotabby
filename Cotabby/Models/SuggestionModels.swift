@@ -43,20 +43,22 @@ enum SuggestionWordCountPreset: String, CaseIterable, Equatable, Hashable, Senda
     }
 
     /// Token budget is the sole governor of completion length on the local model (the in-prompt
-    /// word-range cue was removed), so it must track the upper word bound closely. Sized at
-    /// ~1.5x the upper word count to leave headroom for multi-token words (contractions, proper
-    /// nouns, punctuation) without overrunning the preset. The earlier 50% bump (17/27/45) let
-    /// completions blow past the setting, e.g. ~12 words on the shortest preset (#271).
+    /// word-range cue was removed), so it must track the upper word bound closely. English BPE
+    /// averages ~1.3 tokens per word, so these are sized at ~1.25x the upper word count: the cap
+    /// lands at or just under the upper bound instead of past it. History: a ~1.5x sizing
+    /// (6/11/18/30) still overran because real prose uses fewer tokens per word than that assumed,
+    /// and an earlier 50% bump overran further, e.g. ~12 words on the shortest preset (#271). When
+    /// unsure, bias shorter; a clipped suggestion is cheaper than one that blows past the setting.
     var suggestedPredictionTokenBudget: Int {
         switch self {
         case .twoToFour:
-            return 6
+            return 5
         case .fourToSeven:
-            return 11
+            return 9
         case .sevenToTwelve:
-            return 18
+            return 15
         case .twelveToTwenty:
-            return 30
+            return 25
         }
     }
 }
@@ -101,8 +103,10 @@ struct SuggestionConfiguration: Equatable, Sendable {
     /// The configuration shipped by the app today.
     /// These are product defaults, not temporary debug overrides.
     static let standard = SuggestionConfiguration(
-        // Keep completions short so ghost text stays fast and easy to accept.
-        maxPredictionTokens: 8,
+        // Floor for the per-request token budget (see SuggestionRequestFactory.activeMaxPredictionTokens).
+        // Held at the smallest word-count preset (2-4 words) so that preset's budget governs instead
+        // of being silently raised; keeps ghost text short, fast, and easy to accept.
+        maxPredictionTokens: 5,
         // Aggressive debounce: 20ms keeps time-to-first-suggestion low while still collapsing
         // bursts (superseded generations are cancelled; the host-publish poll absorbs AX lag).
         debounceMilliseconds: 20,

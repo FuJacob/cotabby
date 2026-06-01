@@ -167,7 +167,7 @@ final class SuggestionRequestFactoryTests: XCTestCase {
             result.request.completionLengthInstruction,
             "Return only the next 12 to 20 words."
         )
-        XCTAssertEqual(result.request.maxPredictionTokens, 30)
+        XCTAssertEqual(result.request.maxPredictionTokens, 25)
         XCTAssertEqual(result.promptPreview, result.request.prompt)
     }
 
