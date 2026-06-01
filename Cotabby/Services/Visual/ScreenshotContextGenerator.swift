@@ -27,19 +27,16 @@ enum ScreenshotContextGenerationError: LocalizedError {
 @MainActor
 final class ScreenshotContextGenerator {
     private enum ContextSource: String {
-        case summary
         case ocrFallback = "ocr_fallback"
     }
 
     private let screenshotService: any WindowScreenshotCapturing
     private let textExtractor: any ScreenTextExtracting
-    private let summarizer: VisualContextSummarizing?
     private let configuration: VisualContextConfiguration
 
     init(
         screenshotService: (any WindowScreenshotCapturing)? = nil,
         textExtractor: (any ScreenTextExtracting)? = nil,
-        summarizer: VisualContextSummarizing? = nil,
         configuration: VisualContextConfiguration? = nil
     ) {
         let actualConfig = configuration ?? .default
@@ -50,7 +47,6 @@ final class ScreenshotContextGenerator {
                 maxImageDimension: actualConfig.maxImageDimension,
                 maxRecognizedCharacters: actualConfig.maxRecognizedCharacters
             )
-        self.summarizer = summarizer
         self.configuration = actualConfig
     }
 
@@ -93,7 +89,18 @@ final class ScreenshotContextGenerator {
             throw ScreenshotContextGenerationError.failed(error.localizedDescription)
         }
 
-        let normalizedText = normalizeRecognizedText(extractedText)
+        // Filter OCR corruption (garbled / symbol-noise / digit-substituted lines) and strip any
+        // line that merely echoes the user's own field text, then sanitize for prompt-injection
+        // safety. No model summarization: a base model conditions fine on cleaned raw context, and
+        // the old summary step cost an extra generation per refresh and could hallucinate.
+        let cleanedOCR = OCRTextHygiene.clean(
+            lines: extractedText
+                .split(separator: "\n", omittingEmptySubsequences: true)
+                .map { OCRTextHygiene.OCRLine(text: String($0), confidence: 1.0) },
+            fieldText: context.precedingText + " " + context.trailingText,
+            maxChars: configuration.maxRecognizedCharacters
+        )
+        let normalizedText = normalizeRecognizedText(cleanedOCR)
 
         if CotabbyDebugOptions.isEnabled {
             saveDebugScreenshot(
@@ -103,20 +110,7 @@ final class ScreenshotContextGenerator {
             )
         }
 
-        CotabbyLogger.app.debug("OCR extracted \(normalizedText.count) chars from screenshot")
-        guard hasMeaningfulSignal(normalizedText) else {
-            throw ScreenshotContextGenerationError.unavailable(
-                "The screenshot did not contain enough visible text to build prompt context."
-            )
-        }
-
-        let (contextSource, finalContextText) = await resolvedContextText(
-            ocrFallback: boundedSummaryText(normalizedText),
-            normalizedText: normalizedText,
-            applicationName: context.applicationName,
-            onStatusChange: onStatusChange
-        )
-
+        let finalContextText = boundedSummaryText(normalizedText)
         guard hasMeaningfulSignal(finalContextText) else {
             throw ScreenshotContextGenerationError.unavailable(
                 "The screenshot did not contain enough visible text to build prompt context."
@@ -124,48 +118,10 @@ final class ScreenshotContextGenerator {
         }
 
         CotabbyLogger.app.debug(
-            "Visual context ready source=\(contextSource.rawValue) chars=\(finalContextText.count)"
+            "Visual context ready source=\(ContextSource.ocrFallback.rawValue) chars=\(finalContextText.count)"
         )
 
         return VisualContextExcerpt(text: finalContextText)
-    }
-
-    /// Prefers a model summary over the raw sanitized OCR body, falling back to the OCR text when no
-    /// summarizer is configured, the summary sanitizes to nothing, or summarization fails.
-    ///
-    /// Extracted from `generateContext` to keep that method's branching readable. Summarization
-    /// failures (no GGUF model downloaded yet, timeout, empty output) are intentionally non-fatal:
-    /// a non-empty sanitized OCR body is still better context than discarding it entirely.
-    private func resolvedContextText(
-        ocrFallback: String,
-        normalizedText: String,
-        applicationName: String,
-        onStatusChange: (@Sendable (VisualContextStatus) async -> Void)?
-    ) async -> (source: ContextSource, text: String) {
-        guard let summarizer = summarizer else {
-            return (.ocrFallback, ocrFallback)
-        }
-
-        await onStatusChange?(.summarizingText)
-        do {
-            let summaryText = try await summarizer.summarize(
-                text: normalizedText,
-                applicationName: applicationName
-            )
-            let boundedSummary = boundedSummaryText(summaryText)
-            guard hasMeaningfulSignal(boundedSummary) else {
-                CotabbyLogger.app.debug(
-                    "Visual context summary empty after sanitization; using sanitized OCR fallback"
-                )
-                return (.ocrFallback, ocrFallback)
-            }
-            return (.summary, boundedSummary)
-        } catch {
-            CotabbyLogger.app.debug(
-                "Visual context summary unavailable; using sanitized OCR fallback reason=\(error.localizedDescription)"
-            )
-            return (.ocrFallback, ocrFallback)
-        }
     }
 
     private func captureScreenshot(

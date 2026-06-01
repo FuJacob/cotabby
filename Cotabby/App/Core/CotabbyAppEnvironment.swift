@@ -116,8 +116,7 @@ final class CotabbyAppEnvironment {
         let activationIndicatorController = ActivationIndicatorController()
         let clipboardContextProvider = ClipboardContextProvider()
         let clipboardRelevanceFilter = ClipboardRelevanceFilter()
-        let summarizer = LlamaVisualContextSummarizer(runtimeManager: runtimeManager)
-        let screenshotContextGenerator = ScreenshotContextGenerator(summarizer: summarizer)
+        let screenshotContextGenerator = ScreenshotContextGenerator()
         let visualContextCoordinator = VisualContextCoordinator(
             screenshotContextGenerator: screenshotContextGenerator,
             screenRecordingPermissionProvider: { permissionManager.screenRecordingGranted }
