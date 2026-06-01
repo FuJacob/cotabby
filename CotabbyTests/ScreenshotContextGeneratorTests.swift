@@ -4,43 +4,7 @@ import XCTest
 
 @MainActor
 final class ScreenshotContextGeneratorTests: XCTestCase {
-    func test_generateContext_usesGoodSummaryWhenAvailable() async throws {
-        let generator = makeGenerator(
-            extractedText: "Issue 471 asks Cotabby to improve suggestions in GeneralPaneView.swift",
-            summaryResult: .success("Surface Xcode task update Screen Recording permission copy")
-        )
-
-        let excerpt = try await generator.generateContext(for: makeSnapshot())
-
-        XCTAssertTrue(excerpt.text.contains("Surface Xcode task"))
-        XCTAssertFalse(excerpt.text.contains("Issue 471"))
-    }
-
-    func test_generateContext_emptySummaryFallsBackToSanitizedOCR() async throws {
-        let generator = makeGenerator(
-            extractedText: "Issue 471 asks Cotabby to improve suggestions in GeneralPaneView.swift",
-            summaryResult: .success("   ")
-        )
-
-        let excerpt = try await generator.generateContext(for: makeSnapshot())
-
-        XCTAssertTrue(excerpt.text.contains("Issue"))
-        XCTAssertTrue(excerpt.text.contains("GeneralPaneView.swift"))
-    }
-
-    func test_generateContext_thrownSummarizerErrorFallsBackToSanitizedOCR() async throws {
-        let generator = makeGenerator(
-            extractedText: "GitHub PR needs exact context about ScreenshotContextGenerator.swift",
-            summaryResult: .failure
-        )
-
-        let excerpt = try await generator.generateContext(for: makeSnapshot())
-
-        XCTAssertTrue(excerpt.text.contains("GitHub PR"))
-        XCTAssertTrue(excerpt.text.contains("ScreenshotContextGenerator.swift"))
-    }
-
-    func test_generateContext_ocrOnlyFallbackIsCappedAndSanitized() async throws {
+    func test_generateContext_ocrTextIsCappedAndSanitized() async throws {
         let configuration = VisualContextConfiguration(
             snapshotDimension: 700,
             maxImageDimension: 1600,
@@ -53,7 +17,6 @@ final class ScreenshotContextGeneratorTests: XCTestCase {
             gLVWrt bDokE 54tbdbDX
             GeneralPaneView.swift should say Screen Recording is required for autocomplete context
             """,
-            summaryResult: nil,
             configuration: configuration
         )
 
@@ -66,10 +29,7 @@ final class ScreenshotContextGeneratorTests: XCTestCase {
     }
 
     func test_generateContext_allNoiseOCRReturnsUnavailable() async throws {
-        let generator = makeGenerator(
-            extractedText: "gLVWrt bDokE 54tbdbDX\n50 424 102 99",
-            summaryResult: nil
-        )
+        let generator = makeGenerator(extractedText: "gLVWrt bDokE 54tbdbDX\n50 424 102 99")
 
         do {
             _ = try await generator.generateContext(for: makeSnapshot())
@@ -83,7 +43,6 @@ final class ScreenshotContextGeneratorTests: XCTestCase {
 
     private func makeGenerator(
         extractedText: String,
-        summaryResult: StubSummarizer.Result?,
         configuration: VisualContextConfiguration = .default
     ) -> ScreenshotContextGenerator {
         ScreenshotContextGenerator(
@@ -93,7 +52,6 @@ final class ScreenshotContextGeneratorTests: XCTestCase {
             textExtractor: StubTextExtractor(
                 result: .success(ExtractedScreenText(text: extractedText, lineCount: 1))
             ),
-            summarizer: summaryResult.map(StubSummarizer.init(result:)),
             configuration: configuration
         )
     }
@@ -162,30 +120,4 @@ private struct StubTextExtractor: ScreenTextExtracting {
             throw error
         }
     }
-}
-
-private final class StubSummarizer: VisualContextSummarizing {
-    enum Result {
-        case success(String)
-        case failure
-    }
-
-    let result: Result
-
-    init(result: Result) {
-        self.result = result
-    }
-
-    func summarize(text: String, applicationName: String) async throws -> String {
-        switch result {
-        case let .success(summary):
-            return summary
-        case .failure:
-            throw StubSummarizerError.failed
-        }
-    }
-}
-
-private enum StubSummarizerError: Error {
-    case failed
 }
