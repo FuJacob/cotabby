@@ -97,11 +97,11 @@ enum OnboardingTemplate: String, CaseIterable, Identifiable, Equatable, Sendable
     var openSourceModelFilename: String {
         switch self {
         case .quick:
-            return "SmolLM2-135M-Instruct-q8_0.gguf"
+            return "Qwen3.5-0.8B-Base.i1-Q6_K.gguf"
         case .everyday:
-            return "gemma-4-E2B-it-Q4_K_M.gguf"
+            return "Qwen3.5-2B-Base.i1-Q4_K_M.gguf"
         case .powerful:
-            return "gemma-4-E4B-it-Q4_K_M.gguf"
+            return "Qwen3.5-4B-Base.i1-Q4_K_M.gguf"
         }
     }
 }

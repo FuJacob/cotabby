@@ -46,9 +46,9 @@ final class OnboardingTemplateRecommenderTests: XCTestCase {
 
     func testOpenSourceTiersMapToTheirLocalModels() {
         let expected: [OnboardingTemplate: String] = [
-            .quick: "SmolLM2-135M-Instruct-q8_0.gguf",
-            .everyday: "gemma-4-E2B-it-Q4_K_M.gguf",
-            .powerful: "gemma-4-E4B-it-Q4_K_M.gguf"
+            .quick: "Qwen3.5-0.8B-Base.i1-Q6_K.gguf",
+            .everyday: "Qwen3.5-2B-Base.i1-Q4_K_M.gguf",
+            .powerful: "Qwen3.5-4B-Base.i1-Q4_K_M.gguf"
         ]
         for (template, filename) in expected {
             let plan = OnboardingTemplateRecommender.resolvePlan(for: template, engine: .llamaOpenSource)

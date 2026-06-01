@@ -147,12 +147,12 @@ final class RuntimeAndInputModelValueTests: XCTestCase {
 
     func test_runtimeModelCatalogMapsKnownNamesAndLeavesCustomNamesAlone() {
         XCTAssertEqual(
-            RuntimeModelCatalog.displayName(for: "Qwen3-0.6B-Q4_K_M.gguf"),
-            "tabby-1-mini"
+            RuntimeModelCatalog.displayName(for: "Qwen3.5-2B-Base.i1-Q4_K_M.gguf"),
+            "tabby-2-base"
         )
         XCTAssertEqual(
-            RuntimeModelCatalog.displayName(for: "gemma-4-E2B-it-Q4_K_M.gguf"),
-            "tabby-1-base"
+            RuntimeModelCatalog.displayName(for: "Qwen3.5-0.8B-Base.i1-Q6_K.gguf"),
+            "tabby-2-mini"
         )
         // Retired models fall back to their raw filename like any unknown local GGUF.
         XCTAssertEqual(

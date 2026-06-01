@@ -1,8 +1,7 @@
 import Foundation
 
 /// File overview:
-/// Renders the prompt for the experimental base-model completion pipeline (Open Source engine with
-/// `useBaseCompletionPipeline` enabled).
+/// Renders the prompt for Cotabby's base-model completion pipeline (the Open Source / llama path).
 ///
 /// Why this exists separately from `LlamaPromptRenderer`:
 /// `LlamaPromptRenderer` wraps the user's text in an instruction blob ("Task: ... do not answer the
