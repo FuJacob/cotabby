@@ -94,7 +94,7 @@ Everything runs on-device. No hosted API, no cloud round-trip.
 | `tabby-2-base` | `gemma-4-E2B.i1-Q6_K.gguf`       | ~4.5 GB | [mradermacher/gemma-4-E2B-i1-GGUF](https://huggingface.co/mradermacher/gemma-4-E2B-i1-GGUF)             |
 | `tabby-2-pro`  | `gemma-4-E4B.i1-Q4_K_M.gguf`     | ~5.0 GB | [mradermacher/gemma-4-E4B-i1-GGUF](https://huggingface.co/mradermacher/gemma-4-E4B-i1-GGUF)             |
 
-`tabby-2-mini` (Qwen 2B) is the default; `tabby-2-nano` suits low-memory Macs, and `tabby-2-base` / `tabby-2-pro` (Gemma) are larger opt-in downloads. Apple Intelligence remains instruction-tuned and is unaffected by the base-model path.
+`tabby-2-base` (Gemma E2B) is the default and the recommended onboarding tier; `tabby-2-nano` is the lightweight option for low-memory Macs, `tabby-2-mini` is a smaller alternative, and `tabby-2-pro` is the largest. Apple Intelligence remains instruction-tuned and is unaffected by the base-model path.
 
 ### Bring your own model
 

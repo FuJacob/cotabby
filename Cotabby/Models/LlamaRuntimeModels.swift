@@ -159,9 +159,9 @@ struct LlamaRuntimeConfiguration: Equatable, Sendable {
     static let `default` = LlamaRuntimeConfiguration(
         runtimeDirectoryPath: nil,
         preferredModelNames: [
+            "gemma-4-E2B.i1-Q6_K.gguf",
             "Qwen3.5-2B-Base.i1-Q4_K_M.gguf",
             "Qwen3.5-0.8B-Base.i1-Q6_K.gguf",
-            "gemma-4-E2B.i1-Q6_K.gguf",
             "gemma-4-E4B.i1-Q4_K_M.gguf"
         ],
         contextWindowTokens: 2048,

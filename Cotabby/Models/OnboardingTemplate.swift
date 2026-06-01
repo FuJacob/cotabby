@@ -99,7 +99,7 @@ enum OnboardingTemplate: String, CaseIterable, Identifiable, Equatable, Sendable
         case .quick:
             return "Qwen3.5-0.8B-Base.i1-Q6_K.gguf"
         case .everyday:
-            return "Qwen3.5-2B-Base.i1-Q4_K_M.gguf"
+            return "gemma-4-E2B.i1-Q6_K.gguf"
         case .powerful:
             return "gemma-4-E4B.i1-Q4_K_M.gguf"
         }
