@@ -5,15 +5,19 @@ import Foundation
 ///
 /// Design: a *base* model has no instruction-following channel and will happily continue a bare
 /// "Task:" line as if it were the document, so an instruction-blob prompt would leak scaffolding into
-/// the ghost text. This renderer instead treats the model as a pure text continuer:
+/// the ghost text. This renderer treats the model as a pure text continuer: persona, style, language,
+/// and supporting context are folded into a short conditioning preface (a base model conditions on
+/// description, it does not obey commands), and the caret prefix is the LAST thing in the prompt with
+/// trailing whitespace trimmed so generation begins at a clean word boundary.
 ///
-/// - No task preamble and no standalone `Label:` lines.
-/// - Custom instructions work by *conditioning*, not obedience: persona, voice, and language are
-///   folded into a short framing sentence that makes the desired continuation the most likely one.
-/// - Supporting context (notes/screen/clipboard) is included as compact prose ahead of the prefix.
-/// - The single invariant that locates the caret is that `prefixText` is the LAST thing in the
-///   prompt, with trailing whitespace trimmed so generation begins at a clean word boundary.
+/// Sections are character-budgeted via `PromptSectionBudget` so a large glossary, clipboard, or
+/// screen capture can never crowd out the caret text: the prefix gets top priority and a guaranteed
+/// minimum, and context fills the remaining budget by priority.
 enum BaseCompletionPromptRenderer {
+    /// Total character budget for the preface plus caret prefix. The prefix arrives already windowed
+    /// by `SuggestionRequestFactory`, so this mainly caps how much optional context rides along.
+    static let defaultContextBudget = 2400
+
     static func prompt(
         prefixText: String,
         applicationName: String,
@@ -22,80 +26,87 @@ enum BaseCompletionPromptRenderer {
         extendedContext: String? = nil,
         languageInstruction: String? = nil,
         clipboardContext: String? = nil,
-        visualContextSummary: String? = nil
+        visualContextSummary: String? = nil,
+        contextBudget: Int = defaultContextBudget
     ) -> String {
-        var preface: [String] = []
-
-        // Persona/voice/language framing, phrased as a description of the document rather than a
-        // command, because a base model conditions on description but ignores instructions. Emitted
-        // only when the user supplied something, so a bare field stays pure continuation (the
-        // strongest base-model setup). `applicationName` is intentionally not stated as a label here;
-        // app/window metadata biases a base model toward code/numbers over prose.
-        if let framing = authorFraming(
-            userName: userName,
-            customRules: customRules,
-            languageInstruction: languageInstruction
-        ) {
-            preface.append(framing)
-        }
-
-        // Free-form reference notes (glossary/terminology) ahead of the prefix so the user's terms
-        // become likelier continuations through in-context conditioning.
-        if let extendedContext, !extendedContext.isEmpty {
-            preface.append("Notes the writer keeps in mind: \(extendedContext)")
-        }
-        if let visualContextSummary, !visualContextSummary.isEmpty {
-            preface.append("Nearby on screen: \(visualContextSummary)")
-        }
-        if let clipboardContext, !clipboardContext.isEmpty {
-            preface.append("On the clipboard: \(clipboardContext)")
-        }
-
-        // Trailing whitespace is trimmed so the model continues from a clean word boundary instead of
-        // being asked to emit a leading-space token (which base models do poorly). A prefix ending
-        // mid-word keeps its final partial word, so mid-word continuation still works. Output spacing
-        // is reconciled downstream by `SuggestionTextNormalizer`.
         let trimmedPrefix = Self.trimmingTrailingWhitespace(prefixText)
+
+        var sections: [PromptSection] = []
+        if let persona = Self.personaLine(userName) {
+            sections.append(Self.contextSection("persona", persona, priority: 60, maxChars: 200))
+        }
+        if let style = Self.styleLine(customRules) {
+            sections.append(Self.contextSection("style", style, priority: 55, maxChars: 300))
+        }
+        if let language = Self.nonEmpty(languageInstruction) {
+            sections.append(Self.contextSection("language", language, priority: 50, maxChars: 300))
+        }
+        if let notes = Self.nonEmpty(extendedContext) {
+            sections.append(Self.contextSection("notes", "Notes the writer keeps in mind: \(notes)", priority: 40, maxChars: 600))
+        }
+        if let clip = Self.nonEmpty(clipboardContext) {
+            sections.append(Self.contextSection("clipboard", "On the clipboard: \(clip)", priority: 35, maxChars: 400))
+        }
+        if let screen = Self.nonEmpty(visualContextSummary) {
+            sections.append(Self.contextSection("screen", "Nearby on screen: \(screen)", priority: 30, maxChars: 500))
+        }
+        // The caret prefix: top priority so it is never starved, kept by its END (the text nearest
+        // the caret), and rendered last with no label so the model continues from where the user
+        // stopped. `applicationName` is intentionally not stated; app/window metadata biases a base
+        // model toward code/numbers over prose.
+        sections.append(
+            PromptSection(
+                name: "prefix",
+                content: trimmedPrefix,
+                priority: 100,
+                minChars: 1,
+                maxChars: max(1, trimmedPrefix.count),
+                truncation: .preserveEnd
+            )
+        )
+
+        let kept = PromptSectionBudget.allocate(sections, totalChars: contextBudget)
+        let prefix = kept.first { $0.name == "prefix" }?.content ?? trimmedPrefix
+        let preface = kept.filter { $0.name != "prefix" }.map(\.content)
 
         guard !preface.isEmpty else {
             // No context to condition on: hand the model the bare text and let it continue.
-            return trimmedPrefix
+            return prefix
         }
-
         // A blank line separates the conditioning preface from the live text without a label the
         // model could copy. The prefix remains the final bytes of the prompt.
-        return preface.joined(separator: "\n") + "\n\n" + trimmedPrefix
+        return preface.joined(separator: "\n") + "\n\n" + prefix
     }
 
-    /// Builds the conditioning sentence from persona/style/language, or nil when none were supplied.
-    private static func authorFraming(
-        userName: String?,
-        customRules: [String],
-        languageInstruction: String?
-    ) -> String? {
-        let name = (userName ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+    private static func contextSection(
+        _ name: String,
+        _ content: String,
+        priority: Int,
+        maxChars: Int
+    ) -> PromptSection {
+        PromptSection(name: name, content: content, priority: priority, minChars: 0, maxChars: maxChars, truncation: .preserveStart)
+    }
+
+    /// "Written by <name>." or nil. Conditions the voice via authorship framing.
+    private static func personaLine(_ userName: String?) -> String? {
+        guard let name = Self.nonEmpty(userName) else { return nil }
+        return "Written by \(name)."
+    }
+
+    /// "Writing style: <rules>." or nil. Rendered as its own line rather than jammed into an
+    /// "in a <rules> style" clause, so multi-word and sentence-shaped rules read correctly and
+    /// condition cleanly (the old clause produced broken prose like "in a Use British spelling style").
+    private static func styleLine(_ customRules: [String]) -> String? {
         let rules = customRules
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
-        let language = (languageInstruction ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !rules.isEmpty else { return nil }
+        return "Writing style: \(rules.joined(separator: ", "))."
+    }
 
-        guard !name.isEmpty || !rules.isEmpty || !language.isEmpty else {
-            return nil
-        }
-
-        var sentence = "The following is text"
-        if !name.isEmpty {
-            sentence += " written by \(name)"
-        }
-        if !rules.isEmpty {
-            sentence += " in a \(rules.joined(separator: ", ")) style"
-        }
-        sentence += "."
-        if !language.isEmpty {
-            // `languageInstruction` is already a soft directive sentence; append it verbatim.
-            sentence += " \(language)"
-        }
-        return sentence
+    private static func nonEmpty(_ text: String?) -> String? {
+        let trimmed = (text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     /// Drops trailing spaces, tabs, and newlines so the base-model prompt ends at a word boundary.
