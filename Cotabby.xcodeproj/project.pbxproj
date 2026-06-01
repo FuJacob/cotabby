@@ -124,6 +124,7 @@
 		6E49ADEB31D04DC77A47DEB0 /* FileLogHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE8C2569A8217EE9BD3B197F /* FileLogHandler.swift */; };
 		744B06C2488156B178675615 /* PermissionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85BF316556FDA64CB8AD07B6 /* PermissionManager.swift */; };
 		76FD91607794883F8E121450 /* CaretGeometrySelector.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3C84377F352140759B448C9 /* CaretGeometrySelector.swift */; };
+		78A8713A0E5B4C89E2D715BC /* FocusCapabilityFlickerGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1972BD2C5254D8266618781F /* FocusCapabilityFlickerGateTests.swift */; };
 		78FAE5DB691A1B71042B9D20 /* AboutPaneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3FA53BBC3D81503C1D17477 /* AboutPaneView.swift */; };
 		7B6A63F5DCC2C163CDFD2A5C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = BC4F887528AE74AC0DD30314 /* Assets.xcassets */; };
 		7C36DBA762E19C8C31676D44 /* MidWordContinuationPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1274F897631B1B3A835D157F /* MidWordContinuationPolicyTests.swift */; };
@@ -181,6 +182,7 @@
 		BBE22CE4EF43247F8775B25D /* FocusPollBackoff.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09FADF683BE7B3558377FA76 /* FocusPollBackoff.swift */; };
 		BFCA7FAFDAEBF586AB615567 /* ClipboardRelevanceFilterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90B0D133AB77A2503FB08827 /* ClipboardRelevanceFilterTests.swift */; };
 		C0B833234748E82D3382631A /* emoji.json in Resources */ = {isa = PBXBuildFile; fileRef = C379D77029D6E88C8C1B9AF7 /* emoji.json */; };
+		C0FE11D76BDF01A5470C554D /* FocusCapabilityFlickerGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A44BEC8C23FF227731DD0CD /* FocusCapabilityFlickerGate.swift */; };
 		C2C958D6E5F5FE1CCC414BCE /* SuggestionSubsystemContracts.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEB16474A67CE1D210B944C9 /* SuggestionSubsystemContracts.swift */; };
 		C4C6734678797669055988E0 /* AppUpdateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD9573F3504CAE6891DF9B7D /* AppUpdateManager.swift */; };
 		C618C5595DA9C57C806A3E03 /* SettingsAttentionEvaluatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BC293F6125E2B14DCF05AD9 /* SettingsAttentionEvaluatorTests.swift */; };
@@ -269,6 +271,7 @@
 		12DD19BCE610808F1E38702D /* PermissionOverlayTrackerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionOverlayTrackerTests.swift; sourceTree = "<group>"; };
 		1441B2D89DAE6878DAD11F17 /* EmojiMatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiMatcher.swift; sourceTree = "<group>"; };
 		18D990E515E1AE4F312F4E95 /* BundledRuntimeLocatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BundledRuntimeLocatorTests.swift; sourceTree = "<group>"; };
+		1972BD2C5254D8266618781F /* FocusCapabilityFlickerGateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusCapabilityFlickerGateTests.swift; sourceTree = "<group>"; };
 		19BE12C28A4AB8A4A58C2FF7 /* SettingsPaneScaffold.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPaneScaffold.swift; sourceTree = "<group>"; };
 		19DB9558F4D3AFB108D71649 /* SuggestionStateHelperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionStateHelperTests.swift; sourceTree = "<group>"; };
 		1A8414BEB7E34F57607E37FE /* EmojiVariantResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiVariantResolver.swift; sourceTree = "<group>"; };
@@ -337,6 +340,7 @@
 		62EDF1199CC5E18BD7651661 /* EmojiPickerPanelLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiPickerPanelLayout.swift; sourceTree = "<group>"; };
 		656F58E56FE9BC087B6F1D33 /* PermissionReminderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionReminderView.swift; sourceTree = "<group>"; };
 		67586807ACE8EB13C9014535 /* TickMarkSlider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TickMarkSlider.swift; sourceTree = "<group>"; };
+		6A44BEC8C23FF227731DD0CD /* FocusCapabilityFlickerGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusCapabilityFlickerGate.swift; sourceTree = "<group>"; };
 		6B2D97BAA3618A7D0357AC44 /* SuggestionWorkController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionWorkController.swift; sourceTree = "<group>"; };
 		6DC693E00430F46E41CB56E6 /* RequestID.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RequestID.swift; sourceTree = "<group>"; };
 		70367FCC1E0F08EE3B8EB26F /* FocusCapabilityResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusCapabilityResolver.swift; sourceTree = "<group>"; };
@@ -709,6 +713,7 @@
 				723E1EFA85D2E61B6C5F33E8 /* EmojiTriggerStateMachineTests.swift */,
 				EE8BB19D8EC9A75CD3458A6B /* EmojiVariantResolverTests.swift */,
 				54BC85605541E913EE57B258 /* ExtendedContextTests.swift */,
+				1972BD2C5254D8266618781F /* FocusCapabilityFlickerGateTests.swift */,
 				D4F6D5F94B238F7B4BE7C247 /* FocusCapabilityResolverTests.swift */,
 				273B4DC844F79B4BE2C8910F /* FocusPollBackoffTests.swift */,
 				BA705EDFE1C41294F0E381F1 /* FocusSnapshotResolverSelectionTests.swift */,
@@ -859,6 +864,7 @@
 				312C7306D916963F519CE0D9 /* EmojiTriggerStateMachine.swift */,
 				1A8414BEB7E34F57607E37FE /* EmojiVariantResolver.swift */,
 				CE8C2569A8217EE9BD3B197F /* FileLogHandler.swift */,
+				6A44BEC8C23FF227731DD0CD /* FocusCapabilityFlickerGate.swift */,
 				70367FCC1E0F08EE3B8EB26F /* FocusCapabilityResolver.swift */,
 				09FADF683BE7B3558377FA76 /* FocusPollBackoff.swift */,
 				FE7BF162A12703249726F20A /* FoundationModelPromptRenderer.swift */,
@@ -1059,6 +1065,7 @@
 				5DF31F465A3A1233260BD3A4 /* EngineAndModelPaneView.swift in Sources */,
 				5BE53CE921664582F593B7B0 /* FieldEdgeIconIndicatorView.swift in Sources */,
 				6E49ADEB31D04DC77A47DEB0 /* FileLogHandler.swift in Sources */,
+				C0FE11D76BDF01A5470C554D /* FocusCapabilityFlickerGate.swift in Sources */,
 				CC98B842D10574C5206BEFA7 /* FocusCapabilityResolver.swift in Sources */,
 				924489CEE8171F7AD8579D71 /* FocusDebugOverlayController.swift in Sources */,
 				2402DC57AE2BCF6A686D30ED /* FocusModels.swift in Sources */,
@@ -1201,6 +1208,7 @@
 				ED0843752B297D7E9DB2C468 /* EmojiTriggerStateMachineTests.swift in Sources */,
 				C9B815652CED38966C53A5E8 /* EmojiVariantResolverTests.swift in Sources */,
 				63054CBDCA87560130BF5ADC /* ExtendedContextTests.swift in Sources */,
+				78A8713A0E5B4C89E2D715BC /* FocusCapabilityFlickerGateTests.swift in Sources */,
 				C71B594433F3B411CAE5DE7E /* FocusCapabilityResolverTests.swift in Sources */,
 				A147C5EC3F2214A670F7556E /* FocusPollBackoffTests.swift in Sources */,
 				156E6AB3D24134EEC29FDB93 /* FocusSnapshotResolverSelectionTests.swift in Sources */,

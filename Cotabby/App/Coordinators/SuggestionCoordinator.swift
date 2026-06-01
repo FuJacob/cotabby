@@ -75,6 +75,11 @@ final class SuggestionCoordinator: ObservableObject {
     /// synchronous `refreshNow()` calls on the main actor. Bumping the token makes older chains
     /// no-op before they can perform another expensive AX read.
     var hostPublishPollGeneration: UInt64 = 0
+    /// Suppresses single-poll `Supported → Blocked → Supported` flicker on the same focused element
+    /// so the overlay does not tear down and rebuild on every transient AX redraw. See
+    /// `FocusCapabilityFlickerGate` for the rationale and the reproduction (Apple Calendar event
+    /// editor).
+    var capabilityFlickerGate = FocusCapabilityFlickerGate()
     /// Correlation ID for the most recently built `SuggestionRequest`. Stamped onto every
     /// state-transition log line so all events tied to one suggestion (debounce → generating →
     /// ready → accepted/rejected) can be joined with a single `jq` filter on `request_id`.

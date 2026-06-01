@@ -23,8 +23,23 @@ extension SuggestionCoordinator {
     }
 
     func handleFocusSnapshotChange(_ snapshot: FocusSnapshot) {
+        switch capabilityFlickerGate.evaluate(snapshot) {
+        case .apply:
+            break
+        case let .suppress(pendingBlockedReadCount: count):
+            // Single-poll AX flicker on the same element (see FocusCapabilityFlickerGate). Drop the
+            // event so the overlay does not bounce; log it so the suppression is observable.
+            let suppressedReason = snapshot.capability.summary
+            CotabbyLogger.suggestion.trace(
+                // swiftlint:disable:next line_length
+                "Focus snapshot flicker suppressed: app=\(snapshot.applicationName) capability=\(snapshot.capability.shortLabel) reason=\(suppressedReason) pendingBlockedReads=\(count)"
+            )
+            return
+        }
+
+        let changedReason = snapshot.capability.summary
         CotabbyLogger.suggestion.trace(
-            "Focus snapshot changed: app=\(snapshot.applicationName) capability=\(snapshot.capability.shortLabel)"
+            "Focus snapshot changed: app=\(snapshot.applicationName) capability=\(snapshot.capability.shortLabel) reason=\(changedReason)"
         )
         // Start capturing visual context for a newly focused input even when predictions are
         // temporarily disabled by transient field states (e.g., "text is selected" or "secure
