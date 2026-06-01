@@ -6,14 +6,17 @@ import Foundation
 /// inputs (`HardwareCapability`, Apple Intelligence availability) so the onboarding UI can stay a
 /// thin renderer and the decisions can be unit-tested without a host.
 enum OnboardingTemplateRecommender {
-    /// Below this much memory, the Powerful template's ~5 GB model leaves too little headroom (the
-    /// resident model plus OS would dominate an 8 GB machine), so it is disabled rather than offered
-    /// as a trap. Chosen above 8 so stock 8 GB Macs are excluded while any 12 GB+ config is allowed.
-    static let powerfulDisableBelowGigabytes = 10.0
-    /// Between the disable floor and this ceiling, Powerful is allowed but flagged as potentially slow.
+    /// Below this much memory, the Powerful tier's model leaves too little headroom and is disabled
+    /// rather than offered as a trap. The base-model tiers are far smaller than the old ~5 GB models,
+    /// so the floor is 8: only sub-8 GB Macs (effectively pre-Apple-Silicon) are excluded, while every
+    /// 8 GB+ machine may run it. Sizes for the copy are read from the catalog, not hardcoded here.
+    static let powerfulDisableBelowGigabytes = 8.0
+    /// Between the disable floor and this ceiling, Powerful is allowed but flagged as potentially slow
+    /// under memory pressure from other apps. 16 GB and up is treated as comfortable.
     static let powerfulWarnBelowGigabytes = 16.0
-    /// Below this, the Everyday open-source path (~3 GB model) is flagged as potentially slow. Only
-    /// relevant when Apple Intelligence is unavailable; the Apple Intelligence path has no such cost.
+    /// Below this, the Everyday open-source tier is flagged as potentially slow, and it is also the
+    /// cutoff below which Quick becomes the recommended default. Only relevant when Apple Intelligence
+    /// is unavailable; the Apple Intelligence path has no per-tier memory cost.
     static let everydayWarnBelowGigabytes = 8.0
 
     /// Resolves the model and behavior flags for a template under an explicitly chosen engine.
@@ -63,14 +66,14 @@ enum OnboardingTemplateRecommender {
                 break
             case .everyday:
                 if gigabytes < everydayWarnBelowGigabytes {
-                    warning = "Uses a ~3 GB model, which may run slowly on this Mac."
+                    warning = "Uses a \(modelSizeLabel(for: template)) model, which may run slowly on this Mac."
                 }
             case .powerful:
                 if gigabytes < powerfulDisableBelowGigabytes {
                     isDisabled = true
-                    warning = "Needs more memory than this Mac has (uses a ~5 GB model)."
+                    warning = "Needs more memory than this Mac has (uses a \(modelSizeLabel(for: template)) model)."
                 } else if gigabytes < powerfulWarnBelowGigabytes {
-                    warning = "Uses a ~5 GB model; may run slowly with less than 16 GB of memory."
+                    warning = "Uses a \(modelSizeLabel(for: template)) model; may run slowly with less than 16 GB of memory."
                 }
             }
         }
@@ -102,5 +105,12 @@ enum OnboardingTemplateRecommender {
 
     private static func downloadableModel(filename: String) -> DownloadableRuntimeModel? {
         RuntimeModelCatalog.downloadableModels.first { $0.filename == filename }
+    }
+
+    /// Human-readable size of the GGUF a template installs, read from the catalog so warning copy stays
+    /// in sync with the actual model instead of a hardcoded number. Falls back to a generic phrase if
+    /// the filename is missing from the catalog.
+    private static func modelSizeLabel(for template: OnboardingTemplate) -> String {
+        downloadableModel(filename: template.openSourceModelFilename)?.approximateSizeLabel ?? "local"
     }
 }

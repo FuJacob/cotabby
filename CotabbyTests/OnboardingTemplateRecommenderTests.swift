@@ -60,9 +60,11 @@ final class OnboardingTemplateRecommenderTests: XCTestCase {
     // MARK: - availability gating (Open Source engine)
 
     func testPowerfulDisabledOnLowMemoryMacOpenSource() {
+        // Sub-8 GB Macs (effectively pre-Apple-Silicon) cannot comfortably hold the model, so Powerful
+        // is excluded there.
         let availability = OnboardingTemplateRecommender.availability(
             for: .powerful,
-            hardware: hardware(gigabytes: 8),
+            hardware: hardware(gigabytes: 6),
             engine: .llamaOpenSource
         )
 
@@ -71,9 +73,12 @@ final class OnboardingTemplateRecommenderTests: XCTestCase {
     }
 
     func testPowerfulWarnsBetweenDisableFloorAndComfortCeiling() {
+        // 8 GB is the disable floor: allowed, not excluded, but still flagged below the 16 GB comfort
+        // ceiling. This pins that a stock 8 GB Mac can run the Powerful base model (the smaller
+        // base-model tiers no longer need the old 10 GB floor).
         let availability = OnboardingTemplateRecommender.availability(
             for: .powerful,
-            hardware: hardware(gigabytes: 12),
+            hardware: hardware(gigabytes: 8),
             engine: .llamaOpenSource
         )
 
