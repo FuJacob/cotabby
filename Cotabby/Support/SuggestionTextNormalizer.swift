@@ -20,14 +20,9 @@ enum SuggestionTextNormalizer {
         normalized = normalized.replacingOccurrences(of: "<|im_end|>", with: "")
         normalized = normalized.replacingOccurrences(of: "<|im_start|>", with: "")
 
-        // Thinking-capable models may emit <think>…</think> reasoning blocks. Strip complete
-        // blocks first, then any trailing open tag left when generation hit the token limit.
-        if let thinkRange = normalized.range(of: "<think>[\\s\\S]*?</think>", options: .regularExpression) {
-            normalized.replaceSubrange(thinkRange, with: "")
-        }
-        if let openTag = normalized.range(of: "<think>[\\s\\S]*", options: .regularExpression) {
-            normalized.replaceSubrange(openTag, with: "")
-        }
+        // Thinking-capable models may emit <think>…</think> reasoning blocks. Strip them here so
+        // the reasoning text never reaches the continuation logic below.
+        normalized = stripThinkBlocks(normalized)
 
         for prompt in [request.prompt] + promptEchoCandidates {
             if !prompt.isEmpty, normalized.hasPrefix(prompt) {
@@ -82,8 +77,10 @@ enum SuggestionTextNormalizer {
         // If the model starts by repeating text that already exists after the caret, we treat the
         // suggestion as unusable. Showing only the remainder often produces confusing mid-word
         // ghosts, so the coordinator should regenerate instead.
-        if !request.context.trailingText.isEmpty,
-            normalized.hasPrefix(request.context.trailingText) {
+        if TrailingDuplicationFilter.duplicatesTrailingText(
+            normalized,
+            trailingText: request.context.trailingText
+        ) {
             return ""
         }
 
@@ -104,7 +101,27 @@ enum SuggestionTextNormalizer {
             normalized = String(normalized.drop(while: { $0.isWhitespace }))
         }
 
+        // Final safety gate: never surface control characters, replacement glyphs, or
+        // whitespace-only output as ghost text. Returning empty makes the coordinator treat this
+        // as "no suggestion" and regenerate rather than insert junk on Tab.
+        guard InsertionSafetyGate.isSafeToInsert(normalized) else {
+            return ""
+        }
+
         return normalized
+    }
+
+    /// Removes `<think>…</think>` reasoning blocks: complete blocks first, then any dangling open
+    /// tag left when generation hit the token limit before the block was closed.
+    private static func stripThinkBlocks(_ text: String) -> String {
+        var result = text
+        if let complete = result.range(of: "<think>[\\s\\S]*?</think>", options: .regularExpression) {
+            result.replaceSubrange(complete, with: "")
+        }
+        if let dangling = result.range(of: "<think>[\\s\\S]*", options: .regularExpression) {
+            result.replaceSubrange(dangling, with: "")
+        }
+        return result
     }
 
     /// Finds the longest suffix of `precedingText` (at any word offset) that matches a prefix

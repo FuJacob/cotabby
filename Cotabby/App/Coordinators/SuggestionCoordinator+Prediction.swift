@@ -266,6 +266,11 @@ extension SuggestionCoordinator {
             rawOutput: result.rawText,
             normalizedOutput: result.text
         )
+
+        // If the user pressed Tab while this continuation was still regenerating, accept its first
+        // word now so rapid Tabbing keeps inserting words across the exhaustion boundary instead of
+        // stalling once the previous suggestion ran out. No-op when nothing was queued.
+        flushQueuedPostExhaustionAcceptIfNeeded()
     }
 
     /// Converts a runtime or engine failure into visible coordinator state and clears stale UI.

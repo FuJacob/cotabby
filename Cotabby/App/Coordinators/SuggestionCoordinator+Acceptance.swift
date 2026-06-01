@@ -44,6 +44,23 @@ extension SuggestionCoordinator {
         // accept. `validateSessionForAcceptance` still rejects the accept if the session no longer
         // reconciles with the live AX state.
         guard interactionState.activeSession != nil else {
+            // A final-chunk accept tears the session down and regenerates the continuation
+            // asynchronously (see the `.exhausted` branch below). While that regen is in flight we
+            // keep owning Tab instead of leaking it into the host app as a real Tab. Swallow the
+            // press and remember it: the continuation that lands next accepts its first word, so
+            // rapid Tabbing keeps inserting words across the exhaustion boundary instead of jumping
+            // focus out of the field.
+            if isPostExhaustionAcceptanceArmed {
+                hasQueuedPostExhaustionAccept = true
+                logStage(
+                    "\(keyName)-held-for-regen",
+                    workID: currentWorkID,
+                    generation: latestGenerationNumber,
+                    message: "Held a rapid \(keyName) during post-acceptance regeneration; "
+                        + "the next continuation will accept its first word."
+                )
+                return true
+            }
             return passTabThrough(
                 reason: "Key passed through because no valid suggestion was ready."
             )
@@ -134,6 +151,11 @@ extension SuggestionCoordinator {
                 message: "Inserted the final suggestion chunk and queued a refresh.",
                 normalizedOutput: acceptedChunk
             )
+            // Keep owning Tab while the continuation regenerates so a fast follow-up press is
+            // swallowed and queued instead of leaking into the host app as a real Tab. Must run
+            // *after* the `hideOverlay` above, which routes through `onStateChange(.hidden)` and
+            // turns interception off; arming re-asserts it. See `armPostExhaustionAcceptance`.
+            armPostExhaustionAcceptance()
             // Wait for the host to actually publish the inserted text before regenerating. A bare
             // `schedulePrediction()` here reads pre-insertion AX in Chromium editors (the publish lags
             // the synthetic keystroke), so the model re-proposes the word just accepted and the next
@@ -192,6 +214,91 @@ extension SuggestionCoordinator {
             message: reason
         )
         return false
+    }
+
+    // MARK: - Post-Exhaustion Acceptance Window
+
+    /// How long Cotabby keeps owning Tab after a final-chunk accept while it waits for the
+    /// continuation to regenerate. This is only a backstop: the window normally ends much sooner —
+    /// when the next suggestion shows (overlay visible) or any teardown hides the overlay. It exists
+    /// so a regeneration that silently stalls can never trap Tab in the focused field. Sized to
+    /// comfortably outlast the host-publish poll ceiling plus a debounce and a typical on-device
+    /// generation.
+    static let postExhaustionAcceptanceWindowSeconds: TimeInterval = 0.8
+
+    /// Keeps the accept tap owning Tab for a brief window after a final-chunk accept, while the
+    /// continuation regenerates asynchronously.
+    ///
+    /// Accepting the last buffered word hides the overlay synchronously (which routes through
+    /// `onStateChange(.hidden)` and turns interception off) and then reschedules generation through
+    /// the host-publish poll + debounce + engine round-trip. That leaves a gap with no active session
+    /// and no visible overlay. A fast follow-up Tab in that gap used to hit the fail-open preflight
+    /// (`shouldConsumeAcceptKeyProvider` keys on overlay visibility) and the `activeSession != nil`
+    /// guard, so the accept tap forwarded the original Tab to the host and focus jumped out of the
+    /// field. Re-asserting interception here keeps the tail tap installed and owning Tab across the
+    /// regen window (its mach port otherwise lingers only ~50ms), and `shouldConsumeAcceptKeyProvider`
+    /// also consults `isPostExhaustionAcceptanceArmed` so the key is still routed in while the overlay
+    /// is hidden. A token-keyed backstop guarantees the window can never trap Tab.
+    func armPostExhaustionAcceptance() {
+        isPostExhaustionAcceptanceArmed = true
+        hasQueuedPostExhaustionAccept = false
+        inputMonitor.setAcceptInterceptionActive(true)
+        postExhaustionAcceptanceGeneration &+= 1
+        let generation = postExhaustionAcceptanceGeneration
+        DispatchQueue.main.asyncAfter(
+            deadline: .now() + Self.postExhaustionAcceptanceWindowSeconds
+        ) { [weak self] in
+            // Only the generation that scheduled this timer may act on it; a newer accept (or an
+            // already-released window) bumped the token, so this fires as a no-op.
+            guard let self, self.postExhaustionAcceptanceGeneration == generation else { return }
+            self.releasePostExhaustionAcceptanceWindow()
+        }
+    }
+
+    /// Clears the window flags and invalidates the backstop token, so a timer still pending from
+    /// `armPostExhaustionAcceptance` fires as a no-op once the window has ended. Interception is left
+    /// to the caller: whether Tab ownership should drop depends on why the window ended (a fresh
+    /// suggestion keeps owning it; a teardown or the backstop drops it).
+    func clearPostExhaustionAcceptanceWindow() {
+        isPostExhaustionAcceptanceArmed = false
+        hasQueuedPostExhaustionAccept = false
+        // Cancel any pending backstop, which is keyed to the generation captured at arm time.
+        postExhaustionAcceptanceGeneration &+= 1
+    }
+
+    /// Ends the post-exhaustion window and returns the accept key to the host unless a suggestion is
+    /// now visible (in which case the normal overlay path keeps owning it). Idempotent. This is the
+    /// backstop release; the common, prompt release is `onStateChange(.hidden)` ending the window as
+    /// soon as any teardown hides the overlay.
+    func releasePostExhaustionAcceptanceWindow() {
+        guard isPostExhaustionAcceptanceArmed || hasQueuedPostExhaustionAccept else { return }
+        if !overlayState.isVisible {
+            inputMonitor.setAcceptInterceptionActive(false)
+        }
+        clearPostExhaustionAcceptanceWindow()
+    }
+
+    /// Once a regenerated continuation is on screen, accepts its first word if the user pressed Tab
+    /// while it was still loading. Keeps rapid Tabbing inserting words across the exhaustion boundary
+    /// instead of stalling. Bounded to one queued accept so mashing Tab cannot run away. Called at the
+    /// end of `apply`'s success path, after the new session and overlay exist.
+    func flushQueuedPostExhaustionAcceptIfNeeded() {
+        let shouldAccept = isPostExhaustionAcceptanceArmed && hasQueuedPostExhaustionAccept
+        // Normal acceptance has resumed now that a fresh suggestion is visible, so end the window
+        // regardless of whether a press was queued (this also cancels the now-redundant backstop).
+        clearPostExhaustionAcceptanceWindow()
+        guard shouldAccept else { return }
+        // A queued accept can still legitimately fail (the new continuation no longer reconciles with
+        // live AX, or insertion fails). `acceptSuggestion` cleans up its own state on failure, so log
+        // the rare miss for diagnosis instead of letting the swallowed Tab vanish without a trace.
+        if !acceptCurrentSuggestion() {
+            logStage(
+                "flush-queued-accept-failed",
+                workID: currentWorkID,
+                generation: latestGenerationNumber,
+                message: "Flushed a queued post-exhaustion Tab, but the follow-up acceptance returned false."
+            )
+        }
     }
 
     /// Advances the active session from the user's directly typed characters when they match the

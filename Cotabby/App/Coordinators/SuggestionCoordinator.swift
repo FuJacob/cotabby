@@ -86,6 +86,22 @@ final class SuggestionCoordinator: ObservableObject {
     /// accept on the last word. See `SuggestionSessionReconciler.isStaleAcceptanceEcho`.
     var lastAcceptedTail: AcceptedSuggestionTail?
 
+    /// Monotonic token for the post-exhaustion "keep owning Tab" window. Bumped on every arm so a
+    /// stale backstop timer (or a window superseded by a newer accept) no-ops instead of releasing a
+    /// window it no longer owns. See `armPostExhaustionAcceptance`.
+    var postExhaustionAcceptanceGeneration: UInt64 = 0
+    /// True while Cotabby keeps the accept tap owning Tab in the gap between a final-chunk accept and
+    /// the regenerated continuation appearing. Accepting the last buffered word hides the overlay and
+    /// reschedules generation asynchronously; without this the fail-open accept-tap preflight (which
+    /// keys on overlay visibility) would forward a fast follow-up Tab to the host as a real Tab and
+    /// focus would jump out of the field. The window self-releases when the next suggestion shows,
+    /// when any teardown hides the overlay, or via a backstop timer. See `armPostExhaustionAcceptance`.
+    var isPostExhaustionAcceptanceArmed = false
+    /// Set when a Tab is swallowed during that window. The next continuation that lands accepts its
+    /// first word, so rapid Tabbing keeps inserting words across the exhaustion boundary instead of
+    /// stalling. Bounded to a single queued accept so mashing Tab cannot run away.
+    var hasQueuedPostExhaustionAccept = false
+
     init(
         permissionManager: any SuggestionPermissionProviding,
         focusModel: any SuggestionFocusProviding,
@@ -166,7 +182,11 @@ final class SuggestionCoordinator: ObservableObject {
         // before the tap passes the original key through.
         inputMonitor.shouldConsumeAcceptKeyProvider = { [weak self] in
             guard let self else { return false }
-            guard self.overlayState.isVisible else { return false }
+            // Keep owning the accept key through the brief post-acceptance regeneration window too,
+            // even though the overlay is hidden then. Otherwise a fast follow-up Tab in that gap
+            // falls through to the host app as a real Tab and focus jumps out of the field — the
+            // "rapid Tab breaks, slow Tab is fine" report. See `armPostExhaustionAcceptance`.
+            guard self.overlayState.isVisible || self.isPostExhaustionAcceptanceArmed else { return false }
             return true
         }
 
@@ -181,6 +201,12 @@ final class SuggestionCoordinator: ObservableObject {
                 self.inputMonitor.setAcceptInterceptionActive(true)
             case .hidden:
                 self.inputMonitor.setAcceptInterceptionActive(false)
+                // A hidden overlay ends any post-exhaustion Tab-ownership window. Every teardown and
+                // abort path hides the overlay, so ending the window here is the single catch-all
+                // that returns the accept key to the host (and cancels the backstop timer) once the
+                // window is genuinely over. The `.exhausted` accept re-arms *after* its own
+                // `hideOverlay` call, so this never cancels a window that was just opened.
+                self.clearPostExhaustionAcceptanceWindow()
             }
         }
 

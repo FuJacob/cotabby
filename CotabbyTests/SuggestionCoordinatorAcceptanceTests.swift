@@ -132,6 +132,144 @@ final class SuggestionCoordinatorAcceptanceTests: XCTestCase {
         }
     }
 
+    func test_rapidSecondAcceptDuringRegenerationIsConsumedNotPassedThrough() {
+        runOnMainActor {
+            let snapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "what's on your mind")
+            let context = FocusedInputContext(snapshot: snapshot, generation: 7)
+            let interactionState = SuggestionInteractionState()
+            _ = interactionState.startSession(
+                fullText: " today",
+                liveContext: context,
+                latency: 0.1
+            )
+            let overlayState = OverlayState.visible(
+                text: " today",
+                geometry: CotabbyTestFixtures.overlayGeometry(caretRect: context.caretRect),
+                mode: .inline
+            )
+            let inputMonitor = StubSuggestionInputMonitor()
+            let inserter = StubSuggestionInserter()
+            let coordinator = makeCoordinator(
+                snapshot: snapshot,
+                overlayState: overlayState,
+                inputMonitor: inputMonitor,
+                inserter: inserter,
+                interactionState: interactionState
+            )
+
+            // First Tab accepts the only remaining chunk, exhausts the session, and arms the window.
+            XCTAssertTrue(coordinator.acceptCurrentSuggestion())
+            XCTAssertEqual(inserter.insertedChunks, [" today"])
+            XCTAssertTrue(coordinator.isPostExhaustionAcceptanceArmed)
+            XCTAssertFalse(coordinator.overlayState.isVisible)
+            // Ownership of Tab was re-asserted even though the overlay is now hidden.
+            XCTAssertEqual(inputMonitor.acceptInterceptionRequests.last, true)
+            XCTAssertTrue(
+                inputMonitor.shouldConsumeAcceptKeyProvider(),
+                "The accept tap must keep owning Tab while the continuation regenerates."
+            )
+
+            // The rapid second Tab lands before the continuation regenerates. It must be swallowed
+            // (consumed) and queued — never forwarded to the host as a real Tab that moves focus.
+            XCTAssertTrue(
+                coordinator.acceptCurrentSuggestion(),
+                "A fast follow-up Tab during regeneration must be consumed, not passed through to the host."
+            )
+            XCTAssertEqual(
+                inserter.insertedChunks,
+                [" today"],
+                "The second Tab has nothing to insert yet; it is queued, not inserted."
+            )
+            XCTAssertTrue(coordinator.hasQueuedPostExhaustionAccept)
+        }
+    }
+
+    func test_postExhaustionWindowReleasesAcceptKeyWhenOverlayHides() {
+        runOnMainActor {
+            let snapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "what's on your mind")
+            let context = FocusedInputContext(snapshot: snapshot, generation: 7)
+            let interactionState = SuggestionInteractionState()
+            _ = interactionState.startSession(
+                fullText: " today",
+                liveContext: context,
+                latency: 0.1
+            )
+            let overlayState = OverlayState.visible(
+                text: " today",
+                geometry: CotabbyTestFixtures.overlayGeometry(caretRect: context.caretRect),
+                mode: .inline
+            )
+            let inputMonitor = StubSuggestionInputMonitor()
+            let inserter = StubSuggestionInserter()
+            let coordinator = makeCoordinator(
+                snapshot: snapshot,
+                overlayState: overlayState,
+                inputMonitor: inputMonitor,
+                inserter: inserter,
+                interactionState: interactionState
+            )
+
+            XCTAssertTrue(coordinator.acceptCurrentSuggestion())
+            XCTAssertTrue(coordinator.isPostExhaustionAcceptanceArmed)
+
+            // Any teardown that hides the overlay (focus change, typing, dismissal, an empty
+            // regeneration) must end the window so the user can Tab out of the field normally again.
+            coordinator.invalidateActiveSuggestion(reason: "Focus moved to another field.")
+
+            XCTAssertFalse(coordinator.isPostExhaustionAcceptanceArmed)
+            XCTAssertFalse(coordinator.hasQueuedPostExhaustionAccept)
+            XCTAssertFalse(
+                inputMonitor.shouldConsumeAcceptKeyProvider(),
+                "Once the window is released the accept tap should stop owning Tab."
+            )
+            XCTAssertFalse(
+                coordinator.acceptCurrentSuggestion(),
+                "With the window released and no suggestion, Tab must pass through to the host."
+            )
+        }
+    }
+
+    func test_queuedPostExhaustionAcceptInsertsNextWordWhenContinuationArrives() {
+        runOnMainActor {
+            let snapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello")
+            let context = FocusedInputContext(snapshot: snapshot, generation: 7)
+            let interactionState = SuggestionInteractionState()
+            let session = interactionState.startSession(
+                fullText: " world again",
+                liveContext: context,
+                latency: 0.1
+            )
+            let overlayState = OverlayState.visible(
+                text: session.remainingText,
+                geometry: CotabbyTestFixtures.overlayGeometry(caretRect: context.caretRect),
+                mode: .inline
+            )
+            let inputMonitor = StubSuggestionInputMonitor()
+            let inserter = StubSuggestionInserter()
+            let coordinator = makeCoordinator(
+                snapshot: snapshot,
+                overlayState: overlayState,
+                inputMonitor: inputMonitor,
+                inserter: inserter,
+                interactionState: interactionState
+            )
+            // Simulate a Tab that was swallowed and queued while this continuation was still loading;
+            // `apply` calls `flushQueuedPostExhaustionAcceptIfNeeded` once the suggestion is on screen.
+            coordinator.isPostExhaustionAcceptanceArmed = true
+            coordinator.hasQueuedPostExhaustionAccept = true
+
+            coordinator.flushQueuedPostExhaustionAcceptIfNeeded()
+
+            XCTAssertEqual(
+                inserter.insertedChunks,
+                [" world"],
+                "The queued Tab should accept the continuation's first word."
+            )
+            XCTAssertFalse(coordinator.isPostExhaustionAcceptanceArmed)
+            XCTAssertFalse(coordinator.hasQueuedPostExhaustionAccept)
+        }
+    }
+
     @MainActor
     private func makeCoordinator(
         snapshot: FocusedInputSnapshot,
