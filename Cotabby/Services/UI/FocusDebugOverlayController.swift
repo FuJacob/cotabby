@@ -336,8 +336,6 @@ private struct BottomDebugStatusView: View {
             return "capturing screenshot"
         case .extractingText:
             return "running OCR"
-        case .summarizingText:
-            return "summarizing OCR"
         case .ready:
             return "ready"
         case .unavailable:
@@ -355,7 +353,7 @@ private struct BottomDebugStatusView: View {
             return .red
         case .idle:
             return .white.opacity(0.5)
-        case .capturing, .extractingText, .summarizingText:
+        case .capturing, .extractingText:
             return .yellow
         }
     }
@@ -368,7 +366,7 @@ private struct BottomDebugStatusView: View {
             return "All stages complete."
         case .unavailable(let reason), .failed(let reason):
             return reason
-        case .capturing, .extractingText, .summarizingText:
+        case .capturing, .extractingText:
             let remaining = stages
                 .filter { stageState(for: $0) == .pending }
                 .map(\.title)
@@ -385,9 +383,6 @@ private struct BottomDebugStatusView: View {
         case .extractingText:
             if stage == .capture { return .completed }
             return stage == .ocr ? .active : .pending
-        case .summarizingText:
-            if stage == .capture || stage == .ocr { return .completed }
-            return stage == .summarize ? .active : .pending
         case .ready:
             return .completed
         case .unavailable, .failed:
@@ -423,7 +418,6 @@ private struct VisualContextStagePill: View {
 private enum VisualContextDebugStage: CaseIterable, Identifiable {
     case capture
     case ocr
-    case summarize
     case inject
 
     var id: Self { self }
@@ -434,8 +428,6 @@ private enum VisualContextDebugStage: CaseIterable, Identifiable {
             return "Capture"
         case .ocr:
             return "OCR"
-        case .summarize:
-            return "Summarize"
         case .inject:
             return "Inject"
         }

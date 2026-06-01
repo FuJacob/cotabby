@@ -76,7 +76,7 @@ final class VisualContextModelTests: XCTestCase {
 
     func test_status_detail_returnsNonEmptyStringForEachCase() {
         let cases: [VisualContextStatus] = [
-            .idle, .capturing, .extractingText, .summarizingText, .ready,
+            .idle, .capturing, .extractingText, .ready,
             .unavailable("no permission"), .failed("timeout")
         ]
         let details = cases.map(\.detail)

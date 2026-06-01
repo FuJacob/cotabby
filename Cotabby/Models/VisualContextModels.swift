@@ -37,7 +37,6 @@ nonisolated enum VisualContextStatus: Equatable, Sendable {
     case idle
     case capturing
     case extractingText
-    case summarizingText
     case ready
     case unavailable(String)
     case failed(String)
@@ -50,8 +49,6 @@ nonisolated enum VisualContextStatus: Equatable, Sendable {
             return "Capturing nearby screen content."
         case .extractingText:
             return "Extracting visible text from the screenshot."
-        case .summarizingText:
-            return "Summarizing visible text for context."
         case .ready:
             return "Nearby visible text is ready."
         case let .unavailable(reason), let .failed(reason):
