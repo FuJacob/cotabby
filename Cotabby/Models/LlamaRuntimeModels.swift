@@ -201,19 +201,6 @@ struct LlamaGenerationOptions: Equatable, Sendable {
     /// Average per-token log-probability below which a completion is suppressed as low-confidence.
     /// Defaults to -infinity, which disables suppression entirely.
     var confidenceFloor: Double = -.infinity
-
-    static func summary(maxPredictionTokens: Int, temperature: Double) -> LlamaGenerationOptions {
-        LlamaGenerationOptions(
-            maxPredictionTokens: maxPredictionTokens,
-            temperature: temperature,
-            topK: 40,
-            topP: 0.95,
-            minP: 0.05,
-            // Higher penalty than autocomplete (1.05) because summaries span more tokens and
-            // are more prone to looping when OCR input contains repeated phrases.
-            repetitionPenalty: 1.4
-        )
-    }
 }
 
 /// The concrete runtime assets selected during bootstrap after checking available model files.

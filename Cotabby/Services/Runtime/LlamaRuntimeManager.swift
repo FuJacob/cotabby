@@ -145,48 +145,6 @@ final class LlamaRuntimeManager: ObservableObject {
         }
     }
 
-    /// Generates a short summary using an ephemeral context so the autocomplete cache is unaffected.
-    func summarize(
-        prompt: String,
-        maxPredictionTokens: Int,
-        temperature: Double
-    ) async throws -> String {
-        _ = try await preparedRuntime()
-
-        let core = self.core
-        let options = LlamaGenerationOptions.summary(
-            maxPredictionTokens: maxPredictionTokens,
-            temperature: temperature
-        )
-        do {
-            let task = Task.detached {
-                try core.summarize(
-                    prompt: prompt,
-                    options: options
-                )
-            }
-            return try await withTaskCancellationHandler {
-                // Same pattern as `generate`: the detached task returns partial text on cancel,
-                // so surface the cancel here via `Task.checkCancellation()` to keep the catch
-                // below reachable and the runtime vocabulary consistent across both paths.
-                let partial = try await task.value
-                try Task.checkCancellation()
-                return partial
-            } onCancel: {
-                task.cancel()
-            }
-        } catch is CancellationError {
-            throw LlamaRuntimeError.cancelled
-        } catch let error as LlamaRuntimeError {
-            diagnostics.lastError = error.localizedDescription
-            throw error
-        } catch {
-            let runtimeError = LlamaRuntimeError.generationFailed(error.localizedDescription)
-            diagnostics.lastError = runtimeError.localizedDescription
-            throw runtimeError
-        }
-    }
-
     /// Clears the native prompt KV cache without unloading the model.
     func resetPromptCache() {
         core.resetPromptCache()
