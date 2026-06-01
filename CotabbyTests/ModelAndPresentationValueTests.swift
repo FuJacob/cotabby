@@ -147,14 +147,27 @@ final class RuntimeAndInputModelValueTests: XCTestCase {
 
     func test_runtimeModelCatalogMapsKnownNamesAndLeavesCustomNamesAlone() {
         XCTAssertEqual(
+            RuntimeModelCatalog.displayName(for: "Qwen3.5-0.8B-Base.i1-Q6_K.gguf"),
+            "tabby-2-nano"
+        )
+        XCTAssertEqual(
             RuntimeModelCatalog.displayName(for: "Qwen3.5-2B-Base.i1-Q4_K_M.gguf"),
+            "tabby-2-mini"
+        )
+        XCTAssertEqual(
+            RuntimeModelCatalog.displayName(for: "gemma-4-E2B.i1-Q6_K.gguf"),
             "tabby-2-base"
         )
         XCTAssertEqual(
-            RuntimeModelCatalog.displayName(for: "Qwen3.5-0.8B-Base.i1-Q6_K.gguf"),
-            "tabby-2-mini"
+            RuntimeModelCatalog.displayName(for: "gemma-4-E4B.i1-Q4_K_M.gguf"),
+            "tabby-2-pro"
         )
-        // Retired models fall back to their raw filename like any unknown local GGUF.
+        // Retired models fall back to their raw filename like any unknown local GGUF. The 4B Qwen
+        // base was dropped when the catalog moved to the nano/mini/base/pro four-tier lineup.
+        XCTAssertEqual(
+            RuntimeModelCatalog.displayName(for: "Qwen3.5-4B-Base.i1-Q4_K_M.gguf"),
+            "Qwen3.5-4B-Base.i1-Q4_K_M.gguf"
+        )
         XCTAssertEqual(
             RuntimeModelCatalog.displayName(for: "Qwen3.5-0.8B-Q4_K_M.gguf"),
             "Qwen3.5-0.8B-Q4_K_M.gguf"

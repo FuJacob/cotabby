@@ -101,7 +101,7 @@ enum OnboardingTemplate: String, CaseIterable, Identifiable, Equatable, Sendable
         case .everyday:
             return "Qwen3.5-2B-Base.i1-Q4_K_M.gguf"
         case .powerful:
-            return "Qwen3.5-4B-Base.i1-Q4_K_M.gguf"
+            return "gemma-4-E4B.i1-Q4_K_M.gguf"
         }
     }
 }

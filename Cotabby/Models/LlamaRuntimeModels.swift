@@ -96,15 +96,13 @@ enum RuntimeModelCatalog {
     static func displayName(for filename: String) -> String {
         switch filename {
         case "Qwen3.5-0.8B-Base.i1-Q6_K.gguf":
-            return "tabby-2-mini"
+            return "tabby-2-nano"
         case "Qwen3.5-2B-Base.i1-Q4_K_M.gguf":
-            return "tabby-2-base"
-        case "Qwen3.5-4B-Base.i1-Q4_K_M.gguf":
-            return "tabby-2-pro"
+            return "tabby-2-mini"
         case "gemma-4-E2B.i1-Q6_K.gguf":
-            return "tabby-2-gemma-mini"
+            return "tabby-2-base"
         case "gemma-4-E4B.i1-Q4_K_M.gguf":
-            return "tabby-2-gemma-pro"
+            return "tabby-2-pro"
         default:
             return filename
         }
@@ -132,12 +130,6 @@ enum RuntimeModelCatalog {
             displayName: displayName(for: "Qwen3.5-2B-Base.i1-Q4_K_M.gguf"),
             downloadURL: hfURL("mradermacher/Qwen3.5-2B-Base-i1-GGUF", "Qwen3.5-2B-Base.i1-Q4_K_M.gguf"),
             approximateSizeInGigabytes: 1.4
-        ),
-        DownloadableRuntimeModel(
-            filename: "Qwen3.5-4B-Base.i1-Q4_K_M.gguf",
-            displayName: displayName(for: "Qwen3.5-4B-Base.i1-Q4_K_M.gguf"),
-            downloadURL: hfURL("mradermacher/Qwen3.5-4B-Base-i1-GGUF", "Qwen3.5-4B-Base.i1-Q4_K_M.gguf"),
-            approximateSizeInGigabytes: 2.6
         ),
         DownloadableRuntimeModel(
             filename: "gemma-4-E2B.i1-Q6_K.gguf",
@@ -169,7 +161,6 @@ struct LlamaRuntimeConfiguration: Equatable, Sendable {
         preferredModelNames: [
             "Qwen3.5-2B-Base.i1-Q4_K_M.gguf",
             "Qwen3.5-0.8B-Base.i1-Q6_K.gguf",
-            "Qwen3.5-4B-Base.i1-Q4_K_M.gguf",
             "gemma-4-E2B.i1-Q6_K.gguf",
             "gemma-4-E4B.i1-Q4_K_M.gguf"
         ],
