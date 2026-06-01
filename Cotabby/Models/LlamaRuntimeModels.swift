@@ -201,6 +201,13 @@ struct LlamaGenerationOptions: Equatable, Sendable {
     /// Average per-token log-probability below which a completion is suppressed as low-confidence.
     /// Defaults to -infinity, which disables suppression entirely.
     var confidenceFloor: Double = -.infinity
+
+    /// Routes generation through the deterministic constrained decoder (logit read + admissibility
+    /// mask + argmax + manual token commit) instead of the engine's built-in stochastic sampler.
+    /// Default off so the shipping sampleNext path is unaffected until the constrained decoder is
+    /// validated on device. Changing it does not affect KV reuse, so it is intentionally excluded
+    /// from `SamplingFingerprint`.
+    var useConstrainedDecoder: Bool = false
 }
 
 /// The concrete runtime assets selected during bootstrap after checking available model files.
