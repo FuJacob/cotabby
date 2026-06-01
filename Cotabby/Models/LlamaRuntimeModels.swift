@@ -95,70 +95,61 @@ struct DownloadableRuntimeModel: Equatable, Hashable, Sendable, Identifiable {
 enum RuntimeModelCatalog {
     static func displayName(for filename: String) -> String {
         switch filename {
-        case "Qwen3-0.6B-Q4_K_M.gguf":
-            return "tabby-1-mini"
-        case "gemma-4-E2B-it-Q4_K_M.gguf":
-            return "tabby-1-base"
-        case "gemma-4-E4B-it-Q4_K_M.gguf":
-            return "tabby-1-pro"
-        case "SmolLM2-135M-Instruct-q8_0.gguf":
-            return "tabby-1-nano"
+        case "Qwen3.5-0.8B-Base.i1-Q6_K.gguf":
+            return "tabby-2-mini"
+        case "Qwen3.5-2B-Base.i1-Q4_K_M.gguf":
+            return "tabby-2-base"
+        case "Qwen3.5-4B-Base.i1-Q4_K_M.gguf":
+            return "tabby-2-pro"
+        case "gemma-4-E2B.i1-Q6_K.gguf":
+            return "tabby-2-gemma-mini"
+        case "gemma-4-E4B.i1-Q4_K_M.gguf":
+            return "tabby-2-gemma-pro"
         default:
             return filename
         }
     }
 
-    /// Canonical downloadable GGUF model list shown in Welcome and menu UI.
-    ///
-    /// `expectedSizeBytes` and `sha256` were captured from HuggingFace's CDN
-    /// response headers (`x-linked-size` and `x-linked-etag` respectively).
-    /// To refresh after a model is updated upstream:
-    ///
-    ///   curl -sIL "<URL>" | grep -iE "^(x-linked-size|x-linked-etag):"
+    /// Builds a HuggingFace direct-download URL from a repo and file path.
+    private static func hfURL(_ repo: String, _ file: String) -> URL {
+        // Force-unwrap is safe: inputs are compile-time literals forming a valid URL.
+        URL(string: "https://huggingface.co/\(repo)/resolve/main/\(file)?download=true")!
+    }
+
+    /// Canonical downloadable base GGUF models for Cotabby 2's base-model continuation path.
+    /// Qwen3.5 / Gemma base checkpoints from mradermacher's i1 GGUF repos. `expectedSizeBytes` and
+    /// `sha256` stay nil pending CDN-header capture; the download manager skips size/hash
+    /// validation when they are nil. Old instruct GGUFs are intentionally no longer listed.
     static let downloadableModels: [DownloadableRuntimeModel] = [
         DownloadableRuntimeModel(
-            filename: "SmolLM2-135M-Instruct-q8_0.gguf",
-            displayName: displayName(for: "SmolLM2-135M-Instruct-q8_0.gguf"),
-            downloadURL: URL(
-                string:
-                    "https://huggingface.co/Mungert/SmolLM2-135M-Instruct-GGUF/resolve/main/SmolLM2-135M-Instruct-q8_0.gguf?download=true"
-            )!,
-            approximateSizeInGigabytes: 0.1,
-            expectedSizeBytes: 144_811_552,
-            sha256: "bc64cce8e1c11e4ed870633b557e04af718249c817c4cf8a6784116144ec3e28"
+            filename: "Qwen3.5-0.8B-Base.i1-Q6_K.gguf",
+            displayName: displayName(for: "Qwen3.5-0.8B-Base.i1-Q6_K.gguf"),
+            downloadURL: hfURL("mradermacher/Qwen3.5-0.8B-Base-i1-GGUF", "Qwen3.5-0.8B-Base.i1-Q6_K.gguf"),
+            approximateSizeInGigabytes: 0.8
         ),
         DownloadableRuntimeModel(
-            filename: "Qwen3-0.6B-Q4_K_M.gguf",
-            displayName: displayName(for: "Qwen3-0.6B-Q4_K_M.gguf"),
-            downloadURL: URL(
-                string:
-                    "https://huggingface.co/unsloth/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q4_K_M.gguf?download=true"
-            )!,
-            approximateSizeInGigabytes: 0.4,
-            expectedSizeBytes: 396_705_472,
-            sha256: "ac2d97712095a558e31573f62f466a3f9d93990898b0ec79d7c974c1780d524a"
+            filename: "Qwen3.5-2B-Base.i1-Q4_K_M.gguf",
+            displayName: displayName(for: "Qwen3.5-2B-Base.i1-Q4_K_M.gguf"),
+            downloadURL: hfURL("mradermacher/Qwen3.5-2B-Base-i1-GGUF", "Qwen3.5-2B-Base.i1-Q4_K_M.gguf"),
+            approximateSizeInGigabytes: 1.4
         ),
         DownloadableRuntimeModel(
-            filename: "gemma-4-E2B-it-Q4_K_M.gguf",
-            displayName: displayName(for: "gemma-4-E2B-it-Q4_K_M.gguf"),
-            downloadURL: URL(
-                string:
-                    "https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF/resolve/main/gemma-4-E2B-it-Q4_K_M.gguf?download=true"
-            )!,
-            approximateSizeInGigabytes: 3.1,
-            expectedSizeBytes: 3_106_736_256,
-            sha256: "9378bc471710229ef165709b62e34bfb62231420ddaf6d729e727305b5b8672d"
+            filename: "Qwen3.5-4B-Base.i1-Q4_K_M.gguf",
+            displayName: displayName(for: "Qwen3.5-4B-Base.i1-Q4_K_M.gguf"),
+            downloadURL: hfURL("mradermacher/Qwen3.5-4B-Base-i1-GGUF", "Qwen3.5-4B-Base.i1-Q4_K_M.gguf"),
+            approximateSizeInGigabytes: 2.6
         ),
         DownloadableRuntimeModel(
-            filename: "gemma-4-E4B-it-Q4_K_M.gguf",
-            displayName: displayName(for: "gemma-4-E4B-it-Q4_K_M.gguf"),
-            downloadURL: URL(
-                string:
-                    "https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF/resolve/main/gemma-4-E4B-it-Q4_K_M.gguf?download=true"
-            )!,
-            approximateSizeInGigabytes: 5.0,
-            expectedSizeBytes: 4_977_169_568,
-            sha256: "519b9793ed6ce0ff530f1b7c96e848e08e49e7af4d57bb97f76215963a54146d"
+            filename: "gemma-4-E2B.i1-Q6_K.gguf",
+            displayName: displayName(for: "gemma-4-E2B.i1-Q6_K.gguf"),
+            downloadURL: hfURL("mradermacher/gemma-4-E2B-i1-GGUF", "gemma-4-E2B.i1-Q6_K.gguf"),
+            approximateSizeInGigabytes: 4.5
+        ),
+        DownloadableRuntimeModel(
+            filename: "gemma-4-E4B.i1-Q4_K_M.gguf",
+            displayName: displayName(for: "gemma-4-E4B.i1-Q4_K_M.gguf"),
+            downloadURL: hfURL("mradermacher/gemma-4-E4B-i1-GGUF", "gemma-4-E4B.i1-Q4_K_M.gguf"),
+            approximateSizeInGigabytes: 5.0
         )
     ]
 }
@@ -176,10 +167,11 @@ struct LlamaRuntimeConfiguration: Equatable, Sendable {
     static let `default` = LlamaRuntimeConfiguration(
         runtimeDirectoryPath: nil,
         preferredModelNames: [
-            "gemma-4-E4B-it-Q4_K_M.gguf",
-            "gemma-4-E2B-it-Q4_K_M.gguf",
-            "Qwen3-0.6B-Q4_K_M.gguf",
-            "SmolLM2-135M-Instruct-q8_0.gguf"
+            "Qwen3.5-2B-Base.i1-Q4_K_M.gguf",
+            "Qwen3.5-0.8B-Base.i1-Q6_K.gguf",
+            "Qwen3.5-4B-Base.i1-Q4_K_M.gguf",
+            "gemma-4-E2B.i1-Q6_K.gguf",
+            "gemma-4-E4B.i1-Q4_K_M.gguf"
         ],
         contextWindowTokens: 2048,
         batchSize: 512,

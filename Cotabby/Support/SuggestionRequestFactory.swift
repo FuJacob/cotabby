@@ -62,33 +62,21 @@ enum SuggestionRequestFactory {
         let boundedVisualContextSummary = activeVisualContextSummary(
             rawSummary: visualContextSummary
         )
-        let prompt: String
-        if settings.useBaseCompletionPipeline, settings.selectedEngine == .llamaOpenSource {
-            // Base-model continuation path: no instruction blob, prefix last, trailing-trimmed.
-            // Custom instructions/persona condition the output rather than being obeyed.
-            prompt = BaseCompletionPromptRenderer.prompt(
-                prefixText: prefixText,
-                applicationName: context.applicationName,
-                userName: userName,
-                customRules: customRules,
-                extendedContext: activeExtendedContext,
-                languageInstruction: languageInstruction,
-                clipboardContext: boundedClipboardContext,
-                visualContextSummary: boundedVisualContextSummary
-            )
-        } else {
-            prompt = LlamaPromptRenderer.prompt(
-                prefixText: prefixText,
-                applicationName: context.applicationName,
-                completionLengthInstruction: completionLengthInstruction,
-                userName: userName,
-                customRules: customRules,
-                extendedContext: activeExtendedContext,
-                languageInstruction: languageInstruction,
-                clipboardContext: boundedClipboardContext,
-                visualContextSummary: boundedVisualContextSummary
-            )
-        }
+        // Cotabby 2 is a base-model continuation product on the Open Source path, so the local
+        // prompt is always the base render: no instruction blob, prefix last, trailing-trimmed.
+        // Custom instructions and persona condition the output rather than being obeyed. The
+        // Foundation Models path builds its own messages from these same request fields, so this
+        // prompt string is only consumed by the llama engine.
+        let prompt = BaseCompletionPromptRenderer.prompt(
+            prefixText: prefixText,
+            applicationName: context.applicationName,
+            userName: userName,
+            customRules: customRules,
+            extendedContext: activeExtendedContext,
+            languageInstruction: languageInstruction,
+            clipboardContext: boundedClipboardContext,
+            visualContextSummary: boundedVisualContextSummary
+        )
 
         let request = SuggestionRequest(
             context: context,

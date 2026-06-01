@@ -69,38 +69,6 @@ final class LanguageSupportTests: XCTestCase {
 
     // MARK: - rendering
 
-    func test_llamaRenderer_placesLanguageHintInFinalBlock() {
-        // The length cue is no longer rendered (token-budget-only experiment), so this guards that
-        // the language hint still lands in the late, high-attention final-instruction block.
-        let prompt = LlamaPromptRenderer.prompt(
-            prefixText: "Hola",
-            applicationName: "Notes",
-            completionLengthInstruction: "UNIQUE_LENGTH_CUE",
-            userName: nil,
-            languageInstruction: LanguageCatalog.promptInstruction(for: ["Spanish"])
-        )
-
-        XCTAssertFalse(prompt.contains("UNIQUE_LENGTH_CUE"))
-
-        guard let finalRange = prompt.range(of: "Final instruction:"),
-              let langRange = prompt.range(of: "Spanish") else {
-            XCTFail("Expected final instruction header and language hint in the prompt")
-            return
-        }
-        XCTAssertLessThan(finalRange.lowerBound, langRange.lowerBound)
-    }
-
-    func test_llamaRenderer_emitsNoLanguageLineWhenNoneDeclared() {
-        let prompt = LlamaPromptRenderer.prompt(
-            prefixText: "Hello",
-            applicationName: "Notes",
-            completionLengthInstruction: "Return only the next few words.",
-            userName: nil,
-            languageInstruction: LanguageCatalog.promptInstruction(for: [])
-        )
-        XCTAssertFalse(prompt.contains("usually writes in"))
-    }
-
     func test_foundationModelInstructions_includeLanguageHint() {
         let request = CotabbyTestFixtures.suggestionRequest(
             languageInstruction: LanguageCatalog.promptInstruction(for: ["Japanese"])

@@ -38,10 +38,8 @@
 		156E6AB3D24134EEC29FDB93 /* FocusSnapshotResolverSelectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA705EDFE1C41294F0E381F1 /* FocusSnapshotResolverSelectionTests.swift */; };
 		157A55EB796BEB7819B90D5D /* ClipboardRelevanceFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3A2AC525DC664DB540D4F19 /* ClipboardRelevanceFilter.swift */; };
 		15FA56CEF6FB5FF54C2FBA6F /* PermissionAndContextModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7F42112F14026E6253BB865 /* PermissionAndContextModelTests.swift */; };
-		190C571B3CDFE117F4D15484 /* LlamaPromptRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3009812A35A1CDEF16295AB7 /* LlamaPromptRendererTests.swift */; };
 		19CB55B62977376E9AE8D428 /* VisualContextStartCoalescer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F01FAC4F57EB08471521196 /* VisualContextStartCoalescer.swift */; };
 		1B3FFCB9A979F49BF86EAAD4 /* ScreenshotContextGeneratorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2BFD19A159680A495EE02FD /* ScreenshotContextGeneratorTests.swift */; };
-		1C4A2BAB2CCADF0A70B70AC6 /* LlamaPromptRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5679E08C9A09065531C37B5 /* LlamaPromptRenderer.swift */; };
 		1D1C6FF0B8F50AC14A1000F4 /* SentenceBoundaryClassifierTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D7360A6D4261989A66658ED /* SentenceBoundaryClassifierTests.swift */; };
 		1F8CC88AFFE67C08944CF506 /* WindowScreenshotService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77B0121E7BB173F8A2B0B108 /* WindowScreenshotService.swift */; };
 		2197B68F1E4D0C3497DAC061 /* LlamaSuggestionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE04620C905041680116BE80 /* LlamaSuggestionEngine.swift */; };
@@ -221,6 +219,7 @@
 		E17CAA453B1F534D284F0D89 /* PermissionHostApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6ACCB12E4DB32D2F2BEA567 /* PermissionHostApp.swift */; };
 		E27E6377D36D4981301568DD /* LaunchAtLoginStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5807E8508D9355D0271A00C5 /* LaunchAtLoginStateTests.swift */; };
 		E313639E71AE1374D2B9A956 /* SuggestionWorkController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B2D97BAA3618A7D0357AC44 /* SuggestionWorkController.swift */; };
+		E38801433B99E65BD7E45A0E /* LlamaPromptCacheHintTrackerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CA88BB29BC8727878C99E95 /* LlamaPromptCacheHintTrackerTests.swift */; };
 		E4382BEA8A8551612E5966B9 /* BaseCompletionPromptRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85EF79E6144D6C6AD062B569 /* BaseCompletionPromptRenderer.swift */; };
 		E51FA12B690428CA431328FC /* WritingPaneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D48B95B6665109B6C6A63B42 /* WritingPaneView.swift */; };
 		E6EE3C13FA31F261CD734C69 /* DownloadOutcomeClassifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DE1975F3B5F4A70478DBF41 /* DownloadOutcomeClassifier.swift */; };
@@ -277,6 +276,7 @@
 		0A3D1125B962CBE0269EEDDB /* SuggestionInserter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionInserter.swift; sourceTree = "<group>"; };
 		0AC3BF78835C8F2C315932F1 /* EmojiCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiCatalog.swift; sourceTree = "<group>"; };
 		0C383AE85B971A9605787358 /* FocusModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusModels.swift; sourceTree = "<group>"; };
+		0CA88BB29BC8727878C99E95 /* LlamaPromptCacheHintTrackerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LlamaPromptCacheHintTrackerTests.swift; sourceTree = "<group>"; };
 		0D80CC2CCAAFE3F23FB8C37A /* PromptContextSanitizerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptContextSanitizerTests.swift; sourceTree = "<group>"; };
 		0F5E263AB69029D5E13D5EE8 /* FocusDebugOverlayController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusDebugOverlayController.swift; sourceTree = "<group>"; };
 		110CB0B53016644EF7840301 /* HuggingFaceAPIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HuggingFaceAPIClient.swift; sourceTree = "<group>"; };
@@ -309,7 +309,6 @@
 		2D1F9CEBAB0F330F8E7B61D8 /* InputSuppressionController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputSuppressionController.swift; sourceTree = "<group>"; };
 		2D7360A6D4261989A66658ED /* SentenceBoundaryClassifierTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SentenceBoundaryClassifierTests.swift; sourceTree = "<group>"; };
 		2F01FAC4F57EB08471521196 /* VisualContextStartCoalescer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisualContextStartCoalescer.swift; sourceTree = "<group>"; };
-		3009812A35A1CDEF16295AB7 /* LlamaPromptRendererTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LlamaPromptRendererTests.swift; sourceTree = "<group>"; };
 		312C7306D916963F519CE0D9 /* EmojiTriggerStateMachine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiTriggerStateMachine.swift; sourceTree = "<group>"; };
 		328847A0F494360033366791 /* TextDirectionDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextDirectionDetector.swift; sourceTree = "<group>"; };
 		3350EDE01ED5125520C79D53 /* SettingsCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsCoordinator.swift; sourceTree = "<group>"; };
@@ -423,7 +422,6 @@
 		B2F95847D76893C8A5B504B4 /* SuggestionOverlayStabilityGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionOverlayStabilityGate.swift; sourceTree = "<group>"; };
 		B424E2AC97C99D335B0D5751 /* SuggestionTextNormalizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionTextNormalizer.swift; sourceTree = "<group>"; };
 		B4B4A2E2DD6733658EC05BD8 /* DownloadFileRescuer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadFileRescuer.swift; sourceTree = "<group>"; };
-		B5679E08C9A09065531C37B5 /* LlamaPromptRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LlamaPromptRenderer.swift; sourceTree = "<group>"; };
 		B6ACCB12E4DB32D2F2BEA567 /* PermissionHostApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionHostApp.swift; sourceTree = "<group>"; };
 		B6D42CD456B4B3C988B148A6 /* FocusTrackingModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusTrackingModel.swift; sourceTree = "<group>"; };
 		B7B185BA246A526CBA85E581 /* EmojiPickerPanelLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiPickerPanelLayoutTests.swift; sourceTree = "<group>"; };
@@ -753,7 +751,7 @@
 				43D627C4A55359EAF4676FF7 /* InsertionSafetyGateTests.swift */,
 				4793D4EA5D36D7E5CC216C27 /* LanguageSupportTests.swift */,
 				5807E8508D9355D0271A00C5 /* LaunchAtLoginStateTests.swift */,
-				3009812A35A1CDEF16295AB7 /* LlamaPromptRendererTests.swift */,
+				0CA88BB29BC8727878C99E95 /* LlamaPromptCacheHintTrackerTests.swift */,
 				52BAFA2F989C3C4F7FB892B5 /* MarkerSelectionSynthesizerTests.swift */,
 				1274F897631B1B3A835D157F /* MidWordContinuationPolicyTests.swift */,
 				FC83D14A7557BC0196E59007 /* MirrorOverlayLayoutTests.swift */,
@@ -907,7 +905,6 @@
 				41BBD5A4BA08CABE77860886 /* HardwareCapabilityProbe.swift */,
 				7D472F9F396672E57873303B /* InsertionSafetyGate.swift */,
 				EAAE6B395FAB604DF059280A /* KeyCodeLabels.swift */,
-				B5679E08C9A09065531C37B5 /* LlamaPromptRenderer.swift */,
 				8D610FCA3A97249DCCE7D0B8 /* LLMIOFileHandler.swift */,
 				A863F41C0C03D7B4AC5DC002 /* MarkerSelectionSynthesizer.swift */,
 				357C18383B047F24A531BDCD /* MidWordContinuationPolicy.swift */,
@@ -1134,7 +1131,6 @@
 				0A2DDD946654076675AC0FC6 /* LanguageCatalog.swift in Sources */,
 				51C069603DA16830868F1628 /* LanguageTagsEditor.swift in Sources */,
 				F0DEEE8A866ABB560E7A7E6A /* LaunchAtLoginService.swift in Sources */,
-				1C4A2BAB2CCADF0A70B70AC6 /* LlamaPromptRenderer.swift in Sources */,
 				66D9E37B12A9265D4733E72E /* LlamaRuntimeCore.swift in Sources */,
 				54BDF0D9C3DC7175555BD0F6 /* LlamaRuntimeManager.swift in Sources */,
 				4CAFD8F3444FEDC9ACAFF529 /* LlamaRuntimeModels.swift in Sources */,
@@ -1263,7 +1259,7 @@
 				83EC3543DC45B1601F119BF9 /* InsertionSafetyGateTests.swift in Sources */,
 				E912D4617AE1376061DF1F00 /* LanguageSupportTests.swift in Sources */,
 				E27E6377D36D4981301568DD /* LaunchAtLoginStateTests.swift in Sources */,
-				190C571B3CDFE117F4D15484 /* LlamaPromptRendererTests.swift in Sources */,
+				E38801433B99E65BD7E45A0E /* LlamaPromptCacheHintTrackerTests.swift in Sources */,
 				87806DE08881D11F2608A13D /* MarkerSelectionSynthesizerTests.swift in Sources */,
 				7C36DBA762E19C8C31676D44 /* MidWordContinuationPolicyTests.swift in Sources */,
 				14D77F0B8A195AC2FA8D24A9 /* MirrorOverlayLayoutTests.swift in Sources */,

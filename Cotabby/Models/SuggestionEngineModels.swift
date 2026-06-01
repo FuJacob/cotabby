@@ -63,7 +63,7 @@ struct SuggestionSettingsSnapshot: Equatable, Sendable {
     let selectedEngine: SuggestionEngineKind
     let selectedWordCountPreset: SuggestionWordCountPreset
     let isClipboardContextEnabled: Bool
-    /// User-authored profile data for Cotabby's single instruction-rendered completion prompt.
+    /// User-authored profile data for Cotabby's base-model completion prompt.
     /// This travels in the snapshot so generation uses the same value the Settings UI shows.
     let userName: String
     /// User-authored style rules, carried in the snapshot so generation uses the same value the
@@ -86,10 +86,6 @@ struct SuggestionSettingsSnapshot: Equatable, Sendable {
     /// When true, the screenshot/OCR visual-context pipeline is skipped entirely for lower-latency
     /// suggestions. Defaults to false. Only affects visual context — predictions still run.
     let isFastModeEnabled: Bool
-    /// Experimental: when true and the Open Source engine is selected, the local path uses the
-    /// base-model continuation prompt (no instruction preamble, prefix last) instead of the
-    /// instruction-rendered prompt. Default false, so existing installs are byte-for-byte unchanged.
-    let useBaseCompletionPipeline: Bool
     /// User preference for how suggestions are presented (inline ghost text vs popup card vs auto
     /// based on caret geometry quality). Travels in the snapshot so consumers can react to changes
     /// without subscribing to the settings model directly.

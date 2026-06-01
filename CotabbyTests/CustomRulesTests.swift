@@ -35,42 +35,6 @@ final class CustomRulesTests: XCTestCase {
         XCTAssertEqual(CustomRulesCatalog.normalize(many).count, CustomRulesCatalog.maxRules)
     }
 
-    // MARK: - llama rendering
-
-    func test_llamaRenderer_emitsRulesAfterBaseRulesWithSubordination() {
-        let prompt = LlamaPromptRenderer.prompt(
-            prefixText: "Hello",
-            applicationName: "Notes",
-            completionLengthInstruction: "Return only the next few words.",
-            userName: nil,
-            customRules: ["Use British spelling", "Never use em dashes"]
-        )
-
-        XCTAssertTrue(prompt.contains("Your style preferences:"))
-        XCTAssertTrue(prompt.contains("- Use British spelling"))
-        XCTAssertTrue(prompt.contains("- Never use em dashes"))
-        XCTAssertTrue(prompt.contains("never break the rules above"))
-
-        // The base task rules must precede the user style section.
-        let baseIndex = try? XCTUnwrap(prompt.range(of: "Task:"))
-        let rulesIndex = try? XCTUnwrap(prompt.range(of: "Your style preferences:"))
-        if let baseIndex, let rulesIndex {
-            XCTAssertLessThan(baseIndex.lowerBound, rulesIndex.lowerBound)
-        }
-    }
-
-    func test_llamaRenderer_emitsNoRuleSectionWhenEmpty() {
-        let prompt = LlamaPromptRenderer.prompt(
-            prefixText: "Hello",
-            applicationName: "Notes",
-            completionLengthInstruction: "Return only the next few words.",
-            userName: nil,
-            customRules: []
-        )
-
-        XCTAssertFalse(prompt.contains("Your style preferences:"))
-    }
-
     // MARK: - foundation model rendering
 
     func test_foundationModelInstructions_includeRules() {
