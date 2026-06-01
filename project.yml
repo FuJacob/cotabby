@@ -13,7 +13,7 @@ packages:
     exactVersion: 2.9.1
   CotabbyInference:
     url: https://github.com/FuJacob/cotabbyinference.git
-    branch: feat/generation-quality-controls
+    branch: main
   swift-log:
     url: https://github.com/apple/swift-log.git
     from: 1.12.1

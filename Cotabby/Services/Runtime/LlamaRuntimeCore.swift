@@ -34,6 +34,13 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
     private var autocompletePromptTokens: [Int32] = []
     private var autocompleteSamplingFingerprint: SamplingFingerprint?
 
+    /// Per-model constrained-decoding token table, built lazily on the first constrained request and
+    /// reused across requests. Keyed by model URL so loading a different model rebuilds it. Read and
+    /// written only inside `runConstrainedDecode`, which runs under `autocompleteLock`, so it needs
+    /// no extra synchronization. Cleared on `shutdown()` to release the table when the model unloads.
+    private var cachedTokenProfile: TokenProfile?
+    private var cachedTokenProfileModelURL: URL?
+
     /// Coordinates model lifecycle with in-flight operations. `generate()` and `summarize()`
     /// increment the active count on entry and decrement on exit. `shutdown()` sets the
     /// shutting-down flag and blocks until all active operations finish before unloading.
@@ -188,6 +195,19 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
             autocompleteSamplingFingerprint = fingerprint
         }
 
+        // The KV-trim defer above runs after whichever decoder returns. Both decoders share the
+        // prepared sequence and the same confidence-suppression contract; they differ only in how
+        // they pick each token (engine sampler vs. deterministic constrained selection).
+        return options.useConstrainedDecoder
+            ? try runConstrainedDecode(sequenceID: sequenceID, options: options)
+            : runEngineSampledDecode(sequenceID: sequenceID, options: options)
+    }
+
+    // MARK: - Decoders
+
+    /// The shipping decoder: delegates token selection to the engine's built-in sampler
+    /// (`sampleNext`), which applies temperature / top-k / top-p / min-p and commits each token.
+    private func runEngineSampledDecode(sequenceID: Int32, options: LlamaGenerationOptions) -> String {
         var generatedText = ""
         var tokensGenerated = 0
         var sumLogprob = 0.0
@@ -230,24 +250,131 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
             ]
         )
 
-        // Confidence suppression: drop completions the model itself was unsure about. Disabled by
-        // default (confidenceFloor == -infinity); the KV-trim defer above still runs on early return.
-        if tokensGenerated > 0,
-           ConfidenceSuppressionPolicy.shouldSuppress(
-               averageLogprob: sumLogprob / Double(tokensGenerated),
-               floor: options.confidenceFloor
-           ) {
+        if Self.shouldSuppress(sumLogprob: sumLogprob, tokensGenerated: tokensGenerated, options: options) {
+            return ""
+        }
+        return generatedText
+    }
+
+    /// The constrained decoder: reads the raw next-token logits, masks structural / excluded tokens
+    /// via the token profile, deterministically selects the highest-logit admissible token, and
+    /// commits it manually with `acceptToken`. This trades the sampler's randomness for reproducible,
+    /// leak-free continuations (no chat/control markers can surface as visible text). It honors the
+    /// same cancellation, single-line, and confidence-suppression contracts as the sampled path.
+    /// Mid-word word-continuation is already applied to the seed logits by `decodePrompt` (the engine
+    /// masks new-word-start tokens for the first step), so the first `getNextTokenLogits` row this
+    /// reads is already constrained when `forceWordContinuation` was set.
+    private func runConstrainedDecode(sequenceID: Int32, options: LlamaGenerationOptions) throws -> String {
+        let profile = try autocompleteTokenProfile()
+        let vocabSize = profile.vocabSize
+        guard vocabSize > 0 else {
+            throw LlamaRuntimeError.generationFailed("Vocabulary unavailable for constrained decoding.")
+        }
+        // `topK` bounds the candidate pool the selector ranks; clamp to a sane positive value so a
+        // zero/negative request still yields a full-vocab argmax rather than an empty pool.
+        let topK = options.topK > 0 ? options.topK : vocabSize
+
+        var generatedBytes: [UInt8] = []
+        var tokensGenerated = 0
+        var sumLogprob = 0.0
+        var stopReason = "budget_exhausted"
+        var logits = [Float](repeating: 0, count: vocabSize)
+
+        for _ in 0 ..< options.maxPredictionTokens {
+            if Task.isCancelled {
+                stopReason = "cancelled"
+                break
+            }
+
+            let written = logits.withUnsafeMutableBufferPointer { buffer in
+                Int(engine.getNextTokenLogits(sequenceID, buffer.baseAddress, Int32(buffer.count)))
+            }
+            guard written == vocabSize else {
+                stopReason = "no_logits"
+                break
+            }
+
+            guard let tokenID = ConstrainedSampler.selectToken(
+                logits: logits,
+                profile: profile,
+                admissibleTokenIDs: nil,
+                topK: topK
+            ) else {
+                stopReason = "no_admissible_token"
+                break
+            }
+
+            if profile.isEndOfGeneration(tokenID) {
+                stopReason = "eos"
+                break
+            }
+            // Single-line fields must never receive a line break; stop before emitting one so the
+            // partial completion so far is preserved (mirrors the sampler path's single_line mask).
+            if options.singleLine, profile.isNewline(tokenID) {
+                stopReason = "single_line"
+                break
+            }
+
+            // Accumulate raw bytes and decode once at the end: a single token may carry only part of
+            // a multi-byte UTF-8 scalar, so per-token String decoding would corrupt CJK / emoji.
+            if let logProb = ConstrainedSampler.logProb(ofTokenAt: tokenID, in: logits) {
+                sumLogprob += logProb
+            }
+            generatedBytes.append(contentsOf: profile.bytes(for: tokenID))
+            tokensGenerated += 1
+
+            if engine.acceptToken(sequenceID, Int32(tokenID)) != .ok {
+                stopReason = "accept_failed"
+                break
+            }
+        }
+
+        // Lossy decode is deliberate: the accumulated bytes are valid UTF-8 except for a possible
+        // partial trailing scalar (the final token may carry only part of a multi-byte character).
+        // The failable `String(bytes:encoding:)` would discard the entire completion in that case;
+        // `String(decoding:)` keeps every complete scalar and renders only the fragment as U+FFFD.
+        // swiftlint:disable:next optional_data_string_conversion
+        let generatedText = String(decoding: generatedBytes, as: UTF8.self)
+        CotabbyLogger.runtime.debug(
+            "Decode end",
+            metadata: [
+                "kind": .string("generate_constrained"),
+                "tokens_generated": .stringConvertible(tokensGenerated),
+                "chars_generated": .stringConvertible(generatedText.count),
+                "stop_reason": .string(stopReason)
+            ]
+        )
+
+        if Self.shouldSuppress(sumLogprob: sumLogprob, tokensGenerated: tokensGenerated, options: options) {
+            return ""
+        }
+        return generatedText
+    }
+
+    /// Shared low-confidence gate for both decoders: drop completions the model itself was unsure
+    /// about. Disabled by default (confidenceFloor == -infinity). The KV-trim defer in `generate`
+    /// still runs because the caller returns "" rather than throwing.
+    private static func shouldSuppress(
+        sumLogprob: Double,
+        tokensGenerated: Int,
+        options: LlamaGenerationOptions
+    ) -> Bool {
+        guard tokensGenerated > 0 else { return false }
+        let averageLogprob = sumLogprob / Double(tokensGenerated)
+        let suppress = ConfidenceSuppressionPolicy.shouldSuppress(
+            averageLogprob: averageLogprob,
+            floor: options.confidenceFloor
+        )
+        if suppress {
             CotabbyLogger.runtime.debug(
                 "Suppressed low-confidence completion",
                 metadata: [
                     "tokens_generated": .stringConvertible(tokensGenerated),
-                    "avg_logprob": .stringConvertible(sumLogprob / Double(tokensGenerated))
+                    "avg_logprob": .stringConvertible(averageLogprob)
                 ]
             )
-            return ""
         }
-
-        return generatedText
+        return suppress
     }
 
     // MARK: - Cache and lifecycle
@@ -302,6 +429,8 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         resetPromptCache()
         engine.unloadModel()
         preparedRuntime = nil
+        cachedTokenProfile = nil
+        cachedTokenProfileModelURL = nil
         CotabbyLogger.runtime.info("Runtime shutdown complete")
 
         lifecycleCondition.lock()
@@ -403,6 +532,68 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         guard utf8Count > 0 else { return [] }
         let vec = engine.tokenize(text, Int32(utf8Count))
         return Array(vec)
+    }
+
+    /// Lazily builds and caches the constrained-decoding token profile for the loaded model. The
+    /// profile records each token's bytes and structural flags so the constrained decoder can mask
+    /// excluded tokens and detect stops without calling back into the engine per step. Building scans
+    /// the whole vocabulary once (one detokenize per token), so the result is cached and reused until
+    /// the model changes. Must be called while holding `autocompleteLock`.
+    private func autocompleteTokenProfile() throws -> TokenProfile {
+        let modelURL = preparedRuntime?.resolvedRuntime.modelFileURL
+        if let cachedTokenProfile, cachedTokenProfileModelURL == modelURL {
+            return cachedTokenProfile
+        }
+
+        let vocabSize = Int(engine.getVocabSize())
+        guard vocabSize > 0 else {
+            throw LlamaRuntimeError.generationFailed("Vocabulary unavailable for constrained decoding.")
+        }
+
+        // Detokenize every token once up front; the build closures index this snapshot so each
+        // token's bytes are computed a single time and its control flag derives from the same bytes.
+        var tokenBytes: [[UInt8]] = []
+        tokenBytes.reserveCapacity(vocabSize)
+        for id in 0 ..< vocabSize {
+            tokenBytes.append(detokenizeBytes(Int32(id)))
+        }
+
+        let profile = TokenProfile.build(
+            vocabSize: vocabSize,
+            bytesFor: { tokenBytes[$0] },
+            // A token that detokenizes to no visible bytes is a structural / special / control token
+            // (llama renders those empty when special rendering is off); never emit it as text.
+            isControl: { tokenBytes[$0].isEmpty },
+            isEndOfGeneration: { self.engine.isEndOfGenerationToken(Int32($0)) }
+        )
+        cachedTokenProfile = profile
+        cachedTokenProfileModelURL = modelURL
+        CotabbyLogger.runtime.debug(
+            "Built constrained-decode token profile",
+            metadata: ["vocab_size": .stringConvertible(vocabSize)]
+        )
+        return profile
+    }
+
+    /// The raw UTF-8 bytes a token detokenizes to, or empty for a structural token that renders to
+    /// nothing. `detokenize` returns the byte count, or a negative `-(required)` when the fixed
+    /// buffer is too small; the rare large-piece case retries once at the requested size.
+    private func detokenizeBytes(_ token: Int32) -> [UInt8] {
+        var buffer = [CChar](repeating: 0, count: 256)
+        let written = buffer.withUnsafeMutableBufferPointer { ptr in
+            Int(engine.detokenize(token, ptr.baseAddress, Int32(ptr.count)))
+        }
+        if written > 0 {
+            return buffer.prefix(written).map { UInt8(bitPattern: $0) }
+        }
+        if written < 0 {
+            var large = [CChar](repeating: 0, count: -written)
+            let writtenLarge = large.withUnsafeMutableBufferPointer { ptr in
+                Int(engine.detokenize(token, ptr.baseAddress, Int32(ptr.count)))
+            }
+            return writtenLarge > 0 ? large.prefix(writtenLarge).map { UInt8(bitPattern: $0) } : []
+        }
+        return []
     }
 
     private static func extractPiece(_ result: SampleResult) -> String {

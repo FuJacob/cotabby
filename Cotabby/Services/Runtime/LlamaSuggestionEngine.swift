@@ -13,6 +13,15 @@ final class LlamaSuggestionEngine {
     private let runtimeManager: LlamaRuntimeManager
     private var promptCacheHintTracker = LlamaPromptCacheHintTracker()
 
+    /// UserDefaults key (no UI) that routes llama generation through the deterministic constrained
+    /// decoder instead of the engine's stochastic sampler. Default-off: decode quality can only be
+    /// judged with a real model in a real field, so this stays a hidden developer/dogfood toggle
+    /// until it is validated on device and promoted to the default.
+    private static let constrainedDecoderDefaultsKey = "cotabbyConstrainedDecoderEnabled"
+    private static var isConstrainedDecoderEnabled: Bool {
+        UserDefaults.standard.bool(forKey: constrainedDecoderDefaultsKey)
+    }
+
     init(runtimeManager: LlamaRuntimeManager) {
         self.runtimeManager = runtimeManager
     }
@@ -50,7 +59,8 @@ final class LlamaSuggestionEngine {
                     forceWordContinuation: MidWordContinuationPolicy.shouldForceContinuation(
                         precedingText: request.context.precedingText,
                         trailingText: request.context.trailingText
-                    )
+                    ),
+                    useConstrainedDecoder: Self.isConstrainedDecoderEnabled
                 )
             )
             try Task.checkCancellation()
