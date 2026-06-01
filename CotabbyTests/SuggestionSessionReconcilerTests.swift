@@ -202,13 +202,13 @@ final class SuggestionSessionReconcilerTests: XCTestCase {
         )
     }
 
-    func test_nextAcceptancePhrase_abbreviationFalseBreakIsKnownLimitation() {
-        // "U.S.A." ends in a period, which the rule-based scanner treats as a sentence terminator.
-        // The user accepts the abbreviation in one press and the next phrase begins with " is".
-        // Without NLP this collapse is unavoidable; Cursor and Copilot behave the same way.
+    func test_nextAcceptancePhrase_walksPastDottedInitialsToRealSentenceEnd() {
+        // "U.S.A." is a run of single-letter initials, so its interior periods are not sentence
+        // ends. SentenceBoundaryClassifier keeps phrase acceptance going until the real terminator
+        // after "great" (see SentenceBoundaryClassifierTests for the period-disambiguation rules).
         XCTAssertEqual(
             SuggestionSessionReconciler.nextAcceptancePhrase(from: "U.S.A. is great."),
-            "U.S.A."
+            "U.S.A. is great."
         )
     }
 
