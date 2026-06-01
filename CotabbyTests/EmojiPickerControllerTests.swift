@@ -39,6 +39,22 @@ final class EmojiPickerControllerTests: XCTestCase {
         }
     }
 
+    func test_commitRecordsEmojiUsageByPrimaryAlias() {
+        runOnMainActor {
+            let harness = Harness(precedingText: ":smile")
+            harness.openAndType(":smile")
+
+            XCTAssertTrue(harness.controller.observe(Harness.keyEvent(48)))
+            harness.flushMainQueue()
+
+            XCTAssertEqual(
+                harness.usage.recorded,
+                ["smile"],
+                "Commit must record the committed emoji's primary alias for ranking and recents."
+            )
+        }
+    }
+
     func test_returnDoesNotCommitAndPassesThroughEvenWithMatches() {
         runOnMainActor {
             let harness = Harness(precedingText: ":smile")
@@ -91,6 +107,7 @@ final class EmojiPickerControllerTests: XCTestCase {
         let monitor = FakeInputMonitor()
         let inserter = RecordingInserter()
         let panel = FakePanel()
+        let usage: UsageRecorder
         let controller: EmojiPickerController
 
         init(precedingText: String) {
@@ -105,6 +122,10 @@ final class EmojiPickerControllerTests: XCTestCase {
                 )
             ])
             focus = FakeFocus(precedingText: precedingText, focusChangeSequence: 1)
+            // Captured by the closures instead of `self`, so the controller can be built inside this
+            // initializer without referencing a not-yet-assigned `self`.
+            let usageRecorder = UsageRecorder()
+            usage = usageRecorder
             controller = EmojiPickerController(
                 matcher: EmojiMatcher(catalog: catalog),
                 panel: panel,
@@ -113,7 +134,9 @@ final class EmojiPickerControllerTests: XCTestCase {
                 inserter: inserter,
                 isEnabled: { true },
                 emojiPreferences: { .default },
-                acceptKeyLabel: { "⇥" }
+                acceptKeyLabel: { "⇥" },
+                emojiUsage: { usageRecorder.snapshot },
+                recordEmojiUsage: { usageRecorder.recorded.append($0) }
             )
             controller.start()
             EmojiPickerControllerTests.retained.append(controller)
@@ -203,6 +226,14 @@ private final class RecordingInserter: EmojiTextInserting {
         calls.append(Call(deleteCount: deletingUTF16Count, text: text))
         return true
     }
+}
+
+/// Captures the controller's usage callbacks without the harness having to capture `self` during its
+/// own initializer.
+@MainActor
+private final class UsageRecorder {
+    var snapshot = EmojiUsageSnapshot.empty
+    var recorded: [String] = []
 }
 
 @MainActor

@@ -23,6 +23,7 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
     private let configuration: SuggestionConfiguration
     private let performanceMetricsStore: PerformanceMetricsStore
     private let onShowWelcome: () -> Void
+    private let clearEmojiHistory: () -> Void
 
     private var settingsWindowController: NSWindowController?
 
@@ -38,7 +39,8 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
         suggestionEngine: any SuggestionGenerating,
         configuration: SuggestionConfiguration,
         performanceMetricsStore: PerformanceMetricsStore,
-        onShowWelcome: @escaping () -> Void
+        onShowWelcome: @escaping () -> Void,
+        clearEmojiHistory: @escaping () -> Void
     ) {
         self.appUpdateManager = appUpdateManager
         self.launchAtLoginService = launchAtLoginService
@@ -52,6 +54,7 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
         self.configuration = configuration
         self.performanceMetricsStore = performanceMetricsStore
         self.onShowWelcome = onShowWelcome
+        self.clearEmojiHistory = clearEmojiHistory
     }
 
     /// Shows the settings window, reusing the existing instance if it is already open.
@@ -78,7 +81,8 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
                     performanceMetricsStore: performanceMetricsStore,
                     suggestionEngine: suggestionEngine,
                     configuration: configuration,
-                    onShowWelcome: onShowWelcome
+                    onShowWelcome: onShowWelcome,
+                    clearEmojiHistory: clearEmojiHistory
                 )
             )
         )

@@ -28,6 +28,10 @@ final class EmojiPickerController {
     private let emojiPreferences: () -> EmojiVariantPreferences
     /// The accept-word key label shown as a keycap on the highlighted row; `nil` hides the hint.
     private let acceptKeyLabel: () -> String?
+    /// Live personal usage snapshot, read at match time to rank favorites and seed the bare-`:` panel.
+    private let emojiUsage: () -> EmojiUsageSnapshot
+    /// Records a committed emoji's primary alias so future ranking and recents reflect it.
+    private let recordEmojiUsage: (String) -> Void
 
     private var currentQuery = ""
     private var matches: [EmojiMatch] = []
@@ -58,7 +62,9 @@ final class EmojiPickerController {
         inserter: any EmojiTextInserting,
         isEnabled: @escaping () -> Bool,
         emojiPreferences: @escaping () -> EmojiVariantPreferences,
-        acceptKeyLabel: @escaping () -> String?
+        acceptKeyLabel: @escaping () -> String?,
+        emojiUsage: @escaping () -> EmojiUsageSnapshot,
+        recordEmojiUsage: @escaping (String) -> Void
     ) {
         self.matcher = matcher
         self.panel = panel
@@ -68,6 +74,8 @@ final class EmojiPickerController {
         self.isEnabled = isEnabled
         self.emojiPreferences = emojiPreferences
         self.acceptKeyLabel = acceptKeyLabel
+        self.emojiUsage = emojiUsage
+        self.recordEmojiUsage = recordEmojiUsage
     }
 
     func start() {
@@ -251,8 +259,10 @@ final class EmojiPickerController {
             cancelCapture()
             return
         }
-        let glyph = matches[selectedIndex].glyph
+        let selected = matches[selectedIndex]
+        let glyph = selected.glyph
         let fallback = currentQuery.utf16.count + 1   // ":" + query
+        recordUsage(for: selected)
         CotabbyLogger.suggestion.debug("emoji commit (key) glyph=\(glyph) query=\"\(currentQuery)\"")
         teardownCapture()
         scheduleReplaceEmojiQuery(with: glyph, fallbackUTF16: fallback)
@@ -262,11 +272,19 @@ final class EmojiPickerController {
     /// defer one runloop tick, then measure and replace the whole run (EMOJI.md §3.2, §5.5).
     private func commitClosingColon() {
         let query = currentQuery
-        let glyph = bestGlyphForClosingColon(query: query)
+        let match = bestMatchForClosingColon(query: query)
         let fallback = query.utf16.count + 2   // ":" + query + ":"
         teardownCapture()
-        guard let glyph else { return }   // no match: leave the literal ":query:" untouched
-        scheduleReplaceEmojiQuery(with: glyph, fallbackUTF16: fallback)
+        guard let match else { return }   // no match: leave the literal ":query:" untouched
+        recordUsage(for: match)
+        scheduleReplaceEmojiQuery(with: match.glyph, fallbackUTF16: fallback)
+    }
+
+    /// Records a committed emoji against the user's usage history, keyed by its base primary alias so
+    /// the signal is stable across skin-tone and gender variants.
+    private func recordUsage(for match: EmojiMatch) {
+        guard let alias = match.entry.aliases.first else { return }
+        recordEmojiUsage(alias)
     }
 
     private func cancelCapture() {
@@ -291,7 +309,13 @@ final class EmojiPickerController {
 
     private func refreshMatches(query: String) {
         currentQuery = query
-        matches = EmojiVariantResolver.resolve(matcher.matches(for: query), preferences: emojiPreferences())
+        let usage = emojiUsage()
+        // A bare ":" (empty query) shows the user's recents, padded with popular emoji, instead of
+        // nothing; a typed query runs the ranked search with the same personal usage signal.
+        let base = query.isEmpty
+            ? matcher.recents(usage: usage)
+            : matcher.matches(for: query, usage: usage)
+        matches = EmojiVariantResolver.resolve(base, preferences: emojiPreferences())
         selectedIndex = 0
     }
 
@@ -306,13 +330,16 @@ final class EmojiPickerController {
         )
     }
 
-    private func bestGlyphForClosingColon(query: String) -> String? {
+    private func bestMatchForClosingColon(query: String) -> EmojiMatch? {
         let lowercased = query.lowercased()
-        let results = EmojiVariantResolver.resolve(matcher.matches(for: query), preferences: emojiPreferences())
+        let results = EmojiVariantResolver.resolve(
+            matcher.matches(for: query, usage: emojiUsage()),
+            preferences: emojiPreferences()
+        )
         if let exact = results.first(where: { $0.entry.aliases.contains(lowercased) }) {
-            return exact.glyph
+            return exact
         }
-        return results.first?.glyph
+        return results.first
     }
 
     /// Posts the delete+glyph replace on the next runloop tick. Both commit modes defer through here

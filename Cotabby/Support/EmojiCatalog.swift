@@ -25,11 +25,15 @@ struct EmojiCatalog {
 
     let indexed: [IndexedEntry]
 
+    /// Lowercased alias -> first catalog index, so a stored alias (recents, popularity prior) resolves
+    /// back to its entry in O(1). First occurrence wins on the rare alias collision.
+    let aliasIndex: [String: Int]
+
     var isEmpty: Bool { indexed.isEmpty }
     var count: Int { indexed.count }
 
     init(entries: [EmojiEntry]) {
-        indexed = entries.map { entry in
+        let indexed = entries.map { entry in
             IndexedEntry(
                 entry: entry,
                 lowerAliases: entry.aliases.map { $0.lowercased() },
@@ -37,6 +41,21 @@ struct EmojiCatalog {
                 lowerName: entry.name.lowercased()
             )
         }
+        var aliasIndex: [String: Int] = [:]
+        for (index, entry) in indexed.enumerated() {
+            for alias in entry.lowerAliases where aliasIndex[alias] == nil {
+                aliasIndex[alias] = index
+            }
+        }
+        self.indexed = indexed
+        self.aliasIndex = aliasIndex
+    }
+
+    /// The entry whose (lowercased) alias matches, or nil. Resolves recent/popular aliases back to
+    /// displayable entries for the bare-`:` panel.
+    func entry(forAlias alias: String) -> EmojiEntry? {
+        guard let index = aliasIndex[alias.lowercased()] else { return nil }
+        return indexed[index].entry
     }
 }
 

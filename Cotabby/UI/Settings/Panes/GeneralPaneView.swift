@@ -10,6 +10,7 @@ struct GeneralPaneView: View {
     @ObservedObject var suggestionSettings: SuggestionSettingsModel
     @ObservedObject var launchAtLoginService: LaunchAtLoginService
     let onShowWelcome: () -> Void
+    let clearEmojiHistory: () -> Void
 
     @Environment(\.colorScheme) private var colorScheme
 
@@ -127,6 +128,17 @@ struct GeneralPaneView: View {
                         SettingsRowLabel(
                             title: "People Emoji Style",
                             description: "Choose person, man, or woman variants when an emoji offers them."
+                        )
+                    }
+
+                    LabeledContent {
+                        Button("Clear History") {
+                            clearEmojiHistory()
+                        }
+                    } label: {
+                        SettingsRowLabel(
+                            title: "Emoji History",
+                            description: "Forget recently and frequently used emoji so the picker ranks from scratch."
                         )
                     }
                 }

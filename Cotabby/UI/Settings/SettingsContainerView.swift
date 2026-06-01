@@ -29,6 +29,7 @@ struct SettingsContainerView: View {
     let suggestionEngine: any SuggestionGenerating
     let configuration: SuggestionConfiguration
     let onShowWelcome: () -> Void
+    let clearEmojiHistory: () -> Void
 
     @AppStorage("cotabbySettingsSelectedCategoryV2")
     private var storedCategoryRawValue: String = SettingsCategory.general.rawValue
@@ -99,7 +100,8 @@ struct SettingsContainerView: View {
             GeneralPaneView(
                 suggestionSettings: suggestionSettings,
                 launchAtLoginService: launchAtLoginService,
-                onShowWelcome: onShowWelcome
+                onShowWelcome: onShowWelcome,
+                clearEmojiHistory: clearEmojiHistory
             )
         case .engineAndModel:
             EngineAndModelPaneView(

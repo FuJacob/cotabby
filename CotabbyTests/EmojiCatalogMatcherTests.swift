@@ -76,6 +76,74 @@ final class EmojiCatalogMatcherTests: XCTestCase {
         XCTAssertEqual(results.first?.glyph, "🎉")
     }
 
+    // MARK: - Synonyms, fuzzy, and personalization
+
+    func test_synonymSurfacesIntentWordWithNoLexicalMatch() {
+        // "lol" is not an alias, keyword, or name of 😂, but the synonym overlay maps it to "joy".
+        let sut = matcher([
+            entry("🎈", "balloon", aliases: ["balloon"]),
+            entry("😂", "face with tears of joy", aliases: ["joy"])
+        ])
+
+        XCTAssertEqual(sut.matches(for: "lol").first?.glyph, "😂")
+    }
+
+    func test_fuzzyMatchesDroppedLetterTypo() {
+        let sut = matcher([entry("😀", "happy face", aliases: ["happy"])])
+
+        XCTAssertEqual(sut.matches(for: "hapy").first?.glyph, "😀")
+    }
+
+    func test_fuzzyMatchesTransposition() {
+        let sut = matcher([entry("📥", "incoming", aliases: ["receive"])])
+
+        XCTAssertEqual(sut.matches(for: "recieve").first?.glyph, "📥")
+    }
+
+    func test_exactMatchStillBeatsFuzzy() {
+        // A literal exact alias must always outrank a fuzzy hit on another entry.
+        let sut = matcher([
+            entry("😀", "happy face", aliases: ["happy"]),   // only a fuzzy candidate for "hapy"
+            entry("🅷", "hapy tag", aliases: ["hapy"])        // exact alias "hapy"
+        ])
+
+        XCTAssertEqual(sut.matches(for: "hapy").first?.glyph, "🅷")
+    }
+
+    func test_favoriteFloatsAboveShorterTokenWithinTier() {
+        let sut = matcher([
+            entry("🅰️", "alpha", aliases: ["alpha"]),       // shorter token, normally first
+            entry("🅱️", "alphabet", aliases: ["alphabet"])  // longer token
+        ])
+
+        // Without history, the shorter "alpha" leads for "alph".
+        XCTAssertEqual(sut.matches(for: "alph").first?.glyph, "🅰️")
+
+        // Marking "alphabet" a recent favorite lifts it above the shorter token within the same tier.
+        let usage = EmojiUsageSnapshot(recentAliases: ["alphabet"], frequency: [:])
+        XCTAssertEqual(sut.matches(for: "alph", usage: usage).first?.glyph, "🅱️")
+    }
+
+    func test_popularityBreaksTiesAtEqualRelevance() {
+        let sut = matcher([
+            entry("🌿", "hedge", aliases: ["hedge"]),   // not in the popularity prior
+            entry("❤️", "heart", aliases: ["heart"])    // high in the popularity prior
+        ])
+
+        // Both are equal-length prefix matches for "he"; the more popular alias wins the tiebreak.
+        XCTAssertEqual(sut.matches(for: "he").first?.glyph, "❤️")
+    }
+
+    func test_recentsLeadBareColonSuggestions() {
+        let sut = matcher([
+            entry("😀", "grinning", aliases: ["grinning"]),
+            entry("😂", "joy", aliases: ["joy"])
+        ])
+        let usage = EmojiUsageSnapshot(recentAliases: ["grinning"], frequency: [:])
+
+        XCTAssertEqual(sut.recents(usage: usage).first?.glyph, "😀")
+    }
+
     // MARK: - Bounds
 
     func test_emptyQueryReturnsNothing() {
