@@ -798,18 +798,16 @@ struct FocusSnapshotResolver {
 
     /// Detects secure inputs so Cotabby can intentionally refuse to operate in sensitive fields.
     private func isSecureElement(element: AXUIElement, role: String, subrole: String?) -> Bool {
-        let secureMarkers = [
-            role.lowercased(),
-            subrole?.lowercased() ?? "",
-            AXHelper.stringValue(for: kAXDescriptionAttribute as CFString, on: element)?
-                .lowercased() ?? "",
-            AXHelper.stringValue(for: kAXTitleAttribute as CFString, on: element)?.lowercased()
-                ?? ""
-        ]
-
-        return secureMarkers.contains { marker in
-            marker.contains("secure") || marker.contains("password")
-        }
+        // Read the role description too: a native NSSecureTextField announces its sensitivity there
+        // ("secure text field") rather than through AXDescription, so the previous role/desc/title-only
+        // check missed it. SecureFieldDetector owns the (pure, testable) marker policy.
+        SecureFieldDetector.isSecure(
+            role: role,
+            subrole: subrole,
+            roleDescription: AXHelper.stringValue(for: kAXRoleDescriptionAttribute as CFString, on: element),
+            title: AXHelper.stringValue(for: kAXTitleAttribute as CFString, on: element),
+            descriptionLabel: AXHelper.stringValue(for: kAXDescriptionAttribute as CFString, on: element)
+        )
     }
 
     // MARK: - Debug AX tree dump
