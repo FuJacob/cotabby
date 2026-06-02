@@ -107,8 +107,8 @@ final class LlamaRuntimeManager: ObservableObject {
         do {
             // `Task.detached` does not inherit the caller's cancellation, so an outer cancel
             // would otherwise leave `core.generate` running to its full prediction budget while
-            // holding `autocompleteLock`. The handler forwards the cancel signal, and the loop
-            // inside `core.generate` polls `Task.isCancelled` between sampleNext calls.
+            // holding `autocompleteLock`. The handler forwards the cancel signal, and the decode
+            // loop inside `core.generate` polls `Task.isCancelled` between token steps.
             let task = Task.detached {
                 try core.generate(
                     prompt: prompt,

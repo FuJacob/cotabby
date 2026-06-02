@@ -212,12 +212,9 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
             autocompleteSamplingFingerprint = fingerprint
         }
 
-        // The KV-trim defer above runs after whichever decoder returns. Both decoders share the
-        // prepared sequence and the same confidence-suppression contract; they differ only in how
-        // they pick each token (engine sampler vs. deterministic constrained selection).
-        guard options.useConstrainedDecoder else {
-            return runEngineSampledDecode(sequenceID: sequenceID, options: options)
-        }
+        // The KV-trim defer above runs after whichever decoder returns. Greedy and beam share the
+        // prepared sequence and the same confidence-suppression contract; they differ only in how far
+        // they explore before committing each token.
         return options.beamWidth > 1
             ? try runConstrainedBeamDecode(
                 sequenceID: sequenceID,
@@ -268,57 +265,6 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         // swiftlint:disable:next optional_data_string_conversion
         let decoded = String(decoding: generatedBytes, as: UTF8.self)
         return SentenceBoundaryClassifier.endsSentence(decoded)
-    }
-
-    /// The shipping decoder: delegates token selection to the engine's built-in sampler
-    /// (`sampleNext`), which applies temperature / top-k / top-p / min-p and commits each token.
-    private func runEngineSampledDecode(sequenceID: Int32, options: LlamaGenerationOptions) -> String {
-        var generatedText = ""
-        var tokensGenerated = 0
-        var sumLogprob = 0.0
-        var stopReason = "budget_exhausted"
-
-        for _ in 0 ..< options.maxPredictionTokens {
-            // Cooperative cancellation: when the wrapping Task is cancelled (caller hit a new
-            // keystroke, focus changed, Compose started), bail before the next sampleNext call so
-            // we release `autocompleteLock` instead of running the full prediction budget and
-            // making the next autocomplete wait behind us.
-            if Task.isCancelled {
-                stopReason = "cancelled"
-                break
-            }
-
-            let result = engine.sampleNext(sequenceID)
-
-            if result.was_cancelled {
-                stopReason = "engine_cancelled"
-                break
-            }
-            if result.is_eos {
-                stopReason = "eos"
-                break
-            }
-
-            let piece = Self.extractPiece(result)
-            generatedText += piece
-            tokensGenerated += 1
-            sumLogprob += Double(result.logprob)
-        }
-
-        CotabbyLogger.runtime.debug(
-            "Decode end",
-            metadata: [
-                "kind": .string("generate"),
-                "tokens_generated": .stringConvertible(tokensGenerated),
-                "chars_generated": .stringConvertible(generatedText.count),
-                "stop_reason": .string(stopReason)
-            ]
-        )
-
-        if Self.shouldSuppress(sumLogprob: sumLogprob, tokensGenerated: tokensGenerated, options: options) {
-            return ""
-        }
-        return generatedText
     }
 
     /// The constrained decoder: reads the raw next-token logits, masks structural / excluded tokens
@@ -897,15 +843,6 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
             return writtenLarge > 0 ? large.prefix(writtenLarge).map { UInt8(bitPattern: $0) } : []
         }
         return []
-    }
-
-    private static func extractPiece(_ result: SampleResult) -> String {
-        guard let piece = result.piece, result.piece_length > 0 else { return "" }
-        let buffer = UnsafeBufferPointer(
-            start: UnsafeRawPointer(piece).assumingMemoryBound(to: UInt8.self),
-            count: Int(result.piece_length)
-        )
-        return String(bytes: buffer, encoding: .utf8) ?? ""
     }
 
     private static func samplingConfig(from options: LlamaGenerationOptions) -> SamplingConfig {

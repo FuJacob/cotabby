@@ -193,17 +193,9 @@ struct LlamaGenerationOptions: Equatable, Sendable {
     /// Defaults to -infinity, which disables suppression entirely.
     var confidenceFloor: Double = -.infinity
 
-    /// Routes generation through the deterministic constrained decoder (logit read + admissibility
-    /// mask + argmax + manual token commit) instead of the engine's built-in stochastic sampler.
-    /// Default off so the shipping sampleNext path is unaffected until the constrained decoder is
-    /// validated on device. Changing it does not affect KV reuse, so it is intentionally excluded
-    /// from `SamplingFingerprint`.
-    var useConstrainedDecoder: Bool = false
-
-    /// Beam width for the constrained decoder. 1 keeps the single-path greedy decode; values > 1 run a
+    /// Beam width for the constrained decoder. 1 is the single-path greedy decode; values > 1 run a
     /// multi-branch beam search that explores several short continuations and keeps the highest-scoring
-    /// one. Only consulted when `useConstrainedDecoder` is true. Like `useConstrainedDecoder`, it does
-    /// not affect KV reuse, so it is excluded from `SamplingFingerprint`.
+    /// one. Does not affect KV reuse, so it is excluded from `SamplingFingerprint`.
     var beamWidth: Int = 1
 
     /// When set (and the model is FIM-capable), the runtime builds a fill-in-middle prompt from the
