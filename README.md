@@ -31,6 +31,19 @@
 
 ---
 
+## Demo
+
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=p3TIgxQFQGE"><strong>Watch on YouTube →</strong></a>
+</p>
+
+<table>
+  <tr>
+    <td><img src="gifs/slack.gif" alt="Cotabby emoji autocomplete demo" width="360" /></td>
+    <td><img src="gifs/imessage.gif" alt="Cotabby inline autocomplete demo" width="360" /></td>
+  </tr>
+</table>
+
 ## What It Does
 
 Cotabby brings AI autocomplete to the text fields you already use on macOS. It works system-wide, stays out of your way, and shows suggestions as ghost text beside your cursor. Press `Tab` to accept a word, keep pressing to take more, or keep typing to ignore it.
@@ -38,17 +51,6 @@ Cotabby brings AI autocomplete to the text fields you already use on macOS. It w
 It also includes inline emoji autocomplete: type `:smile`, `:tada`, or `:+1` and pick the emoji without leaving your current app.
 
 Everything runs on-device. No hosted API, no cloud round-trip.
-
-## Demo
-
-<p align="center">
-  <a href="https://www.youtube.com/watch?v=p3TIgxQFQGE"><strong>Watch on YouTube →</strong></a>
-</p>
-
-<p align="center">
-  <img src="gifs/slack.gif" alt="Cotabby emoji autocomplete demo" width="700" height="240" style="margin-right:12px;" />
-  <img src="gifs/imessage.gif" alt="Cotabby autocomplete demo" width="700" height="240" />
-</p>
 
 ## Features
 
