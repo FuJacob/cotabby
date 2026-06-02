@@ -12,7 +12,10 @@ import Foundation
 /// budgeting decisions, never to assert a hard token limit.
 enum TokenCountEstimator {
     static func estimate(_ text: String) -> Int {
-        let words = text.split(whereSeparator: { $0.isWhitespace })
+        // Split on punctuation as well as whitespace: real subword tokenizers break "can't", "end.",
+        // and "func()" into multiple tokens, so gluing punctuation to a word would systematically
+        // undercount code and punctuation-heavy prose.
+        let words = text.split(whereSeparator: { $0.isWhitespace || $0.isPunctuation })
         guard !words.isEmpty else {
             return 0
         }

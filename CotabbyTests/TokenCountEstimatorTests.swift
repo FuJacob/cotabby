@@ -33,4 +33,11 @@ final class TokenCountEstimatorTests: XCTestCase {
         let fiveWords = TokenCountEstimator.estimate("word word word word word")
         XCTAssertEqual(fiveWords, oneWord * 5)
     }
+
+    func test_splitsOnPunctuationBoundaries() {
+        // Punctuation creates token boundaries (like real subword tokenizers), so a contraction or a
+        // punctuation-joined identifier estimates more tokens than the same letters with none.
+        XCTAssertGreaterThan(TokenCountEstimator.estimate("can't"), TokenCountEstimator.estimate("cant"))
+        XCTAssertGreaterThan(TokenCountEstimator.estimate("foo.bar.baz"), TokenCountEstimator.estimate("foobarbaz"))
+    }
 }

@@ -106,7 +106,10 @@ enum PromptSectionBudget {
             var copy = section
             copy.content = truncated
             kept[index] = copy
-            remainingTokens -= estimate(truncated)
+            // Clamp: a truncated slice can be token-denser than the section average, so deducting its
+            // estimate could drive `remainingTokens` negative and wrongly drop the next section even
+            // when it would fit. Floor at zero so over-deduction never reads as a hard stop.
+            remainingTokens = max(0, remainingTokens - estimate(truncated))
         }
 
         return sections.indices.compactMap { kept[$0] }
