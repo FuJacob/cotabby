@@ -138,6 +138,11 @@ struct FocusedInputSnapshot: Equatable {
     /// The initializer default of 0 keeps test and legacy call sites compiling without changes.
     let focusChangeSequence: UInt64
 
+    /// The focused web page URL, when capture resolved one over Accessibility (browsers only, and only
+    /// while per-site disable is enabled). Nil otherwise. Used solely by the per-site disable gate; the
+    /// initializer default keeps every existing call site compiling unchanged.
+    let focusedURLString: String?
+
     /// Explicit initializer keeps `focusChangeSequence` immutable while preserving the old
     /// memberwise-call ergonomics for tests that do not care about focus identity.
     ///
@@ -160,7 +165,8 @@ struct FocusedInputSnapshot: Equatable {
         trailingText: String,
         selection: NSRange,
         isSecure: Bool,
-        focusChangeSequence: UInt64 = 0
+        focusChangeSequence: UInt64 = 0,
+        focusedURLString: String? = nil
     ) {
         self.applicationName = applicationName
         self.bundleIdentifier = bundleIdentifier
@@ -178,6 +184,7 @@ struct FocusedInputSnapshot: Equatable {
         self.selection = selection
         self.isSecure = isSecure
         self.focusChangeSequence = focusChangeSequence
+        self.focusedURLString = focusedURLString
     }
 
     var identity: FocusedInputIdentity {

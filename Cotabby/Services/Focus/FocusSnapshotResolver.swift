@@ -200,6 +200,12 @@ struct FocusSnapshotResolver {
         let nsValue = contextWindow.text as NSString
         let safeSelectionLocation = min(contextWindow.selection.location, nsValue.length)
         let trailingStart = min(contextWindow.selection.location + contextWindow.selection.length, nsValue.length)
+        // Per-site disable: read the page URL only when the feature is enabled, so the default
+        // focus-capture path performs no extra Accessibility round-trips. The read is fail-safe (nil on
+        // any miss), so the worst case is the per-site gate staying inert.
+        let focusedURLString = PerDomainDisableSettings.isEnabled()
+            ? AXHelper.webURL(near: focusedElement)
+            : nil
         let context = FocusedInputSnapshot(
             applicationName: applicationName,
             bundleIdentifier: bundleIdentifier,
@@ -216,7 +222,8 @@ struct FocusSnapshotResolver {
             trailingText: nsValue.substring(from: trailingStart),
             selection: contextWindow.selection,
             isSecure: resolvedCandidate.isSecure,
-            focusChangeSequence: focusChangeSequence
+            focusChangeSequence: focusChangeSequence,
+            focusedURLString: focusedURLString
         )
 
         if resolvedCandidate.isSecure {

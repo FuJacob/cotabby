@@ -494,6 +494,38 @@ enum AXHelper {
         return unsafeBitCast(value, to: AXUIElement.self)
     }
 
+    /// Best-effort, fail-safe read of the web page URL near `element`, used only for per-site rules.
+    /// Browsers expose `kAXURLAttribute` on the web area or window rather than the focused field, so
+    /// this walks up a bounded number of ancestors. It returns nil on any miss (non-browser focus, an
+    /// app that does not expose the attribute, or the climb running out), so a failed read degrades to
+    /// "no per-site rule applies" rather than misbehaving. It never mutates AX state.
+    static func webURL(near element: AXUIElement, maxClimb: Int = 6) -> String? {
+        var current = element
+        for _ in 0...maxClimb {
+            if let url = urlString(on: current) {
+                return url
+            }
+            guard let parent = parentElement(of: current) else { break }
+            current = parent
+        }
+        return nil
+    }
+
+    /// Reads `kAXURLAttribute` as a string, tolerating the value arriving as a `URL`/`NSURL` (the
+    /// usual case) or already as a string.
+    private static func urlString(on element: AXUIElement) -> String? {
+        guard let value = copyAttributeValue(kAXURLAttribute as CFString, on: element) else {
+            return nil
+        }
+        if let url = value as? URL {
+            return url.absoluteString
+        }
+        if let url = value as? NSURL {
+            return url.absoluteString
+        }
+        return value as? String
+    }
+
     /// Returns the immediate AX children for the current element.
     /// The result may be empty either because the node has no children or because the host app
     /// simply does not expose them through Accessibility.
