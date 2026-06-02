@@ -59,6 +59,29 @@ final class ModelFileValidatorTests: XCTestCase {
         }
     }
 
+    // MARK: - validateCompleteness
+
+    func test_validateCompleteness_passesWhenSizeMatchesDeclaredLength() throws {
+        let url = try makeFixture(contents: Data(repeating: 0xAB, count: 100))
+        XCTAssertNoThrow(try ModelFileValidator.validateCompleteness(of: url, declaredContentLength: 100))
+    }
+
+    func test_validateCompleteness_throwsOnTruncatedBody() throws {
+        let url = try makeFixture(contents: Data(repeating: 0xAB, count: 60))
+        XCTAssertThrowsError(try ModelFileValidator.validateCompleteness(of: url, declaredContentLength: 100)) { error in
+            guard case ModelFileValidator.ValidationError.sizeMismatch = error else {
+                XCTFail("Expected sizeMismatch, got \(error)")
+                return
+            }
+        }
+    }
+
+    func test_validateCompleteness_noOpsWhenLengthUnknown() throws {
+        let url = try makeFixture(contents: Data(repeating: 0xAB, count: 60))
+        XCTAssertNoThrow(try ModelFileValidator.validateCompleteness(of: url, declaredContentLength: -1))
+        XCTAssertNoThrow(try ModelFileValidator.validateCompleteness(of: url, declaredContentLength: 0))
+    }
+
     // MARK: - validateSHA256
 
     func test_validateSHA256_passesForKnownChecksum() throws {

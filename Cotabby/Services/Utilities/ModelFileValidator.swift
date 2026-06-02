@@ -66,6 +66,25 @@ enum ModelFileValidator {
         }
     }
 
+    /// Throws if the file's byte size differs from the server's declared `Content-Length`.
+    ///
+    /// The curated catalog ships with nil `expectedSizeBytes`/`sha256`, so those validators no-op and
+    /// the only remaining integrity gate is the HTTP status check — which does NOT catch a body the
+    /// server truncated while ending the transfer "cleanly" (an HTTP/2 stream reset or a proxy closing
+    /// the connection both surface as a finished task with no error). Comparing the on-disk size to the
+    /// declared length closes that gap without needing catalog metadata. No-op when the length is
+    /// unknown (`expectedContentLength <= 0`, i.e. `NSURLSessionTransferSizeUnknown`).
+    static func validateCompleteness(
+        of url: URL,
+        declaredContentLength: Int64,
+        fileManager: FileManager = .default
+    ) throws {
+        guard declaredContentLength > 0 else {
+            return
+        }
+        try validateSize(of: url, expectedBytes: declaredContentLength, fileManager: fileManager)
+    }
+
     /// Throws if the file's SHA-256 differs from `expectedSHA256` (case-insensitive).
     /// No-op when `expectedSHA256` is nil.
     ///

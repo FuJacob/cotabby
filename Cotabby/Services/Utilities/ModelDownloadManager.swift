@@ -311,32 +311,61 @@ final class ModelDownloadManager: ObservableObject {
             }
         }
         let downloadResult = try await delegate.download(from: url)
-        try Task.checkCancellation()
-        try validate(response: downloadResult.response)
-
         let fileManager = FileManager.default
+        let temporaryURL = downloadResult.temporaryURL
+
+        // The rescued temp file is ours now. Any failure before it is moved into staging (a user
+        // cancel, a non-2xx response — exactly when HuggingFace returns a small HTML error page, or
+        // the move itself failing) must remove it, or it leaks in the temp directory.
+        do {
+            try Task.checkCancellation()
+            try validate(response: downloadResult.response)
+        } catch {
+            try? fileManager.removeItem(at: temporaryURL)
+            throw error
+        }
+
         let stagingURL = runtimeDirectoryURL.appendingPathComponent(
             "\(model.filename).staging-\(UUID().uuidString)",
             isDirectory: false
         )
-        try fileManager.moveItem(at: downloadResult.temporaryURL, to: stagingURL)
-
         do {
+            try fileManager.moveItem(at: temporaryURL, to: stagingURL)
+        } catch {
+            try? fileManager.removeItem(at: temporaryURL)
+            throw error
+        }
+
+        // From here the staged file must be removed on any validation OR promotion failure.
+        do {
+            try ModelFileValidator.validateCompleteness(
+                of: stagingURL, declaredContentLength: downloadResult.response.expectedContentLength
+            )
             try ModelFileValidator.validateSize(
                 of: stagingURL, expectedBytes: model.expectedSizeBytes
             )
             try ModelFileValidator.validateSHA256(
                 of: stagingURL, expectedSHA256: model.sha256
             )
+            try Self.promoteStagedFile(at: stagingURL, to: destinationURL, fileManager: fileManager)
         } catch {
             try? fileManager.removeItem(at: stagingURL)
             throw error
         }
+    }
 
+    /// Promotes a validated staged file into the install location. When a model already exists there,
+    /// an atomic replace is used so a crash or error mid-promotion can never destroy the existing good
+    /// model before the replacement is committed (the old delete-then-move could leave nothing
+    /// installed). `replaceItemAt` removes the staged file as part of the swap.
+    private static func promoteStagedFile(
+        at stagingURL: URL, to destinationURL: URL, fileManager: FileManager
+    ) throws {
         if fileManager.fileExists(atPath: destinationURL.path) {
-            try fileManager.removeItem(at: destinationURL)
+            _ = try fileManager.replaceItemAt(destinationURL, withItemAt: stagingURL)
+        } else {
+            try fileManager.moveItem(at: stagingURL, to: destinationURL)
         }
-        try fileManager.moveItem(at: stagingURL, to: destinationURL)
     }
 
     private func validate(response: URLResponse) throws {
