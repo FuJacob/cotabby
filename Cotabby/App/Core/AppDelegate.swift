@@ -31,6 +31,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private let activationIndicatorController: ActivationIndicatorController
     private let focusDebugOverlayController: FocusDebugOverlayController?
+    /// Retained for the app's lifetime because the environment owns its own `cancellables` (the only
+    /// subscriptions wiring the focus-poll-interval setting and the global-toggle hotkey rebind to the
+    /// runtime). If the environment deallocated when `init` returned, those subscriptions would be
+    /// cancelled and both settings would silently stop working until the next relaunch.
+    private let environment: CotabbyAppEnvironment
     private var cancellables = Set<AnyCancellable>()
     private var didStartServices = false
 
@@ -38,9 +43,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         CotabbyLogger.bootstrap()
 
         // Build the dependency graph once up front so every scene/view observes the same
-        // long-lived objects for the entire app session. `CotabbyAppEnvironment` is a composition
-        // helper here; the app delegate retains the root objects it needs directly.
+        // long-lived objects for the entire app session.
         let environment = CotabbyAppEnvironment()
+        self.environment = environment
         permissionManager = environment.permissionManager
         runtimeModel = environment.runtimeModel
         modelDownloadManager = environment.modelDownloadManager

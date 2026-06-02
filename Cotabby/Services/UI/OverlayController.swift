@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import Logging
 import SwiftUI
 
 /// File overview:
@@ -183,6 +184,13 @@ final class OverlayController: SuggestionOverlayControlling {
 
         let frame = layout.panelFrame(for: contentSize, caretRect: geometry.caretRect)
 
+        // Last-resort guard: AppKit raises on a non-finite frame. The AX ingest boundary already
+        // rejects NaN/Inf rects, so reaching here means the layout math produced one; skip the show
+        // rather than crash on the hottest path.
+        guard AXHelper.rectHasFiniteComponents(frame) else {
+            CotabbyLogger.suggestion.warning("Skipped inline overlay: computed a non-finite frame")
+            return
+        }
         panel.setFrame(frame.integral, display: true)
         panel.orderFrontRegardless()
     }
@@ -231,7 +239,12 @@ final class OverlayController: SuggestionOverlayControlling {
             panel.contentView = contentView
         }
 
-        panel.setFrame(layout.panelFrame, display: true)
+        let panelFrame = layout.panelFrame
+        guard AXHelper.rectHasFiniteComponents(panelFrame) else {
+            CotabbyLogger.suggestion.warning("Skipped mirror overlay: computed a non-finite frame")
+            return
+        }
+        panel.setFrame(panelFrame, display: true)
         panel.orderFrontRegardless()
     }
 

@@ -590,6 +590,9 @@ enum AXHelper {
     /// Use this for element-level rects (AXFrame) that are reliably in Cocoa points.
     /// For text-range rects (BoundsForRange, TextMarker), use `validatedCocoaTextRect` instead.
     static func cocoaRect(fromAccessibilityRect rect: CGRect) -> CGRect {
+        guard rectHasFiniteComponents(rect) else {
+            return .zero
+        }
         guard !rect.isNull, rect != .zero else {
             return rect
         }
@@ -605,6 +608,15 @@ enum AXHelper {
         return legacyDesktopUnionFlip(rect)
     }
 
+    /// True only when every component of `rect` is a finite number. Some host AX implementations
+    /// (Chromium/Electron, especially mid-scroll or under load) return NaN/Inf bounds; AppKit raises
+    /// on a non-finite window frame and `Int(.nan)` traps, so such rects are rejected here at the AX
+    /// ingest boundary before they can reach geometry math or `NSWindow.setFrame`.
+    static func rectHasFiniteComponents(_ rect: CGRect) -> Bool {
+        rect.origin.x.isFinite && rect.origin.y.isFinite
+            && rect.size.width.isFinite && rect.size.height.isFinite
+    }
+
     /// Converts a text-range AX rect to Cocoa coordinates, using the element's AXFrame (already
     /// in Cocoa coordinates) as a ground-truth anchor to detect whether pixel-to-point scaling
     /// is needed. This replaces the old bundle-ID heuristic with empirical geometric validation:
@@ -615,6 +627,9 @@ enum AXHelper {
         fromAccessibilityRect textRect: CGRect,
         anchorFrame cocoaAnchorFrame: CGRect?
     ) -> CGRect {
+        guard rectHasFiniteComponents(textRect) else {
+            return .zero
+        }
         guard !textRect.isNull, textRect != .zero else {
             return textRect
         }

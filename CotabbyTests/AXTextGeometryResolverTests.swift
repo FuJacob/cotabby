@@ -146,4 +146,20 @@ final class AXTextGeometryResolverTests: XCTestCase {
         XCTAssertTrue(resolver.rectIsNearAnchor(rect, anchor: nil))
         XCTAssertTrue(resolver.rectIsNearAnchor(rect, anchor: .zero))
     }
+
+    // MARK: - Non-finite AX rect rejection (crash guard)
+
+    func test_rectHasFiniteComponents_rejectsNaNAndInfinity() {
+        XCTAssertTrue(AXHelper.rectHasFiniteComponents(CGRect(x: 1, y: 2, width: 3, height: 4)))
+        XCTAssertFalse(AXHelper.rectHasFiniteComponents(CGRect(x: CGFloat.nan, y: 0, width: 10, height: 10)))
+        XCTAssertFalse(AXHelper.rectHasFiniteComponents(CGRect(x: 0, y: 0, width: CGFloat.infinity, height: 10)))
+        XCTAssertFalse(AXHelper.rectHasFiniteComponents(CGRect(x: 0, y: CGFloat.nan, width: 10, height: CGFloat.nan)))
+    }
+
+    func test_validatedCocoaTextRect_collapsesNonFiniteRectToZero() {
+        // A NaN/Inf AX rect must collapse to .zero, never propagate toward NSWindow.setFrame (a crash).
+        let nan = CGRect(x: CGFloat.nan, y: 10, width: 20, height: 14)
+        XCTAssertEqual(AXHelper.validatedCocoaTextRect(fromAccessibilityRect: nan, anchorFrame: nil), .zero)
+        XCTAssertEqual(AXHelper.cocoaRect(fromAccessibilityRect: nan), .zero)
+    }
 }
