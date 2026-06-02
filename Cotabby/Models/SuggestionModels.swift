@@ -186,6 +186,13 @@ struct FocusedInputContext: Equatable, Sendable {
         )
     }
 
+    /// True when the caret is at the end of its line (only whitespace, if anything, before the next
+    /// line break). Derived from `trailingText` via `CaretLinePosition`; used to decide when a
+    /// mid-line completion strategy like fill-in-middle applies versus a plain forward continuation.
+    var isCaretAtEndOfLine: Bool {
+        CaretLinePosition.isAtEndOfLine(trailingText: trailingText)
+    }
+
     /// Stable per-process key for the focused field, intentionally NOT including the input frame
     /// rect. The polling signature in `FocusTracker` bumps `focusChangeSequence` whenever the
     /// field's frame changes (e.g., a chat composer growing taller as the user types wraps onto a

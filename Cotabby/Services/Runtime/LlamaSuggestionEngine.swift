@@ -40,17 +40,22 @@ final class LlamaSuggestionEngine {
     }
 
     /// The fill-in-middle request for a generation, or nil to use the forward base prompt. Built only
-    /// when the flag is on and the caret has text after it (a mid-line completion); the runtime still
-    /// falls back to the base prompt when the model lacks FIM markers.
+    /// when the flag is on and the caret is genuinely mid-line (real text follows it on the same line);
+    /// the runtime still falls back to the base prompt when the model lacks FIM markers.
     private static func fillInMiddleRequest(for request: SuggestionRequest) -> FillInMiddleRequest? {
         guard isFillInMiddleEnabled else {
             return nil
         }
-        let suffix = request.context.trailingText
-        guard !suffix.isEmpty else {
+        // A caret at end of line wants a forward continuation, not infilling — even if `trailingText`
+        // is non-empty because a line break and later paragraphs follow it. Gating on end-of-line
+        // (rather than `trailingText.isEmpty`) keeps FIM to the case it is actually meant for.
+        guard !request.context.isCaretAtEndOfLine else {
             return nil
         }
-        return FillInMiddleRequest(prefix: request.context.precedingText, suffix: suffix)
+        return FillInMiddleRequest(
+            prefix: request.context.precedingText,
+            suffix: request.context.trailingText
+        )
     }
 
     init(runtimeManager: LlamaRuntimeGenerating) {
