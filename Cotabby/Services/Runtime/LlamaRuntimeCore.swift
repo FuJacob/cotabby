@@ -734,6 +734,18 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
             throw LlamaRuntimeError.generationFailed("Vocabulary unavailable for constrained decoding.")
         }
 
+        let fingerprint = Self.tokenProfileFingerprint(modelURL: modelURL, vocabSize: vocabSize)
+        let cacheURL = Self.tokenProfileCacheURL(for: modelURL)
+        if let cached = loadCachedTokenProfile(from: cacheURL, fingerprint: fingerprint) {
+            cachedTokenProfile = cached
+            cachedTokenProfileModelURL = modelURL
+            CotabbyLogger.runtime.debug(
+                "Loaded constrained-decode token profile from disk cache",
+                metadata: ["vocab_size": .stringConvertible(vocabSize)]
+            )
+            return cached
+        }
+
         // Detokenize every token once up front; the build closures index this snapshot so each
         // token's bytes are computed a single time and its control flag derives from the same bytes.
         var tokenBytes: [[UInt8]] = []
@@ -752,11 +764,65 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         )
         cachedTokenProfile = profile
         cachedTokenProfileModelURL = modelURL
+        if let cacheURL {
+            Self.writeTokenProfileCache(profile, fingerprint: fingerprint, to: cacheURL)
+        }
         CotabbyLogger.runtime.debug(
             "Built constrained-decode token profile",
             metadata: ["vocab_size": .stringConvertible(vocabSize)]
         )
         return profile
+    }
+
+    /// Reads a cached profile for the current model, or nil when there is no usable cache file. Any
+    /// read or decode failure (missing file, fingerprint mismatch, corruption) returns nil so the
+    /// caller rebuilds; the cache can never produce a wrong profile, only a rebuild.
+    private func loadCachedTokenProfile(from cacheURL: URL?, fingerprint: UInt64) -> TokenProfile? {
+        guard let cacheURL, let data = try? Data(contentsOf: cacheURL) else {
+            return nil
+        }
+        return TokenProfileCache.decode(data, expectedFingerprint: fingerprint)
+    }
+
+    /// Best-effort write of a freshly built profile to the cache. Failures are swallowed: the cache is
+    /// an optimization, and the in-memory profile is already returned regardless.
+    private static func writeTokenProfileCache(_ profile: TokenProfile, fingerprint: UInt64, to url: URL) {
+        let data = TokenProfileCache.encode(profile, fingerprint: fingerprint)
+        try? data.write(to: url, options: .atomic)
+    }
+
+    /// Cache file location: `<Application Support>/Cotabby/TokenProfiles/<model>.ctkp`. Returns nil
+    /// when the support directory is unavailable (the cache is then simply skipped).
+    private static func tokenProfileCacheURL(for modelURL: URL?) -> URL? {
+        guard let modelURL,
+              let support = try? FileManager.default.url(
+                for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+        else {
+            return nil
+        }
+        let directory = support.appendingPathComponent("Cotabby/TokenProfiles", isDirectory: true)
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let safeName = modelURL.lastPathComponent.replacingOccurrences(of: "/", with: "_")
+        return directory.appendingPathComponent(safeName).appendingPathExtension("ctkp")
+    }
+
+    /// Stable (non-randomized) fingerprint tying a cache file to one model: FNV-1a over the model path,
+    /// file size, and vocabulary size, so replacing the model file or loading a different one
+    /// invalidates the cache. Swift's `hashValue` is per-process randomized and unusable here.
+    private static func tokenProfileFingerprint(modelURL: URL?, vocabSize: Int) -> UInt64 {
+        var hash: UInt64 = 0xcbf2_9ce4_8422_2325
+        func mix(_ bytes: [UInt8]) {
+            for byte in bytes {
+                hash = (hash ^ UInt64(byte)) &* 0x0000_0100_0000_01b3
+            }
+        }
+        mix(Array((modelURL?.path ?? "").utf8))
+        let fileSize = modelURL.flatMap { url in
+            (try? FileManager.default.attributesOfItem(atPath: url.path))?[.size] as? Int
+        } ?? 0
+        mix(withUnsafeBytes(of: Int64(fileSize).littleEndian) { Array($0) })
+        mix(withUnsafeBytes(of: Int64(vocabSize).littleEndian) { Array($0) })
+        return hash
     }
 
     /// The raw UTF-8 bytes a token detokenizes to, or empty for a structural token that renders to
