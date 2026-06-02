@@ -29,7 +29,8 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
     private func makeSupportedSnapshotWithContext(
         elementIdentifier: String = "field",
         focusChangeSequence: UInt64 = 1,
-        precedingText: String = "hello"
+        precedingText: String = "hello",
+        focusedURLString: String? = nil
     ) -> FocusSnapshot {
         let context = FocusedInputSnapshot(
             applicationName: "TestApp",
@@ -47,7 +48,8 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
             trailingText: "",
             selection: NSRange(location: precedingText.count, length: 0),
             isSecure: false,
-            focusChangeSequence: focusChangeSequence
+            focusChangeSequence: focusChangeSequence,
+            focusedURLString: focusedURLString
         )
 
         return FocusSnapshot(
@@ -78,24 +80,22 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
         let reason = SuggestionAvailabilityEvaluator.disabledReason(
             globallyEnabled: true,
             disabledDomains: ["bank.com"],
-            focusedURLString: "https://www.bank.com/account",
             inputMonitoringGranted: true,
             screenRecordingGranted: true,
-            focusSnapshot: makeSnapshot(capability: .supported)
+            focusSnapshot: makeSupportedSnapshotWithContext(focusedURLString: "https://www.bank.com/account")
         )
 
         XCTAssertEqual(reason, "Cotabby is disabled on bank.com.")
     }
 
     func test_disabledReason_domainCheckIsInertByDefault() {
-        // No focused URL and no disabled domains: the per-site gate must never fire, so an otherwise
-        // healthy environment stays enabled exactly as before this gate existed.
+        // A focused URL but no disabled-domains list: the per-site gate must never fire, so an
+        // otherwise healthy environment stays enabled exactly as before this gate existed.
         let reason = SuggestionAvailabilityEvaluator.disabledReason(
             globallyEnabled: true,
-            focusedURLString: "https://bank.com/account",
             inputMonitoringGranted: true,
             screenRecordingGranted: true,
-            focusSnapshot: makeSnapshot(capability: .supported)
+            focusSnapshot: makeSupportedSnapshotWithContext(focusedURLString: "https://bank.com/account")
         )
 
         XCTAssertNil(reason, "a focused URL with no disabled-domains list must not suppress autocomplete")

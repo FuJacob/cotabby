@@ -73,6 +73,7 @@ extension SuggestionCoordinator {
            SuggestionAvailabilityEvaluator.shouldCaptureVisualContext(
                globallyEnabled: settingsSnapshot.isGloballyEnabled,
                disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
+               disabledDomains: PerDomainDisableSettings.disabledDomains(),
                inputMonitoringGranted: permissionManager.inputMonitoringGranted,
                screenRecordingGranted: permissionManager.screenRecordingGranted,
                focusSnapshot: focusModel.snapshot,
@@ -84,6 +85,7 @@ extension SuggestionCoordinator {
         if SuggestionAvailabilityEvaluator.shouldSchedulePrediction(
             globallyEnabled: settingsSnapshot.isGloballyEnabled,
             disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
+            disabledDomains: PerDomainDisableSettings.disabledDomains(),
             inputMonitoringGranted: permissionManager.inputMonitoringGranted,
             screenRecordingGranted: permissionManager.screenRecordingGranted,
             focusSnapshot: focusModel.snapshot

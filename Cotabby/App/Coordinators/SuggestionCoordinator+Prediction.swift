@@ -11,6 +11,7 @@ extension SuggestionCoordinator {
         if let disabledReason = SuggestionAvailabilityEvaluator.disabledReason(
             globallyEnabled: settingsSnapshot.isGloballyEnabled,
             disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
+            disabledDomains: PerDomainDisableSettings.disabledDomains(),
             inputMonitoringGranted: permissionManager.inputMonitoringGranted,
             screenRecordingGranted: permissionManager.screenRecordingGranted,
             focusSnapshot: focusModel.snapshot
@@ -50,6 +51,7 @@ extension SuggestionCoordinator {
         if let disabledReason = SuggestionAvailabilityEvaluator.disabledReason(
             globallyEnabled: settingsSnapshot.isGloballyEnabled,
             disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
+            disabledDomains: PerDomainDisableSettings.disabledDomains(),
             inputMonitoringGranted: permissionManager.inputMonitoringGranted,
             screenRecordingGranted: permissionManager.screenRecordingGranted,
             focusSnapshot: snapshot
@@ -147,6 +149,7 @@ extension SuggestionCoordinator {
         if let disabledReason = SuggestionAvailabilityEvaluator.disabledReason(
             globallyEnabled: settingsSnapshot.isGloballyEnabled,
             disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
+            disabledDomains: PerDomainDisableSettings.disabledDomains(),
             inputMonitoringGranted: permissionManager.inputMonitoringGranted,
             screenRecordingGranted: permissionManager.screenRecordingGranted,
             focusSnapshot: snapshot
@@ -292,6 +295,7 @@ extension SuggestionCoordinator {
         let disabledReason = SuggestionAvailabilityEvaluator.disabledReason(
             globallyEnabled: settingsSnapshot.isGloballyEnabled,
             disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
+            disabledDomains: PerDomainDisableSettings.disabledDomains(),
             inputMonitoringGranted: permissionManager.inputMonitoringGranted,
             screenRecordingGranted: permissionManager.screenRecordingGranted,
             focusSnapshot: focusModel.snapshot

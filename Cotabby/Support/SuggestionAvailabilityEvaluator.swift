@@ -11,7 +11,6 @@ enum SuggestionAvailabilityEvaluator {
         globallyEnabled: Bool = true,
         disabledAppBundleIdentifiers: Set<String> = [],
         disabledDomains: Set<String> = [],
-        focusedURLString: String? = nil,
         inputMonitoringGranted: Bool,
         screenRecordingGranted: Bool,
         focusSnapshot: FocusSnapshot,
@@ -26,11 +25,12 @@ enum SuggestionAvailabilityEvaluator {
             return "Cotabby is disabled in \(focusSnapshot.applicationName)."
         }
 
-        // Per-site disable: when the focused element carries a web URL, a host on the user's disabled
-        // list (exact or parent domain) suppresses autocomplete the same way a disabled app does.
-        // Defaults make this inert (no URL / empty list) so non-browser focus is unaffected.
-        if let focusedURLString,
-           let host = BrowserDomain.host(fromURLString: focusedURLString),
+        // Per-site disable: when focus capture resolved a page URL, a host on the user's disabled list
+        // (exact or parent domain) suppresses autocomplete the same way a disabled app does. The URL is
+        // nil unless the feature is enabled and a browser exposed it, and the list is empty by default,
+        // so non-browser focus is unaffected.
+        if let urlString = focusSnapshot.context?.focusedURLString,
+           let host = BrowserDomain.host(fromURLString: urlString),
            BrowserDomain.isHostDisabled(host, disabledDomains: disabledDomains) {
             return "Cotabby is disabled on \(host)."
         }
@@ -63,6 +63,7 @@ enum SuggestionAvailabilityEvaluator {
     static func shouldSchedulePrediction(
         globallyEnabled: Bool = true,
         disabledAppBundleIdentifiers: Set<String> = [],
+        disabledDomains: Set<String> = [],
         inputMonitoringGranted: Bool,
         screenRecordingGranted: Bool,
         focusSnapshot: FocusSnapshot
@@ -70,6 +71,7 @@ enum SuggestionAvailabilityEvaluator {
         disabledReason(
             globallyEnabled: globallyEnabled,
             disabledAppBundleIdentifiers: disabledAppBundleIdentifiers,
+            disabledDomains: disabledDomains,
             inputMonitoringGranted: inputMonitoringGranted,
             screenRecordingGranted: screenRecordingGranted,
             focusSnapshot: focusSnapshot
@@ -88,6 +90,7 @@ enum SuggestionAvailabilityEvaluator {
     static func shouldCaptureVisualContext(
         globallyEnabled: Bool = true,
         disabledAppBundleIdentifiers: Set<String> = [],
+        disabledDomains: Set<String> = [],
         inputMonitoringGranted: Bool,
         screenRecordingGranted: Bool,
         focusSnapshot: FocusSnapshot,
@@ -100,6 +103,7 @@ enum SuggestionAvailabilityEvaluator {
         return disabledReason(
             globallyEnabled: globallyEnabled,
             disabledAppBundleIdentifiers: disabledAppBundleIdentifiers,
+            disabledDomains: disabledDomains,
             inputMonitoringGranted: inputMonitoringGranted,
             screenRecordingGranted: screenRecordingGranted,
             focusSnapshot: focusSnapshot,
