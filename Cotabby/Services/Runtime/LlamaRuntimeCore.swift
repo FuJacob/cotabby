@@ -335,7 +335,12 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
             // Accumulate raw bytes and decode once at the end: a single token may carry only part of
             // a multi-byte UTF-8 scalar, so per-token String decoding would corrupt CJK / emoji.
             let tokenBytes = profile.bytes(for: tokenID)
-            if let logProb = ConstrainedSampler.logProb(ofTokenAt: tokenID, in: logits) {
+            // Scoring each step calls `logSumExp` over the full vocabulary — an O(vocab) exp pass per
+            // token. It only feeds the confidence-floor suppression check, which `shouldSuppress`
+            // short-circuits to a no-op when the floor is -infinity (the shipped default). Skip the
+            // work entirely in that case and only pay it when a caller has actually raised the floor.
+            if options.confidenceFloor > -.infinity,
+               let logProb = ConstrainedSampler.logProb(ofTokenAt: tokenID, in: logits) {
                 sumLogprob += logProb
             }
             generatedBytes.append(contentsOf: tokenBytes)

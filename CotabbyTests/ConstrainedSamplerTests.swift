@@ -188,6 +188,110 @@ final class ConstrainedSamplerTests: XCTestCase {
         XCTAssertNil(id)
     }
 
+    // MARK: - candidatePool equivalence (top-K selection without a full sort)
+
+    /// Deterministic, seedable RNG so the randomized equivalence sweep is reproducible across runs and
+    /// machines (no dependence on `SystemRandomNumberGenerator`).
+    private struct SplitMix64: RandomNumberGenerator {
+        private var state: UInt64
+        init(seed: UInt64) { state = seed }
+        mutating func next() -> UInt64 {
+            state &+= 0x9E37_79B9_7F4A_7C15
+            var mixed = state
+            mixed = (mixed ^ (mixed >> 30)) &* 0xBF58_476D_1CE4_E5B9
+            mixed = (mixed ^ (mixed >> 27)) &* 0x94D0_49BB_1331_11EB
+            return mixed ^ (mixed >> 31)
+        }
+    }
+
+    /// Reference selection that mirrors the *old* implementation exactly: rank the whole vocabulary by
+    /// (logit desc, id asc), keep the top `topK`, then argmax the survivors. `selectToken` now skips
+    /// the full sort, so this is the oracle the fast path must reproduce bit-for-bit.
+    private func referenceSelect(
+        logits: [Float],
+        control: Set<Int>,
+        admissible: Set<Int>?,
+        topK: Int,
+        blocked: Set<Int>
+    ) -> Int? {
+        guard topK > 0, !logits.isEmpty else { return nil }
+        if let admissible, admissible.isEmpty { return nil }
+        let ranked = (0 ..< logits.count).sorted { lhs, rhs in
+            if logits[lhs] != logits[rhs] { return logits[lhs] > logits[rhs] }
+            return lhs < rhs
+        }
+        let pool = Array(ranked.prefix(topK)).sorted()
+        var best: Int?
+        var bestLogit: Float = -.infinity
+        for id in pool {
+            if control.contains(id) || blocked.contains(id) { continue }
+            if let admissible, !admissible.contains(id) { continue }
+            if best == nil || logits[id] > bestLogit {
+                best = id
+                bestLogit = logits[id]
+            }
+        }
+        return best
+    }
+
+    /// The fast top-K selection must match the old full-sort behavior for every combination of vocab
+    /// size, tie structure, topK cut, exclusions, blocks, and admissibility. Logits are quantized to a
+    /// few distinct values on many trials so exact-tie cut-line behavior (lower id wins) is exercised
+    /// heavily, which is where a hand-rolled top-K is most likely to diverge from a full sort.
+    func test_select_matchesFullSortReferenceAcrossRandomInputs() {
+        var rng = SplitMix64(seed: 0xC0FFEE_D00D)
+        for trial in 0 ..< 4000 {
+            let count = Int.random(in: 1 ... 120, using: &rng)
+            // Alternate between coarse (tie-heavy) and fine logit granularity.
+            let distinctValues = trial.isMultiple(of: 2) ? 4 : 64
+            let logits = (0 ..< count).map { _ in
+                Float(Int.random(in: 0 ..< distinctValues, using: &rng))
+            }
+            let control = Set((0 ..< count).filter { _ in Int.random(in: 0 ..< 5, using: &rng) == 0 })
+            let blocked = Set((0 ..< count).filter { _ in Int.random(in: 0 ..< 6, using: &rng) == 0 })
+            let admissible: Set<Int>? = Int.random(in: 0 ..< 3, using: &rng) == 0
+                ? nil
+                : Set((0 ..< count).filter { _ in Int.random(in: 0 ..< 2, using: &rng) == 0 })
+            let topK = Int.random(in: 0 ... (count + 2), using: &rng)
+
+            let actual = ConstrainedSampler.selectToken(
+                logits: logits,
+                profile: plainProfile(count: count, control: control),
+                admissibleTokenIDs: admissible,
+                topK: topK,
+                blockedTokenIDs: blocked
+            )
+            let expected = referenceSelect(
+                logits: logits,
+                control: control,
+                admissible: admissible,
+                topK: topK,
+                blocked: blocked
+            )
+            XCTAssertEqual(
+                actual,
+                expected,
+                "trial \(trial): count=\(count) topK=\(topK) diverged from full-sort reference"
+            )
+        }
+    }
+
+    /// Cut-line tie-break: when the top-`topK` boundary falls in a run of equal logits, the lower ids
+    /// must be the ones kept (so the selected token is the lowest id in the tied run), exactly as the
+    /// previous full sort guaranteed. A large vocab makes a regression in the bounded selection obvious.
+    func test_select_largeVocabEqualLogits_keepsLowestIDsAtCut() {
+        let count = 5000
+        let logits = [Float](repeating: 1.0, count: count)
+        let id = ConstrainedSampler.selectToken(
+            logits: logits,
+            profile: plainProfile(count: count),
+            admissibleTokenIDs: nil,
+            topK: 20
+        )
+        // All logits equal -> the kept pool is ids 0...19 and argmax breaks to the lowest id.
+        XCTAssertEqual(id, 0)
+    }
+
     // MARK: - averageLogProb
 
     func test_averageLogProb_uniformRow_matchesNegativeLogVocab() {

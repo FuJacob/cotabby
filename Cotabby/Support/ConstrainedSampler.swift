@@ -140,20 +140,58 @@ enum ConstrainedSampler {
     }
 
     /// The token ids to consider this step, ordered by id. When `limit` is at least `count` every id
-    /// is returned (still id-ordered). Otherwise the ids are ranked by descending logit, the top
-    /// `limit` are kept, and that subset is re-sorted by id so downstream tie-breaking stays stable.
+    /// is returned (still id-ordered). Otherwise the `limit` highest-logit ids are kept and returned
+    /// re-sorted by id so downstream tie-breaking stays stable.
+    ///
+    /// Performance invariant: this runs once per generated token and `count` is the full vocabulary
+    /// (~150k-256k for the shipped base models), so it must not sort the whole vocabulary. The earlier
+    /// `(0..<count).sorted` did exactly that — an O(count log count) closure sort plus a count-sized
+    /// allocation on every decode step — which made generation take seconds once the constrained
+    /// decoder became the only decode path. We instead select the top `limit` in a single O(count)
+    /// scan against a fixed-size buffer. Determinism is preserved bit-for-bit: ids are scanned
+    /// ascending and a candidate only displaces the current worst on a STRICTLY higher logit, so
+    /// equal-logit ties resolve to the lower id exactly as the full sort's `lhs < rhs` cut did.
     private static func candidatePool(count: Int, logits: [Float], limit: Int) -> [Int] {
         guard limit < count else {
             return Array(0..<count)
         }
-        let ranked = (0..<count).sorted { lhs, rhs in
-            if logits[lhs] != logits[rhs] {
-                return logits[lhs] > logits[rhs]
+        var keptIDs = [Int](repeating: 0, count: limit)
+        var filled = 0
+        // Index into `keptIDs` of the candidate to evict first (lowest logit; ties toward the larger
+        // id). Only meaningful once the buffer is full; recomputed after every displacement.
+        var worstIndex = 0
+        for id in 0 ..< count {
+            if filled < limit {
+                keptIDs[filled] = id
+                filled += 1
+                if filled == limit {
+                    worstIndex = worstCandidateIndex(in: keptIDs, count: limit, logits: logits)
+                }
+                continue
             }
-            // Stable id ordering for equal logits so the kept set is deterministic at the cut line.
-            return lhs < rhs
+            if logits[id] > logits[keptIDs[worstIndex]] {
+                keptIDs[worstIndex] = id
+                worstIndex = worstCandidateIndex(in: keptIDs, count: limit, logits: logits)
+            }
         }
-        return ranked.prefix(limit).sorted()
+        return keptIDs.sorted()
+    }
+
+    /// Index into `keptIDs` of the candidate that should leave the kept set first: the lowest logit,
+    /// breaking ties toward the larger id so the smaller id is retained. This matches the top-`limit`
+    /// cut line of a full `(logit desc, id asc)` sort, which is what `candidatePool` reproduces without
+    /// sorting. `count` candidates is at most `limit` (small), so this O(limit) scan is cheap.
+    private static func worstCandidateIndex(in keptIDs: [Int], count: Int, logits: [Float]) -> Int {
+        var worst = 0
+        for index in 1 ..< count {
+            let candidate = keptIDs[index]
+            let current = keptIDs[worst]
+            if logits[candidate] < logits[current]
+                || (logits[candidate] == logits[current] && candidate > current) {
+                worst = index
+            }
+        }
+        return worst
     }
 
     /// Numerically stable log(sum(exp(row))): subtract the max before exponentiating so large logits
