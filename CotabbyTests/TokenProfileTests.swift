@@ -106,4 +106,26 @@ final class TokenProfileTests: XCTestCase {
         XCTAssertFalse(profile.isNewline(5))
         XCTAssertFalse(profile.isWhitespaceOnly(5))
     }
+
+    func test_continuesWordMidStream_acceptsWordCharactersAndRejectsBreakers() {
+        let profile = makeProfile([
+            Stub(bytes: bytes("rrow"), control: false, eog: false),    // 0: letters
+            Stub(bytes: bytes("3rd"), control: false, eog: false),     // 1: leading digit
+            Stub(bytes: bytes("'t"), control: false, eog: false),      // 2: apostrophe (don't)
+            Stub(bytes: bytes("-op"), control: false, eog: false),     // 3: hyphen (co-op)
+            Stub(bytes: bytes("中文"), control: false, eog: false),      // 4: CJK letter
+            Stub(bytes: bytes(" word"), control: false, eog: false),   // 5: leading space
+            Stub(bytes: bytes(".rrow"), control: false, eog: false),   // 6: leading period
+            Stub(bytes: bytes("!stop"), control: false, eog: false),   // 7: leading punctuation
+            Stub(bytes: bytes("→x"), control: false, eog: false),      // 8: non-ASCII symbol
+            Stub(bytes: [], control: true, eog: false)                 // 9: empty / control
+        ])
+        for id in [0, 1, 2, 3, 4] {
+            XCTAssertTrue(profile.continuesWordMidStream(id), "id \(id) should continue a word")
+        }
+        for id in [5, 6, 7, 8, 9] {
+            XCTAssertFalse(profile.continuesWordMidStream(id), "id \(id) should not continue a word")
+        }
+        XCTAssertFalse(profile.continuesWordMidStream(-1))
+    }
 }

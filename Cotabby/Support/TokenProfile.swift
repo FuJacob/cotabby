@@ -105,6 +105,27 @@ struct TokenProfile {
         entry(for: id)?.isWhitespaceOnly ?? false
     }
 
+    /// Whether `id` can continue the current word mid-stream: its first byte is an ASCII letter or
+    /// digit, a common within-word mark (apostrophe or hyphen), or a non-ASCII lead byte (which starts
+    /// a multi-byte letter or ideograph). Tokens that begin with whitespace, breaking punctuation, or a
+    /// symbol are rejected, so a mid-word completion finishes the word instead of starting a new token.
+    /// False for an out-of-range or empty (control) token.
+    func continuesWordMidStream(_ id: Int) -> Bool {
+        guard let bytes = entry(for: id)?.bytes, !bytes.isEmpty else {
+            return false
+        }
+        // Inspect the first character with Unicode-aware classification: letters (including CJK and
+        // other scripts) and digits continue a word, as do the two common within-word marks; whitespace,
+        // punctuation, and symbols (ASCII or not, e.g. an em dash or arrow) do not. The lossy decode is
+        // fine because only the first scalar is examined and a malformed lead decodes to U+FFFD, which
+        // is not a letter, so it is rejected.
+        // swiftlint:disable:next optional_data_string_conversion
+        guard let first = String(decoding: bytes, as: UTF8.self).first else {
+            return false
+        }
+        return first.isLetter || first.isNumber || first == "'" || first == "-"
+    }
+
     private func entry(for id: Int) -> Entry? {
         guard id >= 0, id < entries.count else {
             return nil
@@ -133,4 +154,5 @@ struct TokenProfile {
             return false
         }
     }
+
 }

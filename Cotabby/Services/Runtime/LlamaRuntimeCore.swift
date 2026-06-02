@@ -448,7 +448,8 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
                 topK: topK,
                 noRepeatNgramSize: Self.noRepeatNgramSize
             ),
-            isSingleLine: options.singleLine
+            isSingleLine: options.singleLine,
+            isMidWord: options.forceWordContinuation
         )
         let best = candidates.first
         CotabbyLogger.runtime.debug(

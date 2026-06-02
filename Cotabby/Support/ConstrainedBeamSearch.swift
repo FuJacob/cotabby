@@ -67,13 +67,15 @@ enum ConstrainedBeamSearch {
         nextLogits: @escaping BeamLogitsProvider,
         profile: TokenProfile,
         configuration: BeamSearchConfiguration,
-        isSingleLine: Bool
+        isSingleLine: Bool,
+        isMidWord: Bool = false
     ) -> [BeamCandidate] {
         Engine(
             nextLogits: nextLogits,
             profile: profile,
             configuration: configuration,
-            isSingleLine: isSingleLine
+            isSingleLine: isSingleLine,
+            isMidWord: isMidWord
         ).run()
     }
 }
@@ -85,6 +87,7 @@ private struct Engine {
     let profile: TokenProfile
     let configuration: BeamSearchConfiguration
     let isSingleLine: Bool
+    let isMidWord: Bool
 
     func run() -> [BeamCandidate] {
         var frontier: [BeamCandidate] = [BeamCandidate(tokenIDs: [], bytes: [], cumulativeLogprob: 0)]
@@ -121,13 +124,19 @@ private struct Engine {
             history: branch.tokenIDs,
             ngramSize: configuration.noRepeatNgramSize
         )
-        let candidates = ConstrainedSampler.rankedAdmissibleTokens(
+        var candidates = ConstrainedSampler.rankedAdmissibleTokens(
             logits: logits,
             profile: profile,
             admissibleTokenIDs: nil,
             topK: configuration.topK,
             blockedTokenIDs: blocked
         )
+        // Mid-word: the first generated token must finish the current word, not start a new token with
+        // punctuation / whitespace / a symbol. Applies only to the first step; later tokens generate
+        // freely once the word is being continued.
+        if isMidWord, branch.tokenIDs.isEmpty {
+            candidates = candidates.filter { profile.continuesWordMidStream($0) }
+        }
         for tokenID in candidates {
             if profile.isEndOfGeneration(tokenID) {
                 completed.append(branch)

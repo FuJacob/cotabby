@@ -150,6 +150,24 @@ final class ConstrainedBeamSearchTests: XCTestCase {
         XCTAssertFalse(recorder.paths.contains([0, 1]), "search must stop at the sentence and not step past it")
     }
 
+    func test_search_midWord_firstTokenMustContinueTheWord() {
+        // token 0 breaks the word (leading punctuation) but has the higher logit; token 1 continues it.
+        // Mid-word, only a word-continuing token may start the completion.
+        let profile = makeProfile(byteStrings: [", and", "ing"])
+        let rows: [[Int]: [Float]] = [[]: row([0: 9, 1: 1], vocabSize: 2)]
+        let normal = ConstrainedBeamSearch.search(
+            nextLogits: provider(vocabSize: 2, rows: rows), profile: profile,
+            configuration: BeamSearchConfiguration(beamWidth: 1, maxTokens: 1, topK: 5),
+            isSingleLine: false, isMidWord: false)
+        let midWord = ConstrainedBeamSearch.search(
+            nextLogits: provider(vocabSize: 2, rows: rows), profile: profile,
+            configuration: BeamSearchConfiguration(beamWidth: 1, maxTokens: 1, topK: 5),
+            isSingleLine: false, isMidWord: true)
+
+        XCTAssertEqual(normal.first?.tokenIDs, [0], "without mid-word, the highest-logit token wins")
+        XCTAssertEqual(midWord.first?.tokenIDs, [1], "mid-word, the word-breaking token is filtered out")
+    }
+
     func test_search_respectsMaxTokenBudget() {
         // No EOG / sentence end: every token keeps generating, so the budget bounds the length.
         let profile = makeProfile(byteStrings: ["a", "b"])
