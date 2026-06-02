@@ -74,6 +74,33 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
         XCTAssertEqual(reason, "Cotabby is turned off.")
     }
 
+    func test_disabledReason_whenFocusedDomainIsDisabled_returnsSiteReason() {
+        let reason = SuggestionAvailabilityEvaluator.disabledReason(
+            globallyEnabled: true,
+            disabledDomains: ["bank.com"],
+            focusedURLString: "https://www.bank.com/account",
+            inputMonitoringGranted: true,
+            screenRecordingGranted: true,
+            focusSnapshot: makeSnapshot(capability: .supported)
+        )
+
+        XCTAssertEqual(reason, "Cotabby is disabled on bank.com.")
+    }
+
+    func test_disabledReason_domainCheckIsInertByDefault() {
+        // No focused URL and no disabled domains: the per-site gate must never fire, so an otherwise
+        // healthy environment stays enabled exactly as before this gate existed.
+        let reason = SuggestionAvailabilityEvaluator.disabledReason(
+            globallyEnabled: true,
+            focusedURLString: "https://bank.com/account",
+            inputMonitoringGranted: true,
+            screenRecordingGranted: true,
+            focusSnapshot: makeSnapshot(capability: .supported)
+        )
+
+        XCTAssertNil(reason, "a focused URL with no disabled-domains list must not suppress autocomplete")
+    }
+
     func test_disabledReason_whenInputMonitoringDenied_mentionsPermission() {
         let reason = SuggestionAvailabilityEvaluator.disabledReason(
             globallyEnabled: true,
