@@ -22,6 +22,15 @@ final class LlamaSuggestionEngine {
         UserDefaults.standard.bool(forKey: constrainedDecoderDefaultsKey)
     }
 
+    /// UserDefaults key (no UI) for the constrained decoder's beam width. Default 1 keeps the existing
+    /// single-path greedy decode; a value > 1 runs a multi-branch beam search. Paired with the
+    /// constrained-decoder flag as a hidden developer/dogfood knob until validated on device.
+    private static let constrainedBeamWidthDefaultsKey = "cotabbyConstrainedBeamWidth"
+    private static var constrainedBeamWidth: Int {
+        let stored = UserDefaults.standard.integer(forKey: constrainedBeamWidthDefaultsKey)
+        return stored > 0 ? stored : 1
+    }
+
     init(runtimeManager: LlamaRuntimeGenerating) {
         self.runtimeManager = runtimeManager
     }
@@ -60,7 +69,8 @@ final class LlamaSuggestionEngine {
                         precedingText: request.context.precedingText,
                         trailingText: request.context.trailingText
                     ),
-                    useConstrainedDecoder: Self.isConstrainedDecoderEnabled
+                    useConstrainedDecoder: Self.isConstrainedDecoderEnabled,
+                    beamWidth: Self.constrainedBeamWidth
                 )
             )
             try Task.checkCancellation()

@@ -72,6 +72,38 @@ enum ConstrainedSampler {
         return best
     }
 
+    /// The admissible token ids for a step, ranked highest-logit first. Survivors are the same set
+    /// `selectToken` would consider — in-range, not `profile.isExcluded`, not in `blockedTokenIDs`,
+    /// and, when `admissibleTokenIDs` is non-nil, members of that set — and at most `topK` are
+    /// returned. This is the multi-candidate form of `selectToken`: the beam search expands a branch
+    /// across these instead of committing to the single best. Ties break by lower id for determinism.
+    static func rankedAdmissibleTokens(
+        logits: [Float],
+        profile: TokenProfile,
+        admissibleTokenIDs: Set<Int>?,
+        topK: Int,
+        blockedTokenIDs: Set<Int> = []
+    ) -> [Int] {
+        guard topK > 0, !logits.isEmpty else {
+            return []
+        }
+        if let admissible = admissibleTokenIDs, admissible.isEmpty {
+            return []
+        }
+        let survivors = (0 ..< logits.count).filter { id in
+            !profile.isExcluded(id)
+                && !blockedTokenIDs.contains(id)
+                && (admissibleTokenIDs?.contains(id) ?? true)
+        }
+        let ranked = survivors.sorted { lhs, rhs in
+            if logits[lhs] != logits[rhs] {
+                return logits[lhs] > logits[rhs]
+            }
+            return lhs < rhs
+        }
+        return Array(ranked.prefix(topK))
+    }
+
     /// Average per-step log-probability of a sequence of chosen tokens, a confidence summary suitable
     /// for the existing low-confidence suppression policy.
     ///

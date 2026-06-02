@@ -199,6 +199,12 @@ struct LlamaGenerationOptions: Equatable, Sendable {
     /// validated on device. Changing it does not affect KV reuse, so it is intentionally excluded
     /// from `SamplingFingerprint`.
     var useConstrainedDecoder: Bool = false
+
+    /// Beam width for the constrained decoder. 1 keeps the single-path greedy decode; values > 1 run a
+    /// multi-branch beam search that explores several short continuations and keeps the highest-scoring
+    /// one. Only consulted when `useConstrainedDecoder` is true. Like `useConstrainedDecoder`, it does
+    /// not affect KV reuse, so it is excluded from `SamplingFingerprint`.
+    var beamWidth: Int = 1
 }
 
 /// The concrete runtime assets selected during bootstrap after checking available model files.

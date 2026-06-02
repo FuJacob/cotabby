@@ -198,9 +198,16 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         // The KV-trim defer above runs after whichever decoder returns. Both decoders share the
         // prepared sequence and the same confidence-suppression contract; they differ only in how
         // they pick each token (engine sampler vs. deterministic constrained selection).
-        return options.useConstrainedDecoder
-            ? try runConstrainedDecode(sequenceID: sequenceID, options: options)
-            : runEngineSampledDecode(sequenceID: sequenceID, options: options)
+        guard options.useConstrainedDecoder else {
+            return runEngineSampledDecode(sequenceID: sequenceID, options: options)
+        }
+        return options.beamWidth > 1
+            ? try runConstrainedBeamDecode(
+                sequenceID: sequenceID,
+                promptTokenCount: promptTokens.count,
+                options: options
+            )
+            : try runConstrainedDecode(sequenceID: sequenceID, options: options)
     }
 
     // MARK: - Decoders
@@ -404,6 +411,128 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
             return ""
         }
         return generatedText
+    }
+
+    /// Multi-branch (beam) variant of the constrained decoder. Explores several short continuations
+    /// over the shared sequence — `EngineBeamStepper` syncs the KV cache to each branch's token path —
+    /// and returns the highest-scoring one. Reuses the same token profile, no-repeat-ngram guard,
+    /// sentence-boundary stop, and confidence suppression as the greedy path. The caller's KV-trim
+    /// defer restores the prompt-only state afterward.
+    private func runConstrainedBeamDecode(
+        sequenceID: Int32,
+        promptTokenCount: Int,
+        options: LlamaGenerationOptions
+    ) throws -> String {
+        let profile = try autocompleteTokenProfile()
+        let vocabSize = profile.vocabSize
+        guard vocabSize > 0 else {
+            throw LlamaRuntimeError.generationFailed("Vocabulary unavailable for constrained decoding.")
+        }
+        let topK = options.topK > 0 ? options.topK : vocabSize
+        var currentPath: [Int] = []
+        var logitsBuffer = [Float](repeating: 0, count: vocabSize)
+        let candidates = ConstrainedBeamSearch.search(
+            nextLogits: { generatedTokens in
+                self.beamLogits(
+                    forGeneratedTokens: generatedTokens,
+                    sequenceID: sequenceID,
+                    promptTokenCount: promptTokenCount,
+                    currentPath: &currentPath,
+                    logitsBuffer: &logitsBuffer
+                )
+            },
+            profile: profile,
+            configuration: BeamSearchConfiguration(
+                beamWidth: options.beamWidth,
+                maxTokens: options.maxPredictionTokens,
+                topK: topK,
+                noRepeatNgramSize: Self.noRepeatNgramSize
+            ),
+            isSingleLine: options.singleLine
+        )
+        let best = candidates.first
+        CotabbyLogger.runtime.debug(
+            "Decode end",
+            metadata: [
+                "kind": .string("generate_beam"),
+                "beam_width": .stringConvertible(options.beamWidth),
+                "candidates": .stringConvertible(candidates.count),
+                "tokens_generated": .stringConvertible(best?.tokenIDs.count ?? 0)
+            ]
+        )
+        guard let best else {
+            return ""
+        }
+        if Self.shouldSuppress(
+            sumLogprob: best.cumulativeLogprob,
+            tokensGenerated: best.tokenIDs.count,
+            options: options
+        ) {
+            return ""
+        }
+        return best.text
+    }
+
+    /// Beam-search logits provider: syncs the shared sequence's KV to `generatedTokens`, then reads
+    /// the next-token logits. `currentPath` / `logitsBuffer` are owned by one beam run (the caller),
+    /// so this stays a plain method on the runtime where `engine` (a noncopyable C++ value) is mutable.
+    private func beamLogits(
+        forGeneratedTokens generatedTokens: [Int],
+        sequenceID: Int32,
+        promptTokenCount: Int,
+        currentPath: inout [Int],
+        logitsBuffer: inout [Float]
+    ) -> [Float]? {
+        guard syncBeamSequence(
+            to: generatedTokens,
+            sequenceID: sequenceID,
+            promptTokenCount: promptTokenCount,
+            currentPath: &currentPath
+        ) else {
+            return nil
+        }
+        let vocabSize = logitsBuffer.count
+        let written = logitsBuffer.withUnsafeMutableBufferPointer { buffer in
+            Int(engine.getNextTokenLogits(sequenceID, buffer.baseAddress, Int32(buffer.count)))
+        }
+        guard written == vocabSize else {
+            return nil
+        }
+        return logitsBuffer
+    }
+
+    /// Brings the sequence KV to exactly `target` tokens beyond the prompt: trim back to the longest
+    /// shared prefix with the current path, then accept the remaining target tokens. `currentPath` is
+    /// updated as tokens are accepted so it always reflects the real KV length, even on a mid-accept
+    /// failure (the caller treats a false return as "this branch cannot be extended").
+    private func syncBeamSequence(
+        to target: [Int],
+        sequenceID: Int32,
+        promptTokenCount: Int,
+        currentPath: inout [Int]
+    ) -> Bool {
+        let shared = Self.commonPrefixLength(currentPath, target)
+        if currentPath.count > shared, !engine.trimKV(sequenceID, Int32(promptTokenCount + shared)) {
+            currentPath = []
+            return false
+        }
+        currentPath = Array(target[..<shared])
+        for index in shared ..< target.count {
+            guard engine.acceptToken(sequenceID, Int32(target[index])) == .ok else {
+                return false
+            }
+            currentPath.append(target[index])
+        }
+        return true
+    }
+
+    private static func commonPrefixLength(_ lhs: [Int], _ rhs: [Int]) -> Int {
+        var count = 0
+        let limit = min(lhs.count, rhs.count)
+        while count < limit, lhs[count] == rhs[count] {
+            count += 1
+        }
+        return count
     }
 
     /// Shared low-confidence gate for both decoders: drop completions the model itself was unsure
