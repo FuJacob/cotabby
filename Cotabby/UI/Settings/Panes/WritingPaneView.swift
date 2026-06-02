@@ -25,9 +25,12 @@ struct WritingPaneView: View {
 
             Section("Profile") {
                 VStack(alignment: .leading, spacing: 16) {
-                    // The caption introduces all three personalization inputs (name, languages,
-                    // rules) since each is passed to the AI, even though they live in separate cards.
-                    Text("Your name, languages, and rules are passed to the AI to help personalize your completions.")
+                    // Introduces the personalization inputs passed to the AI. The custom-rules input
+                    // is gated (CustomRulesCatalog.isUserFacingEnabled), so this copy and the Rules
+                    // section below are dropped together while the feature is hidden.
+                    Text(CustomRulesCatalog.isUserFacingEnabled
+                        ? "Your name, languages, and rules are passed to the AI to help personalize your completions."
+                        : "Your name and languages are passed to the AI to help personalize your completions.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -53,9 +56,13 @@ struct WritingPaneView: View {
                     .padding(.vertical, 6)
             }
 
-            Section("Rules") {
-                CustomRulesEditor(suggestionSettings: suggestionSettings, showsTitleHeader: false)
-                    .padding(.vertical, 6)
+            // Hidden while custom rules are gated off (CustomRulesCatalog.isUserFacingEnabled). The
+            // editor and its storage are intentionally kept so re-enabling is a one-line flip.
+            if CustomRulesCatalog.isUserFacingEnabled {
+                Section("Rules") {
+                    CustomRulesEditor(suggestionSettings: suggestionSettings, showsTitleHeader: false)
+                        .padding(.vertical, 6)
+                }
             }
         }
     }

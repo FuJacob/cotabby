@@ -43,8 +43,12 @@ enum SuggestionRequestFactory {
         )
         let completionLengthInstruction = settings.selectedWordCountPreset.promptInstruction
         let userName = activeUserName(settings: settings)
-        // Already normalized (trimmed/deduped/capped) by SuggestionSettingsModel.setRules.
-        let customRules = settings.customRules
+        // Custom rules are hidden from users (CustomRulesCatalog.isUserFacingEnabled == false): the
+        // base-model OSS path cannot obey free-text instructions and the rule text leaks into output,
+        // so injection is suppressed on every engine. Stored rules survive untouched, so flipping the
+        // flag restores this. When enabled, the value is already normalized (trimmed/deduped/capped)
+        // by SuggestionSettingsModel.setRules.
+        let customRules = CustomRulesCatalog.isUserFacingEnabled ? settings.customRules : []
         // The settings model length-caps but does NOT trim whitespace (trimming on every keystroke
         // would prevent the user from typing a space at the end of a word in the editor). Do the
         // trim here, once per request, and collapse a whitespace-only body back to nil so renderers
