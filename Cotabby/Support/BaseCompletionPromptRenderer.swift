@@ -43,7 +43,12 @@ enum BaseCompletionPromptRenderer {
             sections.append(Self.contextSection("language", language, priority: 50, maxChars: 300))
         }
         if let notes = Self.nonEmpty(extendedContext) {
-            sections.append(Self.contextSection("notes", "Notes the writer keeps in mind: \(notes)", priority: 40, maxChars: 600))
+            // `maxChars` must stay at or above `SuggestionSettingsModel.maximumExtendedContextCharacters`
+            // plus this label (~32 chars) so the full user-entered Extended Context survives here instead
+            // of being silently clipped far under the advertised cap. It still competes for the 2400-char
+            // total budget below (priority 40), so an unusually long prefix can trim it, but in normal use
+            // the whole blob lands.
+            sections.append(Self.contextSection("notes", "Notes the writer keeps in mind: \(notes)", priority: 40, maxChars: 1300))
         }
         if let clip = Self.nonEmpty(clipboardContext) {
             sections.append(Self.contextSection("clipboard", "On the clipboard: \(clip)", priority: 35, maxChars: 400))

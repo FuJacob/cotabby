@@ -138,12 +138,15 @@ final class SuggestionSettingsModel: ObservableObject {
     static let defaultGhostTextOpacity: Double = 1.0
     static let ghostTextOpacityStep: Double = 0.1
 
-    /// Hard upper bound on the persisted Extended Context blob, in characters. Sized so the user
-    /// can paste a meaningful glossary or style guide without crowding the model's shared context:
-    /// roughly ~1000 tokens of English, which still leaves headroom for instructions, prefix text,
-    /// clipboard, and visual context inside Apple's 4096-token window. Larger pastes are truncated
-    /// at write time so the cost is bounded on every subsequent request.
-    static let maximumExtendedContextCharacters: Int = 4_000
+    /// Hard upper bound on the persisted Extended Context blob, in characters. Sized to match what the
+    /// engines actually consume rather than what they can store: the OSS base path renders this as a
+    /// budgeted "notes" section (`BaseCompletionPromptRenderer`, `maxChars` 1300) inside a 2400-char
+    /// prompt, so a larger cap would just be clipped on-device instead of used. ~1200 chars (~300
+    /// tokens) is a meaningful glossary or style guide that still leaves room for the prefix and other
+    /// context, and stays well inside Apple's 4096-token window on the Foundation Models path. Keep this
+    /// at or below the notes section's `maxChars` minus its label so the full blob survives on the OSS
+    /// path. Larger pastes are truncated at write time so the cost is bounded on every request.
+    static let maximumExtendedContextCharacters: Int = 1_200
 
     init(
         configuration: SuggestionConfiguration,
