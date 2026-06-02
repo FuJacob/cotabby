@@ -31,6 +31,28 @@ final class LlamaSuggestionEngine {
         return stored > 0 ? stored : 1
     }
 
+    /// UserDefaults key (no UI) for fill-in-middle prompting. Default off: FIM only helps models that
+    /// ship the FIM marker tokens, and it changes the prompt structure, so it stays a developer toggle
+    /// until validated on device.
+    private static let fillInMiddleDefaultsKey = "cotabbyFillInMiddleEnabled"
+    private static var isFillInMiddleEnabled: Bool {
+        UserDefaults.standard.bool(forKey: fillInMiddleDefaultsKey)
+    }
+
+    /// The fill-in-middle request for a generation, or nil to use the forward base prompt. Built only
+    /// when the flag is on and the caret has text after it (a mid-line completion); the runtime still
+    /// falls back to the base prompt when the model lacks FIM markers.
+    private static func fillInMiddleRequest(for request: SuggestionRequest) -> FillInMiddleRequest? {
+        guard isFillInMiddleEnabled else {
+            return nil
+        }
+        let suffix = request.context.trailingText
+        guard !suffix.isEmpty else {
+            return nil
+        }
+        return FillInMiddleRequest(prefix: request.context.precedingText, suffix: suffix)
+    }
+
     init(runtimeManager: LlamaRuntimeGenerating) {
         self.runtimeManager = runtimeManager
     }
@@ -70,7 +92,8 @@ final class LlamaSuggestionEngine {
                         trailingText: request.context.trailingText
                     ),
                     useConstrainedDecoder: Self.isConstrainedDecoderEnabled,
-                    beamWidth: Self.constrainedBeamWidth
+                    beamWidth: Self.constrainedBeamWidth,
+                    fillInMiddle: Self.fillInMiddleRequest(for: request)
                 )
             )
             try Task.checkCancellation()

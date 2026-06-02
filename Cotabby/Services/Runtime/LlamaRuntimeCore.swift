@@ -41,6 +41,12 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
     private var cachedTokenProfile: TokenProfile?
     private var cachedTokenProfileModelURL: URL?
 
+    /// Per-model fill-in-middle marker token ids (nil means the model is not FIM-capable). Detected
+    /// once by scanning the vocabulary and keyed by model URL like the token profile; the URL tracker
+    /// distinguishes "not yet detected" from a cached nil result. Accessed only under `autocompleteLock`.
+    private var cachedFIMMarkers: FIMMarkers?
+    private var cachedFIMMarkersModelURL: URL?
+
     /// Coordinates model lifecycle with in-flight operations. `generate()` and `summarize()`
     /// increment the active count on entry and decrement on exit. `shutdown()` sets the
     /// shutting-down flag and blocks until all active operations finish before unloading.
@@ -144,7 +150,7 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
             lifecycleCondition.unlock()
         }
 
-        let promptBytes = Array(prompt.utf8)
+        var promptBytes = Array(prompt.utf8)
         let allPromptTokens = tokenize(prompt)
         guard !allPromptTokens.isEmpty else {
             CotabbyLogger.runtime.error(
@@ -164,8 +170,8 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         )
 
         let maxPromptTokens = max(1, preparedRuntime.contextWindowTokens - options.maxPredictionTokens)
-        let promptTokens: [Int32]
-        let adjustedCachedPrefixBytes: Int?
+        var promptTokens: [Int32]
+        var adjustedCachedPrefixBytes: Int?
         if allPromptTokens.count > maxPromptTokens {
             promptTokens = Array(allPromptTokens.suffix(maxPromptTokens))
             adjustedCachedPrefixBytes = nil
@@ -178,6 +184,17 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
 
         autocompleteLock.lock()
         defer { autocompleteLock.unlock() }
+
+        // Replace the forward prompt with a fill-in-middle prompt when requested and the model is
+        // FIM-capable. Built under the lock so the marker-detection cache is serialized with the rest of
+        // the autocomplete state. FIM bypasses prompt-byte reuse (its structure differs from the forward
+        // prompt), so it clears the reuse hint; the assembled tokens are already budgeted to
+        // maxPromptTokens with the mandatory markers, so they are used as-is.
+        if let fimTokens = fillInMiddlePromptTokens(options.fillInMiddle, maxPromptTokens: maxPromptTokens) {
+            promptTokens = fimTokens
+            promptBytes = []
+            adjustedCachedPrefixBytes = nil
+        }
 
         let sequenceID = try obtainAutocompleteSequence(
             promptTokens: promptTokens,
@@ -616,6 +633,8 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         preparedRuntime = nil
         cachedTokenProfile = nil
         cachedTokenProfileModelURL = nil
+        cachedFIMMarkers = nil
+        cachedFIMMarkersModelURL = nil
         CotabbyLogger.runtime.info("Runtime shutdown complete")
 
         lifecycleCondition.lock()
@@ -824,6 +843,39 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         mix(withUnsafeBytes(of: Int64(fileSize).littleEndian) { Array($0) })
         mix(withUnsafeBytes(of: Int64(vocabSize).littleEndian) { Array($0) })
         return hash
+    }
+
+    /// The model's fill-in-middle marker token ids, detected once by scanning the vocabulary and cached
+    /// per model (nil when the model is not FIM-capable). The URL tracker distinguishes "not yet
+    /// detected" from a cached nil result. Must be called while holding `autocompleteLock`.
+    private func fimMarkers() -> FIMMarkers? {
+        let modelURL = preparedRuntime?.resolvedRuntime.modelFileURL
+        if cachedFIMMarkersModelURL == modelURL {
+            return cachedFIMMarkers
+        }
+        let vocabSize = Int(engine.getVocabSize())
+        let markers = vocabSize > 0
+            ? FillInMiddlePolicy.detectMarkers(vocabSize: vocabSize) { self.detokenizeBytes(Int32($0)) }
+            : nil
+        cachedFIMMarkers = markers
+        cachedFIMMarkersModelURL = modelURL
+        return markers
+    }
+
+    /// Builds a fill-in-middle prompt token sequence from `request`, or nil when there is no request or
+    /// the model lacks FIM markers (the caller then falls back to the forward base prompt). Must be
+    /// called while holding `autocompleteLock`.
+    private func fillInMiddlePromptTokens(_ request: FillInMiddleRequest?, maxPromptTokens: Int) -> [Int32]? {
+        guard let request, let markers = fimMarkers() else {
+            return nil
+        }
+        let tokens = FillInMiddlePolicy.assemblePromptTokens(
+            prefixTokens: tokenize(request.prefix),
+            suffixTokens: tokenize(request.suffix),
+            markers: markers,
+            maxTokens: maxPromptTokens
+        )
+        return tokens.isEmpty ? nil : tokens
     }
 
     /// The raw UTF-8 bytes a token detokenizes to, or empty for a structural token that renders to
