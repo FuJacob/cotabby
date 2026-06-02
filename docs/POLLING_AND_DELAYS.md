@@ -31,6 +31,7 @@ Update this file whenever you add, remove, or change a timing constant.
 |----------|-------|---------|
 | `Cotabby/App/Coordinators/SuggestionCoordinator+Acceptance.swift:354` | 30 ms | Post-insertion refresh delay. Gives the host app time to process the synthetic keystroke before we snap the overlay caret to the new position. |
 | `Cotabby/Services/Input/InputMonitor.swift:137` | 50 ms | Accept-tap teardown delay. Defers mach-port invalidation so a final-chunk accept's synthetic keystroke can drain before the tap is removed. |
+| `Cotabby/Services/Suggestion/SuggestionInserter.swift` (`pasteboardRestoreDelay`) | 150 ms | Pasteboard restore delay for the opt-in paste insertion path (`cotabbyPasteInsertionEnabled`). How long the completion sits on the clipboard for the host to service Cmd-V before the user's clipboard is restored. Default-off; tune on device. |
 
 ## Visual Context
 
