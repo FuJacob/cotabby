@@ -25,9 +25,10 @@ enum InsertionSafetyGate {
             if scalar == "\u{FFFD}" {
                 return false
             }
-            // C0 control range and DEL. Newlines are already handled upstream; an interior tab or
-            // other control character is corruption, not content.
-            if scalar.value < 0x20 || scalar.value == 0x7F {
+            // C0 control range and DEL. A line feed is legitimate content in a multi-line completion
+            // (the normalizer keeps newlines when multi-line mode is on), so it must pass; any other
+            // control character (an interior tab, a stray escape) is corruption, not content.
+            if scalar.value != 0x0A, scalar.value < 0x20 || scalar.value == 0x7F {
                 return false
             }
             if !CharacterSet.whitespacesAndNewlines.contains(scalar) {

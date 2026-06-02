@@ -16,6 +16,13 @@ final class SuggestionInserter {
 
     private(set) var lastErrorMessage: String?
 
+    /// In-flight state for the opt-in paste path. The user's real clipboard is snapshotted once and
+    /// restored after the paste lands. While a restore is pending, a second paste must NOT re-snapshot
+    /// (the pasteboard then holds OUR completion, which would leak back to the user), so overlapping
+    /// pastes coalesce onto this single saved clipboard and reschedule the one pending restore.
+    private var pendingPasteboardRestore: DispatchWorkItem?
+    private var savedClipboardForRestore: [[NSPasteboard.PasteboardType: Data]]?
+
     /// Virtual key code for Delete/Backspace. Posting these at the HID level deletes one UTF-16 unit
     /// of already-typed text per pair, which is how the picker removes the literal `:query` run.
     private static let backspaceKeyCode: CGKeyCode = 0x33
@@ -152,17 +159,28 @@ final class SuggestionInserter {
     /// ignores it.
     private func insertViaPaste(_ text: String) -> Bool {
         let pasteboard = NSPasteboard.general
-        let saved = Self.snapshotPasteboard(pasteboard)
+        // Snapshot the user's clipboard only when no restore is already pending. If one is (an
+        // overlapping paste), the pasteboard currently holds our previous completion, so re-snapshotting
+        // would save that and leak it back to the user; reuse the already-saved real clipboard.
+        if pendingPasteboardRestore == nil {
+            savedClipboardForRestore = Self.snapshotPasteboard(pasteboard)
+        }
+        let saved = savedClipboardForRestore ?? []
 
         pasteboard.clearContents()
         guard pasteboard.setString(text, forType: .string) else {
+            pendingPasteboardRestore?.cancel()
             Self.restorePasteboard(saved, to: pasteboard)
+            clearPendingPasteboardRestore()
             return false
         }
+        let expectedChangeCount = pasteboard.changeCount
 
         guard let keyDown = CGEvent(keyboardEventSource: nil, virtualKey: Self.vKeyCode, keyDown: true),
               let keyUp = CGEvent(keyboardEventSource: nil, virtualKey: Self.vKeyCode, keyDown: false) else {
+            pendingPasteboardRestore?.cancel()
             Self.restorePasteboard(saved, to: pasteboard)
+            clearPendingPasteboardRestore()
             return false
         }
         keyDown.flags = .maskCommand
@@ -173,11 +191,27 @@ final class SuggestionInserter {
         keyDown.post(tap: .cghidEventTap)
         keyUp.post(tap: .cghidEventTap)
 
-        // Give the host time to service Cmd-V, then hand the clipboard back to the user.
-        DispatchQueue.main.asyncAfter(deadline: .now() + Self.pasteboardRestoreDelay) {
-            Self.restorePasteboard(saved, to: NSPasteboard.general)
+        // Give the host time to service Cmd-V, then hand the clipboard back, but only if our completion
+        // is still the thing on it. If the user copied something during the window, `changeCount`
+        // advanced and we leave their new clipboard alone. An overlapping paste cancels this restore
+        // and reschedules one for the same saved clipboard.
+        pendingPasteboardRestore?.cancel()
+        let restore = DispatchWorkItem { [weak self] in
+            if NSPasteboard.general.changeCount == expectedChangeCount {
+                Self.restorePasteboard(saved, to: NSPasteboard.general)
+            }
+            self?.clearPendingPasteboardRestore()
         }
+        pendingPasteboardRestore = restore
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.pasteboardRestoreDelay, execute: restore)
         return true
+    }
+
+    /// Clears the in-flight paste-restore bookkeeping once a restore has run (or been abandoned on a
+    /// failure path), so the next paste snapshots the user's real clipboard afresh.
+    private func clearPendingPasteboardRestore() {
+        pendingPasteboardRestore = nil
+        savedClipboardForRestore = nil
     }
 
     /// Captures every representation of every pasteboard item so the user's clipboard can be restored

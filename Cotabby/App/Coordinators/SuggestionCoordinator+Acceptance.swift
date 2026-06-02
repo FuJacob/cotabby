@@ -319,6 +319,7 @@ extension SuggestionCoordinator {
             completeActiveSuggestion(
                 reason: "Overlay hidden because the user typed through the rest of the suggestion.",
                 scheduleNextPrediction: true,
+                awaitHostPublish: true,
                 stage: "typed-match-exhausted",
                 message: "The user typed the remaining suggestion characters exactly.",
                 acceptanceAction: "User typed through the rest of the suggestion."
@@ -356,6 +357,7 @@ extension SuggestionCoordinator {
     func completeActiveSuggestion(
         reason: String,
         scheduleNextPrediction: Bool,
+        awaitHostPublish: Bool = false,
         stage: String,
         message: String,
         acceptanceAction: String
@@ -368,7 +370,16 @@ extension SuggestionCoordinator {
         logStage(stage, workID: currentWorkID, generation: generation, message: message)
 
         if scheduleNextPrediction {
-            schedulePrediction()
+            // Callers reacting to a *synthetic-tap* keystroke (the user typing through a suggestion)
+            // must wait for the host to publish the keystroke before regenerating, or the new
+            // suggestion is built against pre-keystroke text in Chromium editors and looks like the
+            // typed characters were ignored. Reconcile-path callers, where AX has already settled,
+            // schedule immediately.
+            if awaitHostPublish {
+                schedulePredictionAfterHostPublishDelay()
+            } else {
+                schedulePrediction()
+            }
         }
     }
 

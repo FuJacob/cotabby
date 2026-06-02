@@ -29,4 +29,15 @@ final class InsertionSafetyGateTests: XCTestCase {
     func test_interiorControlCharacter_isUnsafe() {
         XCTAssertFalse(InsertionSafetyGate.isSafeToInsert("a\tb"))
     }
+
+    func test_multiLineContent_isSafe() {
+        // A line feed is legitimate content in a multi-line completion, so it must pass (the previous
+        // behavior rejected it, silently suppressing every multi-line completion).
+        XCTAssertTrue(InsertionSafetyGate.isSafeToInsert("first line\nsecond line"))
+    }
+
+    func test_newlineOnly_isUnsafe() {
+        // Newlines are whitespace; a newline-only completion is still nothing worth inserting.
+        XCTAssertFalse(InsertionSafetyGate.isSafeToInsert("\n\n"))
+    }
 }
