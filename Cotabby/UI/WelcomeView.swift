@@ -204,7 +204,8 @@ extension WelcomeView {
                 canGoBack: true,
                 canContinue: true,
                 onBack: { step = .template },
-                onContinue: { step = .writingStyle }
+                // Skip the writing-style (custom rules) step when that feature is gated off.
+                onContinue: { step = CustomRulesCatalog.isUserFacingEnabled ? .writingStyle : .keybind }
             )
         case .writingStyle:
             WelcomeNavigation(
@@ -217,7 +218,7 @@ extension WelcomeView {
             WelcomeNavigation(
                 canGoBack: true,
                 canContinue: true,
-                onBack: { step = .writingStyle },
+                onBack: { step = CustomRulesCatalog.isUserFacingEnabled ? .writingStyle : .aboutYou },
                 onContinue: { step = .done }
             )
         case .welcome, .done:
@@ -241,8 +242,11 @@ private enum WelcomeStep: Int, Comparable {
         lhs.rawValue < rhs.rawValue
     }
 
-    /// Number of steps shown in the progress indicator (the middle, non-terminal steps).
-    static let totalProgressSteps = 5
+    /// Number of steps shown in the progress indicator (the middle, non-terminal steps). Drops to 4
+    /// when the custom-rules writing-style step is gated off (CustomRulesCatalog.isUserFacingEnabled).
+    static var totalProgressSteps: Int {
+        CustomRulesCatalog.isUserFacingEnabled ? 5 : 4
+    }
 
     /// 1-based position within the progress indicator, or `nil` for the intro/outro steps that
     /// intentionally sit outside the counted flow.
@@ -259,7 +263,8 @@ private enum WelcomeStep: Int, Comparable {
         case .writingStyle:
             return 4
         case .keybind:
-            return 5
+            // The 4th step when the writing-style step is gated off, otherwise the 5th.
+            return CustomRulesCatalog.isUserFacingEnabled ? 5 : 4
         }
     }
 
