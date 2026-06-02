@@ -247,12 +247,43 @@ enum SuggestionSessionReconciler {
             index = remainingText.index(after: index)
         }
 
+        // Space-less scripts (CJK, Japanese, Korean, Thai, ...) put no whitespace between words, so the
+        // whitespace scan above swallows an entire run as a single "word". When the token begins with
+        // such a script, segment it with ICU word breaking and accept only the first word, so one Tab
+        // advances by a single word the way it does in space-delimited text. Space-delimited scripts
+        // never enter this branch, so Latin / Cyrillic / Arabic acceptance stays byte-for-byte unchanged.
+        if tokenStart < index,
+           remainingText[tokenStart].beginsSpacelessScriptWord,
+           let wordEnd = firstSegmentedWordEnd(in: remainingText, from: tokenStart, notPast: index) {
+            index = wordEnd
+        }
+
         if !autoAcceptTrailingPunctuation,
            let wordEnd = wordEndTrimmingTrailingPunctuation(in: remainingText, from: tokenStart, to: index) {
             index = wordEnd
         }
 
         return String(remainingText[..<index])
+    }
+
+    /// The index just past the first ICU word in `text[from..<limit]`, or nil when segmentation finds
+    /// no word there. Only the space-less-script branch of `nextAcceptanceChunk` calls this; the result
+    /// is clamped to `limit` so it can never extend past the non-whitespace token the caller already
+    /// bounded. `.substringNotRequired` skips materializing the word string we don't need.
+    private static func firstSegmentedWordEnd(
+        in text: String,
+        from start: String.Index,
+        notPast limit: String.Index
+    ) -> String.Index? {
+        var wordEnd: String.Index?
+        text.enumerateSubstrings(in: start..<limit, options: [.byWords, .substringNotRequired]) { _, range, _, stop in
+            wordEnd = range.upperBound
+            stop = true
+        }
+        guard let wordEnd, wordEnd > start else {
+            return nil
+        }
+        return min(wordEnd, limit)
     }
 
     /// Accepts a full phrase up to the next sentence terminator (`.`, `!`, `?`, `\n`) or the end
@@ -490,6 +521,34 @@ private extension String {
 }
 
 private extension Character {
+    /// True when the character begins a word of a space-less script (Han, Hiragana, Katakana, Hangul,
+    /// Thai, Lao, Khmer, Myanmar, ...). These scripts write words without separating spaces, so the
+    /// whitespace-run acceptance rule would over-accept a whole run; `nextAcceptanceChunk` switches to
+    /// ICU word segmentation when a token begins with one of them. Detection is by leading scalar so it
+    /// stays a cheap, allocation-free check on the common (space-delimited) path.
+    var beginsSpacelessScriptWord: Bool {
+        guard let scalar = unicodeScalars.first else {
+            return false
+        }
+        switch scalar.value {
+        case 0x3040...0x30FF,   // Hiragana + Katakana
+             0x3400...0x4DBF,   // CJK Unified Ideographs Extension A
+             0x4E00...0x9FFF,   // CJK Unified Ideographs
+             0xF900...0xFAFF,   // CJK Compatibility Ideographs
+             0xAC00...0xD7A3,   // Hangul syllables
+             0x1100...0x11FF,   // Hangul Jamo
+             0x0E00...0x0E7F,   // Thai
+             0x0E80...0x0EFF,   // Lao
+             0x1780...0x17FF,   // Khmer
+             0x1000...0x109F,   // Myanmar
+             0x20000...0x2A6DF, // CJK Unified Ideographs Extension B
+             0x30000...0x3134F: // CJK Unified Ideographs Extension G
+            return true
+        default:
+            return false
+        }
+    }
+
     /// Alphanumerics form the core of a "word"; everything else trailing a word is punctuation that
     /// can be peeled into its own acceptance part when auto-accept is disabled.
     var isAcceptanceWordCharacter: Bool {

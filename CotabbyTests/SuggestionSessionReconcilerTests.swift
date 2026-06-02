@@ -131,6 +131,61 @@ final class SuggestionSessionReconcilerTests: XCTestCase {
         )
     }
 
+    // MARK: - Space-less-script word acceptance
+
+    func test_nextAcceptanceChunk_latinAcceptanceIsUnchangedBySpacelessBranch() {
+        // Regression guard: the space-less branch must never alter space-delimited acceptance.
+        XCTAssertEqual(SuggestionSessionReconciler.nextAcceptanceChunk(from: "hello world"), "hello")
+        XCTAssertEqual(SuggestionSessionReconciler.nextAcceptanceChunk(from: "don't stop now"), "don't")
+        XCTAssertEqual(SuggestionSessionReconciler.nextAcceptanceChunk(from: "U.S.A today"), "U.S.A")
+        XCTAssertEqual(SuggestionSessionReconciler.nextAcceptanceChunk(from: "1.5 times"), "1.5")
+        XCTAssertEqual(SuggestionSessionReconciler.nextAcceptanceChunk(from: "café René"), "café")
+        // A space-less script appearing later in the tail must not pull the first Latin token early.
+        XCTAssertEqual(SuggestionSessionReconciler.nextAcceptanceChunk(from: "world 你好"), "world")
+    }
+
+    func test_nextAcceptanceChunk_segmentsChineseBelowWholeLength() {
+        // ICU word segmentation may be per-character or dictionary-based depending on the OS, so this
+        // asserts the robust property (accept one segment, not the whole run) rather than a pinned word.
+        let run = "你好世界"
+        let chunk = SuggestionSessionReconciler.nextAcceptanceChunk(from: run)
+        XCTAssertFalse(chunk.isEmpty)
+        XCTAssertTrue(run.hasPrefix(chunk))
+        XCTAssertLessThan(chunk.count, run.count, "a space-less Chinese run must segment, not accept the whole run")
+    }
+
+    func test_nextAcceptanceChunk_segmentsJapaneseRunBelowWholeLength() {
+        let run = "今日はいい天気です"
+        let chunk = SuggestionSessionReconciler.nextAcceptanceChunk(from: run)
+        XCTAssertFalse(chunk.isEmpty)
+        XCTAssertTrue(run.hasPrefix(chunk))
+        XCTAssertLessThan(chunk.count, run.count, "a space-less Japanese run must segment, not accept whole")
+    }
+
+    func test_nextAcceptanceChunk_segmentsThaiRunBelowWholeLength() {
+        let run = "สวัสดีครับ"
+        let chunk = SuggestionSessionReconciler.nextAcceptanceChunk(from: run)
+        XCTAssertFalse(chunk.isEmpty)
+        XCTAssertTrue(run.hasPrefix(chunk))
+        XCTAssertLessThan(chunk.count, run.count, "a space-less Thai run must segment, not accept whole")
+    }
+
+    func test_nextAcceptanceChunk_chineseAcceptanceStaysWithinRunBeforeSpace() {
+        let chunk = SuggestionSessionReconciler.nextAcceptanceChunk(from: "你好 world")
+        XCTAssertFalse(chunk.isEmpty)
+        XCTAssertTrue("你好".hasPrefix(chunk), "acceptance must stay within the CJK run and not cross the space")
+        XCTAssertFalse(chunk.contains(" "))
+    }
+
+    func test_nextAcceptanceChunk_keepsLeadingWhitespaceBeforeSpacelessWord() {
+        let chunk = SuggestionSessionReconciler.nextAcceptanceChunk(from: " 你好世界")
+        XCTAssertTrue(chunk.hasPrefix(" "), "leading whitespace is preserved before the segmented word")
+        let afterSpace = String(chunk.dropFirst())
+        XCTAssertFalse(afterSpace.isEmpty)
+        XCTAssertTrue("你好世界".hasPrefix(afterSpace))
+        XCTAssertLessThan(afterSpace.count, 4, "only the first segment is accepted, not the whole run")
+    }
+
     // MARK: - Phrase chunker
 
     func test_nextAcceptancePhrase_returnsEmptyForEmptyTail() {
