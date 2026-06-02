@@ -44,6 +44,17 @@ struct BeamCandidate: Equatable {
     let tokenIDs: [Int]
     let bytes: [UInt8]
     let cumulativeLogprob: Double
+    /// Required-prefix bytes this branch must still emit before it may complete. Empty in the common
+    /// unconstrained case (so behavior is unchanged); non-empty only while steering the branch toward
+    /// a required continuation. A branch may finish only once this is empty.
+    let remainingPrefix: [UInt8]
+
+    init(tokenIDs: [Int], bytes: [UInt8], cumulativeLogprob: Double, remainingPrefix: [UInt8] = []) {
+        self.tokenIDs = tokenIDs
+        self.bytes = bytes
+        self.cumulativeLogprob = cumulativeLogprob
+        self.remainingPrefix = remainingPrefix
+    }
 
     /// Mean per-token log-probability; ranks completed branches so a short confident continuation is
     /// not unfairly beaten by a longer, lower-average one. An empty branch ranks last.
@@ -68,29 +79,35 @@ enum ConstrainedBeamSearch {
         profile: TokenProfile,
         configuration: BeamSearchConfiguration,
         isSingleLine: Bool,
-        isMidWord: Bool = false
+        isMidWord: Bool = false,
+        requiredPrefix: [UInt8] = []
     ) -> [BeamCandidate] {
         Engine(
             nextLogits: nextLogits,
             profile: profile,
             configuration: configuration,
             isSingleLine: isSingleLine,
-            isMidWord: isMidWord
+            isMidWord: isMidWord,
+            requiredPrefix: requiredPrefix
         ).run()
     }
 }
 
 /// The mutable-free search context, holding the inputs so the per-step helpers stay small. A struct
-/// rather than passing the same four values through every call.
+/// rather than passing the same values through every call.
 private struct Engine {
     let nextLogits: BeamLogitsProvider
     let profile: TokenProfile
     let configuration: BeamSearchConfiguration
     let isSingleLine: Bool
     let isMidWord: Bool
+    /// Bytes every branch must emit before it may complete. Empty for an unconstrained search.
+    let requiredPrefix: [UInt8]
 
     func run() -> [BeamCandidate] {
-        var frontier: [BeamCandidate] = [BeamCandidate(tokenIDs: [], bytes: [], cumulativeLogprob: 0)]
+        var frontier: [BeamCandidate] = [
+            BeamCandidate(tokenIDs: [], bytes: [], cumulativeLogprob: 0, remainingPrefix: requiredPrefix)
+        ]
         var completed: [BeamCandidate] = []
 
         for _ in 0 ..< configuration.maxTokens {
@@ -98,17 +115,20 @@ private struct Engine {
             var nextFrontier: [BeamCandidate] = []
             for branch in frontier {
                 guard let logits = nextLogits(branch.tokenIDs) else {
-                    completed.append(branch)
+                    // A stalled branch is only a valid completion if it has satisfied its requirement.
+                    if branch.remainingPrefix.isEmpty {
+                        completed.append(branch)
+                    }
                     continue
                 }
                 expand(branch: branch, logits: logits, live: &nextFrontier, completed: &completed)
             }
             frontier = Self.prune(nextFrontier, to: configuration.beamWidth)
         }
-        // Budget exhausted: surviving branches are valid completions too.
-        completed.append(contentsOf: frontier)
+        // Budget exhausted: surviving branches complete too, but only if their required prefix is met.
+        completed.append(contentsOf: frontier.filter { $0.remainingPrefix.isEmpty })
         return completed
-            .filter { !$0.tokenIDs.isEmpty }
+            .filter { !$0.tokenIDs.isEmpty && $0.remainingPrefix.isEmpty }
             .sorted { $0.meanLogprob > $1.meanLogprob }
     }
 
@@ -124,11 +144,16 @@ private struct Engine {
             history: branch.tokenIDs,
             ngramSize: configuration.noRepeatNgramSize
         )
+        // While a required prefix is unmet, the admissible token can rank far below the model's
+        // top-K (a forced continuation the model finds locally unlikely), so the pool must not be
+        // capped by raw logit — scan the full vocabulary and let the prefix rule below select. The
+        // unconstrained common case keeps the cheap top-K bound.
+        let effectiveTopK = branch.remainingPrefix.isEmpty ? configuration.topK : logits.count
         var candidates = ConstrainedSampler.rankedAdmissibleTokens(
             logits: logits,
             profile: profile,
             admissibleTokenIDs: nil,
-            topK: configuration.topK,
+            topK: effectiveTopK,
             blockedTokenIDs: blocked
         )
         // Mid-word: the first generated token must finish the current word, not start a new token with
@@ -138,17 +163,40 @@ private struct Engine {
             candidates = candidates.filter { profile.continuesWordMidStream($0) }
         }
         for tokenID in candidates {
+            // A branch may only stop (end-of-generation or single-line newline) once it has emitted
+            // its full required prefix; otherwise the would-be completion omits required bytes.
             if profile.isEndOfGeneration(tokenID) {
-                completed.append(branch)
+                if branch.remainingPrefix.isEmpty {
+                    completed.append(branch)
+                }
                 continue
             }
             if isSingleLine, profile.isNewline(tokenID) {
-                completed.append(branch)
+                if branch.remainingPrefix.isEmpty {
+                    completed.append(branch)
+                }
                 continue
             }
             let tokenBytes = profile.bytes(for: tokenID)
-            let child = extend(branch, by: tokenID, tokenBytes: tokenBytes, logits: logits)
-            if Self.completesSentence(child.bytes, lastTokenBytes: tokenBytes) {
+            // Required-prefix admissibility: drop tokens that diverge, and carry the unconsumed tail.
+            let remainingAfterToken: [UInt8]
+            switch RequiredPrefixConstraint.step(remainingPrefix: branch.remainingPrefix, tokenBytes: tokenBytes) {
+            case .rejected:
+                continue
+            case .satisfied:
+                remainingAfterToken = []
+            case .advanced(let remaining):
+                remainingAfterToken = remaining
+            }
+            let child = extend(
+                branch,
+                by: tokenID,
+                tokenBytes: tokenBytes,
+                logits: logits,
+                remainingPrefix: remainingAfterToken
+            )
+            // A sentence boundary only finishes a branch that has also satisfied its required prefix.
+            if remainingAfterToken.isEmpty, Self.completesSentence(child.bytes, lastTokenBytes: tokenBytes) {
                 completed.append(child)
             } else {
                 live.append(child)
@@ -160,7 +208,8 @@ private struct Engine {
         _ branch: BeamCandidate,
         by tokenID: Int,
         tokenBytes: [UInt8],
-        logits: [Float]
+        logits: [Float],
+        remainingPrefix: [UInt8]
     ) -> BeamCandidate {
         var bytes = branch.bytes
         bytes.append(contentsOf: tokenBytes)
@@ -168,7 +217,8 @@ private struct Engine {
         return BeamCandidate(
             tokenIDs: branch.tokenIDs + [tokenID],
             bytes: bytes,
-            cumulativeLogprob: branch.cumulativeLogprob + logprob
+            cumulativeLogprob: branch.cumulativeLogprob + logprob,
+            remainingPrefix: remainingPrefix
         )
     }
 

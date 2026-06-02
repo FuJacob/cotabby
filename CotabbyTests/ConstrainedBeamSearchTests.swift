@@ -179,4 +179,62 @@ final class ConstrainedBeamSearchTests: XCTestCase {
 
         XCTAssertEqual(result.first?.tokenIDs.count, 2)
     }
+
+    // MARK: - Required prefix
+
+    func test_search_requiredPrefix_steersOntoLowLogitRequiredToken() {
+        // 0="a", 1="b", 2="z". The model strongly prefers "z" at every step, but a required prefix of
+        // "ab" must force "a" then "b" even though both rank far below "z".
+        let profile = makeProfile(byteStrings: ["a", "b", "z"])
+        let rows: [[Int]: [Float]] = [
+            []: row([2: 9, 0: 1], vocabSize: 3),
+            [0]: row([2: 9, 1: 1], vocabSize: 3)
+        ]
+        let unconstrained = ConstrainedBeamSearch.search(
+            nextLogits: provider(vocabSize: 3, rows: rows), profile: profile,
+            configuration: BeamSearchConfiguration(beamWidth: 1, maxTokens: 2, topK: 5),
+            isSingleLine: false)
+        let constrained = ConstrainedBeamSearch.search(
+            nextLogits: provider(vocabSize: 3, rows: rows), profile: profile,
+            configuration: BeamSearchConfiguration(beamWidth: 1, maxTokens: 2, topK: 5),
+            isSingleLine: false, requiredPrefix: Array("ab".utf8))
+
+        XCTAssertEqual(unconstrained.first?.text.hasPrefix("z"), true, "unconstrained follows the model's preference")
+        XCTAssertEqual(constrained.first?.text, "ab", "the required prefix overrides the model's preference")
+    }
+
+    func test_search_requiredPrefix_doesNotStopBeforePrefixIsSatisfied() {
+        // 0="a", 1="." (EOG, non-empty bytes), 2="b". The model wants to stop immediately, but with a
+        // required prefix of "ab" no returned completion may omit the prefix.
+        let profile = makeProfile(byteStrings: ["a", ".", "b"], eog: [1])
+        let rows: [[Int]: [Float]] = [
+            []: row([1: 9, 0: 1], vocabSize: 3),
+            [0]: row([1: 9, 2: 1], vocabSize: 3)
+        ]
+        let result = ConstrainedBeamSearch.search(
+            nextLogits: provider(vocabSize: 3, rows: rows), profile: profile,
+            configuration: BeamSearchConfiguration(beamWidth: 1, maxTokens: 3, topK: 5),
+            isSingleLine: false, requiredPrefix: Array("ab".utf8))
+
+        XCTAssertFalse(result.isEmpty, "the search still produces a completion")
+        XCTAssertTrue(result.allSatisfy { $0.text.hasPrefix("ab") }, "no completion stopped before the prefix was met")
+    }
+
+    func test_search_requiredPrefix_spansTokensOfDifferingLengths() {
+        // 0="a", 1="bc", 2="ab", 3="c", 4="z". A required prefix of "abc" can be reached either as
+        // "ab"+"c" or "a"+"bc"; both must yield exactly "abc".
+        let profile = makeProfile(byteStrings: ["a", "bc", "ab", "c", "z"])
+        let rows: [[Int]: [Float]] = [
+            []: row([4: 9, 2: 5, 0: 1], vocabSize: 5),
+            [2]: row([3: 5], vocabSize: 5),
+            [0]: row([1: 5], vocabSize: 5)
+        ]
+        let result = ConstrainedBeamSearch.search(
+            nextLogits: provider(vocabSize: 5, rows: rows), profile: profile,
+            configuration: BeamSearchConfiguration(beamWidth: 2, maxTokens: 2, topK: 5),
+            isSingleLine: false, requiredPrefix: Array("abc".utf8))
+
+        XCTAssertFalse(result.isEmpty)
+        XCTAssertTrue(result.allSatisfy { $0.text == "abc" }, "every surviving branch reproduces the required prefix exactly")
+    }
 }
