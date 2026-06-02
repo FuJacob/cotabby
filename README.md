@@ -46,11 +46,8 @@ Everything runs on-device. No hosted API, no cloud round-trip.
 </p>
 
 <p align="center">
-  <img width="798" height="326" alt="Cotabby autocomplete demo" src="https://github.com/user-attachments/assets/91d82593-291c-49f8-812e-99e9f239e432" />
-</p>
-
-<p align="center">
-  <img width="798" height="326" alt="Cotabby emoji autocomplete demo" src="https://github.com/user-attachments/assets/c4c6e051-52a5-41fb-84ee-9c668e6f8d04" />
+  <img src="gifs/slack.gif" alt="Cotabby emoji autocomplete demo" width="700" height="240" style="margin-right:12px;" />
+  <img src="gifs/imessage.gif" alt="Cotabby autocomplete demo" width="700" height="240" />
 </p>
 
 ## Features
