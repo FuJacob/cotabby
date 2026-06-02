@@ -78,4 +78,39 @@ final class PromptSectionBudgetTests: XCTestCase {
     func test_truncate_returnsInputWhenItFits() {
         XCTAssertEqual(PromptSectionBudget.truncate("abc", toChars: 10, mode: .preserveEnd), "abc")
     }
+
+    // MARK: - Token-aware allocate
+
+    func test_tokenAllocate_keepsAllWhenBudgetAmple() {
+        let kept = PromptSectionBudget.allocate(
+            [section("a", "alpha", priority: 10), section("b", "beta", priority: 5)],
+            totalTokens: 1000,
+            estimate: TokenCountEstimator.estimate
+        )
+        XCTAssertEqual(kept.map(\.name), ["a", "b"])
+    }
+
+    func test_tokenAllocate_dropsLowerPriorityWhenBudgetTight() {
+        let low = String(repeating: "word ", count: 5)
+        let high = String(repeating: "term ", count: 5)
+        let kept = PromptSectionBudget.allocate(
+            [section("low", low, priority: 1), section("high", high, priority: 9)],
+            totalTokens: 5,
+            estimate: TokenCountEstimator.estimate
+        )
+        XCTAssertEqual(kept.map(\.name), ["high"])
+    }
+
+    func test_tokenAllocate_respectsTokenBudget() {
+        let kept = PromptSectionBudget.allocate(
+            [
+                section("a", String(repeating: "alpha ", count: 20), priority: 9),
+                section("b", String(repeating: "bravo ", count: 20), priority: 8)
+            ],
+            totalTokens: 25,
+            estimate: TokenCountEstimator.estimate
+        )
+        let used = kept.reduce(0) { $0 + TokenCountEstimator.estimate($1.content) }
+        XCTAssertLessThanOrEqual(used, 25)
+    }
 }

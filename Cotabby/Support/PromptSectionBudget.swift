@@ -69,6 +69,49 @@ enum PromptSectionBudget {
         return sections.indices.compactMap { kept[$0] }
     }
 
+    /// Token-aware variant of `allocate`: the budget and remaining are counted in *estimated tokens*
+    /// (via `estimate`) instead of characters, so a base model's real context window is respected more
+    /// faithfully than a flat chars-per-token ratio — which matters most for code or non-Latin text,
+    /// where that ratio is far from four. Each section's intrinsic `minChars`/`maxChars` still bound
+    /// the content itself; the per-section token cap is converted to a character cap using that
+    /// content's own character-per-token density, so the character-based `truncate` is reused as is.
+    static func allocate(
+        _ sections: [PromptSection],
+        totalTokens: Int,
+        estimate: (String) -> Int
+    ) -> [PromptSection] {
+        var remainingTokens = max(0, totalTokens)
+
+        let fillOrder = sections.enumerated().sorted { lhs, rhs in
+            lhs.element.priority == rhs.element.priority
+                ? lhs.offset < rhs.offset
+                : lhs.element.priority > rhs.element.priority
+        }
+
+        var kept: [Int: PromptSection] = [:]
+        for (index, section) in fillOrder {
+            guard remainingTokens > 0 else { break }
+            let contentTokens = max(1, estimate(section.content))
+            let charsPerToken = Double(section.content.count) / Double(contentTokens)
+            let remainingChars = Int((Double(remainingTokens) * charsPerToken).rounded(.down))
+            let cap = min(section.maxChars, section.content.count, remainingChars)
+            if cap < section.minChars {
+                continue
+            }
+            let truncated = truncate(section.content, toChars: cap, mode: section.truncation)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !truncated.isEmpty else {
+                continue
+            }
+            var copy = section
+            copy.content = truncated
+            kept[index] = copy
+            remainingTokens -= estimate(truncated)
+        }
+
+        return sections.indices.compactMap { kept[$0] }
+    }
+
     /// Truncates `text` to at most `chars`, keeping the start or the end per `mode`. Returns the
     /// input unchanged when it already fits, and the empty string when `chars <= 0`.
     static func truncate(_ text: String, toChars chars: Int, mode: PromptSection.Truncation) -> String {

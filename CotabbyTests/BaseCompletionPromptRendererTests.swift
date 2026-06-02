@@ -42,6 +42,22 @@ final class BaseCompletionPromptRendererTests: XCTestCase {
         XCTAssertTrue(prompt.hasSuffix("the meeting is at"))
     }
 
+    func test_tokenBudget_keepsCaretPrefixUnderATightBudget() {
+        // The opt-in token-budgeted path must keep the caret prefix (top priority) at the very end,
+        // exactly like the character path, while a tight budget trims lower-priority context.
+        let prompt = BaseCompletionPromptRenderer.prompt(
+            prefixText: "the meeting is at",
+            applicationName: "Slack",
+            userName: "Jacob",
+            customRules: ["terse"],
+            extendedContext: "Project Matcha ships in June with a great many additional notes kept here.",
+            clipboardContext: "zoom link",
+            visualContextSummary: "Calendar: Q3 planning 3pm",
+            tokenBudget: 8
+        )
+        XCTAssertTrue(prompt.hasSuffix("the meeting is at"), "the caret prefix is never starved under a token budget")
+    }
+
     func test_personaFramingConditionsOnNameStyleAndLanguage() {
         let prompt = BaseCompletionPromptRenderer.prompt(
             prefixText: "Hi team,",

@@ -27,7 +27,8 @@ enum BaseCompletionPromptRenderer {
         languageInstruction: String? = nil,
         clipboardContext: String? = nil,
         visualContextSummary: String? = nil,
-        contextBudget: Int = defaultContextBudget
+        contextBudget: Int = defaultContextBudget,
+        tokenBudget: Int? = nil
     ) -> String {
         let trimmedPrefix = Self.trimmingTrailingWhitespace(prefixText)
 
@@ -65,7 +66,19 @@ enum BaseCompletionPromptRenderer {
             )
         )
 
-        let kept = PromptSectionBudget.allocate(sections, totalChars: contextBudget)
+        // Token-aware budgeting (opt-in): when a token budget is supplied, fill sections against an
+        // estimated-token window instead of the character approximation. Defaults to the character
+        // path so shipped behavior is unchanged.
+        let kept: [PromptSection]
+        if let tokenBudget {
+            kept = PromptSectionBudget.allocate(
+                sections,
+                totalTokens: tokenBudget,
+                estimate: TokenCountEstimator.estimate
+            )
+        } else {
+            kept = PromptSectionBudget.allocate(sections, totalChars: contextBudget)
+        }
         let prefix = kept.first { $0.name == "prefix" }?.content ?? trimmedPrefix
         let preface = kept.filter { $0.name != "prefix" }.map(\.content)
 
