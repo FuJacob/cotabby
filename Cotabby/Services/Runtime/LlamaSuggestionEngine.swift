@@ -99,16 +99,21 @@ final class LlamaSuggestionEngine {
             try Task.checkCancellation()
 
             promptCacheHintTracker.recordSuccessfulRequest(request)
-            let normalizedSuggestion = SuggestionTextNormalizer.normalize(rawSuggestion, for: request)
+            let normalization = SuggestionTextNormalizer.normalizeDetailed(rawSuggestion, for: request)
+            let normalizedSuggestion = normalization.text
             let latency = Date().timeIntervalSince(startTime)
             let rawChars = rawSuggestion.count
             let normalizedChars = normalizedSuggestion.count
             let latencyMs = Int(latency * 1000)
+            // `suppression_reason` distinguishes an empty ghost text caused by the model producing
+            // nothing from one a filter dropped — the join key for judging decode quality on device.
+            let suppressionReason = normalization.suppression?.rawValue ?? "none"
             CotabbyLogger.suggestion.debug(
                 "Llama generated",
                 metadata: baseMetadata.merging([
                     "raw_chars": .stringConvertible(rawChars),
                     "normalized_chars": .stringConvertible(normalizedChars),
+                    "suppression_reason": .string(suppressionReason),
                     "latency_ms": .stringConvertible(latencyMs)
                 ]) { _, new in new }
             )
@@ -121,6 +126,7 @@ final class LlamaSuggestionEngine {
                     "prompt_bytes": .stringConvertible(request.prompt.utf8.count),
                     "raw_chars": .stringConvertible(rawChars),
                     "normalized_chars": .stringConvertible(normalizedChars),
+                    "suppression_reason": .string(suppressionReason),
                     "latency_ms": .stringConvertible(latencyMs),
                     "cache_hint_bytes": .string(hintDesc),
                     "max_tokens": .stringConvertible(request.maxPredictionTokens)

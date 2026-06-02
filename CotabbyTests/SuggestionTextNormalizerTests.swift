@@ -216,4 +216,77 @@ final class SuggestionTextNormalizerTests: XCTestCase {
 
         XCTAssertEqual(normalized, "first Task: review")
     }
+
+    // MARK: - Suppression-reason attribution (normalizeDetailed)
+
+    func test_normalizeDetailed_successHasNoSuppressionReason() {
+        let request = CotabbyTestFixtures.suggestionRequest(
+            prefixText: "I love ",
+            prompt: "PROMPT",
+            precedingText: "I love "
+        )
+
+        let result = SuggestionTextNormalizer.normalizeDetailed("this product", for: request)
+
+        XCTAssertEqual(result.text, "this product")
+        XCTAssertNil(result.suppression)
+    }
+
+    func test_normalizeDetailed_reportsDuplicatesTrailingText() {
+        let request = CotabbyTestFixtures.suggestionRequest(
+            precedingText: "Hello",
+            trailingText: " existing suffix"
+        )
+
+        let result = SuggestionTextNormalizer.normalizeDetailed(
+            " existing suffix and extra generated text",
+            for: request
+        )
+
+        XCTAssertEqual(result.text, "")
+        XCTAssertEqual(result.suppression, .duplicatesTrailingText)
+    }
+
+    func test_normalizeDetailed_reportsEchoesPrecedingTextWhenFullyEchoed() {
+        let request = CotabbyTestFixtures.suggestionRequest(
+            prefixText: "hello world",
+            prompt: "PROMPT",
+            precedingText: "hello world"
+        )
+
+        // The model re-emits the last word of the preceding text and nothing else.
+        let result = SuggestionTextNormalizer.normalizeDetailed("world", for: request)
+
+        XCTAssertEqual(result.text, "")
+        XCTAssertEqual(result.suppression, .echoesPrecedingText)
+    }
+
+    func test_normalizeDetailed_reportsUnsafeToInsertForReplacementGlyph() {
+        let request = CotabbyTestFixtures.suggestionRequest(precedingText: "x")
+
+        // Real characters survive normalization but carry a U+FFFD replacement glyph.
+        let result = SuggestionTextNormalizer.normalizeDetailed("abc\u{FFFD}", for: request)
+
+        XCTAssertEqual(result.text, "")
+        XCTAssertEqual(result.suppression, .unsafeToInsert)
+    }
+
+    func test_normalizeDetailed_reportsEmptyGenerationForWhitespaceOnlyRaw() {
+        let request = CotabbyTestFixtures.suggestionRequest(precedingText: "x")
+
+        let result = SuggestionTextNormalizer.normalizeDetailed("   \n  ", for: request)
+
+        XCTAssertEqual(result.text, "")
+        XCTAssertEqual(result.suppression, .emptyGeneration)
+    }
+
+    func test_normalizeDetailed_reportsNormalizedToEmptyWhenOnlyControlMarkers() {
+        let request = CotabbyTestFixtures.suggestionRequest(precedingText: "x")
+
+        // Raw had content, but it was entirely chat-template markers that normalization strips.
+        let result = SuggestionTextNormalizer.normalizeDetailed("<|im_start|><|im_end|>", for: request)
+
+        XCTAssertEqual(result.text, "")
+        XCTAssertEqual(result.suppression, .normalizedToEmpty)
+    }
 }

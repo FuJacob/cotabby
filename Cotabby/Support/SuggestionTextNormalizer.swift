@@ -7,12 +7,54 @@ import Foundation
 ///
 /// This type is intentionally pure. Given the same request and raw output, it always returns the
 /// same normalized suggestion. That makes it safe to share across backends and easy to test later.
+
+/// Why a raw completion was reduced to empty ghost text. Logging this lets on-device evaluation
+/// separate "the model produced nothing usable" from "a safety or echo filter dropped a real
+/// completion" — the two read identically once the text is empty, but they point at opposite fixes
+/// (prompt/model tuning vs. an over-aggressive filter).
+enum CompletionSuppressionReason: String, Sendable, Equatable {
+    /// The model emitted only whitespace (or nothing) to begin with.
+    case emptyGeneration
+    /// Raw output existed but was entirely control markers, reasoning blocks, scaffolding labels,
+    /// or newlines, so nothing survived normalization.
+    case normalizedToEmpty
+    /// The completion began by repeating text that already follows the caret.
+    case duplicatesTrailingText
+    /// The completion echoed the tail of the preceding text in full, leaving nothing new to add.
+    case echoesPrecedingText
+    /// Printable characters survived but carried control/replacement glyphs the safety gate rejects.
+    case unsafeToInsert
+}
+
+/// Outcome of normalizing one raw completion: the ghost text, plus the attributable reason when that
+/// text is empty. `suppression` is always nil when `text` is non-empty.
+struct SuggestionNormalizationResult: Equatable, Sendable {
+    let text: String
+    let suppression: CompletionSuppressionReason?
+}
+
 enum SuggestionTextNormalizer {
+    /// Convenience wrapper returning only the ghost text. Callers that want to know *why* an empty
+    /// result came back (for diagnostics / on-device decode evaluation) should call
+    /// `normalizeDetailed` instead, which is the single source of truth this delegates to.
     static func normalize(
         _ rawSuggestion: String,
         for request: SuggestionRequest,
         promptEchoCandidates: [String] = []
     ) -> String {
+        normalizeDetailed(rawSuggestion, for: request, promptEchoCandidates: promptEchoCandidates).text
+    }
+
+    /// Normalizes one raw completion and, when the result is empty, attributes the suppression to a
+    /// specific cause. This is the distinction the logs need to tell "the model produced nothing
+    /// usable" apart from "a safety/echo filter dropped a real completion" — without it, every empty
+    /// outcome reads identically as a generic empty result.
+    static func normalizeDetailed(
+        _ rawSuggestion: String,
+        for request: SuggestionRequest,
+        promptEchoCandidates: [String] = []
+    ) -> SuggestionNormalizationResult {
+        let rawHadContent = !rawSuggestion.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         var normalized = rawSuggestion.replacingOccurrences(of: "\r", with: "")
 
         // Some runtimes echo the prompt or include chat-template control markers in the response.
@@ -81,14 +123,17 @@ enum SuggestionTextNormalizer {
             normalized,
             trailingText: request.context.trailingText
         ) {
-            return ""
+            return SuggestionNormalizationResult(text: "", suppression: .duplicatesTrailingText)
         }
 
         // Echo suppression: strip any leading words that repeat the tail of the preceding text.
         // Small models sometimes regurgitate the prompt suffix instead of continuing from it.
         // Word-by-word suffix–prefix overlap catches "hello world " → "world is great" and
-        // strips "world" so the ghost text shows only " is great".
+        // strips "world" so the ghost text shows only " is great". A full collapse to empty here
+        // means the model only re-emitted the preceding text, which we report distinctly below.
+        let beforeEchoStrip = normalized
         normalized = stripEchoPrefix(normalized, precedingText: request.context.precedingText)
+        let collapsedByEcho = !beforeEchoStrip.isEmpty && normalized.isEmpty
 
         // Deterministic space management runs AFTER echo suppression because stripping echoed
         // words can expose a leading space (e.g. "world is" → " is"). If the preceding text
@@ -105,10 +150,38 @@ enum SuggestionTextNormalizer {
         // whitespace-only output as ghost text. Returning empty makes the coordinator treat this
         // as "no suggestion" and regenerate rather than insert junk on Tab.
         guard InsertionSafetyGate.isSafeToInsert(normalized) else {
-            return ""
+            return SuggestionNormalizationResult(
+                text: "",
+                suppression: suppressionForEmptyResult(
+                    collapsedByEcho: collapsedByEcho,
+                    rawHadContent: rawHadContent,
+                    normalized: normalized
+                )
+            )
         }
 
-        return normalized
+        return SuggestionNormalizationResult(text: normalized, suppression: nil)
+    }
+
+    /// Names the most specific cause of an empty normalization outcome at the safety gate. The gate
+    /// rejects empty, whitespace-only, and control/replacement-glyph output alike, so we disambiguate
+    /// here: an echo collapse and a genuinely-empty generation are very different signals on device.
+    private static func suppressionForEmptyResult(
+        collapsedByEcho: Bool,
+        rawHadContent: Bool,
+        normalized: String
+    ) -> CompletionSuppressionReason {
+        if collapsedByEcho {
+            return .echoesPrecedingText
+        }
+        let survivingContent = !normalized.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        if survivingContent {
+            // Real characters made it through but carried control/replacement glyphs the gate rejects.
+            return .unsafeToInsert
+        }
+        // Nothing printable survived: either the model emitted only whitespace, or everything it
+        // produced was control markers / reasoning / scaffolding that normalization stripped away.
+        return rawHadContent ? .normalizedToEmpty : .emptyGeneration
     }
 
     /// Removes `<think>…</think>` reasoning blocks: complete blocks first, then any dangling open

@@ -109,21 +109,24 @@ final class FoundationModelSuggestionEngine {
                     "Apple Intelligence finished streaming without producing any content."
                 )
             }
-            let normalizedSuggestion = SuggestionTextNormalizer.normalize(
+            let normalization = SuggestionTextNormalizer.normalizeDetailed(
                 rawSuggestion,
                 for: request,
                 promptEchoCandidates: [prompt]
             )
+            let normalizedSuggestion = normalization.text
 
             let latency = Date().timeIntervalSince(startTime)
             let rawChars = rawSuggestion.count
             let normalizedChars = normalizedSuggestion.count
             let latencyMs = Int(latency * 1000)
+            let suppressionReason = normalization.suppression?.rawValue ?? "none"
             CotabbyLogger.suggestion.debug(
                 "Foundation model generated",
                 metadata: baseMetadata.merging([
                     "raw_chars": .stringConvertible(rawChars),
                     "normalized_chars": .stringConvertible(normalizedChars),
+                    "suppression_reason": .string(suppressionReason),
                     "latency_ms": .stringConvertible(latencyMs)
                 ]) { _, new in new }
             )
@@ -136,6 +139,7 @@ final class FoundationModelSuggestionEngine {
                     "prompt_bytes": .stringConvertible(prompt.utf8.count),
                     "raw_chars": .stringConvertible(rawChars),
                     "normalized_chars": .stringConvertible(normalizedChars),
+                    "suppression_reason": .string(suppressionReason),
                     "latency_ms": .stringConvertible(latencyMs),
                     "max_tokens": .stringConvertible(request.maxPredictionTokens)
                 ]) { _, new in new }
