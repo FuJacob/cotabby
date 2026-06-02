@@ -210,6 +210,42 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
     /// single-token runs after a few repeats, without blocking ordinary short repeats like "very very".
     private static let noRepeatNgramSize = 3
 
+    /// ASCII sentence terminators (`.` `!` `?`), used as a cheap pre-filter: the constrained decoder
+    /// only decodes the accumulated bytes to test for a sentence boundary when a token carried one of
+    /// these, keeping the steady path on raw byte accumulation.
+    private static func isSentenceTerminatorByte(_ byte: UInt8) -> Bool {
+        byte == 0x2E || byte == 0x21 || byte == 0x3F
+    }
+
+    /// The stop reason for a token that must end the loop *before* it is committed to the output: an
+    /// end-of-generation token, or a line break in a single-line field. Returns nil to commit the
+    /// token. Folding both checks into one helper keeps the decode loop under the complexity budget.
+    private static func preCommitStopReason(
+        tokenID: Int,
+        options: LlamaGenerationOptions,
+        profile: TokenProfile
+    ) -> String? {
+        if profile.isEndOfGeneration(tokenID) {
+            return "eos"
+        }
+        if options.singleLine, profile.isNewline(tokenID) {
+            return "single_line"
+        }
+        return nil
+    }
+
+    /// Whether the accumulated completion bytes now end a sentence. Decodes only when the last token
+    /// carried an ASCII sentence terminator, so the steady decode path avoids per-token String work.
+    /// Kept as a helper so the decode loop stays under the cyclomatic-complexity budget.
+    private static func completesSentence(_ generatedBytes: [UInt8], lastTokenBytes: [UInt8]) -> Bool {
+        guard lastTokenBytes.contains(where: isSentenceTerminatorByte) else {
+            return false
+        }
+        // swiftlint:disable:next optional_data_string_conversion
+        let decoded = String(decoding: generatedBytes, as: UTF8.self)
+        return SentenceBoundaryClassifier.endsSentence(decoded)
+    }
+
     /// The shipping decoder: delegates token selection to the engine's built-in sampler
     /// (`sampleNext`), which applies temperature / top-k / top-p / min-p and commits each token.
     private func runEngineSampledDecode(sequenceID: Int32, options: LlamaGenerationOptions) -> String {
@@ -319,28 +355,31 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
                 break
             }
 
-            if profile.isEndOfGeneration(tokenID) {
-                stopReason = "eos"
-                break
-            }
-            // Single-line fields must never receive a line break; stop before emitting one so the
-            // partial completion so far is preserved (mirrors the sampler path's single_line mask).
-            if options.singleLine, profile.isNewline(tokenID) {
-                stopReason = "single_line"
+            // A token can stop the loop before it is committed: an end-of-generation token, or a line
+            // break in a single-line field (the partial completion so far is preserved).
+            if let preCommitStop = Self.preCommitStopReason(tokenID: tokenID, options: options, profile: profile) {
+                stopReason = preCommitStop
                 break
             }
 
             // Accumulate raw bytes and decode once at the end: a single token may carry only part of
             // a multi-byte UTF-8 scalar, so per-token String decoding would corrupt CJK / emoji.
+            let tokenBytes = profile.bytes(for: tokenID)
             if let logProb = ConstrainedSampler.logProb(ofTokenAt: tokenID, in: logits) {
                 sumLogprob += logProb
             }
-            generatedBytes.append(contentsOf: profile.bytes(for: tokenID))
+            generatedBytes.append(contentsOf: tokenBytes)
             generatedTokenIDs.append(tokenID)
             tokensGenerated += 1
 
             if engine.acceptToken(sequenceID, Int32(tokenID)) != .ok {
                 stopReason = "accept_failed"
+                break
+            }
+
+            // Stop cleanly at the end of a sentence rather than running into the next one.
+            if Self.completesSentence(generatedBytes, lastTokenBytes: tokenBytes) {
+                stopReason = "sentence_boundary"
                 break
             }
         }

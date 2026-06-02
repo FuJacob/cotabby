@@ -15,6 +15,37 @@ enum SentenceBoundaryClassifier {
         "mr", "mrs", "ms", "dr", "st", "vs", "eg", "ie", "etc", "no", "fig", "approx", "inc", "ltd"
     ]
 
+    /// Whether `text` ends at a sentence boundary: after skipping any trailing whitespace and a run of
+    /// closing punctuation (quotes / brackets), the last visible character is `!`, `?`, or a *terminal*
+    /// period. The closing-punctuation skip lets `He said "stop."` and `(done!)` count as sentence ends
+    /// even though their final character is a quote or paren. Used to stop a constrained completion
+    /// cleanly at the end of one sentence instead of letting it run into the next.
+    static func endsSentence(_ text: String) -> Bool {
+        var index = text.endIndex
+        while index > text.startIndex {
+            let previous = text.index(before: index)
+            guard text[previous].isWhitespace else { break }
+            index = previous
+        }
+        while index > text.startIndex {
+            let previous = text.index(before: index)
+            guard text[previous].isSentenceClosingPunctuation else { break }
+            index = previous
+        }
+        guard index > text.startIndex else {
+            return false
+        }
+        let lastIndex = text.index(before: index)
+        switch text[lastIndex] {
+        case "!", "?":
+            return true
+        case ".":
+            return isTerminalPeriod(in: text, at: lastIndex)
+        default:
+            return false
+        }
+    }
+
     /// Whether the period at `periodIndex` in `text` ends a sentence. The caller guarantees that
     /// `text[periodIndex]` is ".".
     static func isTerminalPeriod(in text: String, at periodIndex: String.Index) -> Bool {
@@ -61,5 +92,15 @@ enum SentenceBoundaryClassifier {
             cursor = previous
         }
         return String(letters.reversed())
+    }
+}
+
+private extension Character {
+    /// Closing punctuation that may follow a sentence terminator: straight and curly quotes,
+    /// parentheses, square brackets, and braces. `endsSentence` walks back past a run of these to find
+    /// the real terminator underneath, so `"done."` and `(stop!)` register as sentence ends.
+    var isSentenceClosingPunctuation: Bool {
+        self == "\"" || self == "'" || self == ")" || self == "]" || self == "}"
+            || self == "\u{201D}" || self == "\u{2019}"
     }
 }

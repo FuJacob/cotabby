@@ -41,4 +41,39 @@ final class SentenceBoundaryClassifierTests: XCTestCase {
         let text = "tabs and so on etc."
         XCTAssertFalse(SentenceBoundaryClassifier.isTerminalPeriod(in: text, at: lastPeriodIndex(in: text)))
     }
+
+    // MARK: - endsSentence
+
+    func test_endsSentence_trueForTerminalPeriod() {
+        XCTAssertTrue(SentenceBoundaryClassifier.endsSentence("Hello world."))
+    }
+
+    func test_endsSentence_falseWithoutTerminator() {
+        XCTAssertFalse(SentenceBoundaryClassifier.endsSentence("Hello world"))
+    }
+
+    func test_endsSentence_trueForExclamationAndQuestion() {
+        XCTAssertTrue(SentenceBoundaryClassifier.endsSentence("Yes!"))
+        XCTAssertTrue(SentenceBoundaryClassifier.endsSentence("Really?"))
+    }
+
+    func test_endsSentence_ignoresTrailingWhitespace() {
+        XCTAssertTrue(SentenceBoundaryClassifier.endsSentence("Done.   "))
+    }
+
+    func test_endsSentence_walksPastClosingPunctuation() {
+        XCTAssertTrue(SentenceBoundaryClassifier.endsSentence("He said \"stop.\""))
+        XCTAssertTrue(SentenceBoundaryClassifier.endsSentence("(done!)"))
+    }
+
+    func test_endsSentence_falseForNonTerminalPeriods() {
+        XCTAssertFalse(SentenceBoundaryClassifier.endsSentence("It is version 1."))
+        XCTAssertFalse(SentenceBoundaryClassifier.endsSentence("for example, e.g."))
+        XCTAssertFalse(SentenceBoundaryClassifier.endsSentence("from the U.S."))
+        XCTAssertFalse(SentenceBoundaryClassifier.endsSentence("Hello Mr."))
+    }
+
+    func test_endsSentence_falseForEmptyString() {
+        XCTAssertFalse(SentenceBoundaryClassifier.endsSentence(""))
+    }
 }
