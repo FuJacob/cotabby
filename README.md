@@ -24,7 +24,7 @@
 </p>
 
 <p align="center">
-  <sub>Cotabby is free and open source. If it's useful to you, please consider supporting development</sub>
+  <sub>Cotabby is free and open-source - maintained by two students. If it's useful to you, please consider supporting Cotabby's future.</sub>
 </p>
 
 <p align="center">
