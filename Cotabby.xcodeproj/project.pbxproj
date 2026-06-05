@@ -126,6 +126,7 @@
 		66C23A7C2FCDE0266FF425F8 /* ApplicationBundleMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = 352AF5B2834FEE1F597394E4 /* ApplicationBundleMetadata.swift */; };
 		66D9E37B12A9265D4733E72E /* LlamaRuntimeCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 944065A858D9BC936CB12B23 /* LlamaRuntimeCore.swift */; };
 		6955C3A4D7AB3EEF7FA7C469 /* InputSuppressionController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D1F9CEBAB0F330F8E7B61D8 /* InputSuppressionController.swift */; };
+		6AA7B672BDF979459D6D3FEF /* FocusCandidateResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFAD8668A9007448D98D5E2E /* FocusCandidateResolver.swift */; };
 		6AE0B46FB52D189D94E1F79A /* WordCountFormatterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E0513E3B23937B099A3CFF2 /* WordCountFormatterTests.swift */; };
 		6B0186B9F3E6F654296B6D76 /* AdvancedPaneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E644072C123DC2D2B40274D /* AdvancedPaneView.swift */; };
 		6DD1E22151571E1A22FF22F4 /* FoundationModelSuggestionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5664E34B23FBDF69292FEF43 /* FoundationModelSuggestionEngine.swift */; };
@@ -449,6 +450,7 @@
 		AD9573F3504CAE6891DF9B7D /* AppUpdateManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdateManager.swift; sourceTree = "<group>"; };
 		ADBE3E6CC585C1683787C877 /* SuggestionEngineModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionEngineModels.swift; sourceTree = "<group>"; };
 		AF1E065C7FFB697FCEB2FA5C /* CotabbyTestFixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CotabbyTestFixtures.swift; sourceTree = "<group>"; };
+		AFAD8668A9007448D98D5E2E /* FocusCandidateResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusCandidateResolver.swift; sourceTree = "<group>"; };
 		AFCFCCCB69C29A86E726B10A /* PromptSectionBudget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptSectionBudget.swift; sourceTree = "<group>"; };
 		B22FDEB3B1DCC9ADE906CC73 /* OCRTextHygiene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OCRTextHygiene.swift; sourceTree = "<group>"; };
 		B25C3087D4A9F4DC52FD5A69 /* PerDomainDisableSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerDomainDisableSettings.swift; sourceTree = "<group>"; };
@@ -675,6 +677,7 @@
 				47CAF3A4DBC53F4159F9455A /* CaretGeometryResolver.swift */,
 				8896D976C7F116EBA0F3969F /* ChromiumAccessibilityEnabler.swift */,
 				684737E62EE6495A71344923 /* DeepGeometryWalkThrottle.swift */,
+				AFAD8668A9007448D98D5E2E /* FocusCandidateResolver.swift */,
 				04E25414C307A20B6F9F20EC /* FocusSnapshotResolver.swift */,
 				5C9FDF029F7828CAF3FE8850 /* FocusTracker.swift */,
 			);
@@ -1162,6 +1165,7 @@
 				5DF31F465A3A1233260BD3A4 /* EngineAndModelPaneView.swift in Sources */,
 				5BE53CE921664582F593B7B0 /* FieldEdgeIconIndicatorView.swift in Sources */,
 				6E49ADEB31D04DC77A47DEB0 /* FileLogHandler.swift in Sources */,
+				6AA7B672BDF979459D6D3FEF /* FocusCandidateResolver.swift in Sources */,
 				C0FE11D76BDF01A5470C554D /* FocusCapabilityFlickerGate.swift in Sources */,
 				CC98B842D10574C5206BEFA7 /* FocusCapabilityResolver.swift in Sources */,
 				924489CEE8171F7AD8579D71 /* FocusDebugOverlayController.swift in Sources */,
