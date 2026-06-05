@@ -12,6 +12,8 @@ struct GeneralPaneView: View {
 
     var body: some View {
         SettingsPaneScaffold {
+            supportSection
+
             Section("Status") {
                 Toggle(isOn: globallyEnabledBinding) {
                     SettingsRowLabel(
@@ -83,21 +85,34 @@ struct GeneralPaneView: View {
                 }
             }
 
-            // Support lives as a slim row at the bottom rather than a saturated banner pinned above
-            // the user's own settings. The About pane carries the fuller support pitch.
-            if let kofiURL = URL(string: "https://ko-fi.com/cotabby") {
-                Section {
-                    LabeledContent {
-                        Link(destination: kofiURL) {
-                            Label("Support", systemImage: "heart.fill")
-                        }
-                    } label: {
-                        SettingsRowLabel(
-                            title: "Support Cotabby",
-                            description: "Cotabby is free and open source. Tips help fund development.",
-                            systemImage: "heart"
-                        )
+        }
+    }
+
+    // MARK: - Support
+
+    /// Pinned at the top of General so the support pitch is the first thing in the pane. The action
+    /// is a filled pill (white background, pink "heart Support" text) so it reads as a real button to
+    /// tap rather than an easy-to-miss inline link.
+    @ViewBuilder
+    private var supportSection: some View {
+        if let kofiURL = URL(string: "https://ko-fi.com/cotabby") {
+            Section {
+                LabeledContent {
+                    Link(destination: kofiURL) {
+                        Label("Support", systemImage: "heart.fill")
+                            .font(.callout.weight(.semibold))
+                            .foregroundStyle(.pink)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 6)
+                            .background(.white, in: Capsule())
                     }
+                    .buttonStyle(.plain)
+                } label: {
+                    SettingsRowLabel(
+                        title: "Support Cotabby",
+                        description: "Cotabby is free and open source. Tips help fund development.",
+                        systemImage: "heart"
+                    )
                 }
             }
         }

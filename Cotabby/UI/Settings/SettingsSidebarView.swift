@@ -18,6 +18,7 @@ struct SettingsSidebarView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            appHeader
             searchField
 
             if trimmedQuery.isEmpty {
@@ -65,10 +66,37 @@ struct SettingsSidebarView: View {
         .padding(.vertical, 6)
         .background(.quaternary, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .padding(.horizontal, 10)
-        // Generous space above so the field sits well clear of the title bar, and only a small gap
-        // below so it reads as the head of the same group as the category rows beneath it.
-        .padding(.top, 28)
+        // The app header above now provides the clearance from the title bar; keep only a small gap
+        // here so the field reads as the head of the same group as the category rows beneath it.
+        .padding(.top, 0)
         .padding(.bottom, 4)
+    }
+
+    /// "Cotabby" wordmark with the app version in small secondary text beside it, sitting above the
+    /// search field. The top padding clears the title bar (the search field used to own that space).
+    private var appHeader: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Text("Cotabby")
+                .font(.title3.weight(.semibold))
+            if let version = appVersionText {
+                Text(version)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 12)
+        .padding(.top, 24)
+        .padding(.bottom, 8)
+    }
+
+    /// Short marketing version (e.g. "v1.0"), or nil if the bundle has no version string.
+    private var appVersionText: String? {
+        guard let shortVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String,
+              !shortVersion.isEmpty else {
+            return nil
+        }
+        return "v\(shortVersion)"
     }
 
     private var categoryList: some View {
