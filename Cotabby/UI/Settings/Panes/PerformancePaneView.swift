@@ -86,14 +86,14 @@ struct PerformancePaneView: View {
 
     private var cpuPoints: [MetricSparkline.Point] {
         systemMetricsStore.samples.map {
-            MetricSparkline.Point(id: $0.id, label: "CPU", date: $0.timestamp, value: $0.cpuPercent)
+            MetricSparkline.Point(id: String($0.id), label: "CPU", date: $0.timestamp, value: $0.cpuPercent)
         }
     }
 
     private var ramPoints: [MetricSparkline.Point] {
         systemMetricsStore.samples.map {
             MetricSparkline.Point(
-                id: $0.id,
+                id: String($0.id),
                 label: "Memory",
                 date: $0.timestamp,
                 value: Double($0.footprintBytes) / Self.bytesPerMB
@@ -138,7 +138,7 @@ struct PerformancePaneView: View {
     private var latencyPoints: [MetricSparkline.Point] {
         performanceMetricsStore.entries.map {
             MetricSparkline.Point(
-                id: UInt64(bitPattern: Int64($0.id.hashValue)),
+                id: $0.id.uuidString,
                 label: "Latency",
                 date: $0.timestamp,
                 value: Double($0.latencyMs)
@@ -248,7 +248,10 @@ struct PerformancePaneView: View {
 /// into the pane body.
 private struct MetricSparkline: View {
     struct Point: Identifiable {
-        let id: UInt64
+        // A `String` identity lets each source supply a naturally unique key (a UUID's `uuidString`
+        // for latency, the monotonic sample counter for CPU/RAM) without lossily folding a 128-bit
+        // UUID down into a collision-prone integer.
+        let id: String
         let label: String
         let date: Date
         let value: Double

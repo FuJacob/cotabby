@@ -48,9 +48,11 @@ final class SystemMetricsStore: ObservableObject {
     }
 
     nonisolated deinit {
-        // Timers retain their target until invalidated; this store is `@MainActor` with stored
-        // properties, so a `nonisolated deinit` avoids the macOS 14 isolated-deinit double-free
-        // while still letting the run loop drop the timer once nothing references the store.
+        // This store is `@MainActor` with stored properties, so a `nonisolated deinit` avoids the
+        // macOS 14 isolated-deinit double-free. It deliberately does no cleanup: it cannot touch the
+        // MainActor-isolated `timer`, and it does not need to. `RunLoop.main` retains a scheduled
+        // repeating timer, so it would otherwise outlive the store, but the timer captures `self`
+        // weakly and invalidates itself on its first tick after the store is gone (see `startTimer`).
     }
 
     /// Register interest in live sampling. The first caller starts the timer and takes an immediate
@@ -68,20 +70,34 @@ final class SystemMetricsStore: ObservableObject {
         activeRequests = max(0, activeRequests - 1)
         guard activeRequests == 0 else { return }
         stopTimer()
+        // The rolling window is only meaningful while you are watching it, so drop it when the last
+        // viewer leaves. Otherwise re-opening the pane would stitch fresh points onto a stale cluster
+        // separated by a visible time gap (the chart plots by wall-clock `Date`), looking broken.
+        clear()
     }
 
+    /// Drop the rolling window and reset sample identity. Resetting `nextSampleID` keeps a later
+    /// sampling session starting from a clean, contiguous timeline rather than continuing the old one.
     func clear() {
         samples = []
+        nextSampleID = 0
     }
 
     private func startTimer() {
         // `.common` mode keeps the timer firing while the user scrolls or drags the Settings window;
         // the default mode would stall the graph during exactly the interactions a debugger uses.
-        let timer = Timer(timeInterval: sampleInterval, repeats: true) { [weak self] _ in
+        let timer = Timer(timeInterval: sampleInterval, repeats: true) { [weak self] firedTimer in
+            // `RunLoop.main` retains a scheduled repeating timer and the `nonisolated deinit` cannot
+            // invalidate it, so the timer tears itself down on the first tick after the store is gone.
+            // This bounds any leak to a single interval instead of firing forever past `deinit`.
+            guard let self else {
+                firedTimer.invalidate()
+                return
+            }
             // The main run loop fires this on the main thread, which is the MainActor's executor, so
             // assuming isolation here is sound and avoids a Task hop per tick.
             MainActor.assumeIsolated {
-                self?.captureSample()
+                self.captureSample()
             }
         }
         RunLoop.main.add(timer, forMode: .common)
