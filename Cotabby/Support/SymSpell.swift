@@ -19,7 +19,7 @@ import Foundation
 ///
 /// Attribution — this is a Swift port of SymSpell, used under the MIT License:
 ///
-///   Copyright (c) 2022 Wolf Garbe (https://github.com/wolfgarbe/SymSpell)
+///   Copyright (c) 2018 Wolf Garbe (https://github.com/wolfgarbe/SymSpell)
 ///
 ///   Permission is hereby granted, free of charge, to any person obtaining a copy of this software
 ///   and associated documentation files (the "Software"), to deal in the Software without
