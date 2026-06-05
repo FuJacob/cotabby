@@ -35,7 +35,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     case languages
     // Context
     case extendedContext
-    case contextPlayground
+    case contextLivePreview
     // Engine & Model
     case engine
     case selectedModel
@@ -85,7 +85,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .name: return "Name"
         case .languages: return "Languages"
         case .extendedContext: return "Extended Context"
-        case .contextPlayground: return "Try It"
+        case .contextLivePreview: return "Live Preview"
         case .engine: return "Engine"
         case .selectedModel: return "Selected Model"
         case .modelsFolder: return "Models Folder"
@@ -129,7 +129,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .name: return "person"
         case .languages: return "globe"
         case .extendedContext: return "doc.text"
-        case .contextPlayground: return "play.circle"
+        case .contextLivePreview: return "text.cursor"
         case .engine: return "cpu"
         case .selectedModel: return "shippingbox"
         case .modelsFolder: return "folder"
@@ -162,7 +162,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
             return .emoji
         case .length, .name, .languages:
             return .writing
-        case .extendedContext, .contextPlayground:
+        case .extendedContext, .contextLivePreview:
             return .context
         case .engine, .selectedModel, .modelsFolder, .lmStudio:
             return .engineAndModel
@@ -203,7 +203,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .name: return ["name", "persona", "profile", "you"]
         case .languages: return ["language", "locale", "translate", "multilingual"]
         case .extendedContext: return ["context", "glossary", "reference", "notes", "jargon"]
-        case .contextPlayground: return ["test", "playground", "try", "preview"]
+        case .contextLivePreview: return ["live", "preview", "test", "ghost", "try", "playground"]
         case .engine: return ["engine", "apple intelligence", "open source", "llama", "backend"]
         case .selectedModel: return ["model", "gguf", "pick", "selected"]
         case .modelsFolder: return ["folder", "path", "directory", "models"]
