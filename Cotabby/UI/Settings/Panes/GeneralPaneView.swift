@@ -100,6 +100,14 @@ struct GeneralPaneView: View {
                             "shortcut to insert the selected emoji."
                     )
                 }
+
+                Toggle(isOn: macroExpansionEnabledBinding) {
+                    SettingsRowLabel(
+                        title: "Inline Macros",
+                        description: "Type :: then a macro like today, 5+5=, 10km->mi, or random(1,6), " +
+                            "then press your accept-word shortcut to insert the result."
+                    )
+                }
             }
 
             if suggestionSettings.isEmojiPickerEnabled {
@@ -275,6 +283,13 @@ struct GeneralPaneView: View {
         Binding(
             get: { suggestionSettings.isEmojiPickerEnabled },
             set: { suggestionSettings.setEmojiPickerEnabled($0) }
+        )
+    }
+
+    private var macroExpansionEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.isMacroExpansionEnabled },
+            set: { suggestionSettings.setMacroExpansionEnabled($0) }
         )
     }
 

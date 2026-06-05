@@ -183,6 +183,21 @@ final class EmojiTriggerStateMachineTests: XCTestCase {
         XCTAssertFalse(sut.isCapturing)
     }
 
+    func test_emptyQueryDoubleColon_yieldsToMacroWithoutCommitting() {
+        var sut = EmojiTriggerStateMachine()
+        open(&sut)   // boundary ":" opens capture with an empty query
+        XCTAssertTrue(sut.isCapturing)
+
+        // An immediate second ":" with an empty query is the "::" macro sigil. Emoji must yield
+        // (cancel), never commit Mode B, and never consume the colon, so the macro controller can
+        // take it over without a flash.
+        let output = sut.reduce(.character(":"), selectableMatchCount: 0)
+
+        XCTAssertEqual(output.actions, [.cancel])
+        XCTAssertFalse(output.consumesKey)
+        XCTAssertFalse(sut.isCapturing)
+    }
+
     // MARK: - Cancellation
 
     func test_escape_consumesAndCancels() {

@@ -44,6 +44,15 @@ final class EmojiPickerController {
     private var longPauseTask: Task<Void, Never>?
     private var cancellables = Set<AnyCancellable>()
 
+    /// Whether an emoji capture is currently open. Read by `InlineCommandCoordinator` to keep the
+    /// input monitor's shared accept-tap interception in sync across the emoji and macro features.
+    var isCapturing: Bool { machine.isCapturing }
+
+    /// Invoked when capture opens or tears down, including teardown outside an `observe` pass (focus
+    /// change, long pause, click-away), so the coordinator can recompute tap interception. The
+    /// coordinator, not this controller, owns the input monitor's single interception flag.
+    var onCaptureStateChanged: (() -> Void)?
+
     /// The consume decision `observe(_:)` computed for one key, read back by `decideCaptureKey(_:)`
     /// during the same event. The key code guards against a stale decision being applied to a later
     /// key if the decider is ever called without a preceding observer pass.
@@ -81,9 +90,8 @@ final class EmojiPickerController {
     }
 
     func start() {
-        inputMonitor.emojiCaptureKeyDecider = { [weak self] keyEvent in
-            self?.decideCaptureKey(keyEvent) ?? .notHandled
-        }
+        // The accept-tap capture decider is owned by `InlineCommandCoordinator` (it is a single slot
+        // shared with the macro feature), so this controller no longer installs it here.
         panel.onSelectIndex = { [weak self] index in
             guard let self else { return }
             self.selectedIndex = index
@@ -99,7 +107,6 @@ final class EmojiPickerController {
 
     func stop() {
         cancelCapture()
-        inputMonitor.emojiCaptureKeyDecider = nil
         cancellables.removeAll()
     }
 
@@ -217,18 +224,25 @@ final class EmojiPickerController {
         }
         captureFocusSequence = context.focusChangeSequence
         lastCaretRect = context.caretRect
-        inputMonitor.setCaptureInterceptionActive(true)
         refreshMatches(query: query)
-        presentPanel()
+        // A capture opens on the bare ":" with an empty query, which is intentionally invisible: it
+        // lets "::" still resolve to the macro feature without a flash. The panel appears once the
+        // user types a name character (see `updateQuery`).
         armLongPauseTimer()
+        onCaptureStateChanged?()
         CotabbyLogger.suggestion.debug("emoji capture opened query=\"\(query)\" matches=\(matches.count)")
     }
 
     private func updateQuery(_ query: String) {
         guard machine.isCapturing else { return }
         refreshMatches(query: query)
-        // Reposition because the match count (and therefore the panel height) may have changed.
-        presentPanel()
+        // Reposition because the match count (and therefore the panel height) may have changed. Keep
+        // the panel hidden while the query is empty so a bare ":" shows nothing.
+        if currentQuery.isEmpty {
+            panel.hide()
+        } else {
+            presentPanel()
+        }
         armLongPauseTimer()
     }
 
@@ -294,6 +308,7 @@ final class EmojiPickerController {
     }
 
     private func teardownCapture() {
+        let wasCapturing = machine.isCapturing
         machine.reset()
         matches = []
         selectedIndex = 0
@@ -303,8 +318,11 @@ final class EmojiPickerController {
         pendingDecision = nil
         longPauseTask?.cancel()
         longPauseTask = nil
-        inputMonitor.setCaptureInterceptionActive(false)
         panel.hide()
+        // Notify the coordinator so it drops the input monitor's interception when no capture remains.
+        if wasCapturing {
+            onCaptureStateChanged?()
+        }
     }
 
     // MARK: - Matching and presentation
@@ -393,15 +411,19 @@ final class EmojiPickerController {
             cancelCapture()
             return
         }
-        // Follow the caret as the user types the query.
+        // Follow the caret as the user types the query, but never show the panel for an empty query.
         lastCaretRect = context.caretRect
-        panel.show(
-            query: currentQuery,
-            matches: matches,
-            selectedIndex: selectedIndex,
-            caretRect: context.caretRect,
-            acceptKeyLabel: acceptKeyLabel()
-        )
+        if currentQuery.isEmpty {
+            panel.hide()
+        } else {
+            panel.show(
+                query: currentQuery,
+                matches: matches,
+                selectedIndex: selectedIndex,
+                caretRect: context.caretRect,
+                acceptKeyLabel: acceptKeyLabel()
+            )
+        }
     }
 
     private func armLongPauseTimer() {

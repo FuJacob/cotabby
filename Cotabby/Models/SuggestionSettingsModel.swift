@@ -72,6 +72,9 @@ final class SuggestionSettingsModel: ObservableObject {
     /// Whether the inline `:emoji:` picker is active. Read live by `EmojiPickerController` at event
     /// time, so toggling it takes effect on the next keystroke without restarting capture.
     @Published private(set) var isEmojiPickerEnabled: Bool
+    /// Whether the inline `::macro` preview is active. Read live by `MacroController` at event time,
+    /// so toggling it takes effect on the next keystroke without restarting capture.
+    @Published private(set) var isMacroExpansionEnabled: Bool
     /// Emoji-customization preferences, read live by the picker's variant resolver at match time.
     @Published private(set) var preferredEmojiSkinTone: EmojiSkinTone
     @Published private(set) var preferredEmojiGender: EmojiGender
@@ -139,6 +142,7 @@ final class SuggestionSettingsModel: ObservableObject {
         focusPollIntervalMilliseconds = data.focusPollIntervalMilliseconds
         isMultiLineEnabled = data.isMultiLineEnabled
         isEmojiPickerEnabled = data.isEmojiPickerEnabled
+        isMacroExpansionEnabled = data.isMacroExpansionEnabled
         preferredEmojiSkinTone = data.preferredEmojiSkinTone
         preferredEmojiGender = data.preferredEmojiGender
         autoAcceptTrailingPunctuation = data.autoAcceptTrailingPunctuation
@@ -286,6 +290,14 @@ final class SuggestionSettingsModel: ObservableObject {
         }
         isEmojiPickerEnabled = enabled
         store.saveEmojiPickerEnabled(enabled)
+    }
+
+    func setMacroExpansionEnabled(_ enabled: Bool) {
+        guard isMacroExpansionEnabled != enabled else {
+            return
+        }
+        isMacroExpansionEnabled = enabled
+        store.saveMacroExpansionEnabled(enabled)
     }
 
     func setPreferredEmojiSkinTone(_ tone: EmojiSkinTone) {

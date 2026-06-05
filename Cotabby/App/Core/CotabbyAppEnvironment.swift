@@ -28,6 +28,8 @@ final class CotabbyAppEnvironment {
     /// same answer the autocomplete pipeline would, not a stand-in.
     let suggestionEngine: any SuggestionGenerating
     let emojiPickerController: EmojiPickerController
+    let macroController: MacroController
+    let inlineCommandCoordinator: InlineCommandCoordinator
     let emojiUsageStore: EmojiUsageStore
     let welcomeCoordinator: WelcomeCoordinator
     let huggingFaceSearchService: HuggingFaceSearchService
@@ -206,10 +208,28 @@ final class CotabbyAppEnvironment {
             emojiUsage: { emojiUsageStore.snapshot() },
             recordEmojiUsage: { emojiUsageStore.record(alias: $0) }
         )
-        // Give the picker first look at every keystroke the coordinator receives, so it can detect the
-        // `:` trigger and drive its state machine without changing who owns `inputMonitor.onEvent`.
-        suggestionCoordinator.emojiInputObserver = { [weak emojiPickerController] event in
-            emojiPickerController?.observe(event) ?? false
+        // The macro preview is a second inline-command provider, on the `::` sigil. It reuses the same
+        // input monitor, focus model, and inserter as the emoji picker, and renders a single-row
+        // preview near the caret.
+        let macroController = MacroController(
+            engine: MacroEngine.standard(),
+            panel: InlinePreviewPanelController(),
+            focusModel: focusModel,
+            inserter: suggestionInserter,
+            isEnabled: { suggestionSettings.isMacroExpansionEnabled },
+            acceptKeyLabel: { suggestionSettings.emojiPickerAcceptKeyLabel },
+            isWordAcceptKey: { inputMonitor.isWordAcceptKey($0) }
+        )
+        // One coordinator fans every keystroke out to both inline-command controllers and owns the
+        // input monitor's single capture decider and interception flag, which `:` and `::` share.
+        // It is given first look at every keystroke the suggestion coordinator receives.
+        let inlineCommandCoordinator = InlineCommandCoordinator(
+            emoji: emojiPickerController,
+            macro: macroController,
+            inputMonitor: inputMonitor
+        )
+        suggestionCoordinator.emojiInputObserver = { [weak inlineCommandCoordinator] event in
+            inlineCommandCoordinator?.observe(event) ?? false
         }
 
         self.permissionManager = permissionManager
@@ -225,6 +245,8 @@ final class CotabbyAppEnvironment {
         self.suggestionCoordinator = suggestionCoordinator
         self.suggestionEngine = suggestionEngine
         self.emojiPickerController = emojiPickerController
+        self.macroController = macroController
+        self.inlineCommandCoordinator = inlineCommandCoordinator
         self.emojiUsageStore = emojiUsageStore
         self.welcomeCoordinator = welcomeCoordinator
         self.huggingFaceSearchService = huggingFaceSearchService
