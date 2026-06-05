@@ -9,7 +9,7 @@ import Logging
 /// polling shell in `FocusTracker`.
 @MainActor
 struct FocusSnapshotResolver {
-    private let geometryResolver: AXTextGeometryResolver
+    private let geometryResolver: CaretGeometryResolver
 
     /// Throttle window for the deep caret BFS. ~100ms keeps the walk off the per-keystroke hot path
     /// in Chromium editors while staying short enough that caret lag during fast typing stays minor.
@@ -22,11 +22,8 @@ struct FocusSnapshotResolver {
     /// signatures on every AX refresh.
     private static let focusedTextContextWindowUTF16 = 4096
 
-    /// Carries deep-walk throttle state across the value-typed resolver's non-mutating polls.
-    private let deepWalkThrottle = DeepGeometryWalkThrottle()
-
-    init(geometryResolver: AXTextGeometryResolver? = nil) {
-        self.geometryResolver = geometryResolver ?? AXTextGeometryResolver()
+    init(geometryResolver: CaretGeometryResolver? = nil) {
+        self.geometryResolver = geometryResolver ?? CaretGeometryResolver()
     }
 
     /// Resolves the best editable candidate around the focused AX node and materializes a focus snapshot.
@@ -34,10 +31,14 @@ struct FocusSnapshotResolver {
     /// `focusChangeSequence` is a monotonic counter owned by `FocusTracker`. The resolver threads
     /// it into the resulting `FocusedInputSnapshot` so downstream consumers can detect field
     /// switches even when `CFHash`-based `elementIdentifier` collides across recycled AX nodes.
+    ///
+    /// `deepWalkThrottle` is also owned by `FocusTracker` (a stable lifetime) and passed in so this
+    /// value-typed resolver carries no hidden mutable reference state.
     func resolveSnapshot(
         focusedElement: AXUIElement,
         application: NSRunningApplication,
-        focusChangeSequence: UInt64 = 0
+        focusChangeSequence: UInt64 = 0,
+        deepWalkThrottle: DeepGeometryWalkThrottle
     ) -> FocusSnapshot {
         let applicationName = application.localizedName ?? "Unknown"
         let bundleIdentifier = application.bundleIdentifier ?? "unknown.bundle"
@@ -150,7 +151,7 @@ struct FocusSnapshotResolver {
                 focusChangeSequence: focusChangeSequence,
                 interval: Self.deepWalkThrottleInterval
             ) {
-                resolveDeepGeometrySource(
+                geometryResolver.resolveDeepGeometrySource(
                     focusedElement: focusedElement,
                     resolvedElement: resolvedCandidate.element,
                     cocoaAnchorFrame: resolvedCandidate.inputFrameRect
@@ -426,128 +427,6 @@ struct FocusSnapshotResolver {
             return true
         }
         return false
-    }
-
-    /// Runs deep geometry search from the resolved editable candidate first, then falls back to
-    /// the raw focused node when those are different branches of the same local AX neighborhood.
-    private func resolveDeepGeometrySource(
-        focusedElement: AXUIElement,
-        resolvedElement: AXUIElement,
-        cocoaAnchorFrame: CGRect?
-    ) -> CaretGeometryResult? {
-        if let result = findDeepGeometrySource(
-            from: resolvedElement,
-            cocoaAnchorFrame: cocoaAnchorFrame
-        ) {
-            return result
-        }
-
-        guard
-            AXHelper.elementIdentity(for: focusedElement)
-                != AXHelper.elementIdentity(for: resolvedElement)
-        else {
-            return nil
-        }
-
-        return findDeepGeometrySource(
-            from: focusedElement,
-            cocoaAnchorFrame: cocoaAnchorFrame
-        )
-    }
-
-    /// Searches deeper descendants of the focused element for a node with precise caret geometry.
-    ///
-    /// Chrome's AX tree nests live selection data on deep `AXStaticText` leaf nodes that have
-    /// tight per-text-run frames — far more precise than the parent text entry area's AXFrame.
-    /// We only read position from these nodes; the input target (where we type) stays unchanged.
-    private func findDeepGeometrySource(
-        from root: AXUIElement,
-        cocoaAnchorFrame: CGRect?
-    ) -> CaretGeometryResult? {
-        var queue: [(element: AXUIElement, depth: Int)] = [(root, 0)]
-        let maxDepth = 10
-        let maxNodes = 200
-        var visited = 0
-        var seen = Set<String>()
-        var bestResult: (result: CaretGeometryResult, depth: Int)?
-
-        while !queue.isEmpty, visited < maxNodes {
-            let (element, depth) = queue.removeFirst()
-
-            let identity = AXHelper.elementIdentity(for: element)
-            guard seen.insert(identity).inserted else { continue }
-            visited += 1
-
-            // Look for any node with an active caret (zero-length selection).
-            // Don't filter by role — Chrome uses AXStaticText for editable text runs.
-            if let range = AXHelper.rangeValue(
-                for: kAXSelectedTextRangeAttribute as CFString, on: element
-            ), range.length == 0 {
-                let paramAttrs = Set(AXHelper.parameterizedAttributeNames(on: element))
-                let attrs = Set(AXHelper.attributeNames(on: element))
-                let textValue =
-                    attrs.contains(kAXValueAttribute as String)
-                    ? AXHelper.stringValue(for: kAXValueAttribute as CFString, on: element)
-                    : nil
-                let result = geometryResolver.resolveCaretRect(
-                    for: element,
-                    selection: range,
-                    supportsBoundsForRange: paramAttrs.contains(
-                        kAXBoundsForRangeParameterizedAttribute as String
-                    ),
-                    supportsFrame: attrs.contains("AXFrame"),
-                    cocoaAnchorFrame: cocoaAnchorFrame,
-                    textValue: textValue
-                )
-
-                if let result, result.quality == .exact || result.quality == .derived {
-                    if shouldPreferDeepResult(
-                        result,
-                        at: depth,
-                        over: bestResult
-                    ) {
-                        bestResult = (result, depth)
-                    }
-                }
-            }
-
-            guard depth < maxDepth else { continue }
-            for child in AXHelper.childElements(of: element) {
-                queue.append((child, depth + 1))
-            }
-        }
-
-        return bestResult?.result
-    }
-
-    /// Prefers deeper descendants because browser AX wrappers can expose superficially "valid"
-    /// geometry on shallow nodes while the real caret anchor lives lower in the text-run leaves.
-    private func shouldPreferDeepResult(
-        _ candidate: CaretGeometryResult,
-        at depth: Int,
-        over best: (result: CaretGeometryResult, depth: Int)?
-    ) -> Bool {
-        guard let best else {
-            return true
-        }
-
-        if depth != best.depth {
-            return depth > best.depth
-        }
-
-        return deepResultQualityScore(candidate.quality)
-            > deepResultQualityScore(best.result.quality)
-    }
-
-    private func deepResultQualityScore(_ quality: CaretGeometryQuality) -> Int {
-        switch quality {
-        case .exact:
-            return 2
-        case .derived:
-            return 1
-        case .estimated:
-            return 0
-        }
     }
 
     /// Extracts the AX properties Cotabby needs from one candidate element near the current focus.

@@ -3,15 +3,15 @@ import ApplicationServices
 import XCTest
 @testable import Cotabby
 
-/// Tests for `AXTextGeometryResolver` caret resolution branch ordering.
+/// Tests for `CaretGeometryResolver` caret resolution branch ordering.
 ///
 /// These tests use a real `NSTextField` hosted in the test process to exercise the AX geometry
 /// pipeline end-to-end. Native AppKit text fields reliably support `AXBoundsForRange` and
 /// advertise it via `parameterizedAttributeNames`, so the resolver's Branch 1/2 are reachable
 /// when callers pass `supportsBoundsForRange: true`.
 @MainActor
-final class AXTextGeometryResolverTests: XCTestCase {
-    private let resolver = AXTextGeometryResolver()
+final class CaretGeometryResolverTests: XCTestCase {
+    private let resolver = CaretGeometryResolver()
 
     /// A real AppKit text field gives us a genuine AXUIElement that responds to BoundsForRange.
     private func makeTextField(text: String = "Hello world") -> (NSTextField, NSWindow) {
