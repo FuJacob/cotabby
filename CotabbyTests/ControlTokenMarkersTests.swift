@@ -45,4 +45,26 @@ final class ControlTokenMarkersTests: XCTestCase {
     func testLlama3EotTruncates() {
         XCTAssertEqual(ControlTokenMarkers.sanitize("Hello there<|eot_id|>x"), "Hello there")
     }
+
+    func testLlama3HeaderBlockDropsRoleNameWithoutStopToken() {
+        // The role word sits between the header markers; stripping the whole block keeps it from
+        // leaking into the ghost text even when no <|eot_id|> precedes the header.
+        XCTAssertEqual(
+            ControlTokenMarkers.sanitize("<|start_header_id|>assistant<|end_header_id|>Hello there"),
+            "Hello there"
+        )
+        XCTAssertEqual(
+            ControlTokenMarkers.sanitize("<|start_header_id|>user<|end_header_id|>What time is it?"),
+            "What time is it?"
+        )
+    }
+
+    func testPreservesHtmlStrikethroughCloseTag() {
+        // `</s>` is intentionally not a stop marker (it is also the HTML strikethrough close tag),
+        // so HTML-flavored completions are not truncated on it.
+        XCTAssertEqual(
+            ControlTokenMarkers.sanitize("strike <s>this</s> out"),
+            "strike <s>this</s> out"
+        )
+    }
 }
