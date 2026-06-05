@@ -14,6 +14,9 @@ struct EngineAndModelPaneView: View {
     @ObservedObject var huggingFaceSearchService: HuggingFaceSearchService
 
     @State private var pendingDeletionModel: RuntimeModelOption?
+    /// The LM Studio models directory if it exists, probed once in `onAppear` so the filesystem
+    /// `fileExists` check never runs on the SwiftUI render path. Nil disables the "Use LM Studio" button.
+    @State private var lmStudioModelsURL: URL?
 
     var body: some View {
         SettingsPaneScaffold(callout: callout) {
@@ -40,7 +43,10 @@ struct EngineAndModelPaneView: View {
                 openSourceSections
             }
         }
-        .onAppear { foundationModelAvailabilityService.refresh() }
+        .onAppear {
+            foundationModelAvailabilityService.refresh()
+            lmStudioModelsURL = BundledRuntimeLocator.lmStudioModelsDirectoryIfAvailable()
+        }
         .alert(
             "Delete Model?",
             isPresented: pendingDeletionAlertBinding,
@@ -129,16 +135,14 @@ struct EngineAndModelPaneView: View {
                         .multilineTextAlignment(.trailing)
 
                     HStack(spacing: 8) {
-                        let lmStudioURL = FileManager.default.homeDirectoryForCurrentUser
-                            .appendingPathComponent(".lmstudio/models")
-                        let lmStudioAvailable = FileManager.default.fileExists(atPath: lmStudioURL.path)
                         let isUsingCustomPath = BundledRuntimeLocator.customModelDirectoryURL() != nil
                         Button("Use LM Studio") {
-                            BundledRuntimeLocator.setCustomModelDirectory(lmStudioURL)
+                            guard let lmStudioModelsURL else { return }
+                            BundledRuntimeLocator.setCustomModelDirectory(lmStudioModelsURL)
                             modelDownloadManager.refreshSearchDirectories()
                             refreshModels()
                         }
-                        .disabled(!lmStudioAvailable)
+                        .disabled(lmStudioModelsURL == nil)
 
                         Button("Reset Path") {
                             BundledRuntimeLocator.setCustomModelDirectory(nil)

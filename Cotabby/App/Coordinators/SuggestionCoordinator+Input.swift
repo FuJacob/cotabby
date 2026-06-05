@@ -59,14 +59,7 @@ extension SuggestionCoordinator {
             visualContextCoordinator.startSessionIfNeeded(for: context)
         }
 
-        if let disabledReason = SuggestionAvailabilityEvaluator.disabledReason(
-            globallyEnabled: settingsSnapshot.isGloballyEnabled,
-            disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
-            disabledDomains: PerDomainDisableSettings.disabledDomains(),
-            inputMonitoringGranted: permissionManager.inputMonitoringGranted,
-            screenRecordingGranted: permissionManager.screenRecordingGranted,
-            focusSnapshot: snapshot
-        ) {
+        if let disabledReason = currentDisabledReason(focusSnapshot: snapshot) {
             disablePredictionsPreservingVisualContext(reason: disabledReason)
         } else {
             handleSupportedSnapshot(snapshot)
@@ -161,14 +154,7 @@ extension SuggestionCoordinator {
             return false
         }
 
-        if let disabledReason = SuggestionAvailabilityEvaluator.disabledReason(
-            globallyEnabled: settingsSnapshot.isGloballyEnabled,
-            disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
-            disabledDomains: PerDomainDisableSettings.disabledDomains(),
-            inputMonitoringGranted: permissionManager.inputMonitoringGranted,
-            screenRecordingGranted: permissionManager.screenRecordingGranted,
-            focusSnapshot: focusModel.snapshot
-        ) {
+        if let disabledReason = currentDisabledReason(focusSnapshot: focusModel.snapshot) {
             disablePredictions(reason: disabledReason)
             return false
         }

@@ -68,6 +68,15 @@ struct BundledRuntimeLocator {
         UserDefaults.standard.set(url?.path, forKey: customModelDirectoryKey)
     }
 
+    /// The LM Studio models directory (`~/.lmstudio/models`) when it exists on disk, else nil.
+    /// The filesystem probe lives here, not in a SwiftUI view body (which would re-stat on every
+    /// render); callers compute it once, e.g. in `onAppear`, and cache the result.
+    static func lmStudioModelsDirectoryIfAvailable() -> URL? {
+        let url = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".lmstudio/models")
+        return FileManager.default.fileExists(atPath: url.path) ? url : nil
+    }
+
     /// Ordered runtime search directories used to discover GGUF files.
     /// This mirrors runtime resolution order and is shared by model-install status checks.
     static func runtimeSearchDirectories(bundle: Bundle = .main) -> [URL] {

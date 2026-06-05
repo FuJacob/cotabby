@@ -8,14 +8,7 @@ extension SuggestionCoordinator {
     // MARK: - Prediction Pipeline
 
     func schedulePrediction() {
-        if let disabledReason = SuggestionAvailabilityEvaluator.disabledReason(
-            globallyEnabled: settingsSnapshot.isGloballyEnabled,
-            disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
-            disabledDomains: PerDomainDisableSettings.disabledDomains(),
-            inputMonitoringGranted: permissionManager.inputMonitoringGranted,
-            screenRecordingGranted: permissionManager.screenRecordingGranted,
-            focusSnapshot: focusModel.snapshot
-        ) {
+        if let disabledReason = currentDisabledReason(focusSnapshot: focusModel.snapshot) {
             disablePredictions(reason: disabledReason)
             return
         }
@@ -48,14 +41,7 @@ extension SuggestionCoordinator {
         focusModel.refreshNow()
         let snapshot = focusModel.snapshot
 
-        if let disabledReason = SuggestionAvailabilityEvaluator.disabledReason(
-            globallyEnabled: settingsSnapshot.isGloballyEnabled,
-            disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
-            disabledDomains: PerDomainDisableSettings.disabledDomains(),
-            inputMonitoringGranted: permissionManager.inputMonitoringGranted,
-            screenRecordingGranted: permissionManager.screenRecordingGranted,
-            focusSnapshot: snapshot
-        ) {
+        if let disabledReason = currentDisabledReason(focusSnapshot: snapshot) {
             disablePredictions(reason: disabledReason)
             return
         }
@@ -146,14 +132,7 @@ extension SuggestionCoordinator {
         focusModel.refreshNow()
         let snapshot = focusModel.snapshot
 
-        if let disabledReason = SuggestionAvailabilityEvaluator.disabledReason(
-            globallyEnabled: settingsSnapshot.isGloballyEnabled,
-            disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
-            disabledDomains: PerDomainDisableSettings.disabledDomains(),
-            inputMonitoringGranted: permissionManager.inputMonitoringGranted,
-            screenRecordingGranted: permissionManager.screenRecordingGranted,
-            focusSnapshot: snapshot
-        ) {
+        if let disabledReason = currentDisabledReason(focusSnapshot: snapshot) {
 
             disablePredictions(reason: disabledReason)
             return
@@ -292,14 +271,7 @@ extension SuggestionCoordinator {
 
     /// Recomputes whether prediction should be enabled based on current permissions and focus support.
     func reconcileWithCurrentEnvironment() {
-        let disabledReason = SuggestionAvailabilityEvaluator.disabledReason(
-            globallyEnabled: settingsSnapshot.isGloballyEnabled,
-            disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
-            disabledDomains: PerDomainDisableSettings.disabledDomains(),
-            inputMonitoringGranted: permissionManager.inputMonitoringGranted,
-            screenRecordingGranted: permissionManager.screenRecordingGranted,
-            focusSnapshot: focusModel.snapshot
-        )
+        let disabledReason = currentDisabledReason(focusSnapshot: focusModel.snapshot)
 
         if disabledReason == nil {
             if case .disabled = state {
@@ -389,6 +361,21 @@ extension SuggestionCoordinator {
         case let .invalid(reason):
             invalidateActiveSuggestion(reason: reason)
         }
+    }
+
+    /// The single marshalling point for `SuggestionAvailabilityEvaluator.disabledReason`: every gate
+    /// in the input and prediction paths shares the same settings, permission, and per-domain inputs,
+    /// and varies only by which focus snapshot it is checking. Returns the user-facing disable reason,
+    /// or nil when predictions are allowed for `focusSnapshot`.
+    func currentDisabledReason(focusSnapshot: FocusSnapshot) -> String? {
+        SuggestionAvailabilityEvaluator.disabledReason(
+            globallyEnabled: settingsSnapshot.isGloballyEnabled,
+            disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
+            disabledDomains: PerDomainDisableSettings.disabledDomains(),
+            inputMonitoringGranted: permissionManager.inputMonitoringGranted,
+            screenRecordingGranted: permissionManager.screenRecordingGranted,
+            focusSnapshot: focusSnapshot
+        )
     }
 
     /// Fully disables prediction, clears cached context, and updates UI messaging with the cause.
