@@ -200,6 +200,21 @@ final class BundledRuntimeLocatorTests: XCTestCase {
         XCTAssertEqual(discovered, ["model.gguf"], "mmproj projector sidecars are not loadable models")
     }
 
+    func test_discoverGGUFModelURLs_skipsDirectoriesWithGGUFExtension() throws {
+        // A directory can legitimately carry a `.gguf` name; it is not a loadable model file.
+        let root = try makeTemporaryDirectory()
+        try FileManager.default.createDirectory(
+            at: root.appendingPathComponent("bundle.gguf", isDirectory: true),
+            withIntermediateDirectories: true
+        )
+        try writeFile(at: root, relativePath: "real.gguf")
+
+        let discovered = BundledRuntimeLocator.discoverGGUFModelURLs(in: root)
+            .map(\.lastPathComponent)
+
+        XCTAssertEqual(discovered, ["real.gguf"])
+    }
+
     func test_discoverGGUFModelURLs_respectsMaxDepth() throws {
         let root = try makeTemporaryDirectory()
         try writeFile(at: root, relativePath: "a/b/c/deep.gguf")

@@ -50,6 +50,12 @@ struct EngineAndModelPaneView: View {
         .onAppear {
             foundationModelAvailabilityService.refresh()
             lmStudioModelsURL = BundledRuntimeLocator.lmStudioModelsDirectoryIfAvailable()
+            // If LM Studio was uninstalled while the source was enabled, clear the persisted flag so
+            // the toggle does not sit checked-but-disabled with no way to turn it off (and so the
+            // source does not silently reactivate if LM Studio is later reinstalled).
+            if lmStudioModelsURL == nil, lmStudioSourceEnabled {
+                lmStudioSourceEnabled = false
+            }
         }
         .alert(
             "Delete Model?",

@@ -121,8 +121,15 @@ struct BundledRuntimeLocator {
                 enumerator.skipDescendants()
                 continue
             }
+            // A directory can carry a `.gguf` extension; only regular files are loadable models, and
+            // passing a directory path to the runtime would surface a confusing error instead of a
+            // clean "model missing".
+            guard (try? url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true
+            else { continue }
             guard url.pathExtension.caseInsensitiveCompare("gguf") == .orderedSame else { continue }
-            guard !url.lastPathComponent.lowercased().hasPrefix("mmproj") else { continue }
+            // LM Studio always names projector sidecars `mmproj-…`; the trailing dash avoids
+            // excluding a legitimately named model that merely starts with "mmproj".
+            guard !url.lastPathComponent.lowercased().hasPrefix("mmproj-") else { continue }
             results.append(url)
         }
         return results

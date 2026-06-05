@@ -293,6 +293,9 @@ final class ModelDownloadManager: ObservableObject {
             try await performSingleFileDownload(model, url: model.downloadURL)
 
             CotabbyLogger.models.info("Download complete for \(model.filename)")
+            // Keep the discovered-filename cache in step with the new file on disk so an immediate
+            // re-`download(_:)` of the same model is recognized as installed instead of re-fetched.
+            recomputeInstalledModelFilenames()
             modelStates[model.filename] = .downloaded
             onModelDirectoryChanged?()
         } catch {
