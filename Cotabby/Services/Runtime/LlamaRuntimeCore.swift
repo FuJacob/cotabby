@@ -234,7 +234,11 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
             // per-token vocabulary work: it only inspects the text already accumulated. The
             // classifier ignores decimals, abbreviations, and list markers, so it will not truncate
             // "e.g." or "3.14" mid-thought.
-            if DecodeStopPolicy.shouldStop(accumulated: generatedText, tokensGenerated: tokensGenerated) {
+            if DecodeStopPolicy.shouldStop(
+                accumulated: generatedText,
+                tokensGenerated: tokensGenerated,
+                minimumTokens: options.sentenceStopMinimumTokens
+            ) {
                 stopReason = "sentence_boundary"
                 break
             }
