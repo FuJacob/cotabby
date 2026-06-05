@@ -161,11 +161,10 @@ extension SuggestionCoordinator {
                 message: "Skipped generation because the current word looks misspelled."
             )
             return true
-        case let .correct(word, correctedWord, replacingLength):
+        case let .correct(word, correctedWord):
             presentCorrection(
                 typoWord: word,
                 correctedWord: correctedWord,
-                replacingLength: replacingLength,
                 rawContext: rawContext,
                 workID: workID
             )
@@ -174,13 +173,12 @@ extension SuggestionCoordinator {
     }
 
     /// Presents a native spell-checker correction as a replace-the-word suggestion, with no model
-    /// generation. The session carries `.correction(replacingLastWordOfLength:)` so the acceptance
+    /// generation. The session carries `.correction(typoWord:)` so the acceptance
     /// path swaps the typo for the fix, and the overlay renders green so the user can tell at a
     /// glance that accepting replaces their last word rather than extending it.
-    func presentCorrection(
+    private func presentCorrection(
         typoWord: String,
         correctedWord: String,
-        replacingLength: Int,
         rawContext: FocusedInputSnapshot,
         workID: UInt64
     ) {
@@ -191,7 +189,7 @@ extension SuggestionCoordinator {
             fullText: correctedWord,
             liveContext: liveContext,
             latency: 0,
-            kind: .correction(replacingLastWordOfLength: replacingLength)
+            kind: .correction(typoWord: typoWord)
         )
         applySessionDiagnostics(session, acceptanceAction: "Offered a correction for \"\(typoWord)\".")
         state = .ready(text: session.remainingText, latency: 0)

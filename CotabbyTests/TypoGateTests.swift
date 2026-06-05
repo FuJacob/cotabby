@@ -53,6 +53,6 @@ final class TypoGateTests: XCTestCase {
             typos: ["nmae"],
             corrections: ["nmae": "name"]
         )
-        XCTAssertEqual(decision, .correct(word: "nmae", correctedWord: "name", replacingLength: 4))
+        XCTAssertEqual(decision, .correct(word: "nmae", correctedWord: "name"))
     }
 }

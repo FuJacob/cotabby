@@ -12,8 +12,9 @@ enum TypoGateDecision: Equatable {
     /// continuation so completions never pile on top of a broken word, but show nothing.
     case suppress
     /// The current word looks misspelled and a correction is available. Offer it as a replace-the-word
-    /// suggestion. `replacingLength` is the grapheme count to delete from the live field on accept.
-    case correct(word: String, correctedWord: String, replacingLength: Int)
+    /// suggestion. `word` is the typo to replace; the accept path recomputes the delete length from
+    /// the live field rather than trusting a value captured here.
+    case correct(word: String, correctedWord: String)
 }
 
 enum TypoGate {
@@ -39,11 +40,7 @@ enum TypoGate {
             return .proceed
         }
         if offerTypoCorrections, let corrected = bestCorrection(current.word) {
-            return .correct(
-                word: current.word,
-                correctedWord: corrected,
-                replacingLength: current.characterCount
-            )
+            return .correct(word: current.word, correctedWord: corrected)
         }
         return .suppress
     }

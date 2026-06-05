@@ -22,10 +22,12 @@ final class CurrentWordSpellChecker {
 
     init() {
         documentTag = NSSpellChecker.uniqueSpellDocumentTag()
-        // We do not pin a language. The shared checker picks up the system language and, with this
-        // flag on, swaps as the user's text suggests a different one, which helps users who
-        // code-switch between languages mid-paragraph.
-        NSSpellChecker.shared.automaticallyIdentifiesLanguages = true
+        // We deliberately do not mutate `NSSpellChecker.shared` (e.g. forcing
+        // `automaticallyIdentifiesLanguages`): that flag is app-global shared state, and overriding
+        // it here would silently change behavior for any future text-checking context. We pass
+        // `language: nil` on every call instead, which respects the shared checker's existing
+        // language configuration (the user's system spelling preference, which already enables
+        // automatic-by-language detection by default on modern macOS).
     }
 
     /// Returns true when `NSSpellChecker` considers the entire word misspelled. We require the

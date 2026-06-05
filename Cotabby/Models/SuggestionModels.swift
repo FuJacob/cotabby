@@ -223,12 +223,14 @@ struct FocusedInputContext: Equatable, Sendable {
 
 /// Distinguishes a normal forward continuation from a typo-correction reply.
 ///
-/// `.correction(replacingLastWordOfLength:)` tells the acceptance path how many trailing characters
-/// of the host field to erase before inserting the corrected word, so a correction reuses the same
-/// session/overlay machinery as a plain continuation while committing as a whole-word replacement.
+/// `.correction(typoWord:)` carries the exact word the correction was offered for, so the acceptance
+/// path can confirm the live field still ends with that word before deleting it (guarding against a
+/// keystroke that slipped in between), then replace it with the corrected word. This lets a
+/// correction reuse the same session/overlay machinery as a plain continuation while committing as a
+/// whole-word replacement.
 enum SuggestionKind: Equatable, Sendable {
     case continuation
-    case correction(replacingLastWordOfLength: Int)
+    case correction(typoWord: String)
 
     var isCorrection: Bool {
         if case .correction = self {
@@ -357,9 +359,9 @@ struct ActiveSuggestionSession: Equatable, Sendable {
     let fullText: String
     let consumedCharacterCount: Int
     let latency: TimeInterval
-    /// `.continuation` for normal forward suggestions; `.correction(replacingLastWordOfLength:)` when
-    /// the session represents a typo fix. The acceptance path branches on this so corrections always
-    /// commit the whole word and replace the typo rather than appending forward text.
+    /// `.continuation` for normal forward suggestions; `.correction(typoWord:)` when the session
+    /// represents a typo fix. The acceptance path branches on this so corrections always commit the
+    /// whole word and replace the typo rather than appending forward text.
     let kind: SuggestionKind
 
     init(

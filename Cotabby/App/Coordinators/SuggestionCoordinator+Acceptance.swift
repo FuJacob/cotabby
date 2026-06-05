@@ -227,15 +227,21 @@ extension SuggestionCoordinator {
             return passTabThrough(reason: "Key passed through because the correction text was empty.")
         }
 
-        guard case let .correction(replacingLength) = session.kind,
+        // Confirm the live field still ends with the exact word we offered to correct. Comparing the
+        // word itself (not just its length) closes the window where a keystroke between the last AX
+        // poll and this Tab swapped in a different same-length word; if it diverged, pass the key
+        // through rather than delete the wrong text.
+        guard case let .correction(typoWord) = session.kind,
               let liveWord = CurrentWordExtractor.extract(from: rawContext.precedingText),
-              liveWord.characterCount == replacingLength else {
+              liveWord.word == typoWord else {
             return passTabThrough(reason: "Key passed through because the word to correct changed.")
         }
 
-        // One Delete keypress removes one user-perceived character, so the grapheme count of the live
-        // word is exactly the number of backspaces needed to erase it before typing the fix.
-        guard suggestionInserter.replace(deletingUTF16Count: liveWord.characterCount, with: correctedText) else {
+        // `replace` deletes by UTF-16 unit (its parameter name and the emoji path's contract). That
+        // equals the on-screen character count for the NFC text macOS Accessibility delivers, so the
+        // typo's UTF-16 length is the right number of backspaces.
+        let deletingUTF16Count = (typoWord as NSString).length
+        guard suggestionInserter.replace(deletingUTF16Count: deletingUTF16Count, with: correctedText) else {
             let message = suggestionInserter.lastErrorMessage ?? "Correction insertion failed."
             cancelPredictionWork()
             clearSuggestion(clearDiagnostics: true)
