@@ -64,6 +64,8 @@ struct SuggestionSettingsStore {
     private static let legacyShortPresetRawValue = "3-7"
     private static let clipboardContextEnabledDefaultsKey = "cotabbyClipboardContextEnabled"
     private static let fastModeEnabledDefaultsKey = "cotabbyFastModeEnabled"
+    private static let suppressCompletionsOnTypoDefaultsKey = "cotabbySuppressCompletionsOnTypo"
+    private static let offerTypoCorrectionsDefaultsKey = "cotabbyOfferTypoCorrections"
     private static let performanceTrackingEnabledDefaultsKey = "cotabbyPerformanceTrackingEnabled"
     private static let menuBarWordCountVisibleDefaultsKey = "cotabbyMenuBarWordCountVisible"
     private static let mirrorPreferenceDefaultsKey = "cotabbyMirrorPreference"
@@ -138,6 +140,13 @@ struct SuggestionSettingsStore {
         // into fast mode turns it off.
         let resolvedFastModeEnabled =
             userDefaults.object(forKey: Self.fastModeEnabledDefaultsKey) as? Bool ?? false
+        // Default both typo toggles to true: hiding a completion on a misspelled current word and
+        // offering a fix are the right out-of-box behavior. Existing users without a stored value
+        // get them on; the second is only effective when the first is on.
+        let resolvedSuppressCompletionsOnTypo =
+            userDefaults.object(forKey: Self.suppressCompletionsOnTypoDefaultsKey) as? Bool ?? true
+        let resolvedOfferTypoCorrections =
+            userDefaults.object(forKey: Self.offerTypoCorrectionsDefaultsKey) as? Bool ?? true
         // Defaults to false so the metrics ring buffer stays empty until the user explicitly opts
         // in from the Performance pane.
         let resolvedPerformanceTrackingEnabled =
@@ -267,6 +276,8 @@ struct SuggestionSettingsStore {
             selectedWordCountPreset: resolvedWordCountPreset,
             isClipboardContextEnabled: resolvedClipboardContextEnabled,
             isFastModeEnabled: resolvedFastModeEnabled,
+            suppressCompletionsOnTypo: resolvedSuppressCompletionsOnTypo,
+            offerTypoCorrections: resolvedOfferTypoCorrections,
             isPerformanceTrackingEnabled: resolvedPerformanceTrackingEnabled,
             isMenuBarWordCountVisible: resolvedMenuBarWordCountVisible,
             mirrorPreference: resolvedMirrorPreference,
@@ -305,6 +316,8 @@ struct SuggestionSettingsStore {
         saveSelectedWordCountPreset(data.selectedWordCountPreset)
         saveClipboardContextEnabled(data.isClipboardContextEnabled)
         saveFastModeEnabled(data.isFastModeEnabled)
+        saveSuppressCompletionsOnTypo(data.suppressCompletionsOnTypo)
+        saveOfferTypoCorrections(data.offerTypoCorrections)
         savePerformanceTrackingEnabled(data.isPerformanceTrackingEnabled)
         saveMenuBarWordCountVisible(data.isMenuBarWordCountVisible)
         saveMirrorPreference(data.mirrorPreference)
@@ -396,6 +409,14 @@ struct SuggestionSettingsStore {
 
     func saveFastModeEnabled(_ enabled: Bool) {
         userDefaults.set(enabled, forKey: Self.fastModeEnabledDefaultsKey)
+    }
+
+    func saveSuppressCompletionsOnTypo(_ enabled: Bool) {
+        userDefaults.set(enabled, forKey: Self.suppressCompletionsOnTypoDefaultsKey)
+    }
+
+    func saveOfferTypoCorrections(_ enabled: Bool) {
+        userDefaults.set(enabled, forKey: Self.offerTypoCorrectionsDefaultsKey)
     }
 
     func savePerformanceTrackingEnabled(_ enabled: Bool) {

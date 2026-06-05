@@ -43,27 +43,16 @@ extension SuggestionCoordinator {
         // would let the key fall through even though the user sees ghost text they can still
         // accept. `validateSessionForAcceptance` still rejects the accept if the session no longer
         // reconciles with the live AX state.
-        guard interactionState.activeSession != nil else {
-            // A final-chunk accept tears the session down and regenerates the continuation
-            // asynchronously (see the `.exhausted` branch below). While that regen is in flight we
-            // keep owning Tab instead of leaking it into the host app as a real Tab. Swallow the
-            // press and remember it: the continuation that lands next accepts its first word, so
-            // rapid Tabbing keeps inserting words across the exhaustion boundary instead of jumping
-            // focus out of the field.
-            if isPostExhaustionAcceptanceArmed {
-                hasQueuedPostExhaustionAccept = true
-                logStage(
-                    "\(keyName)-held-for-regen",
-                    workID: currentWorkID,
-                    generation: latestGenerationNumber,
-                    message: "Held a rapid \(keyName) during post-acceptance regeneration; "
-                        + "the next continuation will accept its first word."
-                )
-                return true
-            }
-            return passTabThrough(
-                reason: "Key passed through because no valid suggestion was ready."
-            )
+        guard let activeSession = interactionState.activeSession else {
+            return handleAcceptWithoutActiveSession(keyName: keyName)
+        }
+
+        // Corrections commit as a unit: Tab and the full-accept key both swap the typo'd word for
+        // the corrected one in one gesture. Partial acceptance would be incoherent because the
+        // corrected word and the typo can disagree on prefix length, so route to a dedicated path
+        // before the continuation preparation below.
+        if activeSession.kind.isCorrection {
+            return acceptCorrection(session: activeSession, keyName: keyName, rawContext: rawContext)
         }
 
         // `acceptEntireSuggestion` forces the full-acceptance path so the dedicated full-accept key
@@ -194,6 +183,92 @@ extension SuggestionCoordinator {
             )
             return true
         }
+    }
+
+    /// Handles the accept key when no buffered session exists. During the brief post-exhaustion
+    /// regeneration window we keep owning the key and queue the press so rapid Tabbing keeps
+    /// inserting words across the exhaustion boundary; otherwise the key passes through to the host.
+    /// Extracted from `acceptSuggestion` to keep that function within the complexity budget.
+    private func handleAcceptWithoutActiveSession(keyName: String) -> Bool {
+        // A final-chunk accept tears the session down and regenerates the continuation
+        // asynchronously (see the `.exhausted` branch). While that regen is in flight we keep owning
+        // Tab instead of leaking it into the host app as a real Tab.
+        if isPostExhaustionAcceptanceArmed {
+            hasQueuedPostExhaustionAccept = true
+            logStage(
+                "\(keyName)-held-for-regen",
+                workID: currentWorkID,
+                generation: latestGenerationNumber,
+                message: "Held a rapid \(keyName) during post-acceptance regeneration; "
+                    + "the next continuation will accept its first word."
+            )
+            return true
+        }
+        return passTabThrough(
+            reason: "Key passed through because no valid suggestion was ready."
+        )
+    }
+
+    /// Commits a native correction by replacing the trailing typo with the corrected word in one
+    /// suppressed synthetic burst (backspaces + insert). Returns true so the active accept tap
+    /// consumes the key; false routes the key back to the host via `passTabThrough`.
+    ///
+    /// The delete length is recomputed from the LIVE current word, not the value captured when the
+    /// correction was offered, so a keystroke that slipped in between can never make us delete the
+    /// wrong number of characters: if the live word no longer matches what we offered to fix, we
+    /// pass the key through instead of guessing.
+    private func acceptCorrection(
+        session: ActiveSuggestionSession,
+        keyName: String,
+        rawContext: FocusedInputSnapshot
+    ) -> Bool {
+        let correctedText = session.fullText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !correctedText.isEmpty else {
+            return passTabThrough(reason: "Key passed through because the correction text was empty.")
+        }
+
+        guard case let .correction(replacingLength) = session.kind,
+              let liveWord = CurrentWordExtractor.extract(from: rawContext.precedingText),
+              liveWord.characterCount == replacingLength else {
+            return passTabThrough(reason: "Key passed through because the word to correct changed.")
+        }
+
+        // One Delete keypress removes one user-perceived character, so the grapheme count of the live
+        // word is exactly the number of backspaces needed to erase it before typing the fix.
+        guard suggestionInserter.replace(deletingUTF16Count: liveWord.characterCount, with: correctedText) else {
+            let message = suggestionInserter.lastErrorMessage ?? "Correction insertion failed."
+            cancelPredictionWork()
+            clearSuggestion(clearDiagnostics: true)
+            hideOverlay(reason: "Overlay hidden because correction insertion failed.")
+            state = .idle
+            logStage(
+                "correction-insert-failed",
+                workID: currentWorkID,
+                generation: session.baseContext.generation,
+                message: message,
+                normalizedOutput: correctedText
+            )
+            return false
+        }
+
+        recordAcceptedWords(from: correctedText)
+        cancelPredictionWork()
+        latestGenerationNumber = session.baseContext.generation
+        clearSuggestion(clearDiagnostics: false)
+        hideOverlay(reason: "Overlay hidden because \(keyName) accepted a typo correction.")
+        latestAcceptanceAction = "Accepted typo correction with \(keyName)."
+        state = .idle
+        logStage(
+            "\(keyName)-accepted-correction",
+            workID: currentWorkID,
+            generation: session.baseContext.generation,
+            message: "Replaced the user's last word with the corrected version.",
+            normalizedOutput: correctedText
+        )
+        // Re-arm prediction so the next keystroke can produce a fresh continuation now that the typo
+        // is gone — the user usually keeps typing right after accepting.
+        schedulePrediction()
+        return true
     }
 
     /// Returns control of the accept key to the host app and clears stale suggestion UI.
@@ -484,7 +559,8 @@ extension SuggestionCoordinator {
         text: String,
         at caretRect: CGRect,
         context: FocusedInputContext,
-        isRightToLeft: Bool = false
+        isRightToLeft: Bool = false,
+        isCorrection: Bool = false
     ) {
         let geometry = SuggestionOverlayGeometry(
             caretRect: caretRect,
@@ -493,7 +569,8 @@ extension SuggestionCoordinator {
             observedCharWidth: context.observedCharWidth,
             isRightToLeft: isRightToLeft,
             focusChangeSequence: context.focusChangeSequence,
-            focusedInputIdentityKey: context.focusedInputIdentityKey
+            focusedInputIdentityKey: context.focusedInputIdentityKey,
+            isCorrection: isCorrection
         )
         if let message = overlayPresenter.present(
             text: text,

@@ -50,6 +50,10 @@ final class SuggestionCoordinator: ObservableObject {
     let userDefaults: UserDefaults
     let overlayPresenter: SuggestionOverlayPresenter
     let logger: SuggestionDebugLogger
+    /// Drives the typo gate before each prediction. Owned at app scope (constructed once in
+    /// `CotabbyAppEnvironment`) so the underlying `NSSpellChecker` document tag persists across the
+    /// coordinator's lifetime instead of churning per keystroke.
+    let spellChecker: CurrentWordSpellChecker
 
     /// Optional first-look hook the emoji picker installs to observe the keystroke stream. Called at
     /// the very top of `handleInputEvent`, before any suggestion logic. Returns `true` when an emoji
@@ -121,6 +125,7 @@ final class SuggestionCoordinator: ObservableObject {
         interactionState: SuggestionInteractionState,
         workController: SuggestionWorkController,
         configuration: SuggestionConfiguration,
+        spellChecker: CurrentWordSpellChecker,
         userDefaults: UserDefaults = .standard
     ) {
         let storedTotalTabAcceptedWordCount = userDefaults.integer(
@@ -139,6 +144,7 @@ final class SuggestionCoordinator: ObservableObject {
         self.interactionState = interactionState
         self.workController = workController
         self.configuration = configuration
+        self.spellChecker = spellChecker
         self.userDefaults = userDefaults
         settingsSnapshot = suggestionSettings.snapshot
         // These collaborators isolate "how overlay/logging works" from "when the coordinator
