@@ -22,7 +22,7 @@ struct SettingsContainerView: View {
     @ObservedObject var performanceMetricsStore: PerformanceMetricsStore
     @ObservedObject var systemMetricsStore: SystemMetricsStore
 
-    /// Live router used by the Advanced pane's "try it" playground so users can see the effect of
+    /// Live router used by the Context pane's "try it" playground so users can see the effect of
     /// Extended Context (and other prompt inputs) without leaving Settings. Threaded through the
     /// container rather than constructed locally so the playground reuses the same router the
     /// autocomplete pipeline uses.
@@ -98,7 +98,13 @@ struct SettingsContainerView: View {
         case .general:
             GeneralPaneView(
                 suggestionSettings: suggestionSettings,
-                onShowWelcome: onShowWelcome,
+                onShowWelcome: onShowWelcome
+            )
+        case .appearance:
+            AppearancePaneView(suggestionSettings: suggestionSettings)
+        case .emoji:
+            EmojiPaneView(
+                suggestionSettings: suggestionSettings,
                 clearEmojiHistory: clearEmojiHistory
             )
         case .engineAndModel:
@@ -111,8 +117,8 @@ struct SettingsContainerView: View {
             )
         case .writing:
             WritingPaneView(suggestionSettings: suggestionSettings)
-        case .advanced:
-            AdvancedPaneView(
+        case .context:
+            ContextPaneView(
                 suggestionSettings: suggestionSettings,
                 suggestionEngine: suggestionEngine,
                 configuration: configuration
@@ -141,6 +147,10 @@ struct SettingsContainerView: View {
         // Legacy sub-row raw values from the prior nested layout.
         if rawValue == "appleIntelligence" || rawValue == "openSource" {
             return .engineAndModel
+        }
+        // The Advanced pane was renamed to Context; keep returning users on the same pane.
+        if rawValue == "advanced" {
+            return .context
         }
         return .general
     }

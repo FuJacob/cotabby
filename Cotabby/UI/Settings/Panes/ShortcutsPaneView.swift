@@ -51,7 +51,8 @@ struct ShortcutsPaneView: View {
                 } label: {
                     SettingsRowLabel(
                         title: "Accept Word",
-                        description: "Insert the next word of the suggestion."
+                        description: "Insert the next word of the suggestion.",
+                        systemImage: "arrow.right.to.line"
                     )
                 }
 
@@ -89,7 +90,8 @@ struct ShortcutsPaneView: View {
                 } label: {
                     SettingsRowLabel(
                         title: "Accept Entire Suggestion",
-                        description: "Insert the whole remaining suggestion in one keystroke."
+                        description: "Insert the whole remaining suggestion in one keystroke.",
+                        systemImage: "text.insert"
                     )
                 }
 
@@ -124,7 +126,8 @@ struct ShortcutsPaneView: View {
                 } label: {
                     SettingsRowLabel(
                         title: "Toggle Tabby",
-                        description: "Turn Cotabby on or off globally without opening the menu bar."
+                        description: "Turn Cotabby on or off globally without opening the menu bar.",
+                        systemImage: "power.circle"
                     )
                 }
             }
