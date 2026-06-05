@@ -47,10 +47,16 @@ Everything runs on-device. No hosted API, no cloud round-trip.
   <a href="https://www.youtube.com/watch?v=p3TIgxQFQGE"><strong>Watch on YouTube →</strong></a>
 </p>
 
-<p align="center">
-  <img src="gifs/slack.gif" alt="Cotabby emoji autocomplete demo" width="700" height="240" style="margin-right:12px;" />
-  <img src="gifs/imessage.gif" alt="Cotabby autocomplete demo" width="700" height="240" />
-</p>
+<table align="center">
+  <tr>
+    <td><img src="gifs/slack.gif" alt="Cotabby emoji autocomplete demo" width="460" height="260" /></td>
+    <td><img src="gifs/imessage.gif" alt="Cotabby autocomplete demo" width="460" height="260" /></td>
+  </tr>
+  <tr>
+    <td><img src="gifs/autocorrect.gif" alt="Cotabby autocorrect demo" width="460" height="260" /></td>
+    <td><img src="gifs/macros.gif" alt="Cotabby inline macros demo" width="460" height="260" /></td>
+  </tr>
+</table>
 
 ## Features
 
