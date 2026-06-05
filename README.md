@@ -137,4 +137,4 @@ Originally created by <a href="https://github.com/FuJacob">@FuJacob</a>, now dev
 
 Cotabby is licensed under the [GNU Affero General Public License v3.0](LICENSE). You can use, study, modify, and redistribute the app, but if you distribute a modified version or make one available to users over a network, you must provide the corresponding source code under the same license.
 
-Third-party dependencies, emoji data, and downloadable model weights keep their own licenses and usage terms.
+Third-party dependencies, emoji data, and downloadable model weights keep their own licenses and usage terms. Bundled third-party notices (SymSpell and the autocorrect frequency dictionary) are reproduced in [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).

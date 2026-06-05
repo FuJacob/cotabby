@@ -59,6 +59,13 @@ struct AcknowledgementsView: View {
             url: "https://github.com/apple/swift-log"
         ),
         AcknowledgementEntry(
+            name: "SymSpell",
+            summary: "Symmetric-delete spelling correction (MIT, by Wolf Garbe), ported to Swift for "
+                + "inline autocorrect. Its bundled frequency dictionary derives from Google Books "
+                + "Ngram data (CC BY 3.0) and SCOWL. See THIRD_PARTY_LICENSES.md for the notices.",
+            url: "https://github.com/wolfgarbe/SymSpell"
+        ),
+        AcknowledgementEntry(
             name: "CotabbyInference",
             summary: "Swift wrapper around llama.cpp that exposes the inference API Cotabby links against.",
             url: "https://github.com/FuJacob/cotabbyinference"
