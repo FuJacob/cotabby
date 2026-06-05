@@ -19,6 +19,12 @@ struct SuggestionSettingsData: Equatable {
     var ghostTextOpacity: Double
     var selectedEngine: SuggestionEngineKind
     var selectedWordCountPreset: SuggestionWordCountPreset
+    /// When true, generation uses `customWordCountLowWords...customWordCountHighWords` instead of
+    /// the preset above. Stored alongside the preset (not replacing it) so toggling back from Custom
+    /// restores the user's previous preset choice without having to remember it.
+    var isUsingCustomWordCountRange: Bool
+    var customWordCountLowWords: Int
+    var customWordCountHighWords: Int
     var isClipboardContextEnabled: Bool
     var isFastModeEnabled: Bool
     var isPerformanceTrackingEnabled: Bool

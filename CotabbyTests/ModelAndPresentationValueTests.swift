@@ -39,17 +39,49 @@ final class SuggestionTextColorCodecTests: XCTestCase {
 
 final class SuggestionModelValueTests: XCTestCase {
     func test_wordCountPresetsExposeMatchingPromptInstructionsAndTokenBudgets() {
+        // Budgets are now derived from upper word count * fallback (English) tokens-per-word, rounded
+        // up. Per-language scaling lives in SuggestionRequestFactory and is exercised separately.
         XCTAssertEqual(SuggestionWordCountPreset.twoToFour.promptInstruction, "Return only the next 2 to 4 words.")
-        XCTAssertEqual(SuggestionWordCountPreset.twoToFour.suggestedPredictionTokenBudget, 5)
+        XCTAssertEqual(SuggestionWordCountPreset.twoToFour.suggestedPredictionTokenBudget, 6)
 
         XCTAssertEqual(SuggestionWordCountPreset.fourToSeven.promptInstruction, "Return only the next 4 to 7 words.")
-        XCTAssertEqual(SuggestionWordCountPreset.fourToSeven.suggestedPredictionTokenBudget, 9)
+        XCTAssertEqual(SuggestionWordCountPreset.fourToSeven.suggestedPredictionTokenBudget, 10)
 
         XCTAssertEqual(SuggestionWordCountPreset.sevenToTwelve.promptInstruction, "Return only the next 7 to 12 words.")
-        XCTAssertEqual(SuggestionWordCountPreset.sevenToTwelve.suggestedPredictionTokenBudget, 15)
+        XCTAssertEqual(SuggestionWordCountPreset.sevenToTwelve.suggestedPredictionTokenBudget, 16)
 
         XCTAssertEqual(SuggestionWordCountPreset.twelveToTwenty.promptInstruction, "Return only the next 12 to 20 words.")
-        XCTAssertEqual(SuggestionWordCountPreset.twelveToTwenty.suggestedPredictionTokenBudget, 25)
+        XCTAssertEqual(SuggestionWordCountPreset.twelveToTwenty.suggestedPredictionTokenBudget, 26)
+    }
+
+    func test_languageCatalog_effectiveTokensPerWord_fallsBackToEnglishForMultiOrUnknown() {
+        XCTAssertEqual(LanguageCatalog.effectiveTokensPerWord(for: []), LanguageCatalog.fallbackTokensPerWord)
+        XCTAssertEqual(LanguageCatalog.effectiveTokensPerWord(for: ["German"]), 1.7)
+        XCTAssertEqual(LanguageCatalog.effectiveTokensPerWord(for: ["english"]), 1.3)
+        // Multi-language users get the safe English ratio so we don't have to guess which one wins.
+        XCTAssertEqual(
+            LanguageCatalog.effectiveTokensPerWord(for: ["German", "Spanish"]),
+            LanguageCatalog.fallbackTokensPerWord
+        )
+        // Free-text languages we don't have factors for also fall back, instead of crashing or zero.
+        XCTAssertEqual(
+            LanguageCatalog.effectiveTokensPerWord(for: ["Klingon"]),
+            LanguageCatalog.fallbackTokensPerWord
+        )
+    }
+
+    func test_suggestionWordRange_clampedKeepsLowBelowHighAndWithinBounds() {
+        let inverted = SuggestionWordRange.clamped(low: 12, high: 3)
+        XCTAssertEqual(inverted.lowWords, 12)
+        XCTAssertEqual(inverted.highWords, 12)
+
+        let belowFloor = SuggestionWordRange.clamped(low: 0, high: 4)
+        XCTAssertEqual(belowFloor.lowWords, SuggestionWordRange.minimumWord)
+        XCTAssertEqual(belowFloor.highWords, 4)
+
+        let aboveCeiling = SuggestionWordRange.clamped(low: 10, high: 9999)
+        XCTAssertEqual(aboveCeiling.lowWords, 10)
+        XCTAssertEqual(aboveCeiling.highWords, SuggestionWordRange.maximumWord)
     }
 
     func test_activeSuggestionSession_clampsConsumedCountAndSlicesByCharacters() {

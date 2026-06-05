@@ -10,16 +10,42 @@ struct WritingPaneView: View {
     var body: some View {
         SettingsPaneScaffold {
             Section("Length") {
-                Picker(selection: selectedWordCountPresetBinding) {
+                Picker(selection: lengthChoiceBinding) {
                     ForEach(SuggestionWordCountPreset.allCases) { preset in
-                        Text(preset.displayLabel).tag(preset)
+                        Text(preset.displayLabel).tag(LengthChoice.preset(preset))
                     }
+                    Text("Custom range…").tag(LengthChoice.custom)
                 } label: {
                     SettingsRowLabel(
                         title: "Length",
                         description: "How many words Cotabby aims for per suggestion. Shorter is snappier; " +
                             "longer covers more thoughts but takes longer to generate."
                     )
+                }
+
+                // Two steppers appear only while Custom is active so the curated picker stays the
+                // common path. `customRangeChanged` re-routes through `setCustomWordCountRange` so
+                // the values are clamped and high stays >= low even if the user spams Down on high.
+                if suggestionSettings.isUsingCustomWordCountRange {
+                    HStack(spacing: 16) {
+                        Stepper(
+                            value: customLowBinding,
+                            in: SuggestionWordRange.minimumWord...SuggestionWordRange.maximumWord
+                        ) {
+                            Text("Min: \(suggestionSettings.customWordCountLowWords)")
+                        }
+                        Stepper(
+                            value: customHighBinding,
+                            in: SuggestionWordRange.minimumWord...SuggestionWordRange.maximumWord
+                        ) {
+                            Text("Max: \(suggestionSettings.customWordCountHighWords)")
+                        }
+                    }
+                    Text("Token budget scales by your selected language. Multiple languages or a " +
+                        "language Cotabby doesn't recognize use the English ratio.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
 
@@ -71,6 +97,54 @@ struct WritingPaneView: View {
         Binding(
             get: { suggestionSettings.selectedWordCountPreset },
             set: { suggestionSettings.selectWordCountPreset($0) }
+        )
+    }
+
+    private enum LengthChoice: Hashable {
+        case preset(SuggestionWordCountPreset)
+        case custom
+    }
+
+    private var lengthChoiceBinding: Binding<LengthChoice> {
+        Binding(
+            get: {
+                suggestionSettings.isUsingCustomWordCountRange
+                    ? .custom
+                    : .preset(suggestionSettings.selectedWordCountPreset)
+            },
+            set: { choice in
+                switch choice {
+                case let .preset(preset):
+                    suggestionSettings.setUsingCustomWordCountRange(false)
+                    suggestionSettings.selectWordCountPreset(preset)
+                case .custom:
+                    suggestionSettings.setUsingCustomWordCountRange(true)
+                }
+            }
+        )
+    }
+
+    private var customLowBinding: Binding<Int> {
+        Binding(
+            get: { suggestionSettings.customWordCountLowWords },
+            set: { newLow in
+                suggestionSettings.setCustomWordCountRange(
+                    low: newLow,
+                    high: suggestionSettings.customWordCountHighWords
+                )
+            }
+        )
+    }
+
+    private var customHighBinding: Binding<Int> {
+        Binding(
+            get: { suggestionSettings.customWordCountHighWords },
+            set: { newHigh in
+                suggestionSettings.setCustomWordCountRange(
+                    low: suggestionSettings.customWordCountLowWords,
+                    high: newHigh
+                )
+            }
         )
     }
 }

@@ -59,6 +59,14 @@ struct SuggestionSettingsStore {
     private static let ghostTextOpacityDefaultsKey = "cotabbyGhostTextOpacity"
     private static let selectedEngineDefaultsKey = "cotabbySelectedEngine"
     private static let selectedWordCountPresetDefaultsKey = "cotabbySelectedWordCountPreset"
+    private static let usingCustomWordCountRangeDefaultsKey = "cotabbyUsingCustomWordCountRange"
+    private static let customWordCountLowWordsDefaultsKey = "cotabbyCustomWordCountLowWords"
+    private static let customWordCountHighWordsDefaultsKey = "cotabbyCustomWordCountHighWords"
+    /// First-launch defaults for the custom-range fields when the user has never opened the editor.
+    /// Sized around the everyday preset so flipping Custom on is immediately usable rather than
+    /// landing on an arbitrary 1-1 range.
+    static let defaultCustomWordCountLowWords: Int = 5
+    static let defaultCustomWordCountHighWords: Int = 15
     /// Pre-#475 raw value for the shortest length tier. Kept here only so the read path can
     /// rewrite it to `.fourToSeven` on launch; never re-emitted to UserDefaults.
     private static let legacyShortPresetRawValue = "3-7"
@@ -132,6 +140,14 @@ struct SuggestionSettingsStore {
             return storedRaw.flatMap(SuggestionWordCountPreset.init(rawValue:))
                 ?? configuration.defaultWordCountPreset
         }()
+        let resolvedUsingCustomWordCountRange =
+            userDefaults.object(forKey: Self.usingCustomWordCountRangeDefaultsKey) as? Bool ?? false
+        let resolvedCustomRange: SuggestionWordRange = SuggestionWordRange.clamped(
+            low: userDefaults.object(forKey: Self.customWordCountLowWordsDefaultsKey) as? Int
+                ?? Self.defaultCustomWordCountLowWords,
+            high: userDefaults.object(forKey: Self.customWordCountHighWordsDefaultsKey) as? Int
+                ?? Self.defaultCustomWordCountHighWords
+        )
         let resolvedClipboardContextEnabled =
             userDefaults.object(forKey: Self.clipboardContextEnabledDefaultsKey) as? Bool ?? false
         // Defaults to false so the visual-context pipeline keeps running for existing users; opting
@@ -265,6 +281,9 @@ struct SuggestionSettingsStore {
             ghostTextOpacity: resolvedGhostTextOpacity,
             selectedEngine: resolvedEngine,
             selectedWordCountPreset: resolvedWordCountPreset,
+            isUsingCustomWordCountRange: resolvedUsingCustomWordCountRange,
+            customWordCountLowWords: resolvedCustomRange.lowWords,
+            customWordCountHighWords: resolvedCustomRange.highWords,
             isClipboardContextEnabled: resolvedClipboardContextEnabled,
             isFastModeEnabled: resolvedFastModeEnabled,
             isPerformanceTrackingEnabled: resolvedPerformanceTrackingEnabled,
@@ -303,6 +322,8 @@ struct SuggestionSettingsStore {
         saveGhostTextOpacity(data.ghostTextOpacity)
         saveSelectedEngine(data.selectedEngine)
         saveSelectedWordCountPreset(data.selectedWordCountPreset)
+        saveUsingCustomWordCountRange(data.isUsingCustomWordCountRange)
+        saveCustomWordCountRange(low: data.customWordCountLowWords, high: data.customWordCountHighWords)
         saveClipboardContextEnabled(data.isClipboardContextEnabled)
         saveFastModeEnabled(data.isFastModeEnabled)
         savePerformanceTrackingEnabled(data.isPerformanceTrackingEnabled)
@@ -388,6 +409,16 @@ struct SuggestionSettingsStore {
 
     func saveSelectedWordCountPreset(_ preset: SuggestionWordCountPreset) {
         userDefaults.set(preset.rawValue, forKey: Self.selectedWordCountPresetDefaultsKey)
+    }
+
+    func saveUsingCustomWordCountRange(_ enabled: Bool) {
+        userDefaults.set(enabled, forKey: Self.usingCustomWordCountRangeDefaultsKey)
+    }
+
+    func saveCustomWordCountRange(low: Int, high: Int) {
+        let normalized = SuggestionWordRange.clamped(low: low, high: high)
+        userDefaults.set(normalized.lowWords, forKey: Self.customWordCountLowWordsDefaultsKey)
+        userDefaults.set(normalized.highWords, forKey: Self.customWordCountHighWordsDefaultsKey)
     }
 
     func saveClipboardContextEnabled(_ enabled: Bool) {

@@ -62,6 +62,10 @@ struct SuggestionSettingsSnapshot: Equatable, Sendable {
     let disabledAppBundleIdentifiers: Set<String>
     let selectedEngine: SuggestionEngineKind
     let selectedWordCountPreset: SuggestionWordCountPreset
+    /// When true, the generation pipeline uses `customWordCountRange` for the length budget and
+    /// prompt cue; otherwise it falls back to `selectedWordCountPreset.range`.
+    let isUsingCustomWordCountRange: Bool
+    let customWordCountRange: SuggestionWordRange
     let isClipboardContextEnabled: Bool
     /// User-authored profile data for Cotabby's base-model completion prompt.
     /// This travels in the snapshot so generation uses the same value the Settings UI shows.
@@ -93,4 +97,12 @@ struct SuggestionSettingsSnapshot: Equatable, Sendable {
     /// How much of the buffered suggestion the primary accept key takes per press. Read once per
     /// accept call so a mid-press setting change can't strand a partially-handled press.
     let acceptanceGranularity: AcceptanceGranularity
+
+    /// Single chokepoint that picks between the preset's range and the user's custom range.
+    /// Every downstream consumer (token-budget math, prompt-instruction text, UI labels in the
+    /// playground) should read this rather than poking the preset directly so the custom-range
+    /// toggle stays load-bearing.
+    var effectiveWordRange: SuggestionWordRange {
+        isUsingCustomWordCountRange ? customWordCountRange : selectedWordCountPreset.range
+    }
 }

@@ -42,6 +42,12 @@ final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var ghostTextOpacity: Double
     @Published private(set) var selectedEngine: SuggestionEngineKind
     @Published private(set) var selectedWordCountPreset: SuggestionWordCountPreset
+    /// When true, the active length budget reads `customWordCountLowWords...HighWords` and the
+    /// curated `selectedWordCountPreset` is ignored for generation (but preserved as the value the
+    /// picker snaps back to if the user turns Custom off again).
+    @Published private(set) var isUsingCustomWordCountRange: Bool
+    @Published private(set) var customWordCountLowWords: Int
+    @Published private(set) var customWordCountHighWords: Int
     @Published private(set) var isClipboardContextEnabled: Bool
     @Published private(set) var isFastModeEnabled: Bool
     /// Whether the Performance pane is recording per-request latency. Defaults to false so the
@@ -117,6 +123,9 @@ final class SuggestionSettingsModel: ObservableObject {
         ghostTextOpacity = data.ghostTextOpacity
         selectedEngine = data.selectedEngine
         selectedWordCountPreset = data.selectedWordCountPreset
+        isUsingCustomWordCountRange = data.isUsingCustomWordCountRange
+        customWordCountLowWords = data.customWordCountLowWords
+        customWordCountHighWords = data.customWordCountHighWords
         isClipboardContextEnabled = data.isClipboardContextEnabled
         isFastModeEnabled = data.isFastModeEnabled
         isPerformanceTrackingEnabled = data.isPerformanceTrackingEnabled
@@ -156,6 +165,11 @@ final class SuggestionSettingsModel: ObservableObject {
             disabledAppBundleIdentifiers: Set(disabledAppRules.map(\.bundleIdentifier)),
             selectedEngine: selectedEngine,
             selectedWordCountPreset: selectedWordCountPreset,
+            isUsingCustomWordCountRange: isUsingCustomWordCountRange,
+            customWordCountRange: SuggestionWordRange.clamped(
+                low: customWordCountLowWords,
+                high: customWordCountHighWords
+            ),
             isClipboardContextEnabled: isClipboardContextEnabled,
             userName: userName,
             customRules: customRules,
@@ -187,6 +201,30 @@ final class SuggestionSettingsModel: ObservableObject {
 
         selectedWordCountPreset = preset
         store.saveSelectedWordCountPreset(preset)
+    }
+
+    /// Switches the active length budget between the curated preset and the user's custom range
+    /// without overwriting either of the stored values, so flipping back and forth is idempotent.
+    func setUsingCustomWordCountRange(_ enabled: Bool) {
+        guard isUsingCustomWordCountRange != enabled else {
+            return
+        }
+        isUsingCustomWordCountRange = enabled
+        store.saveUsingCustomWordCountRange(enabled)
+    }
+
+    /// All custom-range mutations funnel through here so storage stays clamped to
+    /// `[SuggestionWordRange.minimumWord, SuggestionWordRange.maximumWord]` with low <= high.
+    func setCustomWordCountRange(low: Int, high: Int) {
+        let normalized = SuggestionWordRange.clamped(low: low, high: high)
+        guard customWordCountLowWords != normalized.lowWords
+            || customWordCountHighWords != normalized.highWords
+        else {
+            return
+        }
+        customWordCountLowWords = normalized.lowWords
+        customWordCountHighWords = normalized.highWords
+        store.saveCustomWordCountRange(low: normalized.lowWords, high: normalized.highWords)
     }
 
     func setClipboardContextEnabled(_ enabled: Bool) {
@@ -660,19 +698,28 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
         )
         // The outer CombineLatest stack is already at Combine's per-operator cap, so each new
         // top-level setting gets layered above via another `CombineLatest`. `extendedContext` joins
-        // alongside `acceptanceGranularity` here for the same reason.
-        return Publishers.CombineLatest3(primary, $acceptanceGranularity, $extendedContext)
-            .map { primaryTuple, granularity, extendedContext in
+        // alongside `acceptanceGranularity` here for the same reason. The three custom-range fields
+        // travel together as a single tuple so they only cost one slot in this outer layer.
+        let customRange = Publishers.CombineLatest3(
+            $isUsingCustomWordCountRange,
+            $customWordCountLowWords,
+            $customWordCountHighWords
+        )
+        return Publishers.CombineLatest4(primary, $acceptanceGranularity, $extendedContext, customRange)
+            .map { primaryTuple, granularity, extendedContext, customRangeTuple in
                 let (combinedSettings, presentationToggles, profile, timing) = primaryTuple
                 let (globallyEnabled, disabledAppRules, engine, wordCountPreset) = combinedSettings
                 let (clipboardContextEnabled, fastModeEnabled, mirrorPreference) = presentationToggles
                 let (userName, customRules, responseLanguages) = profile
                 let (debounce, focusPoll, multiLine, autoAcceptPunctuation) = timing
+                let (isCustomActive, customLow, customHigh) = customRangeTuple
                 return SuggestionSettingsSnapshot(
                     isGloballyEnabled: globallyEnabled,
                     disabledAppBundleIdentifiers: Set(disabledAppRules.map(\.bundleIdentifier)),
                     selectedEngine: engine,
                     selectedWordCountPreset: wordCountPreset,
+                    isUsingCustomWordCountRange: isCustomActive,
+                    customWordCountRange: SuggestionWordRange.clamped(low: customLow, high: customHigh),
                     isClipboardContextEnabled: clipboardContextEnabled,
                     userName: userName,
                     customRules: customRules,
