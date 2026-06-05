@@ -34,6 +34,8 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     case length
     case name
     case languages
+    case hideSuggestionsOnTypo
+    case offerTypoCorrections
     // Context
     case extendedContext
     case contextLivePreview
@@ -86,6 +88,8 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .length: return "Length"
         case .name: return "Name"
         case .languages: return "Languages"
+        case .hideSuggestionsOnTypo: return "Hide Suggestions on Typo"
+        case .offerTypoCorrections: return "Offer Corrections on Typo"
         case .extendedContext: return "Extended Context"
         case .contextLivePreview: return "Live Preview"
         case .engine: return "Engine"
@@ -131,6 +135,8 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .length: return "ruler"
         case .name: return "person"
         case .languages: return "globe"
+        case .hideSuggestionsOnTypo: return "eye.slash"
+        case .offerTypoCorrections: return "checkmark.bubble"
         case .extendedContext: return "doc.text"
         case .contextLivePreview: return "text.cursor"
         case .engine: return "cpu"
@@ -163,7 +169,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
             return .appearance
         case .emojiPicker, .emojiSkinTone, .emojiPeopleStyle, .emojiHistory:
             return .emoji
-        case .length, .name, .languages:
+        case .length, .name, .languages, .hideSuggestionsOnTypo, .offerTypoCorrections:
             return .writing
         case .extendedContext, .contextLivePreview:
             return .context
@@ -206,6 +212,8 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .length: return ["length", "words", "short", "long", "count", "verbose"]
         case .name: return ["name", "persona", "profile", "you"]
         case .languages: return ["language", "locale", "translate", "multilingual"]
+        case .hideSuggestionsOnTypo: return ["typo", "misspell", "spelling", "hide", "suppress", "correction"]
+        case .offerTypoCorrections: return ["typo", "correct", "correction", "fix", "spelling", "autocorrect"]
         case .extendedContext: return ["context", "glossary", "reference", "notes", "jargon"]
         case .contextLivePreview: return ["live", "preview", "test", "ghost", "try", "playground"]
         case .engine: return ["engine", "apple intelligence", "open source", "llama", "backend"]
