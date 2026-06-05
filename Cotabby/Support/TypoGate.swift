@@ -33,7 +33,9 @@ enum TypoGate {
         guard suppressCompletionsOnTypo else {
             return .proceed
         }
-        guard let current = CurrentWordExtractor.extract(from: precedingText) else {
+        // Tolerate one trailing space so a just-finished word (the user typed it and pressed space)
+        // is still offered a correction instead of the offer vanishing the moment space is pressed.
+        guard let current = CurrentWordExtractor.extractTrailingWord(from: precedingText)?.result else {
             return .proceed
         }
         guard isTypo(current.word) else {

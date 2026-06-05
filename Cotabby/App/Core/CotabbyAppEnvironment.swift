@@ -179,6 +179,8 @@ final class CotabbyAppEnvironment {
         // Constructed once at app scope so the underlying `NSSpellChecker` document tag survives
         // across coordinator state transitions instead of churning per keystroke.
         let spellChecker = CurrentWordSpellChecker()
+        // Builds its SymSpell index off the main thread on init; ready within ~a second of launch.
+        let symSpellCorrector = SymSpellCorrector()
         let suggestionCoordinator = SuggestionCoordinator(
             permissionManager: permissionManager,
             focusModel: focusModel,
@@ -193,7 +195,8 @@ final class CotabbyAppEnvironment {
             interactionState: interactionState,
             workController: workController,
             configuration: configuration,
-            spellChecker: spellChecker
+            spellChecker: spellChecker,
+            symSpellCorrector: symSpellCorrector
         )
 
         // The emoji picker is a sibling to the suggestion coordinator. It reuses the input monitor,

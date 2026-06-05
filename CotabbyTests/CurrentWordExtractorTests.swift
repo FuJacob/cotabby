@@ -52,4 +52,31 @@ final class CurrentWordExtractorTests: XCTestCase {
         XCTAssertEqual(result?.word, "cafz")
         XCTAssertEqual(result?.characterCount, 4)
     }
+
+    // MARK: - Tolerant trailing-space extraction
+
+    func test_trailingWord_noSpaceMatchesStrictExtraction() {
+        let extracted = CurrentWordExtractor.extractTrailingWord(from: "hi my nmae")
+        XCTAssertEqual(extracted?.result.word, "nmae")
+        XCTAssertEqual(extracted?.trailingSpaceCount, 0)
+    }
+
+    func test_trailingWord_toleratesOneTrailingSpace() {
+        let extracted = CurrentWordExtractor.extractTrailingWord(from: "hi my nmae ")
+        XCTAssertEqual(extracted?.result.word, "nmae")
+        XCTAssertEqual(extracted?.trailingSpaceCount, 1)
+    }
+
+    func test_trailingWord_rejectsTwoTrailingSpaces() {
+        XCTAssertNil(CurrentWordExtractor.extractTrailingWord(from: "hi my nmae  "))
+    }
+
+    func test_trailingWord_rejectsTrailingTabOrNewline() {
+        XCTAssertNil(CurrentWordExtractor.extractTrailingWord(from: "hi my nmae\t"))
+        XCTAssertNil(CurrentWordExtractor.extractTrailingWord(from: "hi my nmae\n"))
+    }
+
+    func test_trailingWord_rejectsImplausibleWordEvenWithSpace() {
+        XCTAssertNil(CurrentWordExtractor.extractTrailingWord(from: "open https://example.com "))
+    }
 }

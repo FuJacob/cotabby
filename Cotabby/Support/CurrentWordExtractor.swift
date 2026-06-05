@@ -44,6 +44,31 @@ enum CurrentWordExtractor {
         return Result(word: word, characterCount: word.count)
     }
 
+    /// Like `extract(from:)`, but tolerates exactly one trailing space so a *just-finished* word
+    /// (the user typed the word and then pressed space) is still surfaced as the trailing word.
+    /// Returns the word plus how many trailing spaces were skipped (0 or 1).
+    ///
+    /// This is what lets an offered correction survive the user pressing space: the word is still
+    /// recognized, the green fix stays acceptable, and the accept path knows to preserve the space.
+    /// Two or more trailing spaces (the user has moved on), a non-space trailing whitespace, or no
+    /// plausible word before the space all return nil. Only a single literal space is tolerated.
+    static func extractTrailingWord(from precedingText: String) -> (result: Result, trailingSpaceCount: Int)? {
+        guard precedingText.last == " " else {
+            // No trailing space: fall back to the strict current-word extraction.
+            return extract(from: precedingText).map { ($0, 0) }
+        }
+
+        let withoutSpace = String(precedingText.dropLast())
+        // A second trailing whitespace means the caret is no longer adjacent to a finished word.
+        if withoutSpace.last?.isWhitespace == true {
+            return nil
+        }
+        guard let result = extract(from: withoutSpace) else {
+            return nil
+        }
+        return (result, 1)
+    }
+
     /// Filter out tokens that are not natural-language words so we never slap a "typo" flag onto the
     /// user's variable names, URLs, mentions, or numeric values. Keep this conservative: false
     /// negatives (we miss a real typo) are fine; false positives (we flag code as a typo) are not.

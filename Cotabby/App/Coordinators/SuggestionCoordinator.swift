@@ -54,6 +54,9 @@ final class SuggestionCoordinator: ObservableObject {
     /// `CotabbyAppEnvironment`) so the underlying `NSSpellChecker` document tag persists across the
     /// coordinator's lifetime instead of churning per keystroke.
     let spellChecker: CurrentWordSpellChecker
+    /// Frequency-ranked correction source (SymSpell). Used first for the correction word, with
+    /// `spellChecker` as the fallback while its index is still loading or when it has no suggestion.
+    let symSpellCorrector: SymSpellCorrector
 
     /// Optional first-look hook the emoji picker installs to observe the keystroke stream. Called at
     /// the very top of `handleInputEvent`, before any suggestion logic. Returns `true` when an emoji
@@ -126,6 +129,7 @@ final class SuggestionCoordinator: ObservableObject {
         workController: SuggestionWorkController,
         configuration: SuggestionConfiguration,
         spellChecker: CurrentWordSpellChecker,
+        symSpellCorrector: SymSpellCorrector,
         userDefaults: UserDefaults = .standard
     ) {
         let storedTotalTabAcceptedWordCount = userDefaults.integer(
@@ -145,6 +149,7 @@ final class SuggestionCoordinator: ObservableObject {
         self.workController = workController
         self.configuration = configuration
         self.spellChecker = spellChecker
+        self.symSpellCorrector = symSpellCorrector
         self.userDefaults = userDefaults
         settingsSnapshot = suggestionSettings.snapshot
         // These collaborators isolate "how overlay/logging works" from "when the coordinator

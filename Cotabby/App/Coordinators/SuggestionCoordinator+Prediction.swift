@@ -147,7 +147,9 @@ extension SuggestionCoordinator {
             suppressCompletionsOnTypo: settingsSnapshot.suppressCompletionsOnTypo,
             offerTypoCorrections: settingsSnapshot.offerTypoCorrections,
             isTypo: { spellChecker.isTypo($0) },
-            bestCorrection: { spellChecker.bestCorrection(for: $0) }
+            // Correction word: SymSpell (frequency-ranked, edit distance ≤ 2) first; fall back to the
+            // NSSpellChecker guess while SymSpell's index is still loading or when it has no match.
+            bestCorrection: { symSpellCorrector.bestCorrection(for: $0) ?? spellChecker.bestCorrection(for: $0) }
         ) {
         case .proceed:
             return false
@@ -491,16 +493,23 @@ extension SuggestionCoordinator {
             return
         }
 
-        // Content-only fingerprint comparison: any change to the text around the caret (the user
-        // typed, deleted, or moved the caret) or an app switch invalidates the offer.
-        if rawContext.contentSignature != session.baseContext.contentSignature
-            || rawContext.processIdentifier != session.baseContext.processIdentifier {
-            invalidateActiveSuggestion(
-                reason: "Overlay hidden because the field changed after a correction was offered."
-            )
+        guard case let .correction(typoWord) = session.kind else {
+            invalidateActiveSuggestion(reason: "Overlay hidden because the correction session was invalid.")
+            return
         }
-        // Unchanged: leave the existing overlay in place. Re-presenting on every focus poll would
-        // churn the session for no visual change.
+
+        // Keep the offer while the live trailing word (tolerating one trailing space the user just
+        // typed) is still the exact typo we offered to fix, in the same app. This is what makes the
+        // green correction survive a space: the word is unchanged, so we keep showing it as
+        // Tab-acceptable. Any other edit — typing more, a second space, deleting, switching apps —
+        // drops it, and the next prediction re-runs the gate for the new current word.
+        let liveWord = CurrentWordExtractor.extractTrailingWord(from: rawContext.precedingText)?.result.word
+        if liveWord == typoWord, rawContext.processIdentifier == session.baseContext.processIdentifier {
+            return
+        }
+        invalidateActiveSuggestion(
+            reason: "Overlay hidden because the field changed after a correction was offered."
+        )
     }
 
     /// The single marshalling point for `SuggestionAvailabilityEvaluator.disabledReason`: every gate
