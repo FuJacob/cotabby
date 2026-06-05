@@ -54,7 +54,10 @@ struct SettingsPaneCallout: Equatable {
     let message: String
 }
 
-private struct SettingsCalloutView: View {
+/// Renders a single callout (warning/info) with a tinted background and matching icon. Used both by
+/// the scaffold's top-of-pane slot and inline inside a pane section when an attention message belongs
+/// next to a specific control (e.g. the Extended Context cost warning in the Advanced pane).
+struct SettingsCalloutView: View {
     let callout: SettingsPaneCallout
 
     var body: some View {
