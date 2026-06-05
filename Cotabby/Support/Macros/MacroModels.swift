@@ -33,3 +33,22 @@ protocol MacroEvaluating {
     /// family understands, or `nil` to let the next family try.
     func evaluate(_ query: String) -> MacroResult?
 }
+
+/// Splits a conversion-style query (`<value><from> <sep> <to>`) on the first separator Cotabby
+/// accepts: `->`, the arrow `→`, or a space-delimited `to`. This lets `10km->mi`, `10km→mi`, and
+/// `10 km to mi` all parse identically. Shared by the unit and currency evaluators so they accept the
+/// same separators. Returns the (still untrimmed) left and right sides, or nil when there is no
+/// separator.
+enum ConversionSeparator {
+    static func split(_ query: String) -> (left: String, right: String)? {
+        for token in ["->", "→"] where query.contains(token) {
+            if let range = query.range(of: token) {
+                return (String(query[..<range.lowerBound]), String(query[range.upperBound...]))
+            }
+        }
+        if let range = query.range(of: " to ", options: [.caseInsensitive]) {
+            return (String(query[..<range.lowerBound]), String(query[range.upperBound...]))
+        }
+        return nil
+    }
+}

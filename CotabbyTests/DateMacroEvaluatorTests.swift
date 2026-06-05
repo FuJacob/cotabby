@@ -52,4 +52,24 @@ final class DateMacroEvaluatorTests: XCTestCase {
     func test_unknownKeyword_returnsNil() {
         XCTAssertNil(makeEvaluator().evaluate("someday"))
     }
+
+    func test_shortFormAliases() {
+        let sut = makeEvaluator()
+        XCTAssertEqual(sut.evaluate("tdy")?.insertionText, "Jun 4, 2026")
+        XCTAssertEqual(sut.evaluate("tmrw")?.insertionText, "Jun 5, 2026")
+        XCTAssertEqual(sut.evaluate("yest")?.insertionText, "Jun 3, 2026")
+        XCTAssertEqual(sut.evaluate("rn")?.insertionText, sut.evaluate("now")?.insertionText)
+    }
+
+    func test_weekdaySeparatorVariants() {
+        let sut = makeEvaluator()
+        XCTAssertEqual(sut.evaluate("next fri")?.insertionText, "Jun 5, 2026")
+        XCTAssertEqual(sut.evaluate("nextfri")?.insertionText, "Jun 5, 2026")
+    }
+
+    func test_spelledOutRelativeUnits() {
+        let sut = makeEvaluator()
+        XCTAssertEqual(sut.evaluate("+1week")?.insertionText, "Jun 11, 2026")
+        XCTAssertEqual(sut.evaluate("+2days")?.insertionText, "Jun 6, 2026")
+    }
 }

@@ -18,15 +18,28 @@ import SwiftUI
 /// Lifecycle: each card owns its `@State` and drives a looping animation from a `.task`, which
 /// SwiftUI cancels automatically when the view leaves the hierarchy. Each card also keeps a *fixed*
 /// height so the onboarding window never resizes mid-loop. Continuous looping is skipped when the
-/// system Reduce Motion setting is on, in which case the card shows a static accepted state.
+/// system Reduce Motion setting is on (or when not animating, see below), in which case the card
+/// shows a static accepted state.
+///
+/// `autoplay`: the one-time onboarding screen passes `true` so the demos play on their own. The
+/// persistent Settings Home pane passes `false`, which keeps the loops idle (static resting frame)
+/// until the pointer is over the showcase. Without that gate the looping animations would burn CPU
+/// the entire time the Settings window sits on Home.
 struct OnboardingFeatureShowcase: View {
+    var autoplay: Bool = true
+
+    @State private var isHovering = false
+
+    private var animating: Bool { autoplay || isHovering }
+
     var body: some View {
         VStack(spacing: 12) {
-            GhostTextDemoCard()
-            AutocorrectDemoCard()
-            EmojiPickerDemoCard()
-            MacroDemoCard()
+            GhostTextDemoCard(animating: animating)
+            AutocorrectDemoCard(animating: animating)
+            EmojiPickerDemoCard(animating: animating)
+            MacroDemoCard(animating: animating)
         }
+        .onHover { isHovering = $0 }
         // Purely decorative looping demo: hide it from VoiceOver so the
         // mid-animation text fragments are never read out to AT users.
         .accessibilityHidden(true)
@@ -70,6 +83,7 @@ private struct DemoCard<Content: View>: View {
 // MARK: - Demo 1: inline autocomplete ghost text
 
 private struct GhostTextDemoCard: View {
+    let animating: Bool
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -103,7 +117,7 @@ private struct GhostTextDemoCard: View {
                 Spacer(minLength: 0)
             }
         }
-        .task(id: reduceMotion) {
+        .task(id: [reduceMotion, animating]) {
             await runLoop()
         }
     }
@@ -115,7 +129,9 @@ private struct GhostTextDemoCard: View {
     }
 
     private func runLoop() async {
-        guard !reduceMotion else {
+        // Idle (not animating) shows the same finished frame as reduce-motion, so the card looks
+        // complete at rest and only plays the full typing demo while hovered.
+        guard animating, !reduceMotion else {
             typedCount = base.count
             showGhost = true
             accepted = true
@@ -186,6 +202,7 @@ private struct DemoGhostKeycap: View {
 /// replicated (not shared) from `OverlayController`'s correction color, like the keycap above.
 /// Reduce-motion shows the static green-correction state so the feature still reads.
 private struct AutocorrectDemoCard: View {
+    let animating: Bool
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -219,7 +236,7 @@ private struct AutocorrectDemoCard: View {
                 Spacer(minLength: 0)
             }
         }
-        .task(id: reduceMotion) {
+        .task(id: [reduceMotion, animating]) {
             await runLoop()
         }
     }
@@ -243,7 +260,9 @@ private struct AutocorrectDemoCard: View {
     }
 
     private func runLoop() async {
-        guard !reduceMotion else {
+        // Idle (not animating) and reduce-motion both rest on the green-correction frame so the
+        // card reads as "typos get a green fix" without looping.
+        guard animating, !reduceMotion else {
             typedCount = fullTyped.count
             showCorrection = true
             accepted = false
@@ -291,6 +310,7 @@ private struct AutocorrectDemoCard: View {
 // MARK: - Demo 3: inline emoji picker
 
 private struct EmojiPickerDemoCard: View {
+    let animating: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// Number of trigger characters (":smi") revealed so far.
@@ -320,7 +340,7 @@ private struct EmojiPickerDemoCard: View {
             }
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
-        .task(id: reduceMotion) {
+        .task(id: [reduceMotion, animating]) {
             await runLoop()
         }
     }
@@ -333,7 +353,7 @@ private struct EmojiPickerDemoCard: View {
     }
 
     private func runLoop() async {
-        guard !reduceMotion else {
+        guard animating, !reduceMotion else {
             triggerCount = trigger.count
             committed = true
             showPopup = false
@@ -475,6 +495,7 @@ private struct DemoEmojiKeycap: View {
 /// friends are never stale. Inert (no AX, event tap, or insertion); reduce-motion shows one static
 /// example with no cycling.
 private struct MacroDemoCard: View {
+    let animating: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// Index of the currently shown example; advances round-robin while visible.
@@ -520,7 +541,7 @@ private struct MacroDemoCard: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .task(id: reduceMotion) {
+        .task(id: [reduceMotion, animating]) {
             await run()
         }
     }
@@ -531,7 +552,8 @@ private struct MacroDemoCard: View {
     }
 
     private func run() async {
-        guard !examples.isEmpty, !reduceMotion else { return }
+        // Idle (not animating) and reduce-motion rest on the first example; only hover/onboarding cycles.
+        guard animating, !reduceMotion, !examples.isEmpty else { return }
         // Offset so this card does not advance in lockstep with the others.
         try? await Task.sleep(nanoseconds: 500 * nsPerMillisecond)
         while !Task.isCancelled {

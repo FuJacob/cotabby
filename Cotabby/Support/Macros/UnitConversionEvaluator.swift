@@ -17,9 +17,9 @@ struct UnitConversionEvaluator: MacroEvaluating {
     }
 
     func evaluate(_ query: String) -> MacroResult? {
-        guard let arrow = query.range(of: "->") else { return nil }
-        let lhs = query[query.startIndex..<arrow.lowerBound].trimmingCharacters(in: .whitespaces)
-        let toToken = query[arrow.upperBound...].trimmingCharacters(in: .whitespaces).lowercased()
+        guard let (lhsRaw, rhsRaw) = ConversionSeparator.split(query) else { return nil }
+        let lhs = lhsRaw.trimmingCharacters(in: .whitespaces)
+        let toToken = rhsRaw.trimmingCharacters(in: .whitespaces).lowercased()
 
         let numberPart = lhs.prefix { $0.isNumber || $0 == "." || $0 == "-" || $0 == "+" }
         let fromToken = lhs.dropFirst(numberPart.count).trimmingCharacters(in: .whitespaces).lowercased()
@@ -64,18 +64,41 @@ struct UnitConversionEvaluator: MacroEvaluating {
 
     private static let units: [String: Quantity] = [
         // Length
-        "mm": .length(.millimeters), "cm": .length(.centimeters), "m": .length(.meters),
-        "km": .length(.kilometers), "in": .length(.inches), "ft": .length(.feet),
-        "yd": .length(.yards), "mi": .length(.miles),
+        "mm": .length(.millimeters), "millimeter": .length(.millimeters), "millimeters": .length(.millimeters),
+        "millimetre": .length(.millimeters), "millimetres": .length(.millimeters),
+        "cm": .length(.centimeters), "centimeter": .length(.centimeters), "centimeters": .length(.centimeters),
+        "centimetre": .length(.centimeters), "centimetres": .length(.centimeters),
+        "m": .length(.meters), "meter": .length(.meters), "meters": .length(.meters),
+        "metre": .length(.meters), "metres": .length(.meters),
+        "km": .length(.kilometers), "kilometer": .length(.kilometers), "kilometers": .length(.kilometers),
+        "kilometre": .length(.kilometers), "kilometres": .length(.kilometers),
+        "in": .length(.inches), "inch": .length(.inches), "inches": .length(.inches),
+        "ft": .length(.feet), "foot": .length(.feet), "feet": .length(.feet),
+        "yd": .length(.yards), "yard": .length(.yards), "yards": .length(.yards),
+        "mi": .length(.miles), "mile": .length(.miles), "miles": .length(.miles),
         // Mass
-        "mg": .mass(.milligrams), "g": .mass(.grams), "kg": .mass(.kilograms),
-        "oz": .mass(.ounces), "lb": .mass(.pounds), "lbs": .mass(.pounds), "st": .mass(.stones),
+        "mg": .mass(.milligrams), "milligram": .mass(.milligrams), "milligrams": .mass(.milligrams),
+        "g": .mass(.grams), "gram": .mass(.grams), "grams": .mass(.grams),
+        "kg": .mass(.kilograms), "kgs": .mass(.kilograms), "kilo": .mass(.kilograms), "kilos": .mass(.kilograms),
+        "kilogram": .mass(.kilograms), "kilograms": .mass(.kilograms),
+        "oz": .mass(.ounces), "ounce": .mass(.ounces), "ounces": .mass(.ounces),
+        "lb": .mass(.pounds), "lbs": .mass(.pounds), "pound": .mass(.pounds), "pounds": .mass(.pounds),
+        "st": .mass(.stones), "stone": .mass(.stones), "stones": .mass(.stones),
         // Temperature
-        "c": .temperature(.celsius), "f": .temperature(.fahrenheit), "k": .temperature(.kelvin),
+        "c": .temperature(.celsius), "celsius": .temperature(.celsius), "centigrade": .temperature(.celsius),
+        "f": .temperature(.fahrenheit), "fahrenheit": .temperature(.fahrenheit),
+        "k": .temperature(.kelvin), "kelvin": .temperature(.kelvin),
         // Volume
-        "ml": .volume(.milliliters), "l": .volume(.liters), "cup": .volume(.cups),
-        "cups": .volume(.cups), "tbsp": .volume(.tablespoons), "tsp": .volume(.teaspoons),
-        "floz": .volume(.fluidOunces), "gal": .volume(.gallons), "pt": .volume(.pints),
-        "qt": .volume(.quarts)
+        "ml": .volume(.milliliters), "milliliter": .volume(.milliliters), "milliliters": .volume(.milliliters),
+        "millilitre": .volume(.milliliters), "millilitres": .volume(.milliliters),
+        "l": .volume(.liters), "liter": .volume(.liters), "liters": .volume(.liters),
+        "litre": .volume(.liters), "litres": .volume(.liters),
+        "cup": .volume(.cups), "cups": .volume(.cups),
+        "tbsp": .volume(.tablespoons), "tablespoon": .volume(.tablespoons), "tablespoons": .volume(.tablespoons),
+        "tsp": .volume(.teaspoons), "teaspoon": .volume(.teaspoons), "teaspoons": .volume(.teaspoons),
+        "floz": .volume(.fluidOunces),
+        "gal": .volume(.gallons), "gallon": .volume(.gallons), "gallons": .volume(.gallons),
+        "pt": .volume(.pints), "pint": .volume(.pints), "pints": .volume(.pints),
+        "qt": .volume(.quarts), "quart": .volume(.quarts), "quarts": .volume(.quarts)
     ]
 }

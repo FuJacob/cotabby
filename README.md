@@ -6,7 +6,7 @@
 
 <h1 align="center">Cotabby [beta]</h1>
 
-<p align="center"><em>Open-source, local-first AI autocomplete for macOS, with inline <code>:emoji:</code> suggestions.</em></p>
+<p align="center"><em>Open-source, local-first AI autocomplete for macOS, a productivity layer for everything you type.</em></p>
 
 <p align="center">
   <a href="https://cotabby.app"><strong>Visit the landing page →</strong></a>
@@ -39,6 +39,8 @@ Cotabby brings AI autocomplete to the text fields you already use on macOS. It w
 
 It also includes inline emoji autocomplete: type `:smile`, `:tada`, or `:+1` and pick the emoji without leaving your current app.
 
+Inline macros turn `/` into instant in-field results: arithmetic, unit and currency conversions, dates, and random values (`/5+5=`, `/10km->mi`, `/100usd->eur`, `/today`). Optional autocorrect flags likely typos and offers a one-key fix as you type.
+
 Everything runs on-device. No hosted API, no cloud round-trip.
 
 ## Demo
@@ -57,7 +59,11 @@ Everything runs on-device. No hosted API, no cloud round-trip.
 - **System-wide completions** -- Works in any macOS text field (Safari, Notes, Mail, etc.)
 - **Ghost text UI** -- Suggestions appear as translucent overlay text at your cursor
 - **Inline emoji autocomplete** -- Type `:emoji:`-style shortcuts and insert the selected emoji without leaving your current app
-- **100% local** -- AI inference and emoji matching run on-device
+- **Inline macros** -- Type `/` for instant math, unit and currency conversions, dates, and random values
+- **Autocorrect** -- Catches likely typos and offers a one-key correction, fully on-device
+- **Two engines** -- Apple Intelligence (macOS 26+) or downloadable on-device base models via llama.cpp
+- **Make it yours** -- Name, languages, suggestion length, extended context, and per-app enable/disable
+- **100% local** -- AI inference, macros, and autocorrect run on-device
 - **Visual context** -- Screenshot OCR gives the model awareness of what's on screen
 - **Low latency** -- Optimized for fast response on Apple Silicon
 
