@@ -78,6 +78,16 @@ struct GeneralPaneView: View {
                         systemImage: "slash.circle"
                     )
                 }
+
+                Toggle(isOn: clipboardPickerEnabledBinding) {
+                    SettingsRowLabel(
+                        title: "Clipboard History",
+                        description: "Keep recent clipboard text in memory and type /cb to open it, then " +
+                            "press your accept-word shortcut to pick a clip. Cleared on quit; never " +
+                            "captures password-manager copies.",
+                        systemImage: "doc.on.clipboard"
+                    )
+                }
             }
 
             Section("Help") {
@@ -168,6 +178,13 @@ struct GeneralPaneView: View {
         Binding(
             get: { suggestionSettings.isMacroExpansionEnabled },
             set: { suggestionSettings.setMacroExpansionEnabled($0) }
+        )
+    }
+
+    private var clipboardPickerEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.isClipboardPickerEnabled },
+            set: { suggestionSettings.setClipboardPickerEnabled($0) }
         )
     }
 }
