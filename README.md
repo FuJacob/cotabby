@@ -35,11 +35,9 @@
 
 ## What It Does
 
-Cotabby brings AI autocomplete to the text fields you already use on macOS. It works system-wide, stays out of your way, and shows suggestions as ghost text beside your cursor. Press `Tab` to accept a word, keep pressing to take more, or keep typing to ignore it.
+Cotabby shows AI suggestions as ghost text in any macOS text field. Press `Tab` to accept, or keep typing to ignore.
 
-It also includes inline emoji autocomplete: type `:smile`, `:tada`, or `:+1` and pick the emoji without leaving your current app.
-
-Inline macros turn `/` into instant in-field results: arithmetic, unit and currency conversions, dates, and random values (`/5+5=`, `/10km->mi`, `/100usd->eur`, `/today`). Optional autocorrect flags likely typos and offers a one-key fix as you type.
+It also does inline `:emoji:` autocomplete, `/` macros (math, unit and currency conversion, dates), and optional autocorrect that fixes typos with one keystroke.
 
 Everything runs on-device. No hosted API, no cloud round-trip.
 
@@ -56,16 +54,14 @@ Everything runs on-device. No hosted API, no cloud round-trip.
 
 ## Features
 
-- **System-wide completions** -- Works in any macOS text field (Safari, Notes, Mail, etc.)
-- **Ghost text UI** -- Suggestions appear as translucent overlay text at your cursor
-- **Inline emoji autocomplete** -- Type `:emoji:`-style shortcuts and insert the selected emoji without leaving your current app
-- **Inline macros** -- Type `/` for instant math, unit and currency conversions, dates, and random values
-- **Autocorrect** -- Catches likely typos and offers a one-key correction, fully on-device
-- **Two engines** -- Apple Intelligence (macOS 26+) or downloadable on-device base models via llama.cpp
-- **Make it yours** -- Name, languages, suggestion length, extended context, and per-app enable/disable
-- **100% local** -- AI inference, macros, and autocorrect run on-device
-- **Visual context** -- Screenshot OCR gives the model awareness of what's on screen
-- **Low latency** -- Optimized for fast response on Apple Silicon
+- **Ghost-text autocomplete** -- Inline AI suggestions in any macOS text field; `Tab` to accept
+- **Emoji autocomplete** -- Type `:emoji:` and insert without leaving the field
+- **Inline macros** -- `/` for math, unit and currency conversion, dates, and random values
+- **Autocorrect** -- One-key fixes for likely typos
+- **Two engines** -- Apple Intelligence or local models via llama.cpp
+- **Personalize** -- Name, languages, length, and per-app control
+- **100% local** -- Everything runs on-device
+- **Visual context** -- Optional screenshot OCR for on-screen awareness
 
 ## Engines
 
