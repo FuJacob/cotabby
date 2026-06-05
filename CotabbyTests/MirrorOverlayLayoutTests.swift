@@ -235,6 +235,53 @@ final class MirrorOverlayLayoutTests: XCTestCase {
         XCTAssertEqual(layout.suggestionText, "hello world foo")
     }
 
+    // MARK: - First-word highlight
+
+    func test_make_highlightsFirstWordAsAcceptancePrefix() {
+        let geometry = CotabbyTestFixtures.overlayGeometry()
+        let layout = MirrorOverlayLayout.make(
+            suggestion: "tomorrow afternoon at noon",
+            geometry: geometry,
+            visibleFrame: screen,
+            showsAcceptanceHint: true,
+            reason: .userPreference
+        )
+
+        // The highlighted run is the first accept-word and is always a prefix of the displayed text,
+        // so the renderer can split it off by length safely.
+        XCTAssertEqual(layout.highlightedPrefix, "tomorrow")
+        XCTAssertTrue(layout.suggestionText.hasPrefix(layout.highlightedPrefix))
+    }
+
+    func test_make_highlightIncludesTrailingPunctuationByDefault() {
+        let geometry = CotabbyTestFixtures.overlayGeometry()
+        let layout = MirrorOverlayLayout.make(
+            suggestion: "you? me",
+            geometry: geometry,
+            visibleFrame: screen,
+            showsAcceptanceHint: false,
+            reason: .userPreference
+        )
+
+        XCTAssertEqual(layout.highlightedPrefix, "you?")
+    }
+
+    func test_make_highlightExcludesTrailingPunctuationWhenSettingOff() {
+        let geometry = CotabbyTestFixtures.overlayGeometry()
+        let layout = MirrorOverlayLayout.make(
+            suggestion: "you? me",
+            geometry: geometry,
+            visibleFrame: screen,
+            showsAcceptanceHint: false,
+            autoAcceptTrailingPunctuation: false,
+            reason: .userPreference
+        )
+
+        // Matches the accept-word chunk: with the setting off, trailing punctuation is its own part,
+        // so the highlight stops before it.
+        XCTAssertEqual(layout.highlightedPrefix, "you")
+    }
+
     // MARK: - Direction passthrough
 
     func test_make_preservesRightToLeftFlag() {

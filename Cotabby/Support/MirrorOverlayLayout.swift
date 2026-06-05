@@ -24,6 +24,11 @@ struct MirrorOverlayLayout: Equatable {
     /// The suggestion to render. Whitespace collapsed for single-line display.
     let suggestionText: String
 
+    /// The leading run of `suggestionText` that the next accept-word keypress will insert, so the
+    /// card can highlight it as the word being completed. Always a prefix of `suggestionText` (empty
+    /// when there is nothing to highlight) so the renderer can split safely on its length.
+    let highlightedPrefix: String
+
     /// Reading direction for the host text. The card lays out left-to-right even in RTL hosts so the
     /// "[hint] [Tab]" pattern stays readable; the field is repeated as `isRightToLeft` for callers
     /// that need to flip secondary chrome (Phase 3 prefix hint will use this).
@@ -76,9 +81,14 @@ struct MirrorOverlayLayout: Equatable {
         geometry: SuggestionOverlayGeometry,
         visibleFrame: CGRect,
         showsAcceptanceHint: Bool,
+        autoAcceptTrailingPunctuation: Bool = true,
         reason: CompletionRenderMode.MirrorReason
     ) -> MirrorOverlayLayout {
         let normalizedSuggestion = normalizedDisplayText(suggestion)
+        let highlightedPrefix = highlightedAcceptancePrefix(
+            in: normalizedSuggestion,
+            autoAcceptTrailingPunctuation: autoAcceptTrailingPunctuation
+        )
         let measuredTextWidth = measuredWidth(of: normalizedSuggestion, fontSize: Metrics.fontSize)
         let keycapReservation = showsAcceptanceHint ? Metrics.keycapReservation : 0
 
@@ -127,6 +137,7 @@ struct MirrorOverlayLayout: Equatable {
             panelFrame: panelFrame,
             fontSize: Metrics.fontSize,
             suggestionText: normalizedSuggestion,
+            highlightedPrefix: highlightedPrefix,
             isRightToLeft: geometry.isRightToLeft,
             reason: reason
         )
@@ -182,6 +193,21 @@ struct MirrorOverlayLayout: Equatable {
             return inputFrame.midX
         }
         return geometry.caretRect.midX
+    }
+
+    /// The leading run of `suggestionText` the accept-word key will insert next, reused from the real
+    /// acceptance chunker (`SuggestionSessionReconciler.nextAcceptanceChunk`) so the highlight matches
+    /// exactly what one Tab takes, including the trailing-punctuation policy. Guarded to be a prefix of
+    /// `suggestionText` so the renderer's split-by-length is always safe; returns "" otherwise.
+    static func highlightedAcceptancePrefix(
+        in suggestionText: String,
+        autoAcceptTrailingPunctuation: Bool
+    ) -> String {
+        let chunk = SuggestionSessionReconciler.nextAcceptanceChunk(
+            from: suggestionText,
+            autoAcceptTrailingPunctuation: autoAcceptTrailingPunctuation
+        )
+        return suggestionText.hasPrefix(chunk) ? chunk : ""
     }
 
     /// Collapses internal whitespace and trims edges so the card never renders a multi-line block.
