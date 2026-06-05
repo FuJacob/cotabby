@@ -19,13 +19,18 @@ enum ShortcutAction: CaseIterable {
 }
 
 /// File overview:
-/// Owns the durable autocomplete preferences that are shared across the app:
-/// engine selection, completion length, indicator appearance, and profile
-/// personalization.
+/// Owns the durable autocomplete preferences that are shared across the app: engine selection,
+/// completion length, indicator appearance, and profile personalization.
 ///
 /// This type is the right owner for these values because they are product settings, not
 /// `SuggestionCoordinator` session state. The coordinator should react to settings changes, not
 /// persist them itself.
+///
+/// It is a thin `@Published` facade: the durable values themselves live in the pure
+/// `SuggestionSettingsData`, and all load / migrate / persist mechanics live in
+/// `SuggestionSettingsStore` (which is unit-tested in isolation). The facade keeps the `@Published`
+/// properties (so SwiftUI observation and the `$`-projected publishers keep working), applies the
+/// cross-field keybinding rules, and routes each setter through the store.
 @MainActor
 final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var isGloballyEnabled: Bool
@@ -77,319 +82,67 @@ final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var globalToggleKeyModifiers: ShortcutModifierMask
     @Published private(set) var globalToggleKeyLabel: String
     @Published private(set) var acceptanceGranularity: AcceptanceGranularity
-    private let userDefaults: UserDefaults
 
-    private static let isGloballyEnabledDefaultsKey = "cotabbyGloballyEnabled"
-    private static let disabledAppRulesDefaultsKey = "cotabbyDisabledAppRules"
-    private static let showCaretIndicatorDefaultsKey = "cotabbyShowCaretIndicator"
-    private static let selectedIndicatorModeDefaultsKey = "cotabbySelectedIndicatorMode"
-    private static let showAcceptanceHintDefaultsKey = "cotabbyShowAcceptanceHint"
-    private static let customSuggestionTextColorHexDefaultsKey = "cotabbyCustomSuggestionTextColorHex"
-    private static let ghostTextOpacityDefaultsKey = "cotabbyGhostTextOpacity"
-    private static let selectedEngineDefaultsKey = "cotabbySelectedEngine"
-    private static let selectedWordCountPresetDefaultsKey = "cotabbySelectedWordCountPreset"
-    /// Pre-#475 raw value for the shortest length tier. Kept here only so the read path can
-    /// rewrite it to `.fourToSeven` on launch; never re-emitted to UserDefaults.
-    private static let legacyShortPresetRawValue = "3-7"
-    private static let clipboardContextEnabledDefaultsKey = "cotabbyClipboardContextEnabled"
-    private static let fastModeEnabledDefaultsKey = "cotabbyFastModeEnabled"
-    private static let performanceTrackingEnabledDefaultsKey = "cotabbyPerformanceTrackingEnabled"
-    private static let menuBarWordCountVisibleDefaultsKey = "cotabbyMenuBarWordCountVisible"
-    private static let mirrorPreferenceDefaultsKey = "cotabbyMirrorPreference"
-    private static let userNameDefaultsKey = "cotabbyUserName"
-    private static let customRulesDefaultsKey = "cotabbyCustomRules"
-    private static let extendedContextDefaultsKey = "cotabbyExtendedContext"
-    private static let responseLanguagesDefaultsKey = "cotabbyResponseLanguages"
-    /// Legacy single-select key, read once to migrate the previous value into `responseLanguages`.
-    private static let legacyResponseLanguageDefaultsKey = "cotabbyResponseLanguage"
-    private static let debounceMillisecondsDefaultsKey = "cotabbyDebounceMilliseconds"
-    private static let focusPollIntervalMillisecondsDefaultsKey = "cotabbyFocusPollIntervalMilliseconds"
-    private static let multiLineEnabledDefaultsKey = "cotabbyMultiLineEnabled"
-    private static let emojiPickerEnabledDefaultsKey = "cotabbyEmojiPickerEnabled"
-    private static let preferredEmojiSkinToneDefaultsKey = "cotabbyPreferredEmojiSkinTone"
-    private static let preferredEmojiGenderDefaultsKey = "cotabbyPreferredEmojiGender"
-    private static let autoAcceptTrailingPunctuationDefaultsKey = "cotabbyAutoAcceptTrailingPunctuation"
-    private static let acceptanceKeyCodeDefaultsKey = "cotabbyAcceptanceKeyCode"
-    private static let acceptanceKeyModifiersDefaultsKey = "cotabbyAcceptanceKeyModifiers"
-    private static let acceptanceKeyLabelDefaultsKey = "cotabbyAcceptanceKeyLabel"
-    private static let fullAcceptanceKeyCodeDefaultsKey = "cotabbyFullAcceptanceKeyCode"
-    private static let fullAcceptanceKeyModifiersDefaultsKey = "cotabbyFullAcceptanceKeyModifiers"
-    private static let fullAcceptanceKeyLabelDefaultsKey = "cotabbyFullAcceptanceKeyLabel"
-    private static let globalToggleKeyCodeDefaultsKey = "cotabbyGlobalToggleKeyCode"
-    private static let globalToggleKeyModifiersDefaultsKey = "cotabbyGlobalToggleKeyModifiers"
-    private static let globalToggleKeyLabelDefaultsKey = "cotabbyGlobalToggleKeyLabel"
-    private static let acceptanceGranularityDefaultsKey = "cotabbyAcceptanceGranularity"
+    /// Owns the on-disk keys, defaults, migrations, and per-field writes. The facade holds one and
+    /// routes every load and save through it.
+    private let store: SuggestionSettingsStore
 
-    static let defaultAcceptanceKeyCode: CGKeyCode = 48
-    static let defaultAcceptanceKeyLabel = "Tab"
-    /// A key code that will never match a real keyboard event, used to represent "no keybind".
-    static let disabledKeyCode: CGKeyCode = CGKeyCode(UInt16.max)
-    static let disabledKeyLabel = "None"
-    /// `kVK_ANSI_Grave` — the `~`/`` ` `` key in the keyboard's top-left corner. Out-of-box default
-    /// because Tab partial-acceptance is awkward when the user wants the whole continuation, and
-    /// `` ` `` is rarely used in prose so the binding doesn't fight normal typing.
-    static let defaultFullAcceptanceKeyCode: CGKeyCode = 50
-    static let defaultFullAcceptanceKeyLabel = "`"
-
-    /// Floor kept above zero so ghost text can be faded but never made fully invisible (which would
-    /// look like the suggestion engine is broken). 100% is the out-of-box default.
-    static let minimumGhostTextOpacity: Double = 0.3
-    static let maximumGhostTextOpacity: Double = 1.0
-    static let defaultGhostTextOpacity: Double = 1.0
-    static let ghostTextOpacityStep: Double = 0.1
-
-    /// Hard upper bound on the persisted Extended Context blob, in characters. Sized to match what the
-    /// engines actually consume rather than what they can store: the OSS base path renders this as a
-    /// budgeted "notes" section (`BaseCompletionPromptRenderer`, `maxChars` 1300) inside a 2400-char
-    /// prompt, so a larger cap would just be clipped on-device instead of used. ~1200 chars (~300
-    /// tokens) is a meaningful glossary or style guide that still leaves room for the prefix and other
-    /// context, and stays well inside Apple's 4096-token window on the Foundation Models path. Keep this
-    /// at or below the notes section's `maxChars` minus its label so the full blob survives on the OSS
-    /// path. Larger pastes are truncated at write time so the cost is bounded on every request.
-    static let maximumExtendedContextCharacters: Int = 1_200
+    // Public default constants re-exported from `SuggestionSettingsStore` (the single source of
+    // truth) so the Settings UI can keep referencing them as `SuggestionSettingsModel.X`.
+    static let defaultAcceptanceKeyCode = SuggestionSettingsStore.defaultAcceptanceKeyCode
+    static let defaultAcceptanceKeyLabel = SuggestionSettingsStore.defaultAcceptanceKeyLabel
+    static let disabledKeyCode = SuggestionSettingsStore.disabledKeyCode
+    static let disabledKeyLabel = SuggestionSettingsStore.disabledKeyLabel
+    static let defaultFullAcceptanceKeyCode = SuggestionSettingsStore.defaultFullAcceptanceKeyCode
+    static let defaultFullAcceptanceKeyLabel = SuggestionSettingsStore.defaultFullAcceptanceKeyLabel
+    static let minimumGhostTextOpacity = SuggestionSettingsStore.minimumGhostTextOpacity
+    static let maximumGhostTextOpacity = SuggestionSettingsStore.maximumGhostTextOpacity
+    static let defaultGhostTextOpacity = SuggestionSettingsStore.defaultGhostTextOpacity
+    static let ghostTextOpacityStep = SuggestionSettingsStore.ghostTextOpacityStep
+    static let maximumExtendedContextCharacters = SuggestionSettingsStore.maximumExtendedContextCharacters
 
     init(
         configuration: SuggestionConfiguration,
         userDefaults: UserDefaults = .standard
     ) {
-        self.userDefaults = userDefaults
+        let store = SuggestionSettingsStore(userDefaults: userDefaults)
+        let data = store.load(configuration: configuration)
+        self.store = store
 
-        let resolvedGloballyEnabled = userDefaults.object(forKey: Self.isGloballyEnabledDefaultsKey) as? Bool ?? true
-        let resolvedDisabledAppRules = Self.loadDisabledAppRules(from: userDefaults)
-        let resolvedShowIndicator: Bool = if let modeString = userDefaults.string(
-            forKey: Self.selectedIndicatorModeDefaultsKey
-        ) {
-            modeString != ActivationIndicatorMode.hidden.rawValue
-        } else {
-            userDefaults.object(forKey: Self.showCaretIndicatorDefaultsKey) as? Bool ?? true
-        }
-        let resolvedShowAcceptanceHint = userDefaults.object(forKey: Self.showAcceptanceHintDefaultsKey) as? Bool ?? true
-        let resolvedCustomSuggestionTextColorHex = Self.normalizedHexString(
-            userDefaults.string(forKey: Self.customSuggestionTextColorHexDefaultsKey)
-        )
-        let resolvedGhostTextOpacity: Double = if userDefaults.object(forKey: Self.ghostTextOpacityDefaultsKey) == nil {
-            Self.defaultGhostTextOpacity
-        } else {
-            Self.clampedGhostTextOpacity(userDefaults.double(forKey: Self.ghostTextOpacityDefaultsKey))
-        }
-        let resolvedEngine = userDefaults
-            .string(forKey: Self.selectedEngineDefaultsKey)
-            .flatMap(SuggestionEngineKind.init(rawValue:))
-            ?? .llamaOpenSource
-        let resolvedWordCountPreset: SuggestionWordCountPreset = {
-            let storedRaw = userDefaults.string(forKey: Self.selectedWordCountPresetDefaultsKey)
-            // Migrate the retired "3-7" raw value to its replacement "4-7" so users who picked
-            // the short preset don't silently jump to the default after #475 split the short
-            // tier into 2-4 and 4-7.
-            if storedRaw == Self.legacyShortPresetRawValue {
-                return .fourToSeven
-            }
-            return storedRaw.flatMap(SuggestionWordCountPreset.init(rawValue:))
-                ?? configuration.defaultWordCountPreset
-        }()
-        let resolvedClipboardContextEnabled =
-            userDefaults.object(forKey: Self.clipboardContextEnabledDefaultsKey) as? Bool ?? false
-        // Defaults to false so the visual-context pipeline keeps running for existing users; opting
-        // into fast mode turns it off.
-        let resolvedFastModeEnabled =
-            userDefaults.object(forKey: Self.fastModeEnabledDefaultsKey) as? Bool ?? false
-        // Defaults to false so the metrics ring buffer stays empty until the user explicitly opts
-        // in from the Performance pane.
-        let resolvedPerformanceTrackingEnabled =
-            userDefaults.object(forKey: Self.performanceTrackingEnabledDefaultsKey) as? Bool ?? false
-        // Default to visible so existing installs keep the running-word-count badge they're used
-        // to seeing. The toggle lets users who find the badge noisy hide it from the menu bar.
-        let resolvedMenuBarWordCountVisible =
-            userDefaults.object(forKey: Self.menuBarWordCountVisibleDefaultsKey) as? Bool ?? true
-        // Default `.auto` keeps existing users on the byte-for-byte original inline rendering for
-        // hosts that report exact/derived caret geometry; only `.estimated` hosts see the new popup
-        // card. Power users can pin one mode from Settings or the menu bar.
-        let resolvedMirrorPreference = userDefaults
-            .string(forKey: Self.mirrorPreferenceDefaultsKey)
-            .flatMap(MirrorPreference.init(rawValue:))
-            ?? .auto
-        let resolvedUserName: String = if userDefaults.object(forKey: Self.userNameDefaultsKey) == nil {
-            configuration.defaultUserName ?? ""
-        } else {
-            userDefaults.string(forKey: Self.userNameDefaultsKey) ?? ""
-        }
-
-        // Absent key means a fresh install: seed the baseline rules (currently empty — rules are
-        // opt-in). A present (even empty) value means the user has touched their rules — including
-        // clearing them — so we honor it verbatim. Note: the unconditional persist below writes the
-        // seeded value back, so the absent/present distinction only matters on the very first launch;
-        // if `defaultRules` is ever made non-empty, seed before that first write or existing users
-        // (already holding `[]`) won't receive the new defaults.
-        let resolvedCustomRules: [String] = if userDefaults.object(forKey: Self.customRulesDefaultsKey) == nil {
-            CustomRulesCatalog.defaultRules
-        } else {
-            CustomRulesCatalog.normalize(userDefaults.stringArray(forKey: Self.customRulesDefaultsKey) ?? [])
-        }
-
-        let resolvedExtendedContext = Self.normalizedExtendedContext(
-            userDefaults.string(forKey: Self.extendedContextDefaultsKey) ?? ""
-        )
-
-        // Prefer the multi-language value once the user has touched it (key present, even if empty).
-        // Otherwise migrate the previous single-select choice exactly once; a fresh install gets the
-        // empty default.
-        let resolvedResponseLanguages: [String] = if userDefaults.object(forKey: Self.responseLanguagesDefaultsKey) != nil {
-            LanguageCatalog.normalize(userDefaults.stringArray(forKey: Self.responseLanguagesDefaultsKey) ?? [])
-        } else if let legacyCode = userDefaults.string(forKey: Self.legacyResponseLanguageDefaultsKey) {
-            LanguageCatalog.migratedLanguages(fromLegacyCode: legacyCode)
-        } else {
-            LanguageCatalog.defaultLanguages
-        }
-
-        let resolvedDebounceMilliseconds: Int = {
-            let raw = userDefaults.object(forKey: Self.debounceMillisecondsDefaultsKey) as? Int
-                ?? configuration.debounceMilliseconds
-            // Existing installs may have the old 50ms first-launch default persisted. Cap at the
-            // shipped default so the latency improvement reaches them — the stepper is hidden from
-            // the UI today, so any persisted value is a previous default rather than a user choice.
-            let capped = min(raw, configuration.debounceMilliseconds)
-            return max(10, min(500, capped))
-        }()
-        let resolvedFocusPollIntervalMilliseconds: Int = {
-            let raw = userDefaults.object(forKey: Self.focusPollIntervalMillisecondsDefaultsKey) as? Int
-                ?? configuration.focusPollIntervalMilliseconds
-            // Cap persisted values at the shipped default so a default lowering reaches existing
-            // installs (anyone on the previous 80ms default gets the 50ms speedup on next launch).
-            // The stepper is hidden from the UI today, so any persisted value is a previous default
-            // rather than a user-chosen override.
-            let capped = min(raw, configuration.focusPollIntervalMilliseconds)
-            return max(10, min(500, capped))
-        }()
-
-        let resolvedMultiLineEnabled = userDefaults.object(forKey: Self.multiLineEnabledDefaultsKey) as? Bool ?? false
-        let resolvedEmojiPickerEnabled = userDefaults.object(forKey: Self.emojiPickerEnabledDefaultsKey) as? Bool ?? true
-        let resolvedPreferredEmojiSkinTone = userDefaults.string(forKey: Self.preferredEmojiSkinToneDefaultsKey)
-            .flatMap(EmojiSkinTone.init(rawValue:)) ?? .neutral
-        let resolvedPreferredEmojiGender = userDefaults.string(forKey: Self.preferredEmojiGenderDefaultsKey)
-            .flatMap(EmojiGender.init(rawValue:)) ?? .neutral
-        let resolvedAutoAcceptTrailingPunctuation =
-            userDefaults.object(forKey: Self.autoAcceptTrailingPunctuationDefaultsKey) as? Bool ?? true
-
-        let resolvedAcceptanceKeyCode = CGKeyCode(
-            userDefaults.object(forKey: Self.acceptanceKeyCodeDefaultsKey) as? Int
-                ?? Int(Self.defaultAcceptanceKeyCode)
-        )
-        // Absence means a pre-modifier-support install: default to no modifiers so the user's
-        // existing bare-key binding keeps working exactly as it did before this feature.
-        let resolvedAcceptanceKeyModifiers = ShortcutModifierMask(
-            rawValue: UInt32(userDefaults.object(forKey: Self.acceptanceKeyModifiersDefaultsKey) as? Int ?? 0)
-        )
-        let resolvedAcceptanceKeyLabel = userDefaults.string(forKey: Self.acceptanceKeyLabelDefaultsKey)
-            ?? Self.defaultAcceptanceKeyLabel
-
-        let resolvedFullAcceptanceKeyCode = CGKeyCode(
-            userDefaults.object(forKey: Self.fullAcceptanceKeyCodeDefaultsKey) as? Int
-                ?? Int(Self.defaultFullAcceptanceKeyCode)
-        )
-        let resolvedFullAcceptanceKeyModifiers = ShortcutModifierMask(
-            rawValue: UInt32(userDefaults.object(forKey: Self.fullAcceptanceKeyModifiersDefaultsKey) as? Int ?? 0)
-        )
-        let resolvedFullAcceptanceKeyLabel = userDefaults.string(forKey: Self.fullAcceptanceKeyLabelDefaultsKey)
-            ?? Self.defaultFullAcceptanceKeyLabel
-
-        // Default is unbound. An absent UserDefaults entry must NOT fall back to a real key code —
-        // the hotkey is opt-in, and silently binding something would surprise existing users.
-        let resolvedGlobalToggleKeyCode = CGKeyCode(
-            userDefaults.object(forKey: Self.globalToggleKeyCodeDefaultsKey) as? Int
-                ?? Int(Self.disabledKeyCode)
-        )
-        let resolvedGlobalToggleKeyModifiers = ShortcutModifierMask(
-            rawValue: UInt32(userDefaults.object(forKey: Self.globalToggleKeyModifiersDefaultsKey) as? Int ?? 0)
-        )
-        let resolvedGlobalToggleKeyLabel = userDefaults.string(forKey: Self.globalToggleKeyLabelDefaultsKey)
-            ?? Self.disabledKeyLabel
-        // Default `.word` preserves the pre-feature behavior for existing installs that have no
-        // value persisted yet. Invalid persisted values fall back to `.word` rather than crashing
-        // so a hand-edited UserDefault can't strand the user.
-        let resolvedAcceptanceGranularity = userDefaults
-            .string(forKey: Self.acceptanceGranularityDefaultsKey)
-            .flatMap(AcceptanceGranularity.init(rawValue:))
-            ?? .word
-
-        isGloballyEnabled = resolvedGloballyEnabled
-        disabledAppRules = resolvedDisabledAppRules
-        showIndicator = resolvedShowIndicator
-        showAcceptanceHint = resolvedShowAcceptanceHint
-        customSuggestionTextColorHex = resolvedCustomSuggestionTextColorHex
-        ghostTextOpacity = resolvedGhostTextOpacity
-        selectedEngine = resolvedEngine
-        selectedWordCountPreset = resolvedWordCountPreset
-        isClipboardContextEnabled = resolvedClipboardContextEnabled
-        isFastModeEnabled = resolvedFastModeEnabled
-        isPerformanceTrackingEnabled = resolvedPerformanceTrackingEnabled
-        isMenuBarWordCountVisible = resolvedMenuBarWordCountVisible
-        mirrorPreference = resolvedMirrorPreference
-        userName = resolvedUserName
-        customRules = resolvedCustomRules
-        extendedContext = resolvedExtendedContext
-        responseLanguages = resolvedResponseLanguages
-        debounceMilliseconds = resolvedDebounceMilliseconds
-        focusPollIntervalMilliseconds = resolvedFocusPollIntervalMilliseconds
-        isMultiLineEnabled = resolvedMultiLineEnabled
-        isEmojiPickerEnabled = resolvedEmojiPickerEnabled
-        preferredEmojiSkinTone = resolvedPreferredEmojiSkinTone
-        preferredEmojiGender = resolvedPreferredEmojiGender
-        autoAcceptTrailingPunctuation = resolvedAutoAcceptTrailingPunctuation
-        acceptanceKeyCode = resolvedAcceptanceKeyCode
-        acceptanceKeyModifiers = resolvedAcceptanceKeyModifiers
-        acceptanceKeyLabel = resolvedAcceptanceKeyLabel
-        fullAcceptanceKeyCode = resolvedFullAcceptanceKeyCode
-        fullAcceptanceKeyModifiers = resolvedFullAcceptanceKeyModifiers
-        fullAcceptanceKeyLabel = resolvedFullAcceptanceKeyLabel
-        globalToggleKeyCode = resolvedGlobalToggleKeyCode
-        globalToggleKeyModifiers = resolvedGlobalToggleKeyModifiers
-        globalToggleKeyLabel = resolvedGlobalToggleKeyLabel
-        acceptanceGranularity = resolvedAcceptanceGranularity
-
-        userDefaults.set(resolvedGloballyEnabled, forKey: Self.isGloballyEnabledDefaultsKey)
-        persistDisabledAppRules(resolvedDisabledAppRules)
-        persistShowIndicator(resolvedShowIndicator)
-        userDefaults.set(resolvedShowAcceptanceHint, forKey: Self.showAcceptanceHintDefaultsKey)
-        persistCustomSuggestionTextColorHex(resolvedCustomSuggestionTextColorHex)
-        userDefaults.set(resolvedGhostTextOpacity, forKey: Self.ghostTextOpacityDefaultsKey)
-        persistSelectedEngine(resolvedEngine)
-        persistSelectedWordCountPreset(resolvedWordCountPreset)
-        persistClipboardContextEnabled(resolvedClipboardContextEnabled)
-        persistFastModeEnabled(resolvedFastModeEnabled)
-        persistPerformanceTrackingEnabled(resolvedPerformanceTrackingEnabled)
-        persistMenuBarWordCountVisible(resolvedMenuBarWordCountVisible)
-        persistMirrorPreference(resolvedMirrorPreference)
-        persistUserName(resolvedUserName)
-        persistCustomRules(resolvedCustomRules)
-        persistExtendedContext(resolvedExtendedContext)
-        persistResponseLanguages(resolvedResponseLanguages)
-        userDefaults.set(resolvedDebounceMilliseconds, forKey: Self.debounceMillisecondsDefaultsKey)
-        userDefaults.set(resolvedFocusPollIntervalMilliseconds, forKey: Self.focusPollIntervalMillisecondsDefaultsKey)
-        userDefaults.set(resolvedMultiLineEnabled, forKey: Self.multiLineEnabledDefaultsKey)
-        userDefaults.set(resolvedEmojiPickerEnabled, forKey: Self.emojiPickerEnabledDefaultsKey)
-        userDefaults.set(resolvedPreferredEmojiSkinTone.rawValue, forKey: Self.preferredEmojiSkinToneDefaultsKey)
-        userDefaults.set(resolvedPreferredEmojiGender.rawValue, forKey: Self.preferredEmojiGenderDefaultsKey)
-        userDefaults.set(resolvedAutoAcceptTrailingPunctuation, forKey: Self.autoAcceptTrailingPunctuationDefaultsKey)
-        userDefaults.set(Int(resolvedAcceptanceKeyCode), forKey: Self.acceptanceKeyCodeDefaultsKey)
-        userDefaults.set(Int(resolvedAcceptanceKeyModifiers.rawValue), forKey: Self.acceptanceKeyModifiersDefaultsKey)
-        userDefaults.set(resolvedAcceptanceKeyLabel, forKey: Self.acceptanceKeyLabelDefaultsKey)
-        userDefaults.set(Int(resolvedFullAcceptanceKeyCode), forKey: Self.fullAcceptanceKeyCodeDefaultsKey)
-        userDefaults.set(
-            Int(resolvedFullAcceptanceKeyModifiers.rawValue),
-            forKey: Self.fullAcceptanceKeyModifiersDefaultsKey
-        )
-        userDefaults.set(resolvedFullAcceptanceKeyLabel, forKey: Self.fullAcceptanceKeyLabelDefaultsKey)
-        userDefaults.set(Int(resolvedGlobalToggleKeyCode), forKey: Self.globalToggleKeyCodeDefaultsKey)
-        userDefaults.set(
-            Int(resolvedGlobalToggleKeyModifiers.rawValue),
-            forKey: Self.globalToggleKeyModifiersDefaultsKey
-        )
-        userDefaults.set(resolvedGlobalToggleKeyLabel, forKey: Self.globalToggleKeyLabelDefaultsKey)
-        userDefaults.set(resolvedAcceptanceGranularity.rawValue, forKey: Self.acceptanceGranularityDefaultsKey)
-
-        // The custom indicator icon feature was removed; scrub any previously-persisted PNG so
-        // users who picked one in an older build get the default cat icon back automatically.
-        userDefaults.removeObject(forKey: "cotabbyCustomIndicatorImageData")
+        isGloballyEnabled = data.isGloballyEnabled
+        showIndicator = data.showIndicator
+        showAcceptanceHint = data.showAcceptanceHint
+        disabledAppRules = data.disabledAppRules
+        customSuggestionTextColorHex = data.customSuggestionTextColorHex
+        ghostTextOpacity = data.ghostTextOpacity
+        selectedEngine = data.selectedEngine
+        selectedWordCountPreset = data.selectedWordCountPreset
+        isClipboardContextEnabled = data.isClipboardContextEnabled
+        isFastModeEnabled = data.isFastModeEnabled
+        isPerformanceTrackingEnabled = data.isPerformanceTrackingEnabled
+        isMenuBarWordCountVisible = data.isMenuBarWordCountVisible
+        mirrorPreference = data.mirrorPreference
+        userName = data.userName
+        customRules = data.customRules
+        responseLanguages = data.responseLanguages
+        extendedContext = data.extendedContext
+        debounceMilliseconds = data.debounceMilliseconds
+        focusPollIntervalMilliseconds = data.focusPollIntervalMilliseconds
+        isMultiLineEnabled = data.isMultiLineEnabled
+        isEmojiPickerEnabled = data.isEmojiPickerEnabled
+        preferredEmojiSkinTone = data.preferredEmojiSkinTone
+        preferredEmojiGender = data.preferredEmojiGender
+        autoAcceptTrailingPunctuation = data.autoAcceptTrailingPunctuation
+        acceptanceKeyCode = data.acceptanceKeyCode
+        acceptanceKeyModifiers = data.acceptanceKeyModifiers
+        acceptanceKeyLabel = data.acceptanceKeyLabel
+        fullAcceptanceKeyCode = data.fullAcceptanceKeyCode
+        fullAcceptanceKeyModifiers = data.fullAcceptanceKeyModifiers
+        fullAcceptanceKeyLabel = data.fullAcceptanceKeyLabel
+        globalToggleKeyCode = data.globalToggleKeyCode
+        globalToggleKeyModifiers = data.globalToggleKeyModifiers
+        globalToggleKeyLabel = data.globalToggleKeyLabel
+        acceptanceGranularity = data.acceptanceGranularity
     }
 
     /// Legacy compatibility shim. Reads through to `showIndicator`.
@@ -424,7 +177,7 @@ final class SuggestionSettingsModel: ObservableObject {
         }
 
         selectedEngine = engine
-        persistSelectedEngine(engine)
+        store.saveSelectedEngine(engine)
     }
 
     func selectWordCountPreset(_ preset: SuggestionWordCountPreset) {
@@ -433,7 +186,7 @@ final class SuggestionSettingsModel: ObservableObject {
         }
 
         selectedWordCountPreset = preset
-        persistSelectedWordCountPreset(preset)
+        store.saveSelectedWordCountPreset(preset)
     }
 
     func setClipboardContextEnabled(_ enabled: Bool) {
@@ -442,7 +195,7 @@ final class SuggestionSettingsModel: ObservableObject {
         }
 
         isClipboardContextEnabled = enabled
-        persistClipboardContextEnabled(enabled)
+        store.saveClipboardContextEnabled(enabled)
     }
 
     func setFastModeEnabled(_ enabled: Bool) {
@@ -451,7 +204,7 @@ final class SuggestionSettingsModel: ObservableObject {
         }
 
         isFastModeEnabled = enabled
-        persistFastModeEnabled(enabled)
+        store.saveFastModeEnabled(enabled)
     }
 
     func setPerformanceTrackingEnabled(_ enabled: Bool) {
@@ -460,7 +213,7 @@ final class SuggestionSettingsModel: ObservableObject {
         }
 
         isPerformanceTrackingEnabled = enabled
-        persistPerformanceTrackingEnabled(enabled)
+        store.savePerformanceTrackingEnabled(enabled)
     }
 
     func setMenuBarWordCountVisible(_ visible: Bool) {
@@ -469,7 +222,7 @@ final class SuggestionSettingsModel: ObservableObject {
         }
 
         isMenuBarWordCountVisible = visible
-        persistMenuBarWordCountVisible(visible)
+        store.saveMenuBarWordCountVisible(visible)
     }
 
     func setMirrorPreference(_ preference: MirrorPreference) {
@@ -478,7 +231,7 @@ final class SuggestionSettingsModel: ObservableObject {
         }
 
         mirrorPreference = preference
-        persistMirrorPreference(preference)
+        store.saveMirrorPreference(preference)
     }
 
     func setMultiLineEnabled(_ enabled: Bool) {
@@ -486,7 +239,7 @@ final class SuggestionSettingsModel: ObservableObject {
             return
         }
         isMultiLineEnabled = enabled
-        userDefaults.set(enabled, forKey: Self.multiLineEnabledDefaultsKey)
+        store.saveMultiLineEnabled(enabled)
     }
 
     func setEmojiPickerEnabled(_ enabled: Bool) {
@@ -494,19 +247,19 @@ final class SuggestionSettingsModel: ObservableObject {
             return
         }
         isEmojiPickerEnabled = enabled
-        userDefaults.set(enabled, forKey: Self.emojiPickerEnabledDefaultsKey)
+        store.saveEmojiPickerEnabled(enabled)
     }
 
     func setPreferredEmojiSkinTone(_ tone: EmojiSkinTone) {
         guard preferredEmojiSkinTone != tone else { return }
         preferredEmojiSkinTone = tone
-        userDefaults.set(tone.rawValue, forKey: Self.preferredEmojiSkinToneDefaultsKey)
+        store.savePreferredEmojiSkinTone(tone)
     }
 
     func setPreferredEmojiGender(_ gender: EmojiGender) {
         guard preferredEmojiGender != gender else { return }
         preferredEmojiGender = gender
-        userDefaults.set(gender.rawValue, forKey: Self.preferredEmojiGenderDefaultsKey)
+        store.savePreferredEmojiGender(gender)
     }
 
     /// Live snapshot the emoji picker's variant resolver reads at match time.
@@ -522,7 +275,7 @@ final class SuggestionSettingsModel: ObservableObject {
             return
         }
         autoAcceptTrailingPunctuation = enabled
-        userDefaults.set(enabled, forKey: Self.autoAcceptTrailingPunctuationDefaultsKey)
+        store.saveAutoAcceptTrailingPunctuation(enabled)
     }
 
     func setAcceptanceGranularity(_ granularity: AcceptanceGranularity) {
@@ -530,7 +283,7 @@ final class SuggestionSettingsModel: ObservableObject {
             return
         }
         acceptanceGranularity = granularity
-        userDefaults.set(granularity.rawValue, forKey: Self.acceptanceGranularityDefaultsKey)
+        store.saveAcceptanceGranularity(granularity)
     }
 
     func setGloballyEnabled(_ enabled: Bool) {
@@ -539,7 +292,7 @@ final class SuggestionSettingsModel: ObservableObject {
         }
 
         isGloballyEnabled = enabled
-        userDefaults.set(enabled, forKey: Self.isGloballyEnabledDefaultsKey)
+        store.saveGloballyEnabled(enabled)
     }
 
     func setApplicationDisabled(
@@ -547,7 +300,7 @@ final class SuggestionSettingsModel: ObservableObject {
         displayName: String,
         disabled: Bool
     ) {
-        guard let normalizedBundleIdentifier = Self.normalizedBundleIdentifier(bundleIdentifier) else {
+        guard let normalizedBundleIdentifier = SuggestionSettingsStore.normalizedBundleIdentifier(bundleIdentifier) else {
             return
         }
 
@@ -565,11 +318,11 @@ final class SuggestionSettingsModel: ObservableObject {
         bundleIdentifier: String,
         displayName: String
     ) {
-        guard let normalizedBundleIdentifier = Self.normalizedBundleIdentifier(bundleIdentifier) else {
+        guard let normalizedBundleIdentifier = SuggestionSettingsStore.normalizedBundleIdentifier(bundleIdentifier) else {
             return
         }
 
-        let normalizedDisplayName = Self.normalizedDisplayName(
+        let normalizedDisplayName = SuggestionSettingsStore.normalizedDisplayName(
             displayName,
             fallbackBundleIdentifier: normalizedBundleIdentifier
         )
@@ -581,18 +334,18 @@ final class SuggestionSettingsModel: ObservableObject {
             uniqueKeysWithValues: disabledAppRules.map { ($0.bundleIdentifier, $0) }
         )
         updatedRulesByBundleIdentifier[normalizedBundleIdentifier] = rule
-        let updatedRules = Self.sortedDisabledAppRules(Array(updatedRulesByBundleIdentifier.values))
+        let updatedRules = SuggestionSettingsStore.sortedDisabledAppRules(Array(updatedRulesByBundleIdentifier.values))
 
         guard disabledAppRules != updatedRules else {
             return
         }
 
         disabledAppRules = updatedRules
-        persistDisabledAppRules(updatedRules)
+        store.saveDisabledAppRules(updatedRules)
     }
 
     func removeDisabledApplication(bundleIdentifier: String?) {
-        guard let normalizedBundleIdentifier = Self.normalizedBundleIdentifier(bundleIdentifier)
+        guard let normalizedBundleIdentifier = SuggestionSettingsStore.normalizedBundleIdentifier(bundleIdentifier)
         else {
             return
         }
@@ -606,11 +359,11 @@ final class SuggestionSettingsModel: ObservableObject {
         }
 
         disabledAppRules = updatedRules
-        persistDisabledAppRules(updatedRules)
+        store.saveDisabledAppRules(updatedRules)
     }
 
     func isApplicationDisabled(bundleIdentifier: String?) -> Bool {
-        guard let normalizedBundleIdentifier = Self.normalizedBundleIdentifier(bundleIdentifier)
+        guard let normalizedBundleIdentifier = SuggestionSettingsStore.normalizedBundleIdentifier(bundleIdentifier)
         else {
             return false
         }
@@ -626,7 +379,7 @@ final class SuggestionSettingsModel: ObservableObject {
         }
 
         showIndicator = show
-        persistShowIndicator(show)
+        store.saveShowIndicator(show)
     }
 
     func setShowAcceptanceHint(_ show: Bool) {
@@ -635,7 +388,7 @@ final class SuggestionSettingsModel: ObservableObject {
         }
 
         showAcceptanceHint = show
-        userDefaults.set(show, forKey: Self.showAcceptanceHintDefaultsKey)
+        store.saveShowAcceptanceHint(show)
     }
 
     /// The label the ghost-text keycap should display, or `nil` when no hint should be drawn —
@@ -663,23 +416,23 @@ final class SuggestionSettingsModel: ObservableObject {
     }
 
     func setCustomSuggestionTextColorHex(_ hex: String?) {
-        let normalizedHex = Self.normalizedHexString(hex)
+        let normalizedHex = SuggestionSettingsStore.normalizedHexString(hex)
         guard customSuggestionTextColorHex != normalizedHex else {
             return
         }
 
         customSuggestionTextColorHex = normalizedHex
-        persistCustomSuggestionTextColorHex(normalizedHex)
+        store.saveCustomSuggestionTextColorHex(normalizedHex)
     }
 
     func setGhostTextOpacity(_ opacity: Double) {
-        let clamped = Self.clampedGhostTextOpacity(opacity)
+        let clamped = SuggestionSettingsStore.clampedGhostTextOpacity(opacity)
         guard ghostTextOpacity != clamped else {
             return
         }
 
         ghostTextOpacity = clamped
-        userDefaults.set(clamped, forKey: Self.ghostTextOpacityDefaultsKey)
+        store.saveGhostTextOpacity(clamped)
     }
 
     func setUserName(_ name: String) {
@@ -688,7 +441,7 @@ final class SuggestionSettingsModel: ObservableObject {
         }
 
         userName = name
-        persistUserName(name)
+        store.saveUserName(name)
     }
 
     /// All rule mutations funnel through here so storage stays normalized (trimmed, deduped, capped).
@@ -699,7 +452,7 @@ final class SuggestionSettingsModel: ObservableObject {
         }
 
         customRules = normalized
-        persistCustomRules(normalized)
+        store.saveCustomRules(normalized)
     }
 
     func addRule(_ rule: String) {
@@ -722,13 +475,13 @@ final class SuggestionSettingsModel: ObservableObject {
     /// `maximumExtendedContextCharacters` so a runaway paste cannot blow out the model's context
     /// window on every subsequent request.
     func setExtendedContext(_ context: String) {
-        let normalized = Self.normalizedExtendedContext(context)
+        let normalized = SuggestionSettingsStore.normalizedExtendedContext(context)
         guard extendedContext != normalized else {
             return
         }
 
         extendedContext = normalized
-        persistExtendedContext(normalized)
+        store.saveExtendedContext(normalized)
     }
 
     /// All language mutations funnel through here so storage stays normalized (trimmed, deduped,
@@ -740,7 +493,7 @@ final class SuggestionSettingsModel: ObservableObject {
         }
 
         responseLanguages = normalized
-        persistResponseLanguages(normalized)
+        store.saveResponseLanguages(normalized)
     }
 
     func addLanguage(_ language: String) {
@@ -778,9 +531,7 @@ final class SuggestionSettingsModel: ObservableObject {
         acceptanceKeyCode = keyCode
         acceptanceKeyModifiers = normalizedModifiers
         acceptanceKeyLabel = label
-        userDefaults.set(Int(keyCode), forKey: Self.acceptanceKeyCodeDefaultsKey)
-        userDefaults.set(Int(normalizedModifiers.rawValue), forKey: Self.acceptanceKeyModifiersDefaultsKey)
-        userDefaults.set(label, forKey: Self.acceptanceKeyLabelDefaultsKey)
+        store.saveAcceptanceKey(keyCode: keyCode, modifiers: normalizedModifiers, label: label)
     }
 
     func clearAcceptanceKey() {
@@ -805,9 +556,7 @@ final class SuggestionSettingsModel: ObservableObject {
         fullAcceptanceKeyCode = keyCode
         fullAcceptanceKeyModifiers = normalizedModifiers
         fullAcceptanceKeyLabel = label
-        userDefaults.set(Int(keyCode), forKey: Self.fullAcceptanceKeyCodeDefaultsKey)
-        userDefaults.set(Int(normalizedModifiers.rawValue), forKey: Self.fullAcceptanceKeyModifiersDefaultsKey)
-        userDefaults.set(label, forKey: Self.fullAcceptanceKeyLabelDefaultsKey)
+        store.saveFullAcceptanceKey(keyCode: keyCode, modifiers: normalizedModifiers, label: label)
     }
 
     func clearFullAcceptanceKey() {
@@ -829,16 +578,14 @@ final class SuggestionSettingsModel: ObservableObject {
         globalToggleKeyCode = keyCode
         globalToggleKeyModifiers = normalizedModifiers
         globalToggleKeyLabel = label
-        userDefaults.set(Int(keyCode), forKey: Self.globalToggleKeyCodeDefaultsKey)
-        userDefaults.set(Int(normalizedModifiers.rawValue), forKey: Self.globalToggleKeyModifiersDefaultsKey)
-        userDefaults.set(label, forKey: Self.globalToggleKeyLabelDefaultsKey)
+        store.saveGlobalToggleKey(keyCode: keyCode, modifiers: normalizedModifiers, label: label)
     }
 
     func clearGlobalToggleKey() {
         setGlobalToggleKey(keyCode: Self.disabledKeyCode, modifiers: [], label: Self.disabledKeyLabel)
     }
 
-    // All stored state is thread-safe to release (Combine subjects, UserDefaults). The
+    // All stored state is thread-safe to release (Combine subjects, the value-typed store). The
     // nonisolated deinit prevents Swift from scheduling the teardown through the
     // back-deployment main-actor executor shim, which has a StopLookupScope bug on macOS 26.
     nonisolated deinit {}
@@ -882,184 +629,6 @@ final class SuggestionSettingsModel: ObservableObject {
             return (fullAcceptanceKeyCode, fullAcceptanceKeyModifiers)
         case .toggleTabby:
             return (globalToggleKeyCode, globalToggleKeyModifiers)
-        }
-    }
-
-    private func persistSelectedEngine(_ engine: SuggestionEngineKind) {
-        userDefaults.set(engine.rawValue, forKey: Self.selectedEngineDefaultsKey)
-    }
-
-    private func persistSelectedWordCountPreset(_ preset: SuggestionWordCountPreset) {
-        userDefaults.set(preset.rawValue, forKey: Self.selectedWordCountPresetDefaultsKey)
-    }
-
-    private func persistClipboardContextEnabled(_ enabled: Bool) {
-        userDefaults.set(enabled, forKey: Self.clipboardContextEnabledDefaultsKey)
-    }
-
-    private func persistFastModeEnabled(_ enabled: Bool) {
-        userDefaults.set(enabled, forKey: Self.fastModeEnabledDefaultsKey)
-    }
-
-    private func persistPerformanceTrackingEnabled(_ enabled: Bool) {
-        userDefaults.set(enabled, forKey: Self.performanceTrackingEnabledDefaultsKey)
-    }
-
-    private func persistMenuBarWordCountVisible(_ visible: Bool) {
-        userDefaults.set(visible, forKey: Self.menuBarWordCountVisibleDefaultsKey)
-    }
-
-    private func persistMirrorPreference(_ preference: MirrorPreference) {
-        userDefaults.set(preference.rawValue, forKey: Self.mirrorPreferenceDefaultsKey)
-    }
-
-    private func persistShowIndicator(_ show: Bool) {
-        let mode: ActivationIndicatorMode = show ? .fieldEdgeIcon : .hidden
-        userDefaults.set(mode.rawValue, forKey: Self.selectedIndicatorModeDefaultsKey)
-        userDefaults.set(show, forKey: Self.showCaretIndicatorDefaultsKey)
-    }
-
-    private func persistCustomSuggestionTextColorHex(_ hex: String?) {
-        if let hex {
-            userDefaults.set(hex, forKey: Self.customSuggestionTextColorHexDefaultsKey)
-        } else {
-            userDefaults.removeObject(forKey: Self.customSuggestionTextColorHexDefaultsKey)
-        }
-    }
-
-    private static func loadDisabledAppRules(from userDefaults: UserDefaults) -> [DisabledApplicationRule] {
-        guard let data = userDefaults.data(forKey: Self.disabledAppRulesDefaultsKey),
-              let decodedRules = try? JSONDecoder().decode([DisabledApplicationRule].self, from: data)
-        else {
-            return []
-        }
-
-        return sanitizedDisabledAppRules(decodedRules)
-    }
-
-    private static func sanitizedDisabledAppRules(
-        _ rules: [DisabledApplicationRule]
-    ) -> [DisabledApplicationRule] {
-        var rulesByBundleIdentifier: [String: DisabledApplicationRule] = [:]
-
-        for rule in rules {
-            guard let normalizedBundleIdentifier = normalizedBundleIdentifier(rule.bundleIdentifier)
-            else {
-                continue
-            }
-
-            rulesByBundleIdentifier[normalizedBundleIdentifier] = DisabledApplicationRule(
-                bundleIdentifier: normalizedBundleIdentifier,
-                displayName: normalizedDisplayName(
-                    rule.displayName,
-                    fallbackBundleIdentifier: normalizedBundleIdentifier
-                )
-            )
-        }
-
-        return sortedDisabledAppRules(Array(rulesByBundleIdentifier.values))
-    }
-
-    private static func sortedDisabledAppRules(
-        _ rules: [DisabledApplicationRule]
-    ) -> [DisabledApplicationRule] {
-        rules.sorted {
-            if $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedSame {
-                return $0.bundleIdentifier < $1.bundleIdentifier
-            }
-
-            return $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
-        }
-    }
-
-    private static func normalizedBundleIdentifier(_ bundleIdentifier: String?) -> String? {
-        guard let bundleIdentifier else {
-            return nil
-        }
-
-        let trimmed = bundleIdentifier.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
-    }
-
-    private static func normalizedDisplayName(
-        _ displayName: String,
-        fallbackBundleIdentifier: String
-    ) -> String {
-        let trimmed = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? fallbackBundleIdentifier : trimmed
-    }
-
-    private static func clampedGhostTextOpacity(_ value: Double) -> Double {
-        guard value.isFinite else {
-            return defaultGhostTextOpacity
-        }
-
-        return min(maximumGhostTextOpacity, max(minimumGhostTextOpacity, value))
-    }
-
-    private static func normalizedHexString(_ hex: String?) -> String? {
-        guard let hex else {
-            return nil
-        }
-
-        let trimmed = hex
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .replacingOccurrences(of: "#", with: "")
-            .uppercased()
-        let validCharacters = CharacterSet(charactersIn: "0123456789ABCDEF")
-        guard trimmed.count == 6,
-              trimmed.unicodeScalars.allSatisfy(validCharacters.contains(_:))
-        else {
-            return nil
-        }
-
-        return trimmed
-    }
-
-    private func persistUserName(_ name: String) {
-        userDefaults.set(name, forKey: Self.userNameDefaultsKey)
-    }
-
-    private func persistCustomRules(_ rules: [String]) {
-        userDefaults.set(rules, forKey: Self.customRulesDefaultsKey)
-    }
-
-    private func persistExtendedContext(_ context: String) {
-        if context.isEmpty {
-            userDefaults.removeObject(forKey: Self.extendedContextDefaultsKey)
-        } else {
-            userDefaults.set(context, forKey: Self.extendedContextDefaultsKey)
-        }
-    }
-
-    /// Length-cap the persisted body at `maximumExtendedContextCharacters` so an accidental paste
-    /// of a huge document can't blow out the model's context window on every subsequent request.
-    ///
-    /// Whitespace is intentionally NOT trimmed here. The TextEditor binding writes back through
-    /// `setExtendedContext` on every keystroke, so any trim — including a trailing-space trim —
-    /// would strip whitespace the user is mid-way through typing, making it impossible to type a
-    /// space at the end of a word. Whitespace-only content is collapsed back to "no value" in
-    /// `SuggestionRequestFactory` instead, where the cost is paid once per request rather than once
-    /// per keystroke.
-    private static func normalizedExtendedContext(_ context: String) -> String {
-        guard context.count > maximumExtendedContextCharacters else {
-            return context
-        }
-        return String(context.prefix(maximumExtendedContextCharacters))
-    }
-
-    private func persistResponseLanguages(_ languages: [String]) {
-        userDefaults.set(languages, forKey: Self.responseLanguagesDefaultsKey)
-    }
-
-    private func persistDisabledAppRules(_ rules: [DisabledApplicationRule]) {
-        guard !rules.isEmpty else {
-            userDefaults.removeObject(forKey: Self.disabledAppRulesDefaultsKey)
-            return
-        }
-
-        if let data = try? JSONEncoder().encode(rules) {
-            userDefaults.set(data, forKey: Self.disabledAppRulesDefaultsKey)
         }
     }
 }
