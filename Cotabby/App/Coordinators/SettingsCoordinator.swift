@@ -12,7 +12,6 @@ import SwiftUI
 @MainActor
 final class SettingsCoordinator: NSObject, NSWindowDelegate {
     private let appUpdateManager: AppUpdateManager
-    private let launchAtLoginService: LaunchAtLoginService
     private let permissionManager: PermissionManager
     private let suggestionSettings: SuggestionSettingsModel
     private let foundationModelAvailabilityService: FoundationModelAvailabilityService
@@ -22,6 +21,7 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
     private let suggestionEngine: any SuggestionGenerating
     private let configuration: SuggestionConfiguration
     private let performanceMetricsStore: PerformanceMetricsStore
+    private let systemMetricsStore: SystemMetricsStore
     private let onShowWelcome: () -> Void
     private let clearEmojiHistory: () -> Void
 
@@ -29,7 +29,6 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
 
     init(
         appUpdateManager: AppUpdateManager,
-        launchAtLoginService: LaunchAtLoginService,
         permissionManager: PermissionManager,
         suggestionSettings: SuggestionSettingsModel,
         foundationModelAvailabilityService: FoundationModelAvailabilityService,
@@ -39,11 +38,11 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
         suggestionEngine: any SuggestionGenerating,
         configuration: SuggestionConfiguration,
         performanceMetricsStore: PerformanceMetricsStore,
+        systemMetricsStore: SystemMetricsStore,
         onShowWelcome: @escaping () -> Void,
         clearEmojiHistory: @escaping () -> Void
     ) {
         self.appUpdateManager = appUpdateManager
-        self.launchAtLoginService = launchAtLoginService
         self.permissionManager = permissionManager
         self.suggestionSettings = suggestionSettings
         self.foundationModelAvailabilityService = foundationModelAvailabilityService
@@ -53,6 +52,7 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
         self.suggestionEngine = suggestionEngine
         self.configuration = configuration
         self.performanceMetricsStore = performanceMetricsStore
+        self.systemMetricsStore = systemMetricsStore
         self.onShowWelcome = onShowWelcome
         self.clearEmojiHistory = clearEmojiHistory
     }
@@ -71,7 +71,6 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
             rootView: AnyView(
                 SettingsContainerView(
                     appUpdateManager: appUpdateManager,
-                    launchAtLoginService: launchAtLoginService,
                     permissionManager: permissionManager,
                     suggestionSettings: suggestionSettings,
                     foundationModelAvailabilityService: foundationModelAvailabilityService,
@@ -79,6 +78,7 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
                     modelDownloadManager: modelDownloadManager,
                     huggingFaceSearchService: huggingFaceSearchService,
                     performanceMetricsStore: performanceMetricsStore,
+                    systemMetricsStore: systemMetricsStore,
                     suggestionEngine: suggestionEngine,
                     configuration: configuration,
                     onShowWelcome: onShowWelcome,

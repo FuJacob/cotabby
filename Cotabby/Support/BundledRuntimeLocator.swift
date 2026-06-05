@@ -53,19 +53,28 @@ struct BundledRuntimeLocator {
             .appendingPathComponent(Self.runtimeFolderName, isDirectory: true)
     }
 
-    private static let customModelDirectoryKey = "customModelDirectoryPath"
+    /// Toggle key for "also read models from LM Studio". The LM Studio library is an *additional*
+    /// read-only source, never a replacement: Cotabby's own writable directory is always scanned and
+    /// is always where downloads land. This is a Bool, not a stored path, because the only opt-in
+    /// source we support is LM Studio's well-known location.
+    static let lmStudioSourceEnabledKey = "lmStudioModelsEnabled"
 
-    /// Returns the user-configured custom model directory, if one is set.
-    static func customModelDirectoryURL() -> URL? {
-        guard let path = UserDefaults.standard.string(forKey: customModelDirectoryKey),
-              !path.isEmpty
-        else { return nil }
-        return URL(fileURLWithPath: path, isDirectory: true)
+    /// Whether the user opted to also scan their LM Studio library for GGUF models.
+    static func isLMStudioSourceEnabled() -> Bool {
+        UserDefaults.standard.bool(forKey: lmStudioSourceEnabledKey)
     }
 
-    /// Persists (or clears) a custom model directory that is searched before the default path.
-    static func setCustomModelDirectory(_ url: URL?) {
-        UserDefaults.standard.set(url?.path, forKey: customModelDirectoryKey)
+    /// Persists the LM Studio additive-source toggle.
+    static func setLMStudioSourceEnabled(_ enabled: Bool) {
+        UserDefaults.standard.set(enabled, forKey: lmStudioSourceEnabledKey)
+    }
+
+    /// The LM Studio models directory only when the user enabled the source *and* it exists on disk.
+    /// A stale toggle (enabled, but LM Studio later uninstalled) resolves to nil so callers never
+    /// scan a missing directory.
+    static func enabledLMStudioModelsDirectory() -> URL? {
+        guard isLMStudioSourceEnabled() else { return nil }
+        return lmStudioModelsDirectoryIfAvailable()
     }
 
     /// The LM Studio models directory (`~/.lmstudio/models`) when it exists on disk, else nil.
@@ -78,14 +87,52 @@ struct BundledRuntimeLocator {
     }
 
     /// Ordered runtime search directories used to discover GGUF files.
-    /// This mirrors runtime resolution order and is shared by model-install status checks.
+    /// Cotabby's own directory is always first (it is authoritative and the download target); the LM
+    /// Studio library, when enabled, is appended as an additive source.
     static func runtimeSearchDirectories(bundle: Bundle = .main) -> [URL] {
-        var directories: [URL] = []
-        if let custom = customModelDirectoryURL() {
-            directories.append(custom)
+        var directories: [URL] = [userRuntimeDirectoryURL(bundle: bundle)]
+        if let lmStudio = enabledLMStudioModelsDirectory() {
+            directories.append(lmStudio)
         }
-        directories.append(userRuntimeDirectoryURL(bundle: bundle))
         return directories
+    }
+
+    /// Recursively discovers loadable GGUF model files under `directoryURL`.
+    ///
+    /// Recursion is required because third-party libraries (notably LM Studio) nest models as
+    /// `<publisher>/<repo>/<file>.gguf` rather than as a flat folder, so a shallow listing of the
+    /// root finds nothing and silently falls back to the default directory. Depth is bounded so a
+    /// user pointing at a large tree cannot trigger an unbounded walk. `mmproj-*.gguf` files are
+    /// vision/CLIP projector sidecars, not standalone language models, so they are skipped to keep
+    /// them out of the model picker.
+    static func discoverGGUFModelURLs(in directoryURL: URL, maxDepth: Int = 4) -> [URL] {
+        let fileManager = FileManager.default
+        guard let enumerator = fileManager.enumerator(
+            at: directoryURL,
+            includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsHiddenFiles, .skipsPackageDescendants]
+        ) else {
+            return []
+        }
+
+        var results: [URL] = []
+        for case let url as URL in enumerator {
+            if enumerator.level > maxDepth {
+                enumerator.skipDescendants()
+                continue
+            }
+            // A directory can carry a `.gguf` extension; only regular files are loadable models, and
+            // passing a directory path to the runtime would surface a confusing error instead of a
+            // clean "model missing".
+            guard (try? url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true
+            else { continue }
+            guard url.pathExtension.caseInsensitiveCompare("gguf") == .orderedSame else { continue }
+            // LM Studio always names projector sidecars `mmproj-…`; the trailing dash avoids
+            // excluding a legitimately named model that merely starts with "mmproj".
+            guard !url.lastPathComponent.lowercased().hasPrefix("mmproj-") else { continue }
+            results.append(url)
+        }
+        return results
     }
 
     /// Finds the first preferred local model that exists and returns the fully resolved runtime asset paths.
@@ -135,24 +182,35 @@ struct BundledRuntimeLocator {
                 "No runtime candidates were available.")
     }
 
-    /// Lists all GGUF models in deterministic display order for the highest-priority runtime candidate.
+    /// Lists all GGUF models in deterministic display order, merged across every runtime candidate.
+    ///
+    /// Merging (rather than returning the first non-empty candidate) is what makes the LM Studio
+    /// source additive: the picker shows Cotabby's own models plus the LM Studio library together.
+    /// Candidate order is preserved (Cotabby's directory first) and duplicate filenames are deduped,
+    /// keeping the first occurrence so the authoritative directory wins a name collision.
     func availableModels(configuration: LlamaRuntimeConfiguration) -> [RuntimeModelOption] {
+        var merged: [RuntimeModelOption] = []
+        var seenFilenames = Set<String>()
+
         for candidate in runtimeCandidates(for: configuration) {
-            if let modelOptions = try? availableModels(
+            guard let modelOptions = try? availableModels(
                 candidate: candidate,
                 preferredModelNames: configuration.preferredModelNames
-            ),
-                !modelOptions.isEmpty {
-                return modelOptions
+            ) else {
+                continue
+            }
+
+            for option in modelOptions where seenFilenames.insert(option.filename).inserted {
+                merged.append(option)
             }
         }
 
-        return []
+        return merged
     }
 
-    /// Enumerates runtime directories. By default we only load from the user-managed model directory.
+    /// Enumerates runtime directories. By default we load from the user-managed model directory and,
+    /// when the user enabled it, additionally from the LM Studio library.
     /// An explicit `runtimeDirectoryPath` can override this for tests or advanced local setups.
-    /// A user-configured custom directory (e.g. LM Studio) is searched before the default.
     private func runtimeCandidates(for configuration: LlamaRuntimeConfiguration)
         -> [RuntimeCandidate] {
         if let runtimeDirectoryPath = configuration.runtimeDirectoryPath,
@@ -166,22 +224,21 @@ struct BundledRuntimeLocator {
             ]
         }
 
-        var candidates: [RuntimeCandidate] = []
-        if let custom = Self.customModelDirectoryURL() {
-            candidates.append(
-                RuntimeCandidate(
-                    runtimeDirectoryURL: custom,
-                    modelDirectoryURL: custom
-                )
-            )
-        }
         let userDir = Self.userRuntimeDirectoryURL(bundle: bundle)
-        candidates.append(
+        var candidates: [RuntimeCandidate] = [
             RuntimeCandidate(
                 runtimeDirectoryURL: userDir,
                 modelDirectoryURL: userDir
             )
-        )
+        ]
+        if let lmStudio = Self.enabledLMStudioModelsDirectory() {
+            candidates.append(
+                RuntimeCandidate(
+                    runtimeDirectoryURL: lmStudio,
+                    modelDirectoryURL: lmStudio
+                )
+            )
+        }
         return candidates
     }
 
@@ -212,25 +269,21 @@ struct BundledRuntimeLocator {
             throw BundledRuntimeLocatorError.modelMissing(candidate.modelDirectoryURL.path)
         }
 
-        let discoveredModelURLs = try fileManager.contentsOfDirectory(
-            at: candidate.modelDirectoryURL,
-            includingPropertiesForKeys: nil,
-            options: [.skipsHiddenFiles]
-        )
-        .filter { $0.pathExtension.caseInsensitiveCompare("gguf") == .orderedSame }
+        let discoveredModelURLs = Self.discoverGGUFModelURLs(in: candidate.modelDirectoryURL)
 
         guard !discoveredModelURLs.isEmpty else {
             throw BundledRuntimeLocatorError.modelMissing(candidate.modelDirectoryURL.path)
         }
 
-        let modelOptionsByFilename = Dictionary(
-            uniqueKeysWithValues: discoveredModelURLs.map { modelURL in
-                let option = RuntimeModelOption(
-                    filename: modelURL.lastPathComponent,
-                    url: modelURL
-                )
-                return (option.filename, option)
-            })
+        // Recursive discovery can surface the same filename from two nested repos. Dedupe by
+        // filename keeping the first occurrence so a name collision resolves deterministically and
+        // the keyed lookup below cannot trap on duplicate keys.
+        var modelOptionsByFilename: [String: RuntimeModelOption] = [:]
+        for modelURL in discoveredModelURLs {
+            let filename = modelURL.lastPathComponent
+            guard modelOptionsByFilename[filename] == nil else { continue }
+            modelOptionsByFilename[filename] = RuntimeModelOption(filename: filename, url: modelURL)
+        }
 
         var orderedModels: [RuntimeModelOption] = []
         var seenFilenames = Set<String>()
