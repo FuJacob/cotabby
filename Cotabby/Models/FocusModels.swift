@@ -105,6 +105,25 @@ struct FocusInspectionSnapshot: Equatable {
     let missingCapabilities: [FocusCapabilityRequirement]
 }
 
+/// Visual style of the focused field's own text, resolved from Accessibility so ghost text can be
+/// rendered to match it instead of always using the system font and a fixed gray.
+///
+/// Every field is optional: any attribute the host does not expose stays nil and the overlay falls
+/// back to its default styling. Stored as plain value types (no `NSFont`/`NSColor`) so the snapshot
+/// stays `Equatable`/`Sendable` and is cheap to carry across async boundaries.
+struct ResolvedFieldStyle: Equatable, Sendable {
+    /// PostScript font name suitable for `NSFont(name:size:)`.
+    let fontName: String?
+    /// Host-reported point size, used only as the reference for scale-invariant metric sizing.
+    let fontPointSize: CGFloat?
+    /// Foreground text color as a 6-digit hex string (see `SuggestionTextColorCodec`).
+    let colorHex: String?
+
+    var isEmpty: Bool {
+        fontName == nil && colorHex == nil
+    }
+}
+
 /// This snapshot is the future handoff point into suggestion generation.
 /// We store enough information to understand text context and caret placement without generating yet.
 struct FocusedInputSnapshot: Equatable {
@@ -143,6 +162,11 @@ struct FocusedInputSnapshot: Equatable {
     /// initializer default keeps every existing call site compiling unchanged.
     let focusedURLString: String?
 
+    /// The host field's own text font/color, resolved once per focused element so ghost text can
+    /// match it. Nil when the host exposes no usable style. The initializer default keeps existing
+    /// call sites compiling unchanged.
+    let resolvedFieldStyle: ResolvedFieldStyle?
+
     /// Explicit initializer keeps `focusChangeSequence` immutable while preserving the old
     /// memberwise-call ergonomics for tests that do not care about focus identity.
     ///
@@ -166,7 +190,8 @@ struct FocusedInputSnapshot: Equatable {
         selection: NSRange,
         isSecure: Bool,
         focusChangeSequence: UInt64 = 0,
-        focusedURLString: String? = nil
+        focusedURLString: String? = nil,
+        resolvedFieldStyle: ResolvedFieldStyle? = nil
     ) {
         self.applicationName = applicationName
         self.bundleIdentifier = bundleIdentifier
@@ -185,6 +210,7 @@ struct FocusedInputSnapshot: Equatable {
         self.isSecure = isSecure
         self.focusChangeSequence = focusChangeSequence
         self.focusedURLString = focusedURLString
+        self.resolvedFieldStyle = resolvedFieldStyle
     }
 
     var identity: FocusedInputIdentity {

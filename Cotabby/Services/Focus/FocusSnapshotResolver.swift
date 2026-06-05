@@ -25,6 +25,11 @@ struct FocusSnapshotResolver {
     /// Carries deep-walk throttle state across the value-typed resolver's non-mutating polls.
     private let deepWalkThrottle = DeepGeometryWalkThrottle()
 
+    /// Caches the resolved field font/color per focused element so the attributed-string AX read
+    /// happens once per field rather than on every poll. Reference type for the same reason as
+    /// `deepWalkThrottle`: it carries state across the value-typed resolver's non-mutating polls.
+    private let fieldStyleCache = FieldStyleCache()
+
     init(geometryResolver: AXTextGeometryResolver? = nil) {
         self.geometryResolver = geometryResolver ?? AXTextGeometryResolver()
     }
@@ -187,6 +192,22 @@ struct FocusSnapshotResolver {
         let focusedURLString = PerDomainDisableSettings.isEnabled()
             ? AXHelper.webURL(near: focusedElement)
             : nil
+        // Resolve the host field's own font/color so ghost text can match it. Cached by element
+        // identity (this is a synchronous AX read and the resolver runs on the focus poll), and
+        // skipped for secure fields, which are never styled or assisted.
+        let resolvedFieldStyle: ResolvedFieldStyle?
+        if resolvedCandidate.isSecure {
+            resolvedFieldStyle = nil
+        } else {
+            let styleKey = "\(application.processIdentifier):\(resolvedCandidate.elementIdentifier)"
+            resolvedFieldStyle = fieldStyleCache.style(forKey: styleKey) {
+                AXHelper.resolveFieldStyle(
+                    for: resolvedCandidate.element,
+                    caretLocation: selection.location,
+                    textLength: value.utf16.count
+                )
+            }
+        }
         let context = FocusedInputSnapshot(
             applicationName: applicationName,
             bundleIdentifier: bundleIdentifier,
@@ -204,7 +225,8 @@ struct FocusSnapshotResolver {
             selection: contextWindow.selection,
             isSecure: resolvedCandidate.isSecure,
             focusChangeSequence: focusChangeSequence,
-            focusedURLString: focusedURLString
+            focusedURLString: focusedURLString,
+            resolvedFieldStyle: resolvedFieldStyle
         )
 
         if resolvedCandidate.isSecure {

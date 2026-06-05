@@ -40,6 +40,7 @@
 		19CB55B62977376E9AE8D428 /* VisualContextStartCoalescer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F01FAC4F57EB08471521196 /* VisualContextStartCoalescer.swift */; };
 		1B3FFCB9A979F49BF86EAAD4 /* ScreenshotContextGeneratorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2BFD19A159680A495EE02FD /* ScreenshotContextGeneratorTests.swift */; };
 		1D1C6FF0B8F50AC14A1000F4 /* SentenceBoundaryClassifierTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D7360A6D4261989A66658ED /* SentenceBoundaryClassifierTests.swift */; };
+		1D424A103EF7BFE45518F45E /* GhostFontMetricsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53E41890930AA80910E461EF /* GhostFontMetricsTests.swift */; };
 		1F8CC88AFFE67C08944CF506 /* WindowScreenshotService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77B0121E7BB173F8A2B0B108 /* WindowScreenshotService.swift */; };
 		2197B68F1E4D0C3497DAC061 /* LlamaSuggestionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE04620C905041680116BE80 /* LlamaSuggestionEngine.swift */; };
 		22DF59FD6F3B83B092A6F5ED /* WordCountFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 815F2ABAF6AB75DA3AFBBCEF /* WordCountFormatter.swift */; };
@@ -50,6 +51,7 @@
 		261FA692D19C48E53D6999BC /* DeepGeometryWalkThrottle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 684737E62EE6495A71344923 /* DeepGeometryWalkThrottle.swift */; };
 		26C5604C3CEF43FC755FD24E /* EmojiUsageStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 224438039A86E5619294EAF7 /* EmojiUsageStoreTests.swift */; };
 		26E0331E9E2F92FAE531BDEE /* ActivationIndicatorController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D84D4528EEC9EFEB8AE8E318 /* ActivationIndicatorController.swift */; };
+		2784A3A838FF122678547ECA /* GhostFontMetrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E6439213F2A273702A6E26B /* GhostFontMetrics.swift */; };
 		279F017530A86AF62EB17918 /* EmojiSynonymCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0846DE4E0293AF13890620D3 /* EmojiSynonymCatalog.swift */; };
 		27D4F5CACADE171F142178B4 /* SettingsSidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BADB38D0160B47637572FC5E /* SettingsSidebarView.swift */; };
 		286B7022E2A2774275004447 /* WelcomeTemplateStepView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9199B9CEAB320982CA333B8 /* WelcomeTemplateStepView.swift */; };
@@ -198,6 +200,7 @@
 		B0B115C6EBAC37FF6115B4BE /* SuggestionCoordinator+Lifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78E280F4F39A9D86840800D2 /* SuggestionCoordinator+Lifecycle.swift */; };
 		B2F7589B8D32ACF97BB642AB /* HuggingFaceModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A520809E71697E3BB9A8139C /* HuggingFaceModels.swift */; };
 		B6652D81162C64248AA4CF0B /* EmojiPickerPanelController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 764659D09C3F0E8FBD267102 /* EmojiPickerPanelController.swift */; };
+		B782EC08B7516791BDB21172 /* FieldStyleCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7FBF2B766E728F25899B64E /* FieldStyleCache.swift */; };
 		B93AB7E845086F6FBB068369 /* SuggestionRequestFactoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE94342B888A5A2CCF66BC93 /* SuggestionRequestFactoryTests.swift */; };
 		BB6325CA50F97B18B9725918 /* SuggestionTextNormalizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B424E2AC97C99D335B0D5751 /* SuggestionTextNormalizer.swift */; };
 		BBE22CE4EF43247F8775B25D /* FocusPollBackoff.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09FADF683BE7B3558377FA76 /* FocusPollBackoff.swift */; };
@@ -354,6 +357,7 @@
 		51020F8CD58338BD643FBF63 /* ModelDownloadManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelDownloadManager.swift; sourceTree = "<group>"; };
 		52BAFA2F989C3C4F7FB892B5 /* MarkerSelectionSynthesizerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkerSelectionSynthesizerTests.swift; sourceTree = "<group>"; };
 		53CF416511099C6818110F01 /* CompletionRenderModePolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompletionRenderModePolicy.swift; sourceTree = "<group>"; };
+		53E41890930AA80910E461EF /* GhostFontMetricsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GhostFontMetricsTests.swift; sourceTree = "<group>"; };
 		54150A507B03221F137D539B /* MirrorOverlayLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MirrorOverlayLayout.swift; sourceTree = "<group>"; };
 		5484C8A04B9C00CF79D589EB /* ScreenFrameReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenFrameReader.swift; sourceTree = "<group>"; };
 		54BC85605541E913EE57B258 /* ExtendedContextTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtendedContextTests.swift; sourceTree = "<group>"; };
@@ -429,6 +433,7 @@
 		9D598CC3134879999D567455 /* SuggestionOverlayPresenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionOverlayPresenter.swift; sourceTree = "<group>"; };
 		9D82FFC568527700EC17C07D /* PermissionModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionModels.swift; sourceTree = "<group>"; };
 		9E5F074ED7E340E9B9E4C5E0 /* EmojiPickerModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiPickerModels.swift; sourceTree = "<group>"; };
+		9E6439213F2A273702A6E26B /* GhostFontMetrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GhostFontMetrics.swift; sourceTree = "<group>"; };
 		9E72A3972E15749337539C2D /* EmojiRecents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiRecents.swift; sourceTree = "<group>"; };
 		A168A7B6A7AD11559B60C56B /* ApplicationBundleMetadataTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationBundleMetadataTests.swift; sourceTree = "<group>"; };
 		A3E8E86A14090BC7BD13BA76 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -460,6 +465,7 @@
 		B6D42CD456B4B3C988B148A6 /* FocusTrackingModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusTrackingModel.swift; sourceTree = "<group>"; };
 		B78AA11B52A6588119ABF76F /* TokenCountEstimatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenCountEstimatorTests.swift; sourceTree = "<group>"; };
 		B7B185BA246A526CBA85E581 /* EmojiPickerPanelLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiPickerPanelLayoutTests.swift; sourceTree = "<group>"; };
+		B7FBF2B766E728F25899B64E /* FieldStyleCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FieldStyleCache.swift; sourceTree = "<group>"; };
 		B81DD30EB657368AACE9625A /* InputMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputMonitor.swift; sourceTree = "<group>"; };
 		B997EC69E1C65B1E18234221 /* BrowserAppDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserAppDetector.swift; sourceTree = "<group>"; };
 		BA705EDFE1C41294F0E381F1 /* FocusSnapshotResolverSelectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusSnapshotResolverSelectionTests.swift; sourceTree = "<group>"; };
@@ -676,6 +682,7 @@
 				B27492B04B627DA53BDAD938 /* AXTreeDumpWriter.swift */,
 				8896D976C7F116EBA0F3969F /* ChromiumAccessibilityEnabler.swift */,
 				684737E62EE6495A71344923 /* DeepGeometryWalkThrottle.swift */,
+				B7FBF2B766E728F25899B64E /* FieldStyleCache.swift */,
 				04E25414C307A20B6F9F20EC /* FocusSnapshotResolver.swift */,
 				5C9FDF029F7828CAF3FE8850 /* FocusTracker.swift */,
 			);
@@ -790,6 +797,7 @@
 				273B4DC844F79B4BE2C8910F /* FocusPollBackoffTests.swift */,
 				BA705EDFE1C41294F0E381F1 /* FocusSnapshotResolverSelectionTests.swift */,
 				D49F3B597374208594861B9B /* FoundationModelDriftEvalTests.swift */,
+				53E41890930AA80910E461EF /* GhostFontMetricsTests.swift */,
 				335BF59EE80F3A0143B79740 /* GhostFontSizeStabilizerTests.swift */,
 				5AD3F4F9FBE82007E4E15F58 /* GhostSuggestionLayoutTests.swift */,
 				BAC01317B0B68E3C4125E421 /* InputMonitorTests.swift */,
@@ -951,6 +959,7 @@
 				70367FCC1E0F08EE3B8EB26F /* FocusCapabilityResolver.swift */,
 				09FADF683BE7B3558377FA76 /* FocusPollBackoff.swift */,
 				FE7BF162A12703249726F20A /* FoundationModelPromptRenderer.swift */,
+				9E6439213F2A273702A6E26B /* GhostFontMetrics.swift */,
 				9458F0820B3161FE9CF1DDAF /* GhostFontSizeStabilizer.swift */,
 				043E8AA850F930222DD112C0 /* GhostSuggestionLayout.swift */,
 				7E44E393DD58B978B1EAB6CF /* GhostTextColorPreset.swift */,
@@ -1165,6 +1174,7 @@
 				0FF600435A2EFA9437E36B6F /* EmojiVariantResolver.swift in Sources */,
 				5DF31F465A3A1233260BD3A4 /* EngineAndModelPaneView.swift in Sources */,
 				5BE53CE921664582F593B7B0 /* FieldEdgeIconIndicatorView.swift in Sources */,
+				B782EC08B7516791BDB21172 /* FieldStyleCache.swift in Sources */,
 				6E49ADEB31D04DC77A47DEB0 /* FileLogHandler.swift in Sources */,
 				C0FE11D76BDF01A5470C554D /* FocusCapabilityFlickerGate.swift in Sources */,
 				CC98B842D10574C5206BEFA7 /* FocusCapabilityResolver.swift in Sources */,
@@ -1178,6 +1188,7 @@
 				36312821AEE03E3E62845958 /* FoundationModelPromptRenderer.swift in Sources */,
 				6DD1E22151571E1A22FF22F4 /* FoundationModelSuggestionEngine.swift in Sources */,
 				4134ADBE464D00BB748BD9AE /* GeneralPaneView.swift in Sources */,
+				2784A3A838FF122678547ECA /* GhostFontMetrics.swift in Sources */,
 				42D40F37086294D0E58200C5 /* GhostFontSizeStabilizer.swift in Sources */,
 				ED9C51B0D7056F0753AADF2D /* GhostSuggestionLayout.swift in Sources */,
 				F4EEE6291095B0BF2D3FBA21 /* GhostTextColorPreset.swift in Sources */,
@@ -1327,6 +1338,7 @@
 				A147C5EC3F2214A670F7556E /* FocusPollBackoffTests.swift in Sources */,
 				156E6AB3D24134EEC29FDB93 /* FocusSnapshotResolverSelectionTests.swift in Sources */,
 				31DCCE980B6708401256D4D1 /* FoundationModelDriftEvalTests.swift in Sources */,
+				1D424A103EF7BFE45518F45E /* GhostFontMetricsTests.swift in Sources */,
 				2EE05B312C990104BE934772 /* GhostFontSizeStabilizerTests.swift in Sources */,
 				A0BB87E3665EF6C209034798 /* GhostSuggestionLayoutTests.swift in Sources */,
 				07D046D406411ED85AC5758A /* InputMonitorTests.swift in Sources */,
