@@ -17,6 +17,9 @@ packages:
   swift-log:
     url: https://github.com/apple/swift-log.git
     from: 1.12.1
+  LaunchAtLogin:
+    url: https://github.com/sindresorhus/LaunchAtLogin-Modern
+    from: 1.1.0
 settings:
   base:
     ALWAYS_SEARCH_USER_PATHS: NO
@@ -98,6 +101,8 @@ targets:
         product: InMemoryLogging
       - package: swift-log
         product: Logging
+      - package: LaunchAtLogin
+        product: LaunchAtLogin
     settings:
       base:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon

@@ -15,8 +15,12 @@ struct EngineAndModelPaneView: View {
 
     @State private var pendingDeletionModel: RuntimeModelOption?
     /// The LM Studio models directory if it exists, probed once in `onAppear` so the filesystem
-    /// `fileExists` check never runs on the SwiftUI render path. Nil disables the "Use LM Studio" button.
+    /// `fileExists` check never runs on the SwiftUI render path. Nil disables the LM Studio toggle.
     @State private var lmStudioModelsURL: URL?
+    /// Whether to also scan the user's LM Studio library. Persisted via the same key the locator
+    /// reads, so the toggle and the model scan stay in sync. LM Studio models are an additive,
+    /// read-only source; Cotabby's own folder is always scanned and is always the download target.
+    @AppStorage(BundledRuntimeLocator.lmStudioSourceEnabledKey) private var lmStudioSourceEnabled = false
 
     var body: some View {
         SettingsPaneScaffold(callout: callout) {
@@ -46,6 +50,12 @@ struct EngineAndModelPaneView: View {
         .onAppear {
             foundationModelAvailabilityService.refresh()
             lmStudioModelsURL = BundledRuntimeLocator.lmStudioModelsDirectoryIfAvailable()
+            // If LM Studio was uninstalled while the source was enabled, clear the persisted flag so
+            // the toggle does not sit checked-but-disabled with no way to turn it off (and so the
+            // source does not silently reactivate if LM Studio is later reinstalled).
+            if lmStudioModelsURL == nil, lmStudioSourceEnabled {
+                lmStudioSourceEnabled = false
+            }
         }
         .alert(
             "Delete Model?",
@@ -135,22 +145,6 @@ struct EngineAndModelPaneView: View {
                         .multilineTextAlignment(.trailing)
 
                     HStack(spacing: 8) {
-                        let isUsingCustomPath = BundledRuntimeLocator.customModelDirectoryURL() != nil
-                        Button("Use LM Studio") {
-                            guard let lmStudioModelsURL else { return }
-                            BundledRuntimeLocator.setCustomModelDirectory(lmStudioModelsURL)
-                            modelDownloadManager.refreshSearchDirectories()
-                            refreshModels()
-                        }
-                        .disabled(lmStudioModelsURL == nil)
-
-                        Button("Reset Path") {
-                            BundledRuntimeLocator.setCustomModelDirectory(nil)
-                            modelDownloadManager.refreshSearchDirectories()
-                            refreshModels()
-                        }
-                        .disabled(!isUsingCustomPath)
-
                         Button("Open Folder") {
                             modelDownloadManager.openModelsDirectory()
                         }
@@ -160,6 +154,21 @@ struct EngineAndModelPaneView: View {
                         }
                     }
                 }
+            }
+
+            Toggle(isOn: $lmStudioSourceEnabled) {
+                SettingsRowLabel(
+                    title: "Also use LM Studio models",
+                    description: lmStudioModelsURL == nil
+                        ? "Install LM Studio to load models from its library here."
+                        : "Add models from your LM Studio library (~/.lmstudio/models) to the picker " +
+                            "above. Downloads still save to Cotabby's own folder."
+                )
+            }
+            .disabled(lmStudioModelsURL == nil)
+            .onChange(of: lmStudioSourceEnabled) { _, _ in
+                modelDownloadManager.refreshSearchDirectories()
+                refreshModels()
             }
         }
 

@@ -45,6 +45,14 @@ final class WelcomeCoordinator: NSObject, NSWindowDelegate {
     /// flow, which is the opposite of what a version bump is for.
     private static let onboardingCompletedVersionKey = "cotabbyOnboardingCompletedVersion"
 
+    /// Furthest onboarding step the user has reached, stored as the step's raw index. Lets the wizard
+    /// *resume* instead of restarting when the user is pulled out mid-flow: granting Accessibility or
+    /// Input Monitoring on the permissions step typically only takes effect after the user quits and
+    /// relaunches Cotabby, which lands before the final "Start Using Cotabby" tap that stamps
+    /// completion. Without this, that relaunch drops them back at step one and onboarding repeats
+    /// every time (issue #314). Cleared on completion so a future version bump starts clean.
+    private static let onboardingProgressStepKey = "cotabbyOnboardingProgressStep"
+
     init(
         permissionManager: PermissionManager,
         permissionGuidanceController: PermissionGuidanceController,
@@ -122,6 +130,10 @@ final class WelcomeCoordinator: NSObject, NSWindowDelegate {
                 },
                 onDismiss: { [weak self] in
                     self?.completeOnboarding()
+                },
+                initialStepIndex: userDefaults.integer(forKey: Self.onboardingProgressStepKey),
+                onStepChange: { [weak self] stepIndex in
+                    self?.recordProgress(stepIndex: stepIndex)
                 }
             )
         )
@@ -171,8 +183,20 @@ final class WelcomeCoordinator: NSObject, NSWindowDelegate {
     /// version unchanged, so the wizard returns on next launch.
     private func completeOnboarding() {
         userDefaults.set(Self.currentOnboardingVersion, forKey: Self.onboardingCompletedVersionKey)
+        // Drop the resume marker so reopening the wizard later (menu entry point, or a future version
+        // bump re-showing it) starts from the welcome step rather than the last step of this run.
+        userDefaults.removeObject(forKey: Self.onboardingProgressStepKey)
         permissionGuidanceController.dismiss()
         welcomeWindowController?.close()
+    }
+
+    /// Persists the furthest step the wizard has reached. Monotonic: a user stepping back never
+    /// lowers the resume point, so closing the window always reopens at the deepest step they saw.
+    private func recordProgress(stepIndex: Int) {
+        guard stepIndex > userDefaults.integer(forKey: Self.onboardingProgressStepKey) else {
+            return
+        }
+        userDefaults.set(stepIndex, forKey: Self.onboardingProgressStepKey)
     }
 
     private func showPermissionReminder() {

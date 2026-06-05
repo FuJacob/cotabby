@@ -60,43 +60,49 @@ final class ModelDownloadManager: ObservableObject {
 
     private let runtimeDirectoryURL: URL
     private var runtimeSearchDirectories: [URL]
+    /// GGUF filenames discovered across every search directory, recomputed whenever the search set
+    /// or on-disk contents change. Cached so the per-catalog-model install check in
+    /// `refreshModelStates` does not re-walk the (recursively scanned) directories once per model.
+    private var installedModelFilenames: Set<String> = []
     private var downloadTasks: [String: Task<Void, Never>] = [:]
 
     init(runtimeDirectoryURL: URL? = nil) {
         let primaryDirectoryURL =
             runtimeDirectoryURL ?? BundledRuntimeLocator.userRuntimeDirectoryURL()
         self.runtimeDirectoryURL = primaryDirectoryURL
+        runtimeSearchDirectories = Self.resolveSearchDirectories(primary: primaryDirectoryURL)
 
-        var directories = [primaryDirectoryURL]
+        refreshModelStates()
+    }
+
+    /// Cotabby's own directory first (authoritative + download target), then any additive sources
+    /// (the LM Studio library when enabled), deduped by normalized path.
+    private static func resolveSearchDirectories(primary: URL) -> [URL] {
+        var directories = [primary]
         for directoryURL in BundledRuntimeLocator.runtimeSearchDirectories() {
             let normalizedPath = directoryURL.standardizedFileURL.path
             if !directories.contains(where: { $0.standardizedFileURL.path == normalizedPath }) {
                 directories.append(directoryURL)
             }
         }
-        runtimeSearchDirectories = directories
-
-        refreshModelStates()
+        return directories
     }
 
     var models: [DownloadableRuntimeModel] {
         RuntimeModelCatalog.downloadableModels
     }
 
+    /// The path shown in Settings and opened by "Open Folder". This is always Cotabby's own writable
+    /// directory because that is where downloads and imports land; additive sources such as LM Studio
+    /// are read-only and surfaced only through the model picker, not this control.
     var modelsDirectoryPath: String {
-        BundledRuntimeLocator.customModelDirectoryURL()?.path ?? runtimeDirectoryURL.path
+        runtimeDirectoryURL.path
     }
 
-    /// Re-reads the current search directories (including any custom path) and refreshes model states.
+    /// Re-reads the current search directories (including the LM Studio source when toggled) and
+    /// refreshes model states.
     func refreshSearchDirectories() {
-        var directories = [runtimeDirectoryURL]
-        for directoryURL in BundledRuntimeLocator.runtimeSearchDirectories() {
-            let normalizedPath = directoryURL.standardizedFileURL.path
-            if !directories.contains(where: { $0.standardizedFileURL.path == normalizedPath }) {
-                directories.append(directoryURL)
-            }
-        }
-        runtimeSearchDirectories = directories
+        runtimeSearchDirectories = Self.resolveSearchDirectories(primary: runtimeDirectoryURL)
         refreshModelStates()
     }
 
@@ -105,6 +111,7 @@ final class ModelDownloadManager: ObservableObject {
     }
 
     func refreshModelStates() {
+        recomputeInstalledModelFilenames()
         let catalogFilenames = Set(models.map(\.filename))
 
         for model in models {
@@ -286,6 +293,9 @@ final class ModelDownloadManager: ObservableObject {
             try await performSingleFileDownload(model, url: model.downloadURL)
 
             CotabbyLogger.models.info("Download complete for \(model.filename)")
+            // Keep the discovered-filename cache in step with the new file on disk so an immediate
+            // re-`download(_:)` of the same model is recognized as installed instead of re-fetched.
+            recomputeInstalledModelFilenames()
             modelStates[model.filename] = .downloaded
             onModelDirectoryChanged?()
         } catch {
@@ -395,10 +405,20 @@ final class ModelDownloadManager: ObservableObject {
     }
 
     private func isInstalled(filename: String) -> Bool {
-        runtimeSearchDirectories.contains { directoryURL in
-            let fileURL = directoryURL.appendingPathComponent(filename, isDirectory: false)
-            return FileManager.default.fileExists(atPath: fileURL.path)
+        installedModelFilenames.contains(filename)
+    }
+
+    /// Rebuilds the discovered-filename cache by recursively scanning every search directory. The
+    /// recursion is what lets a nested LM Studio install (`<publisher>/<repo>/<file>.gguf`) be
+    /// recognized as installed; a flat `directory/filename` join would miss it.
+    private func recomputeInstalledModelFilenames() {
+        var filenames: Set<String> = []
+        for directoryURL in runtimeSearchDirectories {
+            for modelURL in BundledRuntimeLocator.discoverGGUFModelURLs(in: directoryURL) {
+                filenames.insert(modelURL.lastPathComponent)
+            }
         }
+        installedModelFilenames = filenames
     }
 
 }

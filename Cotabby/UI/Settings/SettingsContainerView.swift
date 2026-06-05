@@ -13,7 +13,6 @@ import SwiftUI
 struct SettingsContainerView: View {
     let appUpdateManager: AppUpdateManager
 
-    @ObservedObject var launchAtLoginService: LaunchAtLoginService
     @ObservedObject var permissionManager: PermissionManager
     @ObservedObject var suggestionSettings: SuggestionSettingsModel
     @ObservedObject var foundationModelAvailabilityService: FoundationModelAvailabilityService
@@ -62,7 +61,6 @@ struct SettingsContainerView: View {
             // `openSource`). Users whose persisted selection still points to either should land on
             // the unified Engine & Model pane rather than fall back to General.
             selection = Self.restoreSelection(from: storedCategoryRawValue)
-            launchAtLoginService.refresh()
             permissionManager.refresh()
             // Set the title unconditionally on open: when the restored selection equals the
             // initial @State value, `.onChange` does not fire and the title would stay blank.
@@ -100,7 +98,6 @@ struct SettingsContainerView: View {
         case .general:
             GeneralPaneView(
                 suggestionSettings: suggestionSettings,
-                launchAtLoginService: launchAtLoginService,
                 onShowWelcome: onShowWelcome,
                 clearEmojiHistory: clearEmojiHistory
             )

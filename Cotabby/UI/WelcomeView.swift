@@ -24,8 +24,11 @@ struct WelcomeView: View {
     let permissionGuidanceController: PermissionGuidanceController
     let onPreferredWindowSizeChange: (NSSize) -> Void
     let onDismiss: () -> Void
+    /// Reports the current step's raw index up to the coordinator so it can persist a resume point.
+    /// The wizard is re-shown from this step if the user is pulled out before finishing (see #314).
+    let onStepChange: (Int) -> Void
 
-    @State private var step: WelcomeStep = .welcome
+    @State private var step: WelcomeStep
     @State private var selectedTemplate: OnboardingTemplate?
     /// The engine chosen at the top of the template step. Seeded in `init` from Apple Intelligence
     /// availability (Apple Intelligence when the Mac supports it, otherwise Open Source) so the
@@ -49,7 +52,9 @@ struct WelcomeView: View {
         foundationModelAvailabilityService: FoundationModelAvailabilityService,
         permissionGuidanceController: PermissionGuidanceController,
         onPreferredWindowSizeChange: @escaping (NSSize) -> Void,
-        onDismiss: @escaping () -> Void
+        onDismiss: @escaping () -> Void,
+        initialStepIndex: Int = 0,
+        onStepChange: @escaping (Int) -> Void = { _ in }
     ) {
         _permissionManager = ObservedObject(wrappedValue: permissionManager)
         _runtimeModel = ObservedObject(wrappedValue: runtimeModel)
@@ -59,6 +64,10 @@ struct WelcomeView: View {
         self.permissionGuidanceController = permissionGuidanceController
         self.onPreferredWindowSizeChange = onPreferredWindowSizeChange
         self.onDismiss = onDismiss
+        self.onStepChange = onStepChange
+        // Resume at the furthest step the user previously reached. An out-of-range or absent value
+        // (0) falls back to `.welcome`, so brand-new users still start at the beginning.
+        _step = State(initialValue: WelcomeStep(rawValue: initialStepIndex) ?? .welcome)
         // Seed the engine before the first render so the template step never shows a frame of "Open
         // Source" selected on an Apple Intelligence-capable Mac and then snaps to it. Availability is
         // resolved well before onboarding appears, so reading it here is reliable.
@@ -78,6 +87,12 @@ struct WelcomeView: View {
             .animation(.easeInOut(duration: 0.25), value: preferredWindowSize)
             .onAppear {
                 onPreferredWindowSizeChange(preferredWindowSize)
+                // Stamp the resume point for the step we open on. Matters when resuming directly onto
+                // a later step: without this, quitting again before advancing would not re-persist it.
+                onStepChange(step.rawValue)
+            }
+            .onChange(of: step) { _, newStep in
+                onStepChange(newStep.rawValue)
             }
             .onChange(of: preferredWindowSize) { _, newValue in
                 onPreferredWindowSizeChange(newValue)
