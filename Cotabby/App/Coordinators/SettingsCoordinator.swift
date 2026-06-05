@@ -22,6 +22,7 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
     private let suggestionEngine: any SuggestionGenerating
     private let configuration: SuggestionConfiguration
     private let performanceMetricsStore: PerformanceMetricsStore
+    private let systemMetricsStore: SystemMetricsStore
     private let onShowWelcome: () -> Void
     private let clearEmojiHistory: () -> Void
 
@@ -39,6 +40,7 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
         suggestionEngine: any SuggestionGenerating,
         configuration: SuggestionConfiguration,
         performanceMetricsStore: PerformanceMetricsStore,
+        systemMetricsStore: SystemMetricsStore,
         onShowWelcome: @escaping () -> Void,
         clearEmojiHistory: @escaping () -> Void
     ) {
@@ -53,6 +55,7 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
         self.suggestionEngine = suggestionEngine
         self.configuration = configuration
         self.performanceMetricsStore = performanceMetricsStore
+        self.systemMetricsStore = systemMetricsStore
         self.onShowWelcome = onShowWelcome
         self.clearEmojiHistory = clearEmojiHistory
     }
@@ -79,6 +82,7 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
                     modelDownloadManager: modelDownloadManager,
                     huggingFaceSearchService: huggingFaceSearchService,
                     performanceMetricsStore: performanceMetricsStore,
+                    systemMetricsStore: systemMetricsStore,
                     suggestionEngine: suggestionEngine,
                     configuration: configuration,
                     onShowWelcome: onShowWelcome,
