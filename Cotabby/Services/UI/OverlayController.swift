@@ -314,7 +314,8 @@ final class OverlayController: SuggestionOverlayControlling {
             layout: layout,
             customColor: customGhostColor,
             keycapLabel: acceptanceHintLabel,
-            opacity: ghostOpacity
+            opacity: ghostOpacity,
+            isCorrection: geometry.isCorrection
         )
 
         let contentView: NSHostingView<MirrorOverlayView>
@@ -419,6 +420,19 @@ private final class OverlayPanel: NSPanel {
     override var canBecomeMain: Bool { false }
 }
 
+/// The green used to signal a typo correction. Tuned per color scheme so it stays legible in both
+/// appearances without dropping below a comfortable contrast floor against typical text-field
+/// backgrounds. Shared by the inline ghost and the mirror card so a correction reads identically in
+/// either display mode; the user's custom suggestion color is intentionally bypassed for corrections
+/// because semantic communication beats personalization here.
+private enum SuggestionCorrectionStyle {
+    static func color(for colorScheme: ColorScheme) -> Color {
+        colorScheme == .dark
+            ? Color(red: 0.45, green: 0.85, blue: 0.45)
+            : Color(red: 0.15, green: 0.60, blue: 0.20)
+    }
+}
+
 /// Small SwiftUI view hosted inside the floating AppKit panel.
 /// Keeping the rendered content separate from the window controller makes styling easier to evolve
 /// without touching the AppKit positioning code.
@@ -446,12 +460,7 @@ private struct GhostSuggestionView: View {
     /// field color is pre-filtered upstream so invisible extremes already fall back to nil here.
     var ghostColor: Color {
         if isCorrection {
-            // Tuned per color scheme so the green stays legible in both appearances without dropping
-            // below a comfortable contrast floor against typical text-field backgrounds.
-            let correctionColor = colorScheme == .dark
-                ? Color(red: 0.45, green: 0.85, blue: 0.45)
-                : Color(red: 0.15, green: 0.60, blue: 0.20)
-            return correctionColor.opacity(opacity)
+            return SuggestionCorrectionStyle.color(for: colorScheme).opacity(opacity)
         }
         let baseColor = customColor
             ?? fieldColor
@@ -549,8 +558,14 @@ private struct MirrorOverlayView: View {
     let customColor: Color?
     let keycapLabel: String?
     let opacity: Double
+    /// When true, the suggestion replaces a typo'd word; the whole card lights up green to match the
+    /// inline ghost, and the next-accept-word highlight is suppressed (the correction is one unit).
+    let isCorrection: Bool
 
     private var ghostColor: Color {
+        if isCorrection {
+            return SuggestionCorrectionStyle.color(for: colorScheme).opacity(opacity)
+        }
         let baseColor = customColor
             ?? (
                 colorScheme == .dark
@@ -575,6 +590,10 @@ private struct MirrorOverlayView: View {
         var attributed = AttributedString(layout.suggestionText)
         attributed.font = .system(size: layout.fontSize)
         attributed.foregroundColor = ghostColor
+
+        // A correction replaces the whole word, so the entire run stays green; the next-accept-word
+        // highlight (which marks where Tab stops mid-completion) does not apply to a correction.
+        guard !isCorrection else { return attributed }
 
         let prefix = layout.highlightedPrefix
         guard !prefix.isEmpty, layout.suggestionText.hasPrefix(prefix) else {
