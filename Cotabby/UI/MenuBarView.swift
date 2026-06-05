@@ -365,15 +365,19 @@ struct MenuBarView: View {
 private struct MenuBarWindowBackgroundModifier: ViewModifier {
     @ViewBuilder
     func body(content: Content) -> some View {
-        if #available(macOS 15.0, *) {
-            // MenuBarExtra's `.window` style already gives us native rounded window chrome.
-            // Place the fill at the hosting window instead of this view's local bounds so it
-            // reaches the native rounded frame as one surface (avoids the older double-border
-            // look). Use an opaque window *color*, not the `.windowBackground` *material*: under
-            // macOS 26 Liquid Glass the material is translucent, so the desktop/app behind the
-            // popup bleeds through and the native chrome and shadow detach from the content,
-            // worst on light backgrounds (issue #492). An opaque fill reads as one solid panel.
+        if #available(macOS 26.0, *) {
+            // macOS 26 Liquid Glass renders the `.windowBackground` *material* as translucent
+            // glass, so the app/desktop behind the popup bleeds through and the native chrome and
+            // shadow detach from the content, worst on light backgrounds (issue #492). Fill with
+            // an opaque window *color* instead so the popup reads as one solid rounded panel.
             content.containerBackground(Color(nsColor: .windowBackgroundColor), for: .window)
+        } else if #available(macOS 15.0, *) {
+            // MenuBarExtra's `.window` style already gives us native rounded window chrome. Place
+            // the fill at the hosting window instead of this view's local bounds so it reaches the
+            // native rounded frame as one surface (avoids the double-border look fixed in #403).
+            // The `.windowBackground` material renders correctly on macOS 15 through pre-26, so
+            // keep it there to preserve the vibrant appearance and only patch the 26 regression.
+            content.containerBackground(.windowBackground, for: .window)
         } else {
             content
         }
