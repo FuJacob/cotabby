@@ -192,32 +192,6 @@ struct LlamaGenerationOptions: Equatable, Sendable {
     /// Average per-token log-probability below which a completion is suppressed as low-confidence.
     /// Defaults to -infinity, which disables suppression entirely.
     var confidenceFloor: Double = -.infinity
-
-    /// Routes generation through the deterministic constrained decoder (logit read + admissibility
-    /// mask + argmax + manual token commit) instead of the engine's built-in stochastic sampler.
-    /// Default off so the shipping sampleNext path is unaffected until the constrained decoder is
-    /// validated on device. Changing it does not affect KV reuse, so it is intentionally excluded
-    /// from `SamplingFingerprint`.
-    var useConstrainedDecoder: Bool = false
-
-    /// Beam width for the constrained decoder. 1 keeps the single-path greedy decode; values > 1 run a
-    /// multi-branch beam search that explores several short continuations and keeps the highest-scoring
-    /// one. Only consulted when `useConstrainedDecoder` is true. Like `useConstrainedDecoder`, it does
-    /// not affect KV reuse, so it is excluded from `SamplingFingerprint`.
-    var beamWidth: Int = 1
-
-    /// When set (and the model is FIM-capable), the runtime builds a fill-in-middle prompt from the
-    /// text before and after the caret instead of using `prompt`, so the completion is conditioned on
-    /// what follows the cursor. Nil uses the ordinary forward base prompt. Does not affect KV reuse
-    /// (the FIM path decodes fresh), so it is excluded from `SamplingFingerprint`.
-    var fillInMiddle: FillInMiddleRequest?
-}
-
-/// The text around the caret used to build a fill-in-middle prompt: everything before the cursor and
-/// everything after it. The runtime tokenizes each side and wraps them in the model's FIM markers.
-struct FillInMiddleRequest: Equatable, Sendable {
-    let prefix: String
-    let suffix: String
 }
 
 /// The concrete runtime assets selected during bootstrap after checking available model files.

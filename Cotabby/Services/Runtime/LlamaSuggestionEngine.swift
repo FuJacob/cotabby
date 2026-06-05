@@ -13,51 +13,6 @@ final class LlamaSuggestionEngine {
     private let runtimeManager: LlamaRuntimeGenerating
     private var promptCacheHintTracker = LlamaPromptCacheHintTracker()
 
-    /// UserDefaults key (no UI) that routes llama generation through the deterministic constrained
-    /// decoder instead of the engine's stochastic sampler. Default-off: decode quality can only be
-    /// judged with a real model in a real field, so this stays a hidden developer/dogfood toggle
-    /// until it is validated on device and promoted to the default.
-    private static let constrainedDecoderDefaultsKey = "cotabbyConstrainedDecoderEnabled"
-    private static var isConstrainedDecoderEnabled: Bool {
-        UserDefaults.standard.bool(forKey: constrainedDecoderDefaultsKey)
-    }
-
-    /// UserDefaults key (no UI) for the constrained decoder's beam width. Default 1 keeps the existing
-    /// single-path greedy decode; a value > 1 runs a multi-branch beam search. Paired with the
-    /// constrained-decoder flag as a hidden developer/dogfood knob until validated on device.
-    private static let constrainedBeamWidthDefaultsKey = "cotabbyConstrainedBeamWidth"
-    private static var constrainedBeamWidth: Int {
-        let stored = UserDefaults.standard.integer(forKey: constrainedBeamWidthDefaultsKey)
-        return stored > 0 ? stored : 1
-    }
-
-    /// UserDefaults key (no UI) for fill-in-middle prompting. Default off: FIM only helps models that
-    /// ship the FIM marker tokens, and it changes the prompt structure, so it stays a developer toggle
-    /// until validated on device.
-    private static let fillInMiddleDefaultsKey = "cotabbyFillInMiddleEnabled"
-    private static var isFillInMiddleEnabled: Bool {
-        UserDefaults.standard.bool(forKey: fillInMiddleDefaultsKey)
-    }
-
-    /// The fill-in-middle request for a generation, or nil to use the forward base prompt. Built only
-    /// when the flag is on and the caret is genuinely mid-line (real text follows it on the same line);
-    /// the runtime still falls back to the base prompt when the model lacks FIM markers.
-    private static func fillInMiddleRequest(for request: SuggestionRequest) -> FillInMiddleRequest? {
-        guard isFillInMiddleEnabled else {
-            return nil
-        }
-        // A caret at end of line wants a forward continuation, not infilling — even if `trailingText`
-        // is non-empty because a line break and later paragraphs follow it. Gating on end-of-line
-        // (rather than `trailingText.isEmpty`) keeps FIM to the case it is actually meant for.
-        guard !request.context.isCaretAtEndOfLine else {
-            return nil
-        }
-        return FillInMiddleRequest(
-            prefix: request.context.precedingText,
-            suffix: request.context.trailingText
-        )
-    }
-
     init(runtimeManager: LlamaRuntimeGenerating) {
         self.runtimeManager = runtimeManager
     }
@@ -95,10 +50,7 @@ final class LlamaSuggestionEngine {
                     forceWordContinuation: MidWordContinuationPolicy.shouldForceContinuation(
                         precedingText: request.context.precedingText,
                         trailingText: request.context.trailingText
-                    ),
-                    useConstrainedDecoder: Self.isConstrainedDecoderEnabled,
-                    beamWidth: Self.constrainedBeamWidth,
-                    fillInMiddle: Self.fillInMiddleRequest(for: request)
+                    )
                 )
             )
             try Task.checkCancellation()

@@ -34,19 +34,6 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
     private var autocompletePromptTokens: [Int32] = []
     private var autocompleteSamplingFingerprint: SamplingFingerprint?
 
-    /// Per-model constrained-decoding token table, built lazily on the first constrained request and
-    /// reused across requests. Keyed by model URL so loading a different model rebuilds it. Read and
-    /// written only inside `runConstrainedDecode`, which runs under `autocompleteLock`, so it needs
-    /// no extra synchronization. Cleared on `shutdown()` to release the table when the model unloads.
-    private var cachedTokenProfile: TokenProfile?
-    private var cachedTokenProfileModelURL: URL?
-
-    /// Per-model fill-in-middle marker token ids (nil means the model is not FIM-capable). Detected
-    /// once by scanning the vocabulary and keyed by model URL like the token profile; the URL tracker
-    /// distinguishes "not yet detected" from a cached nil result. Accessed only under `autocompleteLock`.
-    private var cachedFIMMarkers: FIMMarkers?
-    private var cachedFIMMarkersModelURL: URL?
-
     /// Coordinates model lifecycle with in-flight operations. `generate()` and `summarize()`
     /// increment the active count on entry and decrement on exit. `shutdown()` sets the
     /// shutting-down flag and blocks until all active operations finish before unloading.
@@ -150,7 +137,7 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
             lifecycleCondition.unlock()
         }
 
-        var promptBytes = Array(prompt.utf8)
+        let promptBytes = Array(prompt.utf8)
         let allPromptTokens = tokenize(prompt)
         guard !allPromptTokens.isEmpty else {
             CotabbyLogger.runtime.error(
@@ -185,17 +172,6 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         autocompleteLock.lock()
         defer { autocompleteLock.unlock() }
 
-        // Replace the forward prompt with a fill-in-middle prompt when requested and the model is
-        // FIM-capable. Built under the lock so the marker-detection cache is serialized with the rest of
-        // the autocomplete state. FIM bypasses prompt-byte reuse (its structure differs from the forward
-        // prompt), so it clears the reuse hint; the assembled tokens are already budgeted to
-        // maxPromptTokens with the mandatory markers, so they are used as-is.
-        if let fimTokens = fillInMiddlePromptTokens(options.fillInMiddle, maxPromptTokens: maxPromptTokens) {
-            promptTokens = fimTokens
-            promptBytes = []
-            adjustedCachedPrefixBytes = nil
-        }
-
         let sequenceID = try obtainAutocompleteSequence(
             promptTokens: promptTokens,
             promptBytes: promptBytes,
@@ -212,63 +188,12 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
             autocompleteSamplingFingerprint = fingerprint
         }
 
-        // The KV-trim defer above runs after whichever decoder returns. Both decoders share the
-        // prepared sequence and the same confidence-suppression contract; they differ only in how
-        // they pick each token (engine sampler vs. deterministic constrained selection).
-        guard options.useConstrainedDecoder else {
-            return runEngineSampledDecode(sequenceID: sequenceID, options: options)
-        }
-        return options.beamWidth > 1
-            ? try runConstrainedBeamDecode(
-                sequenceID: sequenceID,
-                promptTokenCount: promptTokens.count,
-                options: options
-            )
-            : try runConstrainedDecode(sequenceID: sequenceID, options: options)
+        // The KV-trim defer above runs after the decoder returns, restoring prompt-only KV state for
+        // the next request. Token selection is delegated to the engine's built-in sampler.
+        return runEngineSampledDecode(sequenceID: sequenceID, options: options)
     }
 
     // MARK: - Decoders
-
-    /// No-repeat-ngram order for the constrained decoder: forbid re-emitting any 3-gram already in the
-    /// output. 3 is the conventional choice — it breaks phrase loops ("I think that I think that") and
-    /// single-token runs after a few repeats, without blocking ordinary short repeats like "very very".
-    private static let noRepeatNgramSize = 3
-
-    /// ASCII sentence terminators (`.` `!` `?`), used as a cheap pre-filter: the constrained decoder
-    /// only decodes the accumulated bytes to test for a sentence boundary when a token carried one of
-    /// these, keeping the steady path on raw byte accumulation.
-    private static func isSentenceTerminatorByte(_ byte: UInt8) -> Bool {
-        byte == 0x2E || byte == 0x21 || byte == 0x3F
-    }
-
-    /// The stop reason for a token that must end the loop *before* it is committed to the output: an
-    /// end-of-generation token, or a line break in a single-line field. Returns nil to commit the
-    /// token. Folding both checks into one helper keeps the decode loop under the complexity budget.
-    private static func preCommitStopReason(
-        tokenID: Int,
-        options: LlamaGenerationOptions,
-        profile: TokenProfile
-    ) -> String? {
-        if profile.isEndOfGeneration(tokenID) {
-            return "eos"
-        }
-        if options.singleLine, profile.isNewline(tokenID) {
-            return "single_line"
-        }
-        return nil
-    }
-
-    /// Whether the accumulated completion bytes now end a sentence. Decodes only when the last token
-    /// carried an ASCII sentence terminator, so the steady decode path avoids per-token String work.
-    /// Kept as a helper so the decode loop stays under the cyclomatic-complexity budget.
-    private static func completesSentence(_ generatedBytes: [UInt8], lastTokenBytes: [UInt8]) -> Bool {
-        guard lastTokenBytes.contains(where: isSentenceTerminatorByte) else {
-            return false
-        }
-        // swiftlint:disable:next optional_data_string_conversion
-        let decoded = String(decoding: generatedBytes, as: UTF8.self)
-        return SentenceBoundaryClassifier.endsSentence(decoded)
-    }
 
     /// The shipping decoder: delegates token selection to the engine's built-in sampler
     /// (`sampleNext`), which applies temperature / top-k / top-p / min-p and commits each token.
@@ -321,244 +246,7 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         return generatedText
     }
 
-    /// The constrained decoder: reads the raw next-token logits, masks structural / excluded tokens
-    /// via the token profile, deterministically selects the highest-logit admissible token, and
-    /// commits it manually with `acceptToken`. This trades the sampler's randomness for reproducible,
-    /// leak-free continuations (no chat/control markers can surface as visible text). It honors the
-    /// same cancellation, single-line, and confidence-suppression contracts as the sampled path.
-    /// Mid-word word-continuation is already applied to the seed logits by `decodePrompt` (the engine
-    /// masks new-word-start tokens for the first step), so the first `getNextTokenLogits` row this
-    /// reads is already constrained when `forceWordContinuation` was set.
-    private func runConstrainedDecode(sequenceID: Int32, options: LlamaGenerationOptions) throws -> String {
-        let profile = try autocompleteTokenProfile()
-        let vocabSize = profile.vocabSize
-        guard vocabSize > 0 else {
-            throw LlamaRuntimeError.generationFailed("Vocabulary unavailable for constrained decoding.")
-        }
-        // `topK` bounds the candidate pool the selector ranks; clamp to a sane positive value so a
-        // zero/negative request still yields a full-vocab argmax rather than an empty pool.
-        let topK = options.topK > 0 ? options.topK : vocabSize
-
-        var generatedBytes: [UInt8] = []
-        // Token-id history feeds the no-repeat-ngram guard; tracked separately from bytes because the
-        // guard reasons over token ids, not decoded text.
-        var generatedTokenIDs: [Int] = []
-        var tokensGenerated = 0
-        var sumLogprob = 0.0
-        var stopReason = "budget_exhausted"
-        var logits = [Float](repeating: 0, count: vocabSize)
-
-        for _ in 0 ..< options.maxPredictionTokens {
-            if Task.isCancelled {
-                stopReason = "cancelled"
-                break
-            }
-
-            let written = logits.withUnsafeMutableBufferPointer { buffer in
-                Int(engine.getNextTokenLogits(sequenceID, buffer.baseAddress, Int32(buffer.count)))
-            }
-            guard written == vocabSize else {
-                stopReason = "no_logits"
-                break
-            }
-
-            // Block any token that would close an n-gram already emitted, so greedy argmax cannot fall
-            // into a repetition loop (the engine's repetition penalty does not reach this raw-logit path).
-            let blockedTokenIDs = RepetitionGuard.blockedTokens(
-                history: generatedTokenIDs,
-                ngramSize: Self.noRepeatNgramSize
-            )
-            guard let tokenID = ConstrainedSampler.selectToken(
-                logits: logits,
-                profile: profile,
-                admissibleTokenIDs: nil,
-                topK: topK,
-                blockedTokenIDs: blockedTokenIDs
-            ) else {
-                stopReason = "no_admissible_token"
-                break
-            }
-
-            // A token can stop the loop before it is committed: an end-of-generation token, or a line
-            // break in a single-line field (the partial completion so far is preserved).
-            if let preCommitStop = Self.preCommitStopReason(tokenID: tokenID, options: options, profile: profile) {
-                stopReason = preCommitStop
-                break
-            }
-
-            // Accumulate raw bytes and decode once at the end: a single token may carry only part of
-            // a multi-byte UTF-8 scalar, so per-token String decoding would corrupt CJK / emoji.
-            let tokenBytes = profile.bytes(for: tokenID)
-            // Scoring each step calls `logSumExp` over the full vocabulary — an O(vocab) exp pass per
-            // token. It only feeds the confidence-floor suppression check, which `shouldSuppress`
-            // short-circuits to a no-op when the floor is -infinity (the shipped default). Skip the
-            // work entirely in that case and only pay it when a caller has actually raised the floor.
-            if options.confidenceFloor > -.infinity,
-               let logProb = ConstrainedSampler.logProb(ofTokenAt: tokenID, in: logits) {
-                sumLogprob += logProb
-            }
-            generatedBytes.append(contentsOf: tokenBytes)
-            generatedTokenIDs.append(tokenID)
-            tokensGenerated += 1
-
-            if engine.acceptToken(sequenceID, Int32(tokenID)) != .ok {
-                stopReason = "accept_failed"
-                break
-            }
-
-            // Stop cleanly at the end of a sentence rather than running into the next one.
-            if Self.completesSentence(generatedBytes, lastTokenBytes: tokenBytes) {
-                stopReason = "sentence_boundary"
-                break
-            }
-        }
-
-        // Lossy decode is deliberate: the accumulated bytes are valid UTF-8 except for a possible
-        // partial trailing scalar (the final token may carry only part of a multi-byte character).
-        // The failable `String(bytes:encoding:)` would discard the entire completion in that case;
-        // `String(decoding:)` keeps every complete scalar and renders only the fragment as U+FFFD.
-        // swiftlint:disable:next optional_data_string_conversion
-        let generatedText = String(decoding: generatedBytes, as: UTF8.self)
-        CotabbyLogger.runtime.debug(
-            "Decode end",
-            metadata: [
-                "kind": .string("generate_constrained"),
-                "tokens_generated": .stringConvertible(tokensGenerated),
-                "chars_generated": .stringConvertible(generatedText.count),
-                "stop_reason": .string(stopReason)
-            ]
-        )
-
-        if Self.shouldSuppress(sumLogprob: sumLogprob, tokensGenerated: tokensGenerated, options: options) {
-            return ""
-        }
-        return generatedText
-    }
-
-    /// Multi-branch (beam) variant of the constrained decoder. Explores several short continuations
-    /// over the shared sequence — `EngineBeamStepper` syncs the KV cache to each branch's token path —
-    /// and returns the highest-scoring one. Reuses the same token profile, no-repeat-ngram guard,
-    /// sentence-boundary stop, and confidence suppression as the greedy path. The caller's KV-trim
-    /// defer restores the prompt-only state afterward.
-    private func runConstrainedBeamDecode(
-        sequenceID: Int32,
-        promptTokenCount: Int,
-        options: LlamaGenerationOptions
-    ) throws -> String {
-        let profile = try autocompleteTokenProfile()
-        let vocabSize = profile.vocabSize
-        guard vocabSize > 0 else {
-            throw LlamaRuntimeError.generationFailed("Vocabulary unavailable for constrained decoding.")
-        }
-        let topK = options.topK > 0 ? options.topK : vocabSize
-        var currentPath: [Int] = []
-        var logitsBuffer = [Float](repeating: 0, count: vocabSize)
-        let candidates = ConstrainedBeamSearch.search(
-            nextLogits: { generatedTokens in
-                self.beamLogits(
-                    forGeneratedTokens: generatedTokens,
-                    sequenceID: sequenceID,
-                    promptTokenCount: promptTokenCount,
-                    currentPath: &currentPath,
-                    logitsBuffer: &logitsBuffer
-                )
-            },
-            profile: profile,
-            configuration: BeamSearchConfiguration(
-                beamWidth: options.beamWidth,
-                maxTokens: options.maxPredictionTokens,
-                topK: topK,
-                noRepeatNgramSize: Self.noRepeatNgramSize
-            ),
-            isSingleLine: options.singleLine,
-            isMidWord: options.forceWordContinuation
-        )
-        let best = candidates.first
-        CotabbyLogger.runtime.debug(
-            "Decode end",
-            metadata: [
-                "kind": .string("generate_beam"),
-                "beam_width": .stringConvertible(options.beamWidth),
-                "candidates": .stringConvertible(candidates.count),
-                "tokens_generated": .stringConvertible(best?.tokenIDs.count ?? 0)
-            ]
-        )
-        guard let best else {
-            return ""
-        }
-        if Self.shouldSuppress(
-            sumLogprob: best.cumulativeLogprob,
-            tokensGenerated: best.tokenIDs.count,
-            options: options
-        ) {
-            return ""
-        }
-        return best.text
-    }
-
-    /// Beam-search logits provider: syncs the shared sequence's KV to `generatedTokens`, then reads
-    /// the next-token logits. `currentPath` / `logitsBuffer` are owned by one beam run (the caller),
-    /// so this stays a plain method on the runtime where `engine` (a noncopyable C++ value) is mutable.
-    private func beamLogits(
-        forGeneratedTokens generatedTokens: [Int],
-        sequenceID: Int32,
-        promptTokenCount: Int,
-        currentPath: inout [Int],
-        logitsBuffer: inout [Float]
-    ) -> [Float]? {
-        guard syncBeamSequence(
-            to: generatedTokens,
-            sequenceID: sequenceID,
-            promptTokenCount: promptTokenCount,
-            currentPath: &currentPath
-        ) else {
-            return nil
-        }
-        let vocabSize = logitsBuffer.count
-        let written = logitsBuffer.withUnsafeMutableBufferPointer { buffer in
-            Int(engine.getNextTokenLogits(sequenceID, buffer.baseAddress, Int32(buffer.count)))
-        }
-        guard written == vocabSize else {
-            return nil
-        }
-        return logitsBuffer
-    }
-
-    /// Brings the sequence KV to exactly `target` tokens beyond the prompt: trim back to the longest
-    /// shared prefix with the current path, then accept the remaining target tokens. `currentPath` is
-    /// updated as tokens are accepted so it always reflects the real KV length, even on a mid-accept
-    /// failure (the caller treats a false return as "this branch cannot be extended").
-    private func syncBeamSequence(
-        to target: [Int],
-        sequenceID: Int32,
-        promptTokenCount: Int,
-        currentPath: inout [Int]
-    ) -> Bool {
-        let shared = Self.commonPrefixLength(currentPath, target)
-        if currentPath.count > shared, !engine.trimKV(sequenceID, Int32(promptTokenCount + shared)) {
-            currentPath = []
-            return false
-        }
-        currentPath = Array(target[..<shared])
-        for index in shared ..< target.count {
-            guard engine.acceptToken(sequenceID, Int32(target[index])) == .ok else {
-                return false
-            }
-            currentPath.append(target[index])
-        }
-        return true
-    }
-
-    private static func commonPrefixLength(_ lhs: [Int], _ rhs: [Int]) -> Int {
-        var count = 0
-        let limit = min(lhs.count, rhs.count)
-        while count < limit, lhs[count] == rhs[count] {
-            count += 1
-        }
-        return count
-    }
-
-    /// Shared low-confidence gate for both decoders: drop completions the model itself was unsure
+    /// Low-confidence gate for the sampled decoder: drop completions the model itself was unsure
     /// about. Disabled by default (confidenceFloor == -infinity). The KV-trim defer in `generate`
     /// still runs because the caller returns "" rather than throwing.
     private static func shouldSuppress(
@@ -636,10 +324,6 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         resetPromptCache()
         engine.unloadModel()
         preparedRuntime = nil
-        cachedTokenProfile = nil
-        cachedTokenProfileModelURL = nil
-        cachedFIMMarkers = nil
-        cachedFIMMarkersModelURL = nil
         CotabbyLogger.runtime.info("Runtime shutdown complete")
 
         lifecycleCondition.lock()
@@ -741,167 +425,6 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         guard utf8Count > 0 else { return [] }
         let vec = engine.tokenize(text, Int32(utf8Count))
         return Array(vec)
-    }
-
-    /// Lazily builds and caches the constrained-decoding token profile for the loaded model. The
-    /// profile records each token's bytes and structural flags so the constrained decoder can mask
-    /// excluded tokens and detect stops without calling back into the engine per step. Building scans
-    /// the whole vocabulary once (one detokenize per token), so the result is cached and reused until
-    /// the model changes. Must be called while holding `autocompleteLock`.
-    private func autocompleteTokenProfile() throws -> TokenProfile {
-        let modelURL = preparedRuntime?.resolvedRuntime.modelFileURL
-        if let cachedTokenProfile, cachedTokenProfileModelURL == modelURL {
-            return cachedTokenProfile
-        }
-
-        let vocabSize = Int(engine.getVocabSize())
-        guard vocabSize > 0 else {
-            throw LlamaRuntimeError.generationFailed("Vocabulary unavailable for constrained decoding.")
-        }
-
-        let fingerprint = Self.tokenProfileFingerprint(modelURL: modelURL, vocabSize: vocabSize)
-        let cacheURL = Self.tokenProfileCacheURL(for: modelURL)
-        if let cached = loadCachedTokenProfile(from: cacheURL, fingerprint: fingerprint) {
-            cachedTokenProfile = cached
-            cachedTokenProfileModelURL = modelURL
-            CotabbyLogger.runtime.debug(
-                "Loaded constrained-decode token profile from disk cache",
-                metadata: ["vocab_size": .stringConvertible(vocabSize)]
-            )
-            return cached
-        }
-
-        // Detokenize every token once up front; the build closures index this snapshot so each
-        // token's bytes are computed a single time and its control flag derives from the same bytes.
-        var tokenBytes: [[UInt8]] = []
-        tokenBytes.reserveCapacity(vocabSize)
-        for id in 0 ..< vocabSize {
-            tokenBytes.append(detokenizeBytes(Int32(id)))
-        }
-
-        let profile = TokenProfile.build(
-            vocabSize: vocabSize,
-            bytesFor: { tokenBytes[$0] },
-            // A token that detokenizes to no visible bytes is a structural / special / control token
-            // (llama renders those empty when special rendering is off); never emit it as text.
-            isControl: { tokenBytes[$0].isEmpty },
-            isEndOfGeneration: { self.engine.isEndOfGenerationToken(Int32($0)) }
-        )
-        cachedTokenProfile = profile
-        cachedTokenProfileModelURL = modelURL
-        if let cacheURL {
-            Self.writeTokenProfileCache(profile, fingerprint: fingerprint, to: cacheURL)
-        }
-        CotabbyLogger.runtime.debug(
-            "Built constrained-decode token profile",
-            metadata: ["vocab_size": .stringConvertible(vocabSize)]
-        )
-        return profile
-    }
-
-    /// Reads a cached profile for the current model, or nil when there is no usable cache file. Any
-    /// read or decode failure (missing file, fingerprint mismatch, corruption) returns nil so the
-    /// caller rebuilds; the cache can never produce a wrong profile, only a rebuild.
-    private func loadCachedTokenProfile(from cacheURL: URL?, fingerprint: UInt64) -> TokenProfile? {
-        guard let cacheURL, let data = try? Data(contentsOf: cacheURL) else {
-            return nil
-        }
-        return TokenProfileCache.decode(data, expectedFingerprint: fingerprint)
-    }
-
-    /// Best-effort write of a freshly built profile to the cache. Failures are swallowed: the cache is
-    /// an optimization, and the in-memory profile is already returned regardless.
-    private static func writeTokenProfileCache(_ profile: TokenProfile, fingerprint: UInt64, to url: URL) {
-        let data = TokenProfileCache.encode(profile, fingerprint: fingerprint)
-        try? data.write(to: url, options: .atomic)
-    }
-
-    /// Cache file location: `<Application Support>/Cotabby/TokenProfiles/<model>.ctkp`. Returns nil
-    /// when the support directory is unavailable (the cache is then simply skipped).
-    private static func tokenProfileCacheURL(for modelURL: URL?) -> URL? {
-        guard let modelURL,
-              let support = try? FileManager.default.url(
-                for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
-        else {
-            return nil
-        }
-        let directory = support.appendingPathComponent("Cotabby/TokenProfiles", isDirectory: true)
-        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let safeName = modelURL.lastPathComponent.replacingOccurrences(of: "/", with: "_")
-        return directory.appendingPathComponent(safeName).appendingPathExtension("ctkp")
-    }
-
-    /// Stable (non-randomized) fingerprint tying a cache file to one model: FNV-1a over the model path,
-    /// file size, and vocabulary size, so replacing the model file or loading a different one
-    /// invalidates the cache. Swift's `hashValue` is per-process randomized and unusable here.
-    private static func tokenProfileFingerprint(modelURL: URL?, vocabSize: Int) -> UInt64 {
-        var hash: UInt64 = 0xcbf2_9ce4_8422_2325
-        func mix(_ bytes: [UInt8]) {
-            for byte in bytes {
-                hash = (hash ^ UInt64(byte)) &* 0x0000_0100_0000_01b3
-            }
-        }
-        mix(Array((modelURL?.path ?? "").utf8))
-        let fileSize = modelURL.flatMap { url in
-            (try? FileManager.default.attributesOfItem(atPath: url.path))?[.size] as? Int
-        } ?? 0
-        mix(withUnsafeBytes(of: Int64(fileSize).littleEndian) { Array($0) })
-        mix(withUnsafeBytes(of: Int64(vocabSize).littleEndian) { Array($0) })
-        return hash
-    }
-
-    /// The model's fill-in-middle marker token ids, detected once by scanning the vocabulary and cached
-    /// per model (nil when the model is not FIM-capable). The URL tracker distinguishes "not yet
-    /// detected" from a cached nil result. Must be called while holding `autocompleteLock`.
-    private func fimMarkers() -> FIMMarkers? {
-        let modelURL = preparedRuntime?.resolvedRuntime.modelFileURL
-        if cachedFIMMarkersModelURL == modelURL {
-            return cachedFIMMarkers
-        }
-        let vocabSize = Int(engine.getVocabSize())
-        let markers = vocabSize > 0
-            ? FillInMiddlePolicy.detectMarkers(vocabSize: vocabSize) { self.detokenizeBytes(Int32($0)) }
-            : nil
-        cachedFIMMarkers = markers
-        cachedFIMMarkersModelURL = modelURL
-        return markers
-    }
-
-    /// Builds a fill-in-middle prompt token sequence from `request`, or nil when there is no request or
-    /// the model lacks FIM markers (the caller then falls back to the forward base prompt). Must be
-    /// called while holding `autocompleteLock`.
-    private func fillInMiddlePromptTokens(_ request: FillInMiddleRequest?, maxPromptTokens: Int) -> [Int32]? {
-        guard let request, let markers = fimMarkers() else {
-            return nil
-        }
-        let tokens = FillInMiddlePolicy.assemblePromptTokens(
-            prefixTokens: tokenize(request.prefix),
-            suffixTokens: tokenize(request.suffix),
-            markers: markers,
-            maxTokens: maxPromptTokens
-        )
-        return tokens.isEmpty ? nil : tokens
-    }
-
-    /// The raw UTF-8 bytes a token detokenizes to, or empty for a structural token that renders to
-    /// nothing. `detokenize` returns the byte count, or a negative `-(required)` when the fixed
-    /// buffer is too small; the rare large-piece case retries once at the requested size.
-    private func detokenizeBytes(_ token: Int32) -> [UInt8] {
-        var buffer = [CChar](repeating: 0, count: 256)
-        let written = buffer.withUnsafeMutableBufferPointer { ptr in
-            Int(engine.detokenize(token, ptr.baseAddress, Int32(ptr.count)))
-        }
-        if written > 0 {
-            return buffer.prefix(written).map { UInt8(bitPattern: $0) }
-        }
-        if written < 0 {
-            var large = [CChar](repeating: 0, count: -written)
-            let writtenLarge = large.withUnsafeMutableBufferPointer { ptr in
-                Int(engine.detokenize(token, ptr.baseAddress, Int32(ptr.count)))
-            }
-            return writtenLarge > 0 ? large.prefix(writtenLarge).map { UInt8(bitPattern: $0) } : []
-        }
-        return []
     }
 
     private static func extractPiece(_ result: SampleResult) -> String {
