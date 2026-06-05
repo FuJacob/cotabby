@@ -1,7 +1,7 @@
 import XCTest
 @testable import Cotabby
 
-/// Tests for `LivePreviewModel`, the Advanced pane's live preview sandbox state machine.
+/// Tests for `LivePreviewModel`, the Context pane's live preview sandbox state machine.
 ///
 /// These lock down the user-visible behavior independent of any real engine: a completed generation
 /// surfaces as ghost text plus a latency, Tab commits the ghost into the user's text, Esc drops it,

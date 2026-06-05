@@ -1,23 +1,27 @@
 import SwiftUI
 
 /// File overview:
-/// "Advanced" detail pane of the Settings window. It leads with a live preview sandbox — an editor
-/// that completes as you type, showing the suggestion as gray ghost text inline (Tab to accept, Esc to
-/// dismiss), exactly like Cotabby behaves in a real app — so the user can see how their settings and
-/// Extended Context shape real output. Below it sits the Extended Context editor (a free-form blob
-/// folded into every prompt) with its cost warning co-located, then a short "how this is used" note.
+/// "Context" detail pane of the Settings window. It leads with a live preview sandbox — an editor
+/// that completes as you type, showing the suggestion as gray ghost text inline (Tab to accept, Esc
+/// to dismiss), exactly like Cotabby behaves in a real app — so the user can see how their settings
+/// and Extended Context shape real output. Below it sits the Extended Context editor (a free-form
+/// blob folded into every prompt) with its cost warning co-located, then a short "how this is used"
+/// note.
 ///
 /// Why live preview leads (the redesign):
-/// the previous layout buried a button-gated "Try it" box *below* the Extended Context editor, so
-/// testing read as an afterthought and the click-to-run, static result didn't feel like the product.
+/// the pane previously buried a button-gated "Try it" box below the Extended Context editor, so
+/// testing read as an afterthought and the click-to-run, static result did not feel like the product.
 /// Putting the live sandbox first makes testing the primary action and Extended Context the
-/// configuration that feeds it. The pane stays named generically so future advanced toggles can land
-/// here without a navigation rename.
+/// configuration that feeds it.
+///
+/// Why a dedicated pane (not Writing): the Writing pane carries name and language personalization.
+/// Extended Context is a different shape (long-form, free markdown, and noticeably more expensive on
+/// the token budget), so it keeps its own pane with room for the cost-of-use warning.
 ///
 /// The Extended Context editor binds through `SuggestionSettingsModel.setExtendedContext`, which
 /// length-caps the value on write. Whitespace is intentionally NOT trimmed in the setter so the user
 /// can type a trailing space; `SuggestionRequestFactory` does the once-per-request trim instead.
-struct AdvancedPaneView: View {
+struct ContextPaneView: View {
     @ObservedObject var suggestionSettings: SuggestionSettingsModel
     let suggestionEngine: any SuggestionGenerating
     let configuration: SuggestionConfiguration
@@ -191,7 +195,7 @@ struct AdvancedPaneView: View {
         Section("How this is used") {
             VStack(alignment: .leading, spacing: 8) {
                 bulletLine(
-                    "Sent on every suggestion as reference material — not as instructions."
+                    "Sent on every suggestion as reference material, not as instructions."
                 )
                 bulletLine(
                     "Subordinate to Cotabby's base autocomplete rules, so it cannot override " +

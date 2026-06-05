@@ -125,6 +125,7 @@ Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, bui
 - [llama.cpp](https://github.com/ggerganov/llama.cpp), [CotabbyInference](https://github.com/FuJacob/cotabbyinference), [Sparkle](https://github.com/sparkle-project/Sparkle), and [swift-log](https://github.com/apple/swift-log) for the core runtime, update, and logging infrastructure.
 - Apple's FoundationModels, Accessibility APIs, SwiftUI, and AppKit for the on-device generation and macOS integration layers.
 - [GitHub gemoji](https://github.com/github/gemoji), Hugging Face, and the model teams listed above for the emoji data and downloadable model ecosystem.
+- [SymSpell](https://github.com/wolfgarbe/SymSpell) by Wolf Garbe (MIT) for the symmetric-delete spelling-correction algorithm behind autocorrect, ported to Swift. The bundled `frequency_dictionary_en_82_765.txt` ships with SymSpell and is derived from [Google Books Ngram data](https://books.google.com/ngrams) (CC BY 3.0) and [SCOWL](http://wordlist.aspell.net/).
 - Everyone who has filed issues, tested prereleases, and contributed pull requests.
 
 ## Created by

@@ -267,6 +267,25 @@ struct FocusedInputContext: Equatable, Sendable {
     }
 }
 
+/// Distinguishes a normal forward continuation from a typo-correction reply.
+///
+/// `.correction(typoWord:)` carries the exact word the correction was offered for, so the acceptance
+/// path can confirm the live field still ends with that word before deleting it (guarding against a
+/// keystroke that slipped in between), then replace it with the corrected word. This lets a
+/// correction reuse the same session/overlay machinery as a plain continuation while committing as a
+/// whole-word replacement.
+enum SuggestionKind: Equatable, Sendable {
+    case continuation
+    case correction(typoWord: String)
+
+    var isCorrection: Bool {
+        if case .correction = self {
+            return true
+        }
+        return false
+    }
+}
+
 /// One generation request sent from the coordinator into the suggestion engine.
 struct SuggestionRequest: Equatable, Sendable {
     let context: FocusedInputContext
@@ -386,17 +405,23 @@ struct ActiveSuggestionSession: Equatable, Sendable {
     let fullText: String
     let consumedCharacterCount: Int
     let latency: TimeInterval
+    /// `.continuation` for normal forward suggestions; `.correction(typoWord:)` when the session
+    /// represents a typo fix. The acceptance path branches on this so corrections always commit the
+    /// whole word and replace the typo rather than appending forward text.
+    let kind: SuggestionKind
 
     init(
         baseContext: FocusedInputContext,
         fullText: String,
         consumedCharacterCount: Int = 0,
-        latency: TimeInterval
+        latency: TimeInterval,
+        kind: SuggestionKind = .continuation
     ) {
         self.baseContext = baseContext
         self.fullText = fullText
         self.consumedCharacterCount = min(max(consumedCharacterCount, 0), fullText.count)
         self.latency = latency
+        self.kind = kind
     }
 
     var acceptedText: String {
@@ -428,7 +453,8 @@ struct ActiveSuggestionSession: Equatable, Sendable {
             baseContext: baseContext,
             fullText: fullText,
             consumedCharacterCount: self.consumedCharacterCount + max(consumedCharacters, 0),
-            latency: latency
+            latency: latency,
+            kind: kind
         )
     }
 
@@ -439,7 +465,8 @@ struct ActiveSuggestionSession: Equatable, Sendable {
             baseContext: baseContext,
             fullText: fullText,
             consumedCharacterCount: consumedCharacters,
-            latency: latency
+            latency: latency,
+            kind: kind
         )
     }
 }
@@ -521,6 +548,10 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
     /// self-growing inputs. It DOES change when the user focuses a genuinely different field.
     /// Defaults to 0 for tests that do not exercise session-scoped behavior.
     let focusedInputIdentityKey: UInt64
+    /// When `true`, the overlay is rendering a typo correction rather than a forward continuation.
+    /// `OverlayController` switches to a green tint on this signal so the user can tell at a glance
+    /// that pressing the accept key will replace their last word, not extend it.
+    let isCorrection: Bool
     /// The host field's own text font/color, so the overlay can render ghost text that matches the
     /// field instead of always using the system font and a fixed gray. Nil falls back to defaults.
     let resolvedFieldStyle: ResolvedFieldStyle?
@@ -533,6 +564,7 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
         isRightToLeft: Bool,
         focusChangeSequence: UInt64 = 0,
         focusedInputIdentityKey: UInt64 = 0,
+        isCorrection: Bool = false,
         resolvedFieldStyle: ResolvedFieldStyle? = nil
     ) {
         self.caretRect = caretRect
@@ -542,6 +574,7 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
         self.isRightToLeft = isRightToLeft
         self.focusChangeSequence = focusChangeSequence
         self.focusedInputIdentityKey = focusedInputIdentityKey
+        self.isCorrection = isCorrection
         self.resolvedFieldStyle = resolvedFieldStyle
     }
 }

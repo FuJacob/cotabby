@@ -50,6 +50,11 @@ final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var customWordCountHighWords: Int
     @Published private(set) var isClipboardContextEnabled: Bool
     @Published private(set) var isFastModeEnabled: Bool
+    /// When on, a misspelled current word hides the normal continuation (see the typo gate).
+    @Published private(set) var suppressCompletionsOnTypo: Bool
+    /// When on (and `suppressCompletionsOnTypo` is also on), a misspelled current word is offered a
+    /// green spell-checker correction the user can accept to replace the typo.
+    @Published private(set) var offerTypoCorrections: Bool
     /// Whether the Performance pane is recording per-request latency. Defaults to false so the
     /// default user never pays any extra storage or write cost — recording only kicks in once the
     /// user opts in from Settings.
@@ -128,6 +133,8 @@ final class SuggestionSettingsModel: ObservableObject {
         customWordCountHighWords = data.customWordCountHighWords
         isClipboardContextEnabled = data.isClipboardContextEnabled
         isFastModeEnabled = data.isFastModeEnabled
+        suppressCompletionsOnTypo = data.suppressCompletionsOnTypo
+        offerTypoCorrections = data.offerTypoCorrections
         isPerformanceTrackingEnabled = data.isPerformanceTrackingEnabled
         isMenuBarWordCountVisible = data.isMenuBarWordCountVisible
         mirrorPreference = data.mirrorPreference
@@ -181,7 +188,9 @@ final class SuggestionSettingsModel: ObservableObject {
             autoAcceptTrailingPunctuation: autoAcceptTrailingPunctuation,
             isFastModeEnabled: isFastModeEnabled,
             mirrorPreference: mirrorPreference,
-            acceptanceGranularity: acceptanceGranularity
+            acceptanceGranularity: acceptanceGranularity,
+            suppressCompletionsOnTypo: suppressCompletionsOnTypo,
+            offerTypoCorrections: offerTypoCorrections
         )
     }
 
@@ -243,6 +252,24 @@ final class SuggestionSettingsModel: ObservableObject {
 
         isFastModeEnabled = enabled
         store.saveFastModeEnabled(enabled)
+    }
+
+    func setSuppressCompletionsOnTypo(_ enabled: Bool) {
+        guard suppressCompletionsOnTypo != enabled else {
+            return
+        }
+
+        suppressCompletionsOnTypo = enabled
+        store.saveSuppressCompletionsOnTypo(enabled)
+    }
+
+    func setOfferTypoCorrections(_ enabled: Bool) {
+        guard offerTypoCorrections != enabled else {
+            return
+        }
+
+        offerTypoCorrections = enabled
+        store.saveOfferTypoCorrections(enabled)
     }
 
     func setPerformanceTrackingEnabled(_ enabled: Bool) {
@@ -687,7 +714,14 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                 $selectedEngine,
                 $selectedWordCountPreset
             ),
-            Publishers.CombineLatest3($isClipboardContextEnabled, $isFastModeEnabled, $mirrorPreference),
+            // Pair the two typo toggles into one inner publisher so the presentation slot stays at
+            // Combine's four-upstream cap while still carrying both new fields.
+            Publishers.CombineLatest4(
+                $isClipboardContextEnabled,
+                $isFastModeEnabled,
+                $mirrorPreference,
+                Publishers.CombineLatest($suppressCompletionsOnTypo, $offerTypoCorrections)
+            ),
             Publishers.CombineLatest3($userName, $customRules, $responseLanguages),
             Publishers.CombineLatest4(
                 $debounceMilliseconds,
@@ -709,7 +743,8 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
             .map { primaryTuple, granularity, extendedContext, customRangeTuple in
                 let (combinedSettings, presentationToggles, profile, timing) = primaryTuple
                 let (globallyEnabled, disabledAppRules, engine, wordCountPreset) = combinedSettings
-                let (clipboardContextEnabled, fastModeEnabled, mirrorPreference) = presentationToggles
+                let (clipboardContextEnabled, fastModeEnabled, mirrorPreference, typoToggles) = presentationToggles
+                let (suppressOnTypo, offerCorrections) = typoToggles
                 let (userName, customRules, responseLanguages) = profile
                 let (debounce, focusPoll, multiLine, autoAcceptPunctuation) = timing
                 let (isCustomActive, customLow, customHigh) = customRangeTuple
@@ -731,7 +766,9 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                     autoAcceptTrailingPunctuation: autoAcceptPunctuation,
                     isFastModeEnabled: fastModeEnabled,
                     mirrorPreference: mirrorPreference,
-                    acceptanceGranularity: granularity
+                    acceptanceGranularity: granularity,
+                    suppressCompletionsOnTypo: suppressOnTypo,
+                    offerTypoCorrections: offerCorrections
                 )
             }
             .removeDuplicates()

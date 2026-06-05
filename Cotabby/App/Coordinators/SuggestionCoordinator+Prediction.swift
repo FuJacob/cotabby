@@ -58,6 +58,15 @@ extension SuggestionCoordinator {
             return
         }
 
+        // Typo gate: before building a normal continuation, check the current word with
+        // NSSpellChecker. A misspelled word either suppresses the continuation (so completions never
+        // pile onto a broken word) or, when corrections are enabled, presents a native spell-checker
+        // fix the user can accept to replace the typo. Native correction is instant and needs no
+        // model generation, so it is handled synchronously and returns before any request runs.
+        if handleTypoGate(rawContext: rawContext, workID: workID) {
+            return
+        }
+
         let context = interactionState.materializeContext(from: rawContext)
         let visualContextSummary = visualContextCoordinator.excerpt(for: context)
         let rawClipboard = settingsSnapshot.isClipboardContextEnabled
@@ -97,6 +106,13 @@ extension SuggestionCoordinator {
             prompt: requestBuildResult.promptPreview
         )
 
+        dispatchGeneration(request: request, workID: workID)
+    }
+
+    /// Runs the engine generation for `request` as the replaceable work for `workID`, applying the
+    /// result (or failure) only while it is still the current work. Extracted from
+    /// `generateFromCurrentFocus` so that function stays within the project's complexity budget.
+    private func dispatchGeneration(request: SuggestionRequest, workID: UInt64) {
         workController.replaceGenerationWork(for: workID) { [weak self] in
             guard let self else {
                 return
@@ -119,6 +135,80 @@ extension SuggestionCoordinator {
                 await applyFailure(error.localizedDescription, workID: workID)
             }
         }
+    }
+
+    /// Runs the typo gate for the current word. Returns `true` when it handled the cycle (suppressed
+    /// the continuation or presented a correction) and the caller should stop; `false` to proceed
+    /// with a normal continuation. Kept separate so `generateFromCurrentFocus` stays within the
+    /// project's cyclomatic-complexity budget.
+    private func handleTypoGate(rawContext: FocusedInputSnapshot, workID: UInt64) -> Bool {
+        switch TypoGate.resolve(
+            precedingText: rawContext.precedingText,
+            suppressCompletionsOnTypo: settingsSnapshot.suppressCompletionsOnTypo,
+            offerTypoCorrections: settingsSnapshot.offerTypoCorrections,
+            isTypo: { spellChecker.isTypo($0) },
+            // Correction word: SymSpell (frequency-ranked, edit distance ≤ 2) first; fall back to the
+            // NSSpellChecker guess while SymSpell's index is still loading or when it has no match.
+            bestCorrection: { symSpellCorrector.bestCorrection(for: $0) ?? spellChecker.bestCorrection(for: $0) }
+        ) {
+        case .proceed:
+            return false
+        case .suppress:
+            clearSuggestion()
+            hideOverlay(reason: "Overlay hidden because the current word looks misspelled.")
+            state = .idle
+            logStage(
+                "typo-suppressed",
+                workID: workID,
+                message: "Skipped generation because the current word looks misspelled."
+            )
+            return true
+        case let .correct(word, correctedWord):
+            presentCorrection(
+                typoWord: word,
+                correctedWord: correctedWord,
+                rawContext: rawContext,
+                workID: workID
+            )
+            return true
+        }
+    }
+
+    /// Presents a native spell-checker correction as a replace-the-word suggestion, with no model
+    /// generation. The session carries `.correction(typoWord:)` so the acceptance
+    /// path swaps the typo for the fix, and the overlay renders green so the user can tell at a
+    /// glance that accepting replaces their last word rather than extending it.
+    private func presentCorrection(
+        typoWord: String,
+        correctedWord: String,
+        rawContext: FocusedInputSnapshot,
+        workID: UInt64
+    ) {
+        let liveContext = interactionState.materializeContext(from: rawContext)
+        latestGenerationNumber = liveContext.generation
+        latestLatencyMilliseconds = 0
+        let session = interactionState.startSession(
+            fullText: correctedWord,
+            liveContext: liveContext,
+            latency: 0,
+            kind: .correction(typoWord: typoWord)
+        )
+        applySessionDiagnostics(session, acceptanceAction: "Offered a correction for \"\(typoWord)\".")
+        state = .ready(text: session.remainingText, latency: 0)
+        presentOverlay(
+            text: session.remainingText,
+            at: liveContext.caretRect,
+            context: liveContext,
+            isRightToLeft: TextDirectionDetector.isRightToLeft(liveContext.precedingText),
+            isCorrection: true
+        )
+        logStage(
+            "typo-correction-ready",
+            workID: workID,
+            generation: liveContext.generation,
+            message: "Offered a native spell-checker correction for the current word.",
+            normalizedOutput: correctedWord
+        )
     }
 
     /// Promotes a generated result to `ready` only when it is still fresh for the current field.
@@ -286,10 +376,19 @@ extension SuggestionCoordinator {
     /// This is the heart of partial acceptance: a text change is not automatically "stale" anymore.
     /// It may instead mean "the user consumed the next expected part of the suggestion."
     func reconcileActiveSession(with snapshot: FocusSnapshot) {
-        guard interactionState.activeSession != nil else {
+        guard let activeSession = interactionState.activeSession else {
             if overlayState.isVisible {
                 hideOverlay(reason: "Overlay hidden because no ready suggestion remains.")
             }
+            return
+        }
+
+        // Corrections are accept-or-dismiss, never partially consumed: the corrected word is not a
+        // continuation of the preceding text, so the normal reconciler would mis-advance it the
+        // moment the user types a character that happens to match the fix. Keep the offer only while
+        // the field is unchanged; any edit drops it and the next prediction re-evaluates the new word.
+        if activeSession.kind.isCorrection {
+            reconcileCorrectionSession(activeSession, with: snapshot)
             return
         }
 
@@ -311,56 +410,106 @@ extension SuggestionCoordinator {
 
         switch reconciliation {
         case let .valid(liveContext, reconciledSession, advancement):
-            latestGenerationNumber = liveContext.generation
-            applySessionDiagnostics(reconciledSession, acceptanceAction: advancement?.actionSummary ?? latestAcceptanceAction)
-
-            if reconciledSession.isExhausted {
-                completeActiveSuggestion(
-                    reason: "Overlay hidden because the active suggestion was fully consumed.",
-                    scheduleNextPrediction: true,
-                    stage: advancement?.exhaustionStage ?? "session-exhausted",
-                    message: advancement?.exhaustionMessage ?? "The active suggestion was fully consumed.",
-                    acceptanceAction: advancement?.actionSummary ?? "Suggestion tail was fully consumed."
-                )
-                return
-            }
-
-            state = .ready(text: reconciledSession.remainingText, latency: reconciledSession.latency)
-            // Reconciliation runs both for legitimate context changes (window drag, field switch,
-            // user typing through the tail) and for the +30ms post-insertion AX refresh that fires
-            // after every Tab accept. In the post-insertion case the underlying state has not
-            // meaningfully changed (the overlay already shows the right tail at the predicted
-            // caret), but AX commonly returns a slightly different `caretRect` / `observedCharWidth`
-            // than the predicted pair. Re-rendering against those drifted measurements is what
-            // causes the visible one-frame "shift left and down then snap back" on accept. Hold the
-            // existing geometry whenever the field, text, and on-screen field bounds have not
-            // materially moved; the gate below still re-anchors on legitimate context changes.
-            if SuggestionOverlayStabilityGate.shouldRePresent(
-                currentOverlay: overlayState,
-                newText: reconciledSession.remainingText,
-                newInputFrameRect: liveContext.inputFrameRect,
-                newFocusChangeSequence: liveContext.focusChangeSequence
-            ) {
-                presentOverlay(
-                    text: reconciledSession.remainingText,
-                    at: liveContext.caretRect,
-                    context: liveContext,
-                    isRightToLeft: TextDirectionDetector.isRightToLeft(liveContext.precedingText)
-                )
-            }
-            if let advancement {
-                logStage(
-                    advancement.stage,
-                    workID: currentWorkID,
-                    generation: liveContext.generation,
-                    message: advancement.message,
-                    normalizedOutput: reconciledSession.remainingText
-                )
-            }
+            applyValidReconciliation(
+                liveContext: liveContext,
+                reconciledSession: reconciledSession,
+                advancement: advancement
+            )
 
         case let .invalid(reason):
             invalidateActiveSuggestion(reason: reason)
         }
+    }
+
+    /// Applies a `.valid` reconciliation result: completes an exhausted session, or re-renders the
+    /// remaining tail (subject to the stability gate). Extracted from `reconcileActiveSession` so that
+    /// function stays within the project's cyclomatic-complexity budget after the correction branch.
+    private func applyValidReconciliation(
+        liveContext: FocusedInputContext,
+        reconciledSession: ActiveSuggestionSession,
+        advancement: SuggestionSessionAdvancement?
+    ) {
+        latestGenerationNumber = liveContext.generation
+        applySessionDiagnostics(reconciledSession, acceptanceAction: advancement?.actionSummary ?? latestAcceptanceAction)
+
+        if reconciledSession.isExhausted {
+            completeActiveSuggestion(
+                reason: "Overlay hidden because the active suggestion was fully consumed.",
+                scheduleNextPrediction: true,
+                stage: advancement?.exhaustionStage ?? "session-exhausted",
+                message: advancement?.exhaustionMessage ?? "The active suggestion was fully consumed.",
+                acceptanceAction: advancement?.actionSummary ?? "Suggestion tail was fully consumed."
+            )
+            return
+        }
+
+        state = .ready(text: reconciledSession.remainingText, latency: reconciledSession.latency)
+        // Reconciliation runs both for legitimate context changes (window drag, field switch,
+        // user typing through the tail) and for the +30ms post-insertion AX refresh that fires
+        // after every Tab accept. In the post-insertion case the underlying state has not
+        // meaningfully changed (the overlay already shows the right tail at the predicted
+        // caret), but AX commonly returns a slightly different `caretRect` / `observedCharWidth`
+        // than the predicted pair. Re-rendering against those drifted measurements is what
+        // causes the visible one-frame "shift left and down then snap back" on accept. Hold the
+        // existing geometry whenever the field, text, and on-screen field bounds have not
+        // materially moved; the gate below still re-anchors on legitimate context changes.
+        if SuggestionOverlayStabilityGate.shouldRePresent(
+            currentOverlay: overlayState,
+            newText: reconciledSession.remainingText,
+            newInputFrameRect: liveContext.inputFrameRect,
+            newFocusChangeSequence: liveContext.focusChangeSequence
+        ) {
+            presentOverlay(
+                text: reconciledSession.remainingText,
+                at: liveContext.caretRect,
+                context: liveContext,
+                isRightToLeft: TextDirectionDetector.isRightToLeft(liveContext.precedingText)
+            )
+        }
+        if let advancement {
+            logStage(
+                advancement.stage,
+                workID: currentWorkID,
+                generation: liveContext.generation,
+                message: advancement.message,
+                normalizedOutput: reconciledSession.remainingText
+            )
+        }
+    }
+
+    /// Keeps a native correction offer on screen only while the field is unchanged. A correction is
+    /// a snapshot in time: the instant the user edits (or switches apps/fields), the offer is stale,
+    /// so we drop it and let the next prediction re-run the typo gate against the new current word.
+    /// We deliberately do not advance or re-anchor it, because a corrected word is not a continuation
+    /// of the preceding text.
+    private func reconcileCorrectionSession(_ session: ActiveSuggestionSession, with snapshot: FocusSnapshot) {
+        guard case .supported = snapshot.capability, let rawContext = snapshot.context else {
+            // Tolerate the transient post-insertion AX-sync gap the same way the continuation path
+            // does, so a single empty poll right after our own edit does not flap the overlay.
+            if interactionState.isAwaitingPostInsertionSync {
+                return
+            }
+            invalidateActiveSuggestion(reason: snapshot.capability.summary)
+            return
+        }
+
+        guard case let .correction(typoWord) = session.kind else {
+            invalidateActiveSuggestion(reason: "Overlay hidden because the correction session was invalid.")
+            return
+        }
+
+        // Keep the offer while the live trailing word (tolerating one trailing space the user just
+        // typed) is still the exact typo we offered to fix, in the same app. This is what makes the
+        // green correction survive a space: the word is unchanged, so we keep showing it as
+        // Tab-acceptable. Any other edit — typing more, a second space, deleting, switching apps —
+        // drops it, and the next prediction re-runs the gate for the new current word.
+        let liveWord = CurrentWordExtractor.extractTrailingWord(from: rawContext.precedingText)?.result.word
+        if liveWord == typoWord, rawContext.processIdentifier == session.baseContext.processIdentifier {
+            return
+        }
+        invalidateActiveSuggestion(
+            reason: "Overlay hidden because the field changed after a correction was offered."
+        )
     }
 
     /// The single marshalling point for `SuggestionAvailabilityEvaluator.disabledReason`: every gate

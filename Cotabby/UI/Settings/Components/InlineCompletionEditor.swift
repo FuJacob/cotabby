@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 /// File overview:
-/// A focused multi-line text editor for the Advanced pane's live preview. It renders a model-provided
+/// A focused multi-line text editor for the Context pane's live preview. It renders a model-provided
 /// completion as gray "ghost" text immediately after the user's caret, exactly like Cotabby's real
 /// overlay, and commits it on Tab. SwiftUI's `TextEditor` cannot place a styled continuation at the
 /// caret, so this wraps `NSTextView` directly.

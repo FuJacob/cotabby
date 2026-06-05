@@ -3,7 +3,7 @@ import CoreGraphics
 import Foundation
 
 /// File overview:
-/// View model for the Advanced pane's live preview sandbox. Owns the user's typed text, the current
+/// View model for the Context pane's live preview sandbox. Owns the user's typed text, the current
 /// ghost suggestion, and the debounced generation that produces it. Unlike the old one-shot "Try it"
 /// playground (a button that ran a single completion), this regenerates as the user pauses typing and
 /// surfaces the result as inline ghost text, so the sandbox behaves like Cotabby does in a real app.
@@ -133,7 +133,7 @@ final class LivePreviewModel: ObservableObject {
     private static func makeSyntheticContext(prefixText: String) -> FocusedInputContext {
         let snapshot = FocusedInputSnapshot(
             applicationName: "Cotabby Playground",
-            bundleIdentifier: "com.cotabby.advanced.playground",
+            bundleIdentifier: "com.cotabby.context.playground",
             processIdentifier: 0,
             elementIdentifier: "playground-field",
             role: "AXTextArea",
