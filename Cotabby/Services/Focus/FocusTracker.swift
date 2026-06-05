@@ -61,6 +61,11 @@ final class FocusTracker {
     // queries and hit-test fallback can actually resolve.
     private let chromiumAccessibilityEnabler = ChromiumAccessibilityEnabler()
 
+    /// Deep-walk throttle for the caret BFS. Owned here (a stable lifetime) and passed into each
+    /// `resolveSnapshot` call so the value-typed resolver carries no hidden mutable state. Its cache
+    /// persists across the twice-per-tick resolve and across ticks while focus stays in one field.
+    private let deepWalkThrottle = DeepGeometryWalkThrottle()
+
     init(
         pollInterval: TimeInterval = 0.08,
         permissionProvider: @escaping @MainActor () -> Bool,
@@ -249,7 +254,8 @@ final class FocusTracker {
         let firstPassSnapshot = snapshotResolver.resolveSnapshot(
             focusedElement: focusedElement,
             application: application,
-            focusChangeSequence: focusChangeSequence
+            focusChangeSequence: focusChangeSequence,
+            deepWalkThrottle: deepWalkThrottle
         )
         logResolveTiming(
             since: resolveStart,
@@ -275,7 +281,8 @@ final class FocusTracker {
         let finalSnapshot = snapshotResolver.resolveSnapshot(
             focusedElement: focusedElement,
             application: application,
-            focusChangeSequence: focusChangeSequence
+            focusChangeSequence: focusChangeSequence,
+            deepWalkThrottle: deepWalkThrottle
         )
         return FocusCaptureResult(snapshot: finalSnapshot, didChangeFocusedInput: true)
     }
