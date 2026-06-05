@@ -302,6 +302,7 @@ final class OverlayController: SuggestionOverlayControlling {
             geometry: geometry,
             visibleFrame: visibleFrame,
             showsAcceptanceHint: acceptanceHintLabel != nil,
+            autoAcceptTrailingPunctuation: suggestionSettings.autoAcceptTrailingPunctuation,
             reason: reason
         )
         let customGhostColor = SuggestionTextColorCodec.color(
@@ -559,6 +560,34 @@ private struct MirrorOverlayView: View {
         return baseColor.opacity(opacity)
     }
 
+    /// The next-accept word renders at full strength so it reads as "this is what Tab takes next."
+    /// The user's custom suggestion color (if set) is honored at full opacity; otherwise the primary
+    /// label color keeps strong contrast against the card backdrop in both appearances.
+    private var highlightColor: Color {
+        customColor ?? .primary
+    }
+
+    /// The suggestion as one attributed run: the highlighted prefix (the next accept-word) is drawn
+    /// full-strength and semibold so it "lights up" as the word being completed, while the rest keeps
+    /// the muted ghost color. Building one `AttributedString` instead of two `Text`s keeps the card on
+    /// a single line and lets tail-truncation treat the whole suggestion as one unit.
+    private var styledSuggestion: AttributedString {
+        var attributed = AttributedString(layout.suggestionText)
+        attributed.font = .system(size: layout.fontSize)
+        attributed.foregroundColor = ghostColor
+
+        let prefix = layout.highlightedPrefix
+        guard !prefix.isEmpty, layout.suggestionText.hasPrefix(prefix) else {
+            return attributed
+        }
+        let characters = attributed.characters
+        let highlightEnd = characters.index(characters.startIndex, offsetBy: prefix.count)
+        let highlightRange = characters.startIndex..<highlightEnd
+        attributed[highlightRange].foregroundColor = highlightColor
+        attributed[highlightRange].font = .system(size: layout.fontSize, weight: .semibold)
+        return attributed
+    }
+
     private var backdropColor: Color {
         colorScheme == .dark
             ? Color(white: 0.16).opacity(0.96)
@@ -571,9 +600,7 @@ private struct MirrorOverlayView: View {
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
-            Text(layout.suggestionText)
-                .font(.system(size: layout.fontSize))
-                .foregroundStyle(ghostColor)
+            Text(styledSuggestion)
                 .lineLimit(1)
                 .truncationMode(.tail)
 
