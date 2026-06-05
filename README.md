@@ -71,12 +71,10 @@ Everything runs on-device. No hosted API, no cloud round-trip.
 
 | Model          | File                             | Size    | Source                                                                                                  |
 | -------------- | -------------------------------- | ------- | ------------------------------------------------------------------------------------------------------- |
-| `tabby-2-nano` | `Qwen3.5-0.8B-Base.i1-Q6_K.gguf` | ~0.8 GB | [mradermacher/Qwen3.5-0.8B-Base-i1-GGUF](https://huggingface.co/mradermacher/Qwen3.5-0.8B-Base-i1-GGUF) |
-| `tabby-2-mini` | `Qwen3.5-2B-Base.i1-Q4_K_M.gguf` | ~1.4 GB | [mradermacher/Qwen3.5-2B-Base-i1-GGUF](https://huggingface.co/mradermacher/Qwen3.5-2B-Base-i1-GGUF)     |
-| `tabby-2-base` | `gemma-4-E2B.i1-Q6_K.gguf`       | ~4.5 GB | [mradermacher/gemma-4-E2B-i1-GGUF](https://huggingface.co/mradermacher/gemma-4-E2B-i1-GGUF)             |
-| `tabby-2-pro`  | `gemma-4-E4B.i1-Q4_K_M.gguf`     | ~5.0 GB | [mradermacher/gemma-4-E4B-i1-GGUF](https://huggingface.co/mradermacher/gemma-4-E4B-i1-GGUF)             |
-
-`tabby-2-base` (Gemma E2B) is the default and the recommended onboarding tier; `tabby-2-nano` is the lightweight option for low-memory Macs, `tabby-2-mini` is a smaller alternative, and `tabby-2-pro` is the largest. Apple Intelligence remains instruction-tuned and is unaffected by the base-model path.
+| `tabby-2-nano` | `Qwen3.5-0.8B-Base.i1-Q6_K.gguf` | ~0.8 GB | [Link](https://huggingface.co/mradermacher/Qwen3.5-0.8B-Base-i1-GGUF) |
+| `tabby-2-mini` | `Qwen3.5-2B-Base.i1-Q4_K_M.gguf` | ~1.4 GB | [Link](https://huggingface.co/mradermacher/Qwen3.5-2B-Base-i1-GGUF)     |
+| `tabby-2-base` | `gemma-4-E2B.i1-Q6_K.gguf`       | ~4.5 GB | [Link](https://huggingface.co/mradermacher/gemma-4-E2B-i1-GGUF)             |
+| `tabby-2-pro`  | `gemma-4-E4B.i1-Q4_K_M.gguf`     | ~5.0 GB | [Link](https://huggingface.co/mradermacher/gemma-4-E4B-i1-GGUF)             |
 
 ### Bring your own model
 
@@ -125,11 +123,11 @@ Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, bui
 
 ## Acknowledgments
 
-- [llama.cpp](https://github.com/ggerganov/llama.cpp), [CotabbyInference](https://github.com/FuJacob/cotabbyinference), [Sparkle](https://github.com/sparkle-project/Sparkle), and [swift-log](https://github.com/apple/swift-log) for the core runtime, update, and logging infrastructure.
-- Apple's FoundationModels, Accessibility APIs, SwiftUI, and AppKit for the on-device generation and macOS integration layers.
-- [GitHub gemoji](https://github.com/github/gemoji), Hugging Face, and the model teams listed above for the emoji data and downloadable model ecosystem.
-- [SymSpell](https://github.com/wolfgarbe/SymSpell) by Wolf Garbe (MIT) for the symmetric-delete spelling-correction algorithm behind autocorrect, ported to Swift. The bundled `frequency_dictionary_en_82_765.txt` ships with SymSpell and is derived from [Google Books Ngram data](https://books.google.com/ngrams) (CC BY 3.0) and [SCOWL](http://wordlist.aspell.net/).
-- Everyone who has filed issues, tested prereleases, and contributed pull requests.
+- [llama.cpp](https://github.com/ggerganov/llama.cpp), [CotabbyInference](https://github.com/FuJacob/cotabbyinference), [Sparkle](https://github.com/sparkle-project/Sparkle), and [swift-log](https://github.com/apple/swift-log) for runtime, updates, and logging.
+- Apple's FoundationModels, Accessibility, SwiftUI, and AppKit for on-device generation and macOS integration.
+- [GitHub gemoji](https://github.com/github/gemoji) and Hugging Face for emoji data and downloadable models.
+- [SymSpell](https://github.com/wolfgarbe/SymSpell) by Wolf Garbe (MIT) for autocorrect's spelling correction; bundled dictionary notices in [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md).
+- Everyone who has filed issues, tested prereleases, and contributed PRs.
 
 ## Created by
 
