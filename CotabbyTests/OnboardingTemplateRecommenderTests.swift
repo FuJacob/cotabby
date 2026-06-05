@@ -48,7 +48,8 @@ final class OnboardingTemplateRecommenderTests: XCTestCase {
         let expected: [OnboardingTemplate: String] = [
             .quick: "Qwen3.5-0.8B-Base.i1-Q6_K.gguf",
             .everyday: "gemma-4-E2B.i1-Q6_K.gguf",
-            .powerful: "gemma-4-E4B.i1-Q4_K_M.gguf"
+            .powerful: "gemma-4-E4B.i1-Q4_K_M.gguf",
+            .custom: "gemma-4-E2B.i1-Q6_K.gguf"
         ]
         for (template, filename) in expected {
             let plan = OnboardingTemplateRecommender.resolvePlan(for: template, engine: .llamaOpenSource)
