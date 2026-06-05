@@ -25,9 +25,9 @@
 	<key>NSAccessibilityUsageDescription</key>
 	<string>Cotabby needs Accessibility access to read and insert text in other apps.</string>
 	<key>SUAllowsAutomaticUpdates</key>
-	<false/>
+	<true/>
 	<key>SUAutomaticallyUpdate</key>
-	<false/>
+	<true/>
 	<key>SUEnableAutomaticChecks</key>
 	<true/>
 	<key>SUScheduledCheckInterval</key>
