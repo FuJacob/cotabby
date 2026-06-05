@@ -25,6 +25,10 @@ enum SuggestionOverlayStabilityGate {
     /// insertion, plus the sub-pixel residual of an exact-width advance, do not jitter the ghost.
     /// Because the fresh caret is compared against the held (advanced) caret, this also bounds
     /// cumulative advance drift to roughly this distance before a correction fires.
+    ///
+    /// 6pt is chosen to sit above typical post-insertion AX caret noise (~0.5-1pt) and the per-accept
+    /// kerning residual, yet below a single character's advance in common body fonts (~7-10pt at 14pt),
+    /// so a genuine one-character caret move still re-anchors while noise and residual are absorbed.
     private static let caretDriftTolerance: CGFloat = 6
 
     /// Returns `true` when the coordinator should call `presentOverlay` for this reconcile tick.

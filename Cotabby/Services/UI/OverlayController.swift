@@ -130,7 +130,15 @@ final class OverlayController: SuggestionOverlayControlling {
 
     /// Inline ghost text drawn next to the caret. This is the original rendering path; the body
     /// stays unchanged from the pre-mirror behavior aside from being extracted into its own method.
-    private func showInline(text: String, geometry: SuggestionOverlayGeometry) {
+    ///
+    /// `precomputedLayout` lets a caller that already laid this text out for the same geometry, font,
+    /// and size (currently `advanceInline`, which builds one for its single-line guard) reuse it
+    /// instead of paying a second Core Text layout pass on every word accept.
+    private func showInline(
+        text: String,
+        geometry: SuggestionOverlayGeometry,
+        precomputedLayout: GhostSuggestionLayout? = nil
+    ) {
         // Key the stabilizer on the field's identity rather than `focusChangeSequence`. The polling
         // signature in `FocusTracker` bumps `focusChangeSequence` whenever the field's frame
         // changes, which includes the common "input grew taller as text wrapped" case. Using the
@@ -154,7 +162,7 @@ final class OverlayController: SuggestionOverlayControlling {
         // `nil` when the user disabled the hint or no accept key is bound — in that case the layout
         // drops the keycap and its reserved width so ghost text can use the full line.
         let acceptanceHintLabel = suggestionSettings.acceptanceHintLabel
-        let layout = GhostSuggestionLayout.make(
+        let layout = precomputedLayout ?? GhostSuggestionLayout.make(
             text: text,
             geometry: geometry,
             fontSize: fontSize,
@@ -268,7 +276,12 @@ final class OverlayController: SuggestionOverlayControlling {
             return false
         }
 
-        showSuggestion(remainingText, geometry: advancedGeometry)
+        // Render with the already-validated `afterLayout` (no third Core Text pass) and update state
+        // directly. The overlay is inline (guarded above) and the caret only shifted horizontally, so
+        // the render mode cannot change; setting `.inline` keeps `OverlayState` coherent for the accept
+        // and stability gates.
+        showInline(text: remainingText, geometry: advancedGeometry, precomputedLayout: afterLayout)
+        state = .visible(text: remainingText, geometry: advancedGeometry, mode: .inline)
         return true
     }
 
