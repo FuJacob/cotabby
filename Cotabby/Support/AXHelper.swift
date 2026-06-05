@@ -283,15 +283,16 @@ enum AXHelper {
         var colorHex: String?
         if let nsColor = attributes[.foregroundColor] as? NSColor {
             colorHex = SuggestionTextColorCodec.hexString(from: nsColor)
-        } else if let foreground = attributes[.foregroundColor] {
-            // AX commonly hands back a `CGColor` for the foreground color. Verify the CF type id
-            // before bridging, mirroring the typed-value guard used elsewhere in this file.
-            let candidate = foreground as CFTypeRef
-            if CFGetTypeID(candidate) == CGColor.typeID {
-                let cgColor = unsafeBitCast(candidate, to: CGColor.self)
-                if let nsColor = NSColor(cgColor: cgColor) {
-                    colorHex = SuggestionTextColorCodec.hexString(from: nsColor)
-                }
+        } else if let foreground = attributes[.foregroundColor],
+                  CFGetTypeID(foreground as CFTypeRef) == CGColor.typeID {
+            // AX often reports the foreground as a CGColor. A conditional `as? CGColor` does not
+            // compile against `Any` (the compiler treats the CF downcast as always-succeeding), so we
+            // verify the CF type id and force-cast. Unlike `unsafeBitCast`, this keeps normal ARC
+            // ownership and cannot fail given the verified type id.
+            // swiftlint:disable:next force_cast
+            let cgColor = foreground as! CGColor
+            if let nsColor = NSColor(cgColor: cgColor) {
+                colorHex = SuggestionTextColorCodec.hexString(from: nsColor)
             }
         }
 
