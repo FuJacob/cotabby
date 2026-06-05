@@ -10,6 +10,8 @@
 
 <p align="center">
   <a href="https://cotabby.app"><strong>Visit the landing page →</strong></a>
+  &nbsp;&nbsp;<strong>|</strong>&nbsp;&nbsp;
+  <a href="https://github.com/FuJacob/cotabby/releases/latest"><strong>Download for macOS →</strong></a>
 </p>
 
 <p align="center">
@@ -17,7 +19,7 @@
   <a href="https://github.com/FuJacob/cotabby/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/FuJacob/cotabby" /></a>
   <a href="https://github.com/FuJacob/cotabby/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/FuJacob/cotabby/total" /></a>
   <a href="https://github.com/FuJacob/cotabby/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/FuJacob/cotabby?style=flat" /></a>
-  <img alt="Platform" src="https://img.shields.io/badge/platform-macOS%2015%2B-lightgrey" />
+  <img alt="Platform" src="https://img.shields.io/badge/platform-macOS%2014%2B-lightgrey" />
   <img alt="Visitors" src="https://visitor-badge.laobi.icu/badge?page_id=FuJacob.tabby" />
 </p>
 
@@ -27,7 +29,6 @@
 
 <p align="center">
   <a href='https://ko-fi.com/I2F22066MI' target='_blank'><img height='36' style='border:0px;height:36px;' src='https://storage.ko-fi.com/cdn/kofi6.png?v=6' border='0' alt='Buy Me a Coffee at ko-fi.com' /></a>
-  <a href="https://github.com/FuJacob/cotabby/releases/latest"><img height="36" alt="Download for macOS" src="https://img.shields.io/badge/Download%20for%20macOS-181717?style=for-the-badge&logo=github&logoColor=white" /></a>
 </p>
 
 ---
@@ -83,7 +84,7 @@ Browse the [unsloth GGUF collection on Hugging Face](https://huggingface.co/unsl
 
 ## Install
 
-**Compatibility:** Requires macOS 15.0 or later. Apple Intelligence suggestions require macOS 26 or later; on earlier supported systems, use the Open Source engine.
+**Compatibility:** Requires macOS 14.0 or later. Apple Intelligence suggestions require macOS 26 or later; on earlier supported systems, use the Open Source engine.
 
 ### Homebrew
 
