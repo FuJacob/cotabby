@@ -261,7 +261,9 @@ private struct AutocorrectDemoCard: View {
 
     private func runLoop() async {
         // Idle (not animating) and reduce-motion both rest on the green-correction frame so the
-        // card reads as "typos get a green fix" without looping.
+        // card reads as "typos get a green fix" without looping. Keeping `accepted = false` here is
+        // deliberate: it leaves the correction in its green (not-yet-accepted) color, so the static
+        // frame still reads as a correction rather than ordinary solid text.
         guard animating, !reduceMotion else {
             typedCount = fullTyped.count
             showCorrection = true
@@ -288,6 +290,7 @@ private struct AutocorrectDemoCard: View {
 
             // The typo is detected and a green correction is offered.
             try? await Task.sleep(nanoseconds: 450 * nsPerMillisecond)
+            if Task.isCancelled { return }
             withAnimation(.easeInOut(duration: 0.20)) { showCorrection = true }
             try? await Task.sleep(nanoseconds: 1300 * nsPerMillisecond)
             if Task.isCancelled { return }
