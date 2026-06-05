@@ -17,7 +17,6 @@ final class CotabbyAppEnvironment {
     let focusModel: FocusTrackingModel
     let inputMonitor: InputMonitor
     let appUpdateManager: AppUpdateManager
-    let launchAtLoginService: LaunchAtLoginService
     let permissionGuidanceController: PermissionGuidanceController
     let suggestionSettings: SuggestionSettingsModel
     let foundationModelAvailabilityService: FoundationModelAvailabilityService
@@ -97,7 +96,6 @@ final class CotabbyAppEnvironment {
             return true
         }
         let appUpdateManager = AppUpdateManager()
-        let launchAtLoginService = LaunchAtLoginService()
         let welcomeCoordinator = WelcomeCoordinator(
             permissionManager: permissionManager,
             permissionGuidanceController: permissionGuidanceController,
@@ -108,6 +106,9 @@ final class CotabbyAppEnvironment {
         )
         let huggingFaceSearchService = HuggingFaceSearchService()
         let performanceMetricsStore = PerformanceMetricsStore()
+        // Live CPU/RAM graph backing for the Performance pane. Holds no state until the pane asks it
+        // to start sampling, so constructing it eagerly here costs nothing.
+        let systemMetricsStore = SystemMetricsStore()
         // Settings coordinator construction is deferred below until after `suggestionEngine` is
         // built — the Advanced pane's "try it" playground needs the engine so it can fire ad-hoc
         // generations using the same router the autocomplete pipeline does.
@@ -157,7 +158,6 @@ final class CotabbyAppEnvironment {
 
         let settingsCoordinator = SettingsCoordinator(
             appUpdateManager: appUpdateManager,
-            launchAtLoginService: launchAtLoginService,
             permissionManager: permissionManager,
             suggestionSettings: suggestionSettings,
             foundationModelAvailabilityService: foundationModelAvailabilityService,
@@ -167,6 +167,7 @@ final class CotabbyAppEnvironment {
             suggestionEngine: suggestionEngine,
             configuration: configuration,
             performanceMetricsStore: performanceMetricsStore,
+            systemMetricsStore: systemMetricsStore,
             onShowWelcome: { [weak welcomeCoordinator] in
                 welcomeCoordinator?.showWelcome()
             },
@@ -217,7 +218,6 @@ final class CotabbyAppEnvironment {
         self.focusModel = focusModel
         self.inputMonitor = inputMonitor
         self.appUpdateManager = appUpdateManager
-        self.launchAtLoginService = launchAtLoginService
         self.permissionGuidanceController = permissionGuidanceController
         self.suggestionSettings = suggestionSettings
         self.foundationModelAvailabilityService = foundationModelAvailabilityService

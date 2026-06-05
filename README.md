@@ -27,6 +27,7 @@
 
 <p align="center">
   <a href='https://ko-fi.com/I2F22066MI' target='_blank'><img height='36' style='border:0px;height:36px;' src='https://storage.ko-fi.com/cdn/kofi6.png?v=6' border='0' alt='Buy Me a Coffee at ko-fi.com' /></a>
+  <a href="https://github.com/FuJacob/cotabby/releases/latest"><img height="36" alt="Download for macOS" src="https://img.shields.io/badge/Download%20for%20macOS-181717?style=for-the-badge&logo=github&logoColor=white" /></a>
 </p>
 
 ---

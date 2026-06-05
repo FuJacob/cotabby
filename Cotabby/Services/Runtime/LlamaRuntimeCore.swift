@@ -228,6 +228,20 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
             generatedText += piece
             tokensGenerated += 1
             sumLogprob += Double(result.logprob)
+
+            // Stop at the first natural sentence boundary instead of running the full token budget.
+            // This keeps completions tight and is latency-positive (fewer tokens), and it adds no
+            // per-token vocabulary work: it only inspects the text already accumulated. The
+            // classifier ignores decimals, abbreviations, and list markers, so it will not truncate
+            // "e.g." or "3.14" mid-thought.
+            if DecodeStopPolicy.shouldStop(
+                accumulated: generatedText,
+                tokensGenerated: tokensGenerated,
+                minimumTokens: options.sentenceStopMinimumTokens
+            ) {
+                stopReason = "sentence_boundary"
+                break
+            }
         }
 
         CotabbyLogger.runtime.debug(
@@ -436,6 +450,12 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         return String(bytes: buffer, encoding: .utf8) ?? ""
     }
 
+    /// Fixed default sampler seed so suggestions are reproducible for the same context. The engine
+    /// treats seed 0 as "reseed randomly per sequence", which made identical contexts produce
+    /// different ghost text run to run; a stable nonzero seed removes that variance. Requests can
+    /// still override via `LlamaGenerationOptions.seed` (used by tests and microbenches).
+    private static let defaultSamplerSeed: UInt32 = 0x00C0_FFEE
+
     private static func samplingConfig(from options: LlamaGenerationOptions) -> SamplingConfig {
         SamplingConfig(
             max_prediction_tokens: Int32(options.maxPredictionTokens),
@@ -444,7 +464,7 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
             top_p: Float(options.topP),
             min_p: Float(options.minP),
             repetition_penalty: Float(options.repetitionPenalty),
-            seed: options.seed ?? 0,
+            seed: options.seed ?? Self.defaultSamplerSeed,
             single_line: options.singleLine
         )
     }

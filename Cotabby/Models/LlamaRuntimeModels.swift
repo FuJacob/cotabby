@@ -192,6 +192,11 @@ struct LlamaGenerationOptions: Equatable, Sendable {
     /// Average per-token log-probability below which a completion is suppressed as low-confidence.
     /// Defaults to -infinity, which disables suppression entirely.
     var confidenceFloor: Double = -.infinity
+
+    /// Minimum tokens generated before the sentence-boundary early stop may fire. Guards against
+    /// degenerate instant stops (e.g. a lone leading period). Lives here so length presets can tune
+    /// the floor without reaching into `DecodeStopPolicy`; the default preserves prior behavior.
+    var sentenceStopMinimumTokens: Int = 2
 }
 
 /// The concrete runtime assets selected during bootstrap after checking available model files.

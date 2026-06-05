@@ -197,6 +197,8 @@ struct FocusedInputContext: Equatable, Sendable {
     let trailingText: String
     let selection: NSRange
     let isSecure: Bool
+    /// The host field's own text font/color, carried through so the overlay can match it.
+    let resolvedFieldStyle: ResolvedFieldStyle?
     /// Carries the immutable focus-observation identity across debounce/generation boundaries.
     /// Without this, later visual-context lookups could fall back to `elementIdentifier` alone and
     /// reintroduce the CFHash collision class this sequence is meant to avoid.
@@ -218,6 +220,7 @@ struct FocusedInputContext: Equatable, Sendable {
         trailingText = snapshot.trailingText
         selection = snapshot.selection
         isSecure = snapshot.isSecure
+        resolvedFieldStyle = snapshot.resolvedFieldStyle
         focusChangeSequence = snapshot.focusChangeSequence
         self.generation = generation
     }
@@ -518,6 +521,9 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
     /// self-growing inputs. It DOES change when the user focuses a genuinely different field.
     /// Defaults to 0 for tests that do not exercise session-scoped behavior.
     let focusedInputIdentityKey: UInt64
+    /// The host field's own text font/color, so the overlay can render ghost text that matches the
+    /// field instead of always using the system font and a fixed gray. Nil falls back to defaults.
+    let resolvedFieldStyle: ResolvedFieldStyle?
 
     init(
         caretRect: CGRect,
@@ -526,7 +532,8 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
         observedCharWidth: CGFloat?,
         isRightToLeft: Bool,
         focusChangeSequence: UInt64 = 0,
-        focusedInputIdentityKey: UInt64 = 0
+        focusedInputIdentityKey: UInt64 = 0,
+        resolvedFieldStyle: ResolvedFieldStyle? = nil
     ) {
         self.caretRect = caretRect
         self.inputFrameRect = inputFrameRect
@@ -535,6 +542,7 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
         self.isRightToLeft = isRightToLeft
         self.focusChangeSequence = focusChangeSequence
         self.focusedInputIdentityKey = focusedInputIdentityKey
+        self.resolvedFieldStyle = resolvedFieldStyle
     }
 }
 

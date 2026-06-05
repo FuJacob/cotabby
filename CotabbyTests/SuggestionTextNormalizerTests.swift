@@ -22,6 +22,23 @@ final class SuggestionTextNormalizerTests: XCTestCase {
         XCTAssertEqual(normalized, " useful continuation")
     }
 
+    func test_normalize_truncatesAtStopMarkerSalvagingPrefix() {
+        let request = CotabbyTestFixtures.suggestionRequest(
+            prefixText: "I will ",
+            prompt: "PROMPT",
+            precedingText: "I will "
+        )
+
+        // The model answers, then hallucinates a new chat turn. Only the answer before the stop
+        // marker should survive; the new turn must not leak into the ghost text.
+        let normalized = SuggestionTextNormalizer.normalize(
+            "be there soon.<|im_end|><|im_start|>user\nAnything else?",
+            for: request
+        )
+
+        XCTAssertEqual(normalized, "be there soon.")
+    }
+
     func test_normalize_removesPrefixEchoWhenPromptWasNotEchoed() {
         let request = CotabbyTestFixtures.suggestionRequest(
             prefixText: "Hello world",
