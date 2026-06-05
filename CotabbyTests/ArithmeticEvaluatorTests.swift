@@ -6,18 +6,18 @@ import XCTest
 final class ArithmeticEvaluatorTests: XCTestCase {
     private let sut = ArithmeticEvaluator()
 
-    func test_addition_keepsWorkedExpression() {
+    func test_addition_insertsResultOnly() {
         let result = sut.evaluate("5+5=")
         XCTAssertEqual(result?.previewText, "= 10")
-        XCTAssertEqual(result?.insertionText, "5+5=10")
+        XCTAssertEqual(result?.insertionText, "10")
     }
 
-    func test_withoutTrailingEquals_stillInsertsWorkedExpression() {
-        XCTAssertEqual(sut.evaluate("5+5")?.insertionText, "5+5=10")
+    func test_withoutTrailingEquals_insertsResultOnly() {
+        XCTAssertEqual(sut.evaluate("5+5")?.insertionText, "10")
     }
 
-    func test_multiplyWithX_preservesTypedLiteral() {
-        XCTAssertEqual(sut.evaluate("5x5")?.insertionText, "5x5=25")
+    func test_multiplyWithX_insertsResultOnly() {
+        XCTAssertEqual(sut.evaluate("5x5")?.insertionText, "25")
     }
 
     func test_powerIsRightAssociative() {

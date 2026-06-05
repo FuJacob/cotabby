@@ -13,8 +13,8 @@ import Foundation
 /// typing.
 struct ArithmeticEvaluator: MacroEvaluating {
     func evaluate(_ query: String) -> MacroResult? {
-        // The user's literal expression drives the inserted text. A trailing `=` is their "compute
-        // now" cue and is stripped before parsing (and re-added around the result on insert).
+        // A trailing `=` is the user's "compute now" cue; strip it before parsing. Accepting replaces
+        // the whole `::expr=` run with just the result (so `::5+5=` becomes `10`).
         let literal = query.hasSuffix("=") ? String(query.dropLast()) : query
         guard !literal.isEmpty else { return nil }
 
@@ -28,7 +28,7 @@ struct ArithmeticEvaluator: MacroEvaluating {
         guard let value = parser.parse(), parser.usedOperator, value.isFinite else { return nil }
         guard let resultText = Self.format(value) else { return nil }
 
-        return MacroResult(previewText: "= \(resultText)", insertionText: "\(literal)=\(resultText)")
+        return MacroResult(previewText: "= \(resultText)", insertionText: resultText)
     }
 
     /// Formats a result: integers print without a decimal point; everything else prints with up to
