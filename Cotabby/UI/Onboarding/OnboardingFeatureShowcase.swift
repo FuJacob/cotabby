@@ -2,9 +2,13 @@ import SwiftUI
 
 /// File overview:
 /// Decorative, self-playing demos shown on the final onboarding screen ("You're all set"). They
-/// mimic Cotabby's headline features: inline autocomplete ghost text, the inline `:emoji:` picker,
-/// and `/` macros. The first two use hardcoded strings and local state; the macro card computes its
-/// examples with the real (pure, offline) `MacroEngine`, so its values are always accurate.
+/// mimic Cotabby's headline features: inline autocomplete ghost text, green typo autocorrect, the
+/// inline `:emoji:` picker, and `/` macros. Every card but the macro one uses hardcoded strings and
+/// local state; the macro card computes its examples with the real (pure, offline) `MacroEngine`, so
+/// its values are always accurate.
+///
+/// To keep the onboarding window short with four cards, the macro card is a single cycling row rather
+/// than a grid: it rotates through one real example per category so it still conveys breadth.
 ///
 /// Nothing here touches the real suggestion pipeline, settings, Accessibility, the event tap, or the
 /// emoji catalog. The cards are inert content, so they can never steal focus or affect a real
@@ -19,6 +23,7 @@ struct OnboardingFeatureShowcase: View {
     var body: some View {
         VStack(spacing: 12) {
             GhostTextDemoCard()
+            AutocorrectDemoCard()
             EmojiPickerDemoCard()
             MacroDemoCard()
         }
@@ -174,7 +179,116 @@ private struct DemoGhostKeycap: View {
     private var borderColor: Color { colorScheme == .dark ? Color(white: 0.3) : Color(white: 0.8) }
 }
 
-// MARK: - Demo 2: inline emoji picker
+// MARK: - Demo 2: autocorrect (typo correction)
+
+/// Mirrors the inline typo-correction feature: a misspelled last word is offered as a green
+/// correction that the user accepts with the word-accept key, turning it solid. The green is
+/// replicated (not shared) from `OverlayController`'s correction color, like the keycap above.
+/// Reduce-motion shows the static green-correction state so the feature still reads.
+private struct AutocorrectDemoCard: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// Characters of "<leading><typo>" revealed so far while typing.
+    @State private var typedCount = 0
+    /// Whether the green correction (replacing the typo) is shown.
+    @State private var showCorrection = false
+    /// Whether the correction has been accepted (turns solid).
+    @State private var accepted = false
+
+    private let leading = "Pass me "
+    private let typo = "teh"
+    private let correction = "the"
+    private var fullTyped: String { leading + typo }
+
+    var body: some View {
+        DemoCard(caption: "Autocorrect", contentHeight: 40) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                HStack(alignment: .firstTextBaseline, spacing: 0) {
+                    Text(String(leading.prefix(min(typedCount, leading.count))))
+                        .foregroundStyle(.primary)
+                    Text(lastWord)
+                        .foregroundStyle(lastWordColor)
+                }
+                .font(.system(size: 16))
+
+                if showCorrection && !accepted {
+                    DemoGhostKeycap(label: "Tab")
+                }
+
+                Spacer(minLength: 0)
+            }
+        }
+        .task(id: reduceMotion) {
+            await runLoop()
+        }
+    }
+
+    /// The last word is the typed-so-far typo until a correction is offered, then the corrected word.
+    private var lastWord: String {
+        if showCorrection { return correction }
+        return String(typo.prefix(max(0, typedCount - leading.count)))
+    }
+
+    /// Green while the correction is offered, solid once accepted (and during plain typing).
+    private var lastWordColor: Color {
+        (showCorrection && !accepted) ? correctionColor : .primary
+    }
+
+    /// The inline correction green, replicated from `OverlayController`'s `SuggestionCorrectionStyle`.
+    private var correctionColor: Color {
+        colorScheme == .dark
+            ? Color(red: 0.45, green: 0.85, blue: 0.45)
+            : Color(red: 0.15, green: 0.60, blue: 0.20)
+    }
+
+    private func runLoop() async {
+        guard !reduceMotion else {
+            typedCount = fullTyped.count
+            showCorrection = true
+            accepted = false
+            return
+        }
+
+        // Offset the first iteration so the cards do not animate in lockstep.
+        try? await Task.sleep(nanoseconds: 1100 * nsPerMillisecond)
+        if Task.isCancelled { return }
+
+        while !Task.isCancelled {
+            typedCount = 0
+            showCorrection = false
+            accepted = false
+            try? await Task.sleep(nanoseconds: 350 * nsPerMillisecond)
+            if Task.isCancelled { return }
+
+            for index in 1...fullTyped.count {
+                typedCount = index
+                try? await Task.sleep(nanoseconds: 55 * nsPerMillisecond)
+                if Task.isCancelled { return }
+            }
+
+            // The typo is detected and a green correction is offered.
+            try? await Task.sleep(nanoseconds: 450 * nsPerMillisecond)
+            withAnimation(.easeInOut(duration: 0.20)) { showCorrection = true }
+            try? await Task.sleep(nanoseconds: 1300 * nsPerMillisecond)
+            if Task.isCancelled { return }
+
+            // Accept: the correction turns solid.
+            withAnimation(.easeInOut(duration: 0.22)) { accepted = true }
+            try? await Task.sleep(nanoseconds: 900 * nsPerMillisecond)
+            if Task.isCancelled { return }
+
+            withAnimation(.easeInOut(duration: 0.30)) {
+                showCorrection = false
+                accepted = false
+                typedCount = 0
+            }
+            try? await Task.sleep(nanoseconds: 600 * nsPerMillisecond)
+        }
+    }
+}
+
+// MARK: - Demo 3: inline emoji picker
 
 private struct EmojiPickerDemoCard: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -348,71 +462,61 @@ private struct DemoEmojiKeycap: View {
     }
 }
 
-// MARK: - Demo 3: inline `/` macros
+// MARK: - Demo 4: inline `/` macros
 
-/// A compact, cycling tour of the `/` macro feature: one row per macro category (math, unit
-/// conversion, currency, date), each rotating through several real examples so onboarding conveys the
-/// breadth of what `/` can do instead of a single example.
+/// A compact, cycling one-row tour of the `/` macro feature. Each tick advances to the next real
+/// example, rotating across categories (math, unit conversion, currency, date), so a single short line
+/// still conveys the breadth of what `/` can do. Collapsed from the former four-row grid specifically
+/// to keep the onboarding window short now that there is a fourth (autocorrect) card.
 ///
-/// Results come from the real `MacroEngine` (a pure, offline value type), so every row shows exactly
-/// what the feature would insert: arithmetic and unit conversions are deterministic, currency uses the
-/// bundled offline rate table, and dates evaluate against the current clock so `/today` and friends are
-/// never stale. Like the cards above it stays inert (no AX, event tap, or insertion); reduce-motion
-/// shows a single static example per row with no cycling.
+/// Results come from the real `MacroEngine` (a pure, offline value type), so every example shows
+/// exactly what the feature would insert: arithmetic and unit conversions are deterministic, currency
+/// uses the bundled offline rate table, and dates evaluate against the current clock so `/today` and
+/// friends are never stale. Inert (no AX, event tap, or insertion); reduce-motion shows one static
+/// example with no cycling.
 private struct MacroDemoCard: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    /// How many rows have faded in so far.
-    @State private var revealed = 0
-    /// The currently shown example index for each category row; advanced round-robin while visible.
-    @State private var indices: [Int] = []
-    /// The category rows and their real, engine-computed examples. Built once when the card is created
+    /// Index of the currently shown example; advances round-robin while visible.
+    @State private var index = 0
+    /// Real, engine-computed examples, one per (category, input). Built once when the card is created
     /// (rather than in `.task`) so the card is never momentarily empty before its first render.
-    @State private var categories: [MacroCategory] = MacroDemoCard.buildCategories()
+    @State private var examples: [Example] = MacroDemoCard.buildExamples()
 
-    private struct MacroCategory: Identifiable {
-        let name: String
-        let examples: [Example]
-        var id: String { name }
-    }
-
-    private struct Example {
+    private struct Example: Identifiable {
+        let category: String
         /// What the user types after `/`.
         let input: String
         /// What the macro inserts, as computed by the real engine.
         let result: String
+        var id: String { category + input }
     }
 
     var body: some View {
-        DemoCard(caption: "Inline macros", contentHeight: 96) {
-            Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 10, verticalSpacing: 9) {
-                ForEach(Array(categories.enumerated()), id: \.element.id) { index, category in
-                    let example = currentExample(row: index, in: category)
-                    GridRow {
-                        Text(category.name)
-                            .font(.system(size: 11, weight: .medium, design: .rounded))
-                            .foregroundStyle(.secondary)
+        DemoCard(caption: "Inline macros", contentHeight: 30) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                if let example = currentExample {
+                    Text(example.category)
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 60, alignment: .leading)
 
-                        Text("/\(example.input)")
-                            .font(.system(size: 13, design: .monospaced))
-                            .foregroundStyle(.primary)
-                            .contentTransition(.opacity)
+                    Text("/\(example.input)")
+                        .font(.system(size: 13, design: .monospaced))
+                        .foregroundStyle(.primary)
+                        .contentTransition(.opacity)
 
-                        HStack(alignment: .firstTextBaseline, spacing: 6) {
-                            Text("→")
-                                .font(.system(size: 12))
-                                .foregroundStyle(.tertiary)
-                            Text(example.result)
-                                .font(.system(size: 13, weight: .medium, design: .rounded))
-                                .foregroundStyle(.primary)
-                                .contentTransition(.opacity)
-                        }
-                    }
-                    // Rows reserve their grid space even while hidden, so fading them in (and later
-                    // crossfading their content) never shifts the layout or the card's fixed height.
-                    .opacity(index < revealed ? 1 : 0)
-                    .offset(y: index < revealed ? 0 : 4)
+                    Text("→")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.tertiary)
+
+                    Text(example.result)
+                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .foregroundStyle(.primary)
+                        .contentTransition(.opacity)
+                        .lineLimit(1)
                 }
+                Spacer(minLength: 0)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -421,69 +525,41 @@ private struct MacroDemoCard: View {
         }
     }
 
-    private func currentExample(row: Int, in category: MacroCategory) -> Example {
-        let exampleIndex = row < indices.count ? indices[row] : 0
-        return category.examples[exampleIndex % category.examples.count]
+    private var currentExample: Example? {
+        guard !examples.isEmpty else { return nil }
+        return examples[index % examples.count]
     }
 
     private func run() async {
-        guard !categories.isEmpty else { return }
-        if indices.count != categories.count {
-            indices = Array(repeating: 0, count: categories.count)
-        }
-
-        guard !reduceMotion else {
-            revealed = categories.count
-            return
-        }
-
-        // Stagger the rows in.
-        revealed = 0
-        try? await Task.sleep(nanoseconds: 250 * nsPerMillisecond)
-        for count in 1...categories.count {
-            if Task.isCancelled { return }
-            withAnimation(.easeOut(duration: 0.28)) { revealed = count }
-            try? await Task.sleep(nanoseconds: 130 * nsPerMillisecond)
-        }
-
-        // Then rotate one row at a time, round-robin, so the rows never all change at once and each
-        // example stays up long enough to read.
-        var tick = 0
+        guard !examples.isEmpty, !reduceMotion else { return }
+        // Offset so this card does not advance in lockstep with the others.
+        try? await Task.sleep(nanoseconds: 500 * nsPerMillisecond)
         while !Task.isCancelled {
-            try? await Task.sleep(nanoseconds: 800 * nsPerMillisecond)
+            try? await Task.sleep(nanoseconds: 1400 * nsPerMillisecond)
             if Task.isCancelled { return }
-            let row = tick % categories.count
-            withAnimation(.easeInOut(duration: 0.35)) { advance(row: row) }
-            tick += 1
-        }
-    }
-
-    private func advance(row: Int) {
-        guard row < indices.count, row < categories.count else { return }
-        let count = categories[row].examples.count
-        guard count > 0 else { return }
-        indices[row] = (indices[row] + 1) % count
-    }
-
-    /// Builds the category rows, computing each example with the real (pure, offline) macro engine so
-    /// the showcase can never drift from the feature's actual output. Examples the engine does not
-    /// resolve are dropped and an empty category is omitted, so a future macro-grammar change degrades
-    /// gracefully instead of showing a blank row.
-    private static func buildCategories() -> [MacroCategory] {
-        let engine = MacroEngine.standard()
-        func examples(_ inputs: [String]) -> [Example] {
-            inputs.compactMap { input in
-                engine.evaluate(input).map { Example(input: input, result: $0.insertionText) }
+            withAnimation(.easeInOut(duration: 0.35)) {
+                index = (index + 1) % examples.count
             }
         }
+    }
+
+    /// One example per category, interleaved, each computed by the real (pure, offline) macro engine so
+    /// the showcase can never drift from the feature's actual output. Inputs the engine does not resolve
+    /// are dropped, so a future macro-grammar change degrades gracefully instead of showing a blank row.
+    private static func buildExamples() -> [Example] {
+        let engine = MacroEngine.standard()
+        func example(_ category: String, _ input: String) -> Example? {
+            engine.evaluate(input).map { Example(category: category, input: input, result: $0.insertionText) }
+        }
         return [
-            MacroCategory(name: "Math", examples: examples(["5+5=", "12*8=", "2^10=", "144/12="])),
-            MacroCategory(name: "Convert", examples: examples(["10km->mi", "100f->c", "5ft->m", "2lb->kg"])),
-            MacroCategory(
-                name: "Currency",
-                examples: examples(["100usd->eur", "50gbp->jpy", "1000jpy->usd", "20eur->gbp"])
-            ),
-            MacroCategory(name: "Date", examples: examples(["today", "tomorrow", "next-fri", "now"]))
-        ].filter { !$0.examples.isEmpty }
+            example("Math", "5+5="),
+            example("Convert", "10km->mi"),
+            example("Currency", "100usd->eur"),
+            example("Date", "today"),
+            example("Math", "2^10="),
+            example("Convert", "100f->c"),
+            example("Currency", "50gbp->jpy"),
+            example("Date", "next-fri")
+        ].compactMap { $0 }
     }
 }
