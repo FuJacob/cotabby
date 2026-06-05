@@ -167,7 +167,8 @@ final class SuggestionRequestFactoryTests: XCTestCase {
             result.request.completionLengthInstruction,
             "Return only the next 12 to 20 words."
         )
-        XCTAssertEqual(result.request.maxPredictionTokens, 25)
+        // 20 (highWords) * 1.3 (English fallback factor) = 26, rounded up.
+        XCTAssertEqual(result.request.maxPredictionTokens, 26)
         XCTAssertEqual(result.promptPreview, result.request.prompt)
     }
 

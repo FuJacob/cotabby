@@ -23,6 +23,11 @@ struct LanguageOption: Identifiable, Equatable, Sendable {
     let name: String
     /// Native-script label shown in the palette so a speaker recognizes their own language.
     let nativeLabel: String
+    /// Average BPE tokens per orthographic "word" for the typical Llama/SentencePiece tokenizer.
+    /// Drives the per-language max-token budget so a 7-word German continuation gets the longer
+    /// budget German actually needs without bloating English requests. Numbers are approximate
+    /// (corpus-dependent); when in doubt, bias slightly high so we clip less often than we overrun.
+    let tokensPerWord: Double
 
     var id: String { code }
 }
@@ -32,28 +37,57 @@ enum LanguageCatalog {
     static let maxLanguages = 6
     static let maxLanguageLength = 30
 
-    /// Empty = no declared languages. The editor's "Clear" restores this, and an empty set emits no
-    /// prompt hint at all (the renderers then simply match the surrounding text).
-    static let defaultLanguages: [String] = []
+    /// Soft default applied on a clean install: pre-select English so the length budget has a
+    /// language to anchor on out of the box. Users with a different primary language clear English
+    /// and pick their own; multi-language users fall back to the English factor by design.
+    static let defaultLanguages: [String] = ["English"]
+
+    /// Tokens-per-word fallback when the user has no language selected, multiple languages selected,
+    /// or a single language we don't have calibrated factors for. English-tokenizer-ish baseline,
+    /// slightly above the empirical ~1.3 so the budget rarely truncates mid-word.
+    static let fallbackTokensPerWord: Double = 1.3
 
     /// The tappable palette. Native labels help non-English speakers find their language; tapping a
     /// chip stores the English `name`. `code` matches the previous `SuggestionLanguage` raw values so
-    /// the migration can map a persisted single choice onto this list.
+    /// the migration can map a persisted single choice onto this list. `tokensPerWord` values are
+    /// rough Llama-tokenizer averages (Latin scripts cluster ~1.3-1.7, Cyrillic/Arabic/Devanagari
+    /// closer to 2, CJK depends heavily on segmentation).
     static let commonLanguages: [LanguageOption] = [
-        LanguageOption(code: "en", name: "English", nativeLabel: "English"),
-        LanguageOption(code: "es", name: "Spanish", nativeLabel: "Español (Spanish)"),
-        LanguageOption(code: "fr", name: "French", nativeLabel: "Français (French)"),
-        LanguageOption(code: "de", name: "German", nativeLabel: "Deutsch (German)"),
-        LanguageOption(code: "it", name: "Italian", nativeLabel: "Italiano (Italian)"),
-        LanguageOption(code: "pt", name: "Portuguese", nativeLabel: "Português (Portuguese)"),
-        LanguageOption(code: "nl", name: "Dutch", nativeLabel: "Nederlands (Dutch)"),
-        LanguageOption(code: "ru", name: "Russian", nativeLabel: "Русский (Russian)"),
-        LanguageOption(code: "zh-Hans", name: "Simplified Chinese", nativeLabel: "简体中文 (Simplified Chinese)"),
-        LanguageOption(code: "ja", name: "Japanese", nativeLabel: "日本語 (Japanese)"),
-        LanguageOption(code: "ko", name: "Korean", nativeLabel: "한국어 (Korean)"),
-        LanguageOption(code: "hi", name: "Hindi", nativeLabel: "हिन्दी (Hindi)"),
-        LanguageOption(code: "ar", name: "Arabic", nativeLabel: "العربية (Arabic)")
+        LanguageOption(code: "en", name: "English", nativeLabel: "English", tokensPerWord: 1.3),
+        LanguageOption(code: "es", name: "Spanish", nativeLabel: "Español (Spanish)", tokensPerWord: 1.5),
+        LanguageOption(code: "fr", name: "French", nativeLabel: "Français (French)", tokensPerWord: 1.5),
+        LanguageOption(code: "de", name: "German", nativeLabel: "Deutsch (German)", tokensPerWord: 1.7),
+        LanguageOption(code: "it", name: "Italian", nativeLabel: "Italiano (Italian)", tokensPerWord: 1.5),
+        LanguageOption(code: "pt", name: "Portuguese", nativeLabel: "Português (Portuguese)", tokensPerWord: 1.5),
+        LanguageOption(code: "nl", name: "Dutch", nativeLabel: "Nederlands (Dutch)", tokensPerWord: 1.6),
+        LanguageOption(code: "ru", name: "Russian", nativeLabel: "Русский (Russian)", tokensPerWord: 2.0),
+        LanguageOption(
+            code: "zh-Hans",
+            name: "Simplified Chinese",
+            nativeLabel: "简体中文 (Simplified Chinese)",
+            tokensPerWord: 1.2
+        ),
+        LanguageOption(code: "ja", name: "Japanese", nativeLabel: "日本語 (Japanese)", tokensPerWord: 1.8),
+        LanguageOption(code: "ko", name: "Korean", nativeLabel: "한국어 (Korean)", tokensPerWord: 1.8),
+        LanguageOption(code: "hi", name: "Hindi", nativeLabel: "हिन्दी (Hindi)", tokensPerWord: 2.0),
+        LanguageOption(code: "ar", name: "Arabic", nativeLabel: "العربية (Arabic)", tokensPerWord: 2.0)
     ]
+
+    /// Resolves the effective tokens-per-word multiplier for the user's declared language set.
+    /// Returns the English fallback when no languages are declared, when more than one is declared
+    /// (we can't safely pick between them), or when the single declared language isn't in the
+    /// curated palette (typed in as free text). Only a single, recognized language wins its own
+    /// calibrated factor — anything else gets the safe baseline.
+    static func effectiveTokensPerWord(for languages: [String]) -> Double {
+        let normalized = normalize(languages)
+        guard normalized.count == 1,
+              let only = normalized.first,
+              let option = commonLanguages.first(where: { $0.name.caseInsensitiveCompare(only) == .orderedSame })
+        else {
+            return fallbackTokensPerWord
+        }
+        return option.tokensPerWord
+    }
 
     /// Trims, drops empties, truncates over-long entries, de-duplicates case-insensitively (keeping
     /// the first occurrence and its original casing), and caps the count. The single place all

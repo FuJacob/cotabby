@@ -9,6 +9,32 @@ import Foundation
 /// This file is intentionally free of AppKit, AX, and runtime side effects so maintainers can
 /// understand the core state machine without reading OS integration code first.
 
+/// Closed integer range a suggestion's word count should fall within.
+/// Used by both the curated `SuggestionWordCountPreset` and the user-defined custom range so the
+/// prompt builder and token-budget math have a single shape to consume.
+struct SuggestionWordRange: Equatable, Hashable, Sendable {
+    let lowWords: Int
+    let highWords: Int
+
+    /// Hard bounds for any range that ends up driving generation. The floor of 1 keeps the model
+    /// from being asked for zero words; the ceiling caps how much we'll plan for so a typo'd "9999"
+    /// can't blow out the token budget.
+    static let minimumWord: Int = 1
+    static let maximumWord: Int = 50
+
+    /// Clamps both ends to `[minimumWord, maximumWord]` and ensures low <= high (snapping high up to
+    /// low when the user temporarily inverts them via two separate steppers).
+    static func clamped(low: Int, high: Int) -> SuggestionWordRange {
+        let clampedLow = min(max(low, minimumWord), maximumWord)
+        let clampedHigh = min(max(high, clampedLow), maximumWord)
+        return SuggestionWordRange(lowWords: clampedLow, highWords: clampedHigh)
+    }
+
+    var displayLabel: String { "\(lowWords)-\(highWords) words" }
+    var compactLabel: String { "\(lowWords)-\(highWords) w" }
+    var promptInstruction: String { "Return only the next \(lowWords) to \(highWords) words." }
+}
+
 /// User-facing presets that bound how long one inline suggestion may be.
 /// Treating this as an enum keeps the UI and prompt policy in one source of truth.
 enum SuggestionWordCountPreset: String, CaseIterable, Equatable, Hashable, Sendable, Identifiable {
@@ -42,24 +68,41 @@ enum SuggestionWordCountPreset: String, CaseIterable, Equatable, Hashable, Senda
         }
     }
 
+    /// The shared `SuggestionWordRange` shape so the prompt builder and token-budget math can
+    /// consume presets and custom ranges identically.
+    var range: SuggestionWordRange {
+        switch self {
+        case .twoToFour:
+            return SuggestionWordRange(lowWords: 2, highWords: 4)
+        case .fourToSeven:
+            return SuggestionWordRange(lowWords: 4, highWords: 7)
+        case .sevenToTwelve:
+            return SuggestionWordRange(lowWords: 7, highWords: 12)
+        case .twelveToTwenty:
+            return SuggestionWordRange(lowWords: 12, highWords: 20)
+        }
+    }
+
     /// Token budget is the sole governor of completion length on the local model (the in-prompt
-    /// word-range cue was removed), so it must track the upper word bound closely. English BPE
-    /// averages ~1.3 tokens per word, so these are sized at ~1.25x the upper word count: the cap
-    /// lands at or just under the upper bound instead of past it. History: a ~1.5x sizing
+    /// word-range cue was removed), so it must track the upper word bound closely. Now derived from
+    /// the language-aware factor in `LanguageCatalog`; this convenience returns the English-default
+    /// number for callers/tests that don't have a language context handy. History: a ~1.5x sizing
     /// (6/11/18/30) still overran because real prose uses fewer tokens per word than that assumed,
     /// and an earlier 50% bump overran further, e.g. ~12 words on the shortest preset (#271). When
     /// unsure, bias shorter; a clipped suggestion is cheaper than one that blows past the setting.
     var suggestedPredictionTokenBudget: Int {
-        switch self {
-        case .twoToFour:
-            return 5
-        case .fourToSeven:
-            return 9
-        case .sevenToTwelve:
-            return 15
-        case .twelveToTwenty:
-            return 25
-        }
+        SuggestionWordRange.predictionTokenBudget(
+            highWords: range.highWords,
+            tokensPerWord: LanguageCatalog.fallbackTokensPerWord
+        )
+    }
+}
+
+extension SuggestionWordRange {
+    /// Maps a word range upper bound and a per-word factor onto a token budget, rounded up so the
+    /// cap lands at or just past the upper word bound rather than systematically under it.
+    static func predictionTokenBudget(highWords: Int, tokensPerWord: Double) -> Int {
+        Int(ceil(Double(highWords) * tokensPerWord))
     }
 }
 
@@ -154,6 +197,8 @@ struct FocusedInputContext: Equatable, Sendable {
     let trailingText: String
     let selection: NSRange
     let isSecure: Bool
+    /// The host field's own text font/color, carried through so the overlay can match it.
+    let resolvedFieldStyle: ResolvedFieldStyle?
     /// Carries the immutable focus-observation identity across debounce/generation boundaries.
     /// Without this, later visual-context lookups could fall back to `elementIdentifier` alone and
     /// reintroduce the CFHash collision class this sequence is meant to avoid.
@@ -175,6 +220,7 @@ struct FocusedInputContext: Equatable, Sendable {
         trailingText = snapshot.trailingText
         selection = snapshot.selection
         isSecure = snapshot.isSecure
+        resolvedFieldStyle = snapshot.resolvedFieldStyle
         focusChangeSequence = snapshot.focusChangeSequence
         self.generation = generation
     }
@@ -506,6 +552,9 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
     /// `OverlayController` switches to a green tint on this signal so the user can tell at a glance
     /// that pressing the accept key will replace their last word, not extend it.
     let isCorrection: Bool
+    /// The host field's own text font/color, so the overlay can render ghost text that matches the
+    /// field instead of always using the system font and a fixed gray. Nil falls back to defaults.
+    let resolvedFieldStyle: ResolvedFieldStyle?
 
     init(
         caretRect: CGRect,
@@ -515,7 +564,8 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
         isRightToLeft: Bool,
         focusChangeSequence: UInt64 = 0,
         focusedInputIdentityKey: UInt64 = 0,
-        isCorrection: Bool = false
+        isCorrection: Bool = false,
+        resolvedFieldStyle: ResolvedFieldStyle? = nil
     ) {
         self.caretRect = caretRect
         self.inputFrameRect = inputFrameRect
@@ -525,6 +575,7 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
         self.focusChangeSequence = focusChangeSequence
         self.focusedInputIdentityKey = focusedInputIdentityKey
         self.isCorrection = isCorrection
+        self.resolvedFieldStyle = resolvedFieldStyle
     }
 }
 

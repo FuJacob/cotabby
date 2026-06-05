@@ -41,7 +41,7 @@ enum SuggestionRequestFactory {
             configuration: configuration,
             engine: settings.selectedEngine
         )
-        let completionLengthInstruction = settings.selectedWordCountPreset.promptInstruction
+        let completionLengthInstruction = settings.effectiveWordRange.promptInstruction
         let userName = activeUserName(settings: settings)
         // Custom rules are hidden from users (CustomRulesCatalog.isUserFacingEnabled == false): the
         // base-model OSS path cannot obey free-text instructions and the rule text leaks into output,
@@ -89,7 +89,8 @@ enum SuggestionRequestFactory {
             generation: context.generation,
             maxPredictionTokens: activeMaxPredictionTokens(
                 configuration: configuration,
-                wordCountPreset: settings.selectedWordCountPreset,
+                wordRange: settings.effectiveWordRange,
+                responseLanguages: settings.responseLanguages,
                 isMultiLineEnabled: settings.isMultiLineEnabled
             ),
             temperature: configuration.temperature,
@@ -206,13 +207,23 @@ enum SuggestionRequestFactory {
             .trimmingCharacters(in: .whitespacesAndNewlines) + suffix
     }
 
+    /// Picks the per-request token budget from the *effective* word range (preset or custom) and
+    /// the language-aware tokens-per-word factor. The configuration floor still wins so multi-line
+    /// off + a tiny range can't drop us below the safe baseline; the * 2 cap on multi-line caps the
+    /// worst case so a 20-word German custom range can't unilaterally double the longest budget.
     private static func activeMaxPredictionTokens(
         configuration: SuggestionConfiguration,
-        wordCountPreset: SuggestionWordCountPreset,
+        wordRange: SuggestionWordRange,
+        responseLanguages: [String],
         isMultiLineEnabled: Bool
     ) -> Int {
-        let base = max(configuration.maxPredictionTokens, wordCountPreset.suggestedPredictionTokenBudget)
-        return isMultiLineEnabled ? min(base * 2, 60) : base
+        let tokensPerWord = LanguageCatalog.effectiveTokensPerWord(for: responseLanguages)
+        let languageAware = SuggestionWordRange.predictionTokenBudget(
+            highWords: wordRange.highWords,
+            tokensPerWord: tokensPerWord
+        )
+        let base = max(configuration.maxPredictionTokens, languageAware)
+        return isMultiLineEnabled ? min(base * 2, 120) : base
     }
 
     private static func promptPreview(

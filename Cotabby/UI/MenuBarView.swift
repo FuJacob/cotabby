@@ -142,11 +142,16 @@ struct MenuBarView: View {
                 }
 
                 MenuBarPickerRow(title: "Length") {
-                    Picker("Length", selection: selectedWordCountPresetBinding) {
+                    Picker("Length", selection: lengthChoiceBinding) {
                         ForEach(SuggestionWordCountPreset.allCases) { preset in
                             Text(preset.displayLabel)
-                                .tag(preset)
+                                .tag(LengthChoice.preset(preset))
                         }
+                        // The custom range stays editable from the Writing settings pane; selecting
+                        // it here just flips the active mode and surfaces the current numbers so the
+                        // user can tell at a glance which budget is in force.
+                        Text("Custom (\(customRangeCompactLabel))")
+                            .tag(LengthChoice.custom)
                     }
                     .labelsHidden()
                     .pickerStyle(.menu)
@@ -323,6 +328,40 @@ struct MenuBarView: View {
                 suggestionSettings.selectWordCountPreset(preset)
             }
         )
+    }
+
+    /// One of the curated presets or the user's custom range. Backed by two pieces of state
+    /// (`selectedWordCountPreset` + `isUsingCustomWordCountRange`) so the menu can render and
+    /// mutate both with a single picker.
+    private enum LengthChoice: Hashable {
+        case preset(SuggestionWordCountPreset)
+        case custom
+    }
+
+    private var lengthChoiceBinding: Binding<LengthChoice> {
+        Binding(
+            get: {
+                suggestionSettings.isUsingCustomWordCountRange
+                    ? .custom
+                    : .preset(suggestionSettings.selectedWordCountPreset)
+            },
+            set: { choice in
+                switch choice {
+                case let .preset(preset):
+                    suggestionSettings.setUsingCustomWordCountRange(false)
+                    suggestionSettings.selectWordCountPreset(preset)
+                case .custom:
+                    suggestionSettings.setUsingCustomWordCountRange(true)
+                }
+            }
+        )
+    }
+
+    private var customRangeCompactLabel: String {
+        SuggestionWordRange.clamped(
+            low: suggestionSettings.customWordCountLowWords,
+            high: suggestionSettings.customWordCountHighWords
+        ).compactLabel
     }
 
     private var selectedModelBinding: Binding<String> {

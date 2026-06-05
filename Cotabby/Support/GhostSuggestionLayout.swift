@@ -35,16 +35,31 @@ struct GhostSuggestionLayout: Equatable {
         static let lineHeightMultiplier: CGFloat = 1.25
     }
 
+    /// Inputs for measuring rendered text width: the size, the AX-observed average char width when
+    /// available, and the host field font used for the fallback measurement. Bundled so the wrapping
+    /// helpers stay within a small parameter count and so width is measured with the rendered glyphs.
+    private struct TextMeasure {
+        let fontSize: CGFloat
+        let observedCharWidth: CGFloat?
+        let font: NSFont?
+    }
+
     static func make(
         text: String,
         geometry: SuggestionOverlayGeometry,
         fontSize: CGFloat,
         visibleFrame: CGRect,
-        showsAcceptanceHint: Bool = true
+        showsAcceptanceHint: Bool = true,
+        font: NSFont? = nil
     ) -> GhostSuggestionLayout {
         let normalizedText = normalizedDisplayText(text)
         let lineHeight = ceil(fontSize * Metrics.lineHeightMultiplier)
         let isRTL = geometry.isRightToLeft
+        let measure = TextMeasure(
+            fontSize: fontSize,
+            observedCharWidth: geometry.observedCharWidth,
+            font: font
+        )
         // When the keycap is hidden the text can use the full width, so we stop reserving room for it.
         let keycapReservation = showsAcceptanceHint ? Metrics.estimatedKeycapAndSpacingWidth : 0
         let usableFrame = usableTextFrame(
@@ -82,11 +97,8 @@ struct GhostSuggestionLayout: Equatable {
             usableFrame.width - keycapReservation
         )
 
-        let singleLineFits = !normalizedText.contains("\n") && measuredWidth(
-            of: normalizedText,
-            fontSize: fontSize,
-            observedCharWidth: geometry.observedCharWidth
-        ) <= firstLineBudget
+        let singleLineFits = !normalizedText.contains("\n")
+            && measuredWidth(of: normalizedText, using: measure) <= firstLineBudget
 
         if singleLineFits {
             return GhostSuggestionLayout(
@@ -111,8 +123,7 @@ struct GhostSuggestionLayout: Equatable {
             let split = splitPrefix(
                 from: remainingText,
                 maxWidth: firstLineBudget,
-                fontSize: fontSize,
-                observedCharWidth: geometry.observedCharWidth
+                using: measure
             )
             if !split.line.isEmpty {
                 let indent: CGFloat
@@ -134,8 +145,7 @@ struct GhostSuggestionLayout: Equatable {
             let split = splitPrefix(
                 from: remainingText,
                 maxWidth: overflowBudget,
-                fontSize: fontSize,
-                observedCharWidth: geometry.observedCharWidth
+                using: measure
             )
             guard !split.line.isEmpty else {
                 break
@@ -238,8 +248,7 @@ struct GhostSuggestionLayout: Equatable {
     private static func splitPrefix(
         from text: String,
         maxWidth: CGFloat,
-        fontSize: CGFloat,
-        observedCharWidth: CGFloat?
+        using measure: TextMeasure
     ) -> (line: String, remainder: String) {
         let source = text.trimmingCharacters(in: .whitespaces)
         guard !source.isEmpty else {
@@ -254,12 +263,11 @@ struct GhostSuggestionLayout: Equatable {
                 source: source,
                 newlineIndex: newlineIndex,
                 maxWidth: maxWidth,
-                fontSize: fontSize,
-                observedCharWidth: observedCharWidth
+                using: measure
             )
         }
 
-        if measuredWidth(of: source, fontSize: fontSize, observedCharWidth: observedCharWidth) <= safeMaxWidth {
+        if measuredWidth(of: source, using: measure) <= safeMaxWidth {
             return (source, "")
         }
 
@@ -272,7 +280,7 @@ struct GhostSuggestionLayout: Equatable {
                 lastWhitespaceBreak = endIndex + 1
             }
 
-            if measuredWidth(of: prefix, fontSize: fontSize, observedCharWidth: observedCharWidth) > safeMaxWidth {
+            if measuredWidth(of: prefix, using: measure) > safeMaxWidth {
                 if let breakIndex = lastWhitespaceBreak, breakIndex > 0 {
                     let line = String(characters[..<breakIndex])
                         .trimmingCharacters(in: .whitespaces)
@@ -298,8 +306,7 @@ struct GhostSuggestionLayout: Equatable {
         source: String,
         newlineIndex: String.Index,
         maxWidth: CGFloat,
-        fontSize: CGFloat,
-        observedCharWidth: CGFloat?
+        using measure: TextMeasure
     ) -> (line: String, remainder: String) {
         let safeMaxWidth = max(maxWidth, Metrics.minimumLineWidth)
         let segment = String(source[..<newlineIndex]).trimmingCharacters(in: .whitespaces)
@@ -309,15 +316,15 @@ struct GhostSuggestionLayout: Equatable {
             : ""
 
         guard !segment.isEmpty else {
-            return splitPrefix(from: afterNewline, maxWidth: maxWidth, fontSize: fontSize, observedCharWidth: observedCharWidth)
+            return splitPrefix(from: afterNewline, maxWidth: maxWidth, using: measure)
         }
 
-        if measuredWidth(of: segment, fontSize: fontSize, observedCharWidth: observedCharWidth) <= safeMaxWidth {
+        if measuredWidth(of: segment, using: measure) <= safeMaxWidth {
             return (segment, afterNewline)
         }
 
         // Segment before newline is too wide — width-wrap it, keep post-newline as remainder.
-        let widthSplit = splitPrefix(from: segment, maxWidth: maxWidth, fontSize: fontSize, observedCharWidth: observedCharWidth)
+        let widthSplit = splitPrefix(from: segment, maxWidth: maxWidth, using: measure)
         let combined: String
         if widthSplit.remainder.isEmpty {
             combined = afterNewline
@@ -329,17 +336,15 @@ struct GhostSuggestionLayout: Equatable {
         return (widthSplit.line, combined)
     }
 
-    private static func measuredWidth(
-        of text: String,
-        fontSize: CGFloat,
-        observedCharWidth: CGFloat?
-    ) -> CGFloat {
-        if let observedCharWidth, observedCharWidth > 0 {
+    private static func measuredWidth(of text: String, using measure: TextMeasure) -> CGFloat {
+        if let observedCharWidth = measure.observedCharWidth, observedCharWidth > 0 {
             return CGFloat((text as NSString).length) * observedCharWidth
         }
 
+        // Measure with the host field's font when known so wrapping matches the rendered glyphs;
+        // this matters most in monospace editors where the system font's advances differ.
         return (text as NSString).size(withAttributes: [
-            .font: NSFont.systemFont(ofSize: fontSize)
+            .font: measure.font ?? NSFont.systemFont(ofSize: measure.fontSize)
         ]).width
     }
 }
