@@ -135,10 +135,17 @@ final class OverlayController: SuggestionOverlayControlling {
             geometry.caretRect.height,
             focusSessionKey: geometry.focusedInputIdentityKey
         )
+        // The host field's own font, when AX exposed it. Instantiated at the reported size only to
+        // read its (scale-invariant) glyph-box ratio; the rendered size comes from the caret height.
+        let referenceFieldFont = geometry.resolvedFieldStyle.flatMap(fieldFont(from:))
         let fontSize = resolvedGhostFontSize(
             forCaretHeight: stabilizedCaretHeight,
-            caretQuality: geometry.caretQuality
+            caretQuality: geometry.caretQuality,
+            fieldFont: referenceFieldFont
         )
+        // Render in the field's typeface at the derived size so the ghost reads as a continuation of
+        // the host text rather than pasted-on system font. Nil falls back to the system font.
+        let renderFont = referenceFieldFont.flatMap { NSFont(name: $0.fontName, size: fontSize) }
         // `nil` when the user disabled the hint or no accept key is bound — in that case the layout
         // drops the keycap and its reserved width so ghost text can use the full line.
         let acceptanceHintLabel = suggestionSettings.acceptanceHintLabel
@@ -147,7 +154,8 @@ final class OverlayController: SuggestionOverlayControlling {
             geometry: geometry,
             fontSize: fontSize,
             visibleFrame: targetScreenVisibleFrame(for: geometry.caretRect),
-            showsAcceptanceHint: acceptanceHintLabel != nil
+            showsAcceptanceHint: acceptanceHintLabel != nil,
+            font: renderFont
         )
         let customGhostColor = SuggestionTextColorCodec.color(
             fromHex: suggestionSettings.customSuggestionTextColorHex
@@ -157,6 +165,8 @@ final class OverlayController: SuggestionOverlayControlling {
         let rootView = GhostSuggestionView(
             layout: layout,
             fontSize: fontSize,
+            fieldFont: renderFont,
+            fieldColor: fieldGhostColor(from: geometry.resolvedFieldStyle),
             customColor: customGhostColor,
             keycapLabel: acceptanceHintLabel,
             opacity: ghostOpacity
@@ -255,17 +265,56 @@ final class OverlayController: SuggestionOverlayControlling {
     /// by `ghostFontStabilizer`, so this only applies the static floor and quality ceilings.
     private func resolvedGhostFontSize(
         forCaretHeight caretHeight: CGFloat,
-        caretQuality: CaretGeometryQuality
+        caretQuality: CaretGeometryQuality,
+        fieldFont: NSFont?
     ) -> CGFloat {
-        let proposedSize = max(
-            Layout.minimumGhostFontSize,
-            caretHeight * Layout.fontToLineHeightRatio
-        )
         let qualityCap = caretQuality == .estimated
             ? Layout.maximumEstimatedGhostFontSize
             : Layout.maximumGhostFontSize
 
-        return min(proposedSize, qualityCap)
+        let fieldMetrics = fieldFont.map {
+            GhostFontMetrics.FieldFontMetrics(
+                pointSize: $0.pointSize,
+                ascender: $0.ascender,
+                descender: $0.descender
+            )
+        }
+
+        return GhostFontMetrics.pointSize(
+            caretHeight: caretHeight,
+            fieldMetrics: fieldMetrics,
+            fallbackRatio: Layout.fontToLineHeightRatio,
+            minimum: Layout.minimumGhostFontSize,
+            maximum: qualityCap
+        )
+    }
+
+    /// Builds the host field's `NSFont` from a resolved style, or nil when the name is missing or the
+    /// font cannot be instantiated. The size is only a reference for metric extraction; the rendered
+    /// size is derived from caret height in `resolvedGhostFontSize`.
+    private func fieldFont(from style: ResolvedFieldStyle) -> NSFont? {
+        guard let name = style.fontName else { return nil }
+        return NSFont(name: name, size: style.fontPointSize ?? Layout.minimumGhostFontSize)
+    }
+
+    /// Maps the host field's foreground color to a ghost color, or nil to fall back to the default
+    /// gray. Near-white / near-black extremes are treated as untrustworthy (some browsers report the
+    /// page background as the text color) and fall back, so ghost text never renders invisibly.
+    private func fieldGhostColor(from style: ResolvedFieldStyle?) -> Color? {
+        guard let hex = style?.colorHex,
+              let nsColor = SuggestionTextColorCodec.nsColor(fromHex: hex)?.usingColorSpace(.sRGB)
+        else {
+            return nil
+        }
+
+        let luminance = 0.299 * nsColor.redComponent
+            + 0.587 * nsColor.greenComponent
+            + 0.114 * nsColor.blueComponent
+        guard luminance > 0.06, luminance < 0.94 else {
+            return nil
+        }
+
+        return Color(nsColor: nsColor)
     }
 
     private func targetScreenVisibleFrame(for caretRect: CGRect) -> CGRect {
@@ -295,6 +344,10 @@ private struct GhostSuggestionView: View {
     @Environment(\.colorScheme) var colorScheme
     let layout: GhostSuggestionLayout
     let fontSize: CGFloat
+    /// The host field's font at the rendered size, or nil to use the system font at `fontSize`.
+    let fieldFont: NSFont?
+    /// The host field's foreground color mapped to a ghost color, or nil to use the default gray.
+    let fieldColor: Color?
     let customColor: Color?
     /// The accept key to print inside the keycap pill, or `nil` when the hint is suppressed. Pairs
     /// with `layout.lines`, where `showsKeycap` is already false on every line when this is `nil`.
@@ -303,14 +356,25 @@ private struct GhostSuggestionView: View {
     /// not the keycap, so the acceptance hint stays legible at low opacities.
     let opacity: Double
 
+    /// Priority: explicit user override, then the host field's color, then the default gray. The
+    /// field color is pre-filtered upstream so invisible extremes already fall back to nil here.
     var ghostColor: Color {
         let baseColor = customColor
+            ?? fieldColor
             ?? (
                 colorScheme == .dark
                     ? Color(red: 0.65, green: 0.65, blue: 0.65)
                     : Color(red: 0.45, green: 0.45, blue: 0.45)
             )
         return baseColor.opacity(opacity)
+    }
+
+    /// The host field's typeface when known, otherwise the system font at the derived size.
+    private var resolvedFont: Font {
+        if let fieldFont {
+            return Font(fieldFont as CTFont)
+        }
+        return .system(size: fontSize)
     }
 
     var body: some View {
@@ -324,7 +388,7 @@ private struct GhostSuggestionView: View {
                     }
 
                     Text(line.text)
-                        .font(.system(size: fontSize))
+                        .font(resolvedFont)
                         .foregroundStyle(ghostColor)
                         .lineLimit(1)
                         .fixedSize(horizontal: true, vertical: true)

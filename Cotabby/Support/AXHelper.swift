@@ -205,6 +205,100 @@ enum AXHelper {
         return nil
     }
 
+    /// Reads a parameterized attributed-string range (e.g. `AXAttributedStringForRange`) so callers
+    /// can inspect per-character styling such as font and foreground color without serializing the
+    /// whole field. Returns nil for hosts that do not implement the attribute.
+    static func parameterizedAttributedStringValue(
+        for attribute: CFString,
+        range: NSRange,
+        on element: AXUIElement
+    ) -> NSAttributedString? {
+        var cfRange = CFRange(location: range.location, length: range.length)
+        guard let parameter = AXValueCreate(.cfRange, &cfRange) else {
+            return nil
+        }
+
+        var value: CFTypeRef?
+        let result = AXUIElementCopyParameterizedAttributeValue(element, attribute, parameter, &value)
+        guard result == .success, let value else { return nil }
+
+        return value as? NSAttributedString
+    }
+
+    /// Resolves the focused field's own text font and color from Accessibility so ghost text can
+    /// match the host instead of always rendering in the system font and a fixed gray.
+    ///
+    /// This is a single `AXAttributedStringForRange` read over one character near the caret. The font
+    /// arrives either as a real `NSFont` under `.font` or as the AX font dictionary
+    /// (`AXFontName`/`AXFontSize`); the color as an `NSColor` or a `CGColor` under the foreground key.
+    /// Every path is optional and any miss returns nil, so callers fall back to default styling.
+    ///
+    /// Intended to be called once per focused-element identity (see `FieldStyleCache`); it is a
+    /// synchronous cross-process AX call and must stay off the per-keystroke path.
+    static func resolveFieldStyle(
+        for element: AXUIElement,
+        caretLocation: Int,
+        textLength: Int
+    ) -> ResolvedFieldStyle? {
+        guard textLength > 0 else { return nil }
+
+        // Prefer the character just before the caret (the text the user is extending), then the
+        // first character. Clamp into range so an off-by-one caret never reads out of bounds.
+        let clampedCaret = min(max(caretLocation - 1, 0), textLength - 1)
+        let candidateIndices = clampedCaret == 0 ? [0] : [clampedCaret, 0]
+
+        for index in candidateIndices {
+            guard let attributed = parameterizedAttributedStringValue(
+                for: "AXAttributedStringForRange" as CFString,
+                range: NSRange(location: index, length: 1),
+                on: element
+            ), attributed.length > 0 else {
+                continue
+            }
+
+            let attributes = attributed.attributes(at: 0, effectiveRange: nil)
+            if let style = fieldStyle(from: attributes) {
+                return style
+            }
+        }
+
+        return nil
+    }
+
+    /// Extracts a `ResolvedFieldStyle` from one character's attributes, handling both the AppKit
+    /// `.font`/`.foregroundColor` shapes and the AX-specific font dictionary / `CGColor` shapes.
+    private static func fieldStyle(from attributes: [NSAttributedString.Key: Any]) -> ResolvedFieldStyle? {
+        var fontName: String?
+        var fontPointSize: CGFloat?
+        if let font = attributes[.font] as? NSFont {
+            fontName = font.fontName
+            fontPointSize = font.pointSize
+        } else if let fontInfo = attributes[NSAttributedString.Key("AXFont")] as? [String: Any] {
+            fontName = fontInfo["AXFontName"] as? String
+            if let size = fontInfo["AXFontSize"] as? NSNumber {
+                fontPointSize = CGFloat(size.doubleValue)
+            }
+        }
+
+        var colorHex: String?
+        if let nsColor = attributes[.foregroundColor] as? NSColor {
+            colorHex = SuggestionTextColorCodec.hexString(from: nsColor)
+        } else if let foreground = attributes[.foregroundColor] {
+            // AX commonly hands back a `CGColor` for the foreground color. Verify the CF type id
+            // before bridging, mirroring the typed-value guard used elsewhere in this file.
+            let candidate = foreground as CFTypeRef
+            if CFGetTypeID(candidate) == CGColor.typeID {
+                let cgColor = unsafeBitCast(candidate, to: CGColor.self)
+                if let nsColor = NSColor(cgColor: cgColor) {
+                    colorHex = SuggestionTextColorCodec.hexString(from: nsColor)
+                }
+            }
+        }
+
+        let style = ResolvedFieldStyle(fontName: fontName, fontPointSize: fontPointSize, colorHex: colorHex)
+        return style.isEmpty ? nil : style
+    }
+
     /// Some applications (like Chromium and WebKit browsers) do not properly support `AXBoundsForRange`
     /// using `NSRange`. Instead, they use a private, undocumented Accessibility object called `AXTextMarker`.
     ///
