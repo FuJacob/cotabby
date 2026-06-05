@@ -7,13 +7,14 @@ import SwiftUI
 /// Cotabby call to action. It is the default pane on a fresh install; returning users still land on
 /// their last-viewed pane.
 ///
-/// The feature demos are inert, self-playing animations that never touch the real suggestion
-/// pipeline, so this pane is safe to keep open without side effects.
+/// The feature demos are inert (they never touch the real suggestion pipeline). They are passed
+/// `autoplay: false` here so the looping animations stay idle on a static frame until the pointer is
+/// over them, keeping this pane cheap to leave open. (Onboarding uses the default autoplay.)
 struct HomePaneView: View {
     var body: some View {
         SettingsPaneScaffold {
             Section { introHeader }
-            Section("See it in action") { OnboardingFeatureShowcase() }
+            Section("See it in action") { OnboardingFeatureShowcase(autoplay: false) }
             Section("Support") { supportRow }
         }
     }

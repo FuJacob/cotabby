@@ -14,14 +14,27 @@ import SwiftUI
 /// Lifecycle: each card owns its `@State` and drives a looping animation from a `.task`, which
 /// SwiftUI cancels automatically when the view leaves the hierarchy. Each card also keeps a *fixed*
 /// height so the onboarding window never resizes mid-loop. Continuous looping is skipped when the
-/// system Reduce Motion setting is on, in which case the card shows a static accepted state.
+/// system Reduce Motion setting is on (or when not animating, see below), in which case the card
+/// shows a static accepted state.
+///
+/// `autoplay`: the one-time onboarding screen passes `true` so the demos play on their own. The
+/// persistent Settings Home pane passes `false`, which keeps the loops idle (static resting frame)
+/// until the pointer is over the showcase. Without that gate the looping animations would burn CPU
+/// the entire time the Settings window sits on Home.
 struct OnboardingFeatureShowcase: View {
+    var autoplay: Bool = true
+
+    @State private var isHovering = false
+
+    private var animating: Bool { autoplay || isHovering }
+
     var body: some View {
         VStack(spacing: 12) {
-            GhostTextDemoCard()
-            EmojiPickerDemoCard()
-            MacroDemoCard()
+            GhostTextDemoCard(animating: animating)
+            EmojiPickerDemoCard(animating: animating)
+            MacroDemoCard(animating: animating)
         }
+        .onHover { isHovering = $0 }
         // Purely decorative looping demo: hide it from VoiceOver so the
         // mid-animation text fragments are never read out to AT users.
         .accessibilityHidden(true)
@@ -65,6 +78,7 @@ private struct DemoCard<Content: View>: View {
 // MARK: - Demo 1: inline autocomplete ghost text
 
 private struct GhostTextDemoCard: View {
+    let animating: Bool
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -98,7 +112,7 @@ private struct GhostTextDemoCard: View {
                 Spacer(minLength: 0)
             }
         }
-        .task(id: reduceMotion) {
+        .task(id: [reduceMotion, animating]) {
             await runLoop()
         }
     }
@@ -110,7 +124,9 @@ private struct GhostTextDemoCard: View {
     }
 
     private func runLoop() async {
-        guard !reduceMotion else {
+        // Idle (not animating) shows the same finished frame as reduce-motion, so the card looks
+        // complete at rest and only plays the full typing demo while hovered.
+        guard animating, !reduceMotion else {
             typedCount = base.count
             showGhost = true
             accepted = true
@@ -177,6 +193,7 @@ private struct DemoGhostKeycap: View {
 // MARK: - Demo 2: inline emoji picker
 
 private struct EmojiPickerDemoCard: View {
+    let animating: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// Number of trigger characters (":smi") revealed so far.
@@ -206,7 +223,7 @@ private struct EmojiPickerDemoCard: View {
             }
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
-        .task(id: reduceMotion) {
+        .task(id: [reduceMotion, animating]) {
             await runLoop()
         }
     }
@@ -219,7 +236,7 @@ private struct EmojiPickerDemoCard: View {
     }
 
     private func runLoop() async {
-        guard !reduceMotion else {
+        guard animating, !reduceMotion else {
             triggerCount = trigger.count
             committed = true
             showPopup = false
@@ -360,6 +377,7 @@ private struct DemoEmojiKeycap: View {
 /// never stale. Like the cards above it stays inert (no AX, event tap, or insertion); reduce-motion
 /// shows a single static example per row with no cycling.
 private struct MacroDemoCard: View {
+    let animating: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// How many rows have faded in so far.
@@ -416,7 +434,7 @@ private struct MacroDemoCard: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .task(id: reduceMotion) {
+        .task(id: [reduceMotion, animating]) {
             await run()
         }
     }
@@ -432,7 +450,7 @@ private struct MacroDemoCard: View {
             indices = Array(repeating: 0, count: categories.count)
         }
 
-        guard !reduceMotion else {
+        guard animating, !reduceMotion else {
             revealed = categories.count
             return
         }
