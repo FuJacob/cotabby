@@ -14,8 +14,8 @@ struct HomePaneView: View {
     var body: some View {
         SettingsPaneScaffold {
             Section { introHeader }
-            Section("See it in action") { OnboardingFeatureShowcase(autoplay: false) }
             Section("Support") { supportRow }
+            Section("See it in action") { OnboardingFeatureShowcase(autoplay: false) }
         }
     }
 
@@ -38,14 +38,10 @@ struct HomePaneView: View {
                 }
             }
 
-            Text(
-                "Cotabby suggests the next few words as ghost text in any text field, system-wide. "
-                + "Press Tab to accept, or keep typing to ignore. It also completes inline :emoji: "
-                + "shortcuts. Everything runs on your device; nothing is sent to the cloud."
-            )
-            .font(.callout)
-            .foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
+            Text("Ghost-text suggestions in any field, accepted with Tab. Everything runs on your device.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.vertical, 4)
     }
