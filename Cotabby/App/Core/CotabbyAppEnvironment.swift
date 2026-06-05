@@ -17,7 +17,6 @@ final class CotabbyAppEnvironment {
     let focusModel: FocusTrackingModel
     let inputMonitor: InputMonitor
     let appUpdateManager: AppUpdateManager
-    let launchAtLoginService: LaunchAtLoginService
     let permissionGuidanceController: PermissionGuidanceController
     let suggestionSettings: SuggestionSettingsModel
     let foundationModelAvailabilityService: FoundationModelAvailabilityService
@@ -97,7 +96,6 @@ final class CotabbyAppEnvironment {
             return true
         }
         let appUpdateManager = AppUpdateManager()
-        let launchAtLoginService = LaunchAtLoginService()
         let welcomeCoordinator = WelcomeCoordinator(
             permissionManager: permissionManager,
             permissionGuidanceController: permissionGuidanceController,
@@ -157,7 +155,6 @@ final class CotabbyAppEnvironment {
 
         let settingsCoordinator = SettingsCoordinator(
             appUpdateManager: appUpdateManager,
-            launchAtLoginService: launchAtLoginService,
             permissionManager: permissionManager,
             suggestionSettings: suggestionSettings,
             foundationModelAvailabilityService: foundationModelAvailabilityService,
@@ -217,7 +214,6 @@ final class CotabbyAppEnvironment {
         self.focusModel = focusModel
         self.inputMonitor = inputMonitor
         self.appUpdateManager = appUpdateManager
-        self.launchAtLoginService = launchAtLoginService
         self.permissionGuidanceController = permissionGuidanceController
         self.suggestionSettings = suggestionSettings
         self.foundationModelAvailabilityService = foundationModelAvailabilityService

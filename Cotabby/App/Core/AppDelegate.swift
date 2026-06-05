@@ -20,7 +20,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let focusModel: FocusTrackingModel
     let inputMonitor: InputMonitor
     let appUpdateManager: AppUpdateManager
-    let launchAtLoginService: LaunchAtLoginService
     let permissionGuidanceController: PermissionGuidanceController
     let suggestionSettings: SuggestionSettingsModel
     let foundationModelAvailabilityService: FoundationModelAvailabilityService
@@ -52,7 +51,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         focusModel = environment.focusModel
         inputMonitor = environment.inputMonitor
         appUpdateManager = environment.appUpdateManager
-        launchAtLoginService = environment.launchAtLoginService
         permissionGuidanceController = environment.permissionGuidanceController
         suggestionSettings = environment.suggestionSettings
         foundationModelAvailabilityService = environment.foundationModelAvailabilityService

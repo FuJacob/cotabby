@@ -12,7 +12,6 @@ import SwiftUI
 @MainActor
 final class SettingsCoordinator: NSObject, NSWindowDelegate {
     private let appUpdateManager: AppUpdateManager
-    private let launchAtLoginService: LaunchAtLoginService
     private let permissionManager: PermissionManager
     private let suggestionSettings: SuggestionSettingsModel
     private let foundationModelAvailabilityService: FoundationModelAvailabilityService
@@ -29,7 +28,6 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
 
     init(
         appUpdateManager: AppUpdateManager,
-        launchAtLoginService: LaunchAtLoginService,
         permissionManager: PermissionManager,
         suggestionSettings: SuggestionSettingsModel,
         foundationModelAvailabilityService: FoundationModelAvailabilityService,
@@ -43,7 +41,6 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
         clearEmojiHistory: @escaping () -> Void
     ) {
         self.appUpdateManager = appUpdateManager
-        self.launchAtLoginService = launchAtLoginService
         self.permissionManager = permissionManager
         self.suggestionSettings = suggestionSettings
         self.foundationModelAvailabilityService = foundationModelAvailabilityService
@@ -71,7 +68,6 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
             rootView: AnyView(
                 SettingsContainerView(
                     appUpdateManager: appUpdateManager,
-                    launchAtLoginService: launchAtLoginService,
                     permissionManager: permissionManager,
                     suggestionSettings: suggestionSettings,
                     foundationModelAvailabilityService: foundationModelAvailabilityService,
