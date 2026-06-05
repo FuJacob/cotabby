@@ -65,8 +65,10 @@ struct SettingsSidebarView: View {
         .padding(.vertical, 6)
         .background(.quaternary, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         .padding(.horizontal, 10)
-        .padding(.top, 16)
-        .padding(.bottom, 8)
+        // Generous space above so the field sits well clear of the title bar, and only a small gap
+        // below so it reads as the head of the same group as the category rows beneath it.
+        .padding(.top, 28)
+        .padding(.bottom, 4)
     }
 
     private var categoryList: some View {
