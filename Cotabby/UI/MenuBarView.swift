@@ -365,12 +365,18 @@ struct MenuBarView: View {
 private struct MenuBarWindowBackgroundModifier: ViewModifier {
     @ViewBuilder
     func body(content: Content) -> some View {
-        if #available(macOS 15.0, *) {
-            // MenuBarExtra's `.window` style already gives us native rounded window chrome.
-            // On newer macOS builds, leaving the root fill implicit can make SwiftUI draw a
-            // second, inset window-colored rectangle inside that chrome. A container background
-            // belongs to the hosting window instead of this view's local bounds, so the fill
-            // reaches the native rounded frame and avoids the double-border look.
+        if #available(macOS 26.0, *) {
+            // macOS 26 Liquid Glass renders the `.windowBackground` *material* as translucent
+            // glass, so the app/desktop behind the popup bleeds through and the native chrome and
+            // shadow detach from the content, worst on light backgrounds (issue #492). Fill with
+            // an opaque window *color* instead so the popup reads as one solid rounded panel.
+            content.containerBackground(Color(nsColor: .windowBackgroundColor), for: .window)
+        } else if #available(macOS 15.0, *) {
+            // MenuBarExtra's `.window` style already gives us native rounded window chrome. Place
+            // the fill at the hosting window instead of this view's local bounds so it reaches the
+            // native rounded frame as one surface (avoids the double-border look fixed in #403).
+            // The `.windowBackground` material renders correctly on macOS 15 through pre-26, so
+            // keep it there to preserve the vibrant appearance and only patch the 26 regression.
             content.containerBackground(.windowBackground, for: .window)
         } else {
             content

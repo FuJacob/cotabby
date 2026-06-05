@@ -174,7 +174,114 @@ final class BundledRuntimeLocatorTests: XCTestCase {
         XCTAssertTrue(namedError.errorDescription?.contains("test.gguf") ?? false)
     }
 
+    // MARK: - Recursive discovery (LM Studio nested layout)
+
+    func test_discoverGGUFModelURLs_findsNestedModels() throws {
+        // Mirrors LM Studio's `<publisher>/<repo>/<file>.gguf` layout, which a flat scan misses.
+        let root = try makeTemporaryDirectory()
+        try writeFile(at: root, relativePath: "publisher/repo/model.gguf")
+        try writeFile(at: root, relativePath: "publisher/other-repo/another.gguf")
+
+        let discovered = BundledRuntimeLocator.discoverGGUFModelURLs(in: root)
+            .map(\.lastPathComponent)
+            .sorted()
+
+        XCTAssertEqual(discovered, ["another.gguf", "model.gguf"])
+    }
+
+    func test_discoverGGUFModelURLs_skipsMmprojSidecars() throws {
+        let root = try makeTemporaryDirectory()
+        try writeFile(at: root, relativePath: "publisher/repo/model.gguf")
+        try writeFile(at: root, relativePath: "publisher/repo/mmproj-model-BF16.gguf")
+
+        let discovered = BundledRuntimeLocator.discoverGGUFModelURLs(in: root)
+            .map(\.lastPathComponent)
+
+        XCTAssertEqual(discovered, ["model.gguf"], "mmproj projector sidecars are not loadable models")
+    }
+
+    func test_discoverGGUFModelURLs_skipsDirectoriesWithGGUFExtension() throws {
+        // A directory can legitimately carry a `.gguf` name; it is not a loadable model file.
+        let root = try makeTemporaryDirectory()
+        try FileManager.default.createDirectory(
+            at: root.appendingPathComponent("bundle.gguf", isDirectory: true),
+            withIntermediateDirectories: true
+        )
+        try writeFile(at: root, relativePath: "real.gguf")
+
+        let discovered = BundledRuntimeLocator.discoverGGUFModelURLs(in: root)
+            .map(\.lastPathComponent)
+
+        XCTAssertEqual(discovered, ["real.gguf"])
+    }
+
+    func test_discoverGGUFModelURLs_respectsMaxDepth() throws {
+        let root = try makeTemporaryDirectory()
+        try writeFile(at: root, relativePath: "a/b/c/deep.gguf")
+
+        let shallow = BundledRuntimeLocator.discoverGGUFModelURLs(in: root, maxDepth: 2)
+        XCTAssertTrue(shallow.isEmpty, "A file below the depth bound should not be discovered")
+
+        let deep = BundledRuntimeLocator.discoverGGUFModelURLs(in: root, maxDepth: 4)
+        XCTAssertEqual(deep.map(\.lastPathComponent), ["deep.gguf"])
+    }
+
+    func test_availableModels_discoversNestedLayoutThroughPublicAPI() throws {
+        let root = try makeTemporaryDirectory()
+        try writeFile(at: root, relativePath: "publisher/repo/nested.gguf")
+        let config = makeConfig(runtimePath: root.path, preferred: [])
+        let locator = BundledRuntimeLocator()
+
+        let filenames = locator.availableModels(configuration: config).map(\.filename)
+        XCTAssertEqual(filenames, ["nested.gguf"])
+    }
+
+    func test_availableModels_dedupesDuplicateFilenamesAcrossNestedRepos() throws {
+        // Two repos shipping the same filename must not trap the keyed lookup or appear twice.
+        let root = try makeTemporaryDirectory()
+        try writeFile(at: root, relativePath: "publisher/repo-a/model.gguf")
+        try writeFile(at: root, relativePath: "publisher/repo-b/model.gguf")
+        let config = makeConfig(runtimePath: root.path, preferred: [])
+        let locator = BundledRuntimeLocator()
+
+        let filenames = locator.availableModels(configuration: config).map(\.filename)
+        XCTAssertEqual(filenames, ["model.gguf"])
+    }
+
+    // MARK: - LM Studio source toggle
+
+    func test_lmStudioSourceToggle_persistsAndClears() {
+        let key = BundledRuntimeLocator.lmStudioSourceEnabledKey
+        let original = UserDefaults.standard.object(forKey: key)
+        defer { UserDefaults.standard.set(original, forKey: key) }
+
+        BundledRuntimeLocator.setLMStudioSourceEnabled(true)
+        XCTAssertTrue(BundledRuntimeLocator.isLMStudioSourceEnabled())
+
+        BundledRuntimeLocator.setLMStudioSourceEnabled(false)
+        XCTAssertFalse(BundledRuntimeLocator.isLMStudioSourceEnabled())
+        // Disabled means no LM Studio directory is ever returned, even if it exists on disk.
+        XCTAssertNil(BundledRuntimeLocator.enabledLMStudioModelsDirectory())
+    }
+
     // MARK: - Helpers
+
+    private func makeTemporaryDirectory() throws -> URL {
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("Cotabby-locator-test-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        temporaryDirectories.append(dir)
+        return dir
+    }
+
+    private func writeFile(at root: URL, relativePath: String) throws {
+        let fileURL = root.appendingPathComponent(relativePath, isDirectory: false)
+        try FileManager.default.createDirectory(
+            at: fileURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        FileManager.default.createFile(atPath: fileURL.path, contents: nil)
+    }
 
     private func makeTemporaryRuntimeDirectory(ggufFilenames: [String]) throws -> URL {
         let dir = FileManager.default.temporaryDirectory
