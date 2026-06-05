@@ -1,8 +1,9 @@
 import Foundation
 
 /// File overview:
-/// Random and generator macros: `/random`, `/random(n)`, `/random(a,b)`, `/dice`, `/coin`,
-/// `/uuid`. The RNG and UUID source are injected so tests are deterministic.
+/// Random and generator macros: `/random` (`/rand`, `/rnd`), `/random(n)`, `/random(a,b)`, `/dice`
+/// (`/roll`, `/die`, and `/dN` dice notation like `/d20`), `/coin` (`/flip`), `/uuid` (`/guid`). The
+/// RNG and UUID source are injected so tests are deterministic.
 struct RandomMacroEvaluator: MacroEvaluating {
     private let randomSource: (ClosedRange<Int>) -> Int
     private let uuidSource: () -> String
@@ -18,22 +19,37 @@ struct RandomMacroEvaluator: MacroEvaluating {
     func evaluate(_ query: String) -> MacroResult? {
         let lower = query.lowercased()
         switch lower {
-        case "uuid":
+        case "uuid", "guid":
             return MacroResult(uuidSource())
-        case "dice":
+        case "dice", "die", "roll":
             return MacroResult(String(randomSource(1...6)))
-        case "coin":
+        case "coin", "flip", "coinflip", "coin-flip":
             return MacroResult(randomSource(0...1) == 0 ? "Heads" : "Tails")
-        case "random":
+        case "random", "rand", "rnd":
             return MacroResult(String(randomSource(0...100)))
         default:
+            if let sides = Self.diceSides(lower) {
+                return MacroResult(String(randomSource(1...sides)))
+            }
             return parameterizedRandom(lower)
         }
     }
 
-    /// Handles `random(n)` and `random(a,b)` with integer arguments, normalizing reversed bounds.
+    /// `dN` dice notation: `/d20` rolls 1...20. Returns the side count, or nil when the token is not
+    /// `d` followed by a positive integer (so `/d` and `/dollar` fall through to other families).
+    private static func diceSides(_ lower: String) -> Int? {
+        guard lower.hasPrefix("d"), lower.count > 1, let sides = Int(lower.dropFirst()), sides >= 1 else {
+            return nil
+        }
+        return sides
+    }
+
+    /// Handles `random(n)` / `random(a,b)` (and the `rand(...)` / `rnd(...)` short forms) with integer
+    /// arguments, normalizing reversed bounds.
     private func parameterizedRandom(_ lower: String) -> MacroResult? {
-        guard lower.hasPrefix("random("), lower.hasSuffix(")"), let open = lower.firstIndex(of: "(") else {
+        let prefixes = ["random(", "rand(", "rnd("]
+        guard prefixes.contains(where: { lower.hasPrefix($0) }),
+              lower.hasSuffix(")"), let open = lower.firstIndex(of: "(") else {
             return nil
         }
         let inner = String(lower[lower.index(after: open)..<lower.index(before: lower.endIndex)])

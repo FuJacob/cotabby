@@ -40,6 +40,15 @@ final class RandomMacroEvaluatorTests: XCTestCase {
         XCTAssertNil(sut.evaluate("random(abc)"))
         XCTAssertNil(sut.evaluate("random(0)"))
     }
+
+    func test_aliasesAndDiceNotation() {
+        XCTAssertEqual(sut.evaluate("rand")?.insertionText, "0")
+        XCTAssertEqual(sut.evaluate("roll")?.insertionText, "1")
+        XCTAssertEqual(sut.evaluate("flip")?.insertionText, "Heads")
+        XCTAssertEqual(sut.evaluate("guid")?.insertionText, "FIXED-UUID")
+        XCTAssertEqual(sut.evaluate("d20")?.insertionText, "1")
+        XCTAssertEqual(sut.evaluate("rnd(7,7)")?.insertionText, "7")
+    }
 }
 
 final class UnitConversionEvaluatorTests: XCTestCase {
@@ -65,6 +74,12 @@ final class UnitConversionEvaluatorTests: XCTestCase {
     func test_nonUnitTokens_returnNil() {
         XCTAssertNil(sut.evaluate("100USD->EUR"))
     }
+
+    func test_toSeparatorAndFullNames() {
+        XCTAssertEqual(sut.evaluate("10 km to mi")?.insertionText, "6.214 mi")
+        XCTAssertEqual(sut.evaluate("1 kilometer to meters")?.insertionText, "1000 meters")
+        XCTAssertEqual(sut.evaluate("100 fahrenheit to celsius")?.insertionText, "37.78 celsius")
+    }
 }
 
 final class CurrencyEvaluatorTests: XCTestCase {
@@ -87,6 +102,13 @@ final class CurrencyEvaluatorTests: XCTestCase {
 
     func test_unknownCode_returnsNil() {
         XCTAssertNil(sut.evaluate("100XXX->USD"))
+    }
+
+    func test_aliasesSymbolsAndToSeparator() {
+        let canonical = sut.evaluate("100USD->EUR")?.insertionText
+        XCTAssertEqual(sut.evaluate("100us->eur")?.insertionText, canonical)
+        XCTAssertEqual(sut.evaluate("$100 to eur")?.insertionText, canonical)
+        XCTAssertEqual(sut.evaluate("100 dollars to euros")?.insertionText, canonical)
     }
 }
 
@@ -118,5 +140,13 @@ final class MacroEngineRoutingTests: XCTestCase {
         XCTAssertNil(engine.evaluate("   "))
         XCTAssertNil(engine.evaluate("5"))
         XCTAssertNil(engine.evaluate("zzz"))
+    }
+
+    func test_routesForgivingAliases() {
+        let engine = makeEngine()
+        XCTAssertEqual(engine.evaluate("tdy")?.insertionText, "Jun 4, 2026")
+        XCTAssertEqual(engine.evaluate("10 km to mi")?.insertionText, "6.214 mi")
+        XCTAssertEqual(engine.evaluate("$100 to eur")?.insertionText, "€92.00")
+        XCTAssertEqual(engine.evaluate("roll")?.insertionText, "1")
     }
 }

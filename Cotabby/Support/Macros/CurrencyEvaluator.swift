@@ -1,9 +1,11 @@
 import Foundation
 
 /// File overview:
-/// Currency conversion macros: `/123.45CAD->USD`. Rates come from a bundled, offline, approximate
-/// table (Section: never touches the network), and the result is formatted with the target
-/// currency's locale-aware style via `NumberFormatter` (so JPY shows no decimals, USD shows two).
+/// Currency conversion macros: `/123.45CAD->USD`, plus forgiving variants like `/100 usd to eur`,
+/// `/$100 to eur`, and `/100 dollars to yen`. Tokens resolve through an alias table (names, symbols,
+/// short forms) on top of any 3-letter ISO code. Rates come from a bundled, offline, approximate
+/// table (never touches the network), and the result is formatted with the target currency's
+/// locale-aware style via `NumberFormatter` (so JPY shows no decimals, USD shows two).
 struct CurrencyEvaluator: MacroEvaluating {
     private let locale: Locale
     private let table: CurrencyRateTable
@@ -14,14 +16,10 @@ struct CurrencyEvaluator: MacroEvaluating {
     }
 
     func evaluate(_ query: String) -> MacroResult? {
-        guard let arrow = query.range(of: "->") else { return nil }
-        let lhs = query[query.startIndex..<arrow.lowerBound].trimmingCharacters(in: .whitespaces)
-        let toCode = query[arrow.upperBound...].trimmingCharacters(in: .whitespaces).uppercased()
-
-        let numberPart = lhs.prefix { $0.isNumber || $0 == "." || $0 == "-" || $0 == "+" }
-        let fromCode = lhs.dropFirst(numberPart.count).trimmingCharacters(in: .whitespaces).uppercased()
-        guard let amount = Double(numberPart),
-              fromCode.count == 3, toCode.count == 3,
+        guard let (lhsRaw, rhsRaw) = ConversionSeparator.split(query),
+              let (amount, fromToken) = Self.parseAmount(lhsRaw),
+              let fromCode = Self.resolveCode(fromToken),
+              let toCode = Self.resolveCode(rhsRaw.trimmingCharacters(in: .whitespaces)),
               let fromRate = table.rate(for: fromCode),
               let toRate = table.rate(for: toCode) else {
             return nil
@@ -32,6 +30,59 @@ struct CurrencyEvaluator: MacroEvaluating {
         let formatted = formatCurrency(converted, code: toCode)
         return MacroResult(formatted)
     }
+
+    /// Parses the amount and source-currency token from the left side, accepting a leading symbol
+    /// (`$100`), a trailing code or word (`100usd`, `100 dollars`), and short forms (`100us`).
+    private static func parseAmount(_ lhs: String) -> (amount: Double, token: String)? {
+        let trimmed = lhs.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return nil }
+        if let first = trimmed.first, aliases[String(first)] != nil {
+            guard let amount = Double(trimmed.dropFirst().trimmingCharacters(in: .whitespaces)) else {
+                return nil
+            }
+            return (amount, String(first))
+        }
+        let numberPart = trimmed.prefix { $0.isNumber || $0 == "." || $0 == "-" || $0 == "+" }
+        guard let amount = Double(numberPart) else { return nil }
+        return (amount, trimmed.dropFirst(numberPart.count).trimmingCharacters(in: .whitespaces))
+    }
+
+    /// Resolves a currency token to a 3-letter code: through the alias table (names, symbols, short
+    /// forms) first, then accepting any 3-letter code as-is (the rate table validates it downstream).
+    private static func resolveCode(_ token: String) -> String? {
+        if let code = aliases[token.lowercased()] { return code }
+        let upper = token.uppercased()
+        return upper.count == 3 ? upper : nil
+    }
+
+    /// Names, symbols, and short forms that map to a 3-letter code (codes themselves are accepted
+    /// directly by `resolveCode`, so they are not listed). Genuinely ambiguous words shared across
+    /// countries (kr / krona / krone / lira / koruna / dinar) are deliberately omitted so the macro
+    /// returns nothing rather than silently converting the wrong currency.
+    private static let aliases: [String: String] = [
+        "us": "USD", "usa": "USD", "dollar": "USD", "dollars": "USD", "buck": "USD", "bucks": "USD", "$": "USD",
+        "euro": "EUR", "euros": "EUR", "€": "EUR",
+        "pound": "GBP", "pounds": "GBP", "quid": "GBP", "sterling": "GBP", "£": "GBP",
+        "yen": "JPY", "¥": "JPY",
+        "yuan": "CNY", "rmb": "CNY", "renminbi": "CNY",
+        "rupee": "INR", "rupees": "INR", "₹": "INR",
+        "peso": "MXN", "pesos": "MXN",
+        "real": "BRL", "reais": "BRL", "r$": "BRL",
+        "rand": "ZAR",
+        "won": "KRW", "₩": "KRW",
+        "ruble": "RUB", "rubles": "RUB", "rouble": "RUB", "₽": "RUB",
+        "baht": "THB", "฿": "THB",
+        "shekel": "ILS", "shekels": "ILS", "₪": "ILS",
+        "forint": "HUF",
+        "zloty": "PLN", "zł": "PLN",
+        "ringgit": "MYR",
+        "rupiah": "IDR",
+        "dirham": "AED", "dirhams": "AED",
+        "riyal": "SAR", "rial": "SAR",
+        "franc": "CHF", "francs": "CHF",
+        "₱": "PHP",
+        "c$": "CAD", "a$": "AUD", "hk$": "HKD", "nz$": "NZD", "nt$": "TWD", "s$": "SGD"
+    ]
 
     private func formatCurrency(_ value: Double, code: String) -> String {
         let formatter = NumberFormatter()

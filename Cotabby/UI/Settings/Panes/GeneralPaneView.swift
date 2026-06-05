@@ -73,8 +73,9 @@ struct GeneralPaneView: View {
                 Toggle(isOn: macroExpansionEnabledBinding) {
                     SettingsRowLabel(
                         title: "Inline Macros",
-                        description: "Type / then a macro like today, 5+5=, 10km->mi, or random(1,6), " +
-                            "then press your accept-word shortcut to insert the result.",
+                        description: "Type / then a macro: dates (today, tmrw, next-fri), math (5+5=), " +
+                            "units (10km to mi), currency ($100 to eur), or random (dice, random(1,6)). " +
+                            "Then press your accept-word shortcut to insert the result.",
                         systemImage: "slash.circle"
                     )
                 }

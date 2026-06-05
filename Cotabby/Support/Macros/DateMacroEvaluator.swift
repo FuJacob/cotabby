@@ -2,9 +2,10 @@ import Foundation
 
 /// File overview:
 /// Locale-aware date and time macros: `/today`, `/now`, `/datetime`, `/tomorrow`, `/yesterday`,
-/// `/noon`, `/midnight`, weekday navigation (`/next-fri`, `/this-mon`, `/last-tue`), and relative
-/// offsets (`/+3d`, `/-5d`, `/+2w`, `/+1mo`, `/+1y`). An optional format argument tunes the
-/// output: `/today(iso)`, `/today(long)`, `/today(short)`, `/now(24h)`.
+/// `/noon`, `/midnight`, weekday navigation (`/next-fri`, also `/next fri` and `/nextfri`), and
+/// relative offsets (`/+3d`, `/-5d`, `/+2w`, `/+1mo`, `/+1y`, with spelled-out units like `/+1week`).
+/// Common short forms are accepted too (`/tdy`, `/tmrw`, `/rn`). An optional format argument tunes
+/// the output: `/today(iso)`, `/today(long)`, `/today(short)`, `/now(24h)`.
 ///
 /// Pure given an injected clock so tests are deterministic. Output respects `Locale.current`; the
 /// input keywords are fixed (English), like code, so they do not change per locale.
@@ -23,7 +24,8 @@ struct DateMacroEvaluator: MacroEvaluating {
 
     func evaluate(_ query: String) -> MacroResult? {
         let lower = query.lowercased()
-        let (base, argument) = Self.splitArgument(lower)
+        let (rawBase, argument) = Self.splitArgument(lower)
+        let base = Self.canonicalBase(rawBase)
 
         if let relative = relativeDate(base) {
             return MacroResult(formatDate(relative, style: dateStyle(for: argument)))
@@ -74,10 +76,10 @@ struct DateMacroEvaluator: MacroEvaluating {
         let unit = String(rest.dropFirst(digits.count))
         let value = (sign == "-" ? -1 : 1) * magnitude
         switch unit {
-        case "d": return calendar.date(byAdding: .day, value: value, to: now())
-        case "w": return calendar.date(byAdding: .weekOfYear, value: value, to: now())
-        case "mo": return calendar.date(byAdding: .month, value: value, to: now())
-        case "y": return calendar.date(byAdding: .year, value: value, to: now())
+        case "d", "day", "days": return calendar.date(byAdding: .day, value: value, to: now())
+        case "w", "wk", "wks", "week", "weeks": return calendar.date(byAdding: .weekOfYear, value: value, to: now())
+        case "mo", "month", "months": return calendar.date(byAdding: .month, value: value, to: now())
+        case "y", "yr", "yrs", "year", "years": return calendar.date(byAdding: .year, value: value, to: now())
         default: return nil
         }
     }
@@ -176,6 +178,35 @@ struct DateMacroEvaluator: MacroEvaluating {
         let base = String(string[string.startIndex..<open])
         let argument = String(string[string.index(after: open)..<string.index(before: string.endIndex)])
         return (base, argument.isEmpty ? nil : argument)
+    }
+
+    /// Common short forms and misspellings mapped to a canonical keyword, applied before matching so
+    /// `/tdy`, `/tmrw`, `/rn`, and friends resolve. Weekday navigation (`next fri`, `nextfri`) is
+    /// normalized separately in `canonicalBase` because it is prefix-based rather than a fixed word.
+    private static let baseAliases: [String: String] = [
+        "tdy": "today", "tod": "today", "tody": "today", "2day": "today",
+        "tmr": "tomorrow", "tmrw": "tomorrow", "tmw": "tomorrow", "tom": "tomorrow", "tomo": "tomorrow",
+        "tomorow": "tomorrow", "2moro": "tomorrow", "2mrw": "tomorrow",
+        "yest": "yesterday", "yday": "yesterday", "ystdy": "yesterday", "yesty": "yesterday", "yesterdy": "yesterday",
+        "rn": "now", "rightnow": "now", "atm": "now",
+        "midday": "noon", "noontime": "noon", "midnite": "midnight",
+        "dt": "datetime"
+    ]
+
+    /// Normalizes a base keyword: applies `baseAliases`, then rewrites a `next`/`this`/`last` weekday
+    /// prefix written with a space or no separator (`next fri`, `nextfri`) into the dash form the
+    /// weekday resolver expects (`next-fri`).
+    private static func canonicalBase(_ base: String) -> String {
+        if let alias = baseAliases[base] {
+            return alias
+        }
+        for prefix in ["next", "this", "last"] where base.hasPrefix(prefix) && base.count > prefix.count {
+            let rest = base.dropFirst(prefix.count).drop { $0 == " " || $0 == "-" || $0 == "_" }
+            if !rest.isEmpty {
+                return "\(prefix)-\(rest)"
+            }
+        }
+        return base
     }
 
     /// Maps weekday tokens to `Calendar` weekday indices (Sunday = 1 ... Saturday = 7).
