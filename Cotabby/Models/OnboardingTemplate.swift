@@ -61,7 +61,8 @@ enum OnboardingTemplate: String, CaseIterable, Identifiable, Equatable, Sendable
         case .powerful:
             return "Longer suggestions and higher quality on harder prompts."
         case .custom:
-            return "Returning users keep every setting they've already tuned. New users start from Cotabby's lean defaults and fine-tune length, model, and behavior in Settings."
+            return "Returning users keep every setting they've already tuned. "
+                + "New users start from Cotabby's lean defaults and fine-tune length, model, and behavior in Settings."
         }
     }
 
