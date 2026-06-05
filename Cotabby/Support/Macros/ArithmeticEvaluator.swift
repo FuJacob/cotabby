@@ -8,9 +8,9 @@ import Foundation
 /// an injection risk for arbitrary user text. This hand-written recursive-descent parser only ever
 /// produces a number, and is pure and deterministic.
 ///
-/// Insertion keeps the worked expression, so `/5+5=` inserts `5+5=10`. A bare number with no
-/// operator (`/5`) is intentionally not a result, so the macro stays out of the way of ordinary
-/// typing.
+/// The preview shows the worked form (`= 10`), but accepting inserts only the result, so `/5+5=`
+/// becomes `10`. A bare number with no operator (`/5`) is intentionally not a result, so the macro
+/// stays out of the way of ordinary typing.
 struct ArithmeticEvaluator: MacroEvaluating {
     func evaluate(_ query: String) -> MacroResult? {
         // A trailing `=` is the user's "compute now" cue; strip it before parsing. Accepting replaces
