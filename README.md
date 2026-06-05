@@ -71,10 +71,10 @@ Everything runs on-device. No hosted API, no cloud round-trip.
 
 | Model          | File                             | Size    | Source                                                                                                  |
 | -------------- | -------------------------------- | ------- | ------------------------------------------------------------------------------------------------------- |
-| `tabby-2-nano` | `Qwen3.5-0.8B-Base.i1-Q6_K.gguf` | ~0.8 GB | [mradermacher/Qwen3.5-0.8B-Base-i1-GGUF](https://huggingface.co/mradermacher/Qwen3.5-0.8B-Base-i1-GGUF) |
-| `tabby-2-mini` | `Qwen3.5-2B-Base.i1-Q4_K_M.gguf` | ~1.4 GB | [mradermacher/Qwen3.5-2B-Base-i1-GGUF](https://huggingface.co/mradermacher/Qwen3.5-2B-Base-i1-GGUF)     |
-| `tabby-2-base` | `gemma-4-E2B.i1-Q6_K.gguf`       | ~4.5 GB | [mradermacher/gemma-4-E2B-i1-GGUF](https://huggingface.co/mradermacher/gemma-4-E2B-i1-GGUF)             |
-| `tabby-2-pro`  | `gemma-4-E4B.i1-Q4_K_M.gguf`     | ~5.0 GB | [mradermacher/gemma-4-E4B-i1-GGUF](https://huggingface.co/mradermacher/gemma-4-E4B-i1-GGUF)             |
+| `tabby-2-nano` | `Qwen3.5-0.8B-Base.i1-Q6_K.gguf` | ~0.8 GB | [Link](https://huggingface.co/mradermacher/Qwen3.5-0.8B-Base-i1-GGUF) |
+| `tabby-2-mini` | `Qwen3.5-2B-Base.i1-Q4_K_M.gguf` | ~1.4 GB | [Link](https://huggingface.co/mradermacher/Qwen3.5-2B-Base-i1-GGUF)     |
+| `tabby-2-base` | `gemma-4-E2B.i1-Q6_K.gguf`       | ~4.5 GB | [Link](https://huggingface.co/mradermacher/gemma-4-E2B-i1-GGUF)             |
+| `tabby-2-pro`  | `gemma-4-E4B.i1-Q4_K_M.gguf`     | ~5.0 GB | [Link](https://huggingface.co/mradermacher/gemma-4-E4B-i1-GGUF)             |
 
 ### Bring your own model
 
