@@ -20,7 +20,8 @@ struct AcceptanceModePickerView: View {
             SettingsRowLabel(
                 title: "Acceptance Mode",
                 description: "What the Accept Word key takes per press. Word inserts one word at a time; " +
-                    "Phrase inserts up to the next sentence break."
+                    "Phrase inserts up to the next sentence break.",
+                systemImage: "textformat.abc"
             )
         }
         .pickerStyle(.menu)

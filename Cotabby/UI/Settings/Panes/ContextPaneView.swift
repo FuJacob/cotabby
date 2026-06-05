@@ -2,24 +2,20 @@ import Combine
 import SwiftUI
 
 /// File overview:
-/// "Advanced" detail pane of the Settings window. Holds the Extended Context editor (a free-form
+/// "Context" detail pane of the Settings window. Holds the Extended Context editor (a free-form
 /// text blob folded into every prompt) and a small "Try it" playground for verifying that the
-/// editor's content is actually shaping the model's output. The pane is named generically so
-/// future advanced toggles (model tuning, debug flags, prompt knobs) can land here without a
-/// second navigation rename.
+/// editor's content is actually shaping the model's output.
 ///
 /// Why a dedicated pane (not Writing):
-/// The Writing pane already carries the tag-style `customRules` editor (short imperative
-/// directives) plus name and language. Extended Context is a different shape: long-form, free
-/// markdown, and noticeably more expensive on the token budget. Keeping it in its own pane (a)
-/// leaves Writing focused on small, additive personalization, and (b) makes room for the
-/// cost-of-use warnings without crowding the existing settings.
+/// The Writing pane already carries name and language personalization. Extended Context is a
+/// different shape: long-form, free markdown, and noticeably more expensive on the token budget.
+/// Keeping it in its own pane (a) leaves Writing focused on small, additive personalization, and
+/// (b) makes room for the cost-of-use warnings without crowding the existing settings.
 ///
 /// The text editor binds through `SuggestionSettingsModel.setExtendedContext`, which length-caps
 /// the value on write. Whitespace is intentionally NOT trimmed in the setter so the user can type
-/// a space at the end of a word — `SuggestionRequestFactory` does the once-per-request trim
-/// instead.
-struct AdvancedPaneView: View {
+/// a space at the end of a word; `SuggestionRequestFactory` does the once-per-request trim instead.
+struct ContextPaneView: View {
     @ObservedObject var suggestionSettings: SuggestionSettingsModel
     let suggestionEngine: any SuggestionGenerating
     let configuration: SuggestionConfiguration
@@ -202,7 +198,7 @@ struct AdvancedPaneView: View {
         Section("How this is used") {
             VStack(alignment: .leading, spacing: 8) {
                 bulletLine(
-                    "Sent on every suggestion as reference material — not as instructions."
+                    "Sent on every suggestion as reference material, not as instructions."
                 )
                 bulletLine(
                     "Subordinate to Cotabby's base autocomplete rules, so it cannot override " +
@@ -256,10 +252,10 @@ struct AdvancedPaneView: View {
     }
 }
 
-/// View model for the Advanced pane's "Try it" playground. Owns the test input text, the most
+/// View model for the Context pane's "Try it" playground. Owns the test input text, the most
 /// recent completion (or error), and the actor-isolated generation task.
 ///
-/// Lives in this file because it is private to the Advanced pane and exists only to shape one
+/// Lives in this file because it is private to the Context pane and exists only to shape one
 /// section of UI; lifting it out would invite reuse the playground doesn't need.
 @MainActor
 final class ExtendedContextPlaygroundModel: ObservableObject {
@@ -339,7 +335,7 @@ final class ExtendedContextPlaygroundModel: ObservableObject {
                 self.currentGenerationID = nil
                 self.isGenerating = false
             } catch is CancellationError {
-                // Stale task — a newer `runCompletion` (or a future cancel handler) has already
+                // Stale task; a newer `runCompletion` (or a future cancel handler) has already
                 // stamped a fresh `currentGenerationID` or cleared it, so leave the spinner state
                 // for whoever owns the current generation. Touching `isGenerating` here would
                 // race with the active task.
@@ -356,12 +352,12 @@ final class ExtendedContextPlaygroundModel: ObservableObject {
     }
 
     /// Builds a `FocusedInputContext` from the user's test text. The values are intentionally
-    /// generic — the playground is a prompt-shape demo, not an attempt to mimic a specific host
+    /// generic; the playground is a prompt-shape demo, not an attempt to mimic a specific host
     /// app's accessibility surface.
     private static func makeSyntheticContext(prefixText: String) -> FocusedInputContext {
         let snapshot = FocusedInputSnapshot(
             applicationName: "Cotabby Playground",
-            bundleIdentifier: "com.cotabby.advanced.playground",
+            bundleIdentifier: "com.cotabby.context.playground",
             processIdentifier: 0,
             elementIdentifier: "playground-field",
             role: "AXTextArea",

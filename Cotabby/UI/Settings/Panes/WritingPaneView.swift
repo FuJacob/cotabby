@@ -19,7 +19,8 @@ struct WritingPaneView: View {
                     SettingsRowLabel(
                         title: "Length",
                         description: "How many words Cotabby aims for per suggestion. Shorter is snappier; " +
-                            "longer covers more thoughts but takes longer to generate."
+                            "longer covers more thoughts but takes longer to generate.",
+                        systemImage: "ruler"
                     )
                 }
 

@@ -9,14 +9,32 @@ import SwiftUI
 struct SettingsRowLabel: View {
     let title: String
     let description: String
+    /// Optional leading SF Symbol. Rendered monochrome in secondary color so it aids scanning
+    /// without competing with the control on the trailing edge. Decorative: hidden from VoiceOver
+    /// because the title already names the setting.
+    var systemImage: String?
+
+    init(title: String, description: String, systemImage: String? = nil) {
+        self.title = title
+        self.description = description
+        self.systemImage = systemImage
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(title)
-            Text(description)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            if let systemImage {
+                Image(systemName: systemImage)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 20, alignment: .center)
+                    .accessibilityHidden(true)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                Text(description)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 }
