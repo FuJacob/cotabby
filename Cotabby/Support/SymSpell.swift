@@ -16,6 +16,21 @@ import Foundation
 /// Ported in-repo (rather than added as a dependency) so it is reviewable and unit-tested. The
 /// delete index is memory-heavy but small next to the app's llama runtime, and is built once off
 /// the main thread (see `SymSpellCorrector`).
+///
+/// Attribution — this is a Swift port of SymSpell, used under the MIT License:
+///
+///   Copyright (c) 2022 Wolf Garbe (https://github.com/wolfgarbe/SymSpell)
+///
+///   Permission is hereby granted, free of charge, to any person obtaining a copy of this software
+///   and associated documentation files (the "Software"), to deal in the Software without
+///   restriction, including without limitation the rights to use, copy, modify, merge, publish,
+///   distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the
+///   Software is furnished to do so, subject to the following conditions: The above copyright
+///   notice and this permission notice shall be included in all copies or substantial portions of
+///   the Software. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
+///
+/// The bundled `frequency_dictionary_en_82_765.txt` also ships with SymSpell and is derived from
+/// Google Books Ngram data (CC BY 3.0) and SCOWL.
 
 struct SymSpellSuggestion: Equatable {
     let term: String
