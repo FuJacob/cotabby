@@ -57,10 +57,11 @@ enum SuggestionTextNormalizer {
         let rawHadContent = !rawSuggestion.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         var normalized = rawSuggestion.replacingOccurrences(of: "\r", with: "")
 
-        // Some runtimes echo the prompt or include chat-template control markers in the response.
-        // Removing them here keeps the UI layer independent from backend-specific formatting.
-        normalized = normalized.replacingOccurrences(of: "<|im_end|>", with: "")
-        normalized = normalized.replacingOccurrences(of: "<|im_start|>", with: "")
+        // Base models still carry the special tokens of the chat templates they were trained
+        // alongside and can emit them as literal text. Strip that scaffolding so the UI layer stays
+        // independent of backend formatting: opening/role markers are removed in place, and anything
+        // from a stop marker onward (a hallucinated new turn) is truncated. See `ControlTokenMarkers`.
+        normalized = ControlTokenMarkers.sanitize(normalized)
 
         // Thinking-capable models may emit <think>…</think> reasoning blocks. Strip them here so
         // the reasoning text never reaches the continuation logic below.
