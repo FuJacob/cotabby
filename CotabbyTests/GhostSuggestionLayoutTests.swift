@@ -1,3 +1,4 @@
+import AppKit
 import CoreGraphics
 import XCTest
 @testable import Cotabby
@@ -310,5 +311,44 @@ final class GhostSuggestionLayoutTests: XCTestCase {
             layout.topLineCenterOffsetFromCaret, 0,
             "Should start below caret when left budget is too small for RTL"
         )
+    }
+
+    // MARK: - renderedWidth (exact-advance measurement)
+
+    func test_renderedWidth_emptyAndWhitespaceOnlyAreZero() {
+        let font = NSFont.systemFont(ofSize: 14)
+        XCTAssertEqual(GhostSuggestionLayout.renderedWidth(of: "", font: font), 0)
+        XCTAssertEqual(GhostSuggestionLayout.renderedWidth(of: "   ", font: font), 0)
+    }
+
+    func test_renderedWidth_longerTailIsWider() {
+        let font = NSFont.systemFont(ofSize: 14)
+        let short = GhostSuggestionLayout.renderedWidth(of: "brown fox", font: font)
+        let long = GhostSuggestionLayout.renderedWidth(of: "quick brown fox", font: font)
+        XCTAssertGreaterThan(long, short)
+    }
+
+    /// The advance shift (width(before) - width(after)) must be positive when a leading word is
+    /// handed off; that is what slides the panel so the remaining tail stays on the same pixels.
+    func test_renderedWidth_prefixHandoffShiftIsPositive() {
+        let font = NSFont.systemFont(ofSize: 14)
+        let before = GhostSuggestionLayout.renderedWidth(of: "quick brown fox", font: font)
+        let after = GhostSuggestionLayout.renderedWidth(of: "brown fox", font: font)
+        XCTAssertGreaterThan(before - after, 0)
+    }
+
+    /// Width must not depend on how many spaces the raw tail contained, because the overlay renders
+    /// the whitespace-collapsed display string.
+    func test_renderedWidth_collapsesInternalWhitespace() {
+        let font = NSFont.systemFont(ofSize: 14)
+        let single = GhostSuggestionLayout.renderedWidth(of: "alpha beta", font: font)
+        let multiple = GhostSuggestionLayout.renderedWidth(of: "alpha     beta", font: font)
+        XCTAssertEqual(single, multiple, accuracy: 0.001)
+    }
+
+    func test_renderedWidth_largerFontIsWider() {
+        let small = GhostSuggestionLayout.renderedWidth(of: "sample", font: NSFont.systemFont(ofSize: 12))
+        let large = GhostSuggestionLayout.renderedWidth(of: "sample", font: NSFont.systemFont(ofSize: 24))
+        XCTAssertGreaterThan(large, small)
     }
 }

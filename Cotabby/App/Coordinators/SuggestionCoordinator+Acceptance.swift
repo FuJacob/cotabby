@@ -170,19 +170,10 @@ extension SuggestionCoordinator {
             latestGenerationNumber = liveContext.generation
             applySessionDiagnostics(advancedSession, acceptanceAction: "Accepted next chunk with \(keyName).")
             state = .ready(text: advancedSession.remainingText, latency: advancedSession.latency)
-            let isRTL = TextDirectionDetector.isRightToLeft(liveContext.precedingText)
-            let predictedCaret = Self.predictedCaretRect(
-                after: insertionChunk,
-                oldCaretRect: liveContext.caretRect,
-                caretQuality: liveContext.caretQuality,
-                observedCharWidth: liveContext.observedCharWidth,
-                isRightToLeft: isRTL
-            )
-            presentOverlay(
-                text: advancedSession.remainingText,
-                at: predictedCaret,
-                context: liveContext,
-                isRightToLeft: isRTL
+            presentAdvancedOverlay(
+                remainingText: advancedSession.remainingText,
+                insertionChunk: insertionChunk,
+                liveContext: liveContext
             )
             schedulePostInsertionRefresh()
             logStage(
@@ -194,6 +185,35 @@ extension SuggestionCoordinator {
             )
             return true
         }
+    }
+
+    /// Repositions the overlay after a word accept. Prefers sliding the existing ghost by the exact
+    /// rendered width of the accepted text so the remaining tail stays perfectly still (no
+    /// predicted-vs-AX two-step). Falls back to a caret-anchored present only when the overlay cannot
+    /// be slid (mirror mode, RTL, multi-line, or nothing rendered yet).
+    private func presentAdvancedOverlay(
+        remainingText: String,
+        insertionChunk: String,
+        liveContext: FocusedInputContext
+    ) {
+        if overlayController.advanceInline(to: remainingText) {
+            return
+        }
+
+        let isRTL = TextDirectionDetector.isRightToLeft(liveContext.precedingText)
+        let predictedCaret = Self.predictedCaretRect(
+            after: insertionChunk,
+            oldCaretRect: liveContext.caretRect,
+            caretQuality: liveContext.caretQuality,
+            observedCharWidth: liveContext.observedCharWidth,
+            isRightToLeft: isRTL
+        )
+        presentOverlay(
+            text: remainingText,
+            at: predictedCaret,
+            context: liveContext,
+            isRightToLeft: isRTL
+        )
     }
 
     /// Returns control of the accept key to the host app and clears stale suggestion UI.
@@ -328,11 +348,15 @@ extension SuggestionCoordinator {
         }
 
         state = .ready(text: advancedSession.remainingText, latency: advancedSession.latency)
-        presentOverlay(
-            text: advancedSession.remainingText,
-            at: session.baseContext.caretRect,
-            context: session.baseContext
-        )
+        // Same exact-width slide as Tab acceptance; the user typed the next characters, so the tail
+        // shrank by them. Fall back to the (session-start) caret anchor only if the slide can't apply.
+        if !overlayController.advanceInline(to: advancedSession.remainingText) {
+            presentOverlay(
+                text: advancedSession.remainingText,
+                at: session.baseContext.caretRect,
+                context: session.baseContext
+            )
+        }
         logStage(
             "typed-match-advanced",
             workID: currentWorkID,

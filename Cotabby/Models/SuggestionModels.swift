@@ -544,6 +544,21 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
         self.focusedInputIdentityKey = focusedInputIdentityKey
         self.resolvedFieldStyle = resolvedFieldStyle
     }
+
+    /// Returns a copy with only `caretRect` replaced. Used to advance the ghost by an exact measured
+    /// width on word acceptance without re-reading (and re-jittering against) a fresh AX caret.
+    func withCaretRect(_ caretRect: CGRect) -> SuggestionOverlayGeometry {
+        SuggestionOverlayGeometry(
+            caretRect: caretRect,
+            inputFrameRect: inputFrameRect,
+            caretQuality: caretQuality,
+            observedCharWidth: observedCharWidth,
+            isRightToLeft: isRightToLeft,
+            focusChangeSequence: focusChangeSequence,
+            focusedInputIdentityKey: focusedInputIdentityKey,
+            resolvedFieldStyle: resolvedFieldStyle
+        )
+    }
 }
 
 /// The overlay is intentionally modeled as data so diagnostics can reason about visibility

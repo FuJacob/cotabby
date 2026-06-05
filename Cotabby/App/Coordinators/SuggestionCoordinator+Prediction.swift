@@ -338,6 +338,7 @@ extension SuggestionCoordinator {
             if SuggestionOverlayStabilityGate.shouldRePresent(
                 currentOverlay: overlayState,
                 newText: reconciledSession.remainingText,
+                newCaretRect: liveContext.caretRect,
                 newInputFrameRect: liveContext.inputFrameRect,
                 newFocusChangeSequence: liveContext.focusChangeSequence
             ) {

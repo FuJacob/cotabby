@@ -60,6 +60,11 @@ final class OverlayController: SuggestionOverlayControlling {
     /// text from ballooning when the fallback wins. See `GhostFontSizeStabilizer`.
     private var ghostFontStabilizer = GhostFontSizeStabilizer()
 
+    /// The font and size the inline ghost was last rendered with, captured so `advanceInline` can
+    /// measure the handed-off prefix in exactly the rendered typeface. Nil until the first inline show.
+    private var lastInlineRenderFont: NSFont?
+    private var lastInlineFontSize: CGFloat?
+
     init(
         suggestionSettings: SuggestionSettingsModel,
         renderModePolicyOverride: CompletionRenderModePolicy? = nil
@@ -203,6 +208,68 @@ final class OverlayController: SuggestionOverlayControlling {
         }
         panel.setFrame(frame.integral, display: true)
         panel.orderFrontRegardless()
+
+        // Capture exactly what this inline render used, so a subsequent `advanceInline` slides the
+        // panel by the prefix width measured in the same typeface and size.
+        lastInlineFontSize = fontSize
+        lastInlineRenderFont = renderFont
+    }
+
+    /// Advances a visible single-line inline ghost to `remainingText` by sliding the panel right by
+    /// the exact rendered width of the text just handed off, so the remaining glyphs stay on the same
+    /// pixels. This is the "perfectly still" path for word-by-word acceptance and type-through: it
+    /// reads the held overlay state (not a fresh AX caret), so it cannot jitter against AX noise.
+    /// Returns `false` when the held overlay is not a single-line, LTR, inline ghost this can safely
+    /// slide; the caller then falls back to a caret-anchored present.
+    func advanceInline(to remainingText: String) -> Bool {
+        guard case let .visible(beforeText, geometry, mode) = state,
+              case .inline = mode,
+              !geometry.isRightToLeft,
+              !remainingText.isEmpty,
+              remainingText != beforeText,
+              let fontSize = lastInlineFontSize
+        else {
+            return false
+        }
+
+        let renderFont = lastInlineRenderFont ?? NSFont.systemFont(ofSize: fontSize)
+        let shift = GhostSuggestionLayout.renderedWidth(of: beforeText, font: renderFont)
+            - GhostSuggestionLayout.renderedWidth(of: remainingText, font: renderFont)
+        // A non-positive or non-finite shift means the tail did not shrink as expected; re-anchor.
+        guard shift.isFinite, shift > 0 else {
+            return false
+        }
+
+        let advancedGeometry = geometry.withCaretRect(
+            geometry.caretRect.offsetBy(dx: shift, dy: 0)
+        )
+
+        // The exact-width slide is only valid while both the old and new tails fit on one line.
+        // Multi-line layout anchors at the field edge, not the caret, so a fresh re-anchor is needed
+        // (e.g. the shrinking first-line budget makes the tail start wrapping).
+        let showsHint = suggestionSettings.acceptanceHintLabel != nil
+        let beforeLayout = GhostSuggestionLayout.make(
+            text: beforeText,
+            geometry: geometry,
+            fontSize: fontSize,
+            visibleFrame: targetScreenVisibleFrame(for: geometry.caretRect),
+            showsAcceptanceHint: showsHint,
+            font: renderFont
+        )
+        let afterLayout = GhostSuggestionLayout.make(
+            text: remainingText,
+            geometry: advancedGeometry,
+            fontSize: fontSize,
+            visibleFrame: targetScreenVisibleFrame(for: advancedGeometry.caretRect),
+            showsAcceptanceHint: showsHint,
+            font: renderFont
+        )
+        guard beforeLayout.lines.count == 1, afterLayout.lines.count == 1 else {
+            return false
+        }
+
+        showSuggestion(remainingText, geometry: advancedGeometry)
+        return true
     }
 
     /// Mirror-mode rendering. Draws the suggestion inside a Cotabby-owned card anchored to the

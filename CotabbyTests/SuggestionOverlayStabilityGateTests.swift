@@ -8,9 +8,9 @@ import XCTest
 /// `observedCharWidth` values for the same underlying field state. The +30ms post-insertion
 /// reconcile used to call `presentOverlay` with those drifted values, producing a visible
 /// one-frame "shift left and down then snap back". The gate stops the reconcile from
-/// re-rendering when the field, text, and on-screen field bounds have not materially moved,
-/// while still allowing legitimate context changes (window drag, field switch, text change)
-/// to re-anchor the overlay.
+/// re-rendering when the field, text, caret, and on-screen field bounds have not materially moved,
+/// while still allowing legitimate context changes (window drag, field switch, text change, a real
+/// caret move, or accumulated advance drift) to re-anchor the overlay.
 final class SuggestionOverlayStabilityGateTests: XCTestCase {
     private static let inputFrame = CGRect(x: 100, y: 200, width: 400, height: 32)
     private static let caretRect = CGRect(x: 140, y: 210, width: 2, height: 18)
@@ -35,6 +35,7 @@ final class SuggestionOverlayStabilityGateTests: XCTestCase {
             SuggestionOverlayStabilityGate.shouldRePresent(
                 currentOverlay: .hidden(reason: "idle"),
                 newText: "draft",
+                newCaretRect: Self.caretRect,
                 newInputFrameRect: Self.inputFrame,
                 newFocusChangeSequence: 7
             )
@@ -44,13 +45,14 @@ final class SuggestionOverlayStabilityGateTests: XCTestCase {
     /// The exact scenario the gate exists for: text and field are identical, only the caret rect
     /// has drifted by a sub-pixel amount in the latest AX read. Holding the geometry is what
     /// prevents the post-accept jitter.
-    func test_sameFieldSameTextStableFrame_holdsGeometry() {
+    func test_sameFieldSameTextSubPixelCaretDrift_holdsGeometry() {
         let current: OverlayState = .visible(text: "draft and send", geometry: Self.geometry(), mode: .inline)
 
         XCTAssertFalse(
             SuggestionOverlayStabilityGate.shouldRePresent(
                 currentOverlay: current,
                 newText: "draft and send",
+                newCaretRect: Self.caretRect.offsetBy(dx: 0.4, dy: -0.3),
                 newInputFrameRect: Self.inputFrame,
                 newFocusChangeSequence: 7
             )
@@ -68,6 +70,7 @@ final class SuggestionOverlayStabilityGateTests: XCTestCase {
             SuggestionOverlayStabilityGate.shouldRePresent(
                 currentOverlay: current,
                 newText: "draft and send",
+                newCaretRect: Self.caretRect,
                 newInputFrameRect: Self.inputFrame,
                 newFocusChangeSequence: 8
             )
@@ -81,6 +84,69 @@ final class SuggestionOverlayStabilityGateTests: XCTestCase {
             SuggestionOverlayStabilityGate.shouldRePresent(
                 currentOverlay: current,
                 newText: "and send notes tomorrow",
+                newCaretRect: Self.caretRect,
+                newInputFrameRect: Self.inputFrame,
+                newFocusChangeSequence: 7
+            )
+        )
+    }
+
+    /// A caret move within the tolerance (post-insertion AX noise, or an exact-advance residual) is
+    /// held — this is the per-accept stillness the fix is for.
+    func test_caretMoveWithinTolerance_holdsGeometry() {
+        let current: OverlayState = .visible(text: "and send", geometry: Self.geometry(), mode: .inline)
+
+        XCTAssertFalse(
+            SuggestionOverlayStabilityGate.shouldRePresent(
+                currentOverlay: current,
+                newText: "and send",
+                newCaretRect: Self.caretRect.offsetBy(dx: 3, dy: 0),
+                newInputFrameRect: Self.inputFrame,
+                newFocusChangeSequence: 7
+            )
+        )
+    }
+
+    /// A caret move beyond the tolerance (a genuine caret jump, or accumulated advance drift) must
+    /// re-anchor so the ghost does not detach from the real caret.
+    func test_caretMoveBeyondTolerance_reAnchors() {
+        let current: OverlayState = .visible(text: "and send", geometry: Self.geometry(), mode: .inline)
+
+        XCTAssertTrue(
+            SuggestionOverlayStabilityGate.shouldRePresent(
+                currentOverlay: current,
+                newText: "and send",
+                newCaretRect: Self.caretRect.offsetBy(dx: 10, dy: 0),
+                newInputFrameRect: Self.inputFrame,
+                newFocusChangeSequence: 7
+            )
+        )
+    }
+
+    /// Vertical caret drift beyond the tolerance also re-anchors (line change / scroll).
+    func test_caretMovedVerticallyBeyondTolerance_reAnchors() {
+        let current: OverlayState = .visible(text: "and send", geometry: Self.geometry(), mode: .inline)
+
+        XCTAssertTrue(
+            SuggestionOverlayStabilityGate.shouldRePresent(
+                currentOverlay: current,
+                newText: "and send",
+                newCaretRect: Self.caretRect.offsetBy(dx: 0, dy: 10),
+                newInputFrameRect: Self.inputFrame,
+                newFocusChangeSequence: 7
+            )
+        )
+    }
+
+    /// Exactly at the caret tolerance: a 6pt drift is absorbed (strict `>` comparison).
+    func test_caretMoveAtExactTolerance_holdsGeometry() {
+        let current: OverlayState = .visible(text: "and send", geometry: Self.geometry(), mode: .inline)
+
+        XCTAssertFalse(
+            SuggestionOverlayStabilityGate.shouldRePresent(
+                currentOverlay: current,
+                newText: "and send",
+                newCaretRect: Self.caretRect.offsetBy(dx: 6, dy: 0),
                 newInputFrameRect: Self.inputFrame,
                 newFocusChangeSequence: 7
             )
@@ -97,6 +163,7 @@ final class SuggestionOverlayStabilityGateTests: XCTestCase {
             SuggestionOverlayStabilityGate.shouldRePresent(
                 currentOverlay: current,
                 newText: "draft and send",
+                newCaretRect: Self.caretRect,
                 newInputFrameRect: movedFrame,
                 newFocusChangeSequence: 7
             )
@@ -113,6 +180,7 @@ final class SuggestionOverlayStabilityGateTests: XCTestCase {
             SuggestionOverlayStabilityGate.shouldRePresent(
                 currentOverlay: current,
                 newText: "draft and send",
+                newCaretRect: Self.caretRect,
                 newInputFrameRect: nudgedFrame,
                 newFocusChangeSequence: 7
             )
@@ -135,6 +203,7 @@ final class SuggestionOverlayStabilityGateTests: XCTestCase {
             SuggestionOverlayStabilityGate.shouldRePresent(
                 currentOverlay: visibleWithFrame,
                 newText: "draft and send",
+                newCaretRect: Self.caretRect,
                 newInputFrameRect: nil,
                 newFocusChangeSequence: 7
             )
@@ -143,6 +212,7 @@ final class SuggestionOverlayStabilityGateTests: XCTestCase {
             SuggestionOverlayStabilityGate.shouldRePresent(
                 currentOverlay: visibleWithoutFrame,
                 newText: "draft and send",
+                newCaretRect: Self.caretRect,
                 newInputFrameRect: Self.inputFrame,
                 newFocusChangeSequence: 7
             )
@@ -159,6 +229,7 @@ final class SuggestionOverlayStabilityGateTests: XCTestCase {
             SuggestionOverlayStabilityGate.shouldRePresent(
                 currentOverlay: current,
                 newText: "draft and send",
+                newCaretRect: Self.caretRect,
                 newInputFrameRect: exactFrame,
                 newFocusChangeSequence: 7
             )
@@ -176,6 +247,7 @@ final class SuggestionOverlayStabilityGateTests: XCTestCase {
             SuggestionOverlayStabilityGate.shouldRePresent(
                 currentOverlay: current,
                 newText: "draft and send",
+                newCaretRect: Self.caretRect,
                 newInputFrameRect: nil,
                 newFocusChangeSequence: 7
             )
