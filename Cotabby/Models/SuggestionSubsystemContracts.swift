@@ -123,6 +123,11 @@ protocol SuggestionInserting: AnyObject {
     var lastErrorMessage: String? { get }
 
     func insert(_ suggestion: String) -> Bool
+
+    /// Deletes `deletingUTF16Count` already-typed units and types `text` in one suppressed synthetic
+    /// burst. The correction-acceptance path uses this to swap a typo'd word for the corrected word.
+    /// `SuggestionInserter` already implements it (the emoji picker shares the same primitive).
+    func replace(deletingUTF16Count: Int, with text: String) -> Bool
 }
 
 /// The emoji picker's slice of the inserter: replace a run of already-typed characters (the literal

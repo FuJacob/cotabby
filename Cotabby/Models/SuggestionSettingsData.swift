@@ -27,6 +27,12 @@ struct SuggestionSettingsData: Equatable {
     var customWordCountHighWords: Int
     var isClipboardContextEnabled: Bool
     var isFastModeEnabled: Bool
+    /// When on, Cotabby checks the user's current word with `NSSpellChecker` and hides the normal
+    /// continuation when the word looks misspelled, so completions don't pile onto a broken word.
+    var suppressCompletionsOnTypo: Bool
+    /// When on (and `suppressCompletionsOnTypo` is also on), a detected typo switches into correction
+    /// mode: Cotabby offers the spell-checker's fix as a green replace-the-word suggestion.
+    var offerTypoCorrections: Bool
     var isPerformanceTrackingEnabled: Bool
     var isMenuBarWordCountVisible: Bool
     var mirrorPreference: MirrorPreference
