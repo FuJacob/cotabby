@@ -26,7 +26,7 @@ review, validate, and revert safely.
 
 You need:
 
-- macOS 15.0 or later for running the app and tests. Apple Intelligence runtime work requires
+- macOS 14.0 or later for running the app and tests. Apple Intelligence runtime work requires
   macOS 26 or later.
 - Xcode with Command Line Tools installed.
 - A local Apple development team configured in Xcode if you want to launch the signed app from the

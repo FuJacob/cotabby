@@ -123,6 +123,11 @@ protocol SuggestionInserting: AnyObject {
     var lastErrorMessage: String? { get }
 
     func insert(_ suggestion: String) -> Bool
+
+    /// Deletes `deletingUTF16Count` already-typed units and types `text` in one suppressed synthetic
+    /// burst. The correction-acceptance path uses this to swap a typo'd word for the corrected word.
+    /// `SuggestionInserter` already implements it (the emoji picker shares the same primitive).
+    func replace(deletingUTF16Count: Int, with text: String) -> Bool
 }
 
 /// The emoji picker's slice of the inserter: replace a run of already-typed characters (the literal
@@ -151,6 +156,19 @@ protocol SuggestionOverlayControlling: AnyObject {
 
     func showSuggestion(_ text: String, geometry: SuggestionOverlayGeometry)
     func hide(reason: String)
+
+    /// Advances a visible single-line inline ghost to `remainingText` by sliding the panel by the
+    /// exact rendered width of the text just handed off, keeping the remaining glyphs on the same
+    /// pixels (no caret re-read, no jitter). Returns `false` when the controller cannot safely slide
+    /// (hidden, mirror mode, RTL, multi-line, or nothing rendered to measure against); callers then
+    /// fall back to a caret-anchored present.
+    func advanceInline(to remainingText: String) -> Bool
+}
+
+extension SuggestionOverlayControlling {
+    /// Default: not supported, so conformers that do not render an inline panel (e.g. test doubles)
+    /// transparently fall back to the caret-anchored present path.
+    func advanceInline(to remainingText: String) -> Bool { false }
 }
 
 @MainActor

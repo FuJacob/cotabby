@@ -234,6 +234,22 @@ struct GhostSuggestionLayout: Equatable {
         )
     }
 
+    /// The width `text` actually occupies as a single rendered ghost line: the normalized display
+    /// string measured with the real render `font` via Core Text glyph layout (not the average
+    /// char-width budget `measuredWidth` uses for wrapping). Used to slide the overlay by the exact
+    /// width of accepted text so the remaining tail stays on the same pixels. Measuring the string
+    /// (not a character count) keeps graphemes, surrogate pairs, and whitespace normalization correct.
+    ///
+    /// Note: a `width(before) - width(after)` advance double-counts the kerning pair at the
+    /// accepted/remaining seam by a sub-point amount for proportional fonts (each side is measured
+    /// without the other's adjacent glyph). That residual is far inside the overlay's caret drift
+    /// tolerance, and the stability gate's re-anchor caps any accumulation under rapid acceptance.
+    static func renderedWidth(of text: String, font: NSFont) -> CGFloat {
+        let display = normalizedDisplayText(text)
+        guard !display.isEmpty else { return 0 }
+        return (display as NSString).size(withAttributes: [.font: font]).width
+    }
+
     private static func normalizedDisplayText(_ text: String) -> String {
         let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
         let normalizedLines = lines.map { line -> String in

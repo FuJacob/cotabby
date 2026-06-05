@@ -19,6 +19,7 @@ struct PermissionsPaneView: View {
                     title: "Accessibility",
                     description: "Lets Cotabby see which text field has focus and read its contents " +
                         "so it knows what to continue.",
+                    systemImage: "accessibility",
                     granted: permissionManager.accessibilityGranted,
                     action: permissionManager.openAccessibilitySettings
                 )
@@ -27,6 +28,7 @@ struct PermissionsPaneView: View {
                     title: "Input Monitoring",
                     description: "Lets Cotabby see your keystrokes so it can detect when to suggest " +
                         "and which key you used to accept.",
+                    systemImage: "keyboard",
                     granted: permissionManager.inputMonitoringGranted,
                     action: permissionManager.openInputMonitoringSettings
                 )
@@ -35,6 +37,7 @@ struct PermissionsPaneView: View {
                     title: "Screen Recording",
                     description: "Lets Cotabby take a screenshot of the focused window to use as " +
                         "additional context. Required even when Fast Mode skips capture.",
+                    systemImage: "camera.viewfinder",
                     granted: permissionManager.screenRecordingGranted,
                     action: permissionManager.openScreenRecordingSettings
                 )
@@ -67,11 +70,12 @@ struct PermissionsPaneView: View {
     private func permissionRow(
         title: String,
         description: String,
+        systemImage: String,
         granted: Bool,
         action: @escaping () -> Void
     ) -> some View {
         HStack(spacing: 10) {
-            SettingsRowLabel(title: title, description: description)
+            SettingsRowLabel(title: title, description: description, systemImage: systemImage)
             Spacer(minLength: 0)
             Text(granted ? "Granted" : "Needs Access")
                 .font(.caption.weight(.medium))

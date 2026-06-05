@@ -4,8 +4,9 @@ import SwiftUI
 /// The small Cotabby affordance shown just outside a supported text field. Always renders the
 /// built-in cat glyph on Cotabby's dark rounded chip.
 struct FieldEdgeIconIndicatorView: View {
-    private let side: CGFloat = 20
-    private let cornerRadius: CGFloat = 5
+    // Sized at 0.7 of the original chip so the affordance sits more discreetly beside the input.
+    private let side: CGFloat = 14
+    private let cornerRadius: CGFloat = 3.5
 
     var body: some View {
         ZStack {
@@ -15,7 +16,7 @@ struct FieldEdgeIconIndicatorView: View {
                 .renderingMode(.template)
                 .resizable()
                 .scaledToFit()
-                .frame(height: 13)
+                .frame(height: 9.1)
                 .foregroundStyle(.white)
         }
         .frame(width: side, height: side)

@@ -299,6 +299,8 @@ final class SuggestionCoordinatorAcceptanceTests: XCTestCase {
             interactionState: interactionState,
             workController: SuggestionWorkController(),
             configuration: .standard,
+            spellChecker: CurrentWordSpellChecker(),
+            symSpellCorrector: SymSpellCorrector(autoload: false),
             userDefaults: UserDefaults(suiteName: "CotabbyTests.\(UUID().uuidString)") ?? .standard
         )
         Self.retainedCoordinators.append(coordinator)
@@ -376,10 +378,16 @@ private final class StubSuggestionOverlayController: SuggestionOverlayControllin
 private final class StubSuggestionInserter: SuggestionInserting {
     var lastErrorMessage: String?
     var insertedChunks: [String] = []
+    var replacements: [(deleteCount: Int, text: String)] = []
     var shouldInsert = true
 
     func insert(_ suggestion: String) -> Bool {
         insertedChunks.append(suggestion)
+        return shouldInsert
+    }
+
+    func replace(deletingUTF16Count: Int, with text: String) -> Bool {
+        replacements.append((deletingUTF16Count, text))
         return shouldInsert
     }
 }

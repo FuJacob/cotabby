@@ -20,6 +20,17 @@ enum SuggestionOverlayStabilityGate {
     /// of the same field, while still catching whole-pixel movements from a real window drag.
     private static let inputFrameTolerance: CGFloat = 1
 
+    /// Caret drift (points) beyond which the overlay re-anchors to the fresh caret. Smaller deltas
+    /// are held so the slightly different caret AX returns for the same position after a synthesized
+    /// insertion, plus the sub-pixel residual of an exact-width advance, do not jitter the ghost.
+    /// Because the fresh caret is compared against the held (advanced) caret, this also bounds
+    /// cumulative advance drift to roughly this distance before a correction fires.
+    ///
+    /// 6pt is chosen to sit above typical post-insertion AX caret noise (~0.5-1pt) and the per-accept
+    /// kerning residual, yet below a single character's advance in common body fonts (~7-10pt at 14pt),
+    /// so a genuine one-character caret move still re-anchors while noise and residual are absorbed.
+    private static let caretDriftTolerance: CGFloat = 6
+
     /// Returns `true` when the coordinator should call `presentOverlay` for this reconcile tick.
     /// Returns `false` to hold the existing overlay geometry exactly as it was last drawn.
     ///
@@ -27,10 +38,13 @@ enum SuggestionOverlayStabilityGate {
     ///   - The overlay is currently hidden (this is a fresh show).
     ///   - The focus session changed (different field, or the same field after focus toggled).
     ///   - The displayed text changed (user partially accepted, or typed-through advanced the tail).
+    ///   - The caret moved beyond `caretDriftTolerance` from where the overlay is currently anchored
+    ///     (a genuine caret move, or accumulated advance drift that needs correcting).
     ///   - The host editor's frame moved on screen (window drag, sheet appear, etc.).
     static func shouldRePresent(
         currentOverlay: OverlayState,
         newText: String,
+        newCaretRect: CGRect,
         newInputFrameRect: CGRect?,
         newFocusChangeSequence: UInt64
     ) -> Bool {
@@ -43,6 +57,13 @@ enum SuggestionOverlayStabilityGate {
             return true
         }
         if currentText != newText {
+            return true
+        }
+        // Hold small caret deltas (post-insertion AX noise and exact-advance residual); re-anchor on
+        // genuine moves and on accumulated drift past the tolerance. Compared against the held
+        // (already-advanced) caret, not a per-tick previous value, so slow drift still gets corrected.
+        if abs(currentGeometry.caretRect.origin.x - newCaretRect.origin.x) > caretDriftTolerance
+            || abs(currentGeometry.caretRect.origin.y - newCaretRect.origin.y) > caretDriftTolerance {
             return true
         }
         // `observedCharWidth` is intentionally NOT compared here. Drift in that value also affects

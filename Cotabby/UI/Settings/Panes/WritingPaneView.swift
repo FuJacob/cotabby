@@ -19,7 +19,8 @@ struct WritingPaneView: View {
                     SettingsRowLabel(
                         title: "Length",
                         description: "How many words Cotabby aims for per suggestion. Shorter is snappier; " +
-                            "longer covers more thoughts but takes longer to generate."
+                            "longer covers more thoughts but takes longer to generate.",
+                        systemImage: "ruler"
                     )
                 }
 
@@ -47,6 +48,21 @@ struct WritingPaneView: View {
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+            }
+
+            Section("Corrections") {
+                Toggle("Hide Suggestions on Typo", isOn: suppressCompletionsOnTypoBinding)
+                    .help(
+                        "When the word you're currently typing looks misspelled, hide the normal " +
+                        "completion so suggestions don't pile on top of a broken word."
+                    )
+
+                Toggle("Offer Corrections on Typo", isOn: offerTypoCorrectionsBinding)
+                    .help(
+                        "When the current word looks misspelled, suggest a fix in green. Pressing the " +
+                        "accept key replaces the typo with the corrected word."
+                    )
+                    .disabled(!suggestionSettings.suppressCompletionsOnTypo)
             }
 
             Section("Profile") {
@@ -97,6 +113,20 @@ struct WritingPaneView: View {
         Binding(
             get: { suggestionSettings.selectedWordCountPreset },
             set: { suggestionSettings.selectWordCountPreset($0) }
+        )
+    }
+
+    private var suppressCompletionsOnTypoBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.suppressCompletionsOnTypo },
+            set: { suggestionSettings.setSuppressCompletionsOnTypo($0) }
+        )
+    }
+
+    private var offerTypoCorrectionsBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.offerTypoCorrections },
+            set: { suggestionSettings.setOfferTypoCorrections($0) }
         )
     }
 

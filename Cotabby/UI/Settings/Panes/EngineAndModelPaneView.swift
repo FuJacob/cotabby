@@ -34,7 +34,8 @@ struct EngineAndModelPaneView: View {
                         title: "Engine",
                         description: "Apple Intelligence runs on-device using macOS's built-in model " +
                             "(newer Apple Silicon Macs only). Open Source runs a model file you download " +
-                            "and pick below."
+                            "and pick below.",
+                        systemImage: "cpu"
                     )
                 }
                 .pickerStyle(.menu)
@@ -97,7 +98,8 @@ struct EngineAndModelPaneView: View {
                 SettingsRowLabel(
                     title: "Status",
                     description: "Whether the local model is loaded and ready to generate. " +
-                        "Loading takes a few seconds the first time."
+                        "Loading takes a few seconds the first time.",
+                    systemImage: "info.circle"
                 )
             }
         }
@@ -119,7 +121,8 @@ struct EngineAndModelPaneView: View {
                     SettingsRowLabel(
                         title: "Selected Model",
                         description: "Which downloaded model file generates suggestions. " +
-                            "Larger models are slower but write better."
+                            "Larger models are slower but write better.",
+                        systemImage: "shippingbox"
                     )
                 }
             }
@@ -162,7 +165,8 @@ struct EngineAndModelPaneView: View {
                     description: lmStudioModelsURL == nil
                         ? "Install LM Studio to load models from its library here."
                         : "Add models from your LM Studio library (~/.lmstudio/models) to the picker " +
-                            "above. Downloads still save to Cotabby's own folder."
+                            "above. Downloads still save to Cotabby's own folder.",
+                    systemImage: "square.stack.3d.up"
                 )
             }
             .disabled(lmStudioModelsURL == nil)
