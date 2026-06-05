@@ -106,6 +106,9 @@ final class CotabbyAppEnvironment {
         )
         let huggingFaceSearchService = HuggingFaceSearchService()
         let performanceMetricsStore = PerformanceMetricsStore()
+        // Live CPU/RAM graph backing for the Performance pane. Holds no state until the pane asks it
+        // to start sampling, so constructing it eagerly here costs nothing.
+        let systemMetricsStore = SystemMetricsStore()
         // Settings coordinator construction is deferred below until after `suggestionEngine` is
         // built — the Advanced pane's "try it" playground needs the engine so it can fire ad-hoc
         // generations using the same router the autocomplete pipeline does.
@@ -164,6 +167,7 @@ final class CotabbyAppEnvironment {
             suggestionEngine: suggestionEngine,
             configuration: configuration,
             performanceMetricsStore: performanceMetricsStore,
+            systemMetricsStore: systemMetricsStore,
             onShowWelcome: { [weak welcomeCoordinator] in
                 welcomeCoordinator?.showWelcome()
             },
