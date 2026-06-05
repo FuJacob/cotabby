@@ -3,8 +3,8 @@ import SwiftUI
 /// File overview:
 /// Decorative, self-playing demos shown on the final onboarding screen ("You're all set"). They
 /// mimic Cotabby's headline features: inline autocomplete ghost text, the inline `:emoji:` picker,
-/// and `/` macros, using hardcoded strings (plus the current date for the date macro) and local
-/// state only.
+/// and `/` macros. The first two use hardcoded strings and local state; the macro card computes its
+/// examples with the real (pure, offline) `MacroEngine`, so its values are always accurate.
 ///
 /// Nothing here touches the real suggestion pipeline, settings, Accessibility, the event tap, or the
 /// emoji catalog. The cards are inert content, so they can never steal focus or affect a real
@@ -350,60 +350,66 @@ private struct DemoEmojiKeycap: View {
 
 // MARK: - Demo 3: inline `/` macros
 
-/// A compact summary of the `/` macro feature: one row per macro category (math, unit conversion,
-/// currency, date), each showing what you type and the result it inserts. Unlike the two cards
-/// above, this is a stagger-revealed summary rather than a typing loop, because the point is the
-/// breadth of macro types, which reads better all at once than one example cycling at a time.
+/// A compact, cycling tour of the `/` macro feature: one row per macro category (math, unit
+/// conversion, currency, date), each rotating through several real examples so onboarding conveys the
+/// breadth of what `/` can do instead of a single example.
 ///
-/// The values mirror the real evaluators: arithmetic and unit conversion are deterministic; the
-/// currency row uses Cotabby's bundled offline EUR rate (0.92 per USD); the date row is computed
-/// live with a medium date style so `/today` never shows a stale date.
+/// Results come from the real `MacroEngine` (a pure, offline value type), so every row shows exactly
+/// what the feature would insert: arithmetic and unit conversions are deterministic, currency uses the
+/// bundled offline rate table, and dates evaluate against the current clock so `/today` and friends are
+/// never stale. Like the cards above it stays inert (no AX, event tap, or insertion); reduce-motion
+/// shows a single static example per row with no cycling.
 private struct MacroDemoCard: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// How many rows have faded in so far.
     @State private var revealed = 0
+    /// The currently shown example index for each category row; advanced round-robin while visible.
+    @State private var indices: [Int] = []
+    /// The category rows and their real, engine-computed examples. Built once when the card is created
+    /// (rather than in `.task`) so the card is never momentarily empty before its first render.
+    @State private var categories: [MacroCategory] = MacroDemoCard.buildCategories()
 
-    private struct MacroRow: Identifiable {
-        let category: String
-        let input: String
-        let result: String
-        var id: String { input }
+    private struct MacroCategory: Identifiable {
+        let name: String
+        let examples: [Example]
+        var id: String { name }
     }
 
-    private var rows: [MacroRow] {
-        [
-            MacroRow(category: "Math", input: "/5+5=", result: "10"),
-            MacroRow(category: "Convert", input: "/10km->mi", result: "6.214 mi"),
-            MacroRow(category: "Currency", input: "/100usd->eur", result: "€92.00"),
-            MacroRow(category: "Date", input: "/today", result: Self.todayMedium)
-        ]
+    private struct Example {
+        /// What the user types after `/`.
+        let input: String
+        /// What the macro inserts, as computed by the real engine.
+        let result: String
     }
 
     var body: some View {
         DemoCard(caption: "Inline macros", contentHeight: 96) {
             Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 10, verticalSpacing: 9) {
-                ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
+                ForEach(Array(categories.enumerated()), id: \.element.id) { index, category in
+                    let example = currentExample(row: index, in: category)
                     GridRow {
-                        Text(row.category)
+                        Text(category.name)
                             .font(.system(size: 11, weight: .medium, design: .rounded))
                             .foregroundStyle(.secondary)
 
-                        Text(row.input)
+                        Text("/\(example.input)")
                             .font(.system(size: 13, design: .monospaced))
                             .foregroundStyle(.primary)
+                            .contentTransition(.opacity)
 
                         HStack(alignment: .firstTextBaseline, spacing: 6) {
                             Text("→")
                                 .font(.system(size: 12))
                                 .foregroundStyle(.tertiary)
-                            Text(row.result)
+                            Text(example.result)
                                 .font(.system(size: 13, weight: .medium, design: .rounded))
                                 .foregroundStyle(.primary)
+                                .contentTransition(.opacity)
                         }
                     }
-                    // Rows reserve their grid space even while hidden, so fading them in never shifts
-                    // the layout (and the card's fixed height stays honest).
+                    // Rows reserve their grid space even while hidden, so fading them in (and later
+                    // crossfading their content) never shifts the layout or the card's fixed height.
                     .opacity(index < revealed ? 1 : 0)
                     .offset(y: index < revealed ? 0 : 4)
                 }
@@ -411,31 +417,73 @@ private struct MacroDemoCard: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .task(id: reduceMotion) {
-            await revealRows()
+            await run()
         }
     }
 
-    private func revealRows() async {
+    private func currentExample(row: Int, in category: MacroCategory) -> Example {
+        let exampleIndex = row < indices.count ? indices[row] : 0
+        return category.examples[exampleIndex % category.examples.count]
+    }
+
+    private func run() async {
+        guard !categories.isEmpty else { return }
+        if indices.count != categories.count {
+            indices = Array(repeating: 0, count: categories.count)
+        }
+
         guard !reduceMotion else {
-            revealed = rows.count
+            revealed = categories.count
             return
         }
+
+        // Stagger the rows in.
         revealed = 0
-        // A short beat before the first row, then a gentle stagger so the list assembles itself.
         try? await Task.sleep(nanoseconds: 250 * nsPerMillisecond)
-        for count in 1...rows.count {
+        for count in 1...categories.count {
             if Task.isCancelled { return }
             withAnimation(.easeOut(duration: 0.28)) { revealed = count }
             try? await Task.sleep(nanoseconds: 130 * nsPerMillisecond)
         }
+
+        // Then rotate one row at a time, round-robin, so the rows never all change at once and each
+        // example stays up long enough to read.
+        var tick = 0
+        while !Task.isCancelled {
+            try? await Task.sleep(nanoseconds: 800 * nsPerMillisecond)
+            if Task.isCancelled { return }
+            let row = tick % categories.count
+            withAnimation(.easeInOut(duration: 0.35)) { advance(row: row) }
+            tick += 1
+        }
     }
 
-    /// `/today` rendered with the same medium date style the real `DateMacroEvaluator` uses, read at
-    /// render time so the showcase never displays a stale date.
-    private static var todayMedium: String {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .none
-        return formatter.string(from: Date())
+    private func advance(row: Int) {
+        guard row < indices.count, row < categories.count else { return }
+        let count = categories[row].examples.count
+        guard count > 0 else { return }
+        indices[row] = (indices[row] + 1) % count
+    }
+
+    /// Builds the category rows, computing each example with the real (pure, offline) macro engine so
+    /// the showcase can never drift from the feature's actual output. Examples the engine does not
+    /// resolve are dropped and an empty category is omitted, so a future macro-grammar change degrades
+    /// gracefully instead of showing a blank row.
+    private static func buildCategories() -> [MacroCategory] {
+        let engine = MacroEngine.standard()
+        func examples(_ inputs: [String]) -> [Example] {
+            inputs.compactMap { input in
+                engine.evaluate(input).map { Example(input: input, result: $0.insertionText) }
+            }
+        }
+        return [
+            MacroCategory(name: "Math", examples: examples(["5+5=", "12*8=", "2^10=", "144/12="])),
+            MacroCategory(name: "Convert", examples: examples(["10km->mi", "100f->c", "5ft->m", "2lb->kg"])),
+            MacroCategory(
+                name: "Currency",
+                examples: examples(["100usd->eur", "50gbp->jpy", "1000jpy->usd", "20eur->gbp"])
+            ),
+            MacroCategory(name: "Date", examples: examples(["today", "tomorrow", "next-fri", "now"]))
+        ].filter { !$0.examples.isEmpty }
     }
 }
