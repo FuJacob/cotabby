@@ -10,6 +10,7 @@ import Foundation
 /// Order reflects a top-down reading: core behavior, how suggestions look, the emoji feature, what
 /// the model is told (writing then context), the model itself, input bindings, then system and info.
 enum SettingsCategory: String, CaseIterable, Hashable, Identifiable {
+    case home
     case general
     case appearance
     case emoji
@@ -26,6 +27,7 @@ enum SettingsCategory: String, CaseIterable, Hashable, Identifiable {
 
     var label: String {
         switch self {
+        case .home: return "Home"
         case .general: return "General"
         case .appearance: return "Appearance"
         case .emoji: return "Emoji"
@@ -43,6 +45,7 @@ enum SettingsCategory: String, CaseIterable, Hashable, Identifiable {
     /// SF Symbol displayed at the left of each sidebar row.
     var systemImage: String {
         switch self {
+        case .home: return "house.fill"
         case .general: return "gearshape.fill"
         case .appearance: return "paintbrush.fill"
         case .emoji: return "face.smiling"

@@ -32,9 +32,9 @@ struct SettingsContainerView: View {
     let clearEmojiHistory: () -> Void
 
     @AppStorage("cotabbySettingsSelectedCategoryV2")
-    private var storedCategoryRawValue: String = SettingsCategory.general.rawValue
+    private var storedCategoryRawValue: String = SettingsCategory.home.rawValue
 
-    @State private var selection: SettingsCategory = .general
+    @State private var selection: SettingsCategory = .home
     // Settings should behave like a traditional two-column preferences window: the sidebar is
     // always visible, but SwiftUI can still manage the native navigation/split-view chrome.
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
@@ -95,6 +95,8 @@ struct SettingsContainerView: View {
     @ViewBuilder
     private var detailPane: some View {
         switch selection {
+        case .home:
+            HomePaneView()
         case .general:
             GeneralPaneView(
                 suggestionSettings: suggestionSettings,

@@ -2,8 +2,9 @@ import SwiftUI
 
 /// File overview:
 /// Decorative, self-playing demos shown on the final onboarding screen ("You're all set"). They
-/// mimic Cotabby's two flagship features, inline autocomplete ghost text and the inline `:emoji:`
-/// picker, using hardcoded strings and local state only.
+/// mimic Cotabby's headline features: inline autocomplete ghost text, the inline `:emoji:` picker,
+/// and `/` macros, using hardcoded strings (plus the current date for the date macro) and local
+/// state only.
 ///
 /// Nothing here touches the real suggestion pipeline, settings, Accessibility, the event tap, or the
 /// emoji catalog. The cards are inert content, so they can never steal focus or affect a real
@@ -19,6 +20,7 @@ struct OnboardingFeatureShowcase: View {
         VStack(spacing: 12) {
             GhostTextDemoCard()
             EmojiPickerDemoCard()
+            MacroDemoCard()
         }
         // Purely decorative looping demo: hide it from VoiceOver so the
         // mid-animation text fragments are never read out to AT users.
@@ -343,5 +345,97 @@ private struct DemoEmojiKeycap: View {
                 RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.white.opacity(0.35), lineWidth: 1)
             )
             .fixedSize()
+    }
+}
+
+// MARK: - Demo 3: inline `/` macros
+
+/// A compact summary of the `/` macro feature: one row per macro category (math, unit conversion,
+/// currency, date), each showing what you type and the result it inserts. Unlike the two cards
+/// above, this is a stagger-revealed summary rather than a typing loop, because the point is the
+/// breadth of macro types, which reads better all at once than one example cycling at a time.
+///
+/// The values mirror the real evaluators: arithmetic and unit conversion are deterministic; the
+/// currency row uses Cotabby's bundled offline EUR rate (0.92 per USD); the date row is computed
+/// live with a medium date style so `/today` never shows a stale date.
+private struct MacroDemoCard: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// How many rows have faded in so far.
+    @State private var revealed = 0
+
+    private struct MacroRow: Identifiable {
+        let category: String
+        let input: String
+        let result: String
+        var id: String { input }
+    }
+
+    private var rows: [MacroRow] {
+        [
+            MacroRow(category: "Math", input: "/5+5=", result: "10"),
+            MacroRow(category: "Convert", input: "/10km->mi", result: "6.214 mi"),
+            MacroRow(category: "Currency", input: "/100usd->eur", result: "€92.00"),
+            MacroRow(category: "Date", input: "/today", result: Self.todayMedium)
+        ]
+    }
+
+    var body: some View {
+        DemoCard(caption: "Inline macros", contentHeight: 96) {
+            Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 10, verticalSpacing: 9) {
+                ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
+                    GridRow {
+                        Text(row.category)
+                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                            .foregroundStyle(.secondary)
+
+                        Text(row.input)
+                            .font(.system(size: 13, design: .monospaced))
+                            .foregroundStyle(.primary)
+
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            Text("→")
+                                .font(.system(size: 12))
+                                .foregroundStyle(.tertiary)
+                            Text(row.result)
+                                .font(.system(size: 13, weight: .medium, design: .rounded))
+                                .foregroundStyle(.primary)
+                        }
+                    }
+                    // Rows reserve their grid space even while hidden, so fading them in never shifts
+                    // the layout (and the card's fixed height stays honest).
+                    .opacity(index < revealed ? 1 : 0)
+                    .offset(y: index < revealed ? 0 : 4)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .task(id: reduceMotion) {
+            await revealRows()
+        }
+    }
+
+    private func revealRows() async {
+        guard !reduceMotion else {
+            revealed = rows.count
+            return
+        }
+        revealed = 0
+        // A short beat before the first row, then a gentle stagger so the list assembles itself.
+        try? await Task.sleep(nanoseconds: 250 * nsPerMillisecond)
+        for count in 1...rows.count {
+            if Task.isCancelled { return }
+            withAnimation(.easeOut(duration: 0.28)) { revealed = count }
+            try? await Task.sleep(nanoseconds: 130 * nsPerMillisecond)
+        }
+    }
+
+    /// `/today` rendered with the same medium date style the real `DateMacroEvaluator` uses, read at
+    /// render time so the showcase never displays a stale date.
+    private static var todayMedium: String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        return formatter.string(from: Date())
     }
 }

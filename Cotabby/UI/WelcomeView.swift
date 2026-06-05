@@ -413,11 +413,11 @@ extension WelcomeView {
                     .multilineTextAlignment(.center)
             }
 
-            // 2x2 layout: the two suggestion-acceptance keys stack in the left column, while the
-            // opt-in Toggle Tabby hotkey sits on the right. `.top` alignment keeps the left column's
-            // first row visually aligned with the single right-column row.
-            HStack(alignment: .top, spacing: 32) {
-                VStack(spacing: 16) {
+            // A single vertical column of full-width rows. The previous 2x2 grid placed three
+            // recorder controls side by side and overflowed the window at narrow widths; a vertical
+            // list matches the other onboarding steps and scrolls cleanly.
+            VStack(spacing: 10) {
+                VStack(spacing: 10) {
                     keybindRow(
                         title: "Accept Word",
                         keyLabel: suggestionSettings.acceptanceKeyLabel,
@@ -470,7 +470,7 @@ extension WelcomeView {
                 // No `onReset` here: the toggle hotkey is opt-in and has no factory default, so the
                 // only meaningful "reset" is unbind, which the Clear gesture in the recorder covers.
                 keybindRow(
-                    title: "Toggle Tabby",
+                    title: "Toggle Cotabby",
                     keyLabel: suggestionSettings.globalToggleKeyLabel,
                     action: .toggleTabby,
                     isRecording: $isRecordingOnboardingGlobalToggleKeybind,
@@ -484,6 +484,7 @@ extension WelcomeView {
                     onReset: nil
                 )
             }
+            .frame(maxWidth: 440)
         }
     }
 
@@ -496,52 +497,60 @@ extension WelcomeView {
         onKeyRecorded: @escaping (CGKeyCode, ShortcutModifierMask, String) -> Void,
         onReset: (() -> Void)? = nil
     ) -> some View {
-        VStack(spacing: 6) {
+        HStack(spacing: 10) {
             Text(title)
-                .font(.system(size: 13, weight: .medium, design: .rounded))
-                .foregroundStyle(.secondary)
+                .font(.system(size: 14, weight: .medium, design: .rounded))
+                .frame(maxWidth: .infinity, alignment: .leading)
 
-            HStack(spacing: 12) {
-                Text(keyLabel)
-                    .font(.system(size: 18, weight: .medium, design: .rounded))
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(.quaternary)
-                    )
+            Text(keyLabel)
+                .font(.system(size: 16, weight: .medium, design: .rounded))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(.quaternary)
+                )
 
-                if isRecording.wrappedValue {
-                    KeyRecorderView(
-                        onKeyRecorded: { keyCode, modifiers, label in
-                            onKeyRecorded(keyCode, modifiers, label)
-                            isRecording.wrappedValue = false
-                        },
-                        onCancelled: {
-                            isRecording.wrappedValue = false
-                        },
-                        conflictChecker: { keyCode, modifiers in
-                            suggestionSettings.conflictingShortcutName(
-                                keyCode: keyCode,
-                                modifiers: modifiers,
-                                excluding: action
-                            )
-                        }
-                    )
-                } else {
-                    Button("Change") {
-                        isRecording.wrappedValue = true
-                    }
-                }
-
-                if let onReset {
-                    Button("Reset") {
-                        onReset()
+            if isRecording.wrappedValue {
+                KeyRecorderView(
+                    onKeyRecorded: { keyCode, modifiers, label in
+                        onKeyRecorded(keyCode, modifiers, label)
                         isRecording.wrappedValue = false
+                    },
+                    onCancelled: {
+                        isRecording.wrappedValue = false
+                    },
+                    conflictChecker: { keyCode, modifiers in
+                        suggestionSettings.conflictingShortcutName(
+                            keyCode: keyCode,
+                            modifiers: modifiers,
+                            excluding: action
+                        )
                     }
+                )
+            } else {
+                Button("Change") {
+                    isRecording.wrappedValue = true
                 }
+                .controlSize(.small)
+            }
+
+            if let onReset {
+                Button("Reset") {
+                    onReset()
+                    isRecording.wrappedValue = false
+                }
+                .controlSize(.small)
             }
         }
+        // Full-width rows in a subtle card so each binding reads as its own tappable row, consistent
+        // with the labeled fields on the other onboarding steps.
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(.quaternary.opacity(0.35))
+        )
     }
 }
 

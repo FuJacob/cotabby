@@ -64,7 +64,7 @@ enum OnboardingTemplateRecommender {
             switch template {
             case .quick:
                 break
-            case .everyday:
+            case .everyday, .custom:
                 if gigabytes < everydayWarnBelowGigabytes {
                     warning = "Uses a \(modelSizeLabel(for: template)) model, which may run slowly on this Mac."
                 }

@@ -11,11 +11,14 @@ import Foundation
 /// static value type should not capture. Keeping the data here and the rules in `Support/` keeps the
 /// resolution pure and unit-testable.
 
-/// One of the three onboarding starting points the user chooses from.
+/// One of the onboarding starting points the user chooses from. Quick, Everyday, and Powerful are
+/// curated tiers; Custom is the neutral "set it up yourself" option that applies lean defaults so a
+/// user who does not want a curated tier can still get going and configure the rest in Settings.
 enum OnboardingTemplate: String, CaseIterable, Identifiable, Equatable, Sendable {
     case quick
     case everyday
     case powerful
+    case custom
 
     var id: String { rawValue }
 
@@ -27,6 +30,8 @@ enum OnboardingTemplate: String, CaseIterable, Identifiable, Equatable, Sendable
             return "Everyday"
         case .powerful:
             return "Powerful"
+        case .custom:
+            return "Custom"
         }
     }
 
@@ -39,6 +44,8 @@ enum OnboardingTemplate: String, CaseIterable, Identifiable, Equatable, Sendable
             return "Balanced for daily writing"
         case .powerful:
             return "Highest quality"
+        case .custom:
+            return "Set it up yourself"
         }
     }
 
@@ -53,6 +60,8 @@ enum OnboardingTemplate: String, CaseIterable, Identifiable, Equatable, Sendable
             return "A balance of speed and quality for everyday writing."
         case .powerful:
             return "Longer suggestions and higher quality on harder prompts."
+        case .custom:
+            return "Start with Cotabby's lean defaults, then fine-tune length, model, and behavior in Settings."
         }
     }
 
@@ -64,6 +73,8 @@ enum OnboardingTemplate: String, CaseIterable, Identifiable, Equatable, Sendable
             return "sparkles"
         case .powerful:
             return "bolt.fill"
+        case .custom:
+            return "slider.horizontal.3"
         }
     }
 
@@ -75,6 +86,8 @@ enum OnboardingTemplate: String, CaseIterable, Identifiable, Equatable, Sendable
             return .sevenToTwelve
         case .powerful:
             return .twelveToTwenty
+        case .custom:
+            return .sevenToTwelve
         }
     }
 
@@ -83,17 +96,23 @@ enum OnboardingTemplate: String, CaseIterable, Identifiable, Equatable, Sendable
         self == .quick
     }
 
-    /// Multi-line is off in every tier — the onboarding presets stay single-line so a fresh user
-    /// doesn't get long block completions before they've chosen that tradeoff in General.
+    /// Multi-line is off in every tier so a fresh user does not get long block completions before
+    /// they have chosen that tradeoff in General.
     var enablesMultiLine: Bool { false }
 
-    /// Quick stays lean by skipping the per-keystroke clipboard read and the extra prompt bytes
-    /// it adds; Everyday and Powerful pay that small cost for the extra signal.
+    /// Quick and Custom stay lean by skipping the per-keystroke clipboard read and the extra prompt
+    /// bytes it adds; Everyday and Powerful pay that small cost for the extra signal.
     var enablesClipboardContext: Bool {
-        self != .quick
+        switch self {
+        case .quick, .custom:
+            return false
+        case .everyday, .powerful:
+            return true
+        }
     }
 
-    /// The local GGUF this template installs when the Open Source engine is selected.
+    /// The local GGUF this template installs when the Open Source engine is selected. Custom uses the
+    /// same balanced base model as Everyday so it works out of the box; the user can swap it later.
     var openSourceModelFilename: String {
         switch self {
         case .quick:
@@ -102,6 +121,8 @@ enum OnboardingTemplate: String, CaseIterable, Identifiable, Equatable, Sendable
             return "gemma-4-E2B.i1-Q6_K.gguf"
         case .powerful:
             return "gemma-4-E4B.i1-Q4_K_M.gguf"
+        case .custom:
+            return "gemma-4-E2B.i1-Q6_K.gguf"
         }
     }
 }
