@@ -4,10 +4,10 @@ import Foundation
 import Logging
 
 /// File overview:
-/// Orchestrates the inline `::macro` preview. It is a sibling to `EmojiPickerController` and shares
+/// Orchestrates the inline `/macro` preview. It is a sibling to `EmojiPickerController` and shares
 /// the same shape: a pure `MacroTriggerStateMachine` drives the capture lifecycle, the controller
 /// evaluates the live query through `MacroEngine`, presents a single-row preview near the caret, and
-/// on accept replaces the typed `::query` run with the result.
+/// on accept replaces the typed `/query` run with the result.
 ///
 /// It deliberately mirrors the emoji controller's keystroke-observation contract (`observe` records a
 /// per-key consume decision that `decideCaptureKey` reads back for the same key) so the shared
@@ -160,6 +160,11 @@ final class MacroController {
 
     private func beginCapture() {
         guard canTrigger(), let context = focusModel.snapshot.context else {
+            // A `/` opened the trigger but the field is unsupported/secure or its AX context has not
+            // resolved yet (AX is eventually consistent right after a focus change). Aborting here is
+            // what looks to the user like "the macro preview sometimes does nothing"; log it so a
+            // first-keystroke failure is distinguishable from a commit-path failure.
+            CotabbyLogger.suggestion.debug("macro capture aborted at open: no triggerable focus context")
             machine.reset()
             return
         }
@@ -188,16 +193,16 @@ final class MacroController {
         panel.show(previewText: result.previewText, caretRect: caretRect, acceptKeyLabel: acceptKeyLabel())
     }
 
-    /// Replaces the typed `::query` run with the result's insertion text. The delete count is the
-    /// exact tracked run (`::` plus the observed query), so trailing field text is never touched.
-    /// Posted on the next runloop tick so the synthetic burst is never re-entrant from inside the
-    /// key's own tap callback.
+    /// Replaces the typed `/query` run with the result's insertion text. The delete count is the
+    /// exact tracked run (the `/` sigil plus the observed query), so trailing field text is never
+    /// touched. Posted on the next runloop tick so the synthetic burst is never re-entrant from
+    /// inside the key's own tap callback.
     private func commitIfPossible() {
         guard let result = currentResult else {
             cancelCapture()
             return
         }
-        let deleteCount = 2 + currentQuery.utf16.count   // "::" + query
+        let deleteCount = 1 + currentQuery.utf16.count   // "/" + query
         let insertion = result.insertionText
         CotabbyLogger.suggestion.debug("macro commit deleteUTF16=\(deleteCount) query=\"\(currentQuery)\"")
         teardownCapture()

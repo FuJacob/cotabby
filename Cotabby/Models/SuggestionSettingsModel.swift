@@ -72,7 +72,7 @@ final class SuggestionSettingsModel: ObservableObject {
     /// Whether the inline `:emoji:` picker is active. Read live by `EmojiPickerController` at event
     /// time, so toggling it takes effect on the next keystroke without restarting capture.
     @Published private(set) var isEmojiPickerEnabled: Bool
-    /// Whether the inline `::macro` preview is active. Read live by `MacroController` at event time,
+    /// Whether the inline `/macro` preview is active. Read live by `MacroController` at event time,
     /// so toggling it takes effect on the next keystroke without restarting capture.
     @Published private(set) var isMacroExpansionEnabled: Bool
     /// Emoji-customization preferences, read live by the picker's variant resolver at match time.

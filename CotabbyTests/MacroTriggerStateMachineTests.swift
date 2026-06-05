@@ -1,43 +1,39 @@
 import XCTest
 @testable import Cotabby
 
-/// Tests for the pure `::macro` trigger state machine.
+/// Tests for the pure `/macro` trigger state machine.
 ///
-/// These lock down deferred resolution (a single boundary `:` only pends; the second opens the
-/// macro), the consumption policy (query characters always pass through; commit and Escape are
-/// consumed only when there is something to act on), and the boundary rules.
+/// These lock down the single-keystroke trigger (a boundary `/` opens capture immediately, a
+/// non-boundary `/` never does), the consumption policy (query characters always pass through;
+/// commit and Escape are consumed only when there is something to act on), and the rule that a `/`
+/// typed while already capturing is an ordinary query character (division), not a re-trigger.
 final class MacroTriggerStateMachineTests: XCTestCase {
-
     private func openCapture(_ machine: inout MacroTriggerStateMachine) {
-        _ = machine.reduce(.character(":"), hasInsertableResult: false)
-        _ = machine.reduce(.character(":"), hasInsertableResult: false)
+        _ = machine.reduce(.character("/"), hasInsertableResult: false)
     }
 
-    func test_doubleColonAtBoundary_opensCapture() {
+    func test_slashAtBoundary_opensCapture() {
         var sut = MacroTriggerStateMachine()
-        let first = sut.reduce(.character(":"), hasInsertableResult: false)
-        XCTAssertEqual(first.actions, [])
-        XCTAssertFalse(sut.isCapturing)
-
-        let second = sut.reduce(.character(":"), hasInsertableResult: false)
-        XCTAssertEqual(second.actions, [.open])
-        XCTAssertFalse(second.consumesKey)
+        let output = sut.reduce(.character("/"), hasInsertableResult: false)
+        XCTAssertEqual(output.actions, [.open])
+        XCTAssertFalse(output.consumesKey)
         XCTAssertTrue(sut.isCapturing)
     }
 
-    func test_singleColonThenLetter_doesNotOpen() {
+    func test_slashAfterWhitespace_opensCapture() {
         var sut = MacroTriggerStateMachine()
-        _ = sut.reduce(.character(":"), hasInsertableResult: false)   // pending
-        let output = sut.reduce(.character("a"), hasInsertableResult: false)
-        XCTAssertEqual(output.actions, [])
-        XCTAssertFalse(sut.isCapturing)
+        _ = sut.reduce(.character("a"), hasInsertableResult: false)
+        _ = sut.reduce(.character(" "), hasInsertableResult: false)
+        let output = sut.reduce(.character("/"), hasInsertableResult: false)
+        XCTAssertEqual(output.actions, [.open])
+        XCTAssertTrue(sut.isCapturing)
     }
 
-    func test_colonNotAtBoundary_neverOpens() {
+    func test_slashNotAtBoundary_neverOpens() {
         var sut = MacroTriggerStateMachine()
         _ = sut.reduce(.character("x"), hasInsertableResult: false)
-        _ = sut.reduce(.character(":"), hasInsertableResult: false)
-        _ = sut.reduce(.character(":"), hasInsertableResult: false)
+        let output = sut.reduce(.character("/"), hasInsertableResult: false)
+        XCTAssertEqual(output.actions, [])
         XCTAssertFalse(sut.isCapturing)
     }
 
@@ -52,6 +48,18 @@ final class MacroTriggerStateMachineTests: XCTestCase {
             return XCTFail("expected capturing state")
         }
         XCTAssertEqual(query, "5+5")
+    }
+
+    func test_slashWhileCapturingExtendsQuery_asDivision() {
+        var sut = MacroTriggerStateMachine()
+        openCapture(&sut)
+        for character in "10/2" {
+            _ = sut.reduce(.character(character), hasInsertableResult: false)
+        }
+        guard case let .capturing(query) = sut.state else {
+            return XCTFail("expected capturing state")
+        }
+        XCTAssertEqual(query, "10/2")
     }
 
     func test_spaceTerminatesCapture_withoutConsuming() {

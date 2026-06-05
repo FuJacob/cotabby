@@ -208,7 +208,7 @@ final class CotabbyAppEnvironment {
             emojiUsage: { emojiUsageStore.snapshot() },
             recordEmojiUsage: { emojiUsageStore.record(alias: $0) }
         )
-        // The macro preview is a second inline-command provider, on the `::` sigil. It reuses the same
+        // The macro preview is a second inline-command provider, on the `/` sigil. It reuses the same
         // input monitor, focus model, and inserter as the emoji picker, and renders a single-row
         // preview near the caret.
         let macroController = MacroController(
@@ -221,8 +221,8 @@ final class CotabbyAppEnvironment {
             isWordAcceptKey: { inputMonitor.isWordAcceptKey($0) }
         )
         // One coordinator fans every keystroke out to both inline-command controllers and owns the
-        // input monitor's single capture decider and interception flag, which `:` and `::` share.
-        // It is given first look at every keystroke the suggestion coordinator receives.
+        // input monitor's single capture decider and interception flag, which the `:` and `/` features
+        // share. It is given first look at every keystroke the suggestion coordinator receives.
         let inlineCommandCoordinator = InlineCommandCoordinator(
             emoji: emojiPickerController,
             macro: macroController,

@@ -115,14 +115,6 @@ struct EmojiTriggerStateMachine {
 
     private mutating func reduceCapturingCharacter(query: String, character: Character) -> Output {
         if character == Self.trigger {
-            if query.isEmpty {
-                // An immediate second `:` is the `::` macro sigil, not an emoji commit. Yield so the
-                // macro controller owns it. No panel is shown for an empty emoji query (see
-                // `EmojiPickerController`), so nothing flashes during the hand-off. `:smile:` is
-                // unaffected: its closing colon arrives with a non-empty query and still commits below.
-                state = .idle(previousCharacter: nil)
-                return Output(actions: [.cancel], consumesKey: false)
-            }
             // Mode B: the closing `:` of `:query:`. Let it reach the field; the controller replaces
             // the whole `:query:` run on the next runloop tick (EMOJI.md §3.2, §5.5).
             state = .idle(previousCharacter: nil)

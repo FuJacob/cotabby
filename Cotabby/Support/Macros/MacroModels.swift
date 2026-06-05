@@ -1,7 +1,7 @@
 import Foundation
 
 /// File overview:
-/// Shared value types for the inline `::macro` feature. These are intentionally small, `Equatable`,
+/// Shared value types for the inline `/macro` feature. These are intentionally small, `Equatable`,
 /// and free of AppKit/Accessibility/CGEvent dependencies so every macro family stays pure and easy
 /// to unit test. UI and runtime wiring live elsewhere.
 
@@ -11,7 +11,7 @@ import Foundation
 struct MacroResult: Equatable {
     /// Text shown under the caret while the user types (for example `= 10` or `Jun 4, 2026`).
     let previewText: String
-    /// Text that replaces the typed `::query` run on accept.
+    /// Text that replaces the typed `/query` run on accept.
     let insertionText: String
 
     init(previewText: String, insertionText: String) {
@@ -29,7 +29,7 @@ struct MacroResult: Equatable {
 /// A pure macro family. Implementations are deterministic given their injected clock and RNG, so the
 /// whole macro layer is unit testable without AX, CGEvent, or UI.
 protocol MacroEvaluating {
-    /// Returns a result when `query` (the text typed after `::`, already trimmed) is a macro this
+    /// Returns a result when `query` (the text typed after `/`, already trimmed) is a macro this
     /// family understands, or `nil` to let the next family try.
     func evaluate(_ query: String) -> MacroResult?
 }

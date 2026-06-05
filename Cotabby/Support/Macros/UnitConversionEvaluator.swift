@@ -2,7 +2,7 @@ import Foundation
 
 /// File overview:
 /// Physical-unit conversion macros, fully offline and native via Foundation `Measurement`:
-/// `::10km->mi`, `::100f->c`, `::5ft->m`, `::2lb->kg`, `::3cup->ml`. The from and to tokens must
+/// `/10km->mi`, `/100f->c`, `/5ft->m`, `/2lb->kg`, `/3cup->ml`. The from and to tokens must
 /// belong to the same quantity (length, mass, temperature, volume); a cross-quantity request
 /// returns `nil` so currency can try the same `->` string next.
 ///

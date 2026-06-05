@@ -1,10 +1,10 @@
 import Foundation
 
 /// File overview:
-/// Locale-aware date and time macros: `::today`, `::now`, `::datetime`, `::tomorrow`, `::yesterday`,
-/// `::noon`, `::midnight`, weekday navigation (`::next-fri`, `::this-mon`, `::last-tue`), and relative
-/// offsets (`::+3d`, `::-5d`, `::+2w`, `::+1mo`, `::+1y`). An optional format argument tunes the
-/// output: `::today(iso)`, `::today(long)`, `::today(short)`, `::now(24h)`.
+/// Locale-aware date and time macros: `/today`, `/now`, `/datetime`, `/tomorrow`, `/yesterday`,
+/// `/noon`, `/midnight`, weekday navigation (`/next-fri`, `/this-mon`, `/last-tue`), and relative
+/// offsets (`/+3d`, `/-5d`, `/+2w`, `/+1mo`, `/+1y`). An optional format argument tunes the
+/// output: `/today(iso)`, `/today(long)`, `/today(short)`, `/now(24h)`.
 ///
 /// Pure given an injected clock so tests are deterministic. Output respects `Locale.current`; the
 /// input keywords are fixed (English), like code, so they do not change per locale.

@@ -1,7 +1,7 @@
 import Foundation
 
 /// File overview:
-/// Currency conversion macros: `::123.45CAD->USD`. Rates come from a bundled, offline, approximate
+/// Currency conversion macros: `/123.45CAD->USD`. Rates come from a bundled, offline, approximate
 /// table (Section: never touches the network), and the result is formatted with the target
 /// currency's locale-aware style via `NumberFormatter` (so JPY shows no decimals, USD shows two).
 struct CurrencyEvaluator: MacroEvaluating {
@@ -18,7 +18,7 @@ struct CurrencyEvaluator: MacroEvaluating {
         let lhs = query[query.startIndex..<arrow.lowerBound].trimmingCharacters(in: .whitespaces)
         let toCode = query[arrow.upperBound...].trimmingCharacters(in: .whitespaces).uppercased()
 
-        let numberPart = lhs.prefix { $0.isNumber || $0 == "." }
+        let numberPart = lhs.prefix { $0.isNumber || $0 == "." || $0 == "-" || $0 == "+" }
         let fromCode = lhs.dropFirst(numberPart.count).trimmingCharacters(in: .whitespaces).uppercased()
         guard let amount = Double(numberPart),
               fromCode.count == 3, toCode.count == 3,

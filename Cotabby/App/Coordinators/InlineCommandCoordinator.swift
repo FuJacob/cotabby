@@ -1,18 +1,15 @@
 import Foundation
 
 /// File overview:
-/// Routes the keystroke stream to the inline-command controllers (the emoji picker and the macro
-/// preview) and owns the two resources the input monitor exposes as single slots: the active-tap
-/// capture decider and the capture-interception flag.
+/// Routes the keystroke stream to the inline-command controllers (the emoji picker on `:` and the
+/// macro preview on `/`) and owns the two resources the input monitor exposes as single slots: the
+/// active-tap capture decider and the capture-interception flag.
 ///
-/// Why this exists: `:` (emoji) and `::` (macro) share the colon, and the input monitor has exactly
-/// one `emojiCaptureKeyDecider` and one capture-interception flag. Rather than let two controllers
-/// fight over them, this coordinator fans `observe` out to both, sets interception to "either is
-/// capturing", and routes the decider to whichever capture is open. The two are mutually exclusive
-/// (a colon run resolves to exactly one), so at most one ever claims a key.
-///
-/// Macro is offered each event first so a `::` run claims the second colon; the emoji picker yields
-/// its empty-query second colon precisely so this hand-off is clean and flash-free.
+/// Why this exists: the two features use different sigils and never overlap, but the input monitor
+/// has exactly one `emojiCaptureKeyDecider` and one capture-interception flag. Rather than let two
+/// controllers fight over those single slots, this coordinator fans `observe` out to both, sets
+/// interception to "either is capturing", and routes the decider to whichever capture is open. Their
+/// triggers are disjoint, so at most one is ever capturing and at most one ever claims a key.
 @MainActor
 final class InlineCommandCoordinator {
     private let emoji: EmojiPickerController

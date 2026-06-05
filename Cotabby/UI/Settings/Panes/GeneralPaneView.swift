@@ -104,7 +104,7 @@ struct GeneralPaneView: View {
                 Toggle(isOn: macroExpansionEnabledBinding) {
                     SettingsRowLabel(
                         title: "Inline Macros",
-                        description: "Type :: then a macro like today, 5+5=, 10km->mi, or random(1,6), " +
+                        description: "Type / then a macro like today, 5+5=, 10km->mi, or random(1,6), " +
                             "then press your accept-word shortcut to insert the result."
                     )
                 }

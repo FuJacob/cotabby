@@ -30,7 +30,7 @@ struct MacroEngine {
         ])
     }
 
-    /// Returns the result for the typed `::query` (without the `::`), or `nil` when nothing matches.
+    /// Returns the result for the typed `/query` (without the `/`), or `nil` when nothing matches.
     func evaluate(_ query: String) -> MacroResult? {
         let trimmed = query.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return nil }

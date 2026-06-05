@@ -1,20 +1,20 @@
 import Foundation
 
 /// File overview:
-/// Safe arithmetic for `::` macros: `+ - * / ^`, parentheses, unary sign, decimals, and a trailing
+/// Safe arithmetic for `/` macros: `+ - * / ^`, parentheses, unary sign, decimals, and a trailing
 /// `%` meaning percent (value divided by 100). `x`, `X`, and `×` mean multiply; `÷` means divide.
 ///
 /// We deliberately do NOT use `NSExpression`: it can evaluate function calls and key paths, which is
 /// an injection risk for arbitrary user text. This hand-written recursive-descent parser only ever
 /// produces a number, and is pure and deterministic.
 ///
-/// Insertion keeps the worked expression, so `::5+5=` inserts `5+5=10`. A bare number with no
-/// operator (`::5`) is intentionally not a result, so the macro stays out of the way of ordinary
+/// Insertion keeps the worked expression, so `/5+5=` inserts `5+5=10`. A bare number with no
+/// operator (`/5`) is intentionally not a result, so the macro stays out of the way of ordinary
 /// typing.
 struct ArithmeticEvaluator: MacroEvaluating {
     func evaluate(_ query: String) -> MacroResult? {
         // A trailing `=` is the user's "compute now" cue; strip it before parsing. Accepting replaces
-        // the whole `::expr=` run with just the result (so `::5+5=` becomes `10`).
+        // the whole `/expr=` run with just the result (so `/5+5=` becomes `10`).
         let literal = query.hasSuffix("=") ? String(query.dropLast()) : query
         guard !literal.isEmpty else { return nil }
 

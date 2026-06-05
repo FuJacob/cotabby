@@ -1,8 +1,8 @@
 import Foundation
 
 /// File overview:
-/// Random and generator macros: `::random`, `::random(n)`, `::random(a,b)`, `::dice`, `::coin`,
-/// `::uuid`. The RNG and UUID source are injected so tests are deterministic.
+/// Random and generator macros: `/random`, `/random(n)`, `/random(a,b)`, `/dice`, `/coin`,
+/// `/uuid`. The RNG and UUID source are injected so tests are deterministic.
 struct RandomMacroEvaluator: MacroEvaluating {
     private let randomSource: (ClosedRange<Int>) -> Int
     private let uuidSource: () -> String

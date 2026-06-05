@@ -1,15 +1,15 @@
 import Foundation
 
 /// File overview:
-/// The pure trigger state machine for the inline `::macro` preview. It owns only the capture
+/// The pure trigger state machine for the inline `/macro` preview. It owns only the capture
 /// lifecycle and the live query; evaluation lives in `MacroEngine` because it depends on the clock,
 /// locale, and rate table. Given the same inputs it always produces the same transitions, so it is
 /// fully unit testable without Accessibility, CGEvent, or UI.
 ///
-/// Deferred resolution: a single `:` at a word boundary only moves to `pendingColon` (paint nothing,
-/// consume nothing). A second `:` opens the macro; a non-colon character means the colon belonged to
-/// the emoji picker, so the machine steps aside. This is what lets `:` (emoji) and `::` (macro)
-/// coexist without a flash, as long as the emoji picker yields its empty-query second colon.
+/// Trigger model: a single `/` at a word boundary opens capture immediately. Unlike the earlier `::`
+/// sigil, `/` does not overlap the emoji picker's `:`, so there is no deferred hand-off and no
+/// shared-key race: one keystroke, one open. That directness is deliberate, it is what makes the
+/// preview reliably appear instead of intermittently losing the second colon to the emoji feature.
 struct MacroTriggerStateMachine {
     private(set) var state: MacroTriggerState = .idle(previousCharacter: nil)
 
@@ -36,8 +36,6 @@ struct MacroTriggerStateMachine {
         switch state {
         case let .idle(previous):
             return reduceIdle(previous: previous, input: input)
-        case .pendingColon:
-            return reducePending(input: input)
         case let .capturing(query):
             return reduceCapturing(query: query, input: input, hasInsertableResult: hasInsertableResult)
         }
@@ -46,27 +44,10 @@ struct MacroTriggerStateMachine {
     private mutating func reduceIdle(previous: Character?, input: MacroTriggerInput) -> Output {
         switch input {
         case let .character(character):
-            if character == ":", Self.isBoundary(previous) {
-                state = .pendingColon
-                return .ignored
-            }
-            state = .idle(previousCharacter: character)
-            return .ignored
-        case .backspace, .commitKey, .escape, .navigate, .focusChanged, .dismissExternally:
-            state = .idle(previousCharacter: nil)
-            return .ignored
-        }
-    }
-
-    private mutating func reducePending(input: MacroTriggerInput) -> Output {
-        switch input {
-        case let .character(character):
-            if character == ":" {
+            if character == Self.trigger, Self.isBoundary(previous) {
                 state = .capturing(query: "")
                 return Output(actions: [.open], consumesKey: false)
             }
-            // A single colon followed by something else belongs to the emoji picker. Remember the
-            // character so a following `:` re-evaluates the boundary the same way idle does.
             state = .idle(previousCharacter: character)
             return .ignored
         case .backspace, .commitKey, .escape, .navigate, .focusChanged, .dismissExternally:
@@ -87,13 +68,13 @@ struct MacroTriggerStateMachine {
                 state = .capturing(query: extended)
                 return Output(actions: [.updateQuery(extended)], consumesKey: false)
             }
-            // Whitespace or another terminator ends capture, leaving the literal `::query` untouched.
+            // Whitespace or another terminator ends capture, leaving the literal `/query` untouched.
             state = .idle(previousCharacter: character)
             return Output(actions: [.cancel], consumesKey: false)
 
         case .backspace:
             if query.isEmpty {
-                // The next backspace eats a colon of the `::` sigil; close and let it through.
+                // The next backspace eats the `/` sigil itself; close and let it through.
                 state = .idle(previousCharacter: nil)
                 return Output(actions: [.cancel], consumesKey: false)
             }
@@ -119,8 +100,10 @@ struct MacroTriggerStateMachine {
         }
     }
 
+    private static let trigger: Character = "/"
+
     /// A capture may begin only at a word boundary: the start of the field or immediately after
-    /// whitespace. This keeps `1:30`, `http://`, and `foo::bar` from opening a macro.
+    /// whitespace. This keeps `and/or`, `http://`, and `1/2` from opening a macro mid-word.
     private static func isBoundary(_ previous: Character?) -> Bool {
         guard let previous else { return true }
         return previous.isWhitespace
@@ -148,22 +131,22 @@ enum MacroTriggerAction: Equatable {
     case cancel
 }
 
-/// The three lifecycle states. `idle` remembers the previously typed character so the trigger can
-/// require a word boundary; `pendingColon` is the deferred state after a single boundary colon.
+/// The two lifecycle states. `idle` remembers the previously typed character so the trigger can
+/// require a word boundary; `capturing` holds the live query typed after the `/`.
 enum MacroTriggerState: Equatable {
     case idle(previousCharacter: Character?)
-    case pendingColon
     case capturing(query: String)
 }
 
 /// Characters that extend a macro query. Locale-independent on purpose: decimals are `.`, argument
-/// lists use `,`, and conversions use `->`. Only the rendered output is localized, which avoids the
-/// comma-decimal ambiguity a localized input grammar would create.
+/// lists use `,`, conversions use `->`, and `/` is division (the leading `/` is the sigil, any later
+/// `/` is an operator). Only the rendered output is localized, which avoids the comma-decimal
+/// ambiguity a localized input grammar would create.
 enum MacroQueryGrammar {
     static func extends(_ character: Character) -> Bool {
         if character.isLetter || character.isNumber {
             return true
         }
-        return "+-*/^%(),.=<>".contains(character)
+        return "+-*/^%(),.=>".contains(character)
     }
 }

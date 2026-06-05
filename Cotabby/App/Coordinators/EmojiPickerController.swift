@@ -225,9 +225,8 @@ final class EmojiPickerController {
         captureFocusSequence = context.focusChangeSequence
         lastCaretRect = context.caretRect
         refreshMatches(query: query)
-        // A capture opens on the bare ":" with an empty query, which is intentionally invisible: it
-        // lets "::" still resolve to the macro feature without a flash. The panel appears once the
-        // user types a name character (see `updateQuery`).
+        // A bare ":" opens with an empty query and immediately shows the user's recents/popular set.
+        presentPanel()
         armLongPauseTimer()
         onCaptureStateChanged?()
         CotabbyLogger.suggestion.debug("emoji capture opened query=\"\(query)\" matches=\(matches.count)")
@@ -236,13 +235,8 @@ final class EmojiPickerController {
     private func updateQuery(_ query: String) {
         guard machine.isCapturing else { return }
         refreshMatches(query: query)
-        // Reposition because the match count (and therefore the panel height) may have changed. Keep
-        // the panel hidden while the query is empty so a bare ":" shows nothing.
-        if currentQuery.isEmpty {
-            panel.hide()
-        } else {
-            presentPanel()
-        }
+        // Reposition because the match count (and therefore the panel height) may have changed.
+        presentPanel()
         armLongPauseTimer()
     }
 
@@ -411,19 +405,15 @@ final class EmojiPickerController {
             cancelCapture()
             return
         }
-        // Follow the caret as the user types the query, but never show the panel for an empty query.
+        // Follow the caret as the user types the query.
         lastCaretRect = context.caretRect
-        if currentQuery.isEmpty {
-            panel.hide()
-        } else {
-            panel.show(
-                query: currentQuery,
-                matches: matches,
-                selectedIndex: selectedIndex,
-                caretRect: context.caretRect,
-                acceptKeyLabel: acceptKeyLabel()
-            )
-        }
+        panel.show(
+            query: currentQuery,
+            matches: matches,
+            selectedIndex: selectedIndex,
+            caretRect: context.caretRect,
+            acceptKeyLabel: acceptKeyLabel()
+        )
     }
 
     private func armLongPauseTimer() {
