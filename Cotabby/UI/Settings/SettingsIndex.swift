@@ -17,7 +17,6 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     case allowMultiLine
     case acceptPunctuation
     case inlineMacros
-    case clipboardHistory
     case onboarding
     // Appearance
     case suggestionDisplay
@@ -75,7 +74,6 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .allowMultiLine: return "Allow Multi-line Suggestions"
         case .acceptPunctuation: return "Accept Punctuation With Word"
         case .inlineMacros: return "Inline Macros"
-        case .clipboardHistory: return "Clipboard History"
         case .onboarding: return "Onboarding"
         case .suggestionDisplay: return "Suggestion Display"
         case .showFieldIndicator: return "Show Field Indicator"
@@ -123,7 +121,6 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .allowMultiLine: return "text.alignleft"
         case .acceptPunctuation: return "textformat.abc"
         case .inlineMacros: return "slash.circle"
-        case .clipboardHistory: return "doc.on.clipboard"
         case .onboarding: return "graduationcap"
         case .suggestionDisplay: return "text.cursor"
         case .showFieldIndicator: return "dot.viewfinder"
@@ -165,7 +162,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     var category: SettingsCategory {
         switch self {
         case .enableGlobally, .fastMode, .openAtLogin, .includeClipboardContext,
-             .allowMultiLine, .acceptPunctuation, .inlineMacros, .clipboardHistory, .onboarding:
+             .allowMultiLine, .acceptPunctuation, .inlineMacros, .onboarding:
             return .general
         case .suggestionDisplay, .showFieldIndicator, .showWordCount, .showKeyHint,
              .ghostTextColor, .ghostTextOpacity:
@@ -201,7 +198,6 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .allowMultiLine: return ["multiline", "line", "newline", "wrap"]
         case .acceptPunctuation: return ["punctuation", "comma", "period", "accept"]
         case .inlineMacros: return ["macro", "macros", "math", "convert", "currency", "date", "random", "expansion", "slash"]
-        case .clipboardHistory: return ["clipboard", "history", "paste", "copy", "cb", "clip"]
         case .onboarding: return ["welcome", "guide", "tutorial", "intro"]
         case .suggestionDisplay: return ["inline", "popup", "ghost", "card", "display", "mirror"]
         case .showFieldIndicator: return ["indicator", "icon", "field", "ready"]

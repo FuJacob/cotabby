@@ -88,7 +88,6 @@ struct SuggestionSettingsStore {
     private static let multiLineEnabledDefaultsKey = "cotabbyMultiLineEnabled"
     private static let emojiPickerEnabledDefaultsKey = "cotabbyEmojiPickerEnabled"
     private static let macroExpansionEnabledDefaultsKey = "cotabbyMacroExpansionEnabled"
-    private static let clipboardPickerEnabledDefaultsKey = "cotabbyClipboardPickerEnabled"
     private static let preferredEmojiSkinToneDefaultsKey = "cotabbyPreferredEmojiSkinTone"
     private static let preferredEmojiGenderDefaultsKey = "cotabbyPreferredEmojiGender"
     private static let autoAcceptTrailingPunctuationDefaultsKey = "cotabbyAutoAcceptTrailingPunctuation"
@@ -236,9 +235,6 @@ struct SuggestionSettingsStore {
         let resolvedMultiLineEnabled = userDefaults.object(forKey: Self.multiLineEnabledDefaultsKey) as? Bool ?? false
         let resolvedEmojiPickerEnabled = userDefaults.object(forKey: Self.emojiPickerEnabledDefaultsKey) as? Bool ?? true
         let resolvedMacroExpansionEnabled = userDefaults.object(forKey: Self.macroExpansionEnabledDefaultsKey) as? Bool ?? true
-        // Clipboard history is on by default so `/cb` works out of the box. It stays in memory only,
-        // clears on quit, and never captures concealed (password-manager) or transient copies.
-        let resolvedClipboardPickerEnabled = userDefaults.object(forKey: Self.clipboardPickerEnabledDefaultsKey) as? Bool ?? true
         let resolvedPreferredEmojiSkinTone = userDefaults.string(forKey: Self.preferredEmojiSkinToneDefaultsKey)
             .flatMap(EmojiSkinTone.init(rawValue:)) ?? .neutral
         let resolvedPreferredEmojiGender = userDefaults.string(forKey: Self.preferredEmojiGenderDefaultsKey)
@@ -315,7 +311,6 @@ struct SuggestionSettingsStore {
             isMultiLineEnabled: resolvedMultiLineEnabled,
             isEmojiPickerEnabled: resolvedEmojiPickerEnabled,
             isMacroExpansionEnabled: resolvedMacroExpansionEnabled,
-            isClipboardPickerEnabled: resolvedClipboardPickerEnabled,
             preferredEmojiSkinTone: resolvedPreferredEmojiSkinTone,
             preferredEmojiGender: resolvedPreferredEmojiGender,
             autoAcceptTrailingPunctuation: resolvedAutoAcceptTrailingPunctuation,
@@ -359,7 +354,6 @@ struct SuggestionSettingsStore {
         saveMultiLineEnabled(data.isMultiLineEnabled)
         saveEmojiPickerEnabled(data.isEmojiPickerEnabled)
         saveMacroExpansionEnabled(data.isMacroExpansionEnabled)
-        saveClipboardPickerEnabled(data.isClipboardPickerEnabled)
         savePreferredEmojiSkinTone(data.preferredEmojiSkinTone)
         savePreferredEmojiGender(data.preferredEmojiGender)
         saveAutoAcceptTrailingPunctuation(data.autoAcceptTrailingPunctuation)
@@ -510,10 +504,6 @@ struct SuggestionSettingsStore {
 
     func saveMacroExpansionEnabled(_ enabled: Bool) {
         userDefaults.set(enabled, forKey: Self.macroExpansionEnabledDefaultsKey)
-    }
-
-    func saveClipboardPickerEnabled(_ enabled: Bool) {
-        userDefaults.set(enabled, forKey: Self.clipboardPickerEnabledDefaultsKey)
     }
 
     func savePreferredEmojiSkinTone(_ tone: EmojiSkinTone) {

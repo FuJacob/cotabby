@@ -29,8 +29,6 @@ final class CotabbyAppEnvironment {
     let suggestionEngine: any SuggestionGenerating
     let emojiPickerController: EmojiPickerController
     let macroController: MacroController
-    let clipboardHistoryService: ClipboardHistoryService
-    let clipboardPickerController: ClipboardPickerController
     let inlineCommandCoordinator: InlineCommandCoordinator
     let emojiUsageStore: EmojiUsageStore
     let welcomeCoordinator: WelcomeCoordinator
@@ -229,37 +227,12 @@ final class CotabbyAppEnvironment {
             acceptKeyLabel: { suggestionSettings.emojiPickerAcceptKeyLabel },
             isWordAcceptKey: { inputMonitor.isWordAcceptKey($0) }
         )
-        // The clipboard history picker is a third inline-command provider, on the `/cb` command. Its
-        // service polls the pasteboard into an in-memory ring buffer (cleared on quit, never capturing
-        // concealed/transient copies); the controller renders the open-hint and the history list near
-        // the caret and inserts the chosen clip.
-        let clipboardHistoryService = ClipboardHistoryService(
-            isEnabled: { suggestionSettings.isClipboardPickerEnabled }
-        )
-        let clipboardPickerController = ClipboardPickerController(
-            history: clipboardHistoryService,
-            panel: CommandPickerPanelController(
-                metrics: CommandPickerMetrics(
-                    width: 320,
-                    rowHeight: 38,
-                    headerHeight: 26,
-                    maxVisibleRows: 8,
-                    emptyMessage: "No clipboard history yet"
-                )
-            ),
-            focusModel: focusModel,
-            inserter: suggestionInserter,
-            isEnabled: { suggestionSettings.isClipboardPickerEnabled },
-            acceptKeyLabel: { suggestionSettings.emojiPickerAcceptKeyLabel },
-            isWordAcceptKey: { inputMonitor.isWordAcceptKey($0) }
-        )
-        // One coordinator fans every keystroke out to all inline-command participants and owns the
-        // input monitor's single capture decider and interception flag. Clipboard is ordered before the
-        // macro so a `/cb` run's accept key opens the clipboard list (the macro yields no result for
-        // "cb" and cedes the key); emoji is on `:` and is independent. It is given first look at every
-        // keystroke the suggestion coordinator receives.
+        // One coordinator fans every keystroke out to both inline-command controllers and owns the
+        // input monitor's single capture decider and interception flag, which the `:` and `/` features
+        // share. It is given first look at every keystroke the suggestion coordinator receives.
         let inlineCommandCoordinator = InlineCommandCoordinator(
-            participants: [clipboardPickerController, macroController, emojiPickerController],
+            emoji: emojiPickerController,
+            macro: macroController,
             inputMonitor: inputMonitor
         )
         suggestionCoordinator.emojiInputObserver = { [weak inlineCommandCoordinator] event in
@@ -280,8 +253,6 @@ final class CotabbyAppEnvironment {
         self.suggestionEngine = suggestionEngine
         self.emojiPickerController = emojiPickerController
         self.macroController = macroController
-        self.clipboardHistoryService = clipboardHistoryService
-        self.clipboardPickerController = clipboardPickerController
         self.inlineCommandCoordinator = inlineCommandCoordinator
         self.emojiUsageStore = emojiUsageStore
         self.welcomeCoordinator = welcomeCoordinator

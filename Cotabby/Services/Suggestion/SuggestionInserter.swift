@@ -101,13 +101,6 @@ final class SuggestionInserter {
     /// burst once means every backspace and the insertion keydown fall inside one suppression window,
     /// so none of our own deletes are re-observed as user typing.
     func replace(deletingUTF16Count: Int, with text: String) -> Bool {
-        // Multi-line replacement text must not go through the keystroke path: a synthetic newline is a
-        // Return keypress, which submits the message or form in chat apps. Delete the typed run via
-        // backspaces, then paste the replacement (which carries the synthetic-write marker).
-        if text.contains(where: \.isNewline) {
-            return replaceViaPaste(deletingUTF16Count: deletingUTF16Count, with: text)
-        }
-
         let plan = SyntheticReplacePlanner.plan(deletingUTF16Count: deletingUTF16Count, text: text)
         guard !plan.isNoop else {
             lastErrorMessage = nil
@@ -159,33 +152,6 @@ final class SuggestionInserter {
         return true
     }
 
-    /// Deletes the typed run via synthetic backspaces and then pastes multi-line replacement text.
-    /// Used by `replace` when the replacement contains newlines, which the keystroke path cannot carry
-    /// safely. The delete burst is suppressed as one window; the paste reuses `insertViaPaste`.
-    private func replaceViaPaste(deletingUTF16Count: Int, with text: String) -> Bool {
-        let deletePlan = SyntheticReplacePlanner.plan(deletingUTF16Count: deletingUTF16Count, text: "")
-        if deletePlan.backspaceCount > 0 {
-            var events: [CGEvent] = []
-            for _ in 0..<deletePlan.backspaceCount {
-                guard let down = CGEvent(keyboardEventSource: nil, virtualKey: Self.backspaceKeyCode, keyDown: true),
-                      let up = CGEvent(keyboardEventSource: nil, virtualKey: Self.backspaceKeyCode, keyDown: false) else {
-                    lastErrorMessage = "Unable to create a synthetic delete event."
-                    return false
-                }
-                events.append(down)
-                events.append(up)
-            }
-            for event in events {
-                suppressionController.markSynthetic(event)
-            }
-            suppressionController.registerSyntheticInsertion(expectedKeyDownCount: deletePlan.totalKeyDownCount)
-            for event in events {
-                event.post(tap: .cghidEventTap)
-            }
-        }
-        return insertViaPaste(text)
-    }
-
     /// Commits `text` by placing it on the pasteboard and synthesizing Cmd-V, then restoring the
     /// user's clipboard shortly after. Returns false (having already restored the clipboard) if any
     /// synthetic event could not be created, so the caller falls back to keystroke insertion. The
@@ -202,16 +168,12 @@ final class SuggestionInserter {
         let saved = savedClipboardForRestore ?? []
 
         pasteboard.clearContents()
-        // Declare a sentinel type alongside the string so the clipboard history service can recognize
-        // and skip Cotabby's own writes instead of capturing the app's completions.
-        pasteboard.declareTypes([.string, SyntheticPasteboardMarker.type], owner: nil)
         guard pasteboard.setString(text, forType: .string) else {
             pendingPasteboardRestore?.cancel()
             Self.restorePasteboard(saved, to: pasteboard)
             clearPendingPasteboardRestore()
             return false
         }
-        pasteboard.setData(Data(), forType: SyntheticPasteboardMarker.type)
         let expectedChangeCount = pasteboard.changeCount
 
         guard let keyDown = CGEvent(keyboardEventSource: nil, virtualKey: Self.vKeyCode, keyDown: true),

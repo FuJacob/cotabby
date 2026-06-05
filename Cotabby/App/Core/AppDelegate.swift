@@ -25,9 +25,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let foundationModelAvailabilityService: FoundationModelAvailabilityService
     let suggestionCoordinator: SuggestionCoordinator
     let inlineCommandCoordinator: InlineCommandCoordinator
-    /// Owns the pasteboard-polling lifecycle for the `/cb` clipboard history; the coordinator drives
-    /// the picker UI, but the capture timer is started and stopped here with the rest of the services.
-    private let clipboardHistoryService: ClipboardHistoryService
     let welcomeCoordinator: WelcomeCoordinator
     let settingsCoordinator: SettingsCoordinator
 
@@ -59,7 +56,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         foundationModelAvailabilityService = environment.foundationModelAvailabilityService
         suggestionCoordinator = environment.suggestionCoordinator
         inlineCommandCoordinator = environment.inlineCommandCoordinator
-        clipboardHistoryService = environment.clipboardHistoryService
         welcomeCoordinator = environment.welcomeCoordinator
         settingsCoordinator = environment.settingsCoordinator
         activationIndicatorController = environment.activationIndicatorController
@@ -136,7 +132,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         appUpdateManager.start()
         suggestionCoordinator.start()
         inlineCommandCoordinator.start()
-        clipboardHistoryService.start()
         welcomeCoordinator.presentIfNeeded()
         welcomeCoordinator.presentPermissionReminderIfNeeded()
         didStartServices = true
@@ -167,7 +162,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         focusDebugOverlayController?.hide()
         suggestionCoordinator.stop()
         inlineCommandCoordinator.stop()
-        clipboardHistoryService.stop()
         inputMonitor.stop()
         focusModel.stop()
 

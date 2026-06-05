@@ -80,9 +80,6 @@ final class SuggestionSettingsModel: ObservableObject {
     /// Whether the inline `/macro` preview is active. Read live by `MacroController` at event time,
     /// so toggling it takes effect on the next keystroke without restarting capture.
     @Published private(set) var isMacroExpansionEnabled: Bool
-    /// Whether the inline `/cb` clipboard history picker is active. Read live by
-    /// `ClipboardPickerController` at event time.
-    @Published private(set) var isClipboardPickerEnabled: Bool
     /// Emoji-customization preferences, read live by the picker's variant resolver at match time.
     @Published private(set) var preferredEmojiSkinTone: EmojiSkinTone
     @Published private(set) var preferredEmojiGender: EmojiGender
@@ -153,7 +150,6 @@ final class SuggestionSettingsModel: ObservableObject {
         isMultiLineEnabled = data.isMultiLineEnabled
         isEmojiPickerEnabled = data.isEmojiPickerEnabled
         isMacroExpansionEnabled = data.isMacroExpansionEnabled
-        isClipboardPickerEnabled = data.isClipboardPickerEnabled
         preferredEmojiSkinTone = data.preferredEmojiSkinTone
         preferredEmojiGender = data.preferredEmojiGender
         autoAcceptTrailingPunctuation = data.autoAcceptTrailingPunctuation
@@ -329,14 +325,6 @@ final class SuggestionSettingsModel: ObservableObject {
         }
         isMacroExpansionEnabled = enabled
         store.saveMacroExpansionEnabled(enabled)
-    }
-
-    func setClipboardPickerEnabled(_ enabled: Bool) {
-        guard isClipboardPickerEnabled != enabled else {
-            return
-        }
-        isClipboardPickerEnabled = enabled
-        store.saveClipboardPickerEnabled(enabled)
     }
 
     func setPreferredEmojiSkinTone(_ tone: EmojiSkinTone) {

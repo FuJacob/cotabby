@@ -45,7 +45,6 @@ struct SuggestionSettingsData: Equatable {
     var isMultiLineEnabled: Bool
     var isEmojiPickerEnabled: Bool
     var isMacroExpansionEnabled: Bool
-    var isClipboardPickerEnabled: Bool
     var preferredEmojiSkinTone: EmojiSkinTone
     var preferredEmojiGender: EmojiGender
     var autoAcceptTrailingPunctuation: Bool
