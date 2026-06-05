@@ -51,8 +51,8 @@ Everything runs on-device. No hosted API, no cloud round-trip.
 
 |  |  |
 |:---:|:---:|
-| <img src="gifs/slack.gif" alt="Cotabby emoji autocomplete demo" width="440" height="220" /> | <img src="gifs/imessage.gif" alt="Cotabby autocomplete demo" width="440" height="220" /> |
-| <img src="gifs/autocorrect.gif" alt="Cotabby autocorrect demo" width="440" height="220" /> | <img src="gifs/macros.gif" alt="Cotabby inline macros demo" width="440" height="220" /> |
+| <img src="gifs/slack.gif" alt="Cotabby emoji autocomplete demo" width="320" height="180" /> | <img src="gifs/imessage.gif" alt="Cotabby autocomplete demo" width="320" height="180" /> |
+| <img src="gifs/autocorrect.gif" alt="Cotabby autocorrect demo" width="320" height="180" /> | <img src="gifs/macros.gif" alt="Cotabby inline macros demo" width="320" height="180" /> |
 
 </div>
 
