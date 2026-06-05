@@ -60,6 +60,13 @@ struct MenuBarView: View {
             Text("Cotabby")
                 .font(.headline)
 
+            if let appShortVersion {
+                Text(appShortVersion)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .accessibilityLabel("Version \(appShortVersion)")
+            }
+
             // Ko-fi tip jar lives next to the title because the menu bar surface is the most
             // frequented entry point. Using a Link lets SwiftUI hand the URL to NSWorkspace and
             // dismiss the popover; a Button would need its own handler plumbing for the same effect.
@@ -76,6 +83,12 @@ struct MenuBarView: View {
                 .font(.subheadline)
         }
         .padding(.bottom, 12)
+    }
+
+    /// Short, user-facing app version (e.g. "0.4.2-beta") shown next to the title. Reads the bundle's
+    /// `CFBundleShortVersionString`, the same canonical source the About pane uses.
+    private var appShortVersion: String? {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
     }
 
     // MARK: - Quick controls
