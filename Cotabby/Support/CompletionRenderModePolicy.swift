@@ -6,7 +6,9 @@ import Foundation
 /// to mirror mode. `alwaysInline` and `alwaysMirror` let power users pin a strategy when the
 /// auto rule misfires for their host mix.
 ///
-/// Phase 1 hardcodes `.auto` everywhere; the global setting and per-app overrides land in Phase 2.
+/// The global preference is live (Appearance settings Picker); per-app overrides are not wired yet.
+/// Note that a mid-line caret promotes inline to the card regardless of this preference; see
+/// `CompletionRenderModePolicy.mode(for:bundleIdentifier:)`.
 enum MirrorPreference: String, Codable, CaseIterable, Identifiable, Equatable, Sendable {
     case auto
     case alwaysInline
@@ -57,6 +59,28 @@ struct CompletionRenderModePolicy: Equatable, Sendable {
     /// Decides which render mode to use for one presentation. `bundleIdentifier` may be nil when the
     /// host app could not be identified; in that case only the global preference applies.
     func mode(
+        for geometry: SuggestionOverlayGeometry,
+        bundleIdentifier: String?
+    ) -> CompletionRenderMode {
+        let baseMode = preferenceMode(for: geometry, bundleIdentifier: bundleIdentifier)
+
+        // A caret parked mid-line (real characters follow it before the next line break) has no
+        // inline home: ghost text would paint over those trailing characters. Promote any inline
+        // result to the card, which anchors to the field rect instead of the caret. This deliberately
+        // overrides an explicit `.alwaysInline` pin too, because inline cannot render mid-line at all,
+        // and the card is the surface fill-in-middle completions will use. The promotion only
+        // upgrades inline results; a presentation already routed to the card keeps its original, more
+        // specific reason (e.g. `.caretGeometryEstimated`).
+        if case .inline = baseMode, !geometry.isCaretAtEndOfLine {
+            return .mirror(reason: .caretMidLine)
+        }
+        return baseMode
+    }
+
+    /// The render mode implied by the user (or per-app) preference and caret-geometry quality, before
+    /// the mid-line override in `mode(for:bundleIdentifier:)` is applied. Split out so that override
+    /// reads as a single, well-scoped rule rather than another branch threaded through the switch.
+    private func preferenceMode(
         for geometry: SuggestionOverlayGeometry,
         bundleIdentifier: String?
     ) -> CompletionRenderMode {

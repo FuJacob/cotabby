@@ -157,6 +157,7 @@ enum CotabbyTestFixtures {
         caretRect: CGRect = CGRect(x: 10, y: 20, width: 2, height: 18),
         inputFrameRect: CGRect? = CGRect(x: 0, y: 0, width: 240, height: 32),
         caretQuality: CaretGeometryQuality = .exact,
+        isCaretAtEndOfLine: Bool = true,
         observedCharWidth: CGFloat? = nil,
         isRightToLeft: Bool = false
     ) -> SuggestionOverlayGeometry {
@@ -164,6 +165,7 @@ enum CotabbyTestFixtures {
             caretRect: caretRect,
             inputFrameRect: inputFrameRect,
             caretQuality: caretQuality,
+            isCaretAtEndOfLine: isCaretAtEndOfLine,
             observedCharWidth: observedCharWidth,
             isRightToLeft: isRightToLeft
         )

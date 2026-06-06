@@ -532,6 +532,12 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
     let caretRect: CGRect
     let inputFrameRect: CGRect?
     let caretQuality: CaretGeometryQuality
+    /// True when the caret is at the end of its line: only whitespace, if anything, precedes the
+    /// next line break. When false, real characters follow the caret on this line, so the
+    /// render-mode policy promotes the suggestion to the card: inline ghost text would otherwise
+    /// paint over those trailing characters. Carried from `FocusedInputContext.isCaretAtEndOfLine`.
+    /// Defaults to `true` so call sites that predate the mid-line rule keep the prior inline path.
+    let isCaretAtEndOfLine: Bool
     /// Average character width from AX child-frame sampling when available. Layout uses this as a
     /// cheap approximation for host-editor text width before falling back to local font metrics.
     let observedCharWidth: CGFloat?
@@ -560,6 +566,7 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
         caretRect: CGRect,
         inputFrameRect: CGRect?,
         caretQuality: CaretGeometryQuality,
+        isCaretAtEndOfLine: Bool = true,
         observedCharWidth: CGFloat?,
         isRightToLeft: Bool,
         focusChangeSequence: UInt64 = 0,
@@ -570,6 +577,7 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
         self.caretRect = caretRect
         self.inputFrameRect = inputFrameRect
         self.caretQuality = caretQuality
+        self.isCaretAtEndOfLine = isCaretAtEndOfLine
         self.observedCharWidth = observedCharWidth
         self.isRightToLeft = isRightToLeft
         self.focusChangeSequence = focusChangeSequence
@@ -585,6 +593,7 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
             caretRect: caretRect,
             inputFrameRect: inputFrameRect,
             caretQuality: caretQuality,
+            isCaretAtEndOfLine: isCaretAtEndOfLine,
             observedCharWidth: observedCharWidth,
             isRightToLeft: isRightToLeft,
             focusChangeSequence: focusChangeSequence,

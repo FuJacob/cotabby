@@ -151,11 +151,11 @@ struct MirrorOverlayLayout: Equatable {
     /// - `.caretGeometryEstimated` means the host did not expose any of the trusted caret paths, so
     ///   the caret rect itself is unreliable. We anchor to the input field rect when available
     ///   because the field rect stays stable even when the caret estimate drifts.
-    /// - `.userPreference` and `.perAppOverride` mean the user pinned popup mode despite the caret
-    ///   geometry being trustworthy (`.exact` or `.derived`). Anchoring to the field rect in this
-    ///   case wastes the precise caret signal and lands the card far below where the eye is. We
-    ///   anchor to the caret rect instead, with the input field as a safety net only for the
-    ///   degenerate case where the caret rect is empty.
+    /// - `.userPreference`, `.perAppOverride`, and `.caretMidLine` all mean the caret geometry is
+    ///   trustworthy (`.exact` or `.derived`); the card is up because the user pinned popup mode or
+    ///   the caret is mid-line. Anchoring to the field rect would waste the precise caret signal and
+    ///   land the card far below where the eye is, so we anchor to the caret rect instead, with the
+    ///   input field as a safety net only for the degenerate case where the caret rect is empty.
     private static func computeAnchorTopY(
         geometry: SuggestionOverlayGeometry,
         reason: CompletionRenderMode.MirrorReason
@@ -169,7 +169,7 @@ struct MirrorOverlayLayout: Equatable {
             // height as unreliable; the extra slack keeps the card from overlapping the typed line.
             return geometry.caretRect.minY - Metrics.caretFallbackVerticalOffset
 
-        case .userPreference, .perAppOverride:
+        case .userPreference, .perAppOverride, .caretMidLine:
             // Caret geometry is trustworthy in these cases. Sit just under the caret line so the
             // popup tracks the cursor like the inline ghost does, instead of floating below the
             // entire field.
