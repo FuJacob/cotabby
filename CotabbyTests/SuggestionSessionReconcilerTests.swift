@@ -383,35 +383,42 @@ final class SuggestionSessionReconcilerTests: XCTestCase {
         )
     }
 
-    func test_insertionChunk_addsBoundarySpaceWhenChunkAndFieldWouldGlue() {
-        // The reported "no space" regression: the chunk has no leading whitespace (model omitted it,
-        // or the normalizer stripped it against a stale prefix snapshot) and the field doesn't have
-        // a trailing one either, so we synthesize the word boundary at insert time.
+    func test_insertionChunk_continuesPartialWordWhenModelOmitsLeadingSpace() {
+        // Regression for issue #621 ("after" -> "afternoon" committing as "after noon"): the caret
+        // sits at the end of a partial word and the model continues it with no leading space. We type
+        // the continuation verbatim so it glues into one word instead of synthesizing a boundary.
+        XCTAssertEqual(
+            SuggestionSessionReconciler.insertionChunk(forAcceptedChunk: "noon", precedingText: "after"),
+            "noon"
+        )
+    }
+
+    func test_insertionChunk_trustsModelAndDoesNotSynthesizeBoundary() {
+        // Trust-the-model: when the chunk has no leading space and the field ends in a word
+        // character, we no longer insert one. A genuine new word arrives with the model's own leading
+        // space (see `keepsLeadingSpaceWhenPrecedingTextHasNoTrailingWhitespace`); when the model
+        // omits it the words glue, which is exactly what the ghost text showed, so accept stays
+        // WYSIWYG.
         XCTAssertEqual(
             SuggestionSessionReconciler.insertionChunk(forAcceptedChunk: "World", precedingText: "Hello"),
-            " World"
+            "World"
         )
-    }
-
-    func test_insertionChunk_addsBoundarySpaceForLowercaseNewWord() {
-        // Lowercase new words are the harder half of the model-omission case; the heuristic still
-        // fires because both boundary characters are word characters.
         XCTAssertEqual(
             SuggestionSessionReconciler.insertionChunk(forAcceptedChunk: "world", precedingText: "the"),
-            " world"
+            "world"
         )
     }
 
-    func test_insertionChunk_addsBoundarySpaceAcrossDigitWordBoundary() {
-        // A digit followed by a letter (or letter followed by digit) is still a word/word boundary
-        // that the user expects to read as two tokens.
+    func test_insertionChunk_doesNotSynthesizeBoundaryAcrossDigitWordBoundary() {
+        // Same trust-the-model contract across a digit/letter boundary: no synthesized separator, so
+        // the model decides whether "123" continues into "abc" or stands apart.
         XCTAssertEqual(
             SuggestionSessionReconciler.insertionChunk(forAcceptedChunk: "abc", precedingText: "123"),
-            " abc"
+            "abc"
         )
         XCTAssertEqual(
             SuggestionSessionReconciler.insertionChunk(forAcceptedChunk: "1st", precedingText: "Hello"),
-            " 1st"
+            "1st"
         )
     }
 
