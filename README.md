@@ -1,3 +1,4 @@
+
 <p align="center">
   <a href="https://cotabby.app" target="_blank">
     <img height="150" alt="Cotabby logo" src="https://github.com/user-attachments/assets/1e223e72-770c-417b-82e5-83f18cd5a3b2" />
@@ -9,10 +10,13 @@
 <p align="center"><em>Open-source, local AI autocomplete for macOS - an AI-native productivity layer for everything you type.</em></p>
 
 <p align="center">
-  <a href="https://cotabby.app"><strong>Visit the landing page →</strong></a>
-  &nbsp;&nbsp;<strong>|</strong>&nbsp;&nbsp;
-  <a href="https://github.com/FuJacob/cotabby/releases/latest"><strong>Download for macOS →</strong></a>
-</p>
+  <a href="https://cotabby.app">
+  <img width="200" alt="landing-page" src="https://github.com/user-attachments/assets/c28fbb4b-6dfb-4403-a040-1df61daf4df2" /></a>
+  
+
+<a href="https://github.com/FuJacob/cotabby/releases/latest/download/Cotabby.dmg">
+<img width="200" alt="download" src="https://github.com/user-attachments/assets/d5cb4454-d2ab-41d3-9d36-171d44ebfc52" />
+</a></p>
 
 <p align="center">
   <a href="LICENSE"><img alt="License: AGPL v3" src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" /></a>
