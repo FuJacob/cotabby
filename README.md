@@ -27,7 +27,6 @@
   <a href="https://github.com/FuJacob/cotabby/commits/main"><img alt="Last commit" src="https://img.shields.io/github/last-commit/FuJacob/cotabby" /></a>
   <img alt="Swift" src="https://img.shields.io/badge/Swift-F05138?logo=swift&amp;logoColor=white" />
   <img alt="Platform" src="https://img.shields.io/badge/platform-macOS%2014%2B-lightgrey" />
-  <img alt="Visitors" src="https://visitor-badge.laobi.icu/badge?page_id=FuJacob.tabby" />
 </p>
 
 <p align="center">
