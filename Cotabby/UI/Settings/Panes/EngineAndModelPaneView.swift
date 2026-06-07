@@ -41,6 +41,8 @@ struct EngineAndModelPaneView: View {
                 .pickerStyle(.menu)
             }
 
+            powerSection
+
             switch suggestionSettings.selectedEngine {
             case .appleIntelligence:
                 appleIntelligenceSections
@@ -51,7 +53,8 @@ struct EngineAndModelPaneView: View {
         .onAppear {
             foundationModelAvailabilityService.refresh()
 
-            suggestionSettings.initializePowerModelSelections(
+            suggestionSettings.initializePowerProfiles(
+                currentEngine: suggestionSettings.selectedEngine,
                 currentModelFilename: runtimeModel.selectedModelFilename
             )
 
@@ -74,6 +77,95 @@ struct EngineAndModelPaneView: View {
         } message: { model in
             Text("Remove \(model.displayName) from Cotabby's local models folder?")
         }
+    }
+
+    // MARK: - Power
+
+    /// Engine-level section (shown for any engine) that lets the user pick a different profile,
+    /// Apple Intelligence or a specific local model, for battery vs. plugged-in power. Apple
+    /// Intelligence is offered only when it is actually available on this Mac.
+    @ViewBuilder
+    private var powerSection: some View {
+        Section("Power") {
+            Toggle(
+                isOn: Binding(
+                    get: { suggestionSettings.isPowerBasedModelSwitchingEnabled },
+                    set: { suggestionSettings.setPowerBasedModelSwitchingEnabled($0) }
+                )
+            ) {
+                SettingsRowLabel(
+                    title: "Switch based on power source",
+                    description: "Use a different engine or model on battery vs. while plugged in. " +
+                        "For example, Apple Intelligence on battery to save power and a larger local " +
+                        "model while charging.",
+                    systemImage: "battery.100.bolt"
+                )
+            }
+
+            if suggestionSettings.isPowerBasedModelSwitchingEnabled {
+                powerProfilePicker(
+                    title: "On Battery",
+                    systemImage: "battery.25",
+                    selection: batteryProfileBinding
+                )
+
+                powerProfilePicker(
+                    title: "Plugged In",
+                    systemImage: "powerplug",
+                    selection: pluggedInProfileBinding
+                )
+            }
+        }
+    }
+
+    /// One per-power-source profile picker. Lists Apple Intelligence (only when available) plus every
+    /// installed local model, tagged by `PowerProfile` so a single selection carries engine + model.
+    @ViewBuilder
+    private func powerProfilePicker(
+        title: String,
+        systemImage: String,
+        selection: Binding<PowerProfile>
+    ) -> some View {
+        Picker(selection: selection) {
+            if foundationModelAvailabilityService.isAvailable {
+                Text("Apple Intelligence").tag(PowerProfile.appleIntelligence)
+            }
+
+            ForEach(runtimeModel.availableModels) { model in
+                Text(model.displayName).tag(PowerProfile.llama(filename: model.filename))
+            }
+        } label: {
+            SettingsRowLabel(
+                title: title,
+                description: "Engine and model to use while on this power source.",
+                systemImage: systemImage
+            )
+        }
+        .pickerStyle(.menu)
+    }
+
+    private var batteryProfileBinding: Binding<PowerProfile> {
+        Binding(
+            get: { powerProfileForDisplay(suggestionSettings.batteryProfile) },
+            set: { suggestionSettings.setBatteryProfile($0) }
+        )
+    }
+
+    private var pluggedInProfileBinding: Binding<PowerProfile> {
+        Binding(
+            get: { powerProfileForDisplay(suggestionSettings.pluggedInProfile) },
+            set: { suggestionSettings.setPluggedInProfile($0) }
+        )
+    }
+
+    /// Falls a not-yet-chosen local profile back to the currently selected model so the picker shows
+    /// a concrete row instead of an empty selection, mirroring the primary model picker's fallback.
+    private func powerProfileForDisplay(_ profile: PowerProfile) -> PowerProfile {
+        if case .llama(let filename) = profile, filename.isEmpty {
+            return .llama(filename: runtimeModel.selectedModelFilename ?? "")
+        }
+
+        return profile
     }
 
     // MARK: - Apple Intelligence
@@ -130,55 +222,6 @@ struct EngineAndModelPaneView: View {
                             "Larger models are slower but write better.",
                         systemImage: "shippingbox"
                     )
-                }
-            }
-
-            Toggle(
-                isOn: Binding(
-                    get: { suggestionSettings.isPowerBasedModelSwitchingEnabled },
-                    set: { suggestionSettings.setPowerBasedModelSwitchingEnabled($0) }
-                )
-            ) {
-                SettingsRowLabel(
-                    title: "Switch models based on power source",
-                    description: "Use different models when running on battery or while plugged in.",
-                    systemImage: "battery.100"
-                )
-            }
-
-            if suggestionSettings.isPowerBasedModelSwitchingEnabled {
-                Picker(
-                    "Battery Model",
-                    selection: Binding(
-                        get: {
-                            suggestionSettings.batteryModelFilename.isEmpty
-                                ? (runtimeModel.selectedModelFilename ?? "")
-                                : suggestionSettings.batteryModelFilename
-                        },
-                        set: { suggestionSettings.setBatteryModelFilename($0) }
-                    )
-                ) {
-                    ForEach(runtimeModel.availableModels) { model in
-                        Text(model.displayName)
-                            .tag(model.filename)
-                    }
-                }
-
-                Picker(
-                    "Plugged-in Model",
-                    selection: Binding(
-                        get: {
-                            suggestionSettings.pluggedInModelFilename.isEmpty
-                                ? (runtimeModel.selectedModelFilename ?? "")
-                                : suggestionSettings.pluggedInModelFilename
-                        },
-                        set: { suggestionSettings.setPluggedInModelFilename($0) }
-                    )
-                ) {
-                    ForEach(runtimeModel.availableModels) { model in
-                        Text(model.displayName)
-                            .tag(model.filename)
-                    }
                 }
             }
 

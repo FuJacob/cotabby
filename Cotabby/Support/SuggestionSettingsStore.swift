@@ -103,7 +103,9 @@ struct SuggestionSettingsStore {
     private static let acceptanceGranularityDefaultsKey = "cotabbyAcceptanceGranularity"
 
     private static let powerModelSwitchingEnabledDefaultsKey = "cotabbyPowerBasedModelSwitchingEnabled"
+    private static let batteryEngineDefaultsKey = "cotabbyBatteryEngine"
     private static let batteryModelFilenameDefaultsKey = "cotabbyBatteryModelFilename"
+    private static let pluggedInEngineDefaultsKey = "cotabbyPluggedInEngine"
     private static let pluggedInModelFilenameDefaultsKey = "cotabbyPluggedInModelFilename"
 
     // MARK: - Load
@@ -289,7 +291,11 @@ struct SuggestionSettingsStore {
 
         let resolvedPowerBasedModelSwitchingEnabled =
             userDefaults.object(forKey: Self.powerModelSwitchingEnabledDefaultsKey) as? Bool ?? false
+        let resolvedBatteryEngine = userDefaults.string(forKey: Self.batteryEngineDefaultsKey)
+            .flatMap(SuggestionEngineKind.init(rawValue:)) ?? .llamaOpenSource
         let resolvedBatteryModelFilename = userDefaults.string(forKey: Self.batteryModelFilenameDefaultsKey) ?? ""
+        let resolvedPluggedInEngine = userDefaults.string(forKey: Self.pluggedInEngineDefaultsKey)
+            .flatMap(SuggestionEngineKind.init(rawValue:)) ?? .llamaOpenSource
         let resolvedPluggedInModelFilename = userDefaults.string(forKey: Self.pluggedInModelFilenameDefaultsKey) ?? ""
 
         let data = SuggestionSettingsData(
@@ -334,7 +340,9 @@ struct SuggestionSettingsStore {
             globalToggleKeyLabel: resolvedGlobalToggleKeyLabel,
             acceptanceGranularity: resolvedAcceptanceGranularity,
             isPowerBasedModelSwitchingEnabled: resolvedPowerBasedModelSwitchingEnabled,
+            batteryEngine: resolvedBatteryEngine,
             batteryModelFilename: resolvedBatteryModelFilename,
+            pluggedInEngine: resolvedPluggedInEngine,
             pluggedInModelFilename: resolvedPluggedInModelFilename
         )
 
@@ -386,7 +394,9 @@ struct SuggestionSettingsStore {
         )
         saveAcceptanceGranularity(data.acceptanceGranularity)
         savePowerBasedModelSwitchingEnabled(data.isPowerBasedModelSwitchingEnabled)
+        saveBatteryEngine(data.batteryEngine)
         saveBatteryModelFilename(data.batteryModelFilename)
+        savePluggedInEngine(data.pluggedInEngine)
         savePluggedInModelFilename(data.pluggedInModelFilename)
 
         // The custom indicator icon feature was removed; scrub any previously-persisted PNG so
@@ -443,8 +453,16 @@ struct SuggestionSettingsStore {
         userDefaults.set(enabled, forKey: Self.powerModelSwitchingEnabledDefaultsKey)
     }
 
+    func saveBatteryEngine(_ engine: SuggestionEngineKind) {
+        userDefaults.set(engine.rawValue, forKey: Self.batteryEngineDefaultsKey)
+    }
+
     func saveBatteryModelFilename(_ filename: String) {
         userDefaults.set(filename, forKey: Self.batteryModelFilenameDefaultsKey)
+    }
+
+    func savePluggedInEngine(_ engine: SuggestionEngineKind) {
+        userDefaults.set(engine.rawValue, forKey: Self.pluggedInEngineDefaultsKey)
     }
 
     func savePluggedInModelFilename(_ filename: String) {

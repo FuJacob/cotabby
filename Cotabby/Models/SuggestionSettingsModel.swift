@@ -97,7 +97,9 @@ final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var globalToggleKeyLabel: String
     @Published private(set) var acceptanceGranularity: AcceptanceGranularity
     @Published private(set) var isPowerBasedModelSwitchingEnabled: Bool
+    @Published private(set) var batteryEngine: SuggestionEngineKind
     @Published private(set) var batteryModelFilename: String
+    @Published private(set) var pluggedInEngine: SuggestionEngineKind
     @Published private(set) var pluggedInModelFilename: String
 
     /// Owns the on-disk keys, defaults, migrations, and per-field writes. The facade holds one and
@@ -167,7 +169,9 @@ final class SuggestionSettingsModel: ObservableObject {
         globalToggleKeyLabel = data.globalToggleKeyLabel
         acceptanceGranularity = data.acceptanceGranularity
         isPowerBasedModelSwitchingEnabled = data.isPowerBasedModelSwitchingEnabled
+        batteryEngine = data.batteryEngine
         batteryModelFilename = data.batteryModelFilename
+        pluggedInEngine = data.pluggedInEngine
         pluggedInModelFilename = data.pluggedInModelFilename
     }
 
@@ -222,6 +226,15 @@ final class SuggestionSettingsModel: ObservableObject {
         store.savePowerBasedModelSwitchingEnabled(enabled)
     }
 
+    func setBatteryEngine(_ engine: SuggestionEngineKind) {
+        guard batteryEngine != engine else {
+            return
+        }
+
+        batteryEngine = engine
+        store.saveBatteryEngine(engine)
+    }
+
     func setBatteryModelFilename(_ filename: String) {
         guard batteryModelFilename != filename else {
             return
@@ -229,6 +242,15 @@ final class SuggestionSettingsModel: ObservableObject {
 
         batteryModelFilename = filename
         store.saveBatteryModelFilename(filename)
+    }
+
+    func setPluggedInEngine(_ engine: SuggestionEngineKind) {
+        guard pluggedInEngine != engine else {
+            return
+        }
+
+        pluggedInEngine = engine
+        store.savePluggedInEngine(engine)
     }
 
     func setPluggedInModelFilename(_ filename: String) {
@@ -240,21 +262,47 @@ final class SuggestionSettingsModel: ObservableObject {
         store.savePluggedInModelFilename(filename)
     }
 
-    /// Seeds the per-power-source model selections from the active model the first time the feature
-    /// is configured, so both pickers default to something valid instead of an empty selection.
-    func initializePowerModelSelections(currentModelFilename: String?) {
-        guard let currentModelFilename else {
-            return
+    /// The profile applied while on battery, assembled from the stored engine + model filename.
+    var batteryProfile: PowerProfile {
+        batteryEngine == .appleIntelligence ? .appleIntelligence : .llama(filename: batteryModelFilename)
+    }
+
+    /// The profile applied while plugged in, assembled from the stored engine + model filename.
+    var pluggedInProfile: PowerProfile {
+        pluggedInEngine == .appleIntelligence ? .appleIntelligence : .llama(filename: pluggedInModelFilename)
+    }
+
+    func setBatteryProfile(_ profile: PowerProfile) {
+        setBatteryEngine(profile.engine)
+        if case .llama(let filename) = profile {
+            setBatteryModelFilename(filename)
+        }
+    }
+
+    func setPluggedInProfile(_ profile: PowerProfile) {
+        setPluggedInEngine(profile.engine)
+        if case .llama(let filename) = profile {
+            setPluggedInModelFilename(filename)
+        }
+    }
+
+    /// Seeds each per-power-source profile from the active engine + model the first time the feature
+    /// is configured, so the pickers default to something valid instead of an empty selection. Only
+    /// seeds a profile still at its pristine default (Open Source with no model chosen), so an
+    /// explicit Apple Intelligence or model choice is never overwritten on a later appearance.
+    func initializePowerProfiles(currentEngine: SuggestionEngineKind, currentModelFilename: String?) {
+        if batteryEngine == .llamaOpenSource, batteryModelFilename.isEmpty {
+            setBatteryEngine(currentEngine)
+            if let currentModelFilename {
+                setBatteryModelFilename(currentModelFilename)
+            }
         }
 
-        if batteryModelFilename.isEmpty {
-            batteryModelFilename = currentModelFilename
-            store.saveBatteryModelFilename(currentModelFilename)
-        }
-
-        if pluggedInModelFilename.isEmpty {
-            pluggedInModelFilename = currentModelFilename
-            store.savePluggedInModelFilename(currentModelFilename)
+        if pluggedInEngine == .llamaOpenSource, pluggedInModelFilename.isEmpty {
+            setPluggedInEngine(currentEngine)
+            if let currentModelFilename {
+                setPluggedInModelFilename(currentModelFilename)
+            }
         }
     }
 
