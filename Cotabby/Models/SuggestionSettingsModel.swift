@@ -96,6 +96,9 @@ final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var globalToggleKeyModifiers: ShortcutModifierMask
     @Published private(set) var globalToggleKeyLabel: String
     @Published private(set) var acceptanceGranularity: AcceptanceGranularity
+    @Published private(set) var isPowerBasedModelSwitchingEnabled: Bool
+    @Published private(set) var batteryModelFilename: String
+    @Published private(set) var pluggedInModelFilename: String
 
     /// Owns the on-disk keys, defaults, migrations, and per-field writes. The facade holds one and
     /// routes every load and save through it.
@@ -163,6 +166,9 @@ final class SuggestionSettingsModel: ObservableObject {
         globalToggleKeyModifiers = data.globalToggleKeyModifiers
         globalToggleKeyLabel = data.globalToggleKeyLabel
         acceptanceGranularity = data.acceptanceGranularity
+        isPowerBasedModelSwitchingEnabled = data.isPowerBasedModelSwitchingEnabled
+        batteryModelFilename = data.batteryModelFilename
+        pluggedInModelFilename = data.pluggedInModelFilename
     }
 
     /// Legacy compatibility shim. Reads through to `showIndicator`.
@@ -206,6 +212,56 @@ final class SuggestionSettingsModel: ObservableObject {
         selectedEngine = engine
         store.saveSelectedEngine(engine)
     }
+
+
+    func setPowerBasedModelSwitchingEnabled(_ enabled: Bool) {
+    guard isPowerBasedModelSwitchingEnabled != enabled else {
+        return
+    }
+
+    isPowerBasedModelSwitchingEnabled = enabled
+    store.savePowerBasedModelSwitchingEnabled(enabled)
+    }
+
+    func setBatteryModelFilename(_ filename: String) {
+    guard batteryModelFilename != filename else {
+        return
+    }
+
+    batteryModelFilename = filename
+    store.saveBatteryModelFilename(filename)
+    }
+
+    func setPluggedInModelFilename(_ filename: String) {
+    guard pluggedInModelFilename != filename else {
+        return
+    }
+
+    pluggedInModelFilename = filename
+    store.savePluggedInModelFilename(filename)
+    }
+
+
+
+    func initializePowerModelSelections(
+    currentModelFilename: String?
+) {
+    guard let currentModelFilename else {
+        return
+    }
+
+    if batteryModelFilename.isEmpty {
+        batteryModelFilename = currentModelFilename
+        store.saveBatteryModelFilename(currentModelFilename)
+    }
+
+    if pluggedInModelFilename.isEmpty {
+        pluggedInModelFilename = currentModelFilename
+        store.savePluggedInModelFilename(currentModelFilename)
+    }
+}
+
+
 
     func selectWordCountPreset(_ preset: SuggestionWordCountPreset) {
         guard selectedWordCountPreset != preset else {

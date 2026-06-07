@@ -20,6 +20,7 @@ final class CotabbyAppEnvironment {
     let permissionGuidanceController: PermissionGuidanceController
     let suggestionSettings: SuggestionSettingsModel
     let foundationModelAvailabilityService: FoundationModelAvailabilityService
+    let powerSourceMonitor: PowerSourceMonitor
     let clipboardContextProvider: ClipboardContextProvider
     let suggestionCoordinator: SuggestionCoordinator
     /// Shared with the Advanced settings pane so the user can fire an ad-hoc generation against
@@ -52,6 +53,7 @@ final class CotabbyAppEnvironment {
         let modelDownloadManager = ModelDownloadManager()
         let suggestionSettings = SuggestionSettingsModel(configuration: configuration)
         let foundationModelAvailabilityService = FoundationModelAvailabilityService()
+        let powerSourceMonitor = PowerSourceMonitor()
         let suppressionController = InputSuppressionController()
         let inputMonitor = InputMonitor(
             permissionProvider: { permissionManager.inputMonitoringGranted },
@@ -248,6 +250,7 @@ final class CotabbyAppEnvironment {
         self.permissionGuidanceController = permissionGuidanceController
         self.suggestionSettings = suggestionSettings
         self.foundationModelAvailabilityService = foundationModelAvailabilityService
+        self.powerSourceMonitor = powerSourceMonitor
         self.clipboardContextProvider = clipboardContextProvider
         self.suggestionCoordinator = suggestionCoordinator
         self.suggestionEngine = suggestionEngine
@@ -284,5 +287,44 @@ final class CotabbyAppEnvironment {
                 inputMonitor?.refreshToggleTap()
             }
             .store(in: &cancellables)
+
+
+            powerSourceMonitor.$isPluggedIn
+    .removeDuplicates()
+    .sink { [weak runtimeModel, weak suggestionSettings] isPluggedIn in
+
+        guard let runtimeModel,
+              let suggestionSettings else {
+            return
+        }
+
+        guard suggestionSettings.isPowerBasedModelSwitchingEnabled else {
+            return
+        }
+
+        let filename =
+            isPluggedIn
+            ? suggestionSettings.pluggedInModelFilename
+            : suggestionSettings.batteryModelFilename
+
+        guard !filename.isEmpty else {
+            return
+        }
+
+        guard runtimeModel.availableModels.contains(
+            where: { $0.filename == filename }
+        ) else {
+            return
+        }
+
+        guard runtimeModel.selectedModelFilename != filename else {
+            return
+        }
+
+        Task {
+            await runtimeModel.selectModel(filename)
+        }
+    }
+    .store(in: &cancellables)
     }
 }

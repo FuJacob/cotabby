@@ -102,6 +102,11 @@ struct SuggestionSettingsStore {
     private static let globalToggleKeyLabelDefaultsKey = "cotabbyGlobalToggleKeyLabel"
     private static let acceptanceGranularityDefaultsKey = "cotabbyAcceptanceGranularity"
 
+
+    private static let powerBasedModelSwitchingEnabledDefaultsKey = "cotabbyPowerBasedModelSwitchingEnabled"
+    private static let batteryModelFilenameDefaultsKey = "cotabbyBatteryModelFilename"
+    private static let pluggedInModelFilenameDefaultsKey = "cotabbyPluggedInModelFilename"
+
     // MARK: - Load
 
     /// Resolves every preference from `UserDefaults`, applying first-launch defaults and the legacy
@@ -283,6 +288,10 @@ struct SuggestionSettingsStore {
             .flatMap(AcceptanceGranularity.init(rawValue:))
             ?? .word
 
+        let resolvedPowerBasedModelSwitchingEnabled = userDefaults.object(forKey: Self.powerBasedModelSwitchingEnabledDefaultsKey) as? Bool ?? false
+        let resolvedBatteryModelFilename = userDefaults.string(forKey: Self.batteryModelFilenameDefaultsKey) ?? ""
+        let resolvedPluggedInModelFilename = userDefaults.string(forKey: Self.pluggedInModelFilenameDefaultsKey) ?? ""    
+
         let data = SuggestionSettingsData(
             isGloballyEnabled: resolvedGloballyEnabled,
             showIndicator: resolvedShowIndicator,
@@ -323,7 +332,10 @@ struct SuggestionSettingsStore {
             globalToggleKeyCode: resolvedGlobalToggleKeyCode,
             globalToggleKeyModifiers: resolvedGlobalToggleKeyModifiers,
             globalToggleKeyLabel: resolvedGlobalToggleKeyLabel,
-            acceptanceGranularity: resolvedAcceptanceGranularity
+            acceptanceGranularity: resolvedAcceptanceGranularity,
+            isPowerBasedModelSwitchingEnabled: resolvedPowerBasedModelSwitchingEnabled,
+            batteryModelFilename: resolvedBatteryModelFilename,
+            pluggedInModelFilename: resolvedPluggedInModelFilename
         )
 
         // Unconditional write-back so the resolved (possibly migrated or default-capped) values are
@@ -374,6 +386,15 @@ struct SuggestionSettingsStore {
         )
         saveAcceptanceGranularity(data.acceptanceGranularity)
 
+
+        savePowerBasedModelSwitchingEnabled(data.isPowerBasedModelSwitchingEnabled)
+
+        saveBatteryModelFilename( data.batteryModelFilename)
+
+        savePluggedInModelFilename(data.pluggedInModelFilename)
+
+
+
         // The custom indicator icon feature was removed; scrub any previously-persisted PNG so
         // users who picked one in an older build get the default cat icon back automatically.
         userDefaults.removeObject(forKey: "cotabbyCustomIndicatorImageData")
@@ -422,6 +443,27 @@ struct SuggestionSettingsStore {
 
     func saveSelectedEngine(_ engine: SuggestionEngineKind) {
         userDefaults.set(engine.rawValue, forKey: Self.selectedEngineDefaultsKey)
+    }
+
+    func savePowerBasedModelSwitchingEnabled(_ enabled: Bool) {
+    userDefaults.set(
+        enabled,
+        forKey: Self.powerBasedModelSwitchingEnabledDefaultsKey
+    )
+    }
+
+    func saveBatteryModelFilename(_ filename: String) {
+    userDefaults.set(
+        filename,
+        forKey: Self.batteryModelFilenameDefaultsKey
+    )
+    }
+
+    func savePluggedInModelFilename(_ filename: String) {
+    userDefaults.set(
+        filename,
+        forKey: Self.pluggedInModelFilenameDefaultsKey
+    )
     }
 
     func saveSelectedWordCountPreset(_ preset: SuggestionWordCountPreset) {
