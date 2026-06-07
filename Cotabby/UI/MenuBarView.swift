@@ -20,6 +20,7 @@ struct MenuBarView: View {
     let permissionGuidanceController: PermissionGuidanceController
     @ObservedObject var suggestionSettings: SuggestionSettingsModel
     @ObservedObject var foundationModelAvailabilityService: FoundationModelAvailabilityService
+    @ObservedObject var powerSourceMonitor: PowerSourceMonitor
     let appUpdateManager: AppUpdateManager
     let onOpenSettings: () -> Void
     let onReportFeedback: () -> Void
@@ -338,7 +339,19 @@ struct MenuBarView: View {
         Binding(
             get: { suggestionSettings.selectedEngine },
             set: { engine in
-                suggestionSettings.selectEngine(engine)
+                // With power-based switching on, the active engine is owned by the current power
+                // source's profile. Editing it here writes that profile (battery vs. plugged-in)
+                // instead of `selectedEngine`, which the switcher would otherwise revert. The profile
+                // carries engine + model, so an Apple Intelligence pick drops the model and an Open
+                // Source pick keeps the currently selected one.
+                guard suggestionSettings.isPowerBasedModelSwitchingEnabled else {
+                    suggestionSettings.selectEngine(engine)
+                    return
+                }
+                let profile: PowerProfile = engine == .appleIntelligence
+                    ? .appleIntelligence
+                    : .llama(filename: runtimeModel.selectedModelFilename ?? "")
+                applyProfileForCurrentPowerSource(profile)
             }
         )
     }
@@ -394,11 +407,31 @@ struct MenuBarView: View {
                     ?? ""
             },
             set: { filename in
-                Task {
-                    await runtimeModel.selectModel(filename)
+                // With power-based switching on, write the model into the current power source's
+                // profile so it sticks for that source (and the other source keeps its own model).
+                // Calling `selectModel` directly would be reverted by the power switcher on its next
+                // evaluation, which read as "the popup just resets my choice".
+                guard suggestionSettings.isPowerBasedModelSwitchingEnabled else {
+                    Task {
+                        await runtimeModel.selectModel(filename)
+                    }
+                    return
                 }
+                applyProfileForCurrentPowerSource(.llama(filename: filename))
             }
         )
+    }
+
+    /// Writes a profile into whichever per-power-source slot is currently active, so a menu-bar edit
+    /// updates the battery profile while on battery and the plugged-in profile while charging. The
+    /// power-source observer then applies it to the runtime, so no direct `selectModel`/`selectEngine`
+    /// call is needed here.
+    private func applyProfileForCurrentPowerSource(_ profile: PowerProfile) {
+        if powerSourceMonitor.isPluggedIn {
+            suggestionSettings.setPluggedInProfile(profile)
+        } else {
+            suggestionSettings.setBatteryProfile(profile)
+        }
     }
 
     private var runtimePickerDisabled: Bool {

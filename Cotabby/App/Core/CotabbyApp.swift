@@ -21,6 +21,7 @@ struct CotabbyApp: App {
                 permissionGuidanceController: appDelegate.permissionGuidanceController,
                 suggestionSettings: appDelegate.suggestionSettings,
                 foundationModelAvailabilityService: appDelegate.foundationModelAvailabilityService,
+                powerSourceMonitor: appDelegate.powerSourceMonitor,
                 appUpdateManager: appDelegate.appUpdateManager,
                 onOpenSettings: {
                     appDelegate.settingsCoordinator.showSettings()

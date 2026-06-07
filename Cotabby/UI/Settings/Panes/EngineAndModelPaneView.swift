@@ -218,11 +218,18 @@ struct EngineAndModelPaneView: View {
                 } label: {
                     SettingsRowLabel(
                         title: "Selected Model",
-                        description: "Which downloaded model file generates suggestions. " +
-                            "Larger models are slower but write better.",
+                        description: suggestionSettings.isPowerBasedModelSwitchingEnabled
+                            ? "Set automatically by power source. Use the On Battery / Plugged In " +
+                                "pickers in the Power section, or turn off power-based switching."
+                            : "Which downloaded model file generates suggestions. " +
+                                "Larger models are slower but write better.",
                         systemImage: "shippingbox"
                     )
                 }
+                // Redundant while power-based switching owns the active model: the Power section's
+                // per-source profile pickers are the source of truth, and any pick here would be
+                // reverted on the next power evaluation.
+                .disabled(suggestionSettings.isPowerBasedModelSwitchingEnabled)
             }
 
             DownloadableModelCatalogView(
