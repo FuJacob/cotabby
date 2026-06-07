@@ -100,6 +100,7 @@ struct SettingsContainerView: View {
         case .general:
             GeneralPaneView(
                 suggestionSettings: suggestionSettings,
+                permissionManager: permissionManager,
                 onShowWelcome: onShowWelcome
             )
         case .appearance:

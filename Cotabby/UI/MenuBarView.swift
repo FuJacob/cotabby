@@ -98,9 +98,18 @@ struct MenuBarView: View {
     @ViewBuilder
     private var controlsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Toggle("Fast Mode", isOn: fastModeEnabledBinding)
-                .toggleStyle(.switch)
-                .controlSize(.small)
+            VStack(alignment: .leading, spacing: 2) {
+                Toggle("Fast Mode", isOn: fastModeForcedOn ? .constant(true) : fastModeEnabledBinding)
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                    .disabled(fastModeForcedOn)
+
+                if fastModeForcedOn {
+                    Text("Forced on because Screen Recording is off")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
 
             Divider()
 
@@ -405,6 +414,13 @@ struct MenuBarView: View {
 
     private var allPermissionsGranted: Bool {
         permissionManager.requiredPermissionsGranted
+    }
+
+    /// Fast Mode is forced on and locked while Screen Recording is unavailable, since visual context
+    /// can't run without it. The user's stored preference is preserved and restored once the
+    /// permission is granted.
+    private var fastModeForcedOn: Bool {
+        !permissionManager.screenRecordingGranted
     }
 
 }

@@ -8,6 +8,7 @@ import SwiftUI
 /// `SettingsRowLabel` so the list reads at a glance.
 struct GeneralPaneView: View {
     @ObservedObject var suggestionSettings: SuggestionSettingsModel
+    @ObservedObject var permissionManager: PermissionManager
     let onShowWelcome: () -> Void
 
     var body: some View {
@@ -23,14 +24,14 @@ struct GeneralPaneView: View {
                     )
                 }
 
-                Toggle(isOn: fastModeEnabledBinding) {
+                Toggle(isOn: fastModeForcedOn ? .constant(true) : fastModeEnabledBinding) {
                     SettingsRowLabel(
                         title: "Fast Mode",
-                        description: "Skip the screenshot-based context step for faster suggestions. " +
-                            "Suggestions rely only on the text you've typed.",
+                        description: fastModeDescription,
                         systemImage: "bolt.fill"
                     )
                 }
+                .disabled(fastModeForcedOn)
 
                 // Backed by `SMAppService.mainApp` via the LaunchAtLogin package, which owns the
                 // observable for the login-item status and refreshes the toggle if the user changes
@@ -149,6 +150,22 @@ struct GeneralPaneView: View {
             get: { suggestionSettings.isFastModeEnabled },
             set: { suggestionSettings.setFastModeEnabled($0) }
         )
+    }
+
+    /// Fast Mode is forced on and locked while Screen Recording is unavailable (visual context can't
+    /// run without it). The stored preference is left untouched so it returns when the permission is
+    /// granted.
+    private var fastModeForcedOn: Bool {
+        !permissionManager.screenRecordingGranted
+    }
+
+    private var fastModeDescription: String {
+        if fastModeForcedOn {
+            return "Forced on because Screen Recording is off. Suggestions rely only on the text " +
+                "you've typed; grant Screen Recording to add visual context."
+        }
+        return "Skip the screenshot-based context step for faster suggestions. " +
+            "Suggestions rely only on the text you've typed."
     }
 
     private var multiLineEnabledBinding: Binding<Bool> {

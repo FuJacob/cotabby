@@ -11,12 +11,20 @@ extension SuggestionCoordinator {
         CotabbyLogger.suggestion.debug("Permission state changed, reconciling")
         reconcileWithCurrentEnvironment()
 
+        // Screen Recording is optional, so revoking it no longer trips `disabledReason` and the
+        // `disablePredictions` teardown that used to cancel the session. Cancel it here instead so a
+        // cached excerpt can't keep feeding screenshot-derived text into prompts after the user turns
+        // the permission off. Granting it falls through to the schedule path below, which restarts
+        // capture via `handleSupportedSnapshot`.
+        if !permissionManager.screenRecordingGranted {
+            visualContextCoordinator.cancel(resetState: true)
+        }
+
         if SuggestionAvailabilityEvaluator.shouldSchedulePrediction(
             globallyEnabled: settingsSnapshot.isGloballyEnabled,
             disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
             disabledDomains: PerDomainDisableSettings.disabledDomains(),
             inputMonitoringGranted: permissionManager.inputMonitoringGranted,
-            screenRecordingGranted: permissionManager.screenRecordingGranted,
             focusSnapshot: focusModel.snapshot
         ) {
             handleSupportedSnapshot(focusModel.snapshot)

@@ -69,7 +69,6 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
         let reason = SuggestionAvailabilityEvaluator.disabledReason(
             globallyEnabled: false,
             inputMonitoringGranted: true,
-            screenRecordingGranted: true,
             focusSnapshot: makeSnapshot(capability: .supported)
         )
 
@@ -81,7 +80,6 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
             globallyEnabled: true,
             disabledDomains: ["bank.com"],
             inputMonitoringGranted: true,
-            screenRecordingGranted: true,
             focusSnapshot: makeSupportedSnapshotWithContext(focusedURLString: "https://www.bank.com/account")
         )
 
@@ -94,7 +92,6 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
         let reason = SuggestionAvailabilityEvaluator.disabledReason(
             globallyEnabled: true,
             inputMonitoringGranted: true,
-            screenRecordingGranted: true,
             focusSnapshot: makeSupportedSnapshotWithContext(focusedURLString: "https://bank.com/account")
         )
 
@@ -105,26 +102,12 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
         let reason = SuggestionAvailabilityEvaluator.disabledReason(
             globallyEnabled: true,
             inputMonitoringGranted: false,
-            screenRecordingGranted: true,
             focusSnapshot: makeSnapshot(capability: .supported)
         )
 
         XCTAssertNotNil(reason)
         XCTAssertTrue(reason?.contains("Input Monitoring") ?? false,
                       "reason should point the user at the permission they need to grant")
-    }
-
-    func test_disabledReason_whenScreenRecordingDenied_mentionsPermission() {
-        let reason = SuggestionAvailabilityEvaluator.disabledReason(
-            globallyEnabled: true,
-            inputMonitoringGranted: true,
-            screenRecordingGranted: false,
-            focusSnapshot: makeSnapshot(capability: .supported)
-        )
-
-        XCTAssertNotNil(reason)
-        XCTAssertTrue(reason?.contains("Screen Recording") ?? false,
-                      "reason should point the user at the permission needed for visual context")
     }
 
     // MARK: - disabledReason: guard ordering
@@ -136,7 +119,6 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
         let reason = SuggestionAvailabilityEvaluator.disabledReason(
             globallyEnabled: false,
             inputMonitoringGranted: false,
-            screenRecordingGranted: false,
             focusSnapshot: makeSnapshot(capability: .supported)
         )
 
@@ -148,7 +130,6 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
             globallyEnabled: false,
             disabledAppBundleIdentifiers: ["app.test"],
             inputMonitoringGranted: true,
-            screenRecordingGranted: true,
             focusSnapshot: makeSnapshot(capability: .supported)
         )
 
@@ -160,7 +141,6 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
             globallyEnabled: true,
             disabledAppBundleIdentifiers: ["com.apple.Safari"],
             inputMonitoringGranted: true,
-            screenRecordingGranted: true,
             focusSnapshot: makeSnapshot(
                 applicationName: "Safari",
                 bundleIdentifier: "com.apple.Safari",
@@ -181,7 +161,6 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
         let reason = SuggestionAvailabilityEvaluator.disabledReason(
             globallyEnabled: true,
             inputMonitoringGranted: true,
-            screenRecordingGranted: true,
             focusSnapshot: makeSnapshot(capability: .blocked(blockReason))
         )
 
@@ -193,7 +172,6 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
         let reason = SuggestionAvailabilityEvaluator.disabledReason(
             globallyEnabled: true,
             inputMonitoringGranted: true,
-            screenRecordingGranted: true,
             focusSnapshot: makeSnapshot(capability: .unsupported(unsupportedReason))
         )
 
@@ -206,7 +184,6 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
         let reason = SuggestionAvailabilityEvaluator.disabledReason(
             globallyEnabled: true,
             inputMonitoringGranted: true,
-            screenRecordingGranted: true,
             focusSnapshot: makeSnapshot(capability: .supported)
         )
 
@@ -222,7 +199,6 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
         let ok = SuggestionAvailabilityEvaluator.shouldSchedulePrediction(
             globallyEnabled: true,
             inputMonitoringGranted: true,
-            screenRecordingGranted: true,
             focusSnapshot: makeSnapshot(capability: .supported)
         )
 
@@ -233,7 +209,6 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
         let ok = SuggestionAvailabilityEvaluator.shouldSchedulePrediction(
             globallyEnabled: false,
             inputMonitoringGranted: true,
-            screenRecordingGranted: true,
             focusSnapshot: makeSnapshot(capability: .supported)
         )
 
@@ -245,7 +220,6 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
             globallyEnabled: true,
             disabledAppBundleIdentifiers: ["app.test"],
             inputMonitoringGranted: true,
-            screenRecordingGranted: true,
             focusSnapshot: makeSnapshot(capability: .supported)
         )
 
@@ -257,7 +231,6 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
             globallyEnabled: true,
             disabledAppBundleIdentifiers: ["app.other"],
             inputMonitoringGranted: true,
-            screenRecordingGranted: true,
             focusSnapshot: makeSnapshot(capability: .supported)
         )
 
@@ -268,19 +241,7 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
         let ok = SuggestionAvailabilityEvaluator.shouldSchedulePrediction(
             globallyEnabled: true,
             inputMonitoringGranted: true,
-            screenRecordingGranted: true,
             focusSnapshot: makeSnapshot(capability: .unsupported("No focused text input"))
-        )
-
-        XCTAssertFalse(ok)
-    }
-
-    func test_shouldSchedulePrediction_falseWhenScreenRecordingDenied() {
-        let ok = SuggestionAvailabilityEvaluator.shouldSchedulePrediction(
-            globallyEnabled: true,
-            inputMonitoringGranted: true,
-            screenRecordingGranted: false,
-            focusSnapshot: makeSnapshot(capability: .supported)
         )
 
         XCTAssertFalse(ok)
@@ -316,6 +277,27 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
 
     // MARK: - shouldCaptureVisualContext + fast mode
 
+    /// Mirror of the fast-mode invariant for the now-optional Screen Recording permission: a missing
+    /// permission suppresses visual-context capture but leaves predictions running (text-only).
+    func test_noScreenRecording_suppressesVisualContextButNotPredictions() {
+        let snapshot = makeSnapshot(capability: .supported)
+
+        XCTAssertFalse(
+            SuggestionAvailabilityEvaluator.shouldCaptureVisualContext(
+                inputMonitoringGranted: true,
+                screenRecordingGranted: false,
+                focusSnapshot: snapshot,
+                isFastModeEnabled: false
+            )
+        )
+        XCTAssertTrue(
+            SuggestionAvailabilityEvaluator.shouldSchedulePrediction(
+                inputMonitoringGranted: true,
+                focusSnapshot: snapshot
+            )
+        )
+    }
+
     func test_shouldCaptureVisualContext_trueWhenAllowedAndNotFastMode() {
         let ok = SuggestionAvailabilityEvaluator.shouldCaptureVisualContext(
             globallyEnabled: true,
@@ -344,7 +326,6 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
         XCTAssertTrue(
             SuggestionAvailabilityEvaluator.shouldSchedulePrediction(
                 inputMonitoringGranted: true,
-                screenRecordingGranted: true,
                 focusSnapshot: snapshot
             )
         )

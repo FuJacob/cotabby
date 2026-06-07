@@ -10,16 +10,23 @@ import SwiftUI
 /// Navigation (Back/Continue) is owned by `WelcomeView`'s pinned footer rather than this view, so
 /// the Continue button can never scroll off-screen behind tall content.
 ///
-/// The onboarding list is derived from `CotabbyPermissionKind.isRequiredForAutocomplete` so the
+/// The onboarding list is derived from `CotabbyPermissionKind` (required cards from
+/// `isRequiredForAutocomplete`, then optional-enhancement cards from `isOptionalEnhancement`) so the
 /// product's permission model and first-run UI cannot drift apart.
 struct WelcomePermissionStepView: View {
     @ObservedObject var permissionManager: PermissionManager
 
     let permissionGuidanceController: PermissionGuidanceController
 
-    /// Only show permissions that block core autocomplete.
-    private var onboardingPermissions: [CotabbyPermissionKind] {
+    /// Permissions that block core autocomplete; the user must grant these to continue.
+    private var requiredPermissions: [CotabbyPermissionKind] {
         CotabbyPermissionKind.allCases.filter(\.isRequiredForAutocomplete)
+    }
+
+    /// Optional enhancements (Screen Recording today). Shown so visual context is discoverable at
+    /// first run, but they never block the Continue button.
+    private var optionalPermissions: [CotabbyPermissionKind] {
+        CotabbyPermissionKind.allCases.filter(\.isOptionalEnhancement)
     }
 
     var body: some View {
@@ -28,17 +35,28 @@ struct WelcomePermissionStepView: View {
                 Text("Enable Cotabby")
                     .font(.system(size: 24, weight: .semibold, design: .rounded))
 
-                Text("Grant permissions so Cotabby can\nread text, capture context, and accept completions.")
+                Text("Grant permissions so Cotabby can\nread text and accept completions.")
                     .font(.system(size: 14, design: .rounded))
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
             }
 
             VStack(spacing: 10) {
-                ForEach(onboardingPermissions) { permission in
+                ForEach(requiredPermissions) { permission in
                     PermissionCard(
                         permission: permission,
                         granted: permissionManager.isGranted(permission),
+                        permissionGuidanceController: permissionGuidanceController
+                    )
+                }
+
+                // Optional cards render after the required ones, tagged so the user can skip them
+                // without thinking they've left setup unfinished. The Continue gate ignores them.
+                ForEach(optionalPermissions) { permission in
+                    PermissionCard(
+                        permission: permission,
+                        granted: permissionManager.isGranted(permission),
+                        isOptional: true,
                         permissionGuidanceController: permissionGuidanceController
                     )
                 }
@@ -60,6 +78,7 @@ struct WelcomePermissionStepView: View {
 private struct PermissionCard: View {
     let permission: CotabbyPermissionKind
     let granted: Bool
+    var isOptional = false
     let permissionGuidanceController: PermissionGuidanceController
 
     @State private var actionButtonFrame = CGRect.zero
@@ -72,8 +91,19 @@ private struct PermissionCard: View {
             )
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(permission.title)
-                    .font(.system(size: 14, weight: .medium))
+                HStack(spacing: 6) {
+                    Text(permission.title)
+                        .font(.system(size: 14, weight: .medium))
+
+                    if isOptional {
+                        Text("Optional")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 1)
+                            .background(.quaternary, in: Capsule())
+                    }
+                }
 
                 Text(permission.onboardingSubtitle)
                     .font(.system(size: 12))
