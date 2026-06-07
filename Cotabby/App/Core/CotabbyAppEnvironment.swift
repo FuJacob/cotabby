@@ -75,6 +75,11 @@ final class CotabbyAppEnvironment {
             permissionProvider: { permissionManager.accessibilityGranted },
             ignoredBundleIdentifier: Bundle.main.bundleIdentifier,
             isCaptureSuppressedForBundle: { bundleIdentifier in
+                if AccessibilityCaptureSuppressionPolicy.shouldSuppressCapture(
+                    bundleIdentifier: bundleIdentifier
+                ) {
+                    return true
+                }
                 guard suggestionSettings.isGloballyEnabled else { return true }
                 if let bundleIdentifier,
                    suggestionSettings.isApplicationDisabled(bundleIdentifier: bundleIdentifier) {
