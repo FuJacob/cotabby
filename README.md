@@ -40,9 +40,7 @@
 
 ## What It Does
 
-Cotabby adds AI autocomplete to almost any text field on your Mac. As you type, a gray suggestion appears inline next to your cursor — press `Tab` to accept it a word at a time, or just keep typing to ignore it.
-
-It also does inline `:emoji:` autocomplete, `/` macros (quick math, unit and currency conversion, dates), and one-key autocorrect for typos.
+Cotabby adds AI autocomplete to almost any text field on your Mac. As you type, a gray suggestion appears inline next to your cursor. Press `Tab` to accept it a word at a time, or keep typing to ignore it.
 
 Everything runs on your Mac. No account, no cloud, no telemetry.
 
@@ -67,10 +65,6 @@ Everything runs on your Mac. No account, no cloud, no telemetry.
 - **Emoji autocomplete** — type `:rocket:` and accept it without leaving the field
 - **Inline macros** — type `/` for quick math, unit and currency conversion, dates, and random values
 - **One-key autocorrect** — fix a likely typo with a single keystroke
-- **Two engines** — Apple Intelligence, or a small model you download and run locally
-- **Make it yours** — set your name, languages, and suggestion length, and turn Cotabby off per app
-- **Screen-aware (optional)** — can read the area around your cursor so suggestions fit what's on screen
-- **100% on-device** — no account, no cloud, no telemetry
 
 ## Privacy
 
