@@ -1,7 +1,7 @@
 
 <p align="center">
   <a href="https://cotabby.app" target="_blank">
-    <img height="150" alt="Cotabby logo" src="https://github.com/user-attachments/assets/1e223e72-770c-417b-82e5-83f18cd5a3b2" />
+    <img height="150" alt="Cotabby logo" src=".github/assets/readme/logo.png" />
   </a>
 </p>
 
