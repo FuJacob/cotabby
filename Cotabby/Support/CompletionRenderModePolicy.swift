@@ -66,11 +66,11 @@ struct CompletionRenderModePolicy: Equatable, Sendable {
 
         // A caret parked mid-line (real characters follow it before the next line break) has no
         // inline home: ghost text would paint over those trailing characters. Promote any inline
-        // result to the card, which anchors to the field rect instead of the caret. This deliberately
-        // overrides an explicit `.alwaysInline` pin too, because inline cannot render mid-line at all,
-        // and the card is the surface fill-in-middle completions will use. The promotion only
-        // upgrades inline results; a presentation already routed to the card keeps its original, more
-        // specific reason (e.g. `.caretGeometryEstimated`).
+        // result to the card, which anchors to the caret rect (the geometry is trustworthy here). This
+        // deliberately overrides an explicit `.alwaysInline` pin too, because inline cannot render
+        // mid-line at all, and the card is the surface fill-in-middle completions will use. The
+        // promotion only upgrades inline results; a presentation already routed to the card keeps its
+        // original, more specific reason (e.g. `.caretGeometryEstimated`).
         if case .inline = baseMode, !geometry.isCaretAtEndOfLine {
             return .mirror(reason: .caretMidLine)
         }

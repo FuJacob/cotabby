@@ -29,8 +29,9 @@ nonisolated enum CompletionRenderMode: Equatable, Sendable {
 
         /// The caret sits mid-line: real characters follow it before the next line break. Inline
         /// ghost text would draw on top of those trailing characters, so the suggestion is promoted
-        /// to the card, which anchors to the field rect instead of the caret. This is also the
-        /// surface fill-in-middle completions render in, since a FIM result has no inline home.
+        /// to the card, which anchors to the caret rect (the geometry is trustworthy here) and sits
+        /// just under the cursor like an inline ghost would. This is also the surface fill-in-middle
+        /// completions render in, since a FIM result has no inline home.
         case caretMidLine
 
         /// User set their global preference to always use mirror mode. Phase 2 wiring.
