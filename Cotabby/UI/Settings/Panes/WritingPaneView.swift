@@ -33,13 +33,25 @@ struct WritingPaneView: View {
                             value: customLowBinding,
                             in: SuggestionWordRange.minimumWord...SuggestionWordRange.maximumWord
                         ) {
-                            Text("Min: \(suggestionSettings.customWordCountLowWords)")
+                            HStack(spacing: 4) {
+                                Text("Min:")
+                                TextField("", value: customLowBinding, format: .number)
+                                    .textFieldStyle(.plain)
+                                    .frame(width: 32)
+                                    .multilineTextAlignment(.trailing)
+                            }
                         }
                         Stepper(
                             value: customHighBinding,
                             in: SuggestionWordRange.minimumWord...SuggestionWordRange.maximumWord
                         ) {
-                            Text("Max: \(suggestionSettings.customWordCountHighWords)")
+                            HStack(spacing: 4) {
+                                Text("Max:")
+                                TextField("", value: customHighBinding, format: .number)
+                                    .textFieldStyle(.plain)
+                                    .frame(width: 32)
+                                    .multilineTextAlignment(.trailing)
+                            }
                         }
                     }
                     Text("Token budget scales by your selected language. Multiple languages or a " +

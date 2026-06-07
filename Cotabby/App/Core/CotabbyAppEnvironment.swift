@@ -163,6 +163,7 @@ final class CotabbyAppEnvironment {
         let settingsCoordinator = SettingsCoordinator(
             appUpdateManager: appUpdateManager,
             permissionManager: permissionManager,
+            permissionGuidanceController: permissionGuidanceController,
             suggestionSettings: suggestionSettings,
             foundationModelAvailabilityService: foundationModelAvailabilityService,
             runtimeModel: runtimeModel,

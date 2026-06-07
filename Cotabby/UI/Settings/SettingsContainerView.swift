@@ -14,6 +14,7 @@ struct SettingsContainerView: View {
     let appUpdateManager: AppUpdateManager
 
     @ObservedObject var permissionManager: PermissionManager
+    let permissionGuidanceController: PermissionGuidanceController
     @ObservedObject var suggestionSettings: SuggestionSettingsModel
     @ObservedObject var foundationModelAvailabilityService: FoundationModelAvailabilityService
     @ObservedObject var runtimeModel: RuntimeBootstrapModel
@@ -131,7 +132,10 @@ struct SettingsContainerView: View {
         case .apps:
             AppsPaneView(suggestionSettings: suggestionSettings)
         case .permissions:
-            PermissionsPaneView(permissionManager: permissionManager)
+            PermissionsPaneView(
+                permissionManager: permissionManager,
+                permissionGuidanceController: permissionGuidanceController
+            )
         case .performance:
             PerformancePaneView(
                 suggestionSettings: suggestionSettings,

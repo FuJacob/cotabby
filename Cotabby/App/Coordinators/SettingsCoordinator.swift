@@ -13,6 +13,7 @@ import SwiftUI
 final class SettingsCoordinator: NSObject, NSWindowDelegate {
     private let appUpdateManager: AppUpdateManager
     private let permissionManager: PermissionManager
+    private let permissionGuidanceController: PermissionGuidanceController
     private let suggestionSettings: SuggestionSettingsModel
     private let foundationModelAvailabilityService: FoundationModelAvailabilityService
     private let runtimeModel: RuntimeBootstrapModel
@@ -30,6 +31,7 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
     init(
         appUpdateManager: AppUpdateManager,
         permissionManager: PermissionManager,
+        permissionGuidanceController: PermissionGuidanceController,
         suggestionSettings: SuggestionSettingsModel,
         foundationModelAvailabilityService: FoundationModelAvailabilityService,
         runtimeModel: RuntimeBootstrapModel,
@@ -44,6 +46,7 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
     ) {
         self.appUpdateManager = appUpdateManager
         self.permissionManager = permissionManager
+        self.permissionGuidanceController = permissionGuidanceController
         self.suggestionSettings = suggestionSettings
         self.foundationModelAvailabilityService = foundationModelAvailabilityService
         self.runtimeModel = runtimeModel
@@ -72,6 +75,7 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
                 SettingsContainerView(
                     appUpdateManager: appUpdateManager,
                     permissionManager: permissionManager,
+                    permissionGuidanceController: permissionGuidanceController,
                     suggestionSettings: suggestionSettings,
                     foundationModelAvailabilityService: foundationModelAvailabilityService,
                     runtimeModel: runtimeModel,

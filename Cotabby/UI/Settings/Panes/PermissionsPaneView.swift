@@ -6,6 +6,7 @@ import SwiftUI
 /// shortcut into the relevant System Settings pane when one of them is missing.
 struct PermissionsPaneView: View {
     @ObservedObject var permissionManager: PermissionManager
+    let permissionGuidanceController: PermissionGuidanceController
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
@@ -16,32 +17,32 @@ struct PermissionsPaneView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                permissionRow(
-                    title: "Accessibility",
+                SettingsPermissionRow(
+                    permission: .accessibility,
                     description: "Lets Cotabby see which text field has focus and read its contents " +
                         "so it knows what to continue.",
                     systemImage: "accessibility",
                     granted: permissionManager.accessibilityGranted,
-                    action: permissionManager.openAccessibilitySettings
+                    permissionGuidanceController: permissionGuidanceController
                 )
 
-                permissionRow(
-                    title: "Input Monitoring",
+                SettingsPermissionRow(
+                    permission: .inputMonitoring,
                     description: "Lets Cotabby see your keystrokes so it can detect when to suggest " +
                         "and which key you used to accept.",
                     systemImage: "keyboard",
                     granted: permissionManager.inputMonitoringGranted,
-                    action: permissionManager.openInputMonitoringSettings
+                    permissionGuidanceController: permissionGuidanceController
                 )
 
-                permissionRow(
-                    title: "Screen Recording",
+                SettingsPermissionRow(
+                    permission: .screenRecording,
                     description: "Optional. Lets Cotabby screenshot the focused window for extra " +
                         "context. Without it, Cotabby runs in Fast Mode using only the text you've typed.",
                     systemImage: "camera.viewfinder",
                     granted: permissionManager.screenRecordingGranted,
                     isOptional: true,
-                    action: permissionManager.openScreenRecordingSettings
+                    permissionGuidanceController: permissionGuidanceController
                 )
             }
         }
@@ -68,17 +69,24 @@ struct PermissionsPaneView: View {
         )
     }
 
-    @ViewBuilder
-    private func permissionRow(
-        title: String,
-        description: String,
-        systemImage: String,
-        granted: Bool,
-        isOptional: Bool = false,
-        action: @escaping () -> Void
-    ) -> some View {
+}
+
+/// One permission row in the Settings pane. Tracks its own button frame so the shared
+/// `PermissionGuidanceController` can anchor its drag-helper overlay near the Enable button
+/// (mirroring the onboarding flow) instead of dumping the user into System Settings cold.
+private struct SettingsPermissionRow: View {
+    let permission: CotabbyPermissionKind
+    let description: String
+    let systemImage: String
+    let granted: Bool
+    var isOptional: Bool = false
+    let permissionGuidanceController: PermissionGuidanceController
+
+    @State private var actionButtonFrame: CGRect = .zero
+
+    var body: some View {
         HStack(spacing: 10) {
-            SettingsRowLabel(title: title, description: description, systemImage: systemImage)
+            SettingsRowLabel(title: permission.title, description: description, systemImage: systemImage)
             Spacer(minLength: 0)
             // An ungranted optional permission reads as a neutral "Off" rather than the orange
             // "Needs Access" used for required ones, so it never looks like a broken setup.
@@ -87,10 +95,14 @@ struct PermissionsPaneView: View {
                 .foregroundStyle(granted ? .green : (isOptional ? .secondary : .orange))
 
             if !granted {
-                Button(isOptional ? "Enable" : "Open Settings") {
-                    action()
+                Button(isOptional ? "Enable" : "Grant Access") {
+                    permissionGuidanceController.requestAccess(
+                        for: permission,
+                        sourceFrameInScreen: actionButtonFrame
+                    )
                 }
                 .controlSize(.small)
+                .background(ScreenFrameReader(frameInScreen: $actionButtonFrame))
             }
         }
     }
