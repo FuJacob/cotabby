@@ -37,6 +37,18 @@ struct PermissionReminderView: View {
                         permissionGuidanceController: permissionGuidanceController
                     )
                 }
+
+                // Optional enhancements (Screen Recording) render after the required cards, tagged so
+                // they read as a discoverable extra rather than a blocker. The "I'll do this later" /
+                // "Done" button is gated on required permissions only, so these never hold it up.
+                ForEach(CotabbyPermissionKind.allCases.filter(\.isOptionalEnhancement)) { permission in
+                    ReminderPermissionCard(
+                        permission: permission,
+                        granted: permissionManager.isGranted(permission),
+                        isOptional: true,
+                        permissionGuidanceController: permissionGuidanceController
+                    )
+                }
             }
 
             WelcomeButton(title: permissionManager.requiredPermissionsGranted ? "Done" : "I'll do this later") {
@@ -54,25 +66,43 @@ struct PermissionReminderView: View {
 private struct ReminderPermissionCard: View {
     let permission: CotabbyPermissionKind
     let granted: Bool
+    var isOptional = false
     let permissionGuidanceController: PermissionGuidanceController
 
     @State private var actionButtonFrame = CGRect.zero
+
+    /// Tint for the ungranted state. Optional permissions stay neutral so they never look like the
+    /// broken/required state the orange treatment signals in this "Permissions needed" window.
+    private var ungrantedTint: Color {
+        isOptional ? .secondary : .orange
+    }
 
     var body: some View {
         HStack(spacing: 14) {
             ZStack {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(granted ? Color.green.opacity(0.12) : Color.orange.opacity(0.12))
+                    .fill(granted ? Color.green.opacity(0.12) : ungrantedTint.opacity(0.12))
 
                 Image(systemName: permission.systemImageName)
                     .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(granted ? .green : .orange)
+                    .foregroundStyle(granted ? .green : ungrantedTint)
             }
             .frame(width: 32, height: 32)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(permission.title)
-                    .font(.system(size: 14, weight: .medium))
+                HStack(spacing: 6) {
+                    Text(permission.title)
+                        .font(.system(size: 14, weight: .medium))
+
+                    if isOptional {
+                        Text("Optional")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 1)
+                            .background(.quaternary, in: Capsule())
+                    }
+                }
 
                 Text(permission.onboardingSubtitle)
                     .font(.system(size: 12))
@@ -89,6 +119,18 @@ private struct ReminderPermissionCard: View {
                         .font(.system(size: 12, weight: .medium))
                 }
                 .foregroundStyle(.green)
+            } else if isOptional {
+                // Lower-emphasis bordered button so the optional row never competes visually with the
+                // required Allow buttons above it.
+                Button("Enable") {
+                    permissionGuidanceController.requestAccess(
+                        for: permission,
+                        sourceFrameInScreen: actionButtonFrame
+                    )
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.regular)
+                .background(ScreenFrameReader(frameInScreen: $actionButtonFrame))
             } else {
                 Button("Allow") {
                     permissionGuidanceController.requestAccess(
