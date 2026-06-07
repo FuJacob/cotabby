@@ -7,7 +7,7 @@
 
 <h1 align="center">Cotabby [beta]</h1>
 
-<p align="center"><em>Open-source, on-device AI autocomplete for macOS — it finishes your sentences in almost any text field, with nothing sent to the cloud.</em></p>
+<p align="center"><em>Open-source, on-device AI autocomplete for macOS.</em></p>
 
 <p align="center">
   <a href="https://cotabby.app">
@@ -18,7 +18,7 @@
 <img width="200" alt="download" src="https://github.com/user-attachments/assets/d5cb4454-d2ab-41d3-9d36-171d44ebfc52" /></a>
 
 
-<a href="https://ko-fi.com/I2F22066MI" target="_blank">
+<a href="https://ko-fi.com/cotabby" target="_blank">
 <img width="200" alt="support" src=".github/assets/readme/support-cotabby.png" />
 </a></p>
 
