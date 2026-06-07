@@ -33,6 +33,26 @@ enum SuggestionEngineKind: String, CaseIterable, Equatable, Hashable, Sendable, 
 
 }
 
+/// A per-power-source suggestion configuration: which engine to use and, for the local llama engine,
+/// which downloaded model file. Apple Intelligence carries no model file because the OS owns the
+/// model. Used by the power-based switching feature to pick an engine + model per power state, and as
+/// the single selection tag for the per-state pickers in Settings.
+enum PowerProfile: Equatable, Hashable {
+    case appleIntelligence
+    case llama(filename: String)
+
+    /// The engine this profile selects. Settings persists engine + filename separately, so this is
+    /// the bridge from those two stored fields to a single picker selection (and back).
+    var engine: SuggestionEngineKind {
+        switch self {
+        case .appleIntelligence:
+            return .appleIntelligence
+        case .llama:
+            return .llamaOpenSource
+        }
+    }
+}
+
 /// A user-authored app blocklist entry.
 ///
 /// The bundle identifier is the durable identity used by the suggestion pipeline. The display name

@@ -59,6 +59,8 @@ struct SuggestionSettingsData: Equatable {
     var globalToggleKeyLabel: String
     var acceptanceGranularity: AcceptanceGranularity
     var isPowerBasedModelSwitchingEnabled: Bool
+    var batteryEngine: SuggestionEngineKind
     var batteryModelFilename: String
+    var pluggedInEngine: SuggestionEngineKind
     var pluggedInModelFilename: String
 }

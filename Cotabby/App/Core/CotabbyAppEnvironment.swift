@@ -288,54 +288,79 @@ final class CotabbyAppEnvironment {
             }
             .store(in: &cancellables)
 
-        observePowerSourceModelSwitching(
-            powerSourceMonitor: powerSourceMonitor,
-            runtimeModel: runtimeModel,
-            suggestionSettings: suggestionSettings
-        )
+        observePowerSourceProfileSwitching()
     }
 
-    /// Switches the runtime model when the power source changes, if the user opted into power-based
-    /// switching. The guards bail early when the feature is off, the target model is unset or no
-    /// longer installed, or it is already selected, so the only side effect is a deliberate reload on
-    /// a genuine power transition. Extracted from `init` to keep the initializer's complexity bounded.
-    private func observePowerSourceModelSwitching(
-        powerSourceMonitor: PowerSourceMonitor,
-        runtimeModel: RuntimeBootstrapModel,
-        suggestionSettings: SuggestionSettingsModel
-    ) {
-        powerSourceMonitor.$isPluggedIn
-            .removeDuplicates()
-            .sink { [weak runtimeModel, weak suggestionSettings] isPluggedIn in
-                guard let runtimeModel,
-                      let suggestionSettings else {
+    /// Applies the user's per-power-source profile (engine + model) whenever anything that could
+    /// change the right answer changes: the power source, the feature toggle, either profile, or the
+    /// installed-model list (so a profile referencing a still-loading model is honored once it
+    /// appears). The apply step is idempotent (`selectEngine`/`selectModel` no-op when already
+    /// current), so the redundant values `@Published` replays on subscription are harmless.
+    /// Extracted from `init` to keep the initializer's complexity bounded.
+    private func observePowerSourceProfileSwitching() {
+        let triggers: [AnyPublisher<Void, Never>] = [
+            powerSourceMonitor.$isPluggedIn.map { _ in () }.eraseToAnyPublisher(),
+            suggestionSettings.$isPowerBasedModelSwitchingEnabled.map { _ in () }.eraseToAnyPublisher(),
+            suggestionSettings.$batteryEngine.map { _ in () }.eraseToAnyPublisher(),
+            suggestionSettings.$batteryModelFilename.map { _ in () }.eraseToAnyPublisher(),
+            suggestionSettings.$pluggedInEngine.map { _ in () }.eraseToAnyPublisher(),
+            suggestionSettings.$pluggedInModelFilename.map { _ in () }.eraseToAnyPublisher(),
+            runtimeModel.$availableModels.map { _ in () }.eraseToAnyPublisher()
+        ]
+
+        Publishers.MergeMany(triggers)
+            .sink { [weak self] _ in
+                guard let self else {
                     return
                 }
 
-                guard suggestionSettings.isPowerBasedModelSwitchingEnabled else {
-                    return
-                }
-
-                let filename = isPluggedIn
-                    ? suggestionSettings.pluggedInModelFilename
-                    : suggestionSettings.batteryModelFilename
-
-                guard !filename.isEmpty else {
-                    return
-                }
-
-                guard runtimeModel.availableModels.contains(where: { $0.filename == filename }) else {
-                    return
-                }
-
-                guard runtimeModel.selectedModelFilename != filename else {
-                    return
-                }
-
-                Task {
-                    await runtimeModel.selectModel(filename)
-                }
+                Self.applyPowerProfile(
+                    isPluggedIn: self.powerSourceMonitor.isPluggedIn,
+                    runtimeModel: self.runtimeModel,
+                    suggestionSettings: self.suggestionSettings,
+                    availability: self.foundationModelAvailabilityService
+                )
             }
             .store(in: &cancellables)
+    }
+
+    /// Switches the active engine (and, for Open Source, the model) to the profile configured for the
+    /// current power source. Does nothing when the feature is off. Apple Intelligence is applied only
+    /// when actually available, so a configured-but-unavailable profile never strands the user on a
+    /// dead engine; the Open Source branch reloads the model only when it is installed and not already
+    /// selected, so the sole side effect is a deliberate reload on a real change.
+    private static func applyPowerProfile(
+        isPluggedIn: Bool,
+        runtimeModel: RuntimeBootstrapModel,
+        suggestionSettings: SuggestionSettingsModel,
+        availability: FoundationModelAvailabilityService
+    ) {
+        guard suggestionSettings.isPowerBasedModelSwitchingEnabled else {
+            return
+        }
+
+        let profile = isPluggedIn ? suggestionSettings.pluggedInProfile : suggestionSettings.batteryProfile
+
+        switch profile {
+        case .appleIntelligence:
+            guard availability.isAvailable else {
+                return
+            }
+
+            suggestionSettings.selectEngine(.appleIntelligence)
+
+        case .llama(let filename):
+            suggestionSettings.selectEngine(.llamaOpenSource)
+
+            guard !filename.isEmpty,
+                  runtimeModel.availableModels.contains(where: { $0.filename == filename }),
+                  runtimeModel.selectedModelFilename != filename else {
+                return
+            }
+
+            Task {
+                await runtimeModel.selectModel(filename)
+            }
+        }
     }
 }

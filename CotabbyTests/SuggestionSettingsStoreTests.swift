@@ -182,6 +182,49 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         XCTAssertEqual(data.ghostTextOpacity, SuggestionSettingsStore.minimumGhostTextOpacity, accuracy: 0.0001)
     }
 
+    // MARK: - Power-based switching profiles
+
+    func test_load_powerProfileEnginesDefaultToOpenSourceWhenAbsent() async {
+        let defaults = makeIsolatedDefaults()
+
+        let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
+
+        // A fresh install has no per-power-source engine stored: both default to Open Source so the
+        // pre-engine behavior (local model switching only) is preserved.
+        XCTAssertEqual(data.batteryEngine, .llamaOpenSource)
+        XCTAssertEqual(data.pluggedInEngine, .llamaOpenSource)
+    }
+
+    func test_saveThenLoad_roundTripsPowerProfileEngines() async {
+        let defaults = makeIsolatedDefaults()
+        let store = SuggestionSettingsStore(userDefaults: defaults)
+
+        store.saveBatteryEngine(.appleIntelligence)
+        store.savePluggedInEngine(.llamaOpenSource)
+        store.savePluggedInModelFilename("big-model.gguf")
+
+        let data = store.load(configuration: .standard)
+
+        XCTAssertEqual(data.batteryEngine, .appleIntelligence)
+        XCTAssertEqual(data.pluggedInEngine, .llamaOpenSource)
+        XCTAssertEqual(data.pluggedInModelFilename, "big-model.gguf")
+    }
+
+    func test_load_legacyModelOnlyProfilePreservedWithOpenSourceEngine() async {
+        let defaults = makeIsolatedDefaults()
+        // A user upgrading from the model-only release has filenames but no engine keys. The model
+        // selections must survive and the engine must resolve to Open Source so their setup is intact.
+        defaults.set("small-model.gguf", forKey: "cotabbyBatteryModelFilename")
+        defaults.set("big-model.gguf", forKey: "cotabbyPluggedInModelFilename")
+
+        let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
+
+        XCTAssertEqual(data.batteryEngine, .llamaOpenSource)
+        XCTAssertEqual(data.batteryModelFilename, "small-model.gguf")
+        XCTAssertEqual(data.pluggedInEngine, .llamaOpenSource)
+        XCTAssertEqual(data.pluggedInModelFilename, "big-model.gguf")
+    }
+
     // MARK: - helpers
 
     /// Each store test gets its own isolated UserDefaults so state cannot leak between cases.
