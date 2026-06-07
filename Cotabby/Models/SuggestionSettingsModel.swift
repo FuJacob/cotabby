@@ -213,55 +213,50 @@ final class SuggestionSettingsModel: ObservableObject {
         store.saveSelectedEngine(engine)
     }
 
-
     func setPowerBasedModelSwitchingEnabled(_ enabled: Bool) {
-    guard isPowerBasedModelSwitchingEnabled != enabled else {
-        return
-    }
+        guard isPowerBasedModelSwitchingEnabled != enabled else {
+            return
+        }
 
-    isPowerBasedModelSwitchingEnabled = enabled
-    store.savePowerBasedModelSwitchingEnabled(enabled)
+        isPowerBasedModelSwitchingEnabled = enabled
+        store.savePowerBasedModelSwitchingEnabled(enabled)
     }
 
     func setBatteryModelFilename(_ filename: String) {
-    guard batteryModelFilename != filename else {
-        return
-    }
+        guard batteryModelFilename != filename else {
+            return
+        }
 
-    batteryModelFilename = filename
-    store.saveBatteryModelFilename(filename)
+        batteryModelFilename = filename
+        store.saveBatteryModelFilename(filename)
     }
 
     func setPluggedInModelFilename(_ filename: String) {
-    guard pluggedInModelFilename != filename else {
-        return
+        guard pluggedInModelFilename != filename else {
+            return
+        }
+
+        pluggedInModelFilename = filename
+        store.savePluggedInModelFilename(filename)
     }
 
-    pluggedInModelFilename = filename
-    store.savePluggedInModelFilename(filename)
+    /// Seeds the per-power-source model selections from the active model the first time the feature
+    /// is configured, so both pickers default to something valid instead of an empty selection.
+    func initializePowerModelSelections(currentModelFilename: String?) {
+        guard let currentModelFilename else {
+            return
+        }
+
+        if batteryModelFilename.isEmpty {
+            batteryModelFilename = currentModelFilename
+            store.saveBatteryModelFilename(currentModelFilename)
+        }
+
+        if pluggedInModelFilename.isEmpty {
+            pluggedInModelFilename = currentModelFilename
+            store.savePluggedInModelFilename(currentModelFilename)
+        }
     }
-
-
-
-    func initializePowerModelSelections(
-    currentModelFilename: String?
-) {
-    guard let currentModelFilename else {
-        return
-    }
-
-    if batteryModelFilename.isEmpty {
-        batteryModelFilename = currentModelFilename
-        store.saveBatteryModelFilename(currentModelFilename)
-    }
-
-    if pluggedInModelFilename.isEmpty {
-        pluggedInModelFilename = currentModelFilename
-        store.savePluggedInModelFilename(currentModelFilename)
-    }
-}
-
-
 
     func selectWordCountPreset(_ preset: SuggestionWordCountPreset) {
         guard selectedWordCountPreset != preset else {

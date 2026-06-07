@@ -52,12 +52,10 @@ struct EngineAndModelPaneView: View {
             foundationModelAvailabilityService.refresh()
 
             suggestionSettings.initializePowerModelSelections(
-    currentModelFilename: runtimeModel.selectedModelFilename
-)
-
+                currentModelFilename: runtimeModel.selectedModelFilename
+            )
 
             lmStudioModelsURL = BundledRuntimeLocator.lmStudioModelsDirectoryIfAvailable()
-
 
             // If LM Studio was uninstalled while the source was enabled, clear the persisted flag so
             // the toggle does not sit checked-but-disabled with no way to turn it off (and so the
@@ -135,55 +133,54 @@ struct EngineAndModelPaneView: View {
                 }
             }
 
-
             Toggle(
-    isOn: Binding(
-        get: { suggestionSettings.isPowerBasedModelSwitchingEnabled },
-        set: { suggestionSettings.setPowerBasedModelSwitchingEnabled($0) }
-    )
-) {
-    SettingsRowLabel(
-        title: "Switch models based on power source",
-        description: "Use different models when running on battery or while plugged in.",
-        systemImage: "battery.100"
-    )
-}
+                isOn: Binding(
+                    get: { suggestionSettings.isPowerBasedModelSwitchingEnabled },
+                    set: { suggestionSettings.setPowerBasedModelSwitchingEnabled($0) }
+                )
+            ) {
+                SettingsRowLabel(
+                    title: "Switch models based on power source",
+                    description: "Use different models when running on battery or while plugged in.",
+                    systemImage: "battery.100"
+                )
+            }
 
-if suggestionSettings.isPowerBasedModelSwitchingEnabled {
-    Picker(
-        "Battery Model",
-        selection: Binding(
-           get: {
-    suggestionSettings.batteryModelFilename.isEmpty
-        ? (runtimeModel.selectedModelFilename ?? "")
-        : suggestionSettings.batteryModelFilename
-},
-            set: { suggestionSettings.setBatteryModelFilename($0) }
-        )
-    ) {
-        ForEach(runtimeModel.availableModels) { model in
-            Text(model.displayName)
-                .tag(model.filename)
-        }
-    }
+            if suggestionSettings.isPowerBasedModelSwitchingEnabled {
+                Picker(
+                    "Battery Model",
+                    selection: Binding(
+                        get: {
+                            suggestionSettings.batteryModelFilename.isEmpty
+                                ? (runtimeModel.selectedModelFilename ?? "")
+                                : suggestionSettings.batteryModelFilename
+                        },
+                        set: { suggestionSettings.setBatteryModelFilename($0) }
+                    )
+                ) {
+                    ForEach(runtimeModel.availableModels) { model in
+                        Text(model.displayName)
+                            .tag(model.filename)
+                    }
+                }
 
-    Picker(
-        "Plugged-in Model",
-        selection: Binding(
-           get: {
-    suggestionSettings.pluggedInModelFilename.isEmpty
-        ? (runtimeModel.selectedModelFilename ?? "")
-        : suggestionSettings.pluggedInModelFilename
-},
-            set: { suggestionSettings.setPluggedInModelFilename($0) }
-        )
-    ) {
-        ForEach(runtimeModel.availableModels) { model in
-            Text(model.displayName)
-                .tag(model.filename)
-        }
-    }
-}
+                Picker(
+                    "Plugged-in Model",
+                    selection: Binding(
+                        get: {
+                            suggestionSettings.pluggedInModelFilename.isEmpty
+                                ? (runtimeModel.selectedModelFilename ?? "")
+                                : suggestionSettings.pluggedInModelFilename
+                        },
+                        set: { suggestionSettings.setPluggedInModelFilename($0) }
+                    )
+                ) {
+                    ForEach(runtimeModel.availableModels) { model in
+                        Text(model.displayName)
+                            .tag(model.filename)
+                    }
+                }
+            }
 
             DownloadableModelCatalogView(
                 modelDownloadManager: modelDownloadManager,

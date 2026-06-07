@@ -288,43 +288,54 @@ final class CotabbyAppEnvironment {
             }
             .store(in: &cancellables)
 
-
-            powerSourceMonitor.$isPluggedIn
-    .removeDuplicates()
-    .sink { [weak runtimeModel, weak suggestionSettings] isPluggedIn in
-
-        guard let runtimeModel,
-              let suggestionSettings else {
-            return
-        }
-
-        guard suggestionSettings.isPowerBasedModelSwitchingEnabled else {
-            return
-        }
-
-        let filename =
-            isPluggedIn
-            ? suggestionSettings.pluggedInModelFilename
-            : suggestionSettings.batteryModelFilename
-
-        guard !filename.isEmpty else {
-            return
-        }
-
-        guard runtimeModel.availableModels.contains(
-            where: { $0.filename == filename }
-        ) else {
-            return
-        }
-
-        guard runtimeModel.selectedModelFilename != filename else {
-            return
-        }
-
-        Task {
-            await runtimeModel.selectModel(filename)
-        }
+        observePowerSourceModelSwitching(
+            powerSourceMonitor: powerSourceMonitor,
+            runtimeModel: runtimeModel,
+            suggestionSettings: suggestionSettings
+        )
     }
-    .store(in: &cancellables)
+
+    /// Switches the runtime model when the power source changes, if the user opted into power-based
+    /// switching. The guards bail early when the feature is off, the target model is unset or no
+    /// longer installed, or it is already selected, so the only side effect is a deliberate reload on
+    /// a genuine power transition. Extracted from `init` to keep the initializer's complexity bounded.
+    private func observePowerSourceModelSwitching(
+        powerSourceMonitor: PowerSourceMonitor,
+        runtimeModel: RuntimeBootstrapModel,
+        suggestionSettings: SuggestionSettingsModel
+    ) {
+        powerSourceMonitor.$isPluggedIn
+            .removeDuplicates()
+            .sink { [weak runtimeModel, weak suggestionSettings] isPluggedIn in
+                guard let runtimeModel,
+                      let suggestionSettings else {
+                    return
+                }
+
+                guard suggestionSettings.isPowerBasedModelSwitchingEnabled else {
+                    return
+                }
+
+                let filename = isPluggedIn
+                    ? suggestionSettings.pluggedInModelFilename
+                    : suggestionSettings.batteryModelFilename
+
+                guard !filename.isEmpty else {
+                    return
+                }
+
+                guard runtimeModel.availableModels.contains(where: { $0.filename == filename }) else {
+                    return
+                }
+
+                guard runtimeModel.selectedModelFilename != filename else {
+                    return
+                }
+
+                Task {
+                    await runtimeModel.selectModel(filename)
+                }
+            }
+            .store(in: &cancellables)
     }
 }

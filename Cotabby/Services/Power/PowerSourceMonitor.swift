@@ -1,8 +1,14 @@
-import Foundation
 import AppKit
-import IOKit
+import Combine
+import Foundation
+import IOKit.ps
 
-
+/// Tracks whether the Mac is currently drawing AC power and publishes changes for power-aware
+/// features (such as switching the local model on battery vs. plugged in).
+///
+/// Lives on the main actor because `@Published` feeds SwiftUI and the wake observer is delivered on
+/// the main queue. State is refreshed at launch and on wake from sleep; live charger plug/unplug
+/// during an active session is not yet observed.
 @MainActor
 final class PowerSourceMonitor: ObservableObject {
     @Published private(set) var isPluggedIn = true
@@ -28,13 +34,13 @@ final class PowerSourceMonitor: ObservableObject {
     }
 
     func refreshPowerState() {
-    let snapshot = IOPSCopyPowerSourcesInfo().takeRetainedValue()
+        let snapshot = IOPSCopyPowerSourcesInfo().takeRetainedValue()
 
-    guard let source = IOPSGetProvidingPowerSourceType(snapshot)?
-        .takeUnretainedValue() as String else {
-        return
+        guard let powerSource = IOPSGetProvidingPowerSourceType(snapshot) else {
+            return
+        }
+
+        let source = powerSource.takeUnretainedValue() as String
+        isPluggedIn = source == kIOPSACPowerValue
     }
-
-    isPluggedIn = source == kIOPSACPowerValue
-}
 }

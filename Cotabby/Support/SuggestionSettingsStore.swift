@@ -102,8 +102,7 @@ struct SuggestionSettingsStore {
     private static let globalToggleKeyLabelDefaultsKey = "cotabbyGlobalToggleKeyLabel"
     private static let acceptanceGranularityDefaultsKey = "cotabbyAcceptanceGranularity"
 
-
-    private static let powerBasedModelSwitchingEnabledDefaultsKey = "cotabbyPowerBasedModelSwitchingEnabled"
+    private static let powerModelSwitchingEnabledDefaultsKey = "cotabbyPowerBasedModelSwitchingEnabled"
     private static let batteryModelFilenameDefaultsKey = "cotabbyBatteryModelFilename"
     private static let pluggedInModelFilenameDefaultsKey = "cotabbyPluggedInModelFilename"
 
@@ -288,9 +287,10 @@ struct SuggestionSettingsStore {
             .flatMap(AcceptanceGranularity.init(rawValue:))
             ?? .word
 
-        let resolvedPowerBasedModelSwitchingEnabled = userDefaults.object(forKey: Self.powerBasedModelSwitchingEnabledDefaultsKey) as? Bool ?? false
+        let resolvedPowerBasedModelSwitchingEnabled =
+            userDefaults.object(forKey: Self.powerModelSwitchingEnabledDefaultsKey) as? Bool ?? false
         let resolvedBatteryModelFilename = userDefaults.string(forKey: Self.batteryModelFilenameDefaultsKey) ?? ""
-        let resolvedPluggedInModelFilename = userDefaults.string(forKey: Self.pluggedInModelFilenameDefaultsKey) ?? ""    
+        let resolvedPluggedInModelFilename = userDefaults.string(forKey: Self.pluggedInModelFilenameDefaultsKey) ?? ""
 
         let data = SuggestionSettingsData(
             isGloballyEnabled: resolvedGloballyEnabled,
@@ -385,15 +385,9 @@ struct SuggestionSettingsStore {
             label: data.globalToggleKeyLabel
         )
         saveAcceptanceGranularity(data.acceptanceGranularity)
-
-
         savePowerBasedModelSwitchingEnabled(data.isPowerBasedModelSwitchingEnabled)
-
-        saveBatteryModelFilename( data.batteryModelFilename)
-
+        saveBatteryModelFilename(data.batteryModelFilename)
         savePluggedInModelFilename(data.pluggedInModelFilename)
-
-
 
         // The custom indicator icon feature was removed; scrub any previously-persisted PNG so
         // users who picked one in an older build get the default cat icon back automatically.
@@ -446,24 +440,15 @@ struct SuggestionSettingsStore {
     }
 
     func savePowerBasedModelSwitchingEnabled(_ enabled: Bool) {
-    userDefaults.set(
-        enabled,
-        forKey: Self.powerBasedModelSwitchingEnabledDefaultsKey
-    )
+        userDefaults.set(enabled, forKey: Self.powerModelSwitchingEnabledDefaultsKey)
     }
 
     func saveBatteryModelFilename(_ filename: String) {
-    userDefaults.set(
-        filename,
-        forKey: Self.batteryModelFilenameDefaultsKey
-    )
+        userDefaults.set(filename, forKey: Self.batteryModelFilenameDefaultsKey)
     }
 
     func savePluggedInModelFilename(_ filename: String) {
-    userDefaults.set(
-        filename,
-        forKey: Self.pluggedInModelFilenameDefaultsKey
-    )
+        userDefaults.set(filename, forKey: Self.pluggedInModelFilenameDefaultsKey)
     }
 
     func saveSelectedWordCountPreset(_ preset: SuggestionWordCountPreset) {
