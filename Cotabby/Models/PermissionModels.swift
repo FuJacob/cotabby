@@ -93,6 +93,12 @@ enum CotabbyPermissionKind: String, CaseIterable, Identifiable, Sendable {
     /// Whether first-run onboarding surfaces this permission as a skippable enhancement instead of a
     /// required step. Currently only Screen Recording, which unlocks visual context but never blocks
     /// autocomplete, so it is shown as optional rather than dropped from onboarding entirely.
+    ///
+    /// Intentionally independent of `isRequiredForAutocomplete`, not derived from it. The two
+    /// booleans encode three onboarding states: required, optional, or hidden. A future permission
+    /// that is neither required nor an onboarding enhancement (a purely background capability) should
+    /// return `false` from both so it stays out of onboarding entirely; do not assume one is the
+    /// negation of the other.
     var isOptionalEnhancement: Bool {
         switch self {
         case .accessibility, .inputMonitoring:
