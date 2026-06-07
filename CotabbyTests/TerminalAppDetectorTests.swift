@@ -69,7 +69,6 @@ final class TerminalAppDetectorTests: XCTestCase {
         let reason = SuggestionAvailabilityEvaluator.disabledReason(
             globallyEnabled: true,
             inputMonitoringGranted: true,
-            screenRecordingGranted: true,
             focusSnapshot: snapshot
         )
 
@@ -88,7 +87,6 @@ final class TerminalAppDetectorTests: XCTestCase {
         let reason = SuggestionAvailabilityEvaluator.disabledReason(
             globallyEnabled: true,
             inputMonitoringGranted: true,
-            screenRecordingGranted: true,
             focusSnapshot: snapshot
         )
 
@@ -108,7 +106,6 @@ final class TerminalAppDetectorTests: XCTestCase {
             SuggestionAvailabilityEvaluator.shouldSchedulePrediction(
                 globallyEnabled: true,
                 inputMonitoringGranted: true,
-                screenRecordingGranted: true,
                 focusSnapshot: snapshot
             )
         )
@@ -126,7 +123,6 @@ final class TerminalAppDetectorTests: XCTestCase {
         let reason = SuggestionAvailabilityEvaluator.disabledReason(
             globallyEnabled: false,
             inputMonitoringGranted: true,
-            screenRecordingGranted: true,
             focusSnapshot: snapshot
         )
 

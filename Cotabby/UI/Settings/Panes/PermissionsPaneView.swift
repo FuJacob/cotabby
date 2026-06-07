@@ -11,7 +11,8 @@ struct PermissionsPaneView: View {
     var body: some View {
         SettingsPaneScaffold(callout: callout) {
             Section("Permissions") {
-                Text("Cotabby needs Accessibility, Input Monitoring, and Screen Recording for autocomplete.")
+                Text("Cotabby needs Accessibility and Input Monitoring for autocomplete. " +
+                    "Screen Recording is optional and adds on-screen visual context.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
@@ -35,10 +36,11 @@ struct PermissionsPaneView: View {
 
                 permissionRow(
                     title: "Screen Recording",
-                    description: "Lets Cotabby take a screenshot of the focused window to use as " +
-                        "additional context. Required even when Fast Mode skips capture.",
+                    description: "Optional. Lets Cotabby screenshot the focused window for extra " +
+                        "context. Without it, Cotabby runs in Fast Mode using only the text you've typed.",
                     systemImage: "camera.viewfinder",
                     granted: permissionManager.screenRecordingGranted,
+                    isOptional: true,
                     action: permissionManager.openScreenRecordingSettings
                 )
             }
@@ -72,17 +74,20 @@ struct PermissionsPaneView: View {
         description: String,
         systemImage: String,
         granted: Bool,
+        isOptional: Bool = false,
         action: @escaping () -> Void
     ) -> some View {
         HStack(spacing: 10) {
             SettingsRowLabel(title: title, description: description, systemImage: systemImage)
             Spacer(minLength: 0)
-            Text(granted ? "Granted" : "Needs Access")
+            // An ungranted optional permission reads as a neutral "Off" rather than the orange
+            // "Needs Access" used for required ones, so it never looks like a broken setup.
+            Text(granted ? "Granted" : (isOptional ? "Off" : "Needs Access"))
                 .font(.caption.weight(.medium))
-                .foregroundStyle(granted ? .green : .orange)
+                .foregroundStyle(granted ? .green : (isOptional ? .secondary : .orange))
 
             if !granted {
-                Button("Open Settings") {
+                Button(isOptional ? "Enable" : "Open Settings") {
                     action()
                 }
                 .controlSize(.small)

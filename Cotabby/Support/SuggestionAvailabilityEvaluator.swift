@@ -12,7 +12,6 @@ enum SuggestionAvailabilityEvaluator {
         disabledAppBundleIdentifiers: Set<String> = [],
         disabledDomains: Set<String> = [],
         inputMonitoringGranted: Bool,
-        screenRecordingGranted: Bool,
         focusSnapshot: FocusSnapshot,
         checkCapability: Bool = true
     ) -> String? {
@@ -43,11 +42,6 @@ enum SuggestionAvailabilityEvaluator {
             return "Input Monitoring permission is required before Cotabby can react to typing."
         }
 
-        guard screenRecordingGranted else {
-            return "Screen Recording permission is required before Cotabby can build visual context "
-                + "for autocomplete."
-        }
-
         guard checkCapability else {
             return nil
         }
@@ -65,7 +59,6 @@ enum SuggestionAvailabilityEvaluator {
         disabledAppBundleIdentifiers: Set<String> = [],
         disabledDomains: Set<String> = [],
         inputMonitoringGranted: Bool,
-        screenRecordingGranted: Bool,
         focusSnapshot: FocusSnapshot
     ) -> Bool {
         disabledReason(
@@ -73,7 +66,6 @@ enum SuggestionAvailabilityEvaluator {
             disabledAppBundleIdentifiers: disabledAppBundleIdentifiers,
             disabledDomains: disabledDomains,
             inputMonitoringGranted: inputMonitoringGranted,
-            screenRecordingGranted: screenRecordingGranted,
             focusSnapshot: focusSnapshot
         ) == nil
     }
@@ -84,9 +76,12 @@ enum SuggestionAvailabilityEvaluator {
     /// states (text selected, secure field) are intentionally ignored — OCR should start
     /// early in those cases and be ready by the time the user begins typing.
     ///
-    /// Fast mode is checked here, and deliberately NOT in `disabledReason`: it suppresses only the
-    /// screenshot/OCR pipeline. Predictions still run (they just go out without visual context), so
-    /// `disabledReason` / `shouldSchedulePrediction` must stay unaffected.
+    /// Two conditions gate capture here and deliberately NOT in `disabledReason`, because both
+    /// suppress only the screenshot/OCR pipeline while predictions keep running (they just go out
+    /// without visual context):
+    /// - Fast mode: the user opted into faster, text-only suggestions.
+    /// - Missing Screen Recording permission: the permission is optional, so its absence forces the
+    ///   same text-only behavior as fast mode instead of disabling autocomplete.
     static func shouldCaptureVisualContext(
         globallyEnabled: Bool = true,
         disabledAppBundleIdentifiers: Set<String> = [],
@@ -100,12 +95,15 @@ enum SuggestionAvailabilityEvaluator {
             return false
         }
 
+        guard screenRecordingGranted else {
+            return false
+        }
+
         return disabledReason(
             globallyEnabled: globallyEnabled,
             disabledAppBundleIdentifiers: disabledAppBundleIdentifiers,
             disabledDomains: disabledDomains,
             inputMonitoringGranted: inputMonitoringGranted,
-            screenRecordingGranted: screenRecordingGranted,
             focusSnapshot: focusSnapshot,
             checkCapability: false
         ) == nil

@@ -68,7 +68,11 @@ extension SuggestionCoordinator {
         }
 
         let context = interactionState.materializeContext(from: rawContext)
-        let visualContextSummary = visualContextCoordinator.excerpt(for: context)
+        // Screen Recording is optional. Re-check it live so a cached excerpt captured before the user
+        // revoked the permission can never be injected during the 2s permission-poll window.
+        let visualContextSummary = permissionManager.screenRecordingGranted
+            ? visualContextCoordinator.excerpt(for: context)
+            : nil
         let rawClipboard = settingsSnapshot.isClipboardContextEnabled
             ? clipboardContextProvider.currentContext()
             : nil
@@ -523,7 +527,6 @@ extension SuggestionCoordinator {
             disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
             disabledDomains: PerDomainDisableSettings.disabledDomains(),
             inputMonitoringGranted: permissionManager.inputMonitoringGranted,
-            screenRecordingGranted: permissionManager.screenRecordingGranted,
             focusSnapshot: focusSnapshot
         )
     }

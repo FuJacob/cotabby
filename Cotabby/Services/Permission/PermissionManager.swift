@@ -102,10 +102,9 @@ final class PermissionManager: ObservableObject {
         }
     }
 
-    /// Core autocomplete depends on Accessibility, Input Monitoring, and Screen Recording.
-    ///
-    /// Screen Recording was historically optional, but is now a core requirement for providing
-    /// visual context to the autocomplete engine.
+    /// Core autocomplete depends on Accessibility and Input Monitoring. Screen Recording is
+    /// optional (without it the app runs the text-only Fast Mode path), so it is intentionally
+    /// excluded here via `CotabbyPermissionKind.isRequiredForAutocomplete`.
     var requiredPermissionsGranted: Bool {
         CotabbyPermissionKind.allCases
             .filter(\.isRequiredForAutocomplete)

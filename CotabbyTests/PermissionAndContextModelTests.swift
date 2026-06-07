@@ -53,13 +53,18 @@ final class CotabbyPermissionKindTests: XCTestCase {
         }
     }
 
-    func test_isRequiredForAutocomplete_isTrueForAllCases() {
-        for kind in CotabbyPermissionKind.allCases {
-            XCTAssertTrue(
-                kind.isRequiredForAutocomplete,
-                "\(kind) should be required for autocomplete"
-            )
-        }
+    func test_isRequiredForAutocomplete_isTrueOnlyForCoreInputPermissions() {
+        XCTAssertTrue(CotabbyPermissionKind.accessibility.isRequiredForAutocomplete)
+        XCTAssertTrue(CotabbyPermissionKind.inputMonitoring.isRequiredForAutocomplete)
+        // Screen Recording is optional: missing it forces the text-only Fast Mode path rather than
+        // disabling autocomplete.
+        XCTAssertFalse(CotabbyPermissionKind.screenRecording.isRequiredForAutocomplete)
+    }
+
+    func test_isOptionalEnhancement_isTrueOnlyForScreenRecording() {
+        XCTAssertTrue(CotabbyPermissionKind.screenRecording.isOptionalEnhancement)
+        XCTAssertFalse(CotabbyPermissionKind.accessibility.isOptionalEnhancement)
+        XCTAssertFalse(CotabbyPermissionKind.inputMonitoring.isOptionalEnhancement)
     }
 
     func test_guidanceHint_isNonEmptyForAllCases() {

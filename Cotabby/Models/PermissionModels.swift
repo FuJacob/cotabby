@@ -57,7 +57,7 @@ enum CotabbyPermissionKind: String, CaseIterable, Identifiable, Sendable {
         case .inputMonitoring:
             "Detect typing and accept with Tab."
         case .screenRecording:
-            "Capture screen context for visual reasoning."
+            "Optional: capture screen context for richer suggestions."
         }
     }
 
@@ -77,9 +77,27 @@ enum CotabbyPermissionKind: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
+    /// Whether core autocomplete cannot function without this permission. Screen Recording is
+    /// excluded: it only enriches suggestions with screenshot-based visual context, and its absence
+    /// simply forces the text-only Fast Mode path rather than disabling autocomplete (see
+    /// `SuggestionAvailabilityEvaluator.shouldCaptureVisualContext`).
     var isRequiredForAutocomplete: Bool {
         switch self {
-        case .accessibility, .inputMonitoring, .screenRecording:
+        case .accessibility, .inputMonitoring:
+            true
+        case .screenRecording:
+            false
+        }
+    }
+
+    /// Whether first-run onboarding surfaces this permission as a skippable enhancement instead of a
+    /// required step. Currently only Screen Recording, which unlocks visual context but never blocks
+    /// autocomplete, so it is shown as optional rather than dropped from onboarding entirely.
+    var isOptionalEnhancement: Bool {
+        switch self {
+        case .accessibility, .inputMonitoring:
+            false
+        case .screenRecording:
             true
         }
     }
