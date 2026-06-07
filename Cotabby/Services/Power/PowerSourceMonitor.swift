@@ -28,12 +28,10 @@ final class PowerSourceMonitor: ObservableObject {
     }
 
     func refreshPowerState() {
-    guard let snapshot = IOPSCopyPowerSourcesInfo()?.takeRetainedValue() else {
-        return
-    }
+    let snapshot = IOPSCopyPowerSourcesInfo().takeRetainedValue()
 
     guard let source = IOPSGetProvidingPowerSourceType(snapshot)?
-        .takeUnretainedValue() as String? else {
+        .takeUnretainedValue() as String else {
         return
     }
 
