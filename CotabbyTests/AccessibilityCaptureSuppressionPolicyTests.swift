@@ -10,6 +10,15 @@ final class AccessibilityCaptureSuppressionPolicyTests: XCTestCase {
         )
     }
 
+    func testCalendarCaptureCanBeOverridden() {
+        XCTAssertFalse(
+            AccessibilityCaptureSuppressionPolicy.shouldSuppressCapture(
+                bundleIdentifier: "com.apple.iCal",
+                overrideBundleIdentifiers: ["com.apple.iCal"]
+            )
+        )
+    }
+
     func testOrdinaryAppCaptureIsNotSuppressed() {
         XCTAssertFalse(
             AccessibilityCaptureSuppressionPolicy.shouldSuppressCapture(

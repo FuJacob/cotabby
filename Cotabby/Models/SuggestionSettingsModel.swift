@@ -38,6 +38,8 @@ final class SuggestionSettingsModel: ObservableObject {
     /// Whether the keycap hint (the small pill that teaches the accept key) is drawn after ghost text.
     @Published private(set) var showAcceptanceHint: Bool
     @Published private(set) var disabledAppRules: [DisabledApplicationRule]
+    /// Bundle IDs where the user has deliberately opted out of a built-in AX capture safeguard.
+    @Published private(set) var accessibilityCaptureOverrideBundleIdentifiers: Set<String>
     @Published private(set) var customSuggestionTextColorHex: String?
     @Published private(set) var ghostTextOpacity: Double
     @Published private(set) var selectedEngine: SuggestionEngineKind
@@ -127,6 +129,7 @@ final class SuggestionSettingsModel: ObservableObject {
         showIndicator = data.showIndicator
         showAcceptanceHint = data.showAcceptanceHint
         disabledAppRules = data.disabledAppRules
+        accessibilityCaptureOverrideBundleIdentifiers = data.accessibilityCaptureOverrideBundleIdentifiers
         customSuggestionTextColorHex = data.customSuggestionTextColorHex
         ghostTextOpacity = data.ghostTextOpacity
         selectedEngine = data.selectedEngine
@@ -448,6 +451,44 @@ final class SuggestionSettingsModel: ObservableObject {
         return disabledAppRules.contains {
             $0.bundleIdentifier == normalizedBundleIdentifier
         }
+    }
+
+    /// Records whether a built-in Accessibility capture safeguard should be bypassed for one app.
+    ///
+    /// This is intentionally separate from disabled-app rules. Disabling an app stops all Cotabby
+    /// behavior there; this override does the opposite for one narrow compatibility block by allowing
+    /// Cotabby to inspect that app's AX tree again.
+    func setAccessibilityCaptureOverride(
+        bundleIdentifier: String?,
+        allowsCapture: Bool
+    ) {
+        guard let normalizedBundleIdentifier = SuggestionSettingsStore.normalizedBundleIdentifier(bundleIdentifier)
+        else {
+            return
+        }
+
+        var updatedBundleIdentifiers = accessibilityCaptureOverrideBundleIdentifiers
+        if allowsCapture {
+            updatedBundleIdentifiers.insert(normalizedBundleIdentifier)
+        } else {
+            updatedBundleIdentifiers.remove(normalizedBundleIdentifier)
+        }
+
+        guard accessibilityCaptureOverrideBundleIdentifiers != updatedBundleIdentifiers else {
+            return
+        }
+
+        accessibilityCaptureOverrideBundleIdentifiers = updatedBundleIdentifiers
+        store.saveAccessibilityCaptureOverrideBundleIdentifiers(updatedBundleIdentifiers)
+    }
+
+    func isAccessibilityCaptureOverrideEnabled(bundleIdentifier: String?) -> Bool {
+        guard let normalizedBundleIdentifier = SuggestionSettingsStore.normalizedBundleIdentifier(bundleIdentifier)
+        else {
+            return false
+        }
+
+        return accessibilityCaptureOverrideBundleIdentifiers.contains(normalizedBundleIdentifier)
     }
 
     func setShowIndicator(_ show: Bool) {

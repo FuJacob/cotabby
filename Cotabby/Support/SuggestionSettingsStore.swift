@@ -52,6 +52,8 @@ struct SuggestionSettingsStore {
 
     private static let isGloballyEnabledDefaultsKey = "cotabbyGloballyEnabled"
     private static let disabledAppRulesDefaultsKey = "cotabbyDisabledAppRules"
+    private static let accessibilityCaptureOverrideBundleIdentifiersDefaultsKey =
+        "cotabbyAccessibilityCaptureOverrideBundleIdentifiers"
     private static let showCaretIndicatorDefaultsKey = "cotabbyShowCaretIndicator"
     private static let selectedIndicatorModeDefaultsKey = "cotabbySelectedIndicatorMode"
     private static let showAcceptanceHintDefaultsKey = "cotabbyShowAcceptanceHint"
@@ -112,6 +114,9 @@ struct SuggestionSettingsStore {
     func load(configuration: SuggestionConfiguration) -> SuggestionSettingsData {
         let resolvedGloballyEnabled = userDefaults.object(forKey: Self.isGloballyEnabledDefaultsKey) as? Bool ?? true
         let resolvedDisabledAppRules = loadDisabledAppRules()
+        let resolvedAccessibilityCaptureOverrideBundleIdentifiers = Self.sanitizedBundleIdentifierSet(
+            userDefaults.stringArray(forKey: Self.accessibilityCaptureOverrideBundleIdentifiersDefaultsKey) ?? []
+        )
         let resolvedShowIndicator: Bool = if let modeString = userDefaults.string(
             forKey: Self.selectedIndicatorModeDefaultsKey
         ) {
@@ -288,6 +293,7 @@ struct SuggestionSettingsStore {
             showIndicator: resolvedShowIndicator,
             showAcceptanceHint: resolvedShowAcceptanceHint,
             disabledAppRules: resolvedDisabledAppRules,
+            accessibilityCaptureOverrideBundleIdentifiers: resolvedAccessibilityCaptureOverrideBundleIdentifiers,
             customSuggestionTextColorHex: resolvedCustomSuggestionTextColorHex,
             ghostTextOpacity: resolvedGhostTextOpacity,
             selectedEngine: resolvedEngine,
@@ -330,6 +336,7 @@ struct SuggestionSettingsStore {
         // sticky on the next launch. Mirrors the resolution above field-for-field.
         saveGloballyEnabled(data.isGloballyEnabled)
         saveDisabledAppRules(data.disabledAppRules)
+        saveAccessibilityCaptureOverrideBundleIdentifiers(data.accessibilityCaptureOverrideBundleIdentifiers)
         saveShowIndicator(data.showIndicator)
         saveShowAcceptanceHint(data.showAcceptanceHint)
         saveCustomSuggestionTextColorHex(data.customSuggestionTextColorHex)
@@ -396,6 +403,18 @@ struct SuggestionSettingsStore {
         if let data = try? JSONEncoder().encode(rules) {
             userDefaults.set(data, forKey: Self.disabledAppRulesDefaultsKey)
         }
+    }
+
+    func saveAccessibilityCaptureOverrideBundleIdentifiers(_ bundleIdentifiers: Set<String>) {
+        let normalized = Self.sortedBundleIdentifiers(
+            Self.sanitizedBundleIdentifierSet(Array(bundleIdentifiers))
+        )
+        guard !normalized.isEmpty else {
+            userDefaults.removeObject(forKey: Self.accessibilityCaptureOverrideBundleIdentifiersDefaultsKey)
+            return
+        }
+
+        userDefaults.set(normalized, forKey: Self.accessibilityCaptureOverrideBundleIdentifiersDefaultsKey)
     }
 
     func saveShowIndicator(_ show: Bool) {
@@ -596,6 +615,14 @@ struct SuggestionSettingsStore {
 
         let trimmed = bundleIdentifier.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
+    }
+
+    static func sanitizedBundleIdentifierSet(_ bundleIdentifiers: [String]) -> Set<String> {
+        Set(bundleIdentifiers.compactMap(Self.normalizedBundleIdentifier(_:)))
+    }
+
+    static func sortedBundleIdentifiers(_ bundleIdentifiers: Set<String>) -> [String] {
+        bundleIdentifiers.sorted()
     }
 
     static func normalizedDisplayName(

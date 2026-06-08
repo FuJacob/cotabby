@@ -138,6 +138,24 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         XCTAssertNil(defaults.data(forKey: "cotabbyCustomIndicatorImageData"))
     }
 
+    // MARK: - Accessibility capture override normalization
+
+    func test_load_sanitizesAccessibilityCaptureOverrideBundleIdentifiers() async {
+        let defaults = makeIsolatedDefaults()
+        defaults.set(
+            [" com.apple.iCal ", "", "com.apple.iCal"],
+            forKey: "cotabbyAccessibilityCaptureOverrideBundleIdentifiers"
+        )
+
+        let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
+
+        XCTAssertEqual(data.accessibilityCaptureOverrideBundleIdentifiers, ["com.apple.iCal"])
+        XCTAssertEqual(
+            defaults.stringArray(forKey: "cotabbyAccessibilityCaptureOverrideBundleIdentifiers"),
+            ["com.apple.iCal"]
+        )
+    }
+
     // MARK: - Save / load round-trips
 
     func test_saveThenLoad_roundTripsScalarFields() async {

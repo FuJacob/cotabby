@@ -66,23 +66,25 @@ final class CotabbyAppEnvironment {
         inputMonitor.onGlobalToggleHotkey = { [weak suggestionSettings] in
             suggestionSettings?.toggleGloballyEnabled()
         }
-        // Stop the deep AX walk when Cotabby is disabled for the focused app. Without this the
-        // focus poll keeps enumerating the frontmost app's AX attributes every 50-80ms even after
-        // the user toggles Cotabby off, which can dismiss transient popovers in apps like Calendar
-        // (#476). Gating here also makes the "I disabled it but the bug remained" symptom go away:
-        // the disable toggles now actually stop touching the focused app.
+        // Stop the deep AX walk when Cotabby is disabled or a built-in compatibility safeguard is
+        // active. Without this the focus poll keeps enumerating the frontmost app's AX attributes
+        // every 50-80ms even after the user toggles Cotabby off, which can dismiss transient
+        // popovers in apps like Calendar (#476). The Calendar safeguard is checked last so global
+        // and per-app disabled preferences still win, while Settings can explicitly opt back into
+        // capture for the known-fragile app.
         let focusModel = FocusTrackingModel(
             permissionProvider: { permissionManager.accessibilityGranted },
             ignoredBundleIdentifier: Bundle.main.bundleIdentifier,
             isCaptureSuppressedForBundle: { bundleIdentifier in
-                if AccessibilityCaptureSuppressionPolicy.shouldSuppressCapture(
-                    bundleIdentifier: bundleIdentifier
-                ) {
-                    return true
-                }
                 guard suggestionSettings.isGloballyEnabled else { return true }
                 if let bundleIdentifier,
                    suggestionSettings.isApplicationDisabled(bundleIdentifier: bundleIdentifier) {
+                    return true
+                }
+                if AccessibilityCaptureSuppressionPolicy.shouldSuppressCapture(
+                    bundleIdentifier: bundleIdentifier,
+                    overrideBundleIdentifiers: suggestionSettings.accessibilityCaptureOverrideBundleIdentifiers
+                ) {
                     return true
                 }
                 return false
