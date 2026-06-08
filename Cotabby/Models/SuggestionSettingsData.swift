@@ -15,6 +15,11 @@ struct SuggestionSettingsData: Equatable {
     var showIndicator: Bool
     var showAcceptanceHint: Bool
     var disabledAppRules: [DisabledApplicationRule]
+    /// User opt-ins that bypass a built-in AX capture safeguard for a specific app.
+    ///
+    /// The defaults live in `AccessibilityCaptureSuppressionPolicy`; this set only records explicit
+    /// user overrides, so adding a future safeguard does not silently inherit an unrelated preference.
+    var accessibilityCaptureOverrideBundleIdentifiers: Set<String>
     var customSuggestionTextColorHex: String?
     var ghostTextOpacity: Double
     var selectedEngine: SuggestionEngineKind

@@ -503,6 +503,28 @@ final class SuggestionSettingsModelDisabledAppsTests: XCTestCase {
         _ = cancellables
     }
 
+    func test_accessibilityCaptureOverride_survivesModelRecreation() {
+        runOnMainActor {
+            let userDefaults = makeUserDefaults()
+            let model = makeModel(userDefaults: userDefaults)
+
+            XCTAssertFalse(
+                model.isAccessibilityCaptureOverrideEnabled(bundleIdentifier: "com.apple.iCal")
+            )
+
+            model.setAccessibilityCaptureOverride(
+                bundleIdentifier: "com.apple.iCal",
+                allowsCapture: true
+            )
+
+            let reloadedModel = makeModel(userDefaults: userDefaults)
+
+            XCTAssertTrue(
+                reloadedModel.isAccessibilityCaptureOverrideEnabled(bundleIdentifier: "com.apple.iCal")
+            )
+        }
+    }
+
     func test_clipboardContextEnabled_defaultsToFalseAndPersists() {
         runOnMainActor {
             let userDefaults = makeUserDefaults()

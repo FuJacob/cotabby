@@ -38,6 +38,18 @@ struct AppsPaneView: View {
                 }
             }
 
+            Section("Compatibility Overrides") {
+                Text("Cotabby avoids Accessibility capture in apps with known fragile editor popovers.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach(AccessibilityCaptureSuppressionPolicy.suppressedApplications) { application in
+                        accessibilityCaptureOverrideRow(application)
+                    }
+                }
+            }
+
             if !filteredRunningAppSuggestions.isEmpty {
                 Section("Suggestions") {
                     Text("Currently running apps you can disable with one click.")
@@ -91,6 +103,43 @@ struct AppsPaneView: View {
     }
 
     @ViewBuilder
+    private func accessibilityCaptureOverrideRow(
+        _ application: AccessibilityCaptureSuppressedApplication
+    ) -> some View {
+        Toggle(
+            isOn: Binding(
+                get: {
+                    suggestionSettings.isAccessibilityCaptureOverrideEnabled(
+                        bundleIdentifier: application.bundleIdentifier
+                    )
+                },
+                set: { allowsCapture in
+                    suggestionSettings.setAccessibilityCaptureOverride(
+                        bundleIdentifier: application.bundleIdentifier,
+                        allowsCapture: allowsCapture
+                    )
+                }
+            )
+        ) {
+            HStack(spacing: 12) {
+                Image(nsImage: icon(for: application))
+                    .resizable()
+                    .frame(width: 28, height: 28)
+                    .accessibilityHidden(true)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Allow Accessibility capture in \(application.displayName)")
+
+                    Text(application.reason)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .toggleStyle(.switch)
+    }
+
+    @ViewBuilder
     private func disabledAppRuleRow(_ rule: DisabledApplicationRule) -> some View {
         HStack(spacing: 12) {
             Image(nsImage: icon(for: rule))
@@ -126,6 +175,15 @@ struct AppsPaneView: View {
     private func icon(for rule: DisabledApplicationRule) -> NSImage {
         guard let appURL = NSWorkspace.shared.urlForApplication(
             withBundleIdentifier: rule.bundleIdentifier
+        ) else {
+            return NSWorkspace.shared.icon(for: .applicationBundle)
+        }
+        return NSWorkspace.shared.icon(forFile: appURL.path)
+    }
+
+    private func icon(for application: AccessibilityCaptureSuppressedApplication) -> NSImage {
+        guard let appURL = NSWorkspace.shared.urlForApplication(
+            withBundleIdentifier: application.bundleIdentifier
         ) else {
             return NSWorkspace.shared.icon(for: .applicationBundle)
         }
