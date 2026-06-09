@@ -25,8 +25,9 @@ struct GhostTextPreview: View {
     /// Final preview point size (the representative base already scaled by the user's multiplier).
     let fontSize: CGFloat
 
-    /// Representative base size the multiplier scales in the preview. Sits mid-way through the
-    /// overlay's real `[14, 24]` caret-derived band so the sample reads like typical field text.
+    /// Representative base size the multiplier scales in the preview. Sits near the lower end of
+    /// the overlay's real `[14, 24]` caret-derived band, matching typical small-to-medium text
+    /// fields where most users encounter ghost text in practice.
     static let baseFontSize: CGFloat = 16
 
     /// The whole sentence reads naturally with the ghost half completing the typed half, and labels
