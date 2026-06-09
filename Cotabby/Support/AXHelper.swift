@@ -90,6 +90,13 @@ enum AXHelper {
         return nil
     }
 
+    /// Reads an element's AX identifier (what `NSView.setAccessibilityIdentifier` surfaces). There is
+    /// no public `kAX...` constant for it; the raw attribute name is "AXIdentifier". Used to recognise
+    /// Cotabby's own sanctioned live-preview field so the focus pipeline can complete in it.
+    static func accessibilityIdentifier(of element: AXUIElement) -> String? {
+        stringValue(for: "AXIdentifier" as CFString, on: element)
+    }
+
     static func boolValue(for attribute: CFString, on element: AXUIElement) -> Bool? {
         guard let number = copyAttributeValue(attribute, on: element) as? NSNumber else {
             return nil

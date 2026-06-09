@@ -23,6 +23,11 @@ final class FocusTracker {
     private var pollInterval: TimeInterval
     private let permissionProvider: @MainActor () -> Bool
     private let ignoredBundleIdentifier: String?
+    /// AX identifier of the one element inside Cotabby's own UI that is allowed to be captured: the
+    /// Context pane's live-preview field. `nil` (the default) keeps the strict "never complete in our
+    /// own process" rule with no exception. Keyed on AX identity rather than bundle so every other
+    /// element in Cotabby's windows stays blocked.
+    private let selfCaptureAllowedElementIdentifier: String?
     /// Returns true when the focused app's bundle should NOT have its AX tree deep-walked. The
     /// gate runs after the cheap system-wide focused-element query but before the expensive
     /// candidate-elements walk in `FocusSnapshotResolver`. macOS popovers (Calendar's event-detail
@@ -65,12 +70,14 @@ final class FocusTracker {
         pollInterval: TimeInterval = 0.08,
         permissionProvider: @escaping @MainActor () -> Bool,
         ignoredBundleIdentifier: String?,
+        selfCaptureAllowedElementIdentifier: String? = nil,
         isCaptureSuppressedForBundle: @escaping @MainActor (String?) -> Bool = { _ in false },
         snapshotResolver: FocusSnapshotResolver? = nil
     ) {
         self.pollInterval = pollInterval
         self.permissionProvider = permissionProvider
         self.ignoredBundleIdentifier = ignoredBundleIdentifier
+        self.selfCaptureAllowedElementIdentifier = selfCaptureAllowedElementIdentifier
         self.isCaptureSuppressedForBundle = isCaptureSuppressedForBundle
         // Default resolver construction must happen inside the actor-isolated initializer body.
         // Swift evaluates default parameter expressions before entering the `@MainActor` context.
@@ -222,7 +229,17 @@ final class FocusTracker {
             )
         }
 
-        if application.bundleIdentifier == ignoredBundleIdentifier {
+        // Cotabby never completes inside its own UI, with one sanctioned exception: the Context pane's
+        // live-preview field, tagged with a known AX identifier so the user can exercise the real
+        // pipeline against their settings. Every other element in Cotabby's own windows (search field,
+        // Extended Context editor, menus) stays blocked, so this cannot leak completions into Settings.
+        // The identifier AX read is an autoclosure, so it runs only when Cotabby itself is focused.
+        if !SelfCaptureGate.allowsCapture(
+            focusedBundleIdentifier: application.bundleIdentifier,
+            ignoredBundleIdentifier: ignoredBundleIdentifier,
+            focusedElementIdentifier: AXHelper.accessibilityIdentifier(of: focusedElement),
+            sanctionedElementIdentifier: selfCaptureAllowedElementIdentifier
+        ) {
             return inactiveCapture(
                 applicationName: application.localizedName ?? "Cotabby",
                 bundleIdentifier: application.bundleIdentifier,
