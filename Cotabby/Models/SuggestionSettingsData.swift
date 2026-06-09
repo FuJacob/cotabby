@@ -33,6 +33,10 @@ struct SuggestionSettingsData: Equatable {
     /// When on (and `suppressCompletionsOnTypo` is also on), a detected typo switches into correction
     /// mode: Cotabby offers the spell-checker's fix as a green replace-the-word suggestion.
     var offerTypoCorrections: Bool
+    /// When on (and typo suppression is also on), a completed misspelled word is replaced as soon as
+    /// the user presses Space. This remains separate from `offerTypoCorrections`: users may keep the
+    /// green preview while typing, disable it, or use both behaviors together.
+    var automaticallyFixTypos: Bool
     var isPerformanceTrackingEnabled: Bool
     var isMenuBarWordCountVisible: Bool
     var mirrorPreference: MirrorPreference

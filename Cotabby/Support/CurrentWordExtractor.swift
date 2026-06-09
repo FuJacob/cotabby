@@ -100,3 +100,42 @@ enum CurrentWordExtractor {
         return true
     }
 }
+
+/// The exact synthetic edit needed to replace one verified trailing typo.
+///
+/// Keeping this as a value type lets the coordinator validate first and perform side effects second.
+/// That separation matters for Accessibility-backed editors, where the field may change between the
+/// original correction offer and the eventual edit.
+struct TypoCorrectionReplacement: Equatable, Sendable {
+    let deletingUTF16Count: Int
+    let replacementText: String
+}
+
+/// Builds a fail-closed replacement from the latest text before the caret.
+///
+/// Both accepted green corrections and automatic post-Space fixes use this planner. Centralizing the
+/// word-match and whitespace-preservation rules prevents the two paths from drifting and accidentally
+/// deleting a different word after the user continues typing.
+enum TypoCorrectionReplacementPlanner {
+    static func plan(
+        precedingText: String,
+        expectedTypo: String,
+        correctedWord: String,
+        requiresTrailingSpace: Bool
+    ) -> TypoCorrectionReplacement? {
+        let normalizedCorrection = correctedWord.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedCorrection.isEmpty,
+              normalizedCorrection != expectedTypo,
+              let live = CurrentWordExtractor.extractTrailingWord(from: precedingText),
+              live.result.word == expectedTypo,
+              !requiresTrailingSpace || live.trailingSpaceCount == 1 else {
+            return nil
+        }
+
+        let preservedSpaces = String(repeating: " ", count: live.trailingSpaceCount)
+        return TypoCorrectionReplacement(
+            deletingUTF16Count: (expectedTypo as NSString).length + live.trailingSpaceCount,
+            replacementText: normalizedCorrection + preservedSpaces
+        )
+    }
+}

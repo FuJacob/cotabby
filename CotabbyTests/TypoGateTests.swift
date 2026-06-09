@@ -6,6 +6,7 @@ final class TypoGateTests: XCTestCase {
         precedingText: String,
         suppress: Bool,
         offer: Bool,
+        automatic: Bool = false,
         typos: Set<String> = [],
         corrections: [String: String] = [:]
     ) -> TypoGateDecision {
@@ -13,6 +14,7 @@ final class TypoGateTests: XCTestCase {
             precedingText: precedingText,
             suppressCompletionsOnTypo: suppress,
             offerTypoCorrections: offer,
+            automaticallyFixTypos: automatic,
             isTypo: { typos.contains($0) },
             bestCorrection: { corrections[$0] }
         )
@@ -55,7 +57,7 @@ final class TypoGateTests: XCTestCase {
             typos: ["nmae"],
             corrections: ["nmae": "name"]
         )
-        XCTAssertEqual(decision, .correct(word: "nmae", correctedWord: "name"))
+        XCTAssertEqual(decision, .offerCorrection(word: "nmae", correctedWord: "name"))
     }
 
     func test_correctsWhenTypoFollowedByOneSpace() {
@@ -67,7 +69,7 @@ final class TypoGateTests: XCTestCase {
             typos: ["nmae"],
             corrections: ["nmae": "name"]
         )
-        XCTAssertEqual(decision, .correct(word: "nmae", correctedWord: "name"))
+        XCTAssertEqual(decision, .offerCorrection(word: "nmae", correctedWord: "name"))
     }
 
     func test_proceedsWhenTypoFollowedByTwoSpaces() {
@@ -80,5 +82,29 @@ final class TypoGateTests: XCTestCase {
             corrections: ["nmae": "name"]
         )
         XCTAssertEqual(decision, .proceed)
+    }
+
+    func test_automaticFixAppliesOnlyAfterSpace() {
+        let decision = resolve(
+            precedingText: "hi my nmae ",
+            suppress: true,
+            offer: false,
+            automatic: true,
+            typos: ["nmae"],
+            corrections: ["nmae": "name"]
+        )
+        XCTAssertEqual(decision, .applyCorrection(word: "nmae", correctedWord: "name"))
+    }
+
+    func test_automaticFixDoesNotMutateUnfinishedWord() {
+        let decision = resolve(
+            precedingText: "hi my nmae",
+            suppress: true,
+            offer: true,
+            automatic: true,
+            typos: ["nmae"],
+            corrections: ["nmae": "name"]
+        )
+        XCTAssertEqual(decision, .offerCorrection(word: "nmae", correctedWord: "name"))
     }
 }

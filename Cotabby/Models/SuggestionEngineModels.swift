@@ -124,6 +124,10 @@ struct SuggestionSettingsSnapshot: Equatable, Sendable {
     /// When true (and `suppressCompletionsOnTypo` is also true), a detected typo is offered a native
     /// spell-checker correction instead of being silently suppressed. No effect when suppression is off.
     let offerTypoCorrections: Bool
+    /// When true (and typo suppression is on), a correction is applied automatically after the user
+    /// commits the misspelled word with Space. The word boundary prevents pauses in unfinished words
+    /// from triggering destructive edits.
+    let automaticallyFixTypos: Bool
 
     /// Single chokepoint that picks between the preset's range and the user's custom range.
     /// Every downstream consumer (token-budget math, prompt-instruction text, UI labels in the
