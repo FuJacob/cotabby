@@ -40,6 +40,10 @@ final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var disabledAppRules: [DisabledApplicationRule]
     @Published private(set) var customSuggestionTextColorHex: String?
     @Published private(set) var ghostTextOpacity: Double
+    /// Multiplier the overlay applies on top of the caret-approximated ghost-text size. Read live by
+    /// `OverlayController` at present time (like `ghostTextOpacity`), so it is intentionally not part
+    /// of the generation-facing `SuggestionSettingsSnapshot` — it changes presentation, not requests.
+    @Published private(set) var ghostTextSizeMultiplier: Double
     @Published private(set) var selectedEngine: SuggestionEngineKind
     @Published private(set) var selectedWordCountPreset: SuggestionWordCountPreset
     /// When true, the active length budget reads `customWordCountLowWords...HighWords` and the
@@ -118,6 +122,10 @@ final class SuggestionSettingsModel: ObservableObject {
     static let maximumGhostTextOpacity = SuggestionSettingsStore.maximumGhostTextOpacity
     static let defaultGhostTextOpacity = SuggestionSettingsStore.defaultGhostTextOpacity
     static let ghostTextOpacityStep = SuggestionSettingsStore.ghostTextOpacityStep
+    static let minimumGhostTextSizeMultiplier = SuggestionSettingsStore.minimumGhostTextSizeMultiplier
+    static let maximumGhostTextSizeMultiplier = SuggestionSettingsStore.maximumGhostTextSizeMultiplier
+    static let defaultGhostTextSizeMultiplier = SuggestionSettingsStore.defaultGhostTextSizeMultiplier
+    static let ghostTextSizeMultiplierStep = SuggestionSettingsStore.ghostTextSizeMultiplierStep
     static let maximumExtendedContextCharacters = SuggestionSettingsStore.maximumExtendedContextCharacters
 
     init(
@@ -134,6 +142,7 @@ final class SuggestionSettingsModel: ObservableObject {
         disabledAppRules = data.disabledAppRules
         customSuggestionTextColorHex = data.customSuggestionTextColorHex
         ghostTextOpacity = data.ghostTextOpacity
+        ghostTextSizeMultiplier = data.ghostTextSizeMultiplier
         selectedEngine = data.selectedEngine
         selectedWordCountPreset = data.selectedWordCountPreset
         isUsingCustomWordCountRange = data.isUsingCustomWordCountRange
@@ -609,6 +618,16 @@ final class SuggestionSettingsModel: ObservableObject {
 
         ghostTextOpacity = clamped
         store.saveGhostTextOpacity(clamped)
+    }
+
+    func setGhostTextSizeMultiplier(_ multiplier: Double) {
+        let clamped = SuggestionSettingsStore.clampedGhostTextSizeMultiplier(multiplier)
+        guard ghostTextSizeMultiplier != clamped else {
+            return
+        }
+
+        ghostTextSizeMultiplier = clamped
+        store.saveGhostTextSizeMultiplier(clamped)
     }
 
     func setUserName(_ name: String) {

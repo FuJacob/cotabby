@@ -38,6 +38,15 @@ struct SuggestionSettingsStore {
     static let defaultGhostTextOpacity: Double = 1.0
     static let ghostTextOpacityStep: Double = 0.1
 
+    /// Multiplier the overlay applies on top of the caret-approximated ghost-text size. 1.0 is the
+    /// out-of-box default (the unchanged best-approximation). The band is symmetric around 1.0 with
+    /// real shrink room because "suggestions look too big" is the common complaint, and is kept
+    /// narrow on both ends so neither extreme renders ghost text illegibly small or comically large.
+    static let minimumGhostTextSizeMultiplier: Double = 0.7
+    static let maximumGhostTextSizeMultiplier: Double = 1.3
+    static let defaultGhostTextSizeMultiplier: Double = 1.0
+    static let ghostTextSizeMultiplierStep: Double = 0.1
+
     /// Hard upper bound on the persisted Extended Context blob, in characters. Sized to match what the
     /// engines actually consume rather than what they can store: the OSS base path renders this as a
     /// budgeted "notes" section (`BaseCompletionPromptRenderer`, `maxChars` 1300) inside a 2400-char
@@ -57,6 +66,7 @@ struct SuggestionSettingsStore {
     private static let showAcceptanceHintDefaultsKey = "cotabbyShowAcceptanceHint"
     private static let customSuggestionTextColorHexDefaultsKey = "cotabbyCustomSuggestionTextColorHex"
     private static let ghostTextOpacityDefaultsKey = "cotabbyGhostTextOpacity"
+    private static let ghostTextSizeMultiplierDefaultsKey = "cotabbyGhostTextSizeMultiplier"
     private static let selectedEngineDefaultsKey = "cotabbySelectedEngine"
     private static let selectedWordCountPresetDefaultsKey = "cotabbySelectedWordCountPreset"
     private static let usingCustomWordCountRangeDefaultsKey = "cotabbyUsingCustomWordCountRange"
@@ -134,6 +144,12 @@ struct SuggestionSettingsStore {
         } else {
             Self.clampedGhostTextOpacity(userDefaults.double(forKey: Self.ghostTextOpacityDefaultsKey))
         }
+        let resolvedGhostTextSizeMultiplier: Double =
+            if userDefaults.object(forKey: Self.ghostTextSizeMultiplierDefaultsKey) == nil {
+                Self.defaultGhostTextSizeMultiplier
+            } else {
+                Self.clampedGhostTextSizeMultiplier(userDefaults.double(forKey: Self.ghostTextSizeMultiplierDefaultsKey))
+            }
         let resolvedEngine = userDefaults
             .string(forKey: Self.selectedEngineDefaultsKey)
             .flatMap(SuggestionEngineKind.init(rawValue:))
@@ -305,6 +321,7 @@ struct SuggestionSettingsStore {
             disabledAppRules: resolvedDisabledAppRules,
             customSuggestionTextColorHex: resolvedCustomSuggestionTextColorHex,
             ghostTextOpacity: resolvedGhostTextOpacity,
+            ghostTextSizeMultiplier: resolvedGhostTextSizeMultiplier,
             selectedEngine: resolvedEngine,
             selectedWordCountPreset: resolvedWordCountPreset,
             isUsingCustomWordCountRange: resolvedUsingCustomWordCountRange,
@@ -354,6 +371,7 @@ struct SuggestionSettingsStore {
         saveShowAcceptanceHint(data.showAcceptanceHint)
         saveCustomSuggestionTextColorHex(data.customSuggestionTextColorHex)
         saveGhostTextOpacity(data.ghostTextOpacity)
+        saveGhostTextSizeMultiplier(data.ghostTextSizeMultiplier)
         saveSelectedEngine(data.selectedEngine)
         saveSelectedWordCountPreset(data.selectedWordCountPreset)
         saveUsingCustomWordCountRange(data.isUsingCustomWordCountRange)
@@ -443,6 +461,10 @@ struct SuggestionSettingsStore {
 
     func saveGhostTextOpacity(_ opacity: Double) {
         userDefaults.set(opacity, forKey: Self.ghostTextOpacityDefaultsKey)
+    }
+
+    func saveGhostTextSizeMultiplier(_ multiplier: Double) {
+        userDefaults.set(multiplier, forKey: Self.ghostTextSizeMultiplierDefaultsKey)
     }
 
     func saveSelectedEngine(_ engine: SuggestionEngineKind) {
@@ -657,6 +679,14 @@ struct SuggestionSettingsStore {
         }
 
         return min(maximumGhostTextOpacity, max(minimumGhostTextOpacity, value))
+    }
+
+    static func clampedGhostTextSizeMultiplier(_ value: Double) -> Double {
+        guard value.isFinite else {
+            return defaultGhostTextSizeMultiplier
+        }
+
+        return min(maximumGhostTextSizeMultiplier, max(minimumGhostTextSizeMultiplier, value))
     }
 
     static func normalizedHexString(_ hex: String?) -> String? {

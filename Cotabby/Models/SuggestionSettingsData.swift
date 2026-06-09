@@ -17,6 +17,10 @@ struct SuggestionSettingsData: Equatable {
     var disabledAppRules: [DisabledApplicationRule]
     var customSuggestionTextColorHex: String?
     var ghostTextOpacity: Double
+    /// User multiplier applied on top of the caret-approximated ghost-text size. 1.0 keeps the
+    /// existing best-approximation; lower values shrink suggestions for users who find the auto-size
+    /// too large. See `SuggestionSettingsStore.clampedGhostTextSizeMultiplier` for the bounds.
+    var ghostTextSizeMultiplier: Double
     var selectedEngine: SuggestionEngineKind
     var selectedWordCountPreset: SuggestionWordCountPreset
     /// When true, generation uses `customWordCountLowWords...customWordCountHighWords` instead of

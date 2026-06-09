@@ -154,6 +154,7 @@
 		6E01052209B73D7361C12CEF /* ClipboardContentDistiller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96495E4147D828C0B1B22765 /* ClipboardContentDistiller.swift */; };
 		6E49ADEB31D04DC77A47DEB0 /* FileLogHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE8C2569A8217EE9BD3B197F /* FileLogHandler.swift */; };
 		744B06C2488156B178675615 /* PermissionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85BF316556FDA64CB8AD07B6 /* PermissionManager.swift */; };
+		76DFC829F2417FB048463285 /* GhostTextPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = A594D02B0EF3C2DD62EFE69A /* GhostTextPreview.swift */; };
 		76FD91607794883F8E121450 /* CaretGeometrySelector.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3C84377F352140759B448C9 /* CaretGeometrySelector.swift */; };
 		78A8713A0E5B4C89E2D715BC /* FocusCapabilityFlickerGateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1972BD2C5254D8266618781F /* FocusCapabilityFlickerGateTests.swift */; };
 		78FAE5DB691A1B71042B9D20 /* AboutPaneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3FA53BBC3D81503C1D17477 /* AboutPaneView.swift */; };
@@ -506,6 +507,7 @@
 		A3FA53BBC3D81503C1D17477 /* AboutPaneView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutPaneView.swift; sourceTree = "<group>"; };
 		A520809E71697E3BB9A8139C /* HuggingFaceModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HuggingFaceModels.swift; sourceTree = "<group>"; };
 		A52D0B550E00EF173A5D157E /* LlamaRuntimeManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LlamaRuntimeManager.swift; sourceTree = "<group>"; };
+		A594D02B0EF3C2DD62EFE69A /* GhostTextPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GhostTextPreview.swift; sourceTree = "<group>"; };
 		A804F4DB6FD9BC8C27B2B65F /* LlamaRuntimeModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LlamaRuntimeModels.swift; sourceTree = "<group>"; };
 		A829F28F01FAE76CA7244BBC /* ModelFileValidatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelFileValidatorTests.swift; sourceTree = "<group>"; };
 		A854CAFB1F557BC4CAED8819 /* VisualContextCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VisualContextCoordinator.swift; sourceTree = "<group>"; };
@@ -810,6 +812,7 @@
 			isa = PBXGroup;
 			children = (
 				E5DAF68AEBFE334F68A65E82 /* AcceptanceModePickerView.swift */,
+				A594D02B0EF3C2DD62EFE69A /* GhostTextPreview.swift */,
 				7E728024C0C6D162FA82ACE3 /* InlineCompletionEditor.swift */,
 				19BE12C28A4AB8A4A58C2FF7 /* SettingsPaneScaffold.swift */,
 				907549CB913B40C28B953A5D /* SettingsRowLabel.swift */,
@@ -1349,6 +1352,7 @@
 				42D40F37086294D0E58200C5 /* GhostFontSizeStabilizer.swift in Sources */,
 				ED9C51B0D7056F0753AADF2D /* GhostSuggestionLayout.swift in Sources */,
 				F4EEE6291095B0BF2D3FBA21 /* GhostTextColorPreset.swift in Sources */,
+				76DFC829F2417FB048463285 /* GhostTextPreview.swift in Sources */,
 				D90C889A623A928F4F5FDC7B /* HardwareCapabilityProbe.swift in Sources */,
 				B65B49F24F59154A7611FD22 /* HomePaneView.swift in Sources */,
 				91C27021750AC03AA4A0115A /* HuggingFaceAPIClient.swift in Sources */,

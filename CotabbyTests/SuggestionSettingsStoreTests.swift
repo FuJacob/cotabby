@@ -147,6 +147,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         store.saveGloballyEnabled(false)
         store.saveUserName("Ada Lovelace")
         store.saveGhostTextOpacity(0.5)
+        store.saveGhostTextSizeMultiplier(0.8)
         store.saveFastModeEnabled(true)
         store.saveMenuBarWordCountVisible(false)
 
@@ -155,6 +156,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         XCTAssertFalse(data.isGloballyEnabled)
         XCTAssertEqual(data.userName, "Ada Lovelace")
         XCTAssertEqual(data.ghostTextOpacity, 0.5, accuracy: 0.0001)
+        XCTAssertEqual(data.ghostTextSizeMultiplier, 0.8, accuracy: 0.0001)
         XCTAssertTrue(data.isFastModeEnabled)
         XCTAssertFalse(data.isMenuBarWordCountVisible)
     }
@@ -180,6 +182,34 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
 
         XCTAssertEqual(data.ghostTextOpacity, SuggestionSettingsStore.minimumGhostTextOpacity, accuracy: 0.0001)
+    }
+
+    // MARK: - Ghost text size multiplier
+
+    func test_load_defaultsGhostTextSizeMultiplierWhenUnset() async {
+        let defaults = makeIsolatedDefaults()
+
+        let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
+
+        XCTAssertEqual(
+            data.ghostTextSizeMultiplier,
+            SuggestionSettingsStore.defaultGhostTextSizeMultiplier,
+            accuracy: 0.0001
+        )
+    }
+
+    func test_load_clampsOutOfRangeGhostTextSizeMultiplier() async {
+        let defaults = makeIsolatedDefaults()
+        // Above the ceiling: must clamp down so a hand-edited default can't render giant ghost text.
+        defaults.set(5.0, forKey: "cotabbyGhostTextSizeMultiplier")
+
+        let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
+
+        XCTAssertEqual(
+            data.ghostTextSizeMultiplier,
+            SuggestionSettingsStore.maximumGhostTextSizeMultiplier,
+            accuracy: 0.0001
+        )
     }
 
     // MARK: - Power-based switching profiles

@@ -82,6 +82,7 @@ struct MirrorOverlayLayout: Equatable {
         visibleFrame: CGRect,
         showsAcceptanceHint: Bool,
         autoAcceptTrailingPunctuation: Bool = true,
+        sizeMultiplier: CGFloat = 1,
         reason: CompletionRenderMode.MirrorReason
     ) -> MirrorOverlayLayout {
         let normalizedSuggestion = normalizedDisplayText(suggestion)
@@ -89,7 +90,12 @@ struct MirrorOverlayLayout: Equatable {
             in: normalizedSuggestion,
             autoAcceptTrailingPunctuation: autoAcceptTrailingPunctuation
         )
-        let measuredTextWidth = measuredWidth(of: normalizedSuggestion, fontSize: Metrics.fontSize)
+        // Mirror mode's font is fixed (the caret height is untrustworthy here), but the user's
+        // "Ghost Text Size" knob still scales it so suggestions stay one consistent size across both
+        // display modes. The shared legibility floor guards a low multiplier; the keycap pill keeps
+        // its own fixed size, so its width reservation below is intentionally left unscaled.
+        let scaledFontSize = max(GhostFontMetrics.absoluteMinimumPointSize, Metrics.fontSize * sizeMultiplier)
+        let measuredTextWidth = measuredWidth(of: normalizedSuggestion, fontSize: scaledFontSize)
         let keycapReservation = showsAcceptanceHint ? Metrics.keycapReservation : 0
 
         // Reserve the keycap on top of the text width, not inside the min/max clamp. Otherwise a
@@ -99,7 +105,7 @@ struct MirrorOverlayLayout: Equatable {
         let textContentWidth = min(textBudget, max(Metrics.minCardWidth, measuredTextWidth))
         let contentWidth = textContentWidth + keycapReservation
         let cardWidth = contentWidth + (Metrics.horizontalPadding * 2)
-        let cardHeight = ceil(Metrics.fontSize * 1.6) + (Metrics.verticalPadding * 2)
+        let cardHeight = ceil(scaledFontSize * 1.6) + (Metrics.verticalPadding * 2)
 
         let anchorTopY = computeAnchorTopY(geometry: geometry, reason: reason)
         let anchorCenterX = computeAnchorCenterX(geometry: geometry)
@@ -135,7 +141,7 @@ struct MirrorOverlayLayout: Equatable {
 
         return MirrorOverlayLayout(
             panelFrame: panelFrame,
-            fontSize: Metrics.fontSize,
+            fontSize: scaledFontSize,
             suggestionText: normalizedSuggestion,
             highlightedPrefix: highlightedPrefix,
             isRightToLeft: geometry.isRightToLeft,
