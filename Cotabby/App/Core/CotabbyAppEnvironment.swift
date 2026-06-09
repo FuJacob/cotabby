@@ -177,8 +177,17 @@ final class CotabbyAppEnvironment {
         // Constructed once at app scope so the underlying `NSSpellChecker` document tag survives
         // across coordinator state transitions instead of churning per keystroke.
         let spellChecker = CurrentWordSpellChecker()
-        // Builds its SymSpell index off the main thread on init; ready within ~a second of launch.
-        let symSpellCorrector = SymSpellCorrector()
+        let enabledSpellingLanguages = SpellingDictionaryCatalog.languages(
+            for: suggestionSettings.enabledSpellingDictionaryCodes
+        )
+        // Preserve the existing warm English path when it is enabled. A sole non-English choice is
+        // also preloaded; broader multilingual sets stay lazy so app launch never builds every index.
+        let preloadSpellingLanguage = enabledSpellingLanguages.count == 1
+            ? enabledSpellingLanguages.first
+            : enabledSpellingLanguages.first(where: { $0 == .english })
+        let symSpellCorrector = SymSpellCorrector(
+            preloadLanguage: preloadSpellingLanguage
+        )
         let suggestionCoordinator = SuggestionCoordinator(
             permissionManager: permissionManager,
             focusModel: focusModel,
@@ -194,7 +203,8 @@ final class CotabbyAppEnvironment {
             workController: workController,
             configuration: configuration,
             spellChecker: spellChecker,
-            symSpellCorrector: symSpellCorrector
+            symSpellCorrector: symSpellCorrector,
+            spellingLanguageResolver: SpellingLanguageResolver()
         )
 
         // The emoji picker is a sibling to the suggestion coordinator. It reuses the input monitor,

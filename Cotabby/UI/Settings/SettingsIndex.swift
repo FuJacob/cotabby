@@ -37,6 +37,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     case customRules
     case hideSuggestionsOnTypo
     case offerTypoCorrections
+    case spellingDictionaries
     // Context
     case extendedContext
     case contextLivePreview
@@ -102,6 +103,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .customRules: return "Custom Rules"
         case .hideSuggestionsOnTypo: return "Hide Suggestions on Typo"
         case .offerTypoCorrections: return "Offer Corrections on Typo"
+        case .spellingDictionaries: return "Spelling Dictionaries"
         case .extendedContext: return "Extended Context"
         case .contextLivePreview: return "Live Preview"
         case .engine: return "Engine"
@@ -160,6 +162,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .customRules: return "list.bullet.rectangle"
         case .hideSuggestionsOnTypo: return "eye.slash"
         case .offerTypoCorrections: return "checkmark.bubble"
+        case .spellingDictionaries: return "character.book.closed"
         case .extendedContext: return "doc.text"
         case .contextLivePreview: return "text.cursor"
         case .engine: return "cpu"
@@ -203,7 +206,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .emojiPicker, .emojiSkinTone, .emojiPeopleStyle, .emojiHistory:
             return .emoji
         case .length, .name, .languages, .customRules,
-             .hideSuggestionsOnTypo, .offerTypoCorrections:
+             .hideSuggestionsOnTypo, .offerTypoCorrections, .spellingDictionaries:
             return .writing
         case .extendedContext, .contextLivePreview:
             return .context
@@ -300,6 +303,10 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .offerTypoCorrections:
             return ["typo", "correct", "correction", "fix", "spelling", "autocorrect",
                     "spell check", "mistake", "rewrite"]
+        case .spellingDictionaries:
+            return ["dictionary", "dictionaries", "spelling", "language", "multilingual",
+                    "english", "german", "spanish", "french", "hebrew", "italian",
+                    "russian", "symspell", "autocorrect"]
         case .extendedContext:
             return ["context", "glossary", "reference", "notes", "jargon", "instructions",
                     "memory", "background", "system prompt", "vocabulary"]

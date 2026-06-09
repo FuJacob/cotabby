@@ -84,6 +84,7 @@ struct SuggestionSettingsStore {
     private static let fastModeEnabledDefaultsKey = "cotabbyFastModeEnabled"
     private static let suppressCompletionsOnTypoDefaultsKey = "cotabbySuppressCompletionsOnTypo"
     private static let offerTypoCorrectionsDefaultsKey = "cotabbyOfferTypoCorrections"
+    private static let spellingDictionaryCodesDefaultsKey = "cotabbyEnabledSpellingDictionaryCodes"
     private static let performanceTrackingEnabledDefaultsKey = "cotabbyPerformanceTrackingEnabled"
     private static let menuBarWordCountVisibleDefaultsKey = "cotabbyMenuBarWordCountVisible"
     private static let mirrorPreferenceDefaultsKey = "cotabbyMirrorPreference"
@@ -186,6 +187,14 @@ struct SuggestionSettingsStore {
             userDefaults.object(forKey: Self.suppressCompletionsOnTypoDefaultsKey) as? Bool ?? true
         let resolvedOfferTypoCorrections =
             userDefaults.object(forKey: Self.offerTypoCorrectionsDefaultsKey) as? Bool ?? true
+        let resolvedEnabledSpellingDictionaryCodes: [String] = {
+            guard userDefaults.object(forKey: Self.spellingDictionaryCodesDefaultsKey) != nil else {
+                return SpellingDictionaryCatalog.defaultEnabledCodes
+            }
+            return SpellingDictionaryCatalog.normalize(
+                userDefaults.stringArray(forKey: Self.spellingDictionaryCodesDefaultsKey) ?? []
+            )
+        }()
         // Defaults to false so the metrics ring buffer stays empty until the user explicitly opts
         // in from the Performance pane.
         let resolvedPerformanceTrackingEnabled =
@@ -331,6 +340,7 @@ struct SuggestionSettingsStore {
             isFastModeEnabled: resolvedFastModeEnabled,
             suppressCompletionsOnTypo: resolvedSuppressCompletionsOnTypo,
             offerTypoCorrections: resolvedOfferTypoCorrections,
+            enabledSpellingDictionaryCodes: resolvedEnabledSpellingDictionaryCodes,
             isPerformanceTrackingEnabled: resolvedPerformanceTrackingEnabled,
             isMenuBarWordCountVisible: resolvedMenuBarWordCountVisible,
             mirrorPreference: resolvedMirrorPreference,
@@ -380,6 +390,7 @@ struct SuggestionSettingsStore {
         saveFastModeEnabled(data.isFastModeEnabled)
         saveSuppressCompletionsOnTypo(data.suppressCompletionsOnTypo)
         saveOfferTypoCorrections(data.offerTypoCorrections)
+        saveEnabledSpellingDictionaryCodes(data.enabledSpellingDictionaryCodes)
         savePerformanceTrackingEnabled(data.isPerformanceTrackingEnabled)
         saveMenuBarWordCountVisible(data.isMenuBarWordCountVisible)
         saveMirrorPreference(data.mirrorPreference)
@@ -519,6 +530,13 @@ struct SuggestionSettingsStore {
 
     func saveOfferTypoCorrections(_ enabled: Bool) {
         userDefaults.set(enabled, forKey: Self.offerTypoCorrectionsDefaultsKey)
+    }
+
+    func saveEnabledSpellingDictionaryCodes(_ codes: [String]) {
+        userDefaults.set(
+            SpellingDictionaryCatalog.normalize(codes),
+            forKey: Self.spellingDictionaryCodesDefaultsKey
+        )
     }
 
     func savePerformanceTrackingEnabled(_ enabled: Bool) {

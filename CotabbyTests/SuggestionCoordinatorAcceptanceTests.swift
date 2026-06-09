@@ -300,7 +300,7 @@ final class SuggestionCoordinatorAcceptanceTests: XCTestCase {
             workController: SuggestionWorkController(),
             configuration: .standard,
             spellChecker: CurrentWordSpellChecker(),
-            symSpellCorrector: SymSpellCorrector(autoload: false),
+            symSpellCorrector: SymSpellCorrector(preloadLanguage: nil),
             userDefaults: UserDefaults(suiteName: "CotabbyTests.\(UUID().uuidString)") ?? .standard
         )
         Self.retainedCoordinators.append(coordinator)

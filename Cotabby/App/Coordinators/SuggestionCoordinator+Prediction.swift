@@ -151,9 +151,12 @@ extension SuggestionCoordinator {
             suppressCompletionsOnTypo: settingsSnapshot.suppressCompletionsOnTypo,
             offerTypoCorrections: settingsSnapshot.offerTypoCorrections,
             isTypo: { spellChecker.isTypo($0) },
-            // Correction word: SymSpell (frequency-ranked, edit distance ≤ 2) first; fall back to the
-            // NSSpellChecker guess while SymSpell's index is still loading or when it has no match.
-            bestCorrection: { symSpellCorrector.bestCorrection(for: $0) ?? spellChecker.bestCorrection(for: $0) }
+            bestCorrection: {
+                bestCorrection(
+                    for: $0,
+                    precedingText: rawContext.precedingText
+                )
+            }
         ) {
         case .proceed:
             return false
@@ -176,6 +179,26 @@ extension SuggestionCoordinator {
             )
             return true
         }
+    }
+
+    /// Routes the typo to one enabled language-specific SymSpell index. The dictionaries remain
+    /// separate because frequency counts from different corpora are not comparable. Ambiguous
+    /// multilingual context, a cold index, or a missing SymSpell candidate all fall back to the
+    /// user's automatic-language macOS spell checker.
+    private func bestCorrection(for word: String, precedingText: String) -> String? {
+        let enabledLanguages = SpellingDictionaryCatalog.languages(
+            for: settingsSnapshot.enabledSpellingDictionaryCodes
+        )
+        guard let language = spellingLanguageResolver.resolve(
+            precedingText: precedingText,
+            currentWord: word,
+            enabledLanguages: enabledLanguages
+        ) else {
+            return spellChecker.bestCorrection(for: word)
+        }
+
+        return symSpellCorrector.bestCorrection(for: word, language: language)
+            ?? spellChecker.bestCorrection(for: word)
     }
 
     /// Presents a native spell-checker correction as a replace-the-word suggestion, with no model

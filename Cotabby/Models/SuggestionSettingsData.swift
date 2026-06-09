@@ -37,6 +37,9 @@ struct SuggestionSettingsData: Equatable {
     /// When on (and `suppressCompletionsOnTypo` is also on), a detected typo switches into correction
     /// mode: Cotabby offers the spell-checker's fix as a green replace-the-word suggestion.
     var offerTypoCorrections: Bool
+    /// ISO language codes for the bundled SymSpell dictionaries the user permits Cotabby to query.
+    /// Empty means correction ranking relies exclusively on the system `NSSpellChecker`.
+    var enabledSpellingDictionaryCodes: [String]
     var isPerformanceTrackingEnabled: Bool
     var isMenuBarWordCountVisible: Bool
     var mirrorPreference: MirrorPreference

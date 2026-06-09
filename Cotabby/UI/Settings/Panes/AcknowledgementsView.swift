@@ -61,8 +61,9 @@ struct AcknowledgementsView: View {
         AcknowledgementEntry(
             name: "SymSpell",
             summary: "Symmetric-delete spelling correction (MIT, by Wolf Garbe), ported to Swift for "
-                + "inline autocorrect. Its bundled frequency dictionary derives from Google Books "
-                + "Ngram data (CC BY 3.0) and SCOWL. See THIRD_PARTY_LICENSES.md for the notices.",
+                + "inline autocorrect. Bundled language dictionaries derive from Google Books Ngram "
+                + "data (CC BY 3.0) and licensed SCOWL/Hunspell word lists. See "
+                + "THIRD_PARTY_LICENSES.md for the notices.",
             url: "https://github.com/wolfgarbe/SymSpell"
         ),
         AcknowledgementEntry(

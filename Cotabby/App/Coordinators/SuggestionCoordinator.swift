@@ -57,6 +57,9 @@ final class SuggestionCoordinator: ObservableObject {
     /// Frequency-ranked correction source (SymSpell). Used first for the correction word, with
     /// `spellChecker` as the fallback while its index is still loading or when it has no suggestion.
     let symSpellCorrector: SymSpellCorrector
+    /// Chooses at most one enabled SymSpell language from the text surrounding the typo. Ambiguous
+    /// contexts return nil so correction ranking falls back to the system spell checker.
+    let spellingLanguageResolver: SpellingLanguageResolver
 
     /// Optional first-look hook the emoji picker installs to observe the keystroke stream. Called at
     /// the very top of `handleInputEvent`, before any suggestion logic. Returns `true` when an emoji
@@ -130,6 +133,7 @@ final class SuggestionCoordinator: ObservableObject {
         configuration: SuggestionConfiguration,
         spellChecker: CurrentWordSpellChecker,
         symSpellCorrector: SymSpellCorrector,
+        spellingLanguageResolver: SpellingLanguageResolver = SpellingLanguageResolver(),
         userDefaults: UserDefaults = .standard
     ) {
         let storedTotalTabAcceptedWordCount = userDefaults.integer(
@@ -150,6 +154,7 @@ final class SuggestionCoordinator: ObservableObject {
         self.configuration = configuration
         self.spellChecker = spellChecker
         self.symSpellCorrector = symSpellCorrector
+        self.spellingLanguageResolver = spellingLanguageResolver
         self.userDefaults = userDefaults
         settingsSnapshot = suggestionSettings.snapshot
         // These collaborators isolate "how overlay/logging works" from "when the coordinator

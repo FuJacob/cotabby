@@ -171,7 +171,7 @@ Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, bui
 - [llama.cpp](https://github.com/ggerganov/llama.cpp), [CotabbyInference](https://github.com/FuJacob/cotabbyinference), [Sparkle](https://github.com/sparkle-project/Sparkle), and [swift-log](https://github.com/apple/swift-log) for runtime, updates, and logging.
 - Apple's FoundationModels, Accessibility, SwiftUI, and AppKit for on-device generation and macOS integration.
 - [GitHub gemoji](https://github.com/github/gemoji) and Hugging Face for the emoji data and downloadable models.
-- [SymSpell](https://github.com/wolfgarbe/SymSpell) by Wolf Garbe (MIT) for autocorrect; dictionary from [Google Ngrams](https://books.google.com/ngrams) (CC BY 3.0) and [SCOWL](http://wordlist.aspell.net/).
+- [SymSpell](https://github.com/wolfgarbe/SymSpell) by Wolf Garbe (MIT) for multilingual autocorrect; frequency dictionaries derive from [Google Ngrams](https://books.google.com/ngrams) (CC BY 3.0) and licensed SCOWL/Hunspell word lists.
 - Everyone who filed issues, tested prereleases, and sent pull requests.
 
 ## Created by

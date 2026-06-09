@@ -58,6 +58,10 @@ struct WritingPaneView: View {
                         "accept key replaces the typo with the corrected word."
                     )
                     .disabled(!suggestionSettings.suppressCompletionsOnTypo)
+
+                Divider()
+
+                SpellingDictionaryPicker(suggestionSettings: suggestionSettings)
             }
 
             Section("Profile") {

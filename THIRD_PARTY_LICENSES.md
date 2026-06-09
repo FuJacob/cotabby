@@ -41,7 +41,7 @@ SOFTWARE.
 
 Upstream: https://github.com/wolfgarbe/SymSpell
 
-## Frequency dictionary
+## Frequency dictionaries
 
 `Cotabby/Resources/frequency_dictionary_en_82_765.txt` is the English frequency
 dictionary that ships with SymSpell. Per SymSpell, it is derived from two sources.
@@ -78,3 +78,24 @@ full SCOWL copyright file.
 
 - Project: http://wordlist.aspell.net/
 - Full copyright: https://github.com/en-wl/wordlist/blob/v2/Copyright
+
+### Multilingual dictionaries
+
+Cotabby also bundles the German, Spanish, French, Hebrew, Italian, and Russian
+frequency dictionaries published in SymSpell's `SymSpell.FrequencyDictionary`
+folder at commit `b8b2905bde` (March 13, 2020). SymSpell generated these by
+intersecting Google Books Ngram frequencies with Hunspell word lists.
+
+The exact source notices, applicable full license texts, upstream commits, and
+file checksums are bundled with the app under:
+
+`Cotabby/Resources/SpellingDictionaries/NOTICE.md`
+
+The corresponding source word-list notices were captured from
+`wooorm/dictionaries` commit
+`5ede45bb705d3f9f525ea779f7b487f9fc062013`, the latest revision before
+SymSpell published the derived multilingual files.
+
+Chinese is intentionally not bundled: SymSpell's generation notes do not identify
+the source word list and license for that file, and Cotabby's current typo gate does
+not yet provide reliable word segmentation for languages without whitespace.

@@ -4,7 +4,7 @@ import Foundation
 /// Pure helper that copies a typo's capitalization onto its correction. `NSSpellChecker` returns
 /// dictionary-cased guesses (`the`, not `The`), so without this a leading-capital typo like `Teh`
 /// would be "fixed" to a lowercase `the`, which reads as broken. Kept tiny and pure for testability.
-enum TypoCaseTransfer {
+nonisolated enum TypoCaseTransfer {
     /// Returns `correction` recased to match the casing pattern of `source`:
     ///  - source is all uppercase (more than one letter) -> uppercased correction (`HTE` -> `THE`),
     ///  - source starts with a capital -> capitalize the correction's first letter (`Teh` -> `The`),

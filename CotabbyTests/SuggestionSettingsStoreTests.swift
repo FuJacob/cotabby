@@ -212,6 +212,41 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         )
     }
 
+    // MARK: - Spelling dictionaries
+
+    func test_load_spellingDictionariesAbsentDefaultsToEnglish() async {
+        let defaults = makeIsolatedDefaults()
+
+        let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
+
+        XCTAssertEqual(
+            data.enabledSpellingDictionaryCodes,
+            SpellingDictionaryCatalog.defaultEnabledCodes
+        )
+    }
+
+    func test_load_spellingDictionariesFiltersUnknownCodesAndStabilizesOrder() async {
+        let defaults = makeIsolatedDefaults()
+        defaults.set([" ru ", "unknown", "de", "ru"], forKey: "cotabbyEnabledSpellingDictionaryCodes")
+
+        let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
+
+        XCTAssertEqual(data.enabledSpellingDictionaryCodes, ["de", "ru"])
+        XCTAssertEqual(
+            defaults.stringArray(forKey: "cotabbyEnabledSpellingDictionaryCodes"),
+            ["de", "ru"]
+        )
+    }
+
+    func test_load_spellingDictionariesPreservesExplicitEmptySelection() async {
+        let defaults = makeIsolatedDefaults()
+        defaults.set([String](), forKey: "cotabbyEnabledSpellingDictionaryCodes")
+
+        let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
+
+        XCTAssertTrue(data.enabledSpellingDictionaryCodes.isEmpty)
+    }
+
     // MARK: - Power-based switching profiles
 
     func test_load_powerProfileEnginesDefaultToOpenSourceWhenAbsent() async {
