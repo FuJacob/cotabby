@@ -27,7 +27,7 @@ enum OnboardingTemplate: String, CaseIterable, Identifiable, Equatable, Sendable
     /// The curated tiers shown as selectable cards in onboarding, in display order. Excludes
     /// `.custom`, which is applied implicitly by the "Set up later" button rather than picked from a
     /// card. Kept distinct from `allCases` so the pure recommender still reasons over every tier.
-    static var curatedTiers: [OnboardingTemplate] { [.quick, .everyday, .powerful] }
+    static let curatedTiers: [OnboardingTemplate] = [.quick, .everyday, .powerful]
 
     var title: String {
         switch self {
