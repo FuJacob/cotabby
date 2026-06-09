@@ -23,11 +23,6 @@ final class CotabbyAppEnvironment {
     let powerSourceMonitor: PowerSourceMonitor
     let clipboardContextProvider: ClipboardContextProvider
     let suggestionCoordinator: SuggestionCoordinator
-    /// Shared with the Advanced settings pane so the user can fire an ad-hoc generation against
-    /// the currently-selected engine and verify that Extended Context (and other prompt inputs)
-    /// are actually shaping the output. Reusing the live router means the playground produces the
-    /// same answer the autocomplete pipeline would, not a stand-in.
-    let suggestionEngine: any SuggestionGenerating
     let emojiPickerController: EmojiPickerController
     let macroController: MacroController
     let inlineCommandCoordinator: InlineCommandCoordinator
@@ -76,6 +71,9 @@ final class CotabbyAppEnvironment {
         let focusModel = FocusTrackingModel(
             permissionProvider: { permissionManager.accessibilityGranted },
             ignoredBundleIdentifier: Bundle.main.bundleIdentifier,
+            // The Context pane's live-preview field is the single sanctioned spot where Cotabby may
+            // complete inside its own UI; the focus tracker recognises it by this AX identifier.
+            selfCaptureAllowedElementIdentifier: ContextLivePreview.accessibilityIdentifier,
             isCaptureSuppressedForBundle: { bundleIdentifier in
                 guard suggestionSettings.isGloballyEnabled else { return true }
                 if let bundleIdentifier,
@@ -113,9 +111,6 @@ final class CotabbyAppEnvironment {
         // Live CPU/RAM graph backing for the Performance pane. Holds no state until the pane asks it
         // to start sampling, so constructing it eagerly here costs nothing.
         let systemMetricsStore = SystemMetricsStore()
-        // Settings coordinator construction is deferred below until after `suggestionEngine` is
-        // built — the Advanced pane's "try it" playground needs the engine so it can fire ad-hoc
-        // generations using the same router the autocomplete pipeline does.
         let suggestionInserter = SuggestionInserter(suppressionController: suppressionController)
         let overlayController = OverlayController(suggestionSettings: suggestionSettings)
         let activationIndicatorController = ActivationIndicatorController()
@@ -169,8 +164,6 @@ final class CotabbyAppEnvironment {
             runtimeModel: runtimeModel,
             modelDownloadManager: modelDownloadManager,
             huggingFaceSearchService: huggingFaceSearchService,
-            suggestionEngine: suggestionEngine,
-            configuration: configuration,
             performanceMetricsStore: performanceMetricsStore,
             systemMetricsStore: systemMetricsStore,
             onShowWelcome: { [weak welcomeCoordinator] in
@@ -254,7 +247,6 @@ final class CotabbyAppEnvironment {
         self.powerSourceMonitor = powerSourceMonitor
         self.clipboardContextProvider = clipboardContextProvider
         self.suggestionCoordinator = suggestionCoordinator
-        self.suggestionEngine = suggestionEngine
         self.emojiPickerController = emojiPickerController
         self.macroController = macroController
         self.inlineCommandCoordinator = inlineCommandCoordinator

@@ -24,23 +24,18 @@ struct WritingPaneView: View {
                     )
                 }
 
-                // Two steppers appear only while Custom is active so the curated picker stays the
-                // common path. `customRangeChanged` re-routes through `setCustomWordCountRange` so
-                // the values are clamped and high stays >= low even if the user spams Down on high.
+                // Min and Max are editable while Custom is active: type a value or nudge it with the
+                // arrows. Both rows commit through `setCustomWordCountRange`, which clamps to
+                // [minimumWord, maximumWord] and keeps Max >= Min, so neither a typed nor a stepped
+                // value can leave the sensible range. Stacked as their own rows (rather than the old
+                // side-by-side steppers) so each reads as one editable field. Shown only in Custom so
+                // the curated picker stays the common path.
                 if suggestionSettings.isUsingCustomWordCountRange {
-                    HStack(spacing: 16) {
-                        Stepper(
-                            value: customLowBinding,
-                            in: SuggestionWordRange.minimumWord...SuggestionWordRange.maximumWord
-                        ) {
-                            Text("Min: \(suggestionSettings.customWordCountLowWords)")
-                        }
-                        Stepper(
-                            value: customHighBinding,
-                            in: SuggestionWordRange.minimumWord...SuggestionWordRange.maximumWord
-                        ) {
-                            Text("Max: \(suggestionSettings.customWordCountHighWords)")
-                        }
+                    LabeledContent("Minimum") {
+                        wordCountField(value: customLowBinding, label: "Minimum word count")
+                    }
+                    LabeledContent("Maximum") {
+                        wordCountField(value: customHighBinding, label: "Maximum word count")
                     }
                     Text("Token budget scales by your selected language. Multiple languages or a " +
                         "language Cotabby doesn't recognize use the English ratio.")
@@ -152,6 +147,31 @@ struct WritingPaneView: View {
                 }
             }
         )
+    }
+
+    /// A compact "type or step" control: a right-aligned numeric field paired with up/down arrows,
+    /// both bound to the same clamping binding so a typed value and a stepped value land on the same
+    /// sensible range. Factored out so the Min and Max rows stay identical. The field uses the
+    /// `.number` format so it only commits a parsed integer on Return / focus loss, where the binding
+    /// clamps it — intermediate keystrokes never fight the clamp. `label` is the spoken VoiceOver
+    /// name: `LabeledContent`'s visible title is not applied to the controls themselves, so the field
+    /// and stepper carry it explicitly (otherwise VoiceOver announces them unnamed).
+    @ViewBuilder
+    private func wordCountField(value: Binding<Int>, label: String) -> some View {
+        HStack(spacing: 8) {
+            TextField("", value: value, format: .number)
+                .multilineTextAlignment(.trailing)
+                .frame(width: 56)
+                .textFieldStyle(.roundedBorder)
+                .accessibilityLabel(label)
+            Stepper(
+                "",
+                value: value,
+                in: SuggestionWordRange.minimumWord...SuggestionWordRange.maximumWord
+            )
+            .labelsHidden()
+            .accessibilityLabel(label)
+        }
     }
 
     private var customLowBinding: Binding<Int> {

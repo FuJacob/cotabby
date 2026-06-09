@@ -11,9 +11,11 @@ import Foundation
 /// static value type should not capture. Keeping the data here and the rules in `Support/` keeps the
 /// resolution pure and unit-testable.
 
-/// One of the onboarding starting points the user chooses from. Quick, Everyday, and Powerful are
-/// curated tiers; Custom is the neutral "set it up yourself" option that applies lean defaults so a
-/// user who does not want a curated tier can still get going and configure the rest in Settings.
+/// One of the onboarding starting points. Quick, Everyday, and Powerful are the curated tiers shown
+/// as selectable cards (`curatedTiers`). Custom is the neutral "set it up yourself" option that
+/// applies lean defaults; it is no longer its own card. The template step's "Set up later" button
+/// applies it under the hood so a user who does not want a curated tier can still move forward and
+/// configure the rest in Settings.
 enum OnboardingTemplate: String, CaseIterable, Identifiable, Equatable, Sendable {
     case quick
     case everyday
@@ -21,6 +23,11 @@ enum OnboardingTemplate: String, CaseIterable, Identifiable, Equatable, Sendable
     case custom
 
     var id: String { rawValue }
+
+    /// The curated tiers shown as selectable cards in onboarding, in display order. Excludes
+    /// `.custom`, which is applied implicitly by the "Set up later" button rather than picked from a
+    /// card. Kept distinct from `allCases` so the pure recommender still reasons over every tier.
+    static let curatedTiers: [OnboardingTemplate] = [.quick, .everyday, .powerful]
 
     var title: String {
         switch self {
