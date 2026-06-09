@@ -80,6 +80,10 @@ enum AcceptanceGranularity: String, CaseIterable, Codable, Sendable {
 struct SuggestionSettingsSnapshot: Equatable, Sendable {
     let isGloballyEnabled: Bool
     let disabledAppBundleIdentifiers: Set<String>
+    /// When false (the default), ghost text is suppressed in integrated terminals (VS Code / Cursor
+    /// xterm.js surfaces). Power users can opt back in. Travels in the snapshot so the availability
+    /// gate sees the live value alongside the other "where Cotabby runs" rules.
+    let suggestInIntegratedTerminals: Bool
     let selectedEngine: SuggestionEngineKind
     let selectedWordCountPreset: SuggestionWordCountPreset
     /// When true, the generation pipeline uses `customWordCountRange` for the length budget and

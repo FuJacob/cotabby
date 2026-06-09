@@ -25,6 +25,7 @@ enum CotabbyTestFixtures {
         trailingText: String = "",
         selection: NSRange? = nil,
         isSecure: Bool = false,
+        isIntegratedTerminal: Bool = false,
         focusChangeSequence: UInt64 = 1
     ) -> FocusedInputSnapshot {
         let resolvedSelection = selection
@@ -46,6 +47,7 @@ enum CotabbyTestFixtures {
             trailingText: trailingText,
             selection: resolvedSelection,
             isSecure: isSecure,
+            isIntegratedTerminal: isIntegratedTerminal,
             focusChangeSequence: focusChangeSequence
         )
     }
@@ -214,6 +216,7 @@ enum CotabbyTestFixtures {
     static func settingsSnapshot(
         isGloballyEnabled: Bool = true,
         disabledAppBundleIdentifiers: Set<String> = [],
+        suggestInIntegratedTerminals: Bool = false,
         selectedEngine: SuggestionEngineKind = .llamaOpenSource,
         selectedWordCountPreset: SuggestionWordCountPreset = .sevenToTwelve,
         isUsingCustomWordCountRange: Bool = false,
@@ -236,6 +239,7 @@ enum CotabbyTestFixtures {
         SuggestionSettingsSnapshot(
             isGloballyEnabled: isGloballyEnabled,
             disabledAppBundleIdentifiers: disabledAppBundleIdentifiers,
+            suggestInIntegratedTerminals: suggestInIntegratedTerminals,
             selectedEngine: selectedEngine,
             selectedWordCountPreset: selectedWordCountPreset,
             isUsingCustomWordCountRange: isUsingCustomWordCountRange,

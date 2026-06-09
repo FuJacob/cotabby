@@ -38,6 +38,10 @@ final class SuggestionSettingsModel: ObservableObject {
     /// Whether the keycap hint (the small pill that teaches the accept key) is drawn after ghost text.
     @Published private(set) var showAcceptanceHint: Bool
     @Published private(set) var disabledAppRules: [DisabledApplicationRule]
+    /// Whether Cotabby should suggest inside integrated terminals (VS Code / Cursor xterm.js
+    /// surfaces). Off by default: a terminal's own completion/history conflicts with ghost text and
+    /// overlaps command output. Power users who want it can opt back in from the Apps settings pane.
+    @Published private(set) var suggestInIntegratedTerminals: Bool
     @Published private(set) var customSuggestionTextColorHex: String?
     @Published private(set) var ghostTextOpacity: Double
     @Published private(set) var selectedEngine: SuggestionEngineKind
@@ -132,6 +136,7 @@ final class SuggestionSettingsModel: ObservableObject {
         showIndicator = data.showIndicator
         showAcceptanceHint = data.showAcceptanceHint
         disabledAppRules = data.disabledAppRules
+        suggestInIntegratedTerminals = data.suggestInIntegratedTerminals
         customSuggestionTextColorHex = data.customSuggestionTextColorHex
         ghostTextOpacity = data.ghostTextOpacity
         selectedEngine = data.selectedEngine
@@ -184,6 +189,7 @@ final class SuggestionSettingsModel: ObservableObject {
         SuggestionSettingsSnapshot(
             isGloballyEnabled: isGloballyEnabled,
             disabledAppBundleIdentifiers: Set(disabledAppRules.map(\.bundleIdentifier)),
+            suggestInIntegratedTerminals: suggestInIntegratedTerminals,
             selectedEngine: selectedEngine,
             selectedWordCountPreset: selectedWordCountPreset,
             isUsingCustomWordCountRange: isUsingCustomWordCountRange,
@@ -469,6 +475,15 @@ final class SuggestionSettingsModel: ObservableObject {
 
         isGloballyEnabled = enabled
         store.saveGloballyEnabled(enabled)
+    }
+
+    func setSuggestInIntegratedTerminals(_ enabled: Bool) {
+        guard suggestInIntegratedTerminals != enabled else {
+            return
+        }
+
+        suggestInIntegratedTerminals = enabled
+        store.saveSuggestInIntegratedTerminals(enabled)
     }
 
     func setApplicationDisabled(
@@ -850,8 +865,15 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
             $customWordCountLowWords,
             $customWordCountHighWords
         )
-        return Publishers.CombineLatest4(primary, $acceptanceGranularity, $extendedContext, customRange)
-            .map { primaryTuple, granularity, extendedContext, customRangeTuple in
+        // `extendedContext` shares its outer slot with `suggestInIntegratedTerminals` via a paired
+        // `CombineLatest` so the new toggle costs no extra top-level slot (the outer is at the cap).
+        return Publishers.CombineLatest4(
+            primary,
+            $acceptanceGranularity,
+            Publishers.CombineLatest($extendedContext, $suggestInIntegratedTerminals),
+            customRange
+        )
+            .map { primaryTuple, granularity, extendedContextTuple, customRangeTuple in
                 let (combinedSettings, presentationToggles, profile, timing) = primaryTuple
                 let (globallyEnabled, disabledAppRules, engine, wordCountPreset) = combinedSettings
                 let (clipboardContextEnabled, fastModeEnabled, mirrorPreference, typoToggles) = presentationToggles
@@ -859,9 +881,11 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                 let (userName, customRules, responseLanguages) = profile
                 let (debounce, focusPoll, multiLine, autoAcceptPunctuation) = timing
                 let (isCustomActive, customLow, customHigh) = customRangeTuple
+                let (extendedContext, suggestInIntegratedTerminals) = extendedContextTuple
                 return SuggestionSettingsSnapshot(
                     isGloballyEnabled: globallyEnabled,
                     disabledAppBundleIdentifiers: Set(disabledAppRules.map(\.bundleIdentifier)),
+                    suggestInIntegratedTerminals: suggestInIntegratedTerminals,
                     selectedEngine: engine,
                     selectedWordCountPreset: wordCountPreset,
                     isUsingCustomWordCountRange: isCustomActive,

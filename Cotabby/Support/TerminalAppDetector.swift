@@ -23,4 +23,21 @@ enum TerminalAppDetector {
         guard let bundleIdentifier else { return false }
         return terminalBundleIdentifiers.contains(bundleIdentifier)
     }
+
+    /// DOM class prefix xterm.js stamps on every node of its terminal subtree — most importantly the
+    /// focusable `xterm-helper-textarea` that receives the caret.
+    private static let integratedTerminalClassPrefix = "xterm"
+
+    /// Whether a focused web element's `AXDOMClassList` marks it as an xterm.js terminal surface.
+    ///
+    /// VS Code, Cursor, Windsurf, and browser-hosted terminals (ttyd, Jupyter) all render their
+    /// terminal through xterm.js, so an `xterm`-prefixed class is a reliable, localization-independent
+    /// signal for "the caret is inside an integrated terminal". This is the piece `isTerminal` can't
+    /// provide: the editor, Copilot chat, and integrated terminal share one process, so the app-level
+    /// bundle blocklist can only ever block or allow all three together. Matching the whole `xterm`
+    /// prefix (not just `xterm-helper-textarea`) keeps detection working if xterm renames its input
+    /// node or focus lands on a sibling like `xterm-screen`.
+    static func isIntegratedTerminal(domClassList: [String]) -> Bool {
+        domClassList.contains { $0.hasPrefix(integratedTerminalClassPrefix) }
+    }
 }

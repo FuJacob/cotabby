@@ -208,6 +208,17 @@ struct FocusSnapshotResolver {
                 )
             }
         }
+        // Recognize an xterm.js integrated terminal (VS Code / Cursor / web terminal) from the
+        // focused element's DOM classes. The terminal, code editor, and Copilot chat all live in one
+        // process, so this surface-level signal is the only way to suppress ghost text in the
+        // terminal while leaving the editor and chat working. Read on the focused element because
+        // that is exactly where xterm puts the caret (`xterm-helper-textarea`). Computed here — only
+        // once a real editable field has resolved — so idle/non-editable focus polls don't pay for an
+        // extra AXDOMClassList round-trip; native apps don't vend the attribute anyway.
+        let isIntegratedTerminal = TerminalAppDetector.isIntegratedTerminal(
+            domClassList: AXHelper.stringArrayValue(
+                for: "AXDOMClassList" as CFString, on: focusedElement) ?? []
+        )
         let context = FocusedInputSnapshot(
             applicationName: applicationName,
             bundleIdentifier: bundleIdentifier,
@@ -224,6 +235,7 @@ struct FocusSnapshotResolver {
             trailingText: nsValue.substring(from: trailingStart),
             selection: contextWindow.selection,
             isSecure: resolvedCandidate.isSecure,
+            isIntegratedTerminal: isIntegratedTerminal,
             focusChangeSequence: focusChangeSequence,
             focusedURLString: focusedURLString,
             resolvedFieldStyle: resolvedFieldStyle

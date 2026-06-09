@@ -38,6 +38,18 @@ struct AppsPaneView: View {
                 }
             }
 
+            Section("Integrated Terminals") {
+                Toggle(isOn: suggestInIntegratedTerminalsBinding) {
+                    SettingsRowLabel(
+                        title: "Suggest in Integrated Terminals",
+                        description: "Show ghost text in the VS Code and Cursor integrated terminal. "
+                            + "Off by default so suggestions don't overlap shell prompts and command "
+                            + "output — the code editor and Copilot chat in the same window keep "
+                            + "suggesting either way."
+                    )
+                }
+            }
+
             if !filteredRunningAppSuggestions.isEmpty {
                 Section("Suggestions") {
                     Text("Currently running apps you can disable with one click.")
@@ -55,6 +67,13 @@ struct AppsPaneView: View {
         .onAppear {
             runningAppSuggestions = RunningAppSuggestion.collect()
         }
+    }
+
+    private var suggestInIntegratedTerminalsBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.suggestInIntegratedTerminals },
+            set: { suggestionSettings.setSuggestInIntegratedTerminals($0) }
+        )
     }
 
     /// Hide suggestions that are already in the disabled list so the row never shows a

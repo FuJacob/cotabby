@@ -97,6 +97,13 @@ enum AXHelper {
         stringValue(for: "AXIdentifier" as CFString, on: element)
     }
 
+    /// Reads an array-of-strings AX attribute. Chromium/Electron exposes a web element's CSS
+    /// classes through `AXDOMClassList` this way; native apps simply don't vend the attribute, so
+    /// this returns nil for them rather than throwing.
+    static func stringArrayValue(for attribute: CFString, on element: AXUIElement) -> [String]? {
+        copyAttributeValue(attribute, on: element) as? [String]
+    }
+
     static func boolValue(for attribute: CFString, on element: AXUIElement) -> Bool? {
         guard let number = copyAttributeValue(attribute, on: element) as? NSNumber else {
             return nil
