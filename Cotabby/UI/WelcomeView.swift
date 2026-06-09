@@ -27,9 +27,9 @@ struct WelcomeView: View {
     /// Reports the current step's raw index up to the coordinator so it can persist a resume point.
     /// The wizard is re-shown from this step if the user is pulled out before finishing (see #314).
     let onStepChange: (Int) -> Void
-    /// True when this user has completed a prior onboarding version. Custom keeps the user's existing
-    /// settings instead of overwriting them with template defaults, since they have already tuned
-    /// Cotabby and chose Custom precisely to preserve that.
+    /// True when this user has completed a prior onboarding version. The Custom path keeps the user's
+    /// existing settings instead of overwriting them with template defaults, since they have already
+    /// tuned Cotabby; advancing via "Set up later" preserves that.
     let isReturningUser: Bool
 
     @State private var step: WelcomeStep
@@ -216,9 +216,17 @@ extension WelcomeView {
             WelcomeNavigation(
                 canGoBack: true,
                 canContinue: canContinueFromTemplate,
+                // With no curated tier chosen, the primary button becomes "Set up later" and applies
+                // the neutral Custom path under the hood, so the user is never blocked on a card.
+                continueTitle: selectedTemplate == nil ? "Set up later" : "Continue",
                 disabledHint: templateStepDisabledHint,
                 onBack: { step = .permissions },
-                onContinue: { step = .aboutYou }
+                onContinue: {
+                    if selectedTemplate == nil {
+                        applyTemplate(.custom)
+                    }
+                    step = .aboutYou
+                }
             )
         case .aboutYou:
             WelcomeNavigation(
@@ -663,9 +671,13 @@ extension WelcomeView {
         return modelDownloadManager.state(for: model)
     }
 
+    /// Whether the template step's primary button is enabled. With no tier chosen it is always
+    /// enabled: the button reads "Set up later" and applies the neutral Custom path. With a tier
+    /// chosen, Apple Intelligence is immediately ready, while Open Source waits until that tier's
+    /// model download has at least started (it finishes in the background).
     fileprivate var canContinueFromTemplate: Bool {
         guard let template = selectedTemplate else {
-            return false
+            return true
         }
         let plan = resolvedPlan(for: template)
         switch plan.engine {
@@ -680,17 +692,18 @@ extension WelcomeView {
         }
     }
 
+    /// Tooltip for the disabled primary button. Only reachable once a tier is chosen but its Open
+    /// Source download hasn't started yet — with no tier chosen the button is "Set up later" and
+    /// always enabled, so there is no longer a "pick something" hint.
     fileprivate var templateStepDisabledHint: String {
-        selectedTemplate == nil
-            ? "Choose a starting point to continue."
-            : "Hang on while your model starts downloading."
+        "Hang on while your model starts downloading."
     }
 
     fileprivate func resolvedPlan(for template: OnboardingTemplate) -> ResolvedTemplatePlan {
         let base = OnboardingTemplateRecommender.resolvePlan(for: template, engine: selectedEngine)
-        // Returning users picking Custom on the OSS engine see their currently selected local model
-        // in the footer instead of the static template default, so the card matches the settings
-        // we will actually preserve in applyTemplate.
+        // Returning users on the Custom path with the OSS engine keep their currently selected local
+        // model instead of the static template default, so the done-step status and model activation
+        // reflect the settings applyTemplate actually preserves for them.
         guard
             template == .custom,
             isReturningUser,
@@ -726,12 +739,13 @@ extension WelcomeView {
         }
     }
 
-    /// Applies a template's settings and starts its model download (if any). Selecting a card is the
-    /// user's explicit consent to download, so a multi-gigabyte fetch only ever starts from here.
+    /// Applies a template's settings and starts its model download (if any). Choosing a tier card —
+    /// or taking the "Set up later" path, which applies `.custom` — is the user's explicit consent to
+    /// download, so a multi-gigabyte fetch only ever starts from here.
     fileprivate func applyTemplate(_ template: OnboardingTemplate) {
         selectedTemplate = template
 
-        // Returning users picking Custom keep every setting they previously tuned. Skipping the
+        // Returning users on the Custom path keep every setting they previously tuned. Skipping the
         // writes here (and the model download below) preserves their engine, word count, behavior
         // toggles, and avoids re-triggering a multi-gigabyte fetch they already completed.
         if template == .custom && isReturningUser {
@@ -827,11 +841,13 @@ struct WelcomeButton: View {
     }
 }
 
-/// Continue navigation bar for middle wizard steps.
-/// "Continue" can be disabled with a tooltip hint explaining what's needed.
+/// Continue navigation bar for middle wizard steps. The primary button label defaults to "Continue"
+/// but can be overridden (the template step shows "Set up later" when no tier is chosen). The button
+/// can be disabled with a tooltip hint explaining what's needed.
 struct WelcomeNavigation: View {
     var canGoBack: Bool = false
     var canContinue: Bool = true
+    var continueTitle: String = "Continue"
     var disabledHint: String?
     var onBack: (() -> Void)?
     let onContinue: () -> Void
@@ -847,7 +863,7 @@ struct WelcomeNavigation: View {
 
             Spacer(minLength: 0)
 
-            Button("Continue") {
+            Button(continueTitle) {
                 onContinue()
             }
             .buttonStyle(.borderedProminent)
