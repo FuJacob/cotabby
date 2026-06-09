@@ -467,11 +467,22 @@ private struct MenuBarWindowBackgroundModifier: ViewModifier {
     @ViewBuilder
     func body(content: Content) -> some View {
         if #available(macOS 26.0, *) {
-            // macOS 26 Liquid Glass renders the `.windowBackground` *material* as translucent
-            // glass, so the app/desktop behind the popup bleeds through and the native chrome and
-            // shadow detach from the content, worst on light backgrounds (issue #492). Fill with
-            // an opaque window *color* instead so the popup reads as one solid rounded panel.
-            content.containerBackground(Color(nsColor: .windowBackgroundColor), for: .window)
+            // macOS 26 Liquid Glass composites `containerBackground(_, for: .window)` through a
+            // translucent glass backdrop (a `CABackdropLayer`), so passing it an opaque `Color`
+            // does NOT produce an opaque fill: the desktop still bleeds through the glass and the
+            // native window shadow detaches from the see-through panel on light backgrounds. That
+            // is why #492 (translucent material) recurred as #646 even after #566 swapped the
+            // material for an opaque color, which the system still re-routed through the backdrop.
+            //
+            // Draw the fill as ordinary content instead. A plain `.background` renders as a normal
+            // opaque layer rather than the glass backdrop, and we clip it to the native popover
+            // shape (measured 16pt continuous corner) so it covers the whole non-opaque window up
+            // to the rounded edge. The popup then reads as one solid rounded panel that the system
+            // shadow can hug, with no desktop bleed-through.
+            content.background {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(Color(nsColor: .windowBackgroundColor))
+            }
         } else if #available(macOS 15.0, *) {
             // MenuBarExtra's `.window` style already gives us native rounded window chrome. Place
             // the fill at the hosting window instead of this view's local bounds so it reaches the
