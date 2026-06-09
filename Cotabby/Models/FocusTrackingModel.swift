@@ -20,6 +20,7 @@ final class FocusTrackingModel: ObservableObject {
     init(
         permissionProvider: @escaping @MainActor () -> Bool,
         ignoredBundleIdentifier: String?,
+        selfCaptureAllowedElementIdentifier: String? = nil,
         isCaptureSuppressedForBundle: @escaping @MainActor (String?) -> Bool = { _ in false },
         publishesPollingEvents: Bool = false
     ) {
@@ -27,6 +28,7 @@ final class FocusTrackingModel: ObservableObject {
         tracker = FocusTracker(
             permissionProvider: permissionProvider,
             ignoredBundleIdentifier: ignoredBundleIdentifier,
+            selfCaptureAllowedElementIdentifier: selfCaptureAllowedElementIdentifier,
             isCaptureSuppressedForBundle: isCaptureSuppressedForBundle
         )
         snapshot = tracker.snapshot

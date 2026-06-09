@@ -19,8 +19,6 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
     private let runtimeModel: RuntimeBootstrapModel
     private let modelDownloadManager: ModelDownloadManager
     private let huggingFaceSearchService: HuggingFaceSearchService
-    private let suggestionEngine: any SuggestionGenerating
-    private let configuration: SuggestionConfiguration
     private let performanceMetricsStore: PerformanceMetricsStore
     private let systemMetricsStore: SystemMetricsStore
     private let onShowWelcome: () -> Void
@@ -37,8 +35,6 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
         runtimeModel: RuntimeBootstrapModel,
         modelDownloadManager: ModelDownloadManager,
         huggingFaceSearchService: HuggingFaceSearchService,
-        suggestionEngine: any SuggestionGenerating,
-        configuration: SuggestionConfiguration,
         performanceMetricsStore: PerformanceMetricsStore,
         systemMetricsStore: SystemMetricsStore,
         onShowWelcome: @escaping () -> Void,
@@ -52,8 +48,6 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
         self.runtimeModel = runtimeModel
         self.modelDownloadManager = modelDownloadManager
         self.huggingFaceSearchService = huggingFaceSearchService
-        self.suggestionEngine = suggestionEngine
-        self.configuration = configuration
         self.performanceMetricsStore = performanceMetricsStore
         self.systemMetricsStore = systemMetricsStore
         self.onShowWelcome = onShowWelcome
@@ -83,8 +77,6 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
                     huggingFaceSearchService: huggingFaceSearchService,
                     performanceMetricsStore: performanceMetricsStore,
                     systemMetricsStore: systemMetricsStore,
-                    suggestionEngine: suggestionEngine,
-                    configuration: configuration,
                     onShowWelcome: onShowWelcome,
                     clearEmojiHistory: clearEmojiHistory
                 )
