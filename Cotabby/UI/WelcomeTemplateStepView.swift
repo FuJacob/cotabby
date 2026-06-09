@@ -34,7 +34,7 @@ struct WelcomeTemplateStepView: View {
             engineSelector
 
             VStack(spacing: 10) {
-                ForEach(OnboardingTemplate.allCases) { template in
+                ForEach(OnboardingTemplate.curatedTiers) { template in
                     let availability = OnboardingTemplateRecommender.availability(
                         for: template,
                         hardware: hardware,

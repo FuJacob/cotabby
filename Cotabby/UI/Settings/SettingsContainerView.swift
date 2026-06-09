@@ -23,12 +23,6 @@ struct SettingsContainerView: View {
     @ObservedObject var performanceMetricsStore: PerformanceMetricsStore
     @ObservedObject var systemMetricsStore: SystemMetricsStore
 
-    /// Live router used by the Context pane's "try it" playground so users can see the effect of
-    /// Extended Context (and other prompt inputs) without leaving Settings. Threaded through the
-    /// container rather than constructed locally so the playground reuses the same router the
-    /// autocomplete pipeline uses.
-    let suggestionEngine: any SuggestionGenerating
-    let configuration: SuggestionConfiguration
     let onShowWelcome: () -> Void
     let clearEmojiHistory: () -> Void
 
@@ -122,11 +116,7 @@ struct SettingsContainerView: View {
         case .writing:
             WritingPaneView(suggestionSettings: suggestionSettings)
         case .context:
-            ContextPaneView(
-                suggestionSettings: suggestionSettings,
-                suggestionEngine: suggestionEngine,
-                configuration: configuration
-            )
+            ContextPaneView(suggestionSettings: suggestionSettings)
         case .shortcuts:
             ShortcutsPaneView(suggestionSettings: suggestionSettings)
         case .apps:
