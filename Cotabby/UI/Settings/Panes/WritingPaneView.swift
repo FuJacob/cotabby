@@ -32,10 +32,10 @@ struct WritingPaneView: View {
                 // the curated picker stays the common path.
                 if suggestionSettings.isUsingCustomWordCountRange {
                     LabeledContent("Minimum") {
-                        wordCountField(value: customLowBinding)
+                        wordCountField(value: customLowBinding, label: "Minimum word count")
                     }
                     LabeledContent("Maximum") {
-                        wordCountField(value: customHighBinding)
+                        wordCountField(value: customHighBinding, label: "Maximum word count")
                     }
                     Text("Token budget scales by your selected language. Multiple languages or a " +
                         "language Cotabby doesn't recognize use the English ratio.")
@@ -153,20 +153,24 @@ struct WritingPaneView: View {
     /// both bound to the same clamping binding so a typed value and a stepped value land on the same
     /// sensible range. Factored out so the Min and Max rows stay identical. The field uses the
     /// `.number` format so it only commits a parsed integer on Return / focus loss, where the binding
-    /// clamps it — intermediate keystrokes never fight the clamp.
+    /// clamps it — intermediate keystrokes never fight the clamp. `label` is the spoken VoiceOver
+    /// name: `LabeledContent`'s visible title is not applied to the controls themselves, so the field
+    /// and stepper carry it explicitly (otherwise VoiceOver announces them unnamed).
     @ViewBuilder
-    private func wordCountField(value: Binding<Int>) -> some View {
+    private func wordCountField(value: Binding<Int>, label: String) -> some View {
         HStack(spacing: 8) {
             TextField("", value: value, format: .number)
                 .multilineTextAlignment(.trailing)
                 .frame(width: 56)
                 .textFieldStyle(.roundedBorder)
+                .accessibilityLabel(label)
             Stepper(
                 "",
                 value: value,
                 in: SuggestionWordRange.minimumWord...SuggestionWordRange.maximumWord
             )
             .labelsHidden()
+            .accessibilityLabel(label)
         }
     }
 
