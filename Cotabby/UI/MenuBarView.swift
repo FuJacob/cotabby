@@ -464,14 +464,32 @@ struct MenuBarView: View {
 /// `MenuBarExtra`. Keeping this as a dedicated modifier gives the UI a narrow boundary for one
 /// platform-specific presentation rule without mixing availability checks into the main view body.
 private struct MenuBarWindowBackgroundModifier: ViewModifier {
+    /// Corner radius of the macOS 26 popover window, measured against the system chrome. The opaque
+    /// fill is clipped to this so it reaches the rounded edge of the non-opaque window. It is an
+    /// intentional coupling to a system measurement: if a future macOS changes the popover shape,
+    /// this is the single value to update (too small leaves a transparent sliver that re-detaches
+    /// the shadow; too large is harmlessly clipped by the window mask).
+    private static let macOS26PopoverCornerRadius: CGFloat = 16
+
     @ViewBuilder
     func body(content: Content) -> some View {
         if #available(macOS 26.0, *) {
-            // macOS 26 Liquid Glass renders the `.windowBackground` *material* as translucent
-            // glass, so the app/desktop behind the popup bleeds through and the native chrome and
-            // shadow detach from the content, worst on light backgrounds (issue #492). Fill with
-            // an opaque window *color* instead so the popup reads as one solid rounded panel.
-            content.containerBackground(Color(nsColor: .windowBackgroundColor), for: .window)
+            // macOS 26 Liquid Glass composites `containerBackground(_, for: .window)` through a
+            // translucent glass backdrop (a `CABackdropLayer`), so passing it an opaque `Color`
+            // does NOT produce an opaque fill: the desktop still bleeds through the glass and the
+            // native window shadow detaches from the see-through panel on light backgrounds. That
+            // is why #492 (translucent material) recurred as #646 even after #566 swapped the
+            // material for an opaque color, which the system still re-routed through the backdrop.
+            //
+            // Draw the fill as ordinary content instead. A plain `.background` renders as a normal
+            // opaque layer rather than the glass backdrop, and we clip it to the native popover
+            // shape (see `macOS26PopoverCornerRadius`) so it covers the whole non-opaque window up
+            // to the rounded edge. The popup then reads as one solid rounded panel that the system
+            // shadow can hug, with no desktop bleed-through.
+            content.background {
+                RoundedRectangle(cornerRadius: Self.macOS26PopoverCornerRadius, style: .continuous)
+                    .fill(Color(nsColor: .windowBackgroundColor))
+            }
         } else if #available(macOS 15.0, *) {
             // MenuBarExtra's `.window` style already gives us native rounded window chrome. Place
             // the fill at the hosting window instead of this view's local bounds so it reaches the

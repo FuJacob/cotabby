@@ -72,6 +72,12 @@ struct AppearancePaneView: View {
             }
 
             Section("Appearance") {
+                GhostTextPreview(
+                    ghostColor: resolvedGhostTextColor,
+                    opacity: suggestionSettings.ghostTextOpacity,
+                    fontSize: GhostTextPreview.baseFontSize * CGFloat(suggestionSettings.ghostTextSizeMultiplier)
+                )
+
                 LabeledContent {
                     HStack(spacing: 8) {
                         ForEach(GhostTextColorPreset.all) { preset in
@@ -107,6 +113,30 @@ struct AppearancePaneView: View {
                         title: "Ghost Text Opacity",
                         description: "How faint the inline suggestion looks before you accept it.",
                         systemImage: "circle.lefthalf.filled"
+                    )
+                }
+
+                LabeledContent {
+                    HStack(spacing: 10) {
+                        TickMarkSlider(
+                            value: ghostTextSizeBinding,
+                            range: SuggestionSettingsModel.minimumGhostTextSizeMultiplier
+                                ... SuggestionSettingsModel.maximumGhostTextSizeMultiplier,
+                            step: SuggestionSettingsModel.ghostTextSizeMultiplierStep
+                        )
+                        .frame(width: 180)
+
+                        Text(ghostTextSizeLabel)
+                            .font(.callout)
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                            .frame(width: 42, alignment: .trailing)
+                    }
+                } label: {
+                    SettingsRowLabel(
+                        title: "Ghost Text Size",
+                        description: "Fine-tune how large suggestions appear. Lower it if the ghost text looks too big.",
+                        systemImage: "textformat.size"
                     )
                 }
             }
@@ -150,6 +180,13 @@ struct AppearancePaneView: View {
         )
     }
 
+    private var ghostTextSizeBinding: Binding<Double> {
+        Binding(
+            get: { suggestionSettings.ghostTextSizeMultiplier },
+            set: { suggestionSettings.setGhostTextSizeMultiplier($0) }
+        )
+    }
+
     // MARK: - Ghost color swatch helpers
 
     /// Mirrors the overlay's automatic fallback (`GhostSuggestionView.ghostColor`) so the Automatic
@@ -160,8 +197,21 @@ struct AppearancePaneView: View {
             : Color(red: 0.45, green: 0.45, blue: 0.45)
     }
 
+    /// Base color the live preview renders the ghost run in (before opacity): the user's custom pick,
+    /// or the same adaptive gray the overlay falls back to, so the sample matches the real suggestion.
+    private var resolvedGhostTextColor: Color {
+        SuggestionTextColorCodec.color(fromHex: suggestionSettings.customSuggestionTextColorHex)
+            ?? automaticGhostTextColor
+    }
+
     private var ghostTextOpacityLabel: String {
         "\(Int((suggestionSettings.ghostTextOpacity * 100).rounded()))%"
+    }
+
+    /// Multiplier shown as a scale factor (e.g. "1.0×") rather than a percentage, so it reads as a
+    /// size knob distinct from the opacity row's "%" right above it.
+    private var ghostTextSizeLabel: String {
+        String(format: "%.1f×", suggestionSettings.ghostTextSizeMultiplier)
     }
 
     @ViewBuilder

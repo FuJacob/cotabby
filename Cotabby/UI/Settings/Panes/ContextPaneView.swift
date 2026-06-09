@@ -1,18 +1,20 @@
 import SwiftUI
 
 /// File overview:
-/// "Context" detail pane of the Settings window. It leads with a live preview sandbox — an editor
-/// that completes as you type, showing the suggestion as gray ghost text inline (Tab to accept, Esc
-/// to dismiss), exactly like Cotabby behaves in a real app — so the user can see how their settings
-/// and Extended Context shape real output. Below it sits the Extended Context editor (a free-form
-/// blob folded into every prompt) with its cost warning co-located, then a short "how this is used"
-/// note.
+/// "Context" detail pane of the Settings window. It leads with a live preview: a real, native text
+/// field that the running app completes in exactly as it does anywhere else. Typing in it drives the
+/// production focus -> suggestion -> overlay pipeline end to end, so the gray suggestion, Tab to
+/// accept, and Esc to dismiss are the real thing, not an in-app reimplementation. Below it sits the
+/// Extended Context editor (a free-form blob folded into every prompt) with its cost warning
+/// co-located, then a short "how this is used" note.
 ///
-/// Why live preview leads (the redesign):
-/// the pane previously buried a button-gated "Try it" box below the Extended Context editor, so
-/// testing read as an afterthought and the click-to-run, static result did not feel like the product.
-/// Putting the live sandbox first makes testing the primary action and Extended Context the
-/// configuration that feeds it.
+/// Why the field is real (the redesign):
+/// the preview previously hand-rolled an `NSTextView` that mirrored a SwiftUI binding and rendered a
+/// ghost run inside its own editable storage. That reconciliation raced with live keystrokes and
+/// corrupted typed text, so the box felt unnatural to type in. The field is now plain and inert:
+/// `FocusTracker` lifts its "never complete in our own UI" rule for this one element (keyed on
+/// `ContextLivePreview.accessibilityIdentifier`), and the real overlay draws the suggestion at the
+/// caret. The text view owns its string outright, so nothing competes with the user's typing.
 ///
 /// Why a dedicated pane (not Writing): the Writing pane carries name and language personalization.
 /// Extended Context is a different shape (long-form, free markdown, and noticeably more expensive on
@@ -23,30 +25,9 @@ import SwiftUI
 /// can type a trailing space; `SuggestionRequestFactory` does the once-per-request trim instead.
 struct ContextPaneView: View {
     @ObservedObject var suggestionSettings: SuggestionSettingsModel
-    let suggestionEngine: any SuggestionGenerating
-    let configuration: SuggestionConfiguration
-
-    @StateObject private var livePreview: LivePreviewModel
 
     private static let previewEditorMinHeight: CGFloat = 132
     private static let extendedContextEditorMinHeight: CGFloat = 220
-
-    init(
-        suggestionSettings: SuggestionSettingsModel,
-        suggestionEngine: any SuggestionGenerating,
-        configuration: SuggestionConfiguration
-    ) {
-        self.suggestionSettings = suggestionSettings
-        self.suggestionEngine = suggestionEngine
-        self.configuration = configuration
-        _livePreview = StateObject(
-            wrappedValue: LivePreviewModel(
-                suggestionSettings: suggestionSettings,
-                suggestionEngine: suggestionEngine,
-                configuration: configuration
-            )
-        )
-    }
 
     var body: some View {
         SettingsPaneScaffold {
@@ -67,72 +48,30 @@ struct ContextPaneView: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
 
-                InlineCompletionEditor(
-                    text: Binding(
-                        get: { livePreview.userText },
-                        set: { livePreview.userDidEdit($0) }
-                    ),
-                    ghost: livePreview.ghost,
-                    onAccept: { livePreview.acceptGhost() },
-                    onDismiss: { livePreview.dismissGhost() }
-                )
-                .frame(minHeight: Self.previewEditorMinHeight)
-                .padding(8)
-                .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(Color(nsColor: .textBackgroundColor))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
-                )
-                .accessibilityLabel("Live preview input")
+                ContextLivePreviewField()
+                    .frame(minHeight: Self.previewEditorMinHeight)
+                    .padding(8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(Color(nsColor: .textBackgroundColor))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .stroke(Color(nsColor: .separatorColor), lineWidth: 1)
+                    )
+                    .accessibilityLabel("Live preview input")
 
-                livePreviewStatusLine
-
-                if let error = livePreview.lastError {
-                    Label(error, systemImage: "exclamationmark.triangle.fill")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .labelStyle(.titleAndIcon)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                // The active engine, so the user knows which backend they're exercising. The live
+                // suggestion, latency, and accept cues come from the real overlay, not this pane.
+                Text(suggestionSettings.snapshot.selectedEngine.displayLabel)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
 
                 Text("Nothing here is saved or shared; it only exercises the on-device model.")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
             }
             .padding(.vertical, 6)
-        }
-    }
-
-    /// Left: a spinner while generating plus the active engine. Right: a Tab hint while a suggestion
-    /// is showing, and the last generation's latency. Mirrors the cues the real overlay gives.
-    private var livePreviewStatusLine: some View {
-        HStack(spacing: 8) {
-            if livePreview.isGenerating {
-                ProgressView()
-                    .controlSize(.small)
-            }
-            Text(livePreview.engineLabel)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            Spacer(minLength: 0)
-
-            if livePreview.hasGhost {
-                Label("Tab to accept", systemImage: "arrow.right.to.line")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .labelStyle(.titleAndIcon)
-            }
-
-            if let latency = livePreview.lastLatencyMilliseconds {
-                Text("\(latency) ms")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
-            }
         }
     }
 

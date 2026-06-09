@@ -303,6 +303,7 @@ final class OverlayController: SuggestionOverlayControlling {
             visibleFrame: visibleFrame,
             showsAcceptanceHint: acceptanceHintLabel != nil,
             autoAcceptTrailingPunctuation: suggestionSettings.autoAcceptTrailingPunctuation,
+            sizeMultiplier: CGFloat(suggestionSettings.ghostTextSizeMultiplier),
             reason: reason
         )
         let customGhostColor = SuggestionTextColorCodec.color(
@@ -368,7 +369,8 @@ final class OverlayController: SuggestionOverlayControlling {
             fieldMetrics: fieldMetrics,
             fallbackRatio: Layout.fontToLineHeightRatio,
             minimum: Layout.minimumGhostFontSize,
-            maximum: qualityCap
+            maximum: qualityCap,
+            sizeMultiplier: CGFloat(suggestionSettings.ghostTextSizeMultiplier)
         )
     }
 

@@ -328,3 +328,83 @@ final class GhostTextOpacitySettingsTests: XCTestCase {
         }
     }
 }
+
+final class GhostTextSizeSettingsTests: XCTestCase {
+    /// Same hosted-test deinit quarantine as `GhostTextOpacitySettingsTests`: retain the models for
+    /// the process lifetime and drive each test through `MainActor`.
+    private static var retainedModels: [SuggestionSettingsModel] = []
+
+    private var userDefaultsSuites: [(suiteName: String, userDefaults: UserDefaults)] = []
+
+    override func tearDown() {
+        for suite in userDefaultsSuites {
+            suite.userDefaults.removePersistentDomain(forName: suite.suiteName)
+        }
+        userDefaultsSuites.removeAll()
+        super.tearDown()
+    }
+
+    func test_defaultSizeMultiplierIsOneOnFreshInstall() {
+        runOnMainActor {
+            XCTAssertEqual(
+                makeModel().ghostTextSizeMultiplier,
+                SuggestionSettingsModel.defaultGhostTextSizeMultiplier
+            )
+        }
+    }
+
+    func test_setSizeMultiplierClampsBelowMinimumAndAboveMaximum() {
+        runOnMainActor {
+            let model = makeModel()
+
+            model.setGhostTextSizeMultiplier(0.0)
+            XCTAssertEqual(model.ghostTextSizeMultiplier, SuggestionSettingsModel.minimumGhostTextSizeMultiplier)
+
+            model.setGhostTextSizeMultiplier(5.0)
+            XCTAssertEqual(model.ghostTextSizeMultiplier, SuggestionSettingsModel.maximumGhostTextSizeMultiplier)
+        }
+    }
+
+    func test_sizeMultiplierPersistsAcrossModelReload() {
+        runOnMainActor {
+            let userDefaults = makeUserDefaults()
+            makeModel(userDefaults: userDefaults).setGhostTextSizeMultiplier(0.8)
+
+            XCTAssertEqual(makeModel(userDefaults: userDefaults).ghostTextSizeMultiplier, 0.8)
+        }
+    }
+
+    @MainActor
+    private func makeModel(userDefaults: UserDefaults? = nil) -> SuggestionSettingsModel {
+        let model = SuggestionSettingsModel(
+            configuration: .standard,
+            userDefaults: userDefaults ?? makeUserDefaults()
+        )
+        Self.retainedModels.append(model)
+        return model
+    }
+
+    private func makeUserDefaults() -> UserDefaults {
+        let suiteName = "GhostTextSizeSettingsTests-\(UUID().uuidString)"
+        guard let userDefaults = UserDefaults(suiteName: suiteName) else {
+            XCTFail("Expected an isolated UserDefaults suite")
+            return .standard
+        }
+
+        userDefaults.removePersistentDomain(forName: suiteName)
+        userDefaultsSuites.append((suiteName: suiteName, userDefaults: userDefaults))
+        return userDefaults
+    }
+
+    private func runOnMainActor<Result>(
+        _ body: @MainActor () throws -> Result
+    ) rethrows -> Result {
+        if Thread.isMainThread {
+            return try MainActor.assumeIsolated(body)
+        }
+
+        return try DispatchQueue.main.sync {
+            try MainActor.assumeIsolated(body)
+        }
+    }
+}

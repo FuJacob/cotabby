@@ -102,4 +102,68 @@ final class GhostFontMetricsTests: XCTestCase {
         )
         XCTAssertEqual(size, 20 * fallbackRatio, accuracy: 0.0001)
     }
+
+    func testDefaultMultiplierLeavesAutoSizeUnchanged() {
+        // Omitting the multiplier must reproduce the pre-feature size exactly, so existing callers and
+        // the out-of-box default see no change. max(14, 20 * 0.78) = 15.6.
+        let size = GhostFontMetrics.pointSize(
+            caretHeight: 20,
+            fieldMetrics: nil,
+            fallbackRatio: fallbackRatio,
+            minimum: minimum,
+            maximum: maximum
+        )
+        XCTAssertEqual(size, 15.6, accuracy: 0.0001)
+    }
+
+    func testSizeMultiplierScalesResolvedSize() {
+        // The multiplier scales the auto-approximated 15.6 in both directions.
+        let smaller = GhostFontMetrics.pointSize(
+            caretHeight: 20,
+            fieldMetrics: nil,
+            fallbackRatio: fallbackRatio,
+            minimum: minimum,
+            maximum: maximum,
+            sizeMultiplier: 0.7
+        )
+        XCTAssertEqual(smaller, 15.6 * 0.7, accuracy: 0.0001)
+
+        let larger = GhostFontMetrics.pointSize(
+            caretHeight: 20,
+            fieldMetrics: nil,
+            fallbackRatio: fallbackRatio,
+            minimum: minimum,
+            maximum: maximum,
+            sizeMultiplier: 1.3
+        )
+        XCTAssertEqual(larger, 15.6 * 1.3, accuracy: 0.0001)
+    }
+
+    func testSizeMultiplierAppliesAfterTheMinimumClamp() {
+        // The multiplier scales the floored auto-size (not the raw caret math), so a field auto-sizing
+        // to the 14 floor still shrinks: 14 * 0.8 = 11.2, which is above the absolute floor.
+        let size = GhostFontMetrics.pointSize(
+            caretHeight: 5,
+            fieldMetrics: nil,
+            fallbackRatio: fallbackRatio,
+            minimum: minimum,
+            maximum: maximum,
+            sizeMultiplier: 0.8
+        )
+        XCTAssertEqual(size, minimum * 0.8, accuracy: 0.0001)
+    }
+
+    func testSizeMultiplierRespectsAbsoluteFloor() {
+        // A degenerate multiplier far below the shipped range cannot push ghost text under the
+        // legibility floor: 14 * 0.5 = 7, clamped up to absoluteMinimumPointSize.
+        let size = GhostFontMetrics.pointSize(
+            caretHeight: 5,
+            fieldMetrics: nil,
+            fallbackRatio: fallbackRatio,
+            minimum: minimum,
+            maximum: maximum,
+            sizeMultiplier: 0.5
+        )
+        XCTAssertEqual(size, GhostFontMetrics.absoluteMinimumPointSize, accuracy: 0.0001)
+    }
 }
