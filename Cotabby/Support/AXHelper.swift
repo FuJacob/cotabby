@@ -774,8 +774,33 @@ enum AXHelper {
         return flipped
     }
 
+    /// Cached display list. Display configuration changes are rare (plug/unplug, resolution or
+    /// arrangement changes), but `cocoaRect`/`validatedCocoaTextRect` run for every AX rect at the
+    /// focus-poll cadence — rebuilding `NSScreen.screens` + `CGDisplayBounds` per conversion
+    /// multiplied AppKit/CoreGraphics traffic by the resolve rate for identical results. All AX
+    /// geometry work happens on the main thread, so unsynchronized statics are safe here.
+    private static var cachedDisplayGeometries: [DisplayGeometry]?
+
+    /// Invalidation hook for the cache above. macOS posts `didChangeScreenParameters` for every
+    /// event that can alter the display list (connect/disconnect, resolution, arrangement, Dock
+    /// and menu-bar resizes affecting `visibleFrame`). Lazily installed via the first
+    /// `displayGeometries()` call, so the observer always exists before a cached value could go
+    /// stale.
+    private static let displayChangeObserver: NSObjectProtocol = NotificationCenter.default.addObserver(
+        forName: NSApplication.didChangeScreenParametersNotification,
+        object: nil,
+        queue: .main
+    ) { _ in
+        cachedDisplayGeometries = nil
+    }
+
     private static func displayGeometries() -> [DisplayGeometry] {
-        NSScreen.screens.compactMap { screen in
+        _ = displayChangeObserver
+        if let cachedDisplayGeometries {
+            return cachedDisplayGeometries
+        }
+
+        let geometries = NSScreen.screens.compactMap { screen -> DisplayGeometry? in
             guard let number = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")]
                 as? NSNumber
             else {
@@ -790,6 +815,8 @@ enum AXHelper {
                 backingScaleFactor: screen.backingScaleFactor
             )
         }
+        cachedDisplayGeometries = geometries
+        return geometries
     }
 
     /// Last-resort fallback for unusual virtual displays where AppKit cannot expose a display ID.

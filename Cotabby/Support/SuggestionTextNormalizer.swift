@@ -188,6 +188,13 @@ enum SuggestionTextNormalizer {
     /// Removes `<think>…</think>` reasoning blocks: complete blocks first, then any dangling open
     /// tag left when generation hit the token limit before the block was closed.
     private static func stripThinkBlocks(_ text: String) -> String {
+        // Both patterns below require a literal `<think>`, so this cheap scan lets the common case
+        // (no reasoning block — the vast majority of completions) skip regex work entirely.
+        // `String.range(of:options:.regularExpression)` compiles its pattern on every call, and
+        // this runs on the per-prediction critical path.
+        guard text.contains("<think>") else {
+            return text
+        }
         var result = text
         if let complete = result.range(of: "<think>[\\s\\S]*?</think>", options: .regularExpression) {
             result.replaceSubrange(complete, with: "")
@@ -269,12 +276,16 @@ enum SuggestionTextNormalizer {
         "App:"
     ]
 
+    /// `scaffoldingLabels` ordered longest-first, computed once. The ordering is what makes
+    /// "Text before the caret:" win over a shorter sibling; sorting on every call repeated that
+    /// work on the per-prediction critical path for an identical result.
+    private static let labelsByLengthDescending: [String] = scaffoldingLabels.sorted { $0.count > $1.count }
+
     /// Removes a leading run of known prompt-scaffolding labels (see `scaffoldingLabels`), whether
     /// each sits on its own line or inline before the continuation. Only labels at the very start
     /// are stripped; a label appearing later in the text is left alone because by then it is far
     /// more likely to be real user content than echoed scaffolding.
     private static func stripLeadingScaffoldingLabels(_ text: String) -> String {
-        let labelsByLengthDescending = scaffoldingLabels.sorted { $0.count > $1.count }
         var working = text
 
         while true {

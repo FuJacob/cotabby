@@ -381,6 +381,14 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
                         // Seed for the reuse path is sampled at the end of this decodePrompt; apply
                         // the word-continuation constraint to it just like the fresh path does.
                         engine.setForceWordContinuation(autocompleteSequenceID, options.forceWordContinuation)
+                        // Per-token log-probabilities cost two O(vocab) passes each in the engine;
+                        // only compute them when the confidence gate would actually read them.
+                        // Re-assert per request: the floor is not part of the sampling fingerprint,
+                        // so a reused sequence must not carry a stale flag.
+                        engine.setComputeLogprob(
+                            autocompleteSequenceID,
+                            options.confidenceFloor > -.infinity
+                        )
                         var mutableRemaining = remaining
                         let status = engine.decodePrompt(
                             autocompleteSequenceID,
@@ -420,6 +428,10 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         // The engine samples the first (seed) token at the end of decodePrompt, so set the
         // word-continuation constraint here, before decoding.
         engine.setForceWordContinuation(seqID, options.forceWordContinuation)
+        // Skip the engine's per-token log-probability work (two O(vocab) passes per token)
+        // whenever confidence suppression is disabled — the shipping default — since the value
+        // would be summed and then discarded.
+        engine.setComputeLogprob(seqID, options.confidenceFloor > -.infinity)
 
         var tokens = promptTokens
         let status = engine.decodePrompt(seqID, &tokens, Int32(tokens.count), 0)
