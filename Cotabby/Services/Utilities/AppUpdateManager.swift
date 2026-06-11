@@ -38,6 +38,16 @@ final class AppUpdateManager {
             return
         }
 
+        guard Self.isUpdaterEnabledForThisBuild else {
+            // Dev builds carry a distinct bundle identifier (`com.jacobfu.tabby.dev`) so they hold
+            // their own Accessibility/TCC grant, independent of the released app. Sparkle must never
+            // run here: the prod appcast points at the Developer ID-signed release, and letting it
+            // install would swap that bundle in over the dev app, collapsing the separate identity
+            // this build exists to preserve.
+            log("Sparkle disabled for dev build.")
+            return
+        }
+
         guard hasUsableConfiguration else {
             log("Sparkle not started because updater configuration is incomplete.")
             return
@@ -73,6 +83,17 @@ final class AppUpdateManager {
         }
 
         updaterController.checkForUpdates(nil)
+    }
+
+    /// Whether Sparkle should run for this build. Compiled out to `false` in the dev configuration
+    /// (the `COTABBY_DEV` flag), which ships under a distinct bundle identifier that the prod appcast
+    /// must never replace. Released builds resolve to `true` and follow the normal update path.
+    private static var isUpdaterEnabledForThisBuild: Bool {
+        #if COTABBY_DEV
+        false
+        #else
+        true
+        #endif
     }
 
     private var hasUsableConfiguration: Bool {
