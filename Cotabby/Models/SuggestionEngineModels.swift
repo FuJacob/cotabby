@@ -127,6 +127,10 @@ struct SuggestionSettingsSnapshot: Equatable, Sendable {
     /// Normalized ISO codes for the bundled SymSpell dictionaries eligible for correction ranking.
     /// Language routing chooses at most one per typo; an empty array uses only `NSSpellChecker`.
     let enabledSpellingDictionaryCodes: [String]
+    /// When true (and typo suppression is on), a correction is applied automatically after the user
+    /// commits the misspelled word with Space. The word boundary prevents pauses in unfinished words
+    /// from triggering destructive edits.
+    let automaticallyFixTypos: Bool
 
     /// Single chokepoint that picks between the preset's range and the user's custom range.
     /// Every downstream consumer (token-budget math, prompt-instruction text, UI labels in the

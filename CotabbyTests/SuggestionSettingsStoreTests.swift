@@ -140,6 +140,14 @@ final class SuggestionSettingsStoreTests: XCTestCase {
 
     // MARK: - Save / load round-trips
 
+    func test_load_automaticTypoFixingDefaultsOff() async {
+        let defaults = makeIsolatedDefaults()
+
+        let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
+
+        XCTAssertFalse(data.automaticallyFixTypos)
+    }
+
     func test_saveThenLoad_roundTripsScalarFields() async {
         let defaults = makeIsolatedDefaults()
         let store = SuggestionSettingsStore(userDefaults: defaults)
@@ -149,6 +157,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         store.saveGhostTextOpacity(0.5)
         store.saveGhostTextSizeMultiplier(0.8)
         store.saveFastModeEnabled(true)
+        store.saveAutomaticallyFixTypos(true)
         store.saveMenuBarWordCountVisible(false)
 
         let data = store.load(configuration: .standard)
@@ -158,6 +167,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         XCTAssertEqual(data.ghostTextOpacity, 0.5, accuracy: 0.0001)
         XCTAssertEqual(data.ghostTextSizeMultiplier, 0.8, accuracy: 0.0001)
         XCTAssertTrue(data.isFastModeEnabled)
+        XCTAssertTrue(data.automaticallyFixTypos)
         XCTAssertFalse(data.isMenuBarWordCountVisible)
     }
 

@@ -47,6 +47,8 @@ nonisolated enum SpellingDictionaryLanguage: String, CaseIterable, Codable, Hash
         switch self {
         case .english: return "frequency_dictionary_en_82_765"
         case .german: return "de-100k"
+        // Upstream ships the Spanish list as "es-100l" (letter "l", not the "k" every other language
+        // uses); the bundled file is named es-100l.txt to match, so this divergence is intentional.
         case .spanish: return "es-100l"
         case .french: return "fr-100k"
         case .hebrew: return "he-100k"

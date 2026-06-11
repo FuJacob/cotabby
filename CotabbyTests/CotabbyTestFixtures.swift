@@ -232,7 +232,8 @@ enum CotabbyTestFixtures {
         acceptanceGranularity: AcceptanceGranularity = .word,
         suppressCompletionsOnTypo: Bool = false,
         offerTypoCorrections: Bool = false,
-        enabledSpellingDictionaryCodes: [String] = SpellingDictionaryCatalog.defaultEnabledCodes
+        enabledSpellingDictionaryCodes: [String] = SpellingDictionaryCatalog.defaultEnabledCodes,
+        automaticallyFixTypos: Bool = false
     ) -> SuggestionSettingsSnapshot {
         SuggestionSettingsSnapshot(
             isGloballyEnabled: isGloballyEnabled,
@@ -255,7 +256,8 @@ enum CotabbyTestFixtures {
             acceptanceGranularity: acceptanceGranularity,
             suppressCompletionsOnTypo: suppressCompletionsOnTypo,
             offerTypoCorrections: offerTypoCorrections,
-            enabledSpellingDictionaryCodes: enabledSpellingDictionaryCodes
+            enabledSpellingDictionaryCodes: enabledSpellingDictionaryCodes,
+            automaticallyFixTypos: automaticallyFixTypos
         )
     }
 }

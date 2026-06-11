@@ -38,6 +38,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     case hideSuggestionsOnTypo
     case offerTypoCorrections
     case spellingDictionaries
+    case automaticallyFixTypos
     // Context
     case extendedContext
     case contextLivePreview
@@ -104,6 +105,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .hideSuggestionsOnTypo: return "Hide Suggestions on Typo"
         case .offerTypoCorrections: return "Offer Corrections on Typo"
         case .spellingDictionaries: return "Spelling Dictionaries"
+        case .automaticallyFixTypos: return "Automatically Fix Typos"
         case .extendedContext: return "Extended Context"
         case .contextLivePreview: return "Live Preview"
         case .engine: return "Engine"
@@ -163,6 +165,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .hideSuggestionsOnTypo: return "eye.slash"
         case .offerTypoCorrections: return "checkmark.bubble"
         case .spellingDictionaries: return "character.book.closed"
+        case .automaticallyFixTypos: return "checkmark.circle"
         case .extendedContext: return "doc.text"
         case .contextLivePreview: return "text.cursor"
         case .engine: return "cpu"
@@ -206,7 +209,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .emojiPicker, .emojiSkinTone, .emojiPeopleStyle, .emojiHistory:
             return .emoji
         case .length, .name, .languages, .customRules,
-             .hideSuggestionsOnTypo, .offerTypoCorrections, .spellingDictionaries:
+             .hideSuggestionsOnTypo, .offerTypoCorrections, .spellingDictionaries, .automaticallyFixTypos:
             return .writing
         case .extendedContext, .contextLivePreview:
             return .context
@@ -307,6 +310,9 @@ enum SettingsItem: String, CaseIterable, Identifiable {
             return ["dictionary", "dictionaries", "spelling", "language", "multilingual",
                     "english", "german", "spanish", "french", "hebrew", "italian",
                     "russian", "symspell", "autocorrect"]
+        case .automaticallyFixTypos:
+            return ["typo", "automatic", "automatically", "autocorrect", "fix", "spelling",
+                    "replace", "space", "instant", "without accepting"]
         case .extendedContext:
             return ["context", "glossary", "reference", "notes", "jargon", "instructions",
                     "memory", "background", "system prompt", "vocabulary"]
