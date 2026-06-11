@@ -42,10 +42,10 @@ struct AppsPaneView: View {
                 Toggle(isOn: suggestInIntegratedTerminalsBinding) {
                     SettingsRowLabel(
                         title: "Suggest in Integrated Terminals",
-                        description: "Show ghost text in the VS Code and Cursor integrated terminal. "
-                            + "Off by default so suggestions don't overlap shell prompts and command "
-                            + "output — the code editor and Copilot chat in the same window keep "
-                            + "suggesting either way."
+                        description: "Show ghost text in VS Code and Cursor integrated terminals. "
+                            + "Off by default so suggestions stay out of shell prompts; the editor "
+                            + "and chat in the same window keep suggesting either way.",
+                        systemImage: "terminal"
                     )
                 }
             }
