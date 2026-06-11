@@ -260,13 +260,23 @@ enum SuggestionSessionReconciler {
             // punctuation-led token skips ICU segmentation entirely, so in flat text it would swallow
             // everything up to the next whitespace in a single accept.
             index = endOfCJKPunctuationRun(in: remainingText, from: wordEnd, notPast: index)
-        } else if tokenStart < index, remainingText[tokenStart].bindsToPrecedingSpacelessWord {
-            // A token can still begin with CJK punctuation when the previous chunk ended exactly at
-            // the word (a typed-through advance, or a pre-fix session). Peel the punctuation run as
-            // its own chunk instead of falling through to the whitespace scan's whole-run cliff.
-            index = endOfCJKPunctuationRun(in: remainingText, from: tokenStart, notPast: index)
+        } else if tokenStart < index,
+                  remainingText[tokenStart].bindsToPrecedingSpacelessWord
+                  || remainingText[tokenStart].isCJKOpeningBracket {
+            // A token can also begin with CJK punctuation: closers/commas when the previous chunk
+            // ended exactly at the word (a typed-through advance), and opening brackets always,
+            // because an opener belongs to the *next* word so the trailing-binding above never
+            // consumes it. Peel the punctuation run as its own chunk instead of falling through to
+            // the whitespace scan, which would swallow everything up to the next whitespace.
+            index = endOfCJKPunctuationRun(in: remainingText, from: tokenStart, notPast: index, includingOpeners: true)
         }
 
+        // With trailing-punctuation auto-accept off, peel any trailing punctuation (including a CJK
+        // run just bound above) back off the chunk, so `資料、` accepts as `資料` and the comma waits
+        // for the next Tab. This intentionally overrides the binding for word granularity; the phrase
+        // walker re-accumulates the comma regardless, so phrase output is unchanged either way. A
+        // punctuation-only token survives whole because `wordEndTrimmingTrailingPunctuation` returns
+        // nil when there is no word character to trim back to, so the peeled chunk is never empty.
         if !autoAcceptTrailingPunctuation,
            let wordEnd = wordEndTrimmingTrailingPunctuation(in: remainingText, from: tokenStart, to: index) {
             index = wordEnd
@@ -295,16 +305,24 @@ enum SuggestionSessionReconciler {
         return min(wordEnd, limit)
     }
 
-    /// The index just past the contiguous run of word-binding CJK punctuation starting at `start`,
-    /// clamped to `limit`. Returns `start` unchanged when the character there is not such punctuation,
-    /// so the word-binding call site degrades to "no extension".
+    /// The index just past the contiguous run of CJK punctuation starting at `start`, clamped to
+    /// `limit`. Returns `start` unchanged when the character there is not such punctuation, so the
+    /// word-binding call site degrades to "no extension". `includingOpeners` is true only for the
+    /// peel path: a trailing extension must stop before an opening bracket (it belongs to the next
+    /// word), while a punctuation-led peel takes the whole mixed run.
     private static func endOfCJKPunctuationRun(
         in text: String,
         from start: String.Index,
-        notPast limit: String.Index
+        notPast limit: String.Index,
+        includingOpeners: Bool = false
     ) -> String.Index {
         var cursor = start
-        while cursor < limit, text[cursor].bindsToPrecedingSpacelessWord {
+        while cursor < limit {
+            let character = text[cursor]
+            guard character.bindsToPrecedingSpacelessWord
+                || (includingOpeners && character.isCJKOpeningBracket) else {
+                break
+            }
             cursor = text.index(after: cursor)
         }
         return cursor
@@ -579,22 +597,49 @@ private extension Character {
         isLetter || isNumber
     }
 
+    /// The CJK sentence terminators: ideographic full stop `。`, fullwidth `！` `？`, and the halfwidth
+    /// ideographic stop `｡`. Declared once so `isPhraseSentenceTerminator` (phrase ends) and
+    /// `bindsToPrecedingSpacelessWord` (chunk binding) share one list instead of each restating the
+    /// four codepoints and silently drifting when one is updated.
+    var isCJKSentenceTerminator: Bool {
+        self == "\u{3002}" || self == "\u{FF01}" || self == "\u{FF1F}" || self == "\u{FF61}"
+    }
+
+    /// The CJK closing punctuation: corner brackets `」` `』` (and the halfwidth corner `｣`),
+    /// fullwidth parenthesis `）`, lenticular bracket `】`, and angle brackets `〉` `》`. Declared
+    /// once so `isPhraseClosingPunctuation` (the closer walk-back) and
+    /// `bindsToPrecedingSpacelessWord` (chunk binding) share one list instead of each restating the
+    /// codepoints.
+    var isCJKClosingPunctuation: Bool {
+        self == "\u{300D}" || self == "\u{300F}" || self == "\u{FF09}"
+            || self == "\u{3011}" || self == "\u{3009}" || self == "\u{300B}" || self == "\u{FF63}"
+    }
+
+    /// The CJK opening brackets: corner brackets `「` `『` (and the halfwidth corner `｢`), fullwidth
+    /// parenthesis `（`, lenticular bracket `【`, and angle brackets `〈` `《`. These lead the word
+    /// they quote, so the trailing-binding rule stops before them while the punctuation-led peel
+    /// takes them; without the peel a chunk starting at `「` would skip ICU segmentation and swallow
+    /// the rest of a flat quoted run to the next whitespace.
+    var isCJKOpeningBracket: Bool {
+        self == "\u{300C}" || self == "\u{300E}" || self == "\u{FF08}"
+            || self == "\u{3010}" || self == "\u{3008}" || self == "\u{300A}" || self == "\u{FF62}"
+    }
+
     /// Sentence-ending punctuation for phrase mode, in both ASCII and CJK forms: `.` `!` `?` plus the
     /// ideographic full stop `。`, fullwidth `！` `？`, and the halfwidth ideographic stop `｡`. `\n` is
     /// handled separately because it can appear inside a leading-whitespace prefix of a composed chunk
     /// rather than at the chunk's tail end.
     var isPhraseSentenceTerminator: Bool {
-        self == "." || self == "!" || self == "?"
-            || self == "\u{3002}" || self == "\u{FF01}" || self == "\u{FF1F}" || self == "\u{FF61}"
+        self == "." || self == "!" || self == "?" || isCJKSentenceTerminator
     }
 
-    /// Clause-boundary punctuation for phrase mode: the ideographic comma `、` and fullwidth comma
-    /// `，`. CJK prose marks its natural pause points with these rather than whitespace, so phrase
-    /// acceptance treats them as boundaries to advance clause by clause instead of swallowing a whole
-    /// sentence per Tab. Both codepoints occur only in CJK text, and ASCII "," is deliberately
-    /// excluded, so space-delimited scripts never stop at a comma.
+    /// Clause-boundary punctuation for phrase mode: the ideographic comma `、` (and its halfwidth
+    /// form `､`) and the fullwidth comma `，`. CJK prose marks its natural pause points with these
+    /// rather than whitespace, so phrase acceptance treats them as boundaries to advance clause by
+    /// clause instead of swallowing a whole sentence per Tab. All three codepoints occur only in CJK
+    /// text, and ASCII "," is deliberately excluded, so space-delimited scripts never stop at a comma.
     var isPhraseClauseBoundary: Bool {
-        self == "\u{3001}" || self == "\u{FF0C}"
+        self == "\u{3001}" || self == "\u{FF0C}" || self == "\u{FF64}"
     }
 
     /// Closing punctuation that may follow a sentence terminator in prose: straight + curly
@@ -604,20 +649,16 @@ private extension Character {
     /// stop as complete sentences even though their final character is the closer.
     var isPhraseClosingPunctuation: Bool {
         self == "\"" || self == "'" || self == ")" || self == "]" || self == "}"
-            || self == "\u{201D}" || self == "\u{2019}"
-            || self == "\u{300D}" || self == "\u{300F}" || self == "\u{FF09}"
-            || self == "\u{3011}" || self == "\u{3009}" || self == "\u{300B}"
+            || self == "\u{201D}" || self == "\u{2019}" || isCJKClosingPunctuation
     }
 
     /// CJK punctuation that binds to the space-less word it follows for acceptance chunking: clause
     /// commas, sentence terminators, and closing brackets/quotes. One Tab then accepts `読み、` as a
     /// unit, and a chunk can never start at a punctuation cliff that would swallow the rest of the
-    /// run. Opening brackets are excluded because they belong to the next word, and ASCII punctuation
-    /// is excluded so this set can never affect space-delimited text.
+    /// run. Opening brackets are excluded because they belong to the next word, and every contributing
+    /// set is CJK-only (ASCII punctuation is never a member), so this can never affect space-delimited
+    /// text.
     var bindsToPrecedingSpacelessWord: Bool {
-        isPhraseClauseBoundary
-            || self == "\u{3002}" || self == "\u{FF01}" || self == "\u{FF1F}" || self == "\u{FF61}"
-            || self == "\u{300D}" || self == "\u{300F}" || self == "\u{FF09}"
-            || self == "\u{3011}" || self == "\u{3009}" || self == "\u{300B}"
+        isPhraseClauseBoundary || isCJKSentenceTerminator || isCJKClosingPunctuation
     }
 }

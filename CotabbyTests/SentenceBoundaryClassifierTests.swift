@@ -90,6 +90,13 @@ final class SentenceBoundaryClassifierTests: XCTestCase {
         XCTAssertTrue(SentenceBoundaryClassifier.endsSentence("終わり。」"))
     }
 
+    /// Halfwidth kana punctuation (legacy SJIS contexts) terminates like its fullwidth counterparts,
+    /// including the walk past a halfwidth corner bracket.
+    func test_endsSentence_trueForHalfwidthTerminatorAndCloser() {
+        XCTAssertTrue(SentenceBoundaryClassifier.endsSentence("終わり｡"))
+        XCTAssertTrue(SentenceBoundaryClassifier.endsSentence("終わり｡｣"))
+    }
+
     /// The ideographic comma is a clause boundary, not a sentence end: generation should keep going
     /// past `、` and only stop at a real terminator.
     func test_endsSentence_falseForIdeographicComma() {

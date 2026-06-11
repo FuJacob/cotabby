@@ -112,6 +112,6 @@ private extension Character {
         self == "\"" || self == "'" || self == ")" || self == "]" || self == "}"
             || self == "\u{201D}" || self == "\u{2019}"
             || self == "\u{300D}" || self == "\u{300F}" || self == "\u{FF09}"
-            || self == "\u{3011}" || self == "\u{3009}" || self == "\u{300B}"
+            || self == "\u{3011}" || self == "\u{3009}" || self == "\u{300B}" || self == "\u{FF63}"
     }
 }
