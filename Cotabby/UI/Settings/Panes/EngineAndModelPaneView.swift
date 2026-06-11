@@ -94,7 +94,7 @@ struct EngineAndModelPaneView: View {
                 )
             ) {
                 SettingsRowLabel(
-                    title: "Switch based on power source",
+                    title: "Switch Based on Power Source",
                     description: "Use a different engine or model on battery vs. while plugged in. " +
                         "For example, Apple Intelligence on battery to save power and a larger local " +
                         "model while charging.",
@@ -173,11 +173,18 @@ struct EngineAndModelPaneView: View {
     @ViewBuilder
     private var appleIntelligenceSections: some View {
         Section("Apple Intelligence") {
-            LabeledContent("Availability") {
+            LabeledContent {
                 Text(foundationModelAvailabilityService.userVisibleMessage)
                     .foregroundStyle(foundationModelAvailabilityService.isAvailable ? .green : .orange)
                     .multilineTextAlignment(.trailing)
                     .fixedSize(horizontal: false, vertical: true)
+            } label: {
+                SettingsRowLabel(
+                    title: "Availability",
+                    description: "Whether this Mac can run Apple Intelligence. Requires a supported " +
+                        "Apple Silicon Mac with Apple Intelligence turned on in System Settings.",
+                    systemImage: "apple.logo"
+                )
             }
         }
     }
@@ -245,7 +252,7 @@ struct EngineAndModelPaneView: View {
         }
 
         Section("Folder") {
-            LabeledContent("Path") {
+            LabeledContent {
                 VStack(alignment: .trailing, spacing: 8) {
                     Text(modelDownloadManager.modelsDirectoryPath)
                         .font(.callout.monospaced())
@@ -262,11 +269,17 @@ struct EngineAndModelPaneView: View {
                         }
                     }
                 }
+            } label: {
+                SettingsRowLabel(
+                    title: "Models Folder",
+                    description: "Where downloaded model files are stored on this Mac.",
+                    systemImage: "folder"
+                )
             }
 
             Toggle(isOn: $lmStudioSourceEnabled) {
                 SettingsRowLabel(
-                    title: "Also use LM Studio models",
+                    title: "Also Use LM Studio Models",
                     description: lmStudioModelsURL == nil
                         ? "Install LM Studio to load models from its library here."
                         : "Add models from your LM Studio library (~/.lmstudio/models) to the picker " +

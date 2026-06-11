@@ -46,8 +46,10 @@ struct AboutPaneView: View {
 
             Spacer(minLength: 12)
 
-            Button("Check for Updates") {
+            Button {
                 appUpdateManager.checkForUpdates()
+            } label: {
+                Label("Check for Updates", systemImage: "arrow.triangle.2.circlepath")
             }
         }
         .padding(.vertical, 4)

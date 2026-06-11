@@ -25,6 +25,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     case showKeyHint
     case ghostTextColor
     case ghostTextOpacity
+    case ghostTextSize
     // Emoji
     case emojiPicker
     case emojiSkinTone
@@ -45,6 +46,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     // Engine & Model
     case engine
     case appleIntelligenceAvailability
+    case modelStatus
     case selectedModel
     case powerBasedModelSwitching
     case batteryModel
@@ -60,6 +62,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     case toggleTabby
     // Apps
     case disabledApps
+    case suggestInIntegratedTerminals
     // Permissions
     case accessibility
     case inputMonitoring
@@ -94,6 +97,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .showKeyHint: return "Show Accept-Key Hint"
         case .ghostTextColor: return "Ghost Text Color"
         case .ghostTextOpacity: return "Ghost Text Opacity"
+        case .ghostTextSize: return "Ghost Text Size"
         case .emojiPicker: return "Inline Emoji Picker"
         case .emojiSkinTone: return "Skin Tone"
         case .emojiPeopleStyle: return "People Emoji Style"
@@ -110,10 +114,11 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .contextLivePreview: return "Live Preview"
         case .engine: return "Engine"
         case .appleIntelligenceAvailability: return "Apple Intelligence Availability"
+        case .modelStatus: return "Model Status"
         case .selectedModel: return "Selected Model"
-        case .powerBasedModelSwitching: return "Switch Models Based on Power Source"
-        case .batteryModel: return "Battery Model"
-        case .pluggedInModel: return "Plugged-in Model"
+        case .powerBasedModelSwitching: return "Switch Based on Power Source"
+        case .batteryModel: return "On Battery"
+        case .pluggedInModel: return "Plugged In"
         case .downloadModels: return "Download Models"
         case .huggingFaceBrowser: return "Hugging Face Model Browser"
         case .modelsFolder: return "Models Folder"
@@ -121,12 +126,13 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .acceptanceMode: return "Acceptance Mode"
         case .acceptWord: return "Accept Word"
         case .acceptEntireSuggestion: return "Accept Entire Suggestion"
-        case .toggleTabby: return "Toggle Tabby"
+        case .toggleTabby: return "Toggle Cotabby"
         case .disabledApps: return "Disabled Apps"
+        case .suggestInIntegratedTerminals: return "Suggest in Integrated Terminals"
         case .accessibility: return "Accessibility"
         case .inputMonitoring: return "Input Monitoring"
         case .screenRecording: return "Screen Recording"
-        case .performanceTracking: return "Performance Tracking"
+        case .performanceTracking: return "Enable Performance Tracking"
         case .resourceUsage: return "Live Resource Usage"
         case .recentRequests: return "Recent Requests"
         case .checkForUpdates: return "Check for Updates"
@@ -154,6 +160,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .showKeyHint: return "keyboard"
         case .ghostTextColor: return "paintpalette"
         case .ghostTextOpacity: return "circle.lefthalf.filled"
+        case .ghostTextSize: return "textformat.size"
         case .emojiPicker: return "face.smiling"
         case .emojiSkinTone: return "hand.raised.fingers.spread"
         case .emojiPeopleStyle: return "person.2"
@@ -170,9 +177,10 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .contextLivePreview: return "text.cursor"
         case .engine: return "cpu"
         case .appleIntelligenceAvailability: return "apple.logo"
+        case .modelStatus: return "info.circle"
         case .selectedModel: return "shippingbox"
-        case .powerBasedModelSwitching: return "battery.100"
-        case .batteryModel: return "battery.50"
+        case .powerBasedModelSwitching: return "battery.100.bolt"
+        case .batteryModel: return "battery.25"
         case .pluggedInModel: return "powerplug"
         case .downloadModels: return "arrow.down.circle"
         case .huggingFaceBrowser: return "magnifyingglass"
@@ -183,6 +191,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .acceptEntireSuggestion: return "text.insert"
         case .toggleTabby: return "power.circle"
         case .disabledApps: return "nosign"
+        case .suggestInIntegratedTerminals: return "terminal"
         case .accessibility: return "accessibility"
         case .inputMonitoring: return "keyboard"
         case .screenRecording: return "camera.viewfinder"
@@ -204,7 +213,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
              .allowMultiLine, .acceptPunctuation, .inlineMacros, .onboarding:
             return .general
         case .suggestionDisplay, .showFieldIndicator, .showWordCount, .showKeyHint,
-             .ghostTextColor, .ghostTextOpacity:
+             .ghostTextColor, .ghostTextOpacity, .ghostTextSize:
             return .appearance
         case .emojiPicker, .emojiSkinTone, .emojiPeopleStyle, .emojiHistory:
             return .emoji
@@ -213,13 +222,13 @@ enum SettingsItem: String, CaseIterable, Identifiable {
             return .writing
         case .extendedContext, .contextLivePreview:
             return .context
-        case .engine, .appleIntelligenceAvailability, .selectedModel,
+        case .engine, .appleIntelligenceAvailability, .modelStatus, .selectedModel,
              .powerBasedModelSwitching, .batteryModel, .pluggedInModel,
              .downloadModels, .huggingFaceBrowser, .modelsFolder, .lmStudio:
             return .engineAndModel
         case .acceptanceMode, .acceptWord, .acceptEntireSuggestion, .toggleTabby:
             return .shortcuts
-        case .disabledApps:
+        case .disabledApps, .suggestInIntegratedTerminals:
             return .apps
         case .accessibility, .inputMonitoring, .screenRecording:
             return .permissions
@@ -277,6 +286,9 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .ghostTextOpacity:
             return ["opacity", "transparency", "fade", "alpha", "translucent", "dim",
                     "brightness", "visibility"]
+        case .ghostTextSize:
+            return ["size", "font size", "scale", "bigger", "smaller", "larger", "text size",
+                    "zoom", "multiplier", "too big", "too small"]
         case .emojiPicker:
             return ["emoji", "smile", "picker", "inline", "colon", "emoticon", "face",
                     "symbol"]
@@ -326,6 +338,9 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .appleIntelligenceAvailability:
             return ["apple intelligence", "availability", "available", "supported",
                     "compatibility", "status", "macos", "device support"]
+        case .modelStatus:
+            return ["status", "loaded", "ready", "runtime", "running", "health",
+                    "model loaded", "loading"]
         case .selectedModel:
             return ["model", "gguf", "pick", "selected", "active model", "choose model",
                     "current model", "default model"]
@@ -366,6 +381,10 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .disabledApps:
             return ["apps", "disable", "exclude", "block", "ignore", "blacklist",
                     "deny list", "exception", "app exclusion", "skip", "off in"]
+        case .suggestInIntegratedTerminals:
+            return ["terminal", "terminals", "integrated terminal", "vscode", "vs code",
+                    "cursor", "shell", "xterm", "command line", "cli", "console",
+                    "ghost text in terminal"]
         case .accessibility:
             return ["accessibility", "ax", "permission", "access", "system settings",
                     "privacy", "grant", "allow"]

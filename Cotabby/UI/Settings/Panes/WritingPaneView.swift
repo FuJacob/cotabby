@@ -49,14 +49,16 @@ struct WritingPaneView: View {
                 Toggle(isOn: suppressCompletionsOnTypoBinding) {
                     SettingsRowLabel(
                         title: "Hide Suggestions on Typo",
-                        description: "Stops normal completions while the current word appears misspelled."
+                        description: "Stops normal completions while the current word appears misspelled.",
+                        systemImage: "eye.slash"
                     )
                 }
 
                 Toggle(isOn: offerTypoCorrectionsBinding) {
                     SettingsRowLabel(
                         title: "Offer Corrections on Typo",
-                        description: "Shows a green replacement you can apply with your accept key."
+                        description: "Shows a green replacement you can apply with your accept key.",
+                        systemImage: "checkmark.bubble"
                     )
                 }
                 .disabled(!suggestionSettings.suppressCompletionsOnTypo)
@@ -64,7 +66,8 @@ struct WritingPaneView: View {
                 Toggle(isOn: automaticallyFixTyposBinding) {
                     SettingsRowLabel(
                         title: "Automatically Fix Typos",
-                        description: "After you press Space, replaces a misspelled word without requiring your accept key."
+                        description: "After you press Space, replaces a misspelled word without requiring your accept key.",
+                        systemImage: "checkmark.circle"
                     )
                 }
                 .disabled(!suggestionSettings.suppressCompletionsOnTypo)
