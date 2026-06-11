@@ -68,6 +68,9 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     case performanceTracking
     case resourceUsage
     case recentRequests
+    // Usage
+    case usageStats
+    case resetUsageStats
     // About
     case checkForUpdates
     case support
@@ -129,6 +132,8 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .performanceTracking: return "Performance Tracking"
         case .resourceUsage: return "Live Resource Usage"
         case .recentRequests: return "Recent Requests"
+        case .usageStats: return "Usage Stats"
+        case .resetUsageStats: return "Reset Usage Stats"
         case .checkForUpdates: return "Check for Updates"
         case .support: return "Support Cotabby"
         case .githubRepository: return "GitHub Repository"
@@ -189,6 +194,8 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .performanceTracking: return "stopwatch"
         case .resourceUsage: return "chart.line.uptrend.xyaxis"
         case .recentRequests: return "list.bullet.clipboard"
+        case .usageStats: return "chart.bar.fill"
+        case .resetUsageStats: return "trash"
         case .checkForUpdates: return "arrow.triangle.2.circlepath"
         case .support: return "heart.fill"
         case .githubRepository: return "chevron.left.forwardslash.chevron.right"
@@ -225,6 +232,8 @@ enum SettingsItem: String, CaseIterable, Identifiable {
             return .permissions
         case .performanceTracking, .resourceUsage, .recentRequests:
             return .performance
+        case .usageStats, .resetUsageStats:
+            return .usage
         case .checkForUpdates, .support, .githubRepository, .wiki,
              .acknowledgements, .uninstall:
             return .about
@@ -384,6 +393,13 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .recentRequests:
             return ["recent", "requests", "history", "log", "completions", "latency",
                     "clear", "list", "past"]
+        case .usageStats:
+            return ["usage", "stats", "statistics", "analytics", "words accepted", "acceptances",
+                    "characters", "productivity", "word count", "completions accepted", "history",
+                    "value", "how many", "tracking", "metrics", "dashboard"]
+        case .resetUsageStats:
+            return ["reset", "clear", "delete", "wipe", "erase", "usage", "stats", "analytics",
+                    "start over", "forget"]
         case .checkForUpdates:
             return ["update", "version", "upgrade", "sparkle", "release", "new version",
                     "check updates", "auto update"]

@@ -21,6 +21,7 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
     private let huggingFaceSearchService: HuggingFaceSearchService
     private let performanceMetricsStore: PerformanceMetricsStore
     private let systemMetricsStore: SystemMetricsStore
+    private let usageAnalyticsStore: UsageAnalyticsStore
     private let onShowWelcome: () -> Void
     private let clearEmojiHistory: () -> Void
 
@@ -37,6 +38,7 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
         huggingFaceSearchService: HuggingFaceSearchService,
         performanceMetricsStore: PerformanceMetricsStore,
         systemMetricsStore: SystemMetricsStore,
+        usageAnalyticsStore: UsageAnalyticsStore,
         onShowWelcome: @escaping () -> Void,
         clearEmojiHistory: @escaping () -> Void
     ) {
@@ -50,6 +52,7 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
         self.huggingFaceSearchService = huggingFaceSearchService
         self.performanceMetricsStore = performanceMetricsStore
         self.systemMetricsStore = systemMetricsStore
+        self.usageAnalyticsStore = usageAnalyticsStore
         self.onShowWelcome = onShowWelcome
         self.clearEmojiHistory = clearEmojiHistory
     }
@@ -77,6 +80,7 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
                     huggingFaceSearchService: huggingFaceSearchService,
                     performanceMetricsStore: performanceMetricsStore,
                     systemMetricsStore: systemMetricsStore,
+                    usageAnalyticsStore: usageAnalyticsStore,
                     onShowWelcome: onShowWelcome,
                     clearEmojiHistory: clearEmojiHistory
                 )
