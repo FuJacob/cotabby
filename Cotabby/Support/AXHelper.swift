@@ -653,6 +653,59 @@ enum AXHelper {
         }
     }
 
+    /// Locates the app's "Paste" menu item by its Cmd-V key equivalent rather than by title, so the
+    /// lookup is language-independent ("Paste" / "貼り付け" / "Coller" depending on the host's
+    /// localization). The IME-safe insertion path presses this real menu item via `AXPress`: the
+    /// host runs its paste command without any key event existing, so an active input method can
+    /// neither swallow nor re-interpret the commit the way it does a synthetic keystroke.
+    static func pasteMenuItem(forApplicationPID pid: pid_t) -> AXUIElement? {
+        guard pid > 0 else { return nil }
+        let appElement = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(appElement, pollMessagingTimeout)
+        guard let menuBarValue = copyAttributeValue(kAXMenuBarAttribute as CFString, on: appElement),
+              CFGetTypeID(menuBarValue) == AXUIElementGetTypeID() else {
+            return nil
+        }
+        // Same Core Foundation bridging rule as `focusedElement()`.
+        let menuBar = unsafeBitCast(menuBarValue, to: AXUIElement.self)
+
+        // Menu bar -> top-level items (Apple, app, File, Edit, ...) -> one AXMenu each -> menu items.
+        // Depth-1 only: Paste always lives directly in a top-level menu, and skipping submenu
+        // recursion keeps the walk bounded. Early exit on the first Cmd-V item.
+        //
+        // Every walked element gets the short poll timeout before it is messaged: the walk runs on
+        // the main actor inside the accept path, and an element handle that never had a timeout set
+        // would otherwise fall back to the multi-second AX default if the host (a busy Chromium
+        // process is the common case here) stalls, beachballing typing for the duration.
+        AXUIElementSetMessagingTimeout(menuBar, pollMessagingTimeout)
+        for topLevelItem in childElements(of: menuBar) {
+            AXUIElementSetMessagingTimeout(topLevelItem, pollMessagingTimeout)
+            for menu in childElements(of: topLevelItem) {
+                AXUIElementSetMessagingTimeout(menu, pollMessagingTimeout)
+                for item in childElements(of: menu) where isCommandVMenuItem(item) {
+                    return item
+                }
+            }
+        }
+        return nil
+    }
+
+    /// True for a menu item whose key equivalent is exactly Cmd-V. `kAXMenuItemCmdModifiers` uses the
+    /// Carbon menu encoding where 0 means "Command alone"; shift/option/control add bits and 8 means
+    /// the equivalent carries no Command at all, so only an exact 0 matches plain Cmd-V. A missing
+    /// modifiers attribute rejects the item explicitly rather than relying on `nil == 0` being false.
+    private static func isCommandVMenuItem(_ item: AXUIElement) -> Bool {
+        AXUIElementSetMessagingTimeout(item, pollMessagingTimeout)
+        guard let cmdChar = stringValue(for: kAXMenuItemCmdCharAttribute as CFString, on: item),
+              cmdChar.uppercased() == "V" else {
+            return false
+        }
+        guard let modifiers = intValue(for: kAXMenuItemCmdModifiersAttribute as CFString, on: item) else {
+            return false
+        }
+        return modifiers == 0
+    }
+
     static func elementIdentity(for element: AXUIElement) -> String {
         var pid: pid_t = 0
         AXUIElementGetPid(element, &pid)

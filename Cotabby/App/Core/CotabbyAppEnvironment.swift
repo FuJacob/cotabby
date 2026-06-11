@@ -21,6 +21,10 @@ final class CotabbyAppEnvironment {
     let suggestionSettings: SuggestionSettingsModel
     let foundationModelAvailabilityService: FoundationModelAvailabilityService
     let powerSourceMonitor: PowerSourceMonitor
+    /// Detects when a composing input method (Japanese kana, Chinese pinyin, Korean hangul, ...) is
+    /// active so `SuggestionInserter` commits accepted text through an IME-safe path instead of a
+    /// synthetic keystroke the input method would swallow. See `KeyboardInputSourceMonitor`.
+    let keyboardInputSourceMonitor: KeyboardInputSourceMonitor
     let clipboardContextProvider: ClipboardContextProvider
     let suggestionCoordinator: SuggestionCoordinator
     let emojiPickerController: EmojiPickerController
@@ -49,6 +53,7 @@ final class CotabbyAppEnvironment {
         let suggestionSettings = SuggestionSettingsModel(configuration: configuration)
         let foundationModelAvailabilityService = FoundationModelAvailabilityService()
         let powerSourceMonitor = PowerSourceMonitor()
+        let keyboardInputSourceMonitor = KeyboardInputSourceMonitor()
         let suppressionController = InputSuppressionController()
         let inputMonitor = InputMonitor(
             permissionProvider: { permissionManager.inputMonitoringGranted },
@@ -112,6 +117,12 @@ final class CotabbyAppEnvironment {
         // to start sampling, so constructing it eagerly here costs nothing.
         let systemMetricsStore = SystemMetricsStore()
         let suggestionInserter = SuggestionInserter(suppressionController: suppressionController)
+        // Commit accepted text through an IME-safe path (Accessibility / paste) while a composing IME
+        // is active; a synthetic keystroke would be re-absorbed into composition and the accept would
+        // silently fail.
+        suggestionInserter.isComposingIMEActiveProvider = { [weak keyboardInputSourceMonitor] in
+            keyboardInputSourceMonitor?.isComposingIMEActive ?? false
+        }
         let overlayController = OverlayController(suggestionSettings: suggestionSettings)
         let activationIndicatorController = ActivationIndicatorController()
         let clipboardContextProvider = ClipboardContextProvider()
@@ -255,6 +266,7 @@ final class CotabbyAppEnvironment {
         self.suggestionSettings = suggestionSettings
         self.foundationModelAvailabilityService = foundationModelAvailabilityService
         self.powerSourceMonitor = powerSourceMonitor
+        self.keyboardInputSourceMonitor = keyboardInputSourceMonitor
         self.clipboardContextProvider = clipboardContextProvider
         self.suggestionCoordinator = suggestionCoordinator
         self.emojiPickerController = emojiPickerController

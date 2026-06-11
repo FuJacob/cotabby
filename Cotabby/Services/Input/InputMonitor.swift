@@ -470,7 +470,10 @@ final class InputMonitor {
             // Identity first: every event the inserter posts carries the synthetic marker, which
             // survives any counter race. The countdown alone proved leaky under rapid accept
             // bursts (async tap delivery interleaves chunks), and one leaked synthetic keydown
-            // classified as typing is enough to invalidate the very suggestion being accepted.
+            // classified as typing is enough to invalidate the very suggestion being accepted. This
+            // also subsumes the #668 paste-path concern: the synthetic Cmd-V carries the marker, so
+            // identity suppresses it even if a racing real keystroke consumed its countdown token
+            // first. The countdown check below remains as the secondary gate for unmarked events.
             if suppressionController.isSynthetic(event) {
                 _ = suppressionController.consumeIfNeeded()
                 onSuppressedSyntheticInput?()

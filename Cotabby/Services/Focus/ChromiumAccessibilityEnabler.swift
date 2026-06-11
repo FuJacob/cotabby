@@ -27,17 +27,37 @@ final class ChromiumAccessibilityEnabler {
     /// not advertise it). Recorded so we stop retrying a doomed call every tick.
     private var unsupportedPIDs: Set<pid_t> = []
 
+    /// The frontmost PID seen on the previous poll tick, used to detect activation edges. Updated on
+    /// every call (including for apps we never prime) so a switch away and back is always an edge.
+    private var lastFrontmostPID: pid_t?
+
     /// Primes the application if it is a Chromium/Electron surface we cover and has not been primed
     /// (or marked unsupported) yet. Safe to call every poll tick.
+    ///
+    /// Electron editors are additionally re-primed on every activation edge (each time the app
+    /// becomes frontmost), not just once per PID. Observed on VS Code: the first
+    /// `AXManualAccessibility` write returns success while the app is long-running, yet the web-AX
+    /// tree stays dormant for minutes; a later re-assert wakes it promptly. One extra AX write per
+    /// app switch is negligible, and Chromium browsers keep the once-per-PID behavior that already
+    /// works for them.
     func primeIfNeeded(application: NSRunningApplication) {
+        let pid = application.processIdentifier
+        let isActivationEdge = pid != lastFrontmostPID
+        lastFrontmostPID = pid
+
         guard BrowserAppDetector.needsWebAccessibilityPriming(
             bundleIdentifier: application.bundleIdentifier)
         else {
             return
         }
 
-        let pid = application.processIdentifier
-        guard pid > 0, !primedPIDs.contains(pid), !unsupportedPIDs.contains(pid) else {
+        guard pid > 0, !unsupportedPIDs.contains(pid) else {
+            return
+        }
+
+        let reassertForElectronEditor = isActivationEdge
+            && BrowserAppDetector.isElectronEditor(bundleIdentifier: application.bundleIdentifier)
+        guard !primedPIDs.contains(pid) || reassertForElectronEditor else {
             return
         }
 
