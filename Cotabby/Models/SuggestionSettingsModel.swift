@@ -99,6 +99,7 @@ final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var preferredEmojiSkinTone: EmojiSkinTone
     @Published private(set) var preferredEmojiGender: EmojiGender
     @Published private(set) var autoAcceptTrailingPunctuation: Bool
+    @Published private(set) var addSpaceAfterAccept: Bool
     @Published private(set) var acceptanceKeyCode: CGKeyCode
     @Published private(set) var acceptanceKeyModifiers: ShortcutModifierMask
     @Published private(set) var acceptanceKeyLabel: String
@@ -181,6 +182,7 @@ final class SuggestionSettingsModel: ObservableObject {
         preferredEmojiSkinTone = data.preferredEmojiSkinTone
         preferredEmojiGender = data.preferredEmojiGender
         autoAcceptTrailingPunctuation = data.autoAcceptTrailingPunctuation
+        addSpaceAfterAccept = data.addSpaceAfterAccept
         acceptanceKeyCode = data.acceptanceKeyCode
         acceptanceKeyModifiers = data.acceptanceKeyModifiers
         acceptanceKeyLabel = data.acceptanceKeyLabel
@@ -224,6 +226,7 @@ final class SuggestionSettingsModel: ObservableObject {
             focusPollIntervalMilliseconds: focusPollIntervalMilliseconds,
             isMultiLineEnabled: isMultiLineEnabled,
             autoAcceptTrailingPunctuation: autoAcceptTrailingPunctuation,
+            addSpaceAfterAccept: addSpaceAfterAccept,
             isFastModeEnabled: isFastModeEnabled,
             mirrorPreference: mirrorPreference,
             acceptanceGranularity: acceptanceGranularity,
@@ -508,6 +511,14 @@ final class SuggestionSettingsModel: ObservableObject {
         }
         autoAcceptTrailingPunctuation = enabled
         store.saveAutoAcceptTrailingPunctuation(enabled)
+    }
+
+    func setAddSpaceAfterAccept(_ enabled: Bool) {
+        guard addSpaceAfterAccept != enabled else {
+            return
+        }
+        addSpaceAfterAccept = enabled
+        store.saveAddSpaceAfterAccept(enabled)
     }
 
     func setAcceptanceGranularity(_ granularity: AcceptanceGranularity) {
@@ -920,11 +931,13 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                 $responseLanguages,
                 $enabledSpellingDictionaryCodes
             ),
+            // The two acceptance toggles share this slot via a paired `CombineLatest` so the new
+            // setting costs no extra upstream in a tuple already at Combine's four-input cap.
             Publishers.CombineLatest4(
                 $debounceMilliseconds,
                 $focusPollIntervalMilliseconds,
                 $isMultiLineEnabled,
-                $autoAcceptTrailingPunctuation
+                Publishers.CombineLatest($autoAcceptTrailingPunctuation, $addSpaceAfterAccept)
             )
         )
         // The outer CombineLatest stack is already at Combine's per-operator cap, so each new
@@ -950,7 +963,8 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                 let (clipboardContextEnabled, fastModeEnabled, mirrorPreference, typoToggles) = presentationToggles
                 let (suppressOnTypo, offerCorrections, automaticallyFixTypos) = typoToggles
                 let (userName, customRules, responseLanguages, enabledSpellingDictionaryCodes) = profile
-                let (debounce, focusPoll, multiLine, autoAcceptPunctuation) = timing
+                let (debounce, focusPoll, multiLine, acceptToggles) = timing
+                let (autoAcceptPunctuation, addSpaceAfterAccept) = acceptToggles
                 let (isCustomActive, customLow, customHigh) = customRangeTuple
                 let (extendedContext, suggestInIntegratedTerminals) = extendedContextTuple
                 return SuggestionSettingsSnapshot(
@@ -970,6 +984,7 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                     focusPollIntervalMilliseconds: focusPoll,
                     isMultiLineEnabled: multiLine,
                     autoAcceptTrailingPunctuation: autoAcceptPunctuation,
+                    addSpaceAfterAccept: addSpaceAfterAccept,
                     isFastModeEnabled: fastModeEnabled,
                     mirrorPreference: mirrorPreference,
                     acceptanceGranularity: granularity,

@@ -63,6 +63,11 @@ struct SuggestionSettingsData: Equatable {
     var preferredEmojiSkinTone: EmojiSkinTone
     var preferredEmojiGender: EmojiGender
     var autoAcceptTrailingPunctuation: Bool
+    /// When on, accepting a suggestion that finishes a word also types a trailing space, so the user
+    /// can keep typing the next word without pressing Space. Suppressed when the accepted text already
+    /// ends in punctuation or whitespace, or in a space-less script. Defaults to off so the WYSIWYG
+    /// accept behavior is unchanged unless the user opts in.
+    var addSpaceAfterAccept: Bool
     var acceptanceKeyCode: CGKeyCode
     var acceptanceKeyModifiers: ShortcutModifierMask
     var acceptanceKeyLabel: String

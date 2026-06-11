@@ -113,6 +113,11 @@ struct SuggestionSettingsSnapshot: Equatable, Sendable {
     /// When true (the default), accepting a word also takes punctuation attached to it. When false,
     /// trailing punctuation is left as its own acceptance part so a single Tab takes the word alone.
     let autoAcceptTrailingPunctuation: Bool
+    /// When true, an accept that finishes a word and exhausts the suggestion also types a trailing
+    /// space so the user can keep typing without pressing Space. Suppressed for text ending in
+    /// punctuation, whitespace, or a space-less script. Defaults to false; travels in the snapshot so
+    /// the acceptance path reads the live value without subscribing to the settings model.
+    let addSpaceAfterAccept: Bool
     /// When true, the screenshot/OCR visual-context pipeline is skipped entirely for lower-latency
     /// suggestions. Defaults to false. Only affects visual context — predictions still run.
     let isFastModeEnabled: Bool

@@ -597,6 +597,58 @@ final class SuggestionSessionReconcilerTests: XCTestCase {
         )
     }
 
+    func test_insertionChunkAppendingTrailingSpace_appendsAfterFinishedWord() {
+        XCTAssertEqual(
+            SuggestionSessionReconciler.insertionChunkAppendingTrailingSpace("hello"),
+            "hello "
+        )
+    }
+
+    func test_insertionChunkAppendingTrailingSpace_appendsAfterTrailingDigit() {
+        XCTAssertEqual(
+            SuggestionSessionReconciler.insertionChunkAppendingTrailingSpace("section 12"),
+            "section 12 "
+        )
+    }
+
+    func test_insertionChunkAppendingTrailingSpace_skipsWhenEndingInPunctuation() {
+        XCTAssertEqual(
+            SuggestionSessionReconciler.insertionChunkAppendingTrailingSpace("done."),
+            "done."
+        )
+        XCTAssertEqual(
+            SuggestionSessionReconciler.insertionChunkAppendingTrailingSpace("really?!"),
+            "really?!"
+        )
+        XCTAssertEqual(
+            SuggestionSessionReconciler.insertionChunkAppendingTrailingSpace("(yes)"),
+            "(yes)"
+        )
+    }
+
+    func test_insertionChunkAppendingTrailingSpace_skipsWhenAlreadyEndingInWhitespace() {
+        XCTAssertEqual(
+            SuggestionSessionReconciler.insertionChunkAppendingTrailingSpace("hello "),
+            "hello "
+        )
+    }
+
+    func test_insertionChunkAppendingTrailingSpace_skipsForSpacelessScript() {
+        // CJK glyphs are letters, but their scripts never separate words with spaces, so a trailing
+        // space would be wrong. The space-less-script guard suppresses it.
+        XCTAssertEqual(
+            SuggestionSessionReconciler.insertionChunkAppendingTrailingSpace("資料"),
+            "資料"
+        )
+    }
+
+    func test_insertionChunkAppendingTrailingSpace_leavesEmptyChunkUntouched() {
+        XCTAssertEqual(
+            SuggestionSessionReconciler.insertionChunkAppendingTrailingSpace(""),
+            ""
+        )
+    }
+
     func test_acceptedWordCount_countsOnlyTokensWithAlphanumerics() {
         let count = SuggestionSessionReconciler.acceptedWordCount(
             in: "hello, !!! world 123 --"
