@@ -171,6 +171,7 @@ struct FocusSnapshotResolver {
             primaryRect: resolvedCandidate.caretRect,
             primaryQuality: resolvedCandidate.caretQuality,
             primaryObservedCharWidth: resolvedCandidate.observedCharWidth,
+            primaryObservedContentEdges: resolvedCandidate.observedContentEdges,
             deepResult: deepResult
         ) else {
             return FocusSnapshot(
@@ -185,6 +186,7 @@ struct FocusSnapshotResolver {
         let caretSource = caret.source
         let caretQuality = caret.quality
         let observedCharWidth = caret.observedCharWidth
+        let observedContentEdges = caret.observedContentEdges
 
         let contextWindow = boundedContextWindow(text: value, selection: selection)
         let nsValue = contextWindow.text as NSString
@@ -235,6 +237,7 @@ struct FocusSnapshotResolver {
             caretSource: caretSource,
             caretQuality: caretQuality,
             observedCharWidth: observedCharWidth,
+            observedContentEdges: observedContentEdges,
             precedingText: nsValue.substring(to: safeSelectionLocation),
             trailingText: nsValue.substring(from: trailingStart),
             selection: contextWindow.selection,
@@ -731,6 +734,7 @@ struct FocusSnapshotResolver {
             caretRect: caretRect,
             caretQuality: caretQuality,
             observedCharWidth: caretResult?.observedCharWidth,
+            observedContentEdges: caretResult?.observedContentEdges,
             inputFrameRect: inputFrameRect,
             isSecure: isSecure,
             resolverCandidate: resolverCandidate
@@ -863,6 +867,7 @@ private struct AXFocusCandidate {
     let caretRect: CGRect?
     let caretQuality: CaretGeometryQuality?
     let observedCharWidth: CGFloat?
+    let observedContentEdges: ObservedContentEdges?
     let inputFrameRect: CGRect?
     let isSecure: Bool
     let resolverCandidate: FocusCapabilityCandidate

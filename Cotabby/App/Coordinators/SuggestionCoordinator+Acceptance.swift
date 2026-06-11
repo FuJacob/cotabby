@@ -605,9 +605,7 @@ extension SuggestionCoordinator {
             pendingInsertion: pendingInsertion,
             isRightToLeft: isRightToLeft
         )
-        if let outcome = anchor.outcome {
-            logCaretLayoutRepair(outcome)
-        }
+        logCaretLayoutRepair(anchor: anchor, fallbackRect: caretRect)
         let geometry = SuggestionOverlayGeometry(
             caretRect: anchor.rect,
             inputFrameRect: context.inputFrameRect,
@@ -629,11 +627,20 @@ extension SuggestionCoordinator {
         }
     }
 
-    /// Swaps the resolver's coarse AXFrame caret guess for a hidden-text-layout estimate when the
-    /// host exposes nothing better than `.estimated` geometry. On success the overlay geometry is
-    /// upgraded to `.layoutEstimated`, which the render policy trusts for inline ghost text; on
-    /// rejection the passed rect and `.estimated` survive untouched, preserving today's popup-card
-    /// fallback. The context itself is never mutated — resolver truth stays `.estimated` for
+    /// Repairs untrustworthy caret anchors with a hidden-text-layout estimate before presentation.
+    ///
+    /// Two repair modes, by resolver quality:
+    ///   - `.estimated` (AXFrame-only hosts): the AX guess has no real position at all, so a
+    ///     passing estimate always replaces it.
+    ///   - `.derived` (child-run hosts like Gmail/Outlook): the AX rect is usually right, but
+    ///     blank-line drift can map the caret into the wrong visual line. The estimate (calibrated
+    ///     with the host's own measured line box, char width, and content edges) only overrides
+    ///     the AX rect when the two disagree vertically by more than `verticallyAgrees` tolerates;
+    ///     on agreement the AX rect is kept, so well-behaved derived hosts never regress.
+    ///
+    /// On substitution the overlay geometry is upgraded to `.layoutEstimated`, which the render
+    /// policy trusts for inline ghost text; on rejection the passed rect and quality survive
+    /// untouched. The context itself is never mutated — resolver truth stays intact for
     /// reconciliation and caret prediction.
     ///
     /// `pendingInsertion` exists for the word-accept path: the synthetic insert has not been
@@ -648,9 +655,15 @@ extension SuggestionCoordinator {
         pendingInsertion: String,
         isRightToLeft: Bool
     ) -> LayoutRepairedAnchor {
-        guard context.caretQuality == .estimated else {
-            return LayoutRepairedAnchor(rect: fallbackRect, quality: context.caretQuality, outcome: nil)
+        let quality = context.caretQuality
+        guard quality == .estimated || quality == .derived else {
+            return LayoutRepairedAnchor(rect: fallbackRect, quality: quality, outcome: nil)
         }
+
+        // A `.derived` rect's height is a real rendered line box (child-run frame height); the
+        // `.estimated` AXFrame fallback's height is the whole field, which the estimator's
+        // sanitizer would discard anyway — pass it for derived geometry only.
+        let observedLineHeight: CGFloat? = quality == .derived ? context.caretRect.height : nil
 
         // Truncation is checked against the captured window, not the appended insertion: only the
         // snapshot capture can silently drop the document start.
@@ -660,15 +673,34 @@ extension SuggestionCoordinator {
             fieldStyle: context.resolvedFieldStyle,
             isRightToLeft: isRightToLeft,
             prefixMayBeTruncated:
-                context.precedingText.utf16.count >= FocusSnapshotResolver.focusedTextContextWindowUTF16
+                context.precedingText.utf16.count >= FocusSnapshotResolver.focusedTextContextWindowUTF16,
+            observedLineHeight: observedLineHeight,
+            observedCharWidth: context.observedCharWidth,
+            observedContentEdges: context.observedContentEdges
         )
         let outcome = TextLayoutCaretEstimator.estimate(for: input)
         switch outcome {
         case .estimate(let estimate):
+            if quality == .derived, verticallyAgrees(estimate: estimate, axRect: fallbackRect) {
+                // Same line: keep the AX rect, whose X carries the host's real glyph positions.
+                return LayoutRepairedAnchor(rect: fallbackRect, quality: .derived, outcome: outcome)
+            }
             return LayoutRepairedAnchor(rect: estimate.caretRect, quality: .layoutEstimated, outcome: outcome)
         case .rejected:
-            return LayoutRepairedAnchor(rect: fallbackRect, quality: .estimated, outcome: outcome)
+            return LayoutRepairedAnchor(rect: fallbackRect, quality: quality, outcome: outcome)
         }
+    }
+
+    /// Vertical agreement test between the AX-derived caret and the layout estimate. Tolerance is
+    /// three-quarters of a line: same-line measurements differ by baseline and padding subtleties,
+    /// while the failure this repairs (the caret mapped into a neighboring visual line) is off by
+    /// at least one full line box.
+    private static func verticallyAgrees(
+        estimate: TextLayoutCaretEstimator.Estimate,
+        axRect: CGRect
+    ) -> Bool {
+        let tolerance = max(10, estimate.caretRect.height * 0.75)
+        return abs(estimate.caretRect.midY - axRect.midY) <= tolerance
     }
 
     /// What one layout-repair attempt decided the overlay geometry should anchor to, plus the
@@ -680,10 +712,16 @@ extension SuggestionCoordinator {
     }
 
     /// Mirrors the repair outcome into the structured JSONL stream so a misplaced overlay can be
-    /// joined to the exact gate decision via `request_id`. Deliberately not routed through
-    /// `logStage`: that helper also mutates the UI-facing `latestStageMessage`, and a per-present
-    /// geometry detail should not overwrite the user-visible pipeline stage.
-    private func logCaretLayoutRepair(_ outcome: TextLayoutCaretEstimator.Outcome) {
+    /// joined to the exact gate decision via `request_id`. The metadata deliberately carries the
+    /// estimate-vs-AX vertical delta and which host measurements calibrated the layout, because
+    /// field reports of "ghost is N lines off" are only diagnosable from those numbers.
+    /// Deliberately not routed through `logStage`: that helper also mutates the UI-facing
+    /// `latestStageMessage`, and a per-present geometry detail should not overwrite the
+    /// user-visible pipeline stage.
+    private func logCaretLayoutRepair(anchor: LayoutRepairedAnchor, fallbackRect: CGRect) {
+        guard let outcome = anchor.outcome else {
+            return
+        }
         var metadata: Logger.Metadata = [
             "stage": .string("caret-layout-repair"),
             "work_id": .stringConvertible(currentWorkID),
@@ -691,18 +729,27 @@ extension SuggestionCoordinator {
         ]
         switch outcome {
         case .estimate(let estimate):
-            metadata["repair_outcome"] = .string("estimated")
+            let substituted = anchor.quality == .layoutEstimated
+            metadata["repair_outcome"] = .string(substituted ? "substituted" : "kept_ax_agreement")
             metadata["line_index"] = .stringConvertible(estimate.lineIndex)
             metadata["multi_line_field"] = .stringConvertible(estimate.isMultiLineField)
+            metadata["ax_mid_y_delta"] = .stringConvertible(
+                Double(estimate.caretRect.midY - fallbackRect.midY))
+            metadata["line_height"] = .stringConvertible(Double(estimate.lineHeight))
+            metadata["used_observed_line_height"] = .stringConvertible(estimate.usedObservedLineHeight)
+            metadata["used_observed_content_edges"] = .stringConvertible(estimate.usedObservedContentEdges)
+            metadata["layout_font_point_size"] = .stringConvertible(Double(estimate.layoutFontPointSize))
             CotabbyLogger.suggestion.debug(
-                "Replaced the AXFrame caret guess with a text-layout estimate.",
+                substituted
+                    ? "Replaced the AX caret with a text-layout estimate."
+                    : "Kept the AX caret; the text-layout estimate agrees on the line.",
                 metadata: metadata
             )
         case .rejected(let reason):
             metadata["repair_outcome"] = .string("rejected")
             metadata["reject_reason"] = .string(reason.rawValue)
             CotabbyLogger.suggestion.debug(
-                "Kept the AXFrame caret guess; the text-layout estimate was rejected.",
+                "Kept the AX caret; the text-layout estimate was rejected.",
                 metadata: metadata
             )
         }

@@ -95,6 +95,81 @@ final class SuggestionCaretLayoutRepairTests: XCTestCase {
         XCTAssertEqual(anchor.outcome, .rejected(.prefixTruncated))
     }
 
+    // MARK: - Derived geometry (line-mismatch gate)
+
+    func test_layoutRepair_derivedAgreementKeepsAXRect() {
+        // The estimate and the AX rect land on the same line: AX wins, because its X carries the
+        // host's real glyph positions. Well-behaved derived hosts must never regress.
+        let frame = CGRect(x: 0, y: 0, width: 300, height: 32)
+        let axRect = CGRect(x: 50, y: 8, width: 2, height: 16)
+        let context = CotabbyTestFixtures.focusedInputContext(
+            caretRect: axRect,
+            inputFrameRect: frame,
+            caretQuality: .derived,
+            precedingText: "Hello"
+        )
+
+        let anchor = SuggestionCoordinator.layoutRepairedAnchor(
+            for: context,
+            fallbackRect: axRect,
+            pendingInsertion: "",
+            isRightToLeft: false
+        )
+
+        XCTAssertEqual(anchor.quality, .derived)
+        XCTAssertEqual(anchor.rect, axRect)
+        guard case .estimate = anchor.outcome else {
+            return XCTFail("Expected an estimate outcome, got \(String(describing: anchor.outcome))")
+        }
+    }
+
+    func test_layoutRepair_derivedLineMismatchSubstitutesEstimate() {
+        // The AX rect sits three line boxes below where the text layout puts the caret — the
+        // Gmail-class blank-line drift this gate exists for.
+        let frame = CGRect(x: 0, y: 0, width: 300, height: 120)
+        let axRect = CGRect(x: 50, y: 52, width: 2, height: 16)
+        let context = CotabbyTestFixtures.focusedInputContext(
+            caretRect: axRect,
+            inputFrameRect: frame,
+            caretQuality: .derived,
+            precedingText: "Hello"
+        )
+
+        let anchor = SuggestionCoordinator.layoutRepairedAnchor(
+            for: context,
+            fallbackRect: axRect,
+            pendingInsertion: "",
+            isRightToLeft: false
+        )
+
+        XCTAssertEqual(anchor.quality, .layoutEstimated)
+        XCTAssertNotEqual(anchor.rect, axRect)
+        // Top-aligned first line: the substituted caret hangs from the field's top inset, using
+        // the AX rect's height as the observed line box.
+        XCTAssertEqual(anchor.rect.maxY, frame.maxY - 4, accuracy: 0.6)
+        XCTAssertEqual(anchor.rect.height, axRect.height, accuracy: 0.01)
+    }
+
+    func test_layoutRepair_derivedKeepsAXRectWhenEstimatorRejects() {
+        let axRect = CGRect(x: 50, y: 8, width: 2, height: 16)
+        let context = CotabbyTestFixtures.focusedInputContext(
+            caretRect: axRect,
+            caretQuality: .derived,
+            precedingText: "column\tvalue"
+        )
+
+        let anchor = SuggestionCoordinator.layoutRepairedAnchor(
+            for: context,
+            fallbackRect: axRect,
+            pendingInsertion: "",
+            isRightToLeft: false
+        )
+
+        XCTAssertEqual(anchor.quality, .derived)
+        XCTAssertEqual(anchor.rect, axRect)
+        XCTAssertEqual(anchor.outcome, .rejected(.containsTab))
+    }
+
     func test_layoutRepair_pendingInsertionAdvancesTheEstimate() {
         // The word-accept path passes the not-yet-published insertion so the caret lands after
         // the inserted chunk, not before it.

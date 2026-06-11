@@ -21,11 +21,20 @@ struct CaretGeometryResult {
     /// the actual font instead of guessing with a system font fallback. Nil when no child
     /// frame data was available (e.g. BoundsForRange worked directly).
     let observedCharWidth: CGFloat?
+    /// Content edges measured from the same child text-run frames (see `ObservedContentEdges`).
+    /// Nil when no child frame data was available.
+    let observedContentEdges: ObservedContentEdges?
 
-    init(rect: CGRect, quality: CaretGeometryQuality, observedCharWidth: CGFloat? = nil) {
+    init(
+        rect: CGRect,
+        quality: CaretGeometryQuality,
+        observedCharWidth: CGFloat? = nil,
+        observedContentEdges: ObservedContentEdges? = nil
+    ) {
         self.rect = rect
         self.quality = quality
         self.observedCharWidth = observedCharWidth
+        self.observedContentEdges = observedContentEdges
     }
 }
 
@@ -219,22 +228,35 @@ struct AXTextGeometryResolver {
         }
         let charWidth: CGFloat? = totalChars > 0 ? totalWidth / CGFloat(totalChars) : nil
 
+        // Measure the content edges from the same frames: the leftmost run's leading edge and the
+        // topmost run's top edge reveal the field's real padding, which `AXFrame` hides. The caret
+        // layout estimator anchors to these instead of guessed insets.
+        let cocoaRunFrames = textRuns.map { AXHelper.cocoaRect(fromAccessibilityRect: $0.frame) }
+        let contentEdges: ObservedContentEdges?
+        if let leftX = cocoaRunFrames.map(\.minX).min(),
+            let topY = cocoaRunFrames.map(\.maxY).max() {
+            contentEdges = ObservedContentEdges(leftX: leftX, topY: topY)
+        } else {
+            contentEdges = nil
+        }
+
         // Find which child contains the caret by matching parent selection against cumulative
         // text lengths. AX selections use UTF-16 offsets, so we match on NSString length.
         let caretOffset = parentSelection.location
         var cumulative = 0
-        for run in textRuns {
+        for (index, run) in textRuns.enumerated() {
             let runLen = (run.text as NSString).length
             if caretOffset <= cumulative + runLen {
                 let localOffset = caretOffset - cumulative
                 let fraction = runLen > 0 ? CGFloat(localOffset) / CGFloat(runLen) : 1.0
-                let cocoaFrame = AXHelper.cocoaRect(fromAccessibilityRect: run.frame)
+                let cocoaFrame = cocoaRunFrames[index]
                 let caretX = cocoaFrame.minX + fraction * cocoaFrame.width
                 return CaretGeometryResult(
                     rect: CGRect(
                         x: caretX, y: cocoaFrame.minY, width: 2, height: cocoaFrame.height),
                     quality: .derived,
-                    observedCharWidth: charWidth
+                    observedCharWidth: charWidth,
+                    observedContentEdges: contentEdges
                 )
             }
             cumulative += runLen
@@ -242,11 +264,12 @@ struct AXTextGeometryResolver {
 
         // Caret is past all children (e.g. newline not included in child text).
         // Use the last child's trailing edge.
-        let lastFrame = AXHelper.cocoaRect(fromAccessibilityRect: textRuns.last!.frame)
+        let lastFrame = cocoaRunFrames[cocoaRunFrames.count - 1]
         return CaretGeometryResult(
             rect: CGRect(x: lastFrame.maxX, y: lastFrame.minY, width: 2, height: lastFrame.height),
             quality: .derived,
-            observedCharWidth: charWidth
+            observedCharWidth: charWidth,
+            observedContentEdges: contentEdges
         )
     }
 

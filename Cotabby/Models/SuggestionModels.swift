@@ -193,6 +193,9 @@ struct FocusedInputContext: Equatable, Sendable {
     /// Average character width in points observed from AX child frame measurements.
     /// Used by caret prediction after tab insertion to match the target app's actual font.
     let observedCharWidth: CGFloat?
+    /// Content edges measured from the host's child text-run frames, carried through so the caret
+    /// layout estimator can anchor to the field's real padding instead of guessed insets.
+    let observedContentEdges: ObservedContentEdges?
     let precedingText: String
     let trailingText: String
     let selection: NSRange
@@ -216,6 +219,7 @@ struct FocusedInputContext: Equatable, Sendable {
         inputFrameRect = snapshot.inputFrameRect
         caretQuality = snapshot.caretQuality
         observedCharWidth = snapshot.observedCharWidth
+        observedContentEdges = snapshot.observedContentEdges
         precedingText = snapshot.precedingText
         trailingText = snapshot.trailingText
         selection = snapshot.selection
