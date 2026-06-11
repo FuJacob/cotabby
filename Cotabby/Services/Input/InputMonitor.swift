@@ -467,7 +467,11 @@ final class InputMonitor {
             return Unmanaged.passUnretained(event)
 
         case .keyDown:
-            if suppressionController.consumeIfNeeded() {
+            // Countdown first (it must consume its token), then identity as the backstop: a real
+            // keystroke racing in between `registerSyntheticInsertion` and our synthetic event's
+            // delivery eats the token, and the unsuppressed synthetic Cmd-V of the paste path then
+            // classifies as `.shortcutMutation` and tears down the very session it was committing.
+            if suppressionController.consumeIfNeeded() || suppressionController.isSynthetic(event) {
                 onSuppressedSyntheticInput?()
                 return Unmanaged.passUnretained(event)
             }

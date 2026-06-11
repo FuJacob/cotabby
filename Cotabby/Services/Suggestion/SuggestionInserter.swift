@@ -16,12 +16,24 @@ final class SuggestionInserter {
 
     private(set) var lastErrorMessage: String?
 
+    /// Reads whether a composing IME (Japanese kana, Chinese pinyin, Korean hangul, ...) is currently
+    /// active. Wired to `KeyboardInputSourceMonitor` in `CotabbyAppEnvironment`. When true, `insert(_:)`
+    /// commits through an IME-safe channel (Accessibility write, then clipboard paste) instead of a
+    /// synthetic keystroke, which an active input method would otherwise re-absorb into composition so
+    /// the accept silently fails. Defaults to "no IME" so tests and previews need no wiring.
+    var isComposingIMEActiveProvider: @MainActor () -> Bool = { false }
+
     /// In-flight state for the opt-in paste path. The user's real clipboard is snapshotted once and
     /// restored after the paste lands. While a restore is pending, a second paste must NOT re-snapshot
     /// (the pasteboard then holds OUR completion, which would leak back to the user), so overlapping
     /// pastes coalesce onto this single saved clipboard and reschedule the one pending restore.
     private var pendingPasteboardRestore: DispatchWorkItem?
     private var savedClipboardForRestore: [[NSPasteboard.PasteboardType: Data]]?
+
+    /// Paste menu items located by `AXHelper.pasteMenuItem(forApplicationPID:)`, cached per app so
+    /// repeat accepts skip the menu-bar walk. A cached item is validated by its `AXPress` result;
+    /// a failure (menu rebuilt, app quit) evicts and re-walks once.
+    private var cachedPasteMenuItems: [pid_t: AXUIElement] = [:]
 
     /// Virtual key code for Delete/Backspace. Posting these at the HID level deletes one UTF-16 unit
     /// of already-typed text per pair, which is how the picker removes the literal `:query` run.
@@ -39,9 +51,10 @@ final class SuggestionInserter {
     }
 
     /// How long to leave the completion on the pasteboard before restoring the user's clipboard. Long
-    /// enough for the host to service Cmd-V, short enough that the user's clipboard is theirs again
-    /// almost immediately. Catalogued in `docs/POLLING_AND_DELAYS.md`; tune on device.
-    private static let pasteboardRestoreDelay: TimeInterval = 0.15
+    /// enough for the host to service Cmd-V (a busy Chromium page can take a couple hundred ms),
+    /// short enough that the user's clipboard is theirs again almost immediately. Catalogued in
+    /// `docs/POLLING_AND_DELAYS.md`; tune on device.
+    private static let pasteboardRestoreDelay: TimeInterval = 0.3
 
     init(suppressionController: InputSuppressionController) {
         self.suppressionController = suppressionController
@@ -54,6 +67,27 @@ final class SuggestionInserter {
             lastErrorMessage = "Suggestion was empty."
             CotabbyLogger.suggestion.warning("Insertion skipped: suggestion was empty after normalization")
             return false
+        }
+
+        // A composing IME (Japanese kana, Chinese pinyin, Korean hangul, ...) is active. A synthetic
+        // Unicode keystroke would be re-absorbed into composition by the input method (the placeholder
+        // keycode-0 event re-enters the IME) instead of landing as literal text, so the accepted
+        // suggestion never commits and the session desyncs against the live field, which surfaced as
+        // "Tab regenerates instead of accepting" for Japanese users. Commit via a clipboard paste:
+        // Cmd-V is a command shortcut the app services directly, so the input method never touches it.
+        // (An Accessibility `AXSelectedText` write was tried first and rejected: Chromium contenteditable
+        // accepts the set, reports `.success`, then silently no-ops, so the text never lands and the
+        // session desyncs exactly as before. Paste actually inserts there.) The clipboard is snapshotted
+        // and restored around the paste; only the last-resort keystroke below can still be swallowed.
+        if isComposingIMEActiveProvider() {
+            if insertViaPaste(normalized) {
+                lastErrorMessage = nil
+                CotabbyLogger.suggestion.debug("Inserted \(normalized.count) characters via paste (IME active)")
+                return true
+            }
+            let fallbackMessage = "IME-safe paste failed for \(normalized.count) characters; "
+                + "falling back to a synthetic keystroke the input method may swallow"
+            CotabbyLogger.suggestion.warning("\(fallbackMessage)")
         }
 
         // Paste path (opt-in): a long or multi-line completion is steadier as a clipboard paste in
@@ -176,20 +210,40 @@ final class SuggestionInserter {
         }
         let expectedChangeCount = pasteboard.changeCount
 
-        guard let keyDown = CGEvent(keyboardEventSource: nil, virtualKey: Self.vKeyCode, keyDown: true),
-              let keyUp = CGEvent(keyboardEventSource: nil, virtualKey: Self.vKeyCode, keyDown: false) else {
-            pendingPasteboardRestore?.cancel()
-            Self.restorePasteboard(saved, to: pasteboard)
-            clearPendingPasteboardRestore()
-            return false
+        // Preferred trigger: press the host's real Edit > Paste menu item via Accessibility. No key
+        // event exists, so neither an active IME nor the HID modifier state machine can interfere.
+        // Synthetic Cmd-V is the fallback, and it has a real failure mode this path avoids: observed
+        // on-device, Cmd-V posted source-nil at the HID tap had its Command flag stripped (only Tab is
+        // physically down during an accept), and re-posting at the annotated session tap with a
+        // session source still never pasted in Chrome. The menu press drives the same paste command
+        // those key events would have reached, one IPC hop earlier.
+        if pressPasteMenuItem() {
+            CotabbyLogger.suggestion.debug("Paste committed via Edit > Paste menu press")
+        } else {
+            // Fallback synthetic Cmd-V: session source + annotated session tap so the event's own
+            // `.maskCommand` flag survives (the HID tap merges flags with live hardware state). The
+            // suppression filter keeps the physically held accept key from interleaving during the post.
+            let source = CGEventSource(stateID: .combinedSessionState)
+            source?.setLocalEventsFilterDuringSuppressionState(
+                [.permitLocalMouseEvents, .permitSystemDefinedEvents],
+                state: .eventSuppressionStateSuppressionInterval
+            )
+            guard let keyDown = CGEvent(keyboardEventSource: source, virtualKey: Self.vKeyCode, keyDown: true),
+                  let keyUp = CGEvent(keyboardEventSource: source, virtualKey: Self.vKeyCode, keyDown: false) else {
+                pendingPasteboardRestore?.cancel()
+                Self.restorePasteboard(saved, to: pasteboard)
+                clearPendingPasteboardRestore()
+                return false
+            }
+            keyDown.flags = .maskCommand
+            keyUp.flags = .maskCommand
+            suppressionController.markSynthetic(keyDown)
+            suppressionController.markSynthetic(keyUp)
+            suppressionController.registerSyntheticInsertion(expectedKeyDownCount: 1)
+            keyDown.post(tap: .cgAnnotatedSessionEventTap)
+            keyUp.post(tap: .cgAnnotatedSessionEventTap)
+            CotabbyLogger.suggestion.debug("Paste committed via synthetic Cmd-V (no Paste menu item found)")
         }
-        keyDown.flags = .maskCommand
-        keyUp.flags = .maskCommand
-        suppressionController.markSynthetic(keyDown)
-        suppressionController.markSynthetic(keyUp)
-        suppressionController.registerSyntheticInsertion(expectedKeyDownCount: 1)
-        keyDown.post(tap: .cghidEventTap)
-        keyUp.post(tap: .cghidEventTap)
 
         // Give the host time to service Cmd-V, then hand the clipboard back, but only if our completion
         // is still the thing on it. If the user copied something during the window, `changeCount`
@@ -204,6 +258,30 @@ final class SuggestionInserter {
         }
         pendingPasteboardRestore = restore
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.pasteboardRestoreDelay, execute: restore)
+        return true
+    }
+
+    /// Presses the focused app's Edit > Paste menu item via Accessibility. The owning app is resolved
+    /// from the focused element (not the frontmost app) so accessory panels that hold focus without
+    /// frontmost status still target the right process. The located item is cached per pid; a cached
+    /// press that fails (menu rebuilt, app relaunched into the same pid) evicts and re-walks once.
+    private func pressPasteMenuItem() -> Bool {
+        guard let focusedElement = AXHelper.focusedElement(),
+              let application = AXHelper.owningApplication(of: focusedElement) else {
+            return false
+        }
+        let pid = application.processIdentifier
+        if let cached = cachedPasteMenuItems[pid] {
+            if AXUIElementPerformAction(cached, kAXPressAction as CFString) == .success {
+                return true
+            }
+            cachedPasteMenuItems[pid] = nil
+        }
+        guard let item = AXHelper.pasteMenuItem(forApplicationPID: pid),
+              AXUIElementPerformAction(item, kAXPressAction as CFString) == .success else {
+            return false
+        }
+        cachedPasteMenuItems[pid] = item
         return true
     }
 
