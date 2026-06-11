@@ -39,8 +39,21 @@ enum BrowserAppDetector {
     /// Electron apps (Chromium under the hood) that ship editors worth covering. This is an
     /// intentional named allowlist, not a blanket Electron opt-in: most Electron apps are not
     /// text-editing surfaces, and priming them wholesale risks unexpected behavior.
+    ///
+    /// Entries are lowercased and matched case-insensitively (see `isElectronEditor`). VS Code's real
+    /// bundle id is the mixed-case `com.microsoft.VSCode`, so an exact match would silently miss it
+    /// and leave the editor's entire Electron AX tree dormant: no focused field resolves for the
+    /// editor, the Copilot chat, or the integrated terminal, so no suggestions appear anywhere in the
+    /// app even though screenshot-based OCR keeps working.
+    ///
+    /// Cursor is intentionally absent: it ships under opaque ToDesktop bundle ids
+    /// (`com.todesktop.<hash>`) that change between builds, so there is no stable id to allowlist
+    /// here without a broad `com.todesktop.` prefix that would also prime unrelated ToDesktop apps.
     private static let electronEditorBundleIdentifiers: Set<String> = [
-        "com.clickup.desktop-app"
+        "com.clickup.desktop-app",
+        "com.microsoft.vscode",          // Visual Studio Code
+        "com.microsoft.vscodeinsiders",  // VS Code - Insiders
+        "com.vscodium"                   // VSCodium (FOSS VS Code build)
     ]
 
     /// Broad check: is the user typing inside any web browser? Used for prompt tone hints.
@@ -53,10 +66,12 @@ enum BrowserAppDetector {
         hasMatchingPrefix(bundleIdentifier, in: chromiumBundlePrefixes)
     }
 
-    /// Is this a named Electron editor we intentionally cover?
+    /// Is this a named Electron editor we intentionally cover? Case-insensitive because macOS bundle
+    /// ids are case-insensitive in practice and VS Code's is mixed-case (`com.microsoft.VSCode`); a
+    /// case-sensitive exact match here was the reason VS Code resolved no focus and got no suggestions.
     static func isElectronEditor(bundleIdentifier: String?) -> Bool {
-        guard let bundleIdentifier else { return false }
-        return electronEditorBundleIdentifiers.contains(bundleIdentifier)
+        guard let lowered = bundleIdentifier?.lowercased() else { return false }
+        return electronEditorBundleIdentifiers.contains(lowered)
     }
 
     /// Gate for the Chromium/Electron-specific AX recovery paths (renderer priming, cursor
