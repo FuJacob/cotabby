@@ -9,18 +9,18 @@ import Foundation
 struct FocusPollBackoff {
     /// Consecutive captures that produced no change. Drives the stride.
     private(set) var idleCaptureCount = 0
-    /// Base timer ticks elapsed since the last expensive capture.
-    private var ticksSinceCapture = 0
 
     /// Cap on `idleCaptureCount` so a long idle period can't overflow; the stride is already maxed
     /// well before this is reached.
     static let idleCaptureCountCap = 60
 
-    /// How many base poll ticks to wait between expensive captures, given how many consecutive
-    /// captures have produced no change.
+    /// Poll-interval multiplier for the given idle level. The focus timer runs at
+    /// `baseInterval * captureStride`, so this is how much an idle machine stretches the gap between
+    /// expensive Accessibility walks.
     ///
-    /// The first few idle captures stay at full cadence so a brief pause doesn't make the field feel
-    /// laggy; sustained idleness ramps toward ~800ms (at the 80ms base) before the next AX walk.
+    /// The first few idle captures stay at full cadence (stride 1) so a brief pause doesn't make the
+    /// field feel laggy; sustained idleness ramps toward 10x (e.g. ~500ms at the 50ms base) before
+    /// the next AX walk.
     static func captureStride(idleCaptureCount: Int) -> Int {
         switch idleCaptureCount {
         case ..<5:
@@ -34,17 +34,15 @@ struct FocusPollBackoff {
         }
     }
 
-    /// Advances one timer tick. Returns `true` when the caller should run the expensive capture now.
-    mutating func shouldCaptureOnTick() -> Bool {
-        ticksSinceCapture += 1
-        guard ticksSinceCapture >= Self.captureStride(idleCaptureCount: idleCaptureCount) else {
-            return false
-        }
-        ticksSinceCapture = 0
-        return true
+    /// The current poll-interval multiplier. `FocusTracker` multiplies its base interval by this to
+    /// get the interval the timer actually runs at, so an idle machine wakes the main thread every
+    /// `base * stride` instead of waking every base tick only to skip the work.
+    var captureStride: Int {
+        Self.captureStride(idleCaptureCount: idleCaptureCount)
     }
 
-    /// Records a completed capture: a change returns the loop to full cadence, no change grows the stride.
+    /// Records a completed capture: a change returns the loop to full cadence, no change grows the
+    /// stride.
     mutating func recordCapture(didChange: Bool) {
         idleCaptureCount = didChange ? 0 : min(idleCaptureCount + 1, Self.idleCaptureCountCap)
     }
@@ -52,6 +50,5 @@ struct FocusPollBackoff {
     /// An explicit refresh (real activity, e.g. a keystroke) returns the loop to full cadence.
     mutating func reset() {
         idleCaptureCount = 0
-        ticksSinceCapture = 0
     }
 }

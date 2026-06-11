@@ -17,22 +17,42 @@ final class PermissionManager: ObservableObject {
     @Published private(set) var screenRecordingGranted = false
 
     private var pollTimer: Timer?
+    private var activationObserver: NSObjectProtocol?
 
-    /// Polling keeps UI state aligned with system settings changes performed outside the app.
+    /// Keeps UI state aligned with permission changes the user makes in System Settings.
+    ///
+    /// A permission can only change while the user is in System Settings, i.e. while Cotabby is
+    /// backgrounded; returning to the app fires `didBecomeActive`, and the menu/settings surfaces
+    /// already call `refresh()` when they appear. So instead of a forever-running 2s poll (a 0.5 Hz
+    /// main-thread wake for the whole session, long after every grant is already in place), we
+    /// refresh on activation and keep the short catch-up poll alive ONLY while a required permission
+    /// is still missing — the onboarding window where snappy feedback matters. Once the required set
+    /// is granted the timer is torn down, so an established user pays zero idle wakeups here.
     init() {
-        refresh()
-        let pollTimer = Timer(timeInterval: 2.0, repeats: true) { [weak self] _ in
-            DispatchQueue.main.async { self?.refresh() }
+        activationObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            // The observer closure is not formally actor-isolated even though `queue: .main`
+            // guarantees main-thread delivery. `assumeIsolated` makes the hop explicit for strict
+            // concurrency checking (and keeps the refresh synchronous with activation, so surfaces
+            // reading permission state on this same turn see fresh values). Same pattern as
+            // `SystemMetricsStore`'s main-queue timer.
+            MainActor.assumeIsolated {
+                self?.refresh()
+            }
         }
-        // Menu panels and drag sessions can move the main run loop out of its default mode.
-        // Common modes keep the permission cache from freezing during exactly the flows that
-        // change permissions.
-        RunLoop.main.add(pollTimer, forMode: .common)
-        self.pollTimer = pollTimer
+        // `refresh()` also (re)configures polling for the current grant state, so a process that
+        // launches with every permission already granted never arms the timer at all.
+        refresh()
     }
 
     deinit {
         pollTimer?.invalidate()
+        if let activationObserver {
+            NotificationCenter.default.removeObserver(activationObserver)
+        }
     }
 
     /// Re-reads the current system permission state and republishes any changes to observers.
@@ -57,6 +77,38 @@ final class PermissionManager: ObservableObject {
             CotabbyLogger.app.info("Screen Recording permission changed: \(latestScreenRecordingGranted)")
             screenRecordingGranted = latestScreenRecordingGranted
         }
+
+        updatePollingForCurrentState()
+    }
+
+    /// Arms the 2-second catch-up poll only while a required permission is still missing, and stops
+    /// it once the required set is granted. Permission changes after that are rare and deliberate,
+    /// and every one is followed by the user returning to the app (`didBecomeActive`) or opening a
+    /// Cotabby surface that already calls `refresh()`, so the standing timer buys nothing but idle
+    /// main-thread wakeups.
+    private func updatePollingForCurrentState() {
+        if requiredPermissionsGranted {
+            stopPolling()
+        } else {
+            startPollingIfNeeded()
+        }
+    }
+
+    private func startPollingIfNeeded() {
+        guard pollTimer == nil else { return }
+        let pollTimer = Timer(timeInterval: 2.0, repeats: true) { [weak self] _ in
+            DispatchQueue.main.async { self?.refresh() }
+        }
+        // Menu panels and drag sessions can move the main run loop out of its default mode. Common
+        // modes keep the permission cache from freezing during exactly the flows that change
+        // permissions.
+        RunLoop.main.add(pollTimer, forMode: .common)
+        self.pollTimer = pollTimer
+    }
+
+    private func stopPolling() {
+        pollTimer?.invalidate()
+        pollTimer = nil
     }
 
     /// Asks macOS to register or prompt for the current process before showing manual guidance.
