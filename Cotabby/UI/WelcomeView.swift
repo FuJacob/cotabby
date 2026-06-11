@@ -454,7 +454,9 @@ extension WelcomeView {
                                 modifiers: [],
                                 label: SuggestionSettingsModel.defaultAcceptanceKeyLabel
                             )
-                        } : nil
+                        } : nil,
+                        onClear: suggestionSettings.acceptanceKeyCode != SuggestionSettingsModel.disabledKeyCode
+                            ? { suggestionSettings.clearAcceptanceKey() } : nil
                     )
 
                     keybindRow(
@@ -478,12 +480,14 @@ extension WelcomeView {
                                 modifiers: [],
                                 label: SuggestionSettingsModel.defaultFullAcceptanceKeyLabel
                             )
-                        } : nil
+                        } : nil,
+                        onClear: suggestionSettings.fullAcceptanceKeyCode != SuggestionSettingsModel.disabledKeyCode
+                            ? { suggestionSettings.clearFullAcceptanceKey() } : nil
                     )
                 }
 
                 // No `onReset` here: the toggle hotkey is opt-in and has no factory default, so the
-                // only meaningful "reset" is unbind, which the Clear gesture in the recorder covers.
+                // only meaningful "reset" is unbind, which the Clear button already covers.
                 keybindRow(
                     title: "Toggle Cotabby",
                     keyLabel: suggestionSettings.globalToggleKeyLabel,
@@ -496,7 +500,9 @@ extension WelcomeView {
                             label: label
                         )
                     },
-                    onReset: nil
+                    onReset: nil,
+                    onClear: suggestionSettings.globalToggleKeyCode != SuggestionSettingsModel.disabledKeyCode
+                        ? { suggestionSettings.clearGlobalToggleKey() } : nil
                 )
             }
             .frame(maxWidth: 440)
@@ -510,7 +516,8 @@ extension WelcomeView {
         action: ShortcutAction,
         isRecording: Binding<Bool>,
         onKeyRecorded: @escaping (CGKeyCode, ShortcutModifierMask, String) -> Void,
-        onReset: (() -> Void)? = nil
+        onReset: (() -> Void)? = nil,
+        onClear: (() -> Void)? = nil
     ) -> some View {
         HStack(spacing: 10) {
             Text(title)
@@ -553,6 +560,18 @@ extension WelcomeView {
             if let onReset {
                 Button("Reset") {
                     onReset()
+                    isRecording.wrappedValue = false
+                }
+                .controlSize(.small)
+            }
+
+            // Mirror the Settings "Shortcuts" pane, which offers Clear here too: unbinding a shortcut
+            // mid-setup shouldn't force the user to finish onboarding and then dig through Settings to
+            // undo it. Call sites pass nil while the key is already unbound, so the button only appears
+            // when there is a binding to clear (the same gate the settings pane applies).
+            if let onClear {
+                Button("Clear") {
+                    onClear()
                     isRecording.wrappedValue = false
                 }
                 .controlSize(.small)
