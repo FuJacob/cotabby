@@ -30,6 +30,7 @@ final class CotabbyAppEnvironment {
     let welcomeCoordinator: WelcomeCoordinator
     let huggingFaceSearchService: HuggingFaceSearchService
     let performanceMetricsStore: PerformanceMetricsStore
+    let usageAnalyticsStore: UsageAnalyticsStore
     let settingsCoordinator: SettingsCoordinator
     let activationIndicatorController: ActivationIndicatorController
     let focusDebugOverlayController: FocusDebugOverlayController?
@@ -108,6 +109,10 @@ final class CotabbyAppEnvironment {
         )
         let huggingFaceSearchService = HuggingFaceSearchService()
         let performanceMetricsStore = PerformanceMetricsStore()
+        // Local accepted-suggestion stats for the Usage pane (issue #489). Constructed before both
+        // the suggestion coordinator (which records into it on accept) and the settings coordinator
+        // (whose pane reads it) so the single instance is shared by writer and reader.
+        let usageAnalyticsStore = UsageAnalyticsStore()
         // Live CPU/RAM graph backing for the Performance pane. Holds no state until the pane asks it
         // to start sampling, so constructing it eagerly here costs nothing.
         let systemMetricsStore = SystemMetricsStore()
@@ -166,6 +171,7 @@ final class CotabbyAppEnvironment {
             huggingFaceSearchService: huggingFaceSearchService,
             performanceMetricsStore: performanceMetricsStore,
             systemMetricsStore: systemMetricsStore,
+            usageAnalyticsStore: usageAnalyticsStore,
             onShowWelcome: { [weak welcomeCoordinator] in
                 welcomeCoordinator?.showWelcome()
             },
@@ -204,6 +210,7 @@ final class CotabbyAppEnvironment {
             configuration: configuration,
             spellChecker: spellChecker,
             symSpellCorrector: symSpellCorrector,
+            usageAnalyticsStore: usageAnalyticsStore,
             spellingLanguageResolver: SpellingLanguageResolver()
         )
 
@@ -264,6 +271,7 @@ final class CotabbyAppEnvironment {
         self.welcomeCoordinator = welcomeCoordinator
         self.huggingFaceSearchService = huggingFaceSearchService
         self.performanceMetricsStore = performanceMetricsStore
+        self.usageAnalyticsStore = usageAnalyticsStore
         self.settingsCoordinator = settingsCoordinator
         self.activationIndicatorController = activationIndicatorController
         self.focusDebugOverlayController = FocusDebugOverlayController.isEnabled

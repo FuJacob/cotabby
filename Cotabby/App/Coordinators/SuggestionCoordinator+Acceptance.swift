@@ -507,6 +507,11 @@ extension SuggestionCoordinator {
 
         totalTabAcceptedWordCount += acceptedWordCount
         userDefaults.set(totalTabAcceptedWordCount, forKey: Self.totalTabAcceptedWordCountDefaultsKey)
+
+        // The same word-bearing accept also feeds the per-day Usage pane (issue #489). Characters use
+        // the accepted chunk's length, so a CJK accept (which counts as a single word here, mirroring
+        // the menu-bar total) still reflects its true size. Only counts are stored, never the text.
+        usageAnalyticsStore.recordAcceptance(words: acceptedWordCount, characters: acceptedChunk.count)
     }
 
     // MARK: - Caret Prediction

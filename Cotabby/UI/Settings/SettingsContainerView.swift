@@ -22,6 +22,7 @@ struct SettingsContainerView: View {
     @ObservedObject var huggingFaceSearchService: HuggingFaceSearchService
     @ObservedObject var performanceMetricsStore: PerformanceMetricsStore
     @ObservedObject var systemMetricsStore: SystemMetricsStore
+    @ObservedObject var usageAnalyticsStore: UsageAnalyticsStore
 
     let onShowWelcome: () -> Void
     let clearEmojiHistory: () -> Void
@@ -132,6 +133,8 @@ struct SettingsContainerView: View {
                 performanceMetricsStore: performanceMetricsStore,
                 systemMetricsStore: systemMetricsStore
             )
+        case .usage:
+            UsageAnalyticsPaneView(usageAnalyticsStore: usageAnalyticsStore)
         case .about:
             AboutPaneView(appUpdateManager: appUpdateManager)
         }

@@ -60,6 +60,40 @@ final class SuggestionCoordinatorAcceptanceTests: XCTestCase {
         }
     }
 
+    func test_acceptRecordsLocalUsageAnalytics() {
+        runOnMainActor {
+            let snapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello")
+            let context = FocusedInputContext(snapshot: snapshot, generation: 7)
+            let interactionState = SuggestionInteractionState()
+            _ = interactionState.startSession(
+                fullText: " world again",
+                liveContext: context,
+                latency: 0.1
+            )
+            let overlayState = OverlayState.visible(
+                text: " world again",
+                geometry: CotabbyTestFixtures.overlayGeometry(caretRect: context.caretRect),
+                mode: .inline
+            )
+            let coordinator = makeCoordinator(
+                snapshot: snapshot,
+                overlayState: overlayState,
+                inputMonitor: StubSuggestionInputMonitor(),
+                inserter: StubSuggestionInserter(),
+                interactionState: interactionState
+            )
+
+            XCTAssertTrue(coordinator.acceptCurrentSuggestion())
+
+            // Accepting " world" (one word, six characters incl. the leading space) records exactly
+            // one acceptance into the local Usage store, matching the menu-bar word total.
+            let totals = coordinator.usageAnalyticsStore.totals(in: .allTime)
+            XCTAssertEqual(totals.acceptances, 1)
+            XCTAssertEqual(totals.words, 1)
+            XCTAssertEqual(totals.characters, " world".count)
+        }
+    }
+
     func test_acceptCurrentSuggestionCleansVisibleOverlayWhenSessionDisappears() {
         runOnMainActor {
             let snapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello")
@@ -301,6 +335,9 @@ final class SuggestionCoordinatorAcceptanceTests: XCTestCase {
             configuration: .standard,
             spellChecker: CurrentWordSpellChecker(),
             symSpellCorrector: SymSpellCorrector(preloadLanguage: nil),
+            usageAnalyticsStore: UsageAnalyticsStore(
+                defaults: UserDefaults(suiteName: "CotabbyTests.usage.\(UUID().uuidString)") ?? .standard
+            ),
             userDefaults: UserDefaults(suiteName: "CotabbyTests.\(UUID().uuidString)") ?? .standard
         )
         Self.retainedCoordinators.append(coordinator)

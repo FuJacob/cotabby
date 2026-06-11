@@ -21,6 +21,7 @@ enum SettingsCategory: String, CaseIterable, Hashable, Identifiable {
     case apps
     case permissions
     case performance
+    case usage
     case about
 
     var id: String { rawValue }
@@ -38,6 +39,7 @@ enum SettingsCategory: String, CaseIterable, Hashable, Identifiable {
         case .apps: return "Apps"
         case .permissions: return "Permissions"
         case .performance: return "Performance"
+        case .usage: return "Usage"
         case .about: return "About"
         }
     }
@@ -56,6 +58,7 @@ enum SettingsCategory: String, CaseIterable, Hashable, Identifiable {
         case .apps: return "app.badge.fill"
         case .permissions: return "lock.shield.fill"
         case .performance: return "speedometer"
+        case .usage: return "chart.bar.fill"
         case .about: return "info.circle.fill"
         }
     }

@@ -48,6 +48,9 @@ final class SuggestionCoordinator: ObservableObject {
     let workController: SuggestionWorkController
     let configuration: SuggestionConfiguration
     let userDefaults: UserDefaults
+    /// Local, privacy-preserving usage stats (issue #489). Written at accept time alongside the
+    /// `totalTabAcceptedWordCount` total and read by the Usage settings pane.
+    let usageAnalyticsStore: UsageAnalyticsStore
     let overlayPresenter: SuggestionOverlayPresenter
     let logger: SuggestionDebugLogger
     /// Drives the typo gate before each prediction. Owned at app scope (constructed once in
@@ -133,6 +136,7 @@ final class SuggestionCoordinator: ObservableObject {
         configuration: SuggestionConfiguration,
         spellChecker: CurrentWordSpellChecker,
         symSpellCorrector: SymSpellCorrector,
+        usageAnalyticsStore: UsageAnalyticsStore,
         spellingLanguageResolver: SpellingLanguageResolver = SpellingLanguageResolver(),
         userDefaults: UserDefaults = .standard
     ) {
@@ -156,6 +160,7 @@ final class SuggestionCoordinator: ObservableObject {
         self.symSpellCorrector = symSpellCorrector
         self.spellingLanguageResolver = spellingLanguageResolver
         self.userDefaults = userDefaults
+        self.usageAnalyticsStore = usageAnalyticsStore
         settingsSnapshot = suggestionSettings.snapshot
         // These collaborators isolate "how overlay/logging works" from "when the coordinator
         // wants to show state," which keeps the coordinator closer to orchestration code.
