@@ -55,6 +55,32 @@ final class TerminalAppDetectorTests: XCTestCase {
         XCTAssertFalse(TerminalAppDetector.isTerminal(bundleIdentifier: nil))
     }
 
+    // MARK: - Integrated terminal (xterm.js DOM class list)
+
+    func test_isIntegratedTerminal_xtermHelperTextarea() {
+        // The focused input leaf in a VS Code / Cursor terminal — verified live against the real
+        // AX tree (role AXTextField, class "xterm-helper-textarea").
+        XCTAssertTrue(TerminalAppDetector.isIntegratedTerminal(domClassList: ["xterm-helper-textarea"]))
+    }
+
+    func test_isIntegratedTerminal_xtermPrefixedSibling() {
+        // Prefix match so focus landing on another xterm node (or an xterm internal rename) still
+        // counts as a terminal.
+        XCTAssertTrue(TerminalAppDetector.isIntegratedTerminal(domClassList: ["xterm-screen"]))
+    }
+
+    func test_isIntegratedTerminal_monacoEditor_isFalse() {
+        // The VS Code code editor and Copilot chat input — must stay enabled.
+        XCTAssertFalse(TerminalAppDetector.isIntegratedTerminal(domClassList: ["native-edit-context"]))
+        XCTAssertFalse(
+            TerminalAppDetector.isIntegratedTerminal(domClassList: ["monaco-editor", "no-user-select", "mac"])
+        )
+    }
+
+    func test_isIntegratedTerminal_empty_isFalse() {
+        XCTAssertFalse(TerminalAppDetector.isIntegratedTerminal(domClassList: []))
+    }
+
     // MARK: - Evaluator integration
 
     func test_evaluator_blocksTerminalApp() {

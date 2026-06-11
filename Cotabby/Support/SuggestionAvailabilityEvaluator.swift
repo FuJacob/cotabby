@@ -11,6 +11,7 @@ enum SuggestionAvailabilityEvaluator {
         globallyEnabled: Bool = true,
         disabledAppBundleIdentifiers: Set<String> = [],
         disabledDomains: Set<String> = [],
+        suggestInIntegratedTerminals: Bool = false,
         inputMonitoringGranted: Bool,
         focusSnapshot: FocusSnapshot,
         checkCapability: Bool = true
@@ -38,6 +39,14 @@ enum SuggestionAvailabilityEvaluator {
             return "Cotabby is not available in terminal apps."
         }
 
+        // Integrated terminals (VS Code / Cursor xterm.js) share their app's bundle id with the
+        // editor and chat, so they slip past the blocklist above. Suppress them here unless the user
+        // has opted back in, keeping ghost text out of shell prompts and command output while the
+        // editor and Copilot chat in the same window keep suggesting.
+        if !suggestInIntegratedTerminals, focusSnapshot.context?.isIntegratedTerminal == true {
+            return "Cotabby is not available in the integrated terminal."
+        }
+
         guard inputMonitoringGranted else {
             return "Input Monitoring permission is required before Cotabby can react to typing."
         }
@@ -58,6 +67,7 @@ enum SuggestionAvailabilityEvaluator {
         globallyEnabled: Bool = true,
         disabledAppBundleIdentifiers: Set<String> = [],
         disabledDomains: Set<String> = [],
+        suggestInIntegratedTerminals: Bool = false,
         inputMonitoringGranted: Bool,
         focusSnapshot: FocusSnapshot
     ) -> Bool {
@@ -65,6 +75,7 @@ enum SuggestionAvailabilityEvaluator {
             globallyEnabled: globallyEnabled,
             disabledAppBundleIdentifiers: disabledAppBundleIdentifiers,
             disabledDomains: disabledDomains,
+            suggestInIntegratedTerminals: suggestInIntegratedTerminals,
             inputMonitoringGranted: inputMonitoringGranted,
             focusSnapshot: focusSnapshot
         ) == nil
@@ -86,6 +97,7 @@ enum SuggestionAvailabilityEvaluator {
         globallyEnabled: Bool = true,
         disabledAppBundleIdentifiers: Set<String> = [],
         disabledDomains: Set<String> = [],
+        suggestInIntegratedTerminals: Bool = false,
         inputMonitoringGranted: Bool,
         screenRecordingGranted: Bool,
         focusSnapshot: FocusSnapshot,
@@ -103,6 +115,7 @@ enum SuggestionAvailabilityEvaluator {
             globallyEnabled: globallyEnabled,
             disabledAppBundleIdentifiers: disabledAppBundleIdentifiers,
             disabledDomains: disabledDomains,
+            suggestInIntegratedTerminals: suggestInIntegratedTerminals,
             inputMonitoringGranted: inputMonitoringGranted,
             focusSnapshot: focusSnapshot,
             checkCapability: false

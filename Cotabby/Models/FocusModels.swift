@@ -145,6 +145,14 @@ struct FocusedInputSnapshot: Equatable {
     let selection: NSRange
     let isSecure: Bool
 
+    /// True when the resolved field is an xterm.js integrated-terminal surface (VS Code / Cursor /
+    /// Windsurf terminal, or a browser-hosted web terminal). Set by `FocusSnapshotResolver` from the
+    /// focused element's `AXDOMClassList`. Lets the availability gate suppress ghost text in the
+    /// terminal without disabling the editor or Copilot chat, which share the same bundle id and so
+    /// can't be separated by the app-level terminal blocklist. The initializer default keeps existing
+    /// call sites compiling unchanged.
+    let isIntegratedTerminal: Bool
+
     /// Monotonic counter that increments every time polling observes a focused-input identity
     /// change.
     ///
@@ -189,6 +197,7 @@ struct FocusedInputSnapshot: Equatable {
         trailingText: String,
         selection: NSRange,
         isSecure: Bool,
+        isIntegratedTerminal: Bool = false,
         focusChangeSequence: UInt64 = 0,
         focusedURLString: String? = nil,
         resolvedFieldStyle: ResolvedFieldStyle? = nil
@@ -208,6 +217,7 @@ struct FocusedInputSnapshot: Equatable {
         self.trailingText = trailingText
         self.selection = selection
         self.isSecure = isSecure
+        self.isIntegratedTerminal = isIntegratedTerminal
         self.focusChangeSequence = focusChangeSequence
         self.focusedURLString = focusedURLString
         self.resolvedFieldStyle = resolvedFieldStyle

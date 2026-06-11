@@ -15,6 +15,10 @@ struct SuggestionSettingsData: Equatable {
     var showIndicator: Bool
     var showAcceptanceHint: Bool
     var disabledAppRules: [DisabledApplicationRule]
+    /// When false (the default), ghost text is suppressed in integrated terminals (VS Code / Cursor
+    /// xterm.js surfaces); a terminal's own completion/history conflicts with autocomplete and ghost
+    /// text overlaps command output. Power users can opt back in.
+    var suggestInIntegratedTerminals: Bool
     var customSuggestionTextColorHex: String?
     var ghostTextOpacity: Double
     /// User multiplier applied on top of the caret-approximated ghost-text size. 1.0 keeps the

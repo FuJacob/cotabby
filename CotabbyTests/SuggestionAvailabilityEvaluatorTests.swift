@@ -61,6 +61,68 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
         )
     }
 
+    /// A supported focus snapshot whose field is an xterm.js integrated terminal. Bundle id is a
+    /// non-terminal app (VS Code shares its bundle with the editor/chat), so only the surface-level
+    /// `isIntegratedTerminal` flag distinguishes it.
+    private func makeIntegratedTerminalSnapshot() -> FocusSnapshot {
+        let context = CotabbyTestFixtures.focusedInputSnapshot(
+            applicationName: "Code",
+            bundleIdentifier: "com.microsoft.VSCode",
+            role: "AXTextField",
+            isIntegratedTerminal: true
+        )
+        return FocusSnapshot(
+            applicationName: "Code",
+            bundleIdentifier: "com.microsoft.VSCode",
+            capability: .supported,
+            context: context,
+            inspection: nil
+        )
+    }
+
+    // MARK: - Integrated terminal gating
+
+    func test_disabledReason_integratedTerminal_suppressedByDefault() {
+        let reason = SuggestionAvailabilityEvaluator.disabledReason(
+            globallyEnabled: true,
+            inputMonitoringGranted: true,
+            focusSnapshot: makeIntegratedTerminalSnapshot()
+        )
+
+        XCTAssertEqual(reason, "Cotabby is not available in the integrated terminal.")
+    }
+
+    func test_disabledReason_integratedTerminal_allowedWhenOptedIn() {
+        let reason = SuggestionAvailabilityEvaluator.disabledReason(
+            globallyEnabled: true,
+            suggestInIntegratedTerminals: true,
+            inputMonitoringGranted: true,
+            focusSnapshot: makeIntegratedTerminalSnapshot()
+        )
+
+        XCTAssertNil(reason, "Opting in should let the integrated terminal suggest like any field")
+    }
+
+    func test_shouldSchedulePrediction_integratedTerminal_falseByDefault_trueWhenOptedIn() {
+        let snapshot = makeIntegratedTerminalSnapshot()
+
+        XCTAssertFalse(
+            SuggestionAvailabilityEvaluator.shouldSchedulePrediction(
+                globallyEnabled: true,
+                inputMonitoringGranted: true,
+                focusSnapshot: snapshot
+            )
+        )
+        XCTAssertTrue(
+            SuggestionAvailabilityEvaluator.shouldSchedulePrediction(
+                globallyEnabled: true,
+                suggestInIntegratedTerminals: true,
+                inputMonitoringGranted: true,
+                focusSnapshot: snapshot
+            )
+        )
+    }
+
     // MARK: - disabledReason: exact-string contracts
 
     /// If this string ever changes, the menu-bar status copy will silently

@@ -61,6 +61,7 @@ struct SuggestionSettingsStore {
 
     private static let isGloballyEnabledDefaultsKey = "cotabbyGloballyEnabled"
     private static let disabledAppRulesDefaultsKey = "cotabbyDisabledAppRules"
+    private static let suggestInIntegratedTerminalsDefaultsKey = "cotabbySuggestInIntegratedTerminals"
     private static let showCaretIndicatorDefaultsKey = "cotabbyShowCaretIndicator"
     private static let selectedIndicatorModeDefaultsKey = "cotabbySelectedIndicatorMode"
     private static let showAcceptanceHintDefaultsKey = "cotabbyShowAcceptanceHint"
@@ -138,6 +139,10 @@ struct SuggestionSettingsStore {
             userDefaults.object(forKey: Self.showCaretIndicatorDefaultsKey) as? Bool ?? true
         }
         let resolvedShowAcceptanceHint = userDefaults.object(forKey: Self.showAcceptanceHintDefaultsKey) as? Bool ?? true
+        // Defaults to false so ghost text stays out of terminals out of the box, matching how
+        // standalone terminal apps are already skipped. Existing installs (no key) get the same.
+        let resolvedSuggestInIntegratedTerminals =
+            userDefaults.object(forKey: Self.suggestInIntegratedTerminalsDefaultsKey) as? Bool ?? false
         let resolvedCustomSuggestionTextColorHex = Self.normalizedHexString(
             userDefaults.string(forKey: Self.customSuggestionTextColorHexDefaultsKey)
         )
@@ -331,6 +336,7 @@ struct SuggestionSettingsStore {
             showIndicator: resolvedShowIndicator,
             showAcceptanceHint: resolvedShowAcceptanceHint,
             disabledAppRules: resolvedDisabledAppRules,
+            suggestInIntegratedTerminals: resolvedSuggestInIntegratedTerminals,
             customSuggestionTextColorHex: resolvedCustomSuggestionTextColorHex,
             ghostTextOpacity: resolvedGhostTextOpacity,
             ghostTextSizeMultiplier: resolvedGhostTextSizeMultiplier,
@@ -381,6 +387,7 @@ struct SuggestionSettingsStore {
         // sticky on the next launch. Mirrors the resolution above field-for-field.
         saveGloballyEnabled(data.isGloballyEnabled)
         saveDisabledAppRules(data.disabledAppRules)
+        saveSuggestInIntegratedTerminals(data.suggestInIntegratedTerminals)
         saveShowIndicator(data.showIndicator)
         saveShowAcceptanceHint(data.showAcceptanceHint)
         saveCustomSuggestionTextColorHex(data.customSuggestionTextColorHex)
@@ -444,6 +451,10 @@ struct SuggestionSettingsStore {
 
     func saveGloballyEnabled(_ enabled: Bool) {
         userDefaults.set(enabled, forKey: Self.isGloballyEnabledDefaultsKey)
+    }
+
+    func saveSuggestInIntegratedTerminals(_ enabled: Bool) {
+        userDefaults.set(enabled, forKey: Self.suggestInIntegratedTerminalsDefaultsKey)
     }
 
     func saveDisabledAppRules(_ rules: [DisabledApplicationRule]) {

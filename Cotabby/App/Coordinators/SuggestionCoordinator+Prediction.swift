@@ -626,6 +626,7 @@ extension SuggestionCoordinator {
             globallyEnabled: settingsSnapshot.isGloballyEnabled,
             disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
             disabledDomains: PerDomainDisableSettings.disabledDomains(),
+            suggestInIntegratedTerminals: settingsSnapshot.suggestInIntegratedTerminals,
             inputMonitoringGranted: permissionManager.inputMonitoringGranted,
             focusSnapshot: focusSnapshot
         )
