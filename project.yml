@@ -157,6 +157,11 @@ targets:
       base:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIconDev
         PRODUCT_BUNDLE_IDENTIFIER: com.jacobfu.tabby.dev
+        # Keep this under `base:` so COTABBY_DEV is defined in EVERY configuration, Release included.
+        # Do not scope it to `configs: Debug:`. A Release-config dev build (the scheme's Profile and
+        # Archive actions) must still compile Sparkle out; otherwise it could pull the prod appcast
+        # and replace itself with the released bundle, the exact identity collapse this target exists
+        # to prevent.
         SWIFT_ACTIVE_COMPILATION_CONDITIONS: COTABBY_DEV $(inherited)
   CotabbyTests:
     type: bundle.unit-test
@@ -216,6 +221,9 @@ schemes:
       config: Debug
       commandLineArguments:
         -cotabby-debug: true
+    # Profile/Archive intentionally stay on Release for representative optimized timings. Versus a
+    # prod Release build the only difference is COTABBY_DEV (Sparkle compiled out), which is not on
+    # any hot path, so dev profiling stays representative while the artifact is never shippable.
     profile:
       config: Release
     analyze:
