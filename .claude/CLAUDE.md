@@ -120,6 +120,10 @@ e.g. to get Console `.debug` output without the heavier file/screenshot artifact
 - `~/Library/Logs/Cotabby/llm-io.jsonl` — full LLM prompts and completions, one record per
   generation. Shares `request_id` with the main log so a single suggestion can be joined
   across files.
+- **Dev-identity builds log to `~/Library/Logs/Cotabby Dev/` instead** (same file names). The
+  `Cotabby Dev` scheme — the daily-driver way to run from Xcode — ships a separate app identity,
+  and its logs land in the identity's own directory. When debugging a dev-built app, read that
+  directory first; an apparently silent `~/Library/Logs/Cotabby/` does not mean the flag is off.
 - `~/Desktop/cotabby-ax-dump.txt` — most recent Chrome AX tree snapshot. Overwritten on each
   Chrome focus change (debounced by focused-element identity).
 - Rotated previous logs: `*.jsonl.1` (one-step rotation when a file exceeds 10 MB).

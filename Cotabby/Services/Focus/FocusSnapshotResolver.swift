@@ -172,6 +172,7 @@ struct FocusSnapshotResolver {
             primaryQuality: resolvedCandidate.caretQuality,
             primaryObservedCharWidth: resolvedCandidate.observedCharWidth,
             primaryObservedContentEdges: resolvedCandidate.observedContentEdges,
+            primarySourceDetail: resolvedCandidate.caretSourceDetail,
             deepResult: deepResult
         ) else {
             return FocusSnapshot(
@@ -735,6 +736,7 @@ struct FocusSnapshotResolver {
             caretQuality: caretQuality,
             observedCharWidth: caretResult?.observedCharWidth,
             observedContentEdges: caretResult?.observedContentEdges,
+            caretSourceDetail: caretResult?.sourceDetail,
             inputFrameRect: inputFrameRect,
             isSecure: isSecure,
             resolverCandidate: resolverCandidate
@@ -868,6 +870,7 @@ private struct AXFocusCandidate {
     let caretQuality: CaretGeometryQuality?
     let observedCharWidth: CGFloat?
     let observedContentEdges: ObservedContentEdges?
+    let caretSourceDetail: String?
     let inputFrameRect: CGRect?
     let isSecure: Bool
     let resolverCandidate: FocusCapabilityCandidate

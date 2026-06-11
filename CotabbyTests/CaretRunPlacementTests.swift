@@ -4,15 +4,19 @@ import XCTest
 
 /// Locks the caret-to-text-run mapping used by the child-run geometry path (Gmail/Outlook-class
 /// editors). The mapping must be alignment-based: Chromium parent values separate blocks with
-/// newlines (and collapse blank lines) that the run texts do not contain, so cumulative-length
-/// math drifts the caret into the wrong run — one visual line per unaccounted character.
+/// newlines (and sometimes nothing at all) that the run texts do not contain, so cumulative-length
+/// math drifts the caret into the wrong run — one visual line per unaccounted character. Real
+/// captured values also mix non-breaking and plain spaces and fuse adjacent blocks into clumps
+/// like "i'mhi", which is what the boundary rule and the windowed second pass defend against.
 @MainActor
 final class CaretRunPlacementTests: XCTestCase {
+    private typealias Placement = AXTextGeometryResolver.CaretRunPlacement
+
     private func placement(
         runs: [String],
         parent: String,
         caret: Int
-    ) -> AXTextGeometryResolver.CaretRunPlacement? {
+    ) -> Placement? {
         AXTextGeometryResolver.caretRunPlacement(
             runTexts: runs,
             parentText: parent,
@@ -25,10 +29,7 @@ final class CaretRunPlacementTests: XCTestCase {
         // mid-"bb" because the separator newline inflates the offset; alignment must not.
         let result = placement(runs: ["aa", "bb"], parent: "aa\nbb", caret: 3)
 
-        XCTAssertEqual(
-            result,
-            AXTextGeometryResolver.CaretRunPlacement(runIndex: 1, fraction: 0, usedTextAlignment: true)
-        )
+        XCTAssertEqual(result, Placement(runIndex: 1, fraction: 0, mode: .aligned))
     }
 
     func test_placement_multipleParagraphSeparatorsStayExact() {
@@ -36,12 +37,13 @@ final class CaretRunPlacementTests: XCTestCase {
         // lines below" shape.
         let parent = "first line\nsecond line\nthird line"
         let caret = (parent as NSString).length
-        let result = placement(runs: ["first line", "second line", "third line"], parent: parent, caret: caret)
-
-        XCTAssertEqual(
-            result,
-            AXTextGeometryResolver.CaretRunPlacement(runIndex: 2, fraction: 1, usedTextAlignment: true)
+        let result = placement(
+            runs: ["first line", "second line", "third line"],
+            parent: parent,
+            caret: caret
         )
+
+        XCTAssertEqual(result, Placement(runIndex: 2, fraction: 1, mode: .aligned))
     }
 
     func test_placement_midRunCaretProducesProportionalFraction() {
@@ -57,10 +59,7 @@ final class CaretRunPlacementTests: XCTestCase {
         // which text alone cannot resolve.
         let result = placement(runs: ["aa", "bb"], parent: "aa\n\nbb", caret: 3)
 
-        XCTAssertEqual(
-            result,
-            AXTextGeometryResolver.CaretRunPlacement(runIndex: 0, fraction: 1, usedTextAlignment: true)
-        )
+        XCTAssertEqual(result, Placement(runIndex: 0, fraction: 1, mode: .aligned))
     }
 
     func test_placement_collapsedBlankParentStaysExact() {
@@ -68,10 +67,7 @@ final class CaretRunPlacementTests: XCTestCase {
         // is indifferent to how many visual blanks the separators hide.
         let result = placement(runs: ["aa", "bb"], parent: "aa\nbb", caret: 5)
 
-        XCTAssertEqual(
-            result,
-            AXTextGeometryResolver.CaretRunPlacement(runIndex: 1, fraction: 1, usedTextAlignment: true)
-        )
+        XCTAssertEqual(result, Placement(runIndex: 1, fraction: 1, mode: .aligned))
     }
 
     func test_placement_caretOffsetBeyondParentClampsToEnd() {
@@ -81,15 +77,54 @@ final class CaretRunPlacementTests: XCTestCase {
         XCTAssertEqual(result?.fraction, 1)
     }
 
-    func test_placement_unalignableRunsFallBackToCumulativeWalk() {
-        // A run text missing from the parent value (whitespace rewriting, exotic trees) falls
-        // back to the legacy cumulative mapping rather than guessing an alignment.
-        let result = placement(runs: ["zz", "bb"], parent: "aa\nbb", caret: 1)
+    // MARK: - Flattened-value hardening
 
-        XCTAssertEqual(
-            result,
-            AXTextGeometryResolver.CaretRunPlacement(runIndex: 0, fraction: 0.5, usedTextAlignment: false)
-        )
+    func test_placement_nonBreakingSpacesMatchPlainSpaces() {
+        // Hosts mix NBSP and plain spaces between the parent value and run texts; matching must
+        // survive both directions.
+        let nbspRun = placement(runs: ["aa", "\u{00A0}bb"], parent: "aa\n bb", caret: 5)
+        XCTAssertEqual(nbspRun?.runIndex, 1)
+        XCTAssertEqual(nbspRun?.mode, .aligned)
+
+        let nbspParent = placement(runs: ["aa", "bb"], parent: "aa\u{00A0}bb", caret: 3)
+        XCTAssertEqual(nbspParent, Placement(runIndex: 1, fraction: 0, mode: .aligned))
+    }
+
+    func test_placement_shortRunDoesNotAnchorInsideFusedClump() {
+        // Captured Gmail values fuse adjacent blocks with no separator ("i'm"+"hi" → "i'mhi").
+        // The boundary rule must reject "hi" inside the clump, and the windowed second pass must
+        // then recover both fused runs between the boundary-clean anchors.
+        let parent = "i'mhi echo"
+        let result = placement(runs: ["i'm", "hi", "echo"], parent: parent, caret: 4)
+
+        XCTAssertEqual(result?.runIndex, 1)
+        XCTAssertEqual(result?.fraction ?? -1, 0.5, accuracy: 0.001)
+        XCTAssertEqual(result?.mode, .aligned)
+    }
+
+    func test_placement_standaloneRunPreferredOverFusedOccurrence() {
+        // "hi" occurs fused at the start and standalone later; the anchor must be the standalone
+        // occurrence, not the clump.
+        let parent = "i'mhi went\nhi"
+        let caret = (parent as NSString).length
+        let result = placement(runs: ["i'm", "hi went", "hi"], parent: parent, caret: caret)
+
+        XCTAssertEqual(result, Placement(runIndex: 2, fraction: 1, mode: .aligned))
+    }
+
+    func test_placement_unanchorableRunIsSkippedAndCaretMapsAgainstTheRest() {
+        // One run's text is absent from the parent value entirely; the others still anchor and
+        // the caret maps against them (partial alignment), not the legacy walk.
+        let result = placement(runs: ["zz", "bb"], parent: "aa\nbb", caret: 4)
+
+        XCTAssertEqual(result?.runIndex, 1)
+        XCTAssertEqual(result?.mode, .partiallyAligned)
+    }
+
+    func test_placement_nothingAnchorableFallsBackToCumulativeWalk() {
+        let result = placement(runs: ["zz", "qq"], parent: "aa\nbb", caret: 1)
+
+        XCTAssertEqual(result, Placement(runIndex: 0, fraction: 0.5, mode: .legacyCumulative))
     }
 
     func test_placement_emptyRunListReturnsNil() {

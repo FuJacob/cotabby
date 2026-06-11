@@ -72,11 +72,28 @@ final class FocusDebugOverlayController {
 
     // MARK: - Caret indicator
 
+    /// Short build stamp (executable modification time) shown in the caret badge so a debugging
+    /// screenshot proves which build produced it. Stale-binary confusion has burned whole field
+    /// iterations: a fix gets pushed, the relaunch silently runs yesterday's product, and the
+    /// "still broken" report describes code that no longer exists.
+    private static let buildStamp: String = {
+        guard let url = Bundle.main.executableURL,
+            let modified = (try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate]
+                as? Date
+        else {
+            return "build ?"
+        }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MM-dd HH:mm"
+        return "build \(formatter.string(from: modified))"
+    }()
+
     private func showCaretIndicator(context: FocusedInputSnapshot) {
         let color = indicatorColor(for: context.caretSource)
         let contentView = NSHostingView(rootView: CaretDebugView(
             source: context.caretSource,
             role: context.role,
+            buildStamp: Self.buildStamp,
             caretHeight: context.caretRect.height,
             color: color
         ))
@@ -213,12 +230,13 @@ final class FocusDebugOverlayController {
 private struct CaretDebugView: View {
     let source: String
     let role: String
+    let buildStamp: String
     let caretHeight: CGFloat
     let color: Color
 
     var body: some View {
         VStack(alignment: .leading, spacing: 1) {
-            Text("\(source) | \(role)")
+            Text("\(source) | \(role) | \(buildStamp)")
                 .font(.system(size: 9, weight: .medium, design: .monospaced))
                 .foregroundStyle(.white)
                 .padding(.horizontal, 4)
