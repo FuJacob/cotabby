@@ -38,6 +38,9 @@ final class FocusTracker {
     private let snapshotResolver: FocusSnapshotResolver
 
     private var timer: Timer?
+    /// The interval the running `timer` was created with, so idle-backoff transitions can re-arm it
+    /// only when the effective interval actually changes (no per-keystroke timer churn while active).
+    private var scheduledInterval: TimeInterval?
     private var pollSequence = 0
     private var focusChangeSequence: UInt64 = 0
     private var lastFocusedInputSignature: FocusedInputPollingSignature?
@@ -92,9 +95,35 @@ final class FocusTracker {
         }
 
         CotabbyLogger.focus.info("Focus polling started at \(Int(self.pollInterval * 1000))ms interval")
+        // Capture once immediately (this also resets idle backoff), then arm the timer at the
+        // resulting effective interval.
         refreshNow()
+        scheduleTimer()
+    }
 
-        let timer = Timer(timeInterval: pollInterval, repeats: true) { [weak self] _ in
+    /// Stops polling while leaving the most recent snapshot available to callers.
+    func stop() {
+        CotabbyLogger.focus.info("Focus polling stopped")
+        timer?.invalidate()
+        timer = nil
+        scheduledInterval = nil
+    }
+
+    /// The interval the poll timer should currently run at: the base interval stretched by idle
+    /// backoff. While the user is active the stride is 1, so this is just `pollInterval`.
+    private func effectiveInterval() -> TimeInterval {
+        pollInterval * Double(backoff.captureStride)
+    }
+
+    /// Creates (or replaces) the poll timer at the current effective interval. Each fire performs
+    /// exactly one capture, so an idle machine wakes the main thread every `base * stride` instead of
+    /// every base tick. The capture cadence is identical to the previous tick-skipping design; only
+    /// the no-op wakeups are removed.
+    private func scheduleTimer() {
+        timer?.invalidate()
+        let interval = effectiveInterval()
+        scheduledInterval = interval
+        let timer = Timer(timeInterval: interval, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 self?.handleTimerTick()
             }
@@ -103,11 +132,13 @@ final class FocusTracker {
         RunLoop.main.add(timer, forMode: .common)
     }
 
-    /// Stops polling while leaving the most recent snapshot available to callers.
-    func stop() {
-        CotabbyLogger.focus.info("Focus polling stopped")
-        timer?.invalidate()
-        timer = nil
+    /// Re-arms the timer only when idle backoff has moved it to a new effective interval. During
+    /// active use the stride stays at 1, so this is a no-op and avoids per-keystroke timer churn.
+    private func rescheduleTimerIfIntervalChanged() {
+        guard timer != nil, effectiveInterval() != scheduledInterval else {
+            return
+        }
+        scheduleTimer()
     }
 
     /// Restarts the polling timer with a new interval. No-op if the interval hasn't changed.
@@ -137,18 +168,19 @@ final class FocusTracker {
     func refreshNow() {
         backoff.reset()
         performCaptureAndPublish()
+        rescheduleTimerIfIntervalChanged()
     }
 
-    /// Timer entry point that applies idle backoff before the expensive Accessibility walk.
+    /// Timer entry point: capture once, fold the result into idle backoff, then re-arm the timer at
+    /// the backoff-derived interval.
     ///
     /// While captures keep producing changes (typing, focus churn) the stride stays at 1 and the
-    /// poll runs at full cadence. Once captures stop changing, the stride grows so an idle machine
-    /// isn't paying for ~12.5 full Chrome AX tree walks per second — the dominant idle cost in #280.
+    /// timer stays at the base interval. Once captures stop changing, the stride grows and the timer
+    /// is re-armed to a longer interval, so an idle machine stops waking ~12.5x/second only to skip
+    /// the walk it would not run anyway. That wasteful wake was the dominant idle cost in #280.
     private func handleTimerTick() {
-        guard backoff.shouldCaptureOnTick() else {
-            return
-        }
         backoff.recordCapture(didChange: performCaptureAndPublish())
+        rescheduleTimerIfIntervalChanged()
     }
 
     /// Captures the current snapshot, publishes any change, and reports whether anything changed.

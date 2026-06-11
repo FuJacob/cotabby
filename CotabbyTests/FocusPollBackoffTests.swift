@@ -1,15 +1,15 @@
 import XCTest
 @testable import Cotabby
 
-/// Verifies the focus-poll idle backoff (`FocusPollBackoff`). This is the #280 fix: the poll stays
-/// responsive right after activity, then stretches the interval between the expensive Accessibility
-/// walks once the focused state stops changing — so an idle machine isn't paying for ~12.5 Chrome AX
-/// tree walks per second.
+/// Verifies the focus-poll idle backoff (`FocusPollBackoff`). This is the #280 fix plus its energy
+/// follow-up: the poll stays responsive right after activity, then stretches the interval between the
+/// expensive Accessibility walks once the focused state stops changing, so an idle machine isn't
+/// waking the main thread ~12.5x/second for a walk it would only skip.
 final class FocusPollBackoffTests: XCTestCase {
-    /// Drives `count` timer ticks, recording every capture as "no change", and returns the result.
-    private func idledBackoff(ticks count: Int) -> FocusPollBackoff {
+    /// Returns a backoff that has recorded `count` consecutive no-change captures (i.e. gone idle).
+    private func idledBackoff(captures count: Int) -> FocusPollBackoff {
         var backoff = FocusPollBackoff()
-        for _ in 0..<count where backoff.shouldCaptureOnTick() {
+        for _ in 0..<count {
             backoff.recordCapture(didChange: false)
         }
         return backoff
@@ -47,46 +47,44 @@ final class FocusPollBackoffTests: XCTestCase {
 
     // MARK: - State machine
 
-    func test_capturesEveryTickWhileChanging() {
+    func test_instanceStrideMatchesSchedule() {
+        XCTAssertEqual(FocusPollBackoff().captureStride, 1)
+        XCTAssertEqual(idledBackoff(captures: 5).captureStride, 3)
+        XCTAssertEqual(idledBackoff(captures: 12).captureStride, 6)
+        XCTAssertEqual(idledBackoff(captures: 30).captureStride, 10)
+    }
+
+    func test_capturesWhileChangingStayAtFullCadence() {
         var backoff = FocusPollBackoff()
         for _ in 0..<10 {
-            XCTAssertTrue(backoff.shouldCaptureOnTick())
             backoff.recordCapture(didChange: true)
         }
         XCTAssertEqual(backoff.idleCaptureCount, 0)
+        XCTAssertEqual(backoff.captureStride, 1)
     }
 
-    func test_sustainedIdleStretchesStrideSoMostTicksSkip() {
-        var backoff = FocusPollBackoff()
-        var captures = 0
-        for _ in 0..<400 where backoff.shouldCaptureOnTick() {
-            backoff.recordCapture(didChange: false)
-            captures += 1
-        }
-        XCTAssertGreaterThanOrEqual(backoff.idleCaptureCount, 30)
-        XCTAssertLessThanOrEqual(backoff.idleCaptureCount, FocusPollBackoff.idleCaptureCountCap)
-        // With the stride ramping to 10, 400 ticks should yield far fewer than 400 captures.
-        XCTAssertLessThan(captures, 100)
+    func test_sustainedIdleGrowsStrideAndCaps() {
+        let backoff = idledBackoff(captures: 400)
+        XCTAssertEqual(backoff.idleCaptureCount, FocusPollBackoff.idleCaptureCountCap)
+        XCTAssertEqual(backoff.captureStride, 10)
     }
 
     /// The invariant Greptile flagged: a change after a long idle period must snap back to full
-    /// cadence, not stay permanently backed off. (A dropped reset here would leave stride at 10.)
+    /// cadence, not stay permanently backed off. (A dropped reset here would leave the stride at 10.)
     func test_changeAfterIdleResetsToFullCadence() {
-        var backoff = idledBackoff(ticks: 400)
-        XCTAssertGreaterThan(FocusPollBackoff.captureStride(idleCaptureCount: backoff.idleCaptureCount), 1)
+        var backoff = idledBackoff(captures: 400)
+        XCTAssertGreaterThan(backoff.captureStride, 1)
 
-        while !backoff.shouldCaptureOnTick() {}
         backoff.recordCapture(didChange: true)
 
         XCTAssertEqual(backoff.idleCaptureCount, 0)
-        XCTAssertEqual(FocusPollBackoff.captureStride(idleCaptureCount: backoff.idleCaptureCount), 1)
-        XCTAssertTrue(backoff.shouldCaptureOnTick(), "the tick after a change should capture immediately")
+        XCTAssertEqual(backoff.captureStride, 1)
     }
 
     func test_resetReturnsToFullCadence() {
-        var backoff = idledBackoff(ticks: 400)
+        var backoff = idledBackoff(captures: 400)
         backoff.reset()
         XCTAssertEqual(backoff.idleCaptureCount, 0)
-        XCTAssertTrue(backoff.shouldCaptureOnTick(), "the tick after an explicit refresh should capture immediately")
+        XCTAssertEqual(backoff.captureStride, 1)
     }
 }
