@@ -34,7 +34,14 @@ final class PermissionManager: ObservableObject {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.refresh()
+            // The observer closure is not formally actor-isolated even though `queue: .main`
+            // guarantees main-thread delivery. `assumeIsolated` makes the hop explicit for strict
+            // concurrency checking (and keeps the refresh synchronous with activation, so surfaces
+            // reading permission state on this same turn see fresh values). Same pattern as
+            // `SystemMetricsStore`'s main-queue timer.
+            MainActor.assumeIsolated {
+                self?.refresh()
+            }
         }
         // `refresh()` also (re)configures polling for the current grant state, so a process that
         // launches with every permission already granted never arms the timer at all.
