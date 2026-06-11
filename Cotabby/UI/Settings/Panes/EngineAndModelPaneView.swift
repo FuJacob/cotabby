@@ -201,7 +201,7 @@ struct EngineAndModelPaneView: View {
                     .fixedSize(horizontal: false, vertical: true)
             } label: {
                 SettingsRowLabel(
-                    title: "Status",
+                    title: "Model Status",
                     description: "Whether the local model is loaded and ready to generate. " +
                         "Loading takes a few seconds the first time.",
                     systemImage: "info.circle"
