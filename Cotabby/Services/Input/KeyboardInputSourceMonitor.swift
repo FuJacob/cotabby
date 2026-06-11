@@ -58,7 +58,7 @@ final class KeyboardInputSourceMonitor {
     }
 
     /// Reads the current keyboard input source via TIS and recomputes `isComposingIMEActive`.
-    func refresh() {
+    private func refresh() {
         guard let unmanagedSource = TISCopyCurrentKeyboardInputSource() else {
             isComposingIMEActive = false
             return
