@@ -240,37 +240,111 @@ struct AXTextGeometryResolver {
             contentEdges = nil
         }
 
-        // Find which child contains the caret by matching parent selection against cumulative
-        // text lengths. AX selections use UTF-16 offsets, so we match on NSString length.
-        let caretOffset = parentSelection.location
-        var cumulative = 0
-        for (index, run) in textRuns.enumerated() {
-            let runLen = (run.text as NSString).length
-            if caretOffset <= cumulative + runLen {
-                let localOffset = caretOffset - cumulative
-                let fraction = runLen > 0 ? CGFloat(localOffset) / CGFloat(runLen) : 1.0
-                let cocoaFrame = cocoaRunFrames[index]
-                let caretX = cocoaFrame.minX + fraction * cocoaFrame.width
-                return CaretGeometryResult(
-                    rect: CGRect(
-                        x: caretX, y: cocoaFrame.minY, width: 2, height: cocoaFrame.height),
-                    quality: .derived,
-                    observedCharWidth: charWidth,
-                    observedContentEdges: contentEdges
-                )
-            }
-            cumulative += runLen
+        // Map the caret offset to a run by aligning run texts inside the parent value (see
+        // `caretRunPlacement`). The run frame's Y is a real rendered line position, so a correct
+        // run choice is what makes derived geometry trustworthy vertically.
+        guard let placement = Self.caretRunPlacement(
+            runTexts: textRuns.map(\.text),
+            parentText: parentText,
+            caretOffset: parentSelection.location
+        ) else {
+            return nil
         }
 
-        // Caret is past all children (e.g. newline not included in child text).
-        // Use the last child's trailing edge.
-        let lastFrame = cocoaRunFrames[cocoaRunFrames.count - 1]
+        let runFrame = cocoaRunFrames[placement.runIndex]
+        let caretX = runFrame.minX + placement.fraction * runFrame.width
         return CaretGeometryResult(
-            rect: CGRect(x: lastFrame.maxX, y: lastFrame.minY, width: 2, height: lastFrame.height),
+            rect: CGRect(x: caretX, y: runFrame.minY, width: 2, height: runFrame.height),
             quality: .derived,
             observedCharWidth: charWidth,
             observedContentEdges: contentEdges
         )
+    }
+
+    /// Where the caret landed among the child text runs.
+    ///
+    /// Mapping is text-alignment based: each run's text is located inside the parent value by
+    /// sequential search, and the caret offset (a parent-value coordinate) is tested against the
+    /// matched ranges. The previous cumulative-length mapping silently assumed the parent value is
+    /// the run texts concatenated with nothing in between; Chromium editors separate blocks with
+    /// newlines the runs do not contain, so every line break before the caret dragged the mapping
+    /// one character deeper — several paragraphs in, the caret landed whole visual lines below its
+    /// real run. Alignment is immune to whatever separator convention the host uses, including
+    /// blank lines it collapses out of the value entirely (the gaps just shrink).
+    struct CaretRunPlacement: Equatable {
+        let runIndex: Int
+        /// Position inside the run: 0 is the leading edge, 1 the trailing edge.
+        let fraction: CGFloat
+        /// False when some run text could not be found in the parent value and the mapping fell
+        /// back to the legacy cumulative-length walk.
+        let usedTextAlignment: Bool
+    }
+
+    /// Internal (not private) so the mapping math is unit-testable without live AX elements.
+    static func caretRunPlacement(
+        runTexts: [String],
+        parentText: String,
+        caretOffset: Int
+    ) -> CaretRunPlacement? {
+        guard !runTexts.isEmpty else {
+            return nil
+        }
+        let parent = parentText as NSString
+        let caret = min(max(caretOffset, 0), parent.length)
+
+        // Align every run inside the parent value first; any miss means the host's value does not
+        // literally contain the run text (whitespace rewriting, exotic trees), in which case the
+        // legacy cumulative walk is the safer approximation.
+        var ranges: [NSRange] = []
+        var searchLocation = 0
+        for text in runTexts {
+            let remaining = NSRange(location: searchLocation, length: parent.length - searchLocation)
+            let found = parent.range(of: text, options: [], range: remaining)
+            guard found.location != NSNotFound else {
+                return legacyCumulativePlacement(runTexts: runTexts, caretOffset: caret)
+            }
+            ranges.append(found)
+            searchLocation = found.location + found.length
+        }
+
+        for (index, range) in ranges.enumerated() {
+            if caret < range.location {
+                // The caret sits in the separator gap before this run — a line break, or a blank
+                // line the runs cannot represent. Snap to the nearest rendered edge; either choice
+                // is at most one line from the truth, which text alone cannot resolve.
+                let previousEnd = index > 0 ? ranges[index - 1].location + ranges[index - 1].length : 0
+                if index > 0, caret - previousEnd <= range.location - caret {
+                    return CaretRunPlacement(runIndex: index - 1, fraction: 1, usedTextAlignment: true)
+                }
+                return CaretRunPlacement(runIndex: index, fraction: 0, usedTextAlignment: true)
+            }
+            if caret <= range.location + range.length {
+                let fraction = range.length > 0
+                    ? CGFloat(caret - range.location) / CGFloat(range.length)
+                    : 1
+                return CaretRunPlacement(runIndex: index, fraction: fraction, usedTextAlignment: true)
+            }
+        }
+
+        // Caret beyond every aligned run (e.g. on trailing content the runs do not carry).
+        return CaretRunPlacement(runIndex: runTexts.count - 1, fraction: 1, usedTextAlignment: true)
+    }
+
+    private static func legacyCumulativePlacement(
+        runTexts: [String],
+        caretOffset: Int
+    ) -> CaretRunPlacement {
+        var cumulative = 0
+        for (index, text) in runTexts.enumerated() {
+            let length = (text as NSString).length
+            if caretOffset <= cumulative + length {
+                let local = caretOffset - cumulative
+                let fraction = length > 0 ? CGFloat(local) / CGFloat(length) : 1
+                return CaretRunPlacement(runIndex: index, fraction: fraction, usedTextAlignment: false)
+            }
+            cumulative += length
+        }
+        return CaretRunPlacement(runIndex: runTexts.count - 1, fraction: 1, usedTextAlignment: false)
     }
 
     /// Chromium-based editors sometimes nest text runs under intermediary wrappers (`AXGroup`,
