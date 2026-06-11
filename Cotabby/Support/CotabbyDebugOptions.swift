@@ -16,6 +16,31 @@ enum CotabbyDebugOptions {
         ProcessInfo.processInfo.arguments.contains(launchArgument)
     }
 
+    /// The swift-log floor applied to the always-on `OSLogHandler` and the debug-only file sinks.
+    ///
+    /// swift-log only skips evaluating a log call's `@autoclosure` message (and building its
+    /// metadata) when the handler's `logLevel` is strictly greater than the call's level. The
+    /// handlers previously hardcoded `.trace`, so *every* `.debug`/`.trace` call on the hot path
+    /// (one per keystroke: focus snapshots, routing, generation boundaries) still built its message
+    /// string and metadata dictionary even in release builds where nothing consumed it. That is
+    /// wasted CPU and energy, and it quietly inflates any on-device energy measurement. Defaulting
+    /// the floor to `.info` makes those hot-path calls genuinely free unless verbose logging is
+    /// explicitly requested.
+    ///
+    /// Precedence, highest first:
+    /// 1. `COTABBY_LOG_LEVEL=<trace|debug|info|notice|warning|error|critical>` — explicit override,
+    ///    e.g. to get Console `.debug` output without the heavier `-cotabby-debug` file/screenshot
+    ///    artifacts. An unrecognized value is ignored.
+    /// 2. `-cotabby-debug` — full `.trace` capture to Console and the JSONL sinks.
+    /// 3. Default — `.info`.
+    static var minimumLogLevel: Logging.Logger.Level {
+        if let raw = ProcessInfo.processInfo.environment["COTABBY_LOG_LEVEL"]?.lowercased(),
+           let level = Logging.Logger.Level(rawValue: raw) {
+            return level
+        }
+        return isEnabled ? .trace : .info
+    }
+
     /// Writes a diagnostic line only when the explicit debug launch argument is present.
     ///
     /// Keep this for metadata, not raw user content. Full prompts, OCR text, and screenshots are
@@ -58,11 +83,36 @@ enum CotabbyLogger {
             guard installFileHandler else { return osHandler }
             return MultiplexLogHandler([osHandler, FileLogHandler(label: label)])
         }
+        announceConfiguration(fileSinksInstalled: installFileHandler)
     }()
 
     /// Call once at app startup (e.g. in AppDelegate.init) before any logger is used.
     static func bootstrap() {
         _ = bootstrapOnce
+    }
+
+    /// Emits a single startup line recording the active logging configuration: whether debug mode
+    /// is on, the effective verbosity floor, and where the JSONL sinks live. Logged at `.info` so it
+    /// survives even the default quiet configuration — it is the first thing a developer (or an AI
+    /// debugging agent reading the logs) needs before interpreting anything else, and it makes a
+    /// misconfigured verbosity obvious instead of looking like "nothing is being logged".
+    private static func announceConfiguration(fileSinksInstalled: Bool) {
+        var metadata: Logging.Logger.Metadata = [
+            "debug_mode": .stringConvertible(CotabbyDebugOptions.isEnabled),
+            "min_log_level": .string(CotabbyDebugOptions.minimumLogLevel.rawValue),
+            "file_sinks": .stringConvertible(fileSinksInstalled)
+        ]
+        // Only touch the file writers when sinks are actually installed: referencing `.shared` opens
+        // the on-disk handle, which must never happen in the default (no-sink) configuration.
+        if fileSinksInstalled {
+            if let path = FileLogWriter.shared.fileURL?.path {
+                metadata["event_log"] = .string(path)
+            }
+            if let path = LLMIOFileWriter.shared.fileURL?.path {
+                metadata["llm_io_log"] = .string(path)
+            }
+        }
+        app.info("Logging initialized", metadata: metadata)
     }
 
     static let app = Logger(label: "com.cotabby.app")
@@ -81,7 +131,7 @@ enum CotabbyLogger {
 /// with the correct subsystem, category, and native log level.
 struct OSLogHandler: LogHandler {
     var metadata: Logging.Logger.Metadata = [:]
-    var logLevel: Logging.Logger.Level = .trace
+    var logLevel: Logging.Logger.Level
 
     private let osLogger: os.Logger
 
@@ -90,7 +140,11 @@ struct OSLogHandler: LogHandler {
     /// with one subsystem while still distinguishing components by category.
     private static let subsystem = "com.cotabby.app"
 
-    init(label: String) {
+    /// `logLevel` defaults to `CotabbyDebugOptions.minimumLogLevel` so the always-on Console sink is
+    /// quiet (`.info`) in normal runs and fully verbose (`.trace`) under `-cotabby-debug`. The floor
+    /// is what lets swift-log skip per-keystroke `.debug`/`.trace` calls before they allocate.
+    init(label: String, logLevel: Logging.Logger.Level = CotabbyDebugOptions.minimumLogLevel) {
+        self.logLevel = logLevel
         let parts = label.split(separator: ".", maxSplits: 2)
         let category = parts.count > 2 ? String(parts[2]) : label
         osLogger = os.Logger(subsystem: Self.subsystem, category: category)
