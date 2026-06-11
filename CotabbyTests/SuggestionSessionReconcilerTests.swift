@@ -257,6 +257,62 @@ final class SuggestionSessionReconcilerTests: XCTestCase {
         )
     }
 
+    // MARK: - CJK phrase boundaries
+
+    /// The reported case: a space-less Japanese sentence must not arrive as one giant Tab. The
+    /// ideographic comma is a clause boundary, so phrase accepts advance clause by clause.
+    func test_nextAcceptancePhrase_stopsAtIdeographicComma() {
+        XCTAssertEqual(
+            SuggestionSessionReconciler.nextAcceptancePhrase(from: "理解し、その内容を自分の言葉で表現する。"),
+            "理解し、"
+        )
+    }
+
+    func test_nextAcceptancePhrase_stopsAtIdeographicFullStop() {
+        XCTAssertEqual(
+            SuggestionSessionReconciler.nextAcceptancePhrase(from: "その内容を自分の言葉で表現する。次の文"),
+            "その内容を自分の言葉で表現する。"
+        )
+    }
+
+    func test_nextAcceptancePhrase_stopsAtFullwidthExclamationAndQuestion() {
+        XCTAssertEqual(SuggestionSessionReconciler.nextAcceptancePhrase(from: "すごい！次へ"), "すごい！")
+        XCTAssertEqual(SuggestionSessionReconciler.nextAcceptancePhrase(from: "いいですか？はい"), "いいですか？")
+    }
+
+    /// The closer-walk must work for CJK quotes too: the accumulated tail is `」`, and the
+    /// terminator underneath is the ideographic full stop.
+    func test_nextAcceptancePhrase_walksPastCJKClosingQuote() {
+        XCTAssertEqual(
+            SuggestionSessionReconciler.nextAcceptancePhrase(from: "終わり。」次の文"),
+            "終わり。」"
+        )
+    }
+
+    /// ASCII commas must stay non-boundaries so English phrase cadence is unchanged by the CJK rules.
+    func test_nextAcceptancePhrase_doesNotStopAtAsciiComma() {
+        XCTAssertEqual(
+            SuggestionSessionReconciler.nextAcceptancePhrase(from: "hello, world. next"),
+            "hello, world."
+        )
+    }
+
+    // MARK: - CJK punctuation binding in word chunks
+
+    /// Trailing CJK punctuation binds to the word it follows, so one Tab accepts the word and its
+    /// comma as a unit instead of stranding the comma to lead the next chunk.
+    func test_nextAcceptanceChunk_bindsTrailingIdeographicCommaToWord() {
+        XCTAssertEqual(SuggestionSessionReconciler.nextAcceptanceChunk(from: "資料、内容"), "資料、")
+    }
+
+    /// A punctuation-led tail peels the punctuation run as its own chunk. Before this rule the token
+    /// skipped ICU segmentation (punctuation does not begin a space-less-script word) and the accept
+    /// swallowed everything up to the next whitespace in one chunk.
+    func test_nextAcceptanceChunk_peelsLeadingCJKPunctuationRunInsteadOfSwallowingTheTail() {
+        XCTAssertEqual(SuggestionSessionReconciler.nextAcceptanceChunk(from: "、理解し、その内容"), "、")
+        XCTAssertEqual(SuggestionSessionReconciler.nextAcceptanceChunk(from: "。」次の文"), "。」")
+    }
+
     func test_nextAcceptancePhrase_walksPastDottedInitialsToRealSentenceEnd() {
         // "U.S.A." is a run of single-letter initials, so its interior periods are not sentence
         // ends. SentenceBoundaryClassifier keeps phrase acceptance going until the real terminator

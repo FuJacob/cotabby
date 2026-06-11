@@ -71,7 +71,9 @@ struct DisabledApplicationRule: Codable, Equatable, Identifiable, Sendable {
 enum AcceptanceGranularity: String, CaseIterable, Codable, Sendable {
     /// One word (with the existing trailing-punctuation policy applied per chunk).
     case word
-    /// Words accumulated until a sentence terminator (`.`, `!`, `?`, `\n`) or the tail runs out.
+    /// Words accumulated until a phrase boundary or the tail runs out: a sentence terminator
+    /// (`.`, `!`, `?`, CJK `。！？｡`, `\n`) or a CJK clause comma (`、，`), so space-less scripts
+    /// advance clause by clause instead of a whole sentence per press.
     case phrase
 }
 

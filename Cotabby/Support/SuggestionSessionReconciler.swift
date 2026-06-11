@@ -255,7 +255,16 @@ enum SuggestionSessionReconciler {
         if tokenStart < index,
            remainingText[tokenStart].beginsSpacelessScriptWord,
            let wordEnd = firstSegmentedWordEnd(in: remainingText, from: tokenStart, notPast: index) {
-            index = wordEnd
+            // Bind an immediately following CJK punctuation run to the word so one Tab accepts
+            // "読み、" as a unit. Without this the punctuation would lead the *next* token, and a
+            // punctuation-led token skips ICU segmentation entirely, so in flat text it would swallow
+            // everything up to the next whitespace in a single accept.
+            index = endOfCJKPunctuationRun(in: remainingText, from: wordEnd, notPast: index)
+        } else if tokenStart < index, remainingText[tokenStart].bindsToPrecedingSpacelessWord {
+            // A token can still begin with CJK punctuation when the previous chunk ended exactly at
+            // the word (a typed-through advance, or a pre-fix session). Peel the punctuation run as
+            // its own chunk instead of falling through to the whitespace scan's whole-run cliff.
+            index = endOfCJKPunctuationRun(in: remainingText, from: tokenStart, notPast: index)
         }
 
         if !autoAcceptTrailingPunctuation,
@@ -286,10 +295,27 @@ enum SuggestionSessionReconciler {
         return min(wordEnd, limit)
     }
 
-    /// Accepts a full phrase up to the next sentence terminator (`.`, `!`, `?`, `\n`) or the end
-    /// of the buffered suggestion tail. Composes over `nextAcceptanceChunk` so word-boundary,
-    /// internal-punctuation, and leading-whitespace policy stay identical across the seams of a
-    /// multi-word accept.
+    /// The index just past the contiguous run of word-binding CJK punctuation starting at `start`,
+    /// clamped to `limit`. Returns `start` unchanged when the character there is not such punctuation,
+    /// so the word-binding call site degrades to "no extension".
+    private static func endOfCJKPunctuationRun(
+        in text: String,
+        from start: String.Index,
+        notPast limit: String.Index
+    ) -> String.Index {
+        var cursor = start
+        while cursor < limit, text[cursor].bindsToPrecedingSpacelessWord {
+            cursor = text.index(after: cursor)
+        }
+        return cursor
+    }
+
+    /// Accepts a full phrase up to the next phrase boundary or the end of the buffered suggestion
+    /// tail. Boundaries are sentence terminators (`.`, `!`, `?`, their CJK forms `。！？｡`, `\n`)
+    /// and the CJK clause commas (`、，`), so Japanese/Chinese phrase accepts advance clause by
+    /// clause instead of swallowing a whole space-less sentence in one Tab. Composes over
+    /// `nextAcceptanceChunk` so word-boundary, internal-punctuation, and leading-whitespace policy
+    /// stay identical across the seams of a multi-word accept.
     ///
     /// Newlines need an extra rule: `nextAcceptanceChunk` returns leading whitespace as part of
     /// the next chunk, so a tail like `Hello\nworld` would surface `\n` as the leading character
@@ -339,7 +365,7 @@ enum SuggestionSessionReconciler {
             accumulated += chunk
             working = String(working.dropFirst(chunk.count))
 
-            if endsInSentenceTerminator(accumulated) {
+            if endsAtPhraseBoundary(accumulated) {
                 return accumulated
             }
         }
@@ -347,11 +373,12 @@ enum SuggestionSessionReconciler {
         return accumulated
     }
 
-    /// Tail-end check for sentence terminators that survives closing quotes and brackets, so
-    /// `"done."` and `(yes!)` are recognized as phrase ends even though their final character is
-    /// a closer rather than `.!?`. Walks back past any run of closing punctuation, then checks
-    /// whether the character immediately before that run is a sentence terminator.
-    private static func endsInSentenceTerminator(_ text: String) -> Bool {
+    /// Tail-end check for phrase boundaries that survives closing quotes and brackets, so
+    /// `"done."`, `(yes!)`, and `終わり。」` are recognized as phrase ends even though their final
+    /// character is a closer rather than the terminator itself. Walks back past any run of closing
+    /// punctuation, then checks whether the character immediately before that run ends a sentence or
+    /// a CJK clause.
+    private static func endsAtPhraseBoundary(_ text: String) -> Bool {
         var index = text.endIndex
         while index > text.startIndex {
             let prev = text.index(before: index)
@@ -365,12 +392,20 @@ enum SuggestionSessionReconciler {
             return false
         }
         let prev = text.index(before: index)
+        // The ideographic / fullwidth comma marks a clause boundary in CJK prose. Space-less scripts
+        // have no whitespace rhythm, so without this stop a Japanese phrase accept swallows an entire
+        // sentence in one Tab; with it, Tab advances clause by clause. ASCII "," is deliberately NOT
+        // a boundary, so English phrase cadence is unchanged.
+        if text[prev].isPhraseClauseBoundary {
+            return true
+        }
         guard text[prev].isPhraseSentenceTerminator else {
             return false
         }
-        // `!` and `?` always end a sentence. A period is ambiguous: decimals, list/ordinal numbers,
-        // single-letter initials, and common abbreviations are not sentence ends, so consult the
-        // classifier rather than treating every "." as terminal.
+        // `!`/`?` and the CJK terminators always end a sentence. An ASCII period is ambiguous:
+        // decimals, list/ordinal numbers, single-letter initials, and common abbreviations are not
+        // sentence ends, so consult the classifier rather than treating every "." as terminal. The
+        // ideographic `。` has no such ambiguity (it never marks decimals or abbreviations).
         if text[prev] == "." {
             return SentenceBoundaryClassifier.isTerminalPeriod(in: text, at: prev)
         }
@@ -544,19 +579,45 @@ private extension Character {
         isLetter || isNumber
     }
 
-    /// Sentence-ending punctuation for phrase mode. `\n` is handled separately because it can
-    /// appear inside a leading-whitespace prefix of a composed chunk rather than at the chunk's
-    /// tail end.
+    /// Sentence-ending punctuation for phrase mode, in both ASCII and CJK forms: `.` `!` `?` plus the
+    /// ideographic full stop `。`, fullwidth `！` `？`, and the halfwidth ideographic stop `｡`. `\n` is
+    /// handled separately because it can appear inside a leading-whitespace prefix of a composed chunk
+    /// rather than at the chunk's tail end.
     var isPhraseSentenceTerminator: Bool {
         self == "." || self == "!" || self == "?"
+            || self == "\u{3002}" || self == "\u{FF01}" || self == "\u{FF1F}" || self == "\u{FF61}"
+    }
+
+    /// Clause-boundary punctuation for phrase mode: the ideographic comma `、` and fullwidth comma
+    /// `，`. CJK prose marks its natural pause points with these rather than whitespace, so phrase
+    /// acceptance treats them as boundaries to advance clause by clause instead of swallowing a whole
+    /// sentence per Tab. Both codepoints occur only in CJK text, and ASCII "," is deliberately
+    /// excluded, so space-delimited scripts never stop at a comma.
+    var isPhraseClauseBoundary: Bool {
+        self == "\u{3001}" || self == "\u{FF0C}"
     }
 
     /// Closing punctuation that may follow a sentence terminator in prose: straight + curly
-    /// quotes, parentheses, square brackets, and braces. The phrase scanner walks back past a
-    /// run of these to find the real sentence terminator underneath, so `"done."` stops as a
-    /// complete sentence even though its final character is the closing quote.
+    /// quotes, parentheses, square brackets, and braces, plus the CJK closers (corner brackets,
+    /// fullwidth parenthesis, lenticular and angle brackets). The phrase scanner walks back past a
+    /// run of these to find the real sentence terminator underneath, so `"done."` and `終わり。」`
+    /// stop as complete sentences even though their final character is the closer.
     var isPhraseClosingPunctuation: Bool {
         self == "\"" || self == "'" || self == ")" || self == "]" || self == "}"
             || self == "\u{201D}" || self == "\u{2019}"
+            || self == "\u{300D}" || self == "\u{300F}" || self == "\u{FF09}"
+            || self == "\u{3011}" || self == "\u{3009}" || self == "\u{300B}"
+    }
+
+    /// CJK punctuation that binds to the space-less word it follows for acceptance chunking: clause
+    /// commas, sentence terminators, and closing brackets/quotes. One Tab then accepts `読み、` as a
+    /// unit, and a chunk can never start at a punctuation cliff that would swallow the rest of the
+    /// run. Opening brackets are excluded because they belong to the next word, and ASCII punctuation
+    /// is excluded so this set can never affect space-delimited text.
+    var bindsToPrecedingSpacelessWord: Bool {
+        isPhraseClauseBoundary
+            || self == "\u{3002}" || self == "\u{FF01}" || self == "\u{FF1F}" || self == "\u{FF61}"
+            || self == "\u{300D}" || self == "\u{300F}" || self == "\u{FF09}"
+            || self == "\u{3011}" || self == "\u{3009}" || self == "\u{300B}"
     }
 }
