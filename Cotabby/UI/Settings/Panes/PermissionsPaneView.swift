@@ -41,7 +41,6 @@ struct PermissionsPaneView: View {
                         "context. Without it, Cotabby runs in Fast Mode using only the text you've typed.",
                     systemImage: "camera.viewfinder",
                     granted: permissionManager.screenRecordingGranted,
-                    isOptional: true,
                     permissionGuidanceController: permissionGuidanceController
                 )
             }
@@ -79,23 +78,25 @@ private struct SettingsPermissionRow: View {
     let description: String
     let systemImage: String
     let granted: Bool
-    var isOptional: Bool = false
     let permissionGuidanceController: PermissionGuidanceController
 
     @State private var actionButtonFrame: CGRect = .zero
 
     var body: some View {
         HStack(spacing: 10) {
-            SettingsRowLabel(title: permission.title, description: description, systemImage: systemImage)
+            SettingsRowLabel(title: permission.compactRowTitle, description: description, systemImage: systemImage)
             Spacer(minLength: 0)
-            // An ungranted optional permission reads as a neutral "Off" rather than the orange
-            // "Needs Access" used for required ones, so it never looks like a broken setup.
-            Text(granted ? "Granted" : (isOptional ? "Off" : "Needs Access"))
+            // Optional permissions reuse the required rows' styling and read as real permissions; the
+            // "(Optional)" suffix in `compactRowTitle` is what marks them optional, not a separate
+            // neutral "Off" state or "Enable" verb. The pane-level warning callout still fires for
+            // required permissions only, so nothing here claims autocomplete is broken when just
+            // Screen Recording is missing.
+            Text(granted ? "Granted" : "Needs Access")
                 .font(.caption.weight(.medium))
-                .foregroundStyle(granted ? .green : (isOptional ? .secondary : .orange))
+                .foregroundStyle(granted ? .green : .orange)
 
             if !granted {
-                Button(isOptional ? "Enable" : "Grant Access") {
+                Button("Grant Access") {
                     permissionGuidanceController.requestAccess(
                         for: permission,
                         sourceFrameInScreen: actionButtonFrame

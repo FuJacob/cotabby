@@ -39,6 +39,15 @@ enum CotabbyPermissionKind: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
+    /// Title for the compact permission rows (menu-bar panel, Settings list), with an "(Optional)"
+    /// qualifier appended for enhancement permissions. Those rows reuse the required rows' styling so
+    /// the permission reads as a real, grantable permission rather than a separate feature toggle, and
+    /// this suffix is the only thing that marks it optional there. Card surfaces (onboarding, the
+    /// reminder window) carry their own "Optional" capsule instead, so they keep using `title`.
+    var compactRowTitle: String {
+        isOptionalEnhancement ? "\(title) (Optional)" : title
+    }
+
     var systemImageName: String {
         switch self {
         case .accessibility:

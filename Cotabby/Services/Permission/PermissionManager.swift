@@ -111,6 +111,15 @@ final class PermissionManager: ObservableObject {
             .allSatisfy(isGranted(_:))
     }
 
+    /// Whether every permission Cotabby can use (required ones plus the optional Screen Recording
+    /// enhancement) is granted. Surfaces that list all permissions (the menu-bar Permissions card)
+    /// use this so they keep showing the still-missing optional permission instead of vanishing as
+    /// soon as the required ones are satisfied. Does not gate autocomplete; that stays on
+    /// `requiredPermissionsGranted`.
+    var allPermissionsGranted: Bool {
+        CotabbyPermissionKind.allCases.allSatisfy(isGranted(_:))
+    }
+
     /// Shared opener used by onboarding and the menu-bar shortcuts.
     func openSettings(for permission: CotabbyPermissionKind) {
         NSWorkspace.shared.open(permission.settingsURL)

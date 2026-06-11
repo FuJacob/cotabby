@@ -120,9 +120,10 @@ private struct ReminderPermissionCard: View {
                 }
                 .foregroundStyle(.green)
             } else if isOptional {
-                // Lower-emphasis bordered button so the optional row never competes visually with the
-                // required Allow buttons above it.
-                Button("Enable") {
+                // Same "Allow" verb as the required rows (never a "feature toggle" like Enable), but a
+                // lower-emphasis bordered button so the optional row never competes visually with the
+                // required Allow buttons above it in this "Permissions needed" modal.
+                Button("Allow") {
                     permissionGuidanceController.requestAccess(
                         for: permission,
                         sourceFrameInScreen: actionButtonFrame

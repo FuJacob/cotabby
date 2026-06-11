@@ -233,8 +233,12 @@ struct MenuBarView: View {
 
     // MARK: - Permissions (conditional)
 
-    /// Only appears when at least one permission is missing. Once all are granted, this
-    /// section vanishes — no wasted space on resolved state.
+    /// Lists every permission Cotabby can use and appears whenever at least one is missing, including
+    /// the optional Screen Recording enhancement. Each row carries its own grant state, so the card
+    /// keeps showing the still-missing permission until nothing is left to grant, then vanishes.
+    /// Screen Recording is surfaced as a normal "(Optional)" permission row rather than hidden or
+    /// shown as a feature toggle, but it never blocks autocomplete (see
+    /// `CotabbyPermissionKind.isRequiredForAutocomplete`).
     @ViewBuilder
     private var permissionsCard: some View {
         if !allPermissionsGranted {
@@ -243,9 +247,9 @@ struct MenuBarView: View {
                     .font(.subheadline.weight(.medium))
                     .padding(.bottom, 2)
 
-                ForEach(CotabbyPermissionKind.allCases.filter(\.isRequiredForAutocomplete)) { permission in
+                ForEach(CotabbyPermissionKind.allCases) { permission in
                     PermissionRow(
-                        title: permission.title,
+                        title: permission.compactRowTitle,
                         granted: permissionManager.isGranted(permission),
                         action: { sourceFrameInScreen in
                             permissionGuidanceController.requestAccess(
@@ -446,7 +450,7 @@ struct MenuBarView: View {
     // MARK: - Derived state
 
     private var allPermissionsGranted: Bool {
-        permissionManager.requiredPermissionsGranted
+        permissionManager.allPermissionsGranted
     }
 
     /// Fast Mode is forced on and locked while Screen Recording is unavailable, since visual context
