@@ -147,14 +147,23 @@ final class FileLogWriter: @unchecked Sendable {
 /// top-level keys so they can be filtered with `jq` without unpacking strings.
 struct FileLogHandler: LogHandler {
     var metadata: Logging.Logger.Metadata = [:]
-    var logLevel: Logging.Logger.Level = .trace
+    var logLevel: Logging.Logger.Level
 
     private let label: String
     private let writer: FileLogWriter
 
-    init(label: String, writer: FileLogWriter = .shared) {
+    /// `logLevel` defaults to `CotabbyDebugOptions.minimumLogLevel`. This sink is only installed
+    /// under `-cotabby-debug`, where the floor is `.trace`, so it captures everything by default —
+    /// but sourcing the level from the same place keeps it honest if the floor is overridden via
+    /// `COTABBY_LOG_LEVEL`.
+    init(
+        label: String,
+        writer: FileLogWriter = .shared,
+        logLevel: Logging.Logger.Level = CotabbyDebugOptions.minimumLogLevel
+    ) {
         self.label = label
         self.writer = writer
+        self.logLevel = logLevel
     }
 
     subscript(metadataKey key: String) -> Logging.Logger.Metadata.Value? {

@@ -105,6 +105,13 @@ Cotabby ships a structured logging system built for AI-assisted debugging. Durin
 the app is launched with `-cotabby-debug`, which enables on-disk JSONL sinks in addition to
 the always-on Console.app stream.
 
+**Verbosity floor.** Every handler's level comes from `CotabbyDebugOptions.minimumLogLevel`. The
+default is `.info`, which lets swift-log skip per-keystroke `.debug`/`.trace` calls before they
+allocate, so they cost nothing in release and do not distort energy measurements. `-cotabby-debug`
+raises the floor to `.trace`. `COTABBY_LOG_LEVEL=<trace|debug|info|...>` overrides it explicitly,
+e.g. to get Console `.debug` output without the heavier file/screenshot artifacts. A
+`Logging initialized` line at startup records the active `debug_mode`, `min_log_level`, and sink paths.
+
 **Log file locations** (only populated when `-cotabby-debug` is set):
 
 - `~/Library/Logs/Cotabby/cotabby.jsonl` — main event stream. One JSON object per line. All
@@ -158,6 +165,11 @@ jq 'select(.category == "runtime")' ~/Library/Logs/Cotabby/cotabby.jsonl
 log show --predicate 'subsystem == "com.cotabby.app"' --last 10m
 log stream --predicate 'subsystem == "com.cotabby.app"' --level debug
 ```
+
+Note the default verbosity floor is `.info`, so Cotabby's `.debug`/`.trace` lines are not emitted
+unless the app was launched with `-cotabby-debug` or `COTABBY_LOG_LEVEL=debug`. The `--level debug`
+flag above controls what `log` *displays*, not what Cotabby *emits*. The `.info`, warning, and error
+lines (including model-load config and permission transitions) always stream.
 
 **Rule of thumb.** When a user reports a bug, first `tail` / `jq` the relevant file with the
 symptom → category map. Do not ask the user to re-explain symptoms before checking the logs.
