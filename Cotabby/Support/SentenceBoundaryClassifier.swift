@@ -39,12 +39,11 @@ enum SentenceBoundaryClassifier {
         switch text[lastIndex] {
         case "!", "?":
             return true
-        // CJK sentence terminators: the ideographic full stop, fullwidth `！` `？`, and the halfwidth
-        // ideographic stop. Unlike the ASCII period these are unambiguous (they never mark decimals,
-        // list numbers, or abbreviations), so they are terminal without classifier disambiguation.
-        // Without these a Japanese completion never registers a sentence end and generation always
-        // runs to the token budget, which is why CJK suggestions came out so long.
-        case "\u{3002}", "\u{FF01}", "\u{FF1F}", "\u{FF61}":
+        // The shared CJK terminator set (see `Character.isCJKSentenceTerminator`): unambiguous, so
+        // terminal without the period disambiguation below. Without these a Japanese completion never
+        // registers a sentence end and generation always runs to the token budget, which is why CJK
+        // suggestions came out so long.
+        case let character where character.isCJKSentenceTerminator:
             return true
         case ".":
             return isTerminalPeriod(in: text, at: lastIndex)
@@ -104,14 +103,12 @@ enum SentenceBoundaryClassifier {
 
 private extension Character {
     /// Closing punctuation that may follow a sentence terminator: straight and curly quotes,
-    /// parentheses, square brackets, and braces, plus the CJK closers (corner brackets, fullwidth
-    /// parenthesis, lenticular and angle brackets). `endsSentence` walks back past a run of these to
-    /// find the real terminator underneath, so `"done."`, `(stop!)`, and `終わり。」` register as
+    /// parentheses, square brackets, and braces, plus the shared CJK closer set (see
+    /// `Character.isCJKClosingPunctuation`). `endsSentence` walks back past a run of these to find
+    /// the real terminator underneath, so `"done."`, `(stop!)`, and `終わり。」` register as
     /// sentence ends.
     var isSentenceClosingPunctuation: Bool {
         self == "\"" || self == "'" || self == ")" || self == "]" || self == "}"
-            || self == "\u{201D}" || self == "\u{2019}"
-            || self == "\u{300D}" || self == "\u{300F}" || self == "\u{FF09}"
-            || self == "\u{3011}" || self == "\u{3009}" || self == "\u{300B}" || self == "\u{FF63}"
+            || self == "\u{201D}" || self == "\u{2019}" || isCJKClosingPunctuation
     }
 }

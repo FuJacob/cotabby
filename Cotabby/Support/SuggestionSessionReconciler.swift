@@ -562,6 +562,28 @@ private extension String {
     }
 }
 
+/// The CJK punctuation primitives, internal because they are the single source of truth shared by
+/// this file's acceptance policy and `SentenceBoundaryClassifier`'s sentence-end detection. Adding a
+/// codepoint here updates phrase boundaries, chunk binding, and the generation stop in one edit.
+extension Character {
+    /// The CJK sentence terminators: ideographic full stop `。`, fullwidth `！` `？`, and the halfwidth
+    /// ideographic stop `｡`. Unlike the ASCII period these are unambiguous (they never mark decimals,
+    /// list numbers, or abbreviations), so every consumer treats them as terminal without classifier
+    /// disambiguation.
+    var isCJKSentenceTerminator: Bool {
+        self == "\u{3002}" || self == "\u{FF01}" || self == "\u{FF1F}" || self == "\u{FF61}"
+    }
+
+    /// The CJK closing punctuation: corner brackets `」` `』` (and the halfwidth corner `｣`),
+    /// fullwidth parenthesis `）`, lenticular bracket `】`, and angle brackets `〉` `》`. Walk-backs
+    /// skip a run of these to find the real terminator underneath, and chunk binding attaches them to
+    /// the word they close.
+    var isCJKClosingPunctuation: Bool {
+        self == "\u{300D}" || self == "\u{300F}" || self == "\u{FF09}"
+            || self == "\u{3011}" || self == "\u{3009}" || self == "\u{300B}" || self == "\u{FF63}"
+    }
+}
+
 private extension Character {
     /// True when the character begins a word of a space-less script (Han, Hiragana, Katakana, Hangul,
     /// Thai, Lao, Khmer, Myanmar, ...). These scripts write words without separating spaces, so the
@@ -595,24 +617,6 @@ private extension Character {
     /// can be peeled into its own acceptance part when auto-accept is disabled.
     var isAcceptanceWordCharacter: Bool {
         isLetter || isNumber
-    }
-
-    /// The CJK sentence terminators: ideographic full stop `。`, fullwidth `！` `？`, and the halfwidth
-    /// ideographic stop `｡`. Declared once so `isPhraseSentenceTerminator` (phrase ends) and
-    /// `bindsToPrecedingSpacelessWord` (chunk binding) share one list instead of each restating the
-    /// four codepoints and silently drifting when one is updated.
-    var isCJKSentenceTerminator: Bool {
-        self == "\u{3002}" || self == "\u{FF01}" || self == "\u{FF1F}" || self == "\u{FF61}"
-    }
-
-    /// The CJK closing punctuation: corner brackets `」` `』` (and the halfwidth corner `｣`),
-    /// fullwidth parenthesis `）`, lenticular bracket `】`, and angle brackets `〉` `》`. Declared
-    /// once so `isPhraseClosingPunctuation` (the closer walk-back) and
-    /// `bindsToPrecedingSpacelessWord` (chunk binding) share one list instead of each restating the
-    /// codepoints.
-    var isCJKClosingPunctuation: Bool {
-        self == "\u{300D}" || self == "\u{300F}" || self == "\u{FF09}"
-            || self == "\u{3011}" || self == "\u{3009}" || self == "\u{300B}" || self == "\u{FF63}"
     }
 
     /// The CJK opening brackets: corner brackets `「` `『` (and the halfwidth corner `｢`), fullwidth
