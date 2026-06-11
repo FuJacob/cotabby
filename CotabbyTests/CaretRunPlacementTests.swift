@@ -130,4 +130,43 @@ final class CaretRunPlacementTests: XCTestCase {
     func test_placement_emptyRunListReturnsNil() {
         XCTAssertNil(placement(runs: [], parent: "aa", caret: 1))
     }
+
+    // MARK: - Field regression (captured Gmail value, 2026-06-11)
+
+    /// Verbatim shape captured from a real Gmail compose via the llm-io stream: the parent value
+    /// flattens visual lines with single spaces (or none), and the run texts are the individual
+    /// rendered lines. The caret was at the end, on the last short "hi" line; every earlier
+    /// mapping placed it lines away. This is the exact data the alignment must survive.
+    func test_placement_capturedGmailFlatValueMapsCaretToItsRealLine() {
+        let runs = [
+            "hi how's",
+            "i want to know if there is a way to get the points i lost it 'secho the quick brown fox is",
+            " hi how's it",
+            "hi",
+            "i wanted to",
+            "hi"
+        ]
+        let parent = "hi how's i want to know if there is a way to get the points i lost it 'secho "
+            + "the quick brown fox is hi how's it hi i wanted to hi"
+        let caret = (parent as NSString).length
+
+        let atEnd = placement(runs: runs, parent: parent, caret: caret)
+        XCTAssertEqual(atEnd, Placement(runIndex: 5, fraction: 1, mode: .aligned))
+
+        // Caret at the end of the long wrapped paragraph ("...brown fox is|"): must stay on that
+        // run, not bleed into the " hi how's it" line that follows with no separator but its own
+        // leading space.
+        let foxLineEnd = (parent as NSString).range(of: "brown fox is").upperBound
+        let midDocument = placement(runs: runs, parent: parent, caret: foxLineEnd)
+        XCTAssertEqual(midDocument?.runIndex, 1)
+        XCTAssertEqual(midDocument?.fraction ?? -1, 1, accuracy: 0.001)
+        XCTAssertEqual(midDocument?.mode, .aligned)
+
+        // Caret mid-"i wanted to" (the line every stale mapping kept landing on): maps there only
+        // when the offset genuinely points there.
+        let wantedStart = (parent as NSString).range(of: " i wanted to").location + 1
+        let midWanted = placement(runs: runs, parent: parent, caret: wantedStart + 5)
+        XCTAssertEqual(midWanted?.runIndex, 4)
+        XCTAssertEqual(midWanted?.mode, .aligned)
+    }
 }

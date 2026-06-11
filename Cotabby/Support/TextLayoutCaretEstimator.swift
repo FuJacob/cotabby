@@ -27,8 +27,8 @@ import Foundation
 enum TextLayoutCaretEstimator {
     /// Everything the estimator needs, captured as plain values so the helper stays pure and
     /// trivially testable. The caller (coordinator) owns deciding *when* estimation applies;
-    /// this type only describes one attempt.
-    struct Input {
+    /// this type only describes one attempt. `Equatable` powers the single-entry memo below.
+    struct Input: Equatable {
         /// Text before the caret. Callers append any synthetic insertion the host has not
         /// published yet, so the layout reflects what is actually on screen.
         let precedingText: String
@@ -149,7 +149,22 @@ enum TextLayoutCaretEstimator {
         static let widthSampleText = "the quick brown fox jumps over the lazy dog, The Quick 0123456789. "
     }
 
+    /// Single-entry memo. Reconcile ticks re-present with byte-identical inputs several times per
+    /// second while a ghost is visible, and the layout is a pure function of its input, so one
+    /// cached outcome removes the TextKit recompute from the per-keystroke path. One entry is
+    /// enough: consecutive presents only diverge when the text or field actually changed.
+    private static var memo: (input: Input, outcome: Outcome)?
+
     static func estimate(for input: Input) -> Outcome {
+        if let memo, memo.input == input {
+            return memo.outcome
+        }
+        let outcome = computeEstimate(for: input)
+        memo = (input, outcome)
+        return outcome
+    }
+
+    private static func computeEstimate(for input: Input) -> Outcome {
         if input.prefixMayBeTruncated {
             return .rejected(.prefixTruncated)
         }

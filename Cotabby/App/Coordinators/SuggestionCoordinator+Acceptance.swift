@@ -633,8 +633,9 @@ extension SuggestionCoordinator {
     ///   - `.estimated` (AXFrame-only hosts): the AX guess has no real position at all, so a
     ///     passing estimate always replaces it.
     ///   - `.derived` with measured run frames (Gmail/Outlook child-run hosts): the rect's Y is a
-    ///     real rendered line, so it is always kept; the layout estimate cannot beat measurement
-    ///     (and is blind to blank lines those hosts collapse out of the AX text).
+    ///     real rendered line, so it is always kept and the estimator does not run at all; the
+    ///     layout estimate cannot beat measurement (and is blind to blank lines those hosts
+    ///     collapse out of the AX text).
     ///   - `.derived` without run frames (previous-character bounds): the estimate (calibrated
     ///     with whatever the host revealed) only overrides the AX rect when the two disagree
     ///     vertically by more than `verticallyAgrees` tolerates; on agreement the AX rect is kept.
@@ -661,6 +662,15 @@ extension SuggestionCoordinator {
             return LayoutRepairedAnchor(rect: fallbackRect, quality: quality, outcome: nil)
         }
 
+        // Run-measured derived rects are kept unconditionally — run frames carry the host's real
+        // line positions, including blank lines some hosts omit from the AX text — so skip the
+        // estimator entirely instead of computing a diagnostic it can never act on. This path runs
+        // inside the accept keystroke's handling window, where every spent millisecond of layout
+        // work on a large flat prefix is pure risk during a rapid Tab burst.
+        if quality == .derived, context.observedContentEdges != nil {
+            return LayoutRepairedAnchor(rect: fallbackRect, quality: .derived, outcome: nil)
+        }
+
         // A `.derived` rect's height is a real rendered line box (child-run frame height); the
         // `.estimated` AXFrame fallback's height is the whole field, which the estimator's
         // sanitizer would discard anyway — pass it for derived geometry only.
@@ -682,20 +692,9 @@ extension SuggestionCoordinator {
         let outcome = TextLayoutCaretEstimator.estimate(for: input)
         switch outcome {
         case .estimate(let estimate):
-            if quality == .derived {
-                if context.observedContentEdges != nil {
-                    // This derived rect was measured from child-run frames, which carry the host's
-                    // real line positions — including blank lines that hosts like Gmail omit from
-                    // the AX text entirely. The doc-stacked layout estimate cannot see those
-                    // blanks (it would sit one line high per collapsed blank), so it must never
-                    // override a run-measured rect. The estimate is still computed for the
-                    // diagnostic delta in the repair log.
-                    return LayoutRepairedAnchor(rect: fallbackRect, quality: .derived, outcome: outcome)
-                }
-                if verticallyAgrees(estimate: estimate, axRect: fallbackRect) {
-                    // Same line: keep the AX rect, whose X carries the host's real glyph positions.
-                    return LayoutRepairedAnchor(rect: fallbackRect, quality: .derived, outcome: outcome)
-                }
+            if quality == .derived, verticallyAgrees(estimate: estimate, axRect: fallbackRect) {
+                // Same line: keep the AX rect, whose X carries the host's real glyph positions.
+                return LayoutRepairedAnchor(rect: fallbackRect, quality: .derived, outcome: outcome)
             }
             return LayoutRepairedAnchor(rect: estimate.caretRect, quality: .layoutEstimated, outcome: outcome)
         case .rejected:
@@ -742,8 +741,15 @@ extension SuggestionCoordinator {
             "stage": .string("caret-layout-repair"),
             "work_id": .stringConvertible(currentWorkID),
             "request_id": .string(latestRequestID ?? "req_none"),
-            "caret_source": .string(context.caretSource)
+            "caret_source": .string(context.caretSource),
+            // Absolute geometry of the anchor that will actually be shown, so field reports can be
+            // checked numerically against a known page layout instead of eyeballing screenshots.
+            "anchor_x": .stringConvertible(Double(anchor.rect.midX)),
+            "anchor_mid_y": .stringConvertible(Double(anchor.rect.midY))
         ]
+        if let fieldFrame = context.inputFrameRect {
+            metadata["field_top_y"] = .stringConvertible(Double(fieldFrame.maxY))
+        }
         switch outcome {
         case .estimate(let estimate):
             let substituted = anchor.quality == .layoutEstimated

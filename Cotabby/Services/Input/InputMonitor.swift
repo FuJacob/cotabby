@@ -467,6 +467,16 @@ final class InputMonitor {
             return Unmanaged.passUnretained(event)
 
         case .keyDown:
+            // Identity first: every event the inserter posts carries the synthetic marker, which
+            // survives any counter race. The countdown alone proved leaky under rapid accept
+            // bursts (async tap delivery interleaves chunks), and one leaked synthetic keydown
+            // classified as typing is enough to invalidate the very suggestion being accepted.
+            if suppressionController.isSynthetic(event) {
+                _ = suppressionController.consumeIfNeeded()
+                onSuppressedSyntheticInput?()
+                return Unmanaged.passUnretained(event)
+            }
+
             if suppressionController.consumeIfNeeded() {
                 onSuppressedSyntheticInput?()
                 return Unmanaged.passUnretained(event)

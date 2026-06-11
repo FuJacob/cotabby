@@ -154,7 +154,9 @@ final class SuggestionCaretLayoutRepairTests: XCTestCase {
         // Same wrong-looking vertical gap as the mismatch test, but this rect came from measured
         // child-run frames (content edges present). Run frames carry the host's real line
         // positions — including blank lines Gmail collapses out of the AX text — so the
-        // blank-blind layout estimate must never override them.
+        // blank-blind layout estimate must never override them. The estimator is skipped outright
+        // (nil outcome): this path runs inside the accept keystroke's handling window, where
+        // layout work on a large flat prefix is pure risk during a rapid Tab burst.
         let frame = CGRect(x: 0, y: 0, width: 300, height: 120)
         let axRect = CGRect(x: 50, y: 52, width: 2, height: 16)
         let context = CotabbyTestFixtures.focusedInputContext(
@@ -174,9 +176,7 @@ final class SuggestionCaretLayoutRepairTests: XCTestCase {
 
         XCTAssertEqual(anchor.quality, .derived)
         XCTAssertEqual(anchor.rect, axRect)
-        guard case .estimate = anchor.outcome else {
-            return XCTFail("Expected a diagnostic estimate outcome, got \(String(describing: anchor.outcome))")
-        }
+        XCTAssertNil(anchor.outcome)
     }
 
     func test_layoutRepair_derivedKeepsAXRectWhenEstimatorRejects() {

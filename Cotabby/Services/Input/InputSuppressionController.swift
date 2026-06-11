@@ -14,6 +14,11 @@ final class InputSuppressionController {
     private var remainingKeyDownSuppressions = 0
     private var suppressionExpiry = Date.distantPast
 
+    // All stored state is plain value types, safe to release from any thread. The nonisolated
+    // deinit avoids the isolated-deinit back-deploy double-free that crashes app-hosted tests
+    // when a @MainActor class with stored properties deallocates (see SuggestionSettingsModel).
+    nonisolated deinit {}
+
     /// Stamped onto Cotabby's synthetic insertion events so any tap can recognize them by identity,
     /// not just the listen-only observer's countdown. The consuming accept tap needs this: the
     /// inserter posts with `virtualKey: 0`, so if a user binds the accept key to keyCode 0 the accept
@@ -22,8 +27,18 @@ final class InputSuppressionController {
     static let syntheticEventUserData: Int64 = 0x436F_7461_6262_79
 
     /// Arms a short-lived suppression window for the synthetic keydown events Cotabby is about to post.
+    ///
+    /// Accumulates instead of overwriting: event-tap delivery is asynchronous, so a rapid accept
+    /// burst arms the next chunk's suppressions while the previous chunk's synthetic keydowns are
+    /// still in flight. Overwriting reset the counter mid-burst, the earlier chunk's events drained
+    /// the new tokens, and the later chunk's tail leaked into the observer as "user typing" —
+    /// which invalidated the very suggestion the user was busy accepting. The expiry (refreshed on
+    /// each arm) still bounds the accumulated count to roughly one second of inserts.
     func registerSyntheticInsertion(expectedKeyDownCount: Int) {
-        remainingKeyDownSuppressions = max(expectedKeyDownCount, 0)
+        if Date() > suppressionExpiry {
+            remainingKeyDownSuppressions = 0
+        }
+        remainingKeyDownSuppressions += max(expectedKeyDownCount, 0)
         suppressionExpiry = Date().addingTimeInterval(1.0)
         CotabbyLogger.app.trace("Suppression armed for \(expectedKeyDownCount) synthetic key event(s)")
     }

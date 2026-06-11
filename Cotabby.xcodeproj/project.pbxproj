@@ -49,6 +49,7 @@
 		0E4009CFC86608F055909967 /* PerformanceMetricsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 979A7867966180A545BB44C4 /* PerformanceMetricsStore.swift */; };
 		0ED2E5A4C1F80E3B5B767596 /* MenuBarStatusLabelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD42C7E2852F59BEF7972663 /* MenuBarStatusLabelView.swift */; };
 		0F3267956257401F39386773 /* SuggestionOverlayStabilityGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2F95847D76893C8A5B504B4 /* SuggestionOverlayStabilityGate.swift */; };
+		0FCBF2250722780E46A92EE6 /* InputSuppressionControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01F583E92B0A78212B330E6E /* InputSuppressionControllerTests.swift */; };
 		0FF600435A2EFA9437E36B6F /* EmojiVariantResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A8414BEB7E34F57607E37FE /* EmojiVariantResolver.swift */; };
 		1003373E13779882503C0E9D /* DisplayCoordinateConverter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74BD1D4DB27D5D96D1E06096 /* DisplayCoordinateConverter.swift */; };
 		1059A308A31A94576FF29CF0 /* EmojiRecents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E72A3972E15749337539C2D /* EmojiRecents.swift */; };
@@ -588,6 +589,7 @@
 		003594B09C83EF2DF35577D5 /* SuggestionDebugLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionDebugLogger.swift; sourceTree = "<group>"; };
 		00824BDD8D0E9B3063827C78 /* MenuBarPresentationObserver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarPresentationObserver.swift; sourceTree = "<group>"; };
 		01B72736E416910878E8E493 /* OnboardingTemplateRecommenderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingTemplateRecommenderTests.swift; sourceTree = "<group>"; };
+		01F583E92B0A78212B330E6E /* InputSuppressionControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputSuppressionControllerTests.swift; sourceTree = "<group>"; };
 		023144451BB30F981D1F9EE6 /* EmojiPopularityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiPopularityTests.swift; sourceTree = "<group>"; };
 		033A468451259A3214EECBE5 /* InlinePreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InlinePreviewView.swift; sourceTree = "<group>"; };
 		0348A7053E5683C68879A71A /* SpellingLanguageResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpellingLanguageResolver.swift; sourceTree = "<group>"; };
@@ -1247,6 +1249,7 @@
 				335BF59EE80F3A0143B79740 /* GhostFontSizeStabilizerTests.swift */,
 				5AD3F4F9FBE82007E4E15F58 /* GhostSuggestionLayoutTests.swift */,
 				BAC01317B0B68E3C4125E421 /* InputMonitorTests.swift */,
+				01F583E92B0A78212B330E6E /* InputSuppressionControllerTests.swift */,
 				43D627C4A55359EAF4676FF7 /* InsertionSafetyGateTests.swift */,
 				2960080A726E51198225147A /* InsertionStrategySelectorTests.swift */,
 				4793D4EA5D36D7E5CC216C27 /* LanguageSupportTests.swift */,
@@ -2167,6 +2170,7 @@
 				2EE05B312C990104BE934772 /* GhostFontSizeStabilizerTests.swift in Sources */,
 				A0BB87E3665EF6C209034798 /* GhostSuggestionLayoutTests.swift in Sources */,
 				07D046D406411ED85AC5758A /* InputMonitorTests.swift in Sources */,
+				0FCBF2250722780E46A92EE6 /* InputSuppressionControllerTests.swift in Sources */,
 				83EC3543DC45B1601F119BF9 /* InsertionSafetyGateTests.swift in Sources */,
 				FC255241A3B34A5717F09B36 /* InsertionStrategySelectorTests.swift in Sources */,
 				E912D4617AE1376061DF1F00 /* LanguageSupportTests.swift in Sources */,
