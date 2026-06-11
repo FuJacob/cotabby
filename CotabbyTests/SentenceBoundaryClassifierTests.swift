@@ -76,4 +76,30 @@ final class SentenceBoundaryClassifierTests: XCTestCase {
     func test_endsSentence_falseForEmptyString() {
         XCTAssertFalse(SentenceBoundaryClassifier.endsSentence(""))
     }
+
+    /// CJK terminators are unambiguous sentence ends. Without these the decode stop policy never
+    /// fires for Japanese/Chinese text and generation always runs to the token budget, which is why
+    /// CJK suggestions came out so long.
+    func test_endsSentence_trueForCJKTerminators() {
+        XCTAssertTrue(SentenceBoundaryClassifier.endsSentence("資料を読む。"))
+        XCTAssertTrue(SentenceBoundaryClassifier.endsSentence("すごい！"))
+        XCTAssertTrue(SentenceBoundaryClassifier.endsSentence("いいですか？"))
+    }
+
+    func test_endsSentence_walksPastCJKClosingPunctuation() {
+        XCTAssertTrue(SentenceBoundaryClassifier.endsSentence("終わり。」"))
+    }
+
+    /// Halfwidth kana punctuation (legacy SJIS contexts) terminates like its fullwidth counterparts,
+    /// including the walk past a halfwidth corner bracket.
+    func test_endsSentence_trueForHalfwidthTerminatorAndCloser() {
+        XCTAssertTrue(SentenceBoundaryClassifier.endsSentence("終わり｡"))
+        XCTAssertTrue(SentenceBoundaryClassifier.endsSentence("終わり｡｣"))
+    }
+
+    /// The ideographic comma is a clause boundary, not a sentence end: generation should keep going
+    /// past `、` and only stop at a real terminator.
+    func test_endsSentence_falseForIdeographicComma() {
+        XCTAssertFalse(SentenceBoundaryClassifier.endsSentence("資料を読み、"))
+    }
 }

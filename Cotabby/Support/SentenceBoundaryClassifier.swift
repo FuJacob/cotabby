@@ -39,6 +39,12 @@ enum SentenceBoundaryClassifier {
         switch text[lastIndex] {
         case "!", "?":
             return true
+        // The shared CJK terminator set (see `Character.isCJKSentenceTerminator`): unambiguous, so
+        // terminal without the period disambiguation below. Without these a Japanese completion never
+        // registers a sentence end and generation always runs to the token budget, which is why CJK
+        // suggestions came out so long.
+        case let character where character.isCJKSentenceTerminator:
+            return true
         case ".":
             return isTerminalPeriod(in: text, at: lastIndex)
         default:
@@ -97,10 +103,12 @@ enum SentenceBoundaryClassifier {
 
 private extension Character {
     /// Closing punctuation that may follow a sentence terminator: straight and curly quotes,
-    /// parentheses, square brackets, and braces. `endsSentence` walks back past a run of these to find
-    /// the real terminator underneath, so `"done."` and `(stop!)` register as sentence ends.
+    /// parentheses, square brackets, and braces, plus the shared CJK closer set (see
+    /// `Character.isCJKClosingPunctuation`). `endsSentence` walks back past a run of these to find
+    /// the real terminator underneath, so `"done."`, `(stop!)`, and `終わり。」` register as
+    /// sentence ends.
     var isSentenceClosingPunctuation: Bool {
         self == "\"" || self == "'" || self == ")" || self == "]" || self == "}"
-            || self == "\u{201D}" || self == "\u{2019}"
+            || self == "\u{201D}" || self == "\u{2019}" || isCJKClosingPunctuation
     }
 }
