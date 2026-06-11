@@ -20,6 +20,14 @@ enum TypoGateDecision: Equatable {
 }
 
 enum TypoGate {
+    /// The user settings that shape the gate decision, grouped so `resolve` takes one cohesive value
+    /// instead of three loose Bools (which also keeps it within the parameter-count budget).
+    struct Settings {
+        let suppressCompletionsOnTypo: Bool
+        let offerTypoCorrections: Bool
+        let automaticallyFixTypos: Bool
+    }
+
     /// Resolves the gate decision for the trailing word of `precedingText`.
     ///
     /// `isTypo` and `bestCorrection` are injected so this stays pure: in production they wrap
@@ -28,13 +36,11 @@ enum TypoGate {
     /// mutates an unfinished word merely because the user paused.
     static func resolve(
         precedingText: String,
-        suppressCompletionsOnTypo: Bool,
-        offerTypoCorrections: Bool,
-        automaticallyFixTypos: Bool,
+        settings: Settings,
         isTypo: (String) -> Bool,
         bestCorrection: (String) -> String?
     ) -> TypoGateDecision {
-        guard suppressCompletionsOnTypo else {
+        guard settings.suppressCompletionsOnTypo else {
             return .proceed
         }
         // Tolerate one trailing space so a just-finished word remains actionable: automatic mode can
@@ -48,10 +54,10 @@ enum TypoGate {
         guard let corrected = bestCorrection(current.result.word) else {
             return .suppress
         }
-        if automaticallyFixTypos, current.trailingSpaceCount == 1 {
+        if settings.automaticallyFixTypos, current.trailingSpaceCount == 1 {
             return .applyCorrection(word: current.result.word, correctedWord: corrected)
         }
-        if offerTypoCorrections {
+        if settings.offerTypoCorrections {
             return .offerCorrection(word: current.result.word, correctedWord: corrected)
         }
         return .suppress

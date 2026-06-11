@@ -12,9 +12,11 @@ final class TypoGateTests: XCTestCase {
     ) -> TypoGateDecision {
         TypoGate.resolve(
             precedingText: precedingText,
-            suppressCompletionsOnTypo: suppress,
-            offerTypoCorrections: offer,
-            automaticallyFixTypos: automatic,
+            settings: TypoGate.Settings(
+                suppressCompletionsOnTypo: suppress,
+                offerTypoCorrections: offer,
+                automaticallyFixTypos: automatic
+            ),
             isTypo: { typos.contains($0) },
             bestCorrection: { corrections[$0] }
         )

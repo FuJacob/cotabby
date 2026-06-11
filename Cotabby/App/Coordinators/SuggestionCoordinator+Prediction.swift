@@ -147,9 +147,11 @@ extension SuggestionCoordinator {
     private func handleTypoGate(rawContext: FocusedInputSnapshot, workID: UInt64) -> Bool {
         switch TypoGate.resolve(
             precedingText: rawContext.precedingText,
-            suppressCompletionsOnTypo: settingsSnapshot.suppressCompletionsOnTypo,
-            offerTypoCorrections: settingsSnapshot.offerTypoCorrections,
-            automaticallyFixTypos: settingsSnapshot.automaticallyFixTypos,
+            settings: TypoGate.Settings(
+                suppressCompletionsOnTypo: settingsSnapshot.suppressCompletionsOnTypo,
+                offerTypoCorrections: settingsSnapshot.offerTypoCorrections,
+                automaticallyFixTypos: settingsSnapshot.automaticallyFixTypos
+            ),
             isTypo: { spellChecker.isTypo($0) },
             // Correction word: SymSpell (frequency-ranked, edit distance ≤ 2) first; fall back to the
             // NSSpellChecker guess while SymSpell's index is still loading or when it has no match.
