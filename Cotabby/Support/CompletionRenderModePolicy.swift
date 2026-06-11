@@ -111,6 +111,9 @@ struct CompletionRenderModePolicy: Equatable, Sendable {
             // Only `.estimated` geometry triggers auto-mirror. `.derived` already lands close enough
             // to the real caret to render inline ghost text confidently; promoting it would over-fire
             // the card for hosts that work fine today (Gmail, Outlook, Discord text-marker path).
+            // `.layoutEstimated` deliberately falls through to inline as well: it only exists when
+            // the caret layout repair accepted a hidden-text-layout estimate, and rendering inline
+            // on that estimate is the entire point of the repair.
             return geometry.caretQuality == .estimated
                 ? .mirror(reason: .caretGeometryEstimated)
                 : .inline

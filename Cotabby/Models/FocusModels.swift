@@ -26,6 +26,14 @@ nonisolated enum CaretGeometryQuality: Equatable, Sendable {
     case derived
     case estimated
 
+    /// Produced only at presentation time by `TextLayoutCaretEstimator`, never by the AX
+    /// resolvers: the caret was recomputed from a hidden text layout of the prefix anchored to
+    /// the field frame, after the resolver could offer nothing better than `.estimated`. Kept as
+    /// its own case (instead of reusing `.derived`, which means "measured from real AX child
+    /// frames") so caret-placement debugging in the logs stays honest about the source. Trusted
+    /// enough to render inline ghost text.
+    case layoutEstimated
+
     var label: String {
         switch self {
         case .exact:
@@ -34,6 +42,8 @@ nonisolated enum CaretGeometryQuality: Equatable, Sendable {
             return "derived"
         case .estimated:
             return "estimated"
+        case .layoutEstimated:
+            return "layout-estimated"
         }
     }
 }

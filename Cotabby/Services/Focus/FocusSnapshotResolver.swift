@@ -20,7 +20,11 @@ struct FocusSnapshotResolver {
     /// a short trailing window for normalization. Keeping the focus snapshot bounded prevents a
     /// large editor buffer from flowing through equality checks, Combine publishes, and stale-result
     /// signatures on every AX refresh.
-    private static let focusedTextContextWindowUTF16 = 4096
+    ///
+    /// Internal (not private) so the caret layout repair can detect "the captured prefix filled the
+    /// window and may not start at the document start" — laying out a mid-document prefix would
+    /// produce meaningless wrap/Y geometry, so that case must be rejected.
+    static let focusedTextContextWindowUTF16 = 4096
 
     /// Carries deep-walk throttle state across the value-typed resolver's non-mutating polls.
     private let deepWalkThrottle = DeepGeometryWalkThrottle()
@@ -577,7 +581,10 @@ struct FocusSnapshotResolver {
         switch quality {
         case .exact:
             return 2
-        case .derived:
+        case .derived, .layoutEstimated:
+            // `.layoutEstimated` is unreachable here: it exists only as a presentation-time
+            // upgrade applied to overlay geometry, never as a resolver output. Scored alongside
+            // `.derived` purely to keep this switch exhaustive.
             return 1
         case .estimated:
             return 0

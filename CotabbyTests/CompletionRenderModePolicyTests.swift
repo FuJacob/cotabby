@@ -227,4 +227,33 @@ final class CompletionRenderModePolicyTests: XCTestCase {
             .mirror(reason: .caretMidLine)
         )
     }
+
+    // MARK: - Layout-estimated geometry (caret layout repair)
+
+    func test_auto_returnsInlineForLayoutEstimatedCaretGeometry() {
+        // `.layoutEstimated` only exists when the caret layout repair accepted a hidden-text-layout
+        // estimate; rendering inline on that estimate is the entire point of the repair.
+        let policy = CompletionRenderModePolicy(userPreference: .auto)
+        let geometry = CotabbyTestFixtures.overlayGeometry(caretQuality: .layoutEstimated)
+
+        XCTAssertEqual(
+            policy.mode(for: geometry, bundleIdentifier: "com.microsoft.VSCode"),
+            .inline
+        )
+    }
+
+    func test_auto_midLineCaret_promotesLayoutEstimatedGeometryToMirror() {
+        // The repair fixes geometry, not the mid-line rule: characters after the caret still have
+        // no inline home, so the card promotion applies to repaired geometry too.
+        let policy = CompletionRenderModePolicy(userPreference: .auto)
+        let geometry = CotabbyTestFixtures.overlayGeometry(
+            caretQuality: .layoutEstimated,
+            isCaretAtEndOfLine: false
+        )
+
+        XCTAssertEqual(
+            policy.mode(for: geometry, bundleIdentifier: "com.microsoft.VSCode"),
+            .mirror(reason: .caretMidLine)
+        )
+    }
 }
