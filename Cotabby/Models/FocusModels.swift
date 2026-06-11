@@ -178,6 +178,13 @@ struct FocusedInputSnapshot: Equatable {
     /// call sites compiling unchanged.
     let isIntegratedTerminal: Bool
 
+    /// True when the resolved field's text is rendered by a web engine rather than a native text
+    /// view (see `WebContentFieldDetector`). The caret layout repair keys its trust policy on
+    /// this: web-engine caret bounds have known wrong-line pathologies the hidden-layout estimate
+    /// may repair, while native AX bounds are ground truth the estimate must never override.
+    /// The initializer default keeps existing call sites compiling unchanged.
+    let isWebContentField: Bool
+
     /// Monotonic counter that increments every time polling observes a focused-input identity
     /// change.
     ///
@@ -224,6 +231,7 @@ struct FocusedInputSnapshot: Equatable {
         selection: NSRange,
         isSecure: Bool,
         isIntegratedTerminal: Bool = false,
+        isWebContentField: Bool = false,
         focusChangeSequence: UInt64 = 0,
         focusedURLString: String? = nil,
         resolvedFieldStyle: ResolvedFieldStyle? = nil
@@ -245,6 +253,7 @@ struct FocusedInputSnapshot: Equatable {
         self.selection = selection
         self.isSecure = isSecure
         self.isIntegratedTerminal = isIntegratedTerminal
+        self.isWebContentField = isWebContentField
         self.focusChangeSequence = focusChangeSequence
         self.focusedURLString = focusedURLString
         self.resolvedFieldStyle = resolvedFieldStyle

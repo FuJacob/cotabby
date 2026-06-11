@@ -27,6 +27,7 @@ enum CotabbyTestFixtures {
         selection: NSRange? = nil,
         isSecure: Bool = false,
         isIntegratedTerminal: Bool = false,
+        isWebContentField: Bool = false,
         focusChangeSequence: UInt64 = 1
     ) -> FocusedInputSnapshot {
         let resolvedSelection = selection
@@ -50,6 +51,7 @@ enum CotabbyTestFixtures {
             selection: resolvedSelection,
             isSecure: isSecure,
             isIntegratedTerminal: isIntegratedTerminal,
+            isWebContentField: isWebContentField,
             focusChangeSequence: focusChangeSequence
         )
     }
@@ -68,6 +70,7 @@ enum CotabbyTestFixtures {
         trailingText: String = "",
         selection: NSRange? = nil,
         isSecure: Bool = false,
+        isWebContentField: Bool = false,
         focusChangeSequence: UInt64 = 1,
         generation: UInt64 = 1
     ) -> FocusedInputContext {
@@ -86,6 +89,7 @@ enum CotabbyTestFixtures {
                 trailingText: trailingText,
                 selection: selection,
                 isSecure: isSecure,
+                isWebContentField: isWebContentField,
                 focusChangeSequence: focusChangeSequence
             ),
             generation: generation
