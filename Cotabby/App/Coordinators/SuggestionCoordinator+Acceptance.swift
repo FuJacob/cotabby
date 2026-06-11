@@ -242,29 +242,25 @@ extension SuggestionCoordinator {
         keyName: String,
         rawContext: FocusedInputSnapshot
     ) -> Bool {
-        let correctedText = session.fullText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !correctedText.isEmpty else {
-            return passTabThrough(reason: "Key passed through because the correction text was empty.")
-        }
-
         // Confirm the live field still ends with the exact word we offered to correct (tolerating
         // one trailing space the user pressed after it). Comparing the word itself, not just its
         // length, closes the window where a keystroke between the last AX poll and this Tab swapped
         // in a different same-length word; if it diverged, pass the key through rather than delete
         // the wrong text.
         guard case let .correction(typoWord) = session.kind,
-              let live = CurrentWordExtractor.extractTrailingWord(from: rawContext.precedingText),
-              live.result.word == typoWord else {
+              let replacement = TypoCorrectionReplacementPlanner.plan(
+                  precedingText: rawContext.precedingText,
+                  expectedTypo: typoWord,
+                  correctedWord: session.fullText,
+                  requiresTrailingSpace: false
+              ) else {
             return passTabThrough(reason: "Key passed through because the word to correct changed.")
         }
 
-        // Delete the typo plus any single trailing space the user added after it, then re-insert the
-        // correction followed by that same space, so `nmae |` becomes `name |` with the spacing and
-        // caret intact. `replace` deletes by UTF-16 unit (its parameter name and the emoji path's
-        // contract), which equals the on-screen character count for the NFC text macOS AX delivers.
-        let trailingSpaces = String(repeating: " ", count: live.trailingSpaceCount)
-        let deletingUTF16Count = (typoWord as NSString).length + live.trailingSpaceCount
-        guard suggestionInserter.replace(deletingUTF16Count: deletingUTF16Count, with: correctedText + trailingSpaces) else {
+        guard suggestionInserter.replace(
+            deletingUTF16Count: replacement.deletingUTF16Count,
+            with: replacement.replacementText
+        ) else {
             let message = suggestionInserter.lastErrorMessage ?? "Correction insertion failed."
             cancelPredictionWork()
             clearSuggestion(clearDiagnostics: true)
@@ -275,12 +271,12 @@ extension SuggestionCoordinator {
                 workID: currentWorkID,
                 generation: session.baseContext.generation,
                 message: message,
-                normalizedOutput: correctedText
+                normalizedOutput: replacement.replacementText
             )
             return false
         }
 
-        recordAcceptedWords(from: correctedText)
+        recordAcceptedWords(from: replacement.replacementText)
         cancelPredictionWork()
         latestGenerationNumber = session.baseContext.generation
         clearSuggestion(clearDiagnostics: false)
@@ -292,7 +288,7 @@ extension SuggestionCoordinator {
             workID: currentWorkID,
             generation: session.baseContext.generation,
             message: "Replaced the user's last word with the corrected version.",
-            normalizedOutput: correctedText
+            normalizedOutput: replacement.replacementText
         )
         // Re-arm prediction so the next keystroke can produce a fresh continuation now that the typo
         // is gone — the user usually keeps typing right after accepting.

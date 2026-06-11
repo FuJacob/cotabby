@@ -46,18 +46,28 @@ struct WritingPaneView: View {
             }
 
             Section("Corrections") {
-                Toggle("Hide Suggestions on Typo", isOn: suppressCompletionsOnTypoBinding)
-                    .help(
-                        "When the word you're currently typing looks misspelled, hide the normal " +
-                        "completion so suggestions don't pile on top of a broken word."
+                Toggle(isOn: suppressCompletionsOnTypoBinding) {
+                    SettingsRowLabel(
+                        title: "Hide Suggestions on Typo",
+                        description: "Stops normal completions while the current word appears misspelled."
                     )
+                }
 
-                Toggle("Offer Corrections on Typo", isOn: offerTypoCorrectionsBinding)
-                    .help(
-                        "When the current word looks misspelled, suggest a fix in green. Pressing the " +
-                        "accept key replaces the typo with the corrected word."
+                Toggle(isOn: offerTypoCorrectionsBinding) {
+                    SettingsRowLabel(
+                        title: "Offer Corrections on Typo",
+                        description: "Shows a green replacement you can apply with your accept key."
                     )
-                    .disabled(!suggestionSettings.suppressCompletionsOnTypo)
+                }
+                .disabled(!suggestionSettings.suppressCompletionsOnTypo)
+
+                Toggle(isOn: automaticallyFixTyposBinding) {
+                    SettingsRowLabel(
+                        title: "Automatically Fix Typos",
+                        description: "After you press Space, replaces a misspelled word without requiring your accept key."
+                    )
+                }
+                .disabled(!suggestionSettings.suppressCompletionsOnTypo)
             }
 
             Section("Profile") {
@@ -122,6 +132,13 @@ struct WritingPaneView: View {
         Binding(
             get: { suggestionSettings.offerTypoCorrections },
             set: { suggestionSettings.setOfferTypoCorrections($0) }
+        )
+    }
+
+    private var automaticallyFixTyposBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.automaticallyFixTypos },
+            set: { suggestionSettings.setAutomaticallyFixTypos($0) }
         )
     }
 

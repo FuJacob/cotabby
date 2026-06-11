@@ -79,4 +79,42 @@ final class CurrentWordExtractorTests: XCTestCase {
     func test_trailingWord_rejectsImplausibleWordEvenWithSpace() {
         XCTAssertNil(CurrentWordExtractor.extractTrailingWord(from: "open https://example.com "))
     }
+
+    // MARK: - Typo replacement planning
+
+    func test_typoReplacement_preservesCommittedSpaceAndUsesUTF16Count() {
+        let replacement = TypoCorrectionReplacementPlanner.plan(
+            precedingText: "hi my nmae ",
+            expectedTypo: "nmae",
+            correctedWord: "name",
+            requiresTrailingSpace: true
+        )
+
+        XCTAssertEqual(
+            replacement,
+            TypoCorrectionReplacement(deletingUTF16Count: 5, replacementText: "name ")
+        )
+    }
+
+    func test_typoReplacement_rejectsAutomaticFixBeforeSpace() {
+        XCTAssertNil(
+            TypoCorrectionReplacementPlanner.plan(
+                precedingText: "hi my nmae",
+                expectedTypo: "nmae",
+                correctedWord: "name",
+                requiresTrailingSpace: true
+            )
+        )
+    }
+
+    func test_typoReplacement_rejectsChangedTrailingWord() {
+        XCTAssertNil(
+            TypoCorrectionReplacementPlanner.plan(
+                precedingText: "hi my names ",
+                expectedTypo: "nmae",
+                correctedWord: "name",
+                requiresTrailingSpace: false
+            )
+        )
+    }
 }

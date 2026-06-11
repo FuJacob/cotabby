@@ -84,6 +84,7 @@ struct SuggestionSettingsStore {
     private static let fastModeEnabledDefaultsKey = "cotabbyFastModeEnabled"
     private static let suppressCompletionsOnTypoDefaultsKey = "cotabbySuppressCompletionsOnTypo"
     private static let offerTypoCorrectionsDefaultsKey = "cotabbyOfferTypoCorrections"
+    private static let automaticallyFixTyposDefaultsKey = "cotabbyAutomaticallyFixTypos"
     private static let performanceTrackingEnabledDefaultsKey = "cotabbyPerformanceTrackingEnabled"
     private static let menuBarWordCountVisibleDefaultsKey = "cotabbyMenuBarWordCountVisible"
     private static let mirrorPreferenceDefaultsKey = "cotabbyMirrorPreference"
@@ -179,13 +180,15 @@ struct SuggestionSettingsStore {
         // into fast mode turns it off.
         let resolvedFastModeEnabled =
             userDefaults.object(forKey: Self.fastModeEnabledDefaultsKey) as? Bool ?? false
-        // Default both typo toggles to true: hiding a completion on a misspelled current word and
-        // offering a fix are the right out-of-box behavior. Existing users without a stored value
-        // get them on; the second is only effective when the first is on.
+        // Hiding a completion on a misspelled current word and offering a fix remain the default
+        // behavior. Automatic replacement is deliberately opt-in because it mutates host-app text
+        // without a confirmation key.
         let resolvedSuppressCompletionsOnTypo =
             userDefaults.object(forKey: Self.suppressCompletionsOnTypoDefaultsKey) as? Bool ?? true
         let resolvedOfferTypoCorrections =
             userDefaults.object(forKey: Self.offerTypoCorrectionsDefaultsKey) as? Bool ?? true
+        let resolvedAutomaticallyFixTypos =
+            userDefaults.object(forKey: Self.automaticallyFixTyposDefaultsKey) as? Bool ?? false
         // Defaults to false so the metrics ring buffer stays empty until the user explicitly opts
         // in from the Performance pane.
         let resolvedPerformanceTrackingEnabled =
@@ -331,6 +334,7 @@ struct SuggestionSettingsStore {
             isFastModeEnabled: resolvedFastModeEnabled,
             suppressCompletionsOnTypo: resolvedSuppressCompletionsOnTypo,
             offerTypoCorrections: resolvedOfferTypoCorrections,
+            automaticallyFixTypos: resolvedAutomaticallyFixTypos,
             isPerformanceTrackingEnabled: resolvedPerformanceTrackingEnabled,
             isMenuBarWordCountVisible: resolvedMenuBarWordCountVisible,
             mirrorPreference: resolvedMirrorPreference,
@@ -380,6 +384,7 @@ struct SuggestionSettingsStore {
         saveFastModeEnabled(data.isFastModeEnabled)
         saveSuppressCompletionsOnTypo(data.suppressCompletionsOnTypo)
         saveOfferTypoCorrections(data.offerTypoCorrections)
+        saveAutomaticallyFixTypos(data.automaticallyFixTypos)
         savePerformanceTrackingEnabled(data.isPerformanceTrackingEnabled)
         saveMenuBarWordCountVisible(data.isMenuBarWordCountVisible)
         saveMirrorPreference(data.mirrorPreference)
@@ -519,6 +524,10 @@ struct SuggestionSettingsStore {
 
     func saveOfferTypoCorrections(_ enabled: Bool) {
         userDefaults.set(enabled, forKey: Self.offerTypoCorrectionsDefaultsKey)
+    }
+
+    func saveAutomaticallyFixTypos(_ enabled: Bool) {
+        userDefaults.set(enabled, forKey: Self.automaticallyFixTyposDefaultsKey)
     }
 
     func savePerformanceTrackingEnabled(_ enabled: Bool) {

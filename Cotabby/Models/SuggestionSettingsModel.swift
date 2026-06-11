@@ -59,6 +59,9 @@ final class SuggestionSettingsModel: ObservableObject {
     /// When on (and `suppressCompletionsOnTypo` is also on), a misspelled current word is offered a
     /// green spell-checker correction the user can accept to replace the typo.
     @Published private(set) var offerTypoCorrections: Bool
+    /// When on (and typo suppression is on), pressing Space after a misspelled word applies the best
+    /// local correction immediately. Kept opt-in because this changes text without confirmation.
+    @Published private(set) var automaticallyFixTypos: Bool
     /// Whether the Performance pane is recording per-request latency. Defaults to false so the
     /// default user never pays any extra storage or write cost — recording only kicks in once the
     /// user opts in from Settings.
@@ -152,6 +155,7 @@ final class SuggestionSettingsModel: ObservableObject {
         isFastModeEnabled = data.isFastModeEnabled
         suppressCompletionsOnTypo = data.suppressCompletionsOnTypo
         offerTypoCorrections = data.offerTypoCorrections
+        automaticallyFixTypos = data.automaticallyFixTypos
         isPerformanceTrackingEnabled = data.isPerformanceTrackingEnabled
         isMenuBarWordCountVisible = data.isMenuBarWordCountVisible
         mirrorPreference = data.mirrorPreference
@@ -213,7 +217,8 @@ final class SuggestionSettingsModel: ObservableObject {
             mirrorPreference: mirrorPreference,
             acceptanceGranularity: acceptanceGranularity,
             suppressCompletionsOnTypo: suppressCompletionsOnTypo,
-            offerTypoCorrections: offerTypoCorrections
+            offerTypoCorrections: offerTypoCorrections,
+            automaticallyFixTypos: automaticallyFixTypos
         )
     }
 
@@ -382,6 +387,15 @@ final class SuggestionSettingsModel: ObservableObject {
 
         offerTypoCorrections = enabled
         store.saveOfferTypoCorrections(enabled)
+    }
+
+    func setAutomaticallyFixTypos(_ enabled: Bool) {
+        guard automaticallyFixTypos != enabled else {
+            return
+        }
+
+        automaticallyFixTypos = enabled
+        store.saveAutomaticallyFixTypos(enabled)
     }
 
     func setPerformanceTrackingEnabled(_ enabled: Bool) {
@@ -844,13 +858,17 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                 $selectedEngine,
                 $selectedWordCountPreset
             ),
-            // Pair the two typo toggles into one inner publisher so the presentation slot stays at
-            // Combine's four-upstream cap while still carrying both new fields.
+            // Group the typo settings into one inner publisher so the presentation slot stays at
+            // Combine's four-upstream cap while carrying the full correction policy.
             Publishers.CombineLatest4(
                 $isClipboardContextEnabled,
                 $isFastModeEnabled,
                 $mirrorPreference,
-                Publishers.CombineLatest($suppressCompletionsOnTypo, $offerTypoCorrections)
+                Publishers.CombineLatest3(
+                    $suppressCompletionsOnTypo,
+                    $offerTypoCorrections,
+                    $automaticallyFixTypos
+                )
             ),
             Publishers.CombineLatest3($userName, $customRules, $responseLanguages),
             Publishers.CombineLatest4(
@@ -874,7 +892,7 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                 let (combinedSettings, presentationToggles, profile, timing) = primaryTuple
                 let (globallyEnabled, disabledAppRules, engine, wordCountPreset) = combinedSettings
                 let (clipboardContextEnabled, fastModeEnabled, mirrorPreference, typoToggles) = presentationToggles
-                let (suppressOnTypo, offerCorrections) = typoToggles
+                let (suppressOnTypo, offerCorrections, automaticallyFixTypos) = typoToggles
                 let (userName, customRules, responseLanguages) = profile
                 let (debounce, focusPoll, multiLine, autoAcceptPunctuation) = timing
                 let (isCustomActive, customLow, customHigh) = customRangeTuple
@@ -898,7 +916,8 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                     mirrorPreference: mirrorPreference,
                     acceptanceGranularity: granularity,
                     suppressCompletionsOnTypo: suppressOnTypo,
-                    offerTypoCorrections: offerCorrections
+                    offerTypoCorrections: offerCorrections,
+                    automaticallyFixTypos: automaticallyFixTypos
                 )
             }
             .removeDuplicates()
