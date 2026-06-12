@@ -17,6 +17,11 @@ final class FocusSessionScopedCache<Value> {
     private var sequence: UInt64?
     private var values: [String: Value] = [:]
 
+    // A `@MainActor` class with stored properties takes the isolated-deinit back-deploy path on
+    // dealloc, which over-releases and aborts app-hosted test runs; releasing value types needs
+    // no main-actor hop. Same workaround as `EmojiUsageStore` and `SystemMetricsStore`.
+    nonisolated deinit {}
+
     /// Returns the cached value for `key` within the current focus session, computing and storing
     /// it on first use. Entry count is bounded by the handful of candidates inspected per session.
     func value(

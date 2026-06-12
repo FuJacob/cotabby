@@ -21,6 +21,11 @@ final class StaticTextRunWalkThrottle {
     private var lastWalkAt: Date?
     private var cachedRuns: [TextRun]?
 
+    // A `@MainActor` class with stored properties takes the isolated-deinit back-deploy path on
+    // dealloc, which over-releases and aborts app-hosted test runs; releasing value types needs
+    // no main-actor hop. Same workaround as `EmojiUsageStore` and `SystemMetricsStore`.
+    nonisolated deinit {}
+
     /// Runs `walk` only when the throttle window elapsed or the focused field changed; otherwise
     /// returns the previous run list (including a cached empty result). `now` is injectable for
     /// tests.
