@@ -88,7 +88,7 @@ extension CotabbyPermissionKind {
     var onboardingTint: Color {
         switch self {
         case .accessibility:
-            OnboardingTheme.accent
+            CotabbyBrand.accent
         case .inputMonitoring:
             .indigo
         case .screenRecording:
@@ -151,7 +151,7 @@ private struct PermissionCard: View {
                     )
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(OnboardingTheme.accent)
+                .tint(CotabbyBrand.accent)
                 .controlSize(.regular)
                 .background(ScreenFrameReader(frameInScreen: $actionButtonFrame))
                 .transition(.opacity)

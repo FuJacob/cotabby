@@ -159,13 +159,9 @@ private struct KeybindRow: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Text(label)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(
-                    RoundedRectangle(cornerRadius: 6)
-                        .fill(.quaternary)
-                )
+            // The same physical-keycap chrome the onboarding keys step renders, so a binding looks
+            // like the same object on both surfaces.
+            KeycapView(label: label, fontSize: 12, minWidth: 36)
 
             if isRecording {
                 KeyRecorderView(

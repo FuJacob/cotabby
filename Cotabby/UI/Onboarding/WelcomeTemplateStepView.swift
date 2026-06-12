@@ -69,7 +69,7 @@ struct WelcomeTemplateStepView: View {
                 subtitle: appleAvailable
                     ? "Built into macOS"
                     : foundationModelAvailabilityService.userVisibleMessage,
-                systemImageName: "apple.logo",
+                systemImageName: SuggestionEngineKind.appleIntelligence.systemImageName,
                 isSelected: selectedEngine == .appleIntelligence,
                 isDisabled: !appleAvailable,
                 onTap: { onSelectEngine(.appleIntelligence) }
@@ -78,7 +78,7 @@ struct WelcomeTemplateStepView: View {
             EngineChoiceCard(
                 title: SuggestionEngineKind.llamaOpenSource.displayLabel,
                 subtitle: "Local models on your Mac",
-                systemImageName: "internaldrive.fill",
+                systemImageName: SuggestionEngineKind.llamaOpenSource.systemImageName,
                 isSelected: selectedEngine == .llamaOpenSource,
                 isDisabled: false,
                 onTap: { onSelectEngine(.llamaOpenSource) }
@@ -106,7 +106,7 @@ extension OnboardingTemplate {
         case .quick:
             .green
         case .everyday:
-            OnboardingTheme.accent
+            CotabbyBrand.accent
         case .powerful:
             .purple
         case .custom:
@@ -144,7 +144,7 @@ private struct TemplateCard: View {
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .fill(.regularMaterial)
                     .shadow(
-                        color: isActive ? OnboardingTheme.accent.opacity(0.18) : .black.opacity(0.07),
+                        color: isActive ? CotabbyBrand.accent.opacity(0.18) : .black.opacity(0.07),
                         radius: isActive ? 7 : 3,
                         y: 1
                     )
@@ -153,14 +153,14 @@ private struct TemplateCard: View {
                 // across the room; the stroke alone is too subtle once three cards are stacked.
                 if isActive {
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(OnboardingTheme.accent.opacity(0.06))
+                        .fill(CotabbyBrand.accent.opacity(0.06))
                 }
             }
         )
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .strokeBorder(
-                    isActive ? OnboardingTheme.accent.opacity(0.55) : Color.primary.opacity(0.07),
+                    isActive ? CotabbyBrand.accent.opacity(0.55) : Color.primary.opacity(0.07),
                     lineWidth: isActive ? 1.5 : 0.5
                 )
         )
@@ -201,7 +201,7 @@ private struct TemplateCard: View {
                     if isActive {
                         Image(systemName: "checkmark.circle.fill")
                             .font(.system(size: 19))
-                            .foregroundStyle(OnboardingTheme.accent)
+                            .foregroundStyle(CotabbyBrand.accent)
                             .transition(.scale(scale: 0.6).combined(with: .opacity))
                     }
                 }
@@ -308,7 +308,7 @@ private struct TemplateCard: View {
         case .enabled:
             Image(systemName: "checkmark")
                 .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(OnboardingTheme.accent)
+                .foregroundStyle(CotabbyBrand.accent)
         case .disabled:
             Image(systemName: "minus")
                 .font(.system(size: 10, weight: .semibold))
@@ -321,7 +321,7 @@ private struct TemplateCard: View {
     }
 
     private var engineSymbol: String {
-        plan.engine == .appleIntelligence ? "apple.logo" : "internaldrive"
+        plan.engine.systemImageName
     }
 
     private var engineLabel: String {
@@ -347,7 +347,7 @@ private struct TemplateCard: View {
                 if let progress {
                     ProgressView(value: progress)
                         .progressViewStyle(.linear)
-                        .tint(OnboardingTheme.accent)
+                        .tint(CotabbyBrand.accent)
                 } else {
                     // No fraction reported yet: fall back to the default (circular) spinner, since
                     // macOS's linear style renders nothing for an indeterminate ProgressView.
@@ -392,7 +392,7 @@ private struct EngineChoiceCard: View {
                 HStack(spacing: 8) {
                     Image(systemName: systemImageName)
                         .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(isActive ? AnyShapeStyle(OnboardingTheme.accent) : AnyShapeStyle(.secondary))
+                        .foregroundStyle(isActive ? AnyShapeStyle(CotabbyBrand.accent) : AnyShapeStyle(.secondary))
 
                     Text(title)
                         .font(.system(size: 14, weight: .semibold, design: .rounded))
@@ -403,7 +403,7 @@ private struct EngineChoiceCard: View {
                     if isActive {
                         Image(systemName: "checkmark.circle.fill")
                             .font(.system(size: 15))
-                            .foregroundStyle(OnboardingTheme.accent)
+                            .foregroundStyle(CotabbyBrand.accent)
                     }
                 }
 
@@ -422,14 +422,14 @@ private struct EngineChoiceCard: View {
 
                     if isActive {
                         RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .fill(OnboardingTheme.accent.opacity(0.07))
+                            .fill(CotabbyBrand.accent.opacity(0.07))
                     }
                 }
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .strokeBorder(
-                        isActive ? OnboardingTheme.accent.opacity(0.55) : Color.primary.opacity(0.07),
+                        isActive ? CotabbyBrand.accent.opacity(0.55) : Color.primary.opacity(0.07),
                         lineWidth: isActive ? 1.5 : 0.5
                     )
             )
@@ -453,7 +453,7 @@ private struct RecommendedBadge: View {
             .background(
                 Capsule().fill(
                     LinearGradient(
-                        colors: [OnboardingTheme.accentSoft, OnboardingTheme.accent],
+                        colors: [CotabbyBrand.accentSoft, CotabbyBrand.accent],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )

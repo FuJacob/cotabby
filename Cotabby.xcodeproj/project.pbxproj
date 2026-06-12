@@ -212,6 +212,7 @@
 		467E2EF8E7B1EC83F60F6A35 /* EmojiRecents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E72A3972E15749337539C2D /* EmojiRecents.swift */; };
 		469626C2EFEDFD6C188941F5 /* de.txt in Resources */ = {isa = PBXBuildFile; fileRef = C648EBB10D7F8E0B904DEC91 /* de.txt */; };
 		46F341472191BC451B6BF6B5 /* SuggestionRequestFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDE858CB1E687E3CEB8FDD5B /* SuggestionRequestFactory.swift */; };
+		4701AB8E93FA78B808824AAD /* CotabbyBrand.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9B27E3D3FD8008CE2C1B616 /* CotabbyBrand.swift */; };
 		47364583344BEA8FDC7178D8 /* DownloadFileRescuer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4B4A2E2DD6733658EC05BD8 /* DownloadFileRescuer.swift */; };
 		475FB7450EEC3C1B16E66CC4 /* LLMIOFileHandlerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9030FAAB468119A0236284A6 /* LLMIOFileHandlerTests.swift */; };
 		47654BDCFD2DE6D4DE85D7FE /* LanguageTagsEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A7CDA90E128350BFF1A9D66 /* LanguageTagsEditor.swift */; };
@@ -306,6 +307,7 @@
 		64A36D1EE1BF29AF5B58906A /* TrailingDuplicationFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D408D647412C59F3E692C42B /* TrailingDuplicationFilter.swift */; };
 		64C76BE489BD6E7D1DB94A85 /* CompletionSeamGuard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 306A36888B5F2CA8FEF9C806 /* CompletionSeamGuard.swift */; };
 		64DA031AEAC20AC6C852A24A /* OnboardingTemplateFeatureList.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24F613F0E2F7046E6532A09C /* OnboardingTemplateFeatureList.swift */; };
+		64F20D51F7905DC290AE0351 /* KeycapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB429709A7FA9D63B0D7B133 /* KeycapView.swift */; };
 		6503E1585D0CDE8CD852144B /* MacroTriggerStateMachine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C201A65A6B040F90C528A3B /* MacroTriggerStateMachine.swift */; };
 		65478B0DABF5460C32D4C458 /* ModelFileValidatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A829F28F01FAE76CA7244BBC /* ModelFileValidatorTests.swift */; };
 		663D37E35292F38666D807A7 /* HuggingFaceModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0AF9479EF020071CA64CCC1 /* HuggingFaceModelsTests.swift */; };
@@ -433,6 +435,7 @@
 		9ADFFF634912F638D079E1C7 /* SentenceBoundaryClassifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4B56C250DDEF3E81F9DCBD7 /* SentenceBoundaryClassifier.swift */; };
 		9B0CE2B00695EC13A6E6CCF3 /* CurrencyEvaluator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0537986794554F5FABE6EFF3 /* CurrencyEvaluator.swift */; };
 		9BA9E52F33F00E65692EE6CD /* he-100k.txt in Resources */ = {isa = PBXBuildFile; fileRef = 7C9BB65FA5FC42B89766B037 /* he-100k.txt */; };
+		9C5B1ED23126B60E3BBF3A5B /* KeycapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB429709A7FA9D63B0D7B133 /* KeycapView.swift */; };
 		9CEBD6AF4405F1BBE0E3D16C /* MidWordContinuationPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 357C18383B047F24A531BDCD /* MidWordContinuationPolicy.swift */; };
 		9D0F4829D11BCD4DB1290410 /* InsertionStrategySelector.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0D2FEEA4304C86324BAADAB /* InsertionStrategySelector.swift */; };
 		9E031B67A275BB3E049EFC2F /* frequency_dictionary_en_82_765.txt in Resources */ = {isa = PBXBuildFile; fileRef = 99FBB636008490B66CF26772 /* frequency_dictionary_en_82_765.txt */; };
@@ -540,6 +543,7 @@
 		C423CCD7198ECE27DF260268 /* SurfaceContextComposerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29CDC8BE5312B9BEFD9B22CB /* SurfaceContextComposerTests.swift */; };
 		C4805FA1A6CD552E572D7012 /* InMemoryLogging in Frameworks */ = {isa = PBXBuildFile; productRef = C42F41C6497D6199DA27D6CD /* InMemoryLogging */; };
 		C4C6734678797669055988E0 /* AppUpdateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD9573F3504CAE6891DF9B7D /* AppUpdateManager.swift */; };
+		C5275D0DA6F5A9D6BFED943D /* CotabbyBrand.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9B27E3D3FD8008CE2C1B616 /* CotabbyBrand.swift */; };
 		C56ABA04AE27A9943368035C /* CurrentWordSpellChecker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 733BF6287BDE599B02A12271 /* CurrentWordSpellChecker.swift */; };
 		C5ADE88B2504F252278E3DD5 /* OverlayController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F308F6E274CC645E27CB651F /* OverlayController.swift */; };
 		C607A624A0FB697486C56B8E /* PowerSourceMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB235F0DEA53295DAF8B4FA0 /* PowerSourceMonitor.swift */; };
@@ -1050,6 +1054,7 @@
 		D84D4528EEC9EFEB8AE8E318 /* ActivationIndicatorController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActivationIndicatorController.swift; sourceTree = "<group>"; };
 		D8C2663427BC5219EA415D00 /* ru.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = ru.txt; sourceTree = "<group>"; };
 		D93563FDA25DFC0038E5F887 /* SuggestionSettingsData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionSettingsData.swift; sourceTree = "<group>"; };
+		D9B27E3D3FD8008CE2C1B616 /* CotabbyBrand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CotabbyBrand.swift; sourceTree = "<group>"; };
 		D9C1C921A1CDA2ADFC39EA01 /* AppsPaneView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppsPaneView.swift; sourceTree = "<group>"; };
 		DB0CE9AB1286367BA2E82392 /* SettingsContainerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsContainerView.swift; sourceTree = "<group>"; };
 		DB235F0DEA53295DAF8B4FA0 /* PowerSourceMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PowerSourceMonitor.swift; sourceTree = "<group>"; };
@@ -1095,6 +1100,7 @@
 		FA4B45B91D4DEAC979C3113E /* PromptContextSanitizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromptContextSanitizer.swift; sourceTree = "<group>"; };
 		FA878B447441BB4F3E327CC8 /* OnboardingTemplateRecommender.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingTemplateRecommender.swift; sourceTree = "<group>"; };
 		FB317C82CE2CBC69056BA4B8 /* TagChip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagChip.swift; sourceTree = "<group>"; };
+		FB429709A7FA9D63B0D7B133 /* KeycapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeycapView.swift; sourceTree = "<group>"; };
 		FC24FD54860CE6737E65EF65 /* TextDirectionDetectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextDirectionDetectorTests.swift; sourceTree = "<group>"; };
 		FC48B188C6E6E263B876621D /* EmojiUsageModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiUsageModels.swift; sourceTree = "<group>"; };
 		FC83D14A7557BC0196E59007 /* MirrorOverlayLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MirrorOverlayLayoutTests.swift; sourceTree = "<group>"; };
@@ -1603,12 +1609,14 @@
 			children = (
 				A2C5A783B8B991CE3F3176CC /* Onboarding */,
 				DCBC24D605EC0CBA1DD6097D /* Settings */,
+				D9B27E3D3FD8008CE2C1B616 /* CotabbyBrand.swift */,
 				82F7F7355967725162DF2D1B /* CustomRulesEditor.swift */,
 				BB5C2AE9A7E55495D26AD074 /* DownloadableModelCatalogView.swift */,
 				3384FD33776960103D6E22A9 /* EmojiPickerView.swift */,
 				CBD5FCB8CC56AA6138382B2C /* FieldEdgeIconIndicatorView.swift */,
 				78E49BDA7F3A42455C4C5350 /* HuggingFaceModelBrowserView.swift */,
 				033A468451259A3214EECBE5 /* InlinePreviewView.swift */,
+				FB429709A7FA9D63B0D7B133 /* KeycapView.swift */,
 				5A567677424A82D9EEF47495 /* KeyRecorderView.swift */,
 				9A7CDA90E128350BFF1A9D66 /* LanguageTagsEditor.swift */,
 				64442042F5B57CB0A701DA85 /* MacroReferenceSheet.swift */,
@@ -2013,6 +2021,7 @@
 				53480635FD54DAF41B1F5047 /* ControlTokenMarkers.swift in Sources */,
 				B55B160E0534AE23BAC1C3DA /* CotabbyApp.swift in Sources */,
 				AF55F1ABEDEA10C76C307CEC /* CotabbyAppEnvironment.swift in Sources */,
+				C5275D0DA6F5A9D6BFED943D /* CotabbyBrand.swift in Sources */,
 				52F3962FA9F424576D7DB5B8 /* CotabbyDebugOptions.swift in Sources */,
 				9B0CE2B00695EC13A6E6CCF3 /* CurrencyEvaluator.swift in Sources */,
 				B9623395B31459D9D45B1320 /* CurrentWordExtractor.swift in Sources */,
@@ -2084,6 +2093,7 @@
 				1C267B67EA61527B74C9D051 /* KeyCodeLabels.swift in Sources */,
 				BA74281E2DDE659C5CACBF24 /* KeyRecorderView.swift in Sources */,
 				4086A1B07488C4D3D43D86C9 /* KeyboardInputSourceMonitor.swift in Sources */,
+				64F20D51F7905DC290AE0351 /* KeycapView.swift in Sources */,
 				E3CAAEFAAB5BB24CEE16445B /* LLMIOFileHandler.swift in Sources */,
 				CADCC1B825DBE7BFC3135F43 /* LanguageCatalog.swift in Sources */,
 				47654BDCFD2DE6D4DE85D7FE /* LanguageTagsEditor.swift in Sources */,
@@ -2257,6 +2267,7 @@
 				210EEE9D094586286EDD89E8 /* ControlTokenMarkers.swift in Sources */,
 				AA2E09FF7E430D66ECA8ECD5 /* CotabbyApp.swift in Sources */,
 				FCC571EC239846F06007BFCA /* CotabbyAppEnvironment.swift in Sources */,
+				4701AB8E93FA78B808824AAD /* CotabbyBrand.swift in Sources */,
 				0D8241CD31942A25EC4E0EE4 /* CotabbyDebugOptions.swift in Sources */,
 				862146ABDADC022A3BE74E00 /* CurrencyEvaluator.swift in Sources */,
 				B6703DAE949C7FB034634424 /* CurrentWordExtractor.swift in Sources */,
@@ -2328,6 +2339,7 @@
 				F78F594F77C26C233377E71F /* KeyCodeLabels.swift in Sources */,
 				F8E86FA4D6CEEBFA7FB55F8D /* KeyRecorderView.swift in Sources */,
 				3124AD2340D4B58AF48A22F3 /* KeyboardInputSourceMonitor.swift in Sources */,
+				9C5B1ED23126B60E3BBF3A5B /* KeycapView.swift in Sources */,
 				046C133967B32BBF9205EBB1 /* LLMIOFileHandler.swift in Sources */,
 				0A2DDD946654076675AC0FC6 /* LanguageCatalog.swift in Sources */,
 				51C069603DA16830868F1628 /* LanguageTagsEditor.swift in Sources */,

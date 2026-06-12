@@ -21,7 +21,6 @@ struct PermissionsPaneView: View {
                     permission: .accessibility,
                     description: "Lets Cotabby see which text field has focus and read its contents " +
                         "so it knows what to continue.",
-                    systemImage: "accessibility",
                     granted: permissionManager.accessibilityGranted,
                     permissionGuidanceController: permissionGuidanceController
                 )
@@ -31,7 +30,6 @@ struct PermissionsPaneView: View {
                     permission: .inputMonitoring,
                     description: "Lets Cotabby see your keystrokes so it can detect when to suggest " +
                         "and which key you used to accept.",
-                    systemImage: "keyboard",
                     granted: permissionManager.inputMonitoringGranted,
                     permissionGuidanceController: permissionGuidanceController
                 )
@@ -41,7 +39,6 @@ struct PermissionsPaneView: View {
                     permission: .screenRecording,
                     description: "Optional. Lets Cotabby screenshot the focused window for extra " +
                         "context. Without it, Cotabby runs in Fast Mode using only the text you've typed.",
-                    systemImage: "camera.viewfinder",
                     granted: permissionManager.screenRecordingGranted,
                     permissionGuidanceController: permissionGuidanceController
                 )
@@ -79,7 +76,6 @@ struct PermissionsPaneView: View {
 private struct SettingsPermissionRow: View {
     let permission: CotabbyPermissionKind
     let description: String
-    let systemImage: String
     let granted: Bool
     let permissionGuidanceController: PermissionGuidanceController
 
@@ -87,7 +83,13 @@ private struct SettingsPermissionRow: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            SettingsRowLabel(title: permission.compactRowTitle, description: description, systemImage: systemImage)
+            // The glyph comes from the permission model (the same source onboarding and the
+            // permission reminder render), so the permission looks like one object everywhere.
+            SettingsRowLabel(
+                title: permission.compactRowTitle,
+                description: description,
+                systemImage: permission.systemImageName
+            )
             Spacer(minLength: 0)
             // Optional permissions reuse the required rows' styling and read as real permissions; the
             // "(Optional)" suffix in `compactRowTitle` is what marks them optional, not a separate

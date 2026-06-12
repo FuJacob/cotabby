@@ -103,7 +103,9 @@ struct HomePaneView: View {
                 .scaledToFit()
                 .frame(width: 64, height: 64)
                 .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .shadow(color: .black.opacity(0.18), radius: 8, y: 4)
+                // The brand-blue glow the onboarding welcome hero casts, scaled to this logo size,
+                // so finishing onboarding and landing on Home reads as one continuous surface.
+                .shadow(color: CotabbyBrand.accent.opacity(0.4), radius: 16, y: 6)
                 .scaleEffect(hasAppeared ? 1 : 0.9)
                 .opacity(hasAppeared ? 1 : 0)
 
@@ -312,10 +314,7 @@ struct HomePaneView: View {
     }
 
     private var engineSystemImage: String {
-        switch suggestionSettings.selectedEngine {
-        case .appleIntelligence: return "apple.logo"
-        case .llamaOpenSource: return "cpu.fill"
-        }
+        suggestionSettings.selectedEngine.systemImageName
     }
 
     private var engineCaption: String {

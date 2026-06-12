@@ -183,14 +183,14 @@ extension WelcomeView {
             VStack(spacing: 0) {
                 ScrollView {
                     stepContent
-                        .padding(.horizontal, OnboardingTheme.horizontalPadding)
+                        .padding(.horizontal, OnboardingLayout.horizontalPadding)
                         .padding(.top, 18)
                         .padding(.bottom, 16)
                         .frame(maxWidth: .infinity)
                 }
 
                 stepFooter
-                    .padding(.horizontal, OnboardingTheme.horizontalPadding)
+                    .padding(.horizontal, OnboardingLayout.horizontalPadding)
                     .padding(.top, 8)
                     .padding(.bottom, 26)
             }
@@ -285,7 +285,7 @@ extension WelcomeView {
                     .scaledToFit()
                     .frame(width: 84, height: 84)
                     .clipShape(RoundedRectangle(cornerRadius: 19, style: .continuous))
-                    .shadow(color: OnboardingTheme.accent.opacity(0.45), radius: 22, y: 8)
+                    .shadow(color: CotabbyBrand.accent.opacity(0.45), radius: 22, y: 8)
                     .onboardingReveal(0)
 
                 VStack(spacing: 8) {
@@ -332,7 +332,7 @@ private struct WelcomeFeatureChip: View {
         HStack(spacing: 5) {
             Image(systemName: systemImage)
                 .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(OnboardingTheme.accent)
+                .foregroundStyle(CotabbyBrand.accent)
 
             Text(label)
                 .font(.system(size: 11, weight: .medium, design: .rounded))
@@ -372,7 +372,7 @@ extension WelcomeView {
                     OnboardingFeatureShowcase()
                         .onboardingReveal(3)
                 }
-                .padding(.horizontal, OnboardingTheme.horizontalPadding)
+                .padding(.horizontal, OnboardingLayout.horizontalPadding)
                 .padding(.top, 40)
                 .padding(.bottom, 16)
             }
@@ -384,7 +384,7 @@ extension WelcomeView {
                     onDismiss()
                 }
             }
-            .padding(.horizontal, OnboardingTheme.horizontalPadding)
+            .padding(.horizontal, OnboardingLayout.horizontalPadding)
             .padding(.top, 8)
             .padding(.bottom, 26)
             .onboardingReveal(4)

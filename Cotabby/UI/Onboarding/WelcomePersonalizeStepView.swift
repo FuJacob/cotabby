@@ -53,7 +53,7 @@ struct WelcomePersonalizeStepView: View {
             HStack(spacing: 7) {
                 Image(systemName: icon)
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(OnboardingTheme.accent)
+                    .foregroundStyle(CotabbyBrand.accent)
 
                 Text(title)
                     .font(.system(size: 13, weight: .semibold, design: .rounded))

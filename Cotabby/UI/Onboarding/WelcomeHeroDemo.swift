@@ -79,7 +79,7 @@ struct WelcomeHeroDemo: View {
                 // The insertion point sits between the typed text and the ghost, exactly where the
                 // real caret stays while a suggestion is displayed.
                 Capsule()
-                    .fill(OnboardingTheme.accent)
+                    .fill(CotabbyBrand.accent)
                     .frame(width: 2, height: 18)
                     .opacity(caretVisible ? 1 : 0)
                     .padding(.horizontal, 1)
@@ -109,12 +109,12 @@ struct WelcomeHeroDemo: View {
         // marks the focused text field. Sells "Cotabby is live in this field right now."
         .overlay(
             RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .strokeBorder(OnboardingTheme.accent.opacity(0.65), lineWidth: 1)
+                .strokeBorder(CotabbyBrand.accent.opacity(0.65), lineWidth: 1)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 9, style: .continuous)
                 .inset(by: -2.5)
-                .strokeBorder(OnboardingTheme.accent.opacity(0.22), lineWidth: 3)
+                .strokeBorder(CotabbyBrand.accent.opacity(0.22), lineWidth: 3)
         )
     }
 

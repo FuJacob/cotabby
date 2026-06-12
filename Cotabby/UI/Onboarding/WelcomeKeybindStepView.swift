@@ -120,7 +120,7 @@ struct WelcomeKeybindStepView: View {
                 .font(.system(size: 14, weight: .medium, design: .rounded))
                 .frame(maxWidth: .infinity, alignment: .leading)
 
-            OnboardingKeycap(label: keyLabel)
+            KeycapView(label: keyLabel)
 
             if isRecording {
                 KeyRecorderView(
@@ -172,48 +172,7 @@ struct WelcomeKeybindStepView: View {
     }
 }
 
-// MARK: - Keycaps
-
-/// A binding rendered as a physical keycap: top-lit gradient, hairline edge, and a hard one-point
-/// ledge shadow that gives the key its height. Pure chrome; the recording flow never enters here.
-struct OnboardingKeycap: View {
-    let label: String
-    var fontSize: CGFloat = 13
-    var minWidth: CGFloat = 44
-
-    @Environment(\.colorScheme) private var colorScheme
-
-    var body: some View {
-        Text(label)
-            .font(.system(size: fontSize, weight: .semibold, design: .rounded))
-            .foregroundStyle(.primary)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 7)
-            .frame(minWidth: minWidth)
-            .background(
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: colorScheme == .dark
-                                ? [Color(white: 0.26), Color(white: 0.19)]
-                                : [Color.white, Color(white: 0.92)],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-                    .shadow(
-                        color: .black.opacity(colorScheme == .dark ? 0.55 : 0.22),
-                        radius: 0.5,
-                        y: 1.5
-                    )
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .strokeBorder(Color.primary.opacity(0.12), lineWidth: 0.5)
-            )
-            .fixedSize()
-    }
-}
+// MARK: - Keycap hero
 
 /// The step's hero: the user's current accept key as a large keycap that presses itself every few
 /// seconds. The press is a two-frame dip (translate down, ledge shadow collapses) driven by a
@@ -225,11 +184,11 @@ private struct OnboardingKeycapHero: View {
     @State private var pressed = false
 
     var body: some View {
-        OnboardingKeycap(label: label, fontSize: 17, minWidth: 84)
+        KeycapView(label: label, fontSize: 17, minWidth: 84)
             .scaleEffect(pressed ? 0.96 : 1.0)
             .offset(y: pressed ? 2 : 0)
             .shadow(
-                color: OnboardingTheme.accent.opacity(pressed ? 0.1 : 0.25),
+                color: CotabbyBrand.accent.opacity(pressed ? 0.1 : 0.25),
                 radius: pressed ? 6 : 14,
                 y: pressed ? 2 : 6
             )

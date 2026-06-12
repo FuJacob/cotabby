@@ -10,6 +10,13 @@ final class SuggestionEngineModelsTests: XCTestCase {
         XCTAssertEqual(SuggestionEngineKind.llamaOpenSource.displayLabel, "Open Source")
     }
 
+    func test_suggestionEngineKind_systemImageNamesArePinnedSharedGlyphs() {
+        // Onboarding's engine cards and Settings' Home status card render these; pinning them keeps
+        // the engine looking like one object across every surface.
+        XCTAssertEqual(SuggestionEngineKind.appleIntelligence.systemImageName, "apple.logo")
+        XCTAssertEqual(SuggestionEngineKind.llamaOpenSource.systemImageName, "cpu.fill")
+    }
+
     func test_suggestionEngineKind_idMatchesRawValueForEveryCase() {
         XCTAssertEqual(SuggestionEngineKind.allCases.count, 2)
         for kind in SuggestionEngineKind.allCases {

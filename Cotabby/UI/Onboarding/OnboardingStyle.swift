@@ -1,26 +1,19 @@
 import SwiftUI
 
 /// File overview:
-/// The shared design system for the first-run onboarding flow: brand palette, window backdrop,
-/// icon tiles, card chrome, entrance choreography, and the step header / navigation / progress
-/// components every step composes. Keeping the vocabulary in one file is what keeps the six steps
-/// reading as one designed surface instead of six separately-styled screens.
+/// The shared design system for the first-run onboarding flow: window backdrop, icon tiles, card
+/// chrome, entrance choreography, and the step header / navigation / progress components every
+/// step composes. Keeping the vocabulary in one file is what keeps the six steps reading as one
+/// designed surface instead of six separately-styled screens. The brand palette itself lives in
+/// `CotabbyBrand` (shared with Settings' brand moments); the keycap chrome lives in `KeycapView`
+/// (shared with the Shortcuts pane).
 ///
 /// Two constraints shape everything here:
 ///   1. Energy. The backdrop and chrome are static; the only continuous animations in onboarding
 ///      are the explicitly-looping product demos, and every entrance effect is a one-shot spring.
 ///   2. Reduce Motion. Each animated component checks `accessibilityReduceMotion` and collapses to
 ///      its resting frame, mirroring the convention in `OnboardingFeatureShowcase`.
-enum OnboardingTheme {
-    /// Cotabby's brand blue, sampled from the app icon's background (#007AFF). Defined explicitly
-    /// rather than via `Color.accentColor` so onboarding stays on-brand even when the user has
-    /// picked a different system accent color, and identical in both appearances.
-    static let accent = Color(red: 0.0, green: 0.478, blue: 1.0)
-
-    /// Lighter companion to `accent`, used as the top stop of icon-tile gradients so tiles read as
-    /// lit from above (the System Settings icon treatment).
-    static let accentSoft = Color(red: 0.33, green: 0.63, blue: 1.0)
-
+enum OnboardingLayout {
     /// Horizontal content inset shared by every step so text columns line up across transitions.
     static let horizontalPadding: CGFloat = 36
 }
@@ -41,14 +34,14 @@ struct OnboardingBackdrop: View {
             // Two offset radial washes rather than one centered one: the asymmetry keeps the
             // gradient from reading as a spotlight and gives the titlebar region gentle color.
             RadialGradient(
-                colors: [OnboardingTheme.accent.opacity(colorScheme == .dark ? 0.26 : 0.14), .clear],
+                colors: [CotabbyBrand.accent.opacity(colorScheme == .dark ? 0.26 : 0.14), .clear],
                 center: UnitPoint(x: 0.15, y: -0.1),
                 startRadius: 10,
                 endRadius: 460
             )
 
             RadialGradient(
-                colors: [OnboardingTheme.accentSoft.opacity(colorScheme == .dark ? 0.16 : 0.10), .clear],
+                colors: [CotabbyBrand.accentSoft.opacity(colorScheme == .dark ? 0.16 : 0.10), .clear],
                 center: UnitPoint(x: 0.95, y: 0.0),
                 startRadius: 10,
                 endRadius: 420
@@ -159,7 +152,7 @@ extension View {
 /// secondary subtitle. One component so typography can never drift between steps.
 struct OnboardingStepHeader: View {
     var systemImage: String?
-    var tint: Color = OnboardingTheme.accent
+    var tint: Color = CotabbyBrand.accent
     let title: String
     let subtitle: String
 
@@ -209,14 +202,14 @@ struct OnboardingProgressPips: View {
         if index == current {
             return AnyShapeStyle(
                 LinearGradient(
-                    colors: [OnboardingTheme.accentSoft, OnboardingTheme.accent],
+                    colors: [CotabbyBrand.accentSoft, CotabbyBrand.accent],
                     startPoint: .leading,
                     endPoint: .trailing
                 )
             )
         }
         if index < current {
-            return AnyShapeStyle(OnboardingTheme.accent.opacity(0.55))
+            return AnyShapeStyle(CotabbyBrand.accent.opacity(0.55))
         }
         return AnyShapeStyle(Color.secondary.opacity(0.22))
     }
@@ -238,7 +231,7 @@ struct WelcomeButton: View {
                 .padding(.vertical, 2)
         }
         .buttonStyle(.borderedProminent)
-        .tint(OnboardingTheme.accent)
+        .tint(CotabbyBrand.accent)
         .controlSize(.large)
     }
 }
@@ -269,7 +262,7 @@ struct WelcomeNavigation: View {
                 onContinue()
             }
             .buttonStyle(.borderedProminent)
-            .tint(OnboardingTheme.accent)
+            .tint(CotabbyBrand.accent)
             .controlSize(.large)
             .disabled(!canContinue)
             .help(canContinue ? "" : (disabledHint ?? ""))
