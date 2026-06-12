@@ -45,6 +45,13 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
     /// prefix-reuse fast path degrades silently to a full prompt re-prefill on every request.
     private var loggedTrimRejectionForCurrentModel = false
 
+    /// True once the loaded model has rejected a partial KV trim (hybrid/recurrent and SWA caches
+    /// reject them unconditionally). On such models prefix reuse can never succeed, so prewarm
+    /// prefills are pure double work: the warmed sequence cannot be trimmed back to prompt-only
+    /// state, and the following generate's reuse trim is rejected too, forcing a second full
+    /// decode of the same prompt. Guarded by `autocompleteLock`; reset on model load.
+    private var modelRejectsPartialTrims = false
+
     /// Coordinates model lifecycle with in-flight operations. `generate()` and `summarize()`
     /// increment the active count on entry and decrement on exit. `shutdown()` sets the
     /// shutting-down flag and blocks until all active operations finish before unloading.
@@ -107,6 +114,7 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         )
         self.preparedRuntime = result
         loggedTrimRejectionForCurrentModel = false
+        modelRejectsPartialTrims = false
         CotabbyLogger.runtime.info(
             "Model loaded",
             metadata: [
@@ -163,8 +171,13 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         )
 
         defer {
-            // Trim sampled tokens so KV retains only the prompt for the next request.
-            _ = engine.trimKV(sequenceID, Int32(preparation.promptTokens.count))
+            // Trim sampled tokens so KV retains only the prompt for the next request. A rejected
+            // trim leaves the sampled tokens in KV while the tracker records prompt-only state;
+            // that mismatch self-heals (the next reuse trim is rejected too and rebuilds fresh),
+            // but it also proves this model can never reuse, so remember that for `prefill`.
+            if !engine.trimKV(sequenceID, Int32(preparation.promptTokens.count)) {
+                modelRejectsPartialTrims = true
+            }
             autocompletePromptBytes = preparation.promptBytes
             autocompletePromptTokens = preparation.promptTokens
             autocompleteSamplingFingerprint = preparation.fingerprint
@@ -213,6 +226,15 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         // Same exit guarantee as `generate`: see the comment there.
         defer { clearAbortTarget() }
 
+        // On models that reject partial trims (the hybrid/SWA catalog families), a warmed
+        // sequence can never be reused, so prefilling would only double the cold decode the
+        // first real request pays anyway. The flag is learned from the first rejected trim
+        // after model load; until then one speculative prefill may still run and be discarded.
+        guard !modelRejectsPartialTrims else {
+            CotabbyLogger.runtime.debug("Prefill skipped: the loaded model rejects partial KV trims")
+            return
+        }
+
         // A superseding generation cancels the warmup task before contending on the lock above.
         // The engine-level abort only reaches a decode that already published its target, so close
         // the window where the cancel landed while this prefill was still tokenizing or queued.
@@ -228,12 +250,20 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
             options: options
         )
 
-        // No decode loop ran, so KV already holds prompt-only state; record the tracker facts the
-        // next request validates its reuse against.
-        _ = engine.trimKV(sequenceID, Int32(preparation.promptTokens.count))
-        autocompletePromptBytes = preparation.promptBytes
-        autocompletePromptTokens = preparation.promptTokens
-        autocompleteSamplingFingerprint = preparation.fingerprint
+        // `decodePrompt` samples one seed token beyond the prompt, so the trim is what restores
+        // prompt-only KV. If it is rejected, the warmed sequence still carries the seed and can
+        // never be trimmed by the following generate either: drop it instead of recording tracker
+        // facts the KV does not match, and remember that warming this model is pointless.
+        if engine.trimKV(sequenceID, Int32(preparation.promptTokens.count)) {
+            autocompletePromptBytes = preparation.promptBytes
+            autocompletePromptTokens = preparation.promptTokens
+            autocompleteSamplingFingerprint = preparation.fingerprint
+        } else {
+            modelRejectsPartialTrims = true
+            engine.destroySequence(sequenceID)
+            autocompleteSequenceID = -1
+            logTrimRejectionIfNeeded(reusableTokenCount: preparation.promptTokens.count)
+        }
     }
 
     /// Aborts the in-flight autocomplete operation's native work mid-prefill. Task cancellation is
@@ -608,6 +638,7 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
     /// full prompt re-prefill on every keystroke pause: the difference between decoding a few
     /// delta tokens and the entire prompt.
     private func logTrimRejectionIfNeeded(reusableTokenCount: Int) {
+        modelRejectsPartialTrims = true
         if !loggedTrimRejectionForCurrentModel {
             loggedTrimRejectionForCurrentModel = true
             CotabbyLogger.runtime.info(
