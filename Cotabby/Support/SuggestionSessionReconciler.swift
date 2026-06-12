@@ -514,6 +514,33 @@ enum SuggestionSessionReconciler {
         return chunk + " "
     }
 
+    /// Extends a word-ending accepted chunk to also take the suggestion's *own* following horizontal
+    /// whitespace, so when "add space after accepting" is on the trailing space lands with this
+    /// accept rather than arriving only on the next one. This is what makes the setting fire on every
+    /// word of a multi-word suggestion, not just the final chunk that exhausts it.
+    ///
+    /// Only whitespace the model already placed after the word is consumed — never a synthesized
+    /// character — so the session stays in lockstep with the live field: the extended chunk is still
+    /// an exact prefix of the buffered suggestion, and the next chunk simply loses the leading space
+    /// this one absorbed, so no double space is produced. The chunk is returned unchanged when it
+    /// does not end on a finished word, ends on a space-less script, or the suggestion's next
+    /// character is not horizontal whitespace (punctuation stays attached to the model's own layout;
+    /// a newline must not be swallowed as a space; and the end-of-suggestion case is handled at
+    /// exhaustion by `insertionChunkAppendingTrailingSpace` instead).
+    ///
+    /// `remainingText` is the session's full remaining tail, which begins with `chunk`; the
+    /// whitespace examined is what follows it.
+    static func acceptanceChunkConsumingTrailingSpace(_ chunk: String, remainingText: String) -> String {
+        guard let last = chunk.last,
+              last.isAcceptanceWordCharacter,
+              !last.beginsSpacelessScriptWord else {
+            return chunk
+        }
+        let remainder = remainingText.dropFirst(chunk.count)
+        let trailingSpace = remainder.prefix(while: { $0 == " " || $0 == "\t" })
+        return trailingSpace.isEmpty ? chunk : chunk + trailingSpace
+    }
+
     /// Counts word-like tokens so punctuation-only accepts do not inflate productivity metrics.
     static func acceptedWordCount(in text: String) -> Int {
         text
