@@ -101,6 +101,22 @@ final class LlamaRuntimeManager: ObservableObject {
         cachedPrefixBytes: Int? = nil,
         options: LlamaGenerationOptions
     ) async throws -> String {
+        try await generate(
+            prompt: prompt,
+            cachedPrefixBytes: cachedPrefixBytes,
+            options: options,
+            onPartialRawText: nil
+        )
+    }
+
+    /// Streaming variant: `onPartialRawText` is invoked from the decode thread with the cumulative
+    /// raw completion after each sampled token; see `LlamaRuntimeGenerating`.
+    func generate(
+        prompt: String,
+        cachedPrefixBytes: Int? = nil,
+        options: LlamaGenerationOptions,
+        onPartialRawText: (@Sendable (String) -> Void)?
+    ) async throws -> String {
         _ = try await preparedRuntime()
 
         let core = self.core
@@ -113,7 +129,8 @@ final class LlamaRuntimeManager: ObservableObject {
                 try core.generate(
                     prompt: prompt,
                     cachedPrefixBytes: cachedPrefixBytes,
-                    options: options
+                    options: options,
+                    onPartialRawText: onPartialRawText
                 )
             }
             return try await withTaskCancellationHandler {

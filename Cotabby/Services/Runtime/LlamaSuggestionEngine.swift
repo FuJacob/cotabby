@@ -56,6 +56,17 @@ final class LlamaSuggestionEngine {
 
     /// Executes one generation request and packages the raw and normalized result for the coordinator.
     func generateSuggestion(for request: SuggestionRequest) async throws -> SuggestionResult {
+        try await generateSuggestion(for: request, onPartial: nil)
+    }
+
+    /// Streaming variant: cumulative raw partials from the decode thread are normalized and
+    /// forwarded to `onPartial` on the main actor, so the coordinator can paint ghost text while
+    /// the decode is still running. Empty normalizations are withheld (there is nothing useful to
+    /// paint), and the returned result remains the authoritative final completion.
+    func generateSuggestion(
+        for request: SuggestionRequest,
+        onPartial: (@MainActor (SuggestionResult) -> Void)?
+    ) async throws -> SuggestionResult {
         let baseMetadata: Logger.Metadata = [
             "request_id": .string(request.requestID),
             "engine": .string("llama")
@@ -77,11 +88,39 @@ final class LlamaSuggestionEngine {
                     "max_tokens": .stringConvertible(request.maxPredictionTokens)
                 ]) { _, new in new }
             )
-            let rawSuggestion = try await runtimeManager.generate(
-                prompt: request.prompt,
-                cachedPrefixBytes: cachedPrefixBytes,
-                options: Self.makeGenerationOptions(for: request)
-            )
+            let options = Self.makeGenerationOptions(for: request)
+            let rawSuggestion: String
+            if let onPartial {
+                rawSuggestion = try await runtimeManager.generate(
+                    prompt: request.prompt,
+                    cachedPrefixBytes: cachedPrefixBytes,
+                    options: options,
+                    onPartialRawText: { raw in
+                        // Decode-thread callback; normalization and delivery hop to the main
+                        // actor. Hops are independent tasks, so a shorter cumulative can land
+                        // after a longer one — the coordinator's monotonic render policy makes
+                        // that harmless.
+                        Task { @MainActor in
+                            let normalized = SuggestionTextNormalizer.normalizeDetailed(raw, for: request).text
+                            guard !normalized.isEmpty else {
+                                return
+                            }
+                            onPartial(SuggestionResult(
+                                generation: request.generation,
+                                rawText: raw,
+                                text: normalized,
+                                latency: Date().timeIntervalSince(startTime)
+                            ))
+                        }
+                    }
+                )
+            } else {
+                rawSuggestion = try await runtimeManager.generate(
+                    prompt: request.prompt,
+                    cachedPrefixBytes: cachedPrefixBytes,
+                    options: options
+                )
+            }
             try Task.checkCancellation()
 
             promptCacheHintTracker.recordSuccessfulRequest(request)

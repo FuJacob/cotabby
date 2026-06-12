@@ -93,6 +93,20 @@ final class SuggestionCoordinator: ObservableObject {
     }
 
     var clipboardPrefaceMemo: ClipboardPrefaceMemo?
+    /// Streamed-render bookkeeping. Partial results hop in from the engine while a decode is
+    /// still running; they are coalesced (latest wins, drained once per runloop turn) so
+    /// token-rate deliveries cannot stack session and overlay layout work on the main actor, and
+    /// `streamRenderedText` carries the monotonic-extension state for `StreamedGhostTextPolicy`.
+    /// All of it is scoped to the current work id and reset when a new generation dispatches.
+    struct PendingStreamPartial {
+        let result: SuggestionResult
+        let workID: UInt64
+    }
+
+    var pendingStreamPartial: PendingStreamPartial?
+    var isStreamDrainScheduled = false
+    var streamRenderedText: String?
+
     /// Monotonic cancellation token for the "wait until the host publishes typed text to AX" loop.
     ///
     /// Keystrokes can arrive faster than Chromium publishes contenteditable updates. Without this

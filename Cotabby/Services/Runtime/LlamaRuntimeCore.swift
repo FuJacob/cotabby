@@ -133,10 +133,13 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
 
     /// Prepares the prompt context, reusing cached KV state when safe, then samples a short completion.
     /// Holds `autocompleteLock` for the full call to prevent concurrent KV cache mutation.
+    /// `onPartialRawText` receives the cumulative raw completion after each sampled token, on the
+    /// calling (detached) thread, so the UI can render ghost text before the decode finishes.
     func generate(
         prompt: String,
         cachedPrefixBytes: Int? = nil,
-        options: LlamaGenerationOptions
+        options: LlamaGenerationOptions,
+        onPartialRawText: ((String) -> Void)? = nil
     ) throws -> String {
         let preparation = try preparedPrompt(prompt: prompt, cachedPrefixBytes: cachedPrefixBytes, options: options, kind: "generate")
 
@@ -185,7 +188,11 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
 
         // The KV-trim defer above runs after the decoder returns, restoring prompt-only KV state for
         // the next request. Token selection is delegated to the engine's built-in sampler.
-        let decode = runEngineSampledDecode(sequenceID: sequenceID, options: options)
+        let decode = runEngineSampledDecode(
+            sequenceID: sequenceID,
+            options: options,
+            onPartialRawText: onPartialRawText
+        )
         if decode.engineCancelled {
             // The engine's per-sequence abort flag is set-once; an aborted sequence would refuse
             // every future decode, so drop it and let the next request build fresh.
@@ -351,10 +358,12 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
     /// The shipping decoder: delegates token selection to the engine's built-in sampler
     /// (`sampleNext`), which applies temperature / top-k / top-p / min-p and commits each token.
     /// `engineCancelled` reports that the native abort flag fired; the sequence must then be
-    /// discarded because the flag is set-once for a sequence's lifetime.
+    /// discarded because the flag is set-once for a sequence's lifetime. `onPartialRawText`
+    /// receives the cumulative raw completion after each sampled token, on the calling thread.
     private func runEngineSampledDecode(
         sequenceID: Int32,
-        options: LlamaGenerationOptions
+        options: LlamaGenerationOptions,
+        onPartialRawText: ((String) -> Void)? = nil
     ) -> (text: String, engineCancelled: Bool) {
         var generatedText = ""
         var tokensGenerated = 0
@@ -388,6 +397,9 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
             generatedText += piece
             tokensGenerated += 1
             sumLogprob += Double(result.logprob)
+            // Cumulative text, not the delta: consumers render whole partials, and cumulative
+            // semantics make late or reordered deliveries harmless downstream.
+            onPartialRawText?(generatedText)
 
             // Stop at the first natural sentence boundary instead of running the full token budget.
             // This keeps completions tight and is latency-positive (fewer tokens), and it adds no

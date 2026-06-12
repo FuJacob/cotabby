@@ -31,6 +31,13 @@ final class SuggestionEngineRouter {
     }
 
     func generateSuggestion(for request: SuggestionRequest) async throws -> SuggestionResult {
+        try await generateSuggestion(for: request, onPartial: nil)
+    }
+
+    func generateSuggestion(
+        for request: SuggestionRequest,
+        onPartial: (@MainActor (SuggestionResult) -> Void)?
+    ) async throws -> SuggestionResult {
         let metadata: Logger.Metadata = [
             "request_id": .string(request.requestID),
             "engine": .string(engineMetadataLabel(for: suggestionSettings.selectedEngine))
@@ -39,7 +46,7 @@ final class SuggestionEngineRouter {
         case .appleIntelligence:
             CotabbyLogger.suggestion.debug("Routing to Apple Intelligence engine", metadata: metadata)
             do {
-                let result = try await foundationModelEngine.generateSuggestion(for: request)
+                let result = try await foundationModelEngine.generateSuggestion(for: request, onPartial: onPartial)
                 recordPerformanceMetric(modelName: "Apple Intelligence", latency: result.latency)
                 return result
             } catch SuggestionClientError.unsupportedLanguageOrLocale(let message) {
@@ -52,12 +59,13 @@ final class SuggestionEngineRouter {
                 )
                 return try await generateOpenSourceFallback(
                     for: request,
-                    appleFailureMessage: message
+                    appleFailureMessage: message,
+                    onPartial: onPartial
                 )
             }
         case .llamaOpenSource:
             CotabbyLogger.suggestion.debug("Routing to open-source llama engine", metadata: metadata)
-            let result = try await llamaEngine.generateSuggestion(for: request)
+            let result = try await llamaEngine.generateSuggestion(for: request, onPartial: onPartial)
             recordPerformanceMetric(modelName: llamaModelNameProvider() ?? "Llama", latency: result.latency)
             return result
         }
@@ -107,10 +115,11 @@ final class SuggestionEngineRouter {
     /// coordinator backend-agnostic while giving local models a chance to handle that text.
     private func generateOpenSourceFallback(
         for request: SuggestionRequest,
-        appleFailureMessage: String
+        appleFailureMessage: String,
+        onPartial: (@MainActor (SuggestionResult) -> Void)? = nil
     ) async throws -> SuggestionResult {
         do {
-            let result = try await llamaEngine.generateSuggestion(for: request)
+            let result = try await llamaEngine.generateSuggestion(for: request, onPartial: onPartial)
             recordPerformanceMetric(modelName: llamaModelNameProvider() ?? "Llama", latency: result.latency)
             return result
         } catch SuggestionClientError.cancelled {
