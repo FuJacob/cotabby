@@ -155,6 +155,27 @@ enum TextLayoutCaretEstimator {
     /// enough: consecutive presents only diverge when the text or field actually changed.
     private static var memo: (input: Input, outcome: Outcome)?
 
+    /// One reusable hidden measurement stack, wired once. Safe to share because the estimator is
+    /// main-actor confined and each estimate fully replaces the storage contents and container
+    /// size before forcing layout.
+    private struct MeasurementStack {
+        let storage: NSTextStorage
+        let layoutManager: NSLayoutManager
+        let container: NSTextContainer
+    }
+
+    private static let sharedTextKit: MeasurementStack = {
+        let storage = NSTextStorage()
+        let layoutManager = NSLayoutManager()
+        let container = NSTextContainer(size: .zero)
+        // Zero padding so container X equals content X; the field inset is applied once during
+        // screen mapping instead.
+        container.lineFragmentPadding = 0
+        layoutManager.addTextContainer(container)
+        storage.addLayoutManager(layoutManager)
+        return MeasurementStack(storage: storage, layoutManager: layoutManager, container: container)
+    }()
+
     static func estimate(for input: Input) -> Outcome {
         if let memo, memo.input == input {
             return memo.outcome
@@ -417,19 +438,17 @@ enum TextLayoutCaretEstimator {
             paragraphStyle.maximumLineHeight = paragraphLineHeight
         }
 
-        let storage = NSTextStorage(
-            string: text,
-            attributes: [.font: font, .paragraphStyle: paragraphStyle]
+        // The memo above only hits on byte-identical re-presents; every keystroke while a ghost
+        // is visible misses it, so allocating a fresh storage/layout-manager/container trio per
+        // miss was per-keystroke churn. Mutating the shared stack invalidates its layout, so each
+        // call still computes from clean state.
+        let storage = Self.sharedTextKit.storage
+        let layoutManager = Self.sharedTextKit.layoutManager
+        let container = Self.sharedTextKit.container
+        storage.setAttributedString(
+            NSAttributedString(string: text, attributes: [.font: font, .paragraphStyle: paragraphStyle])
         )
-        let layoutManager = NSLayoutManager()
-        let container = NSTextContainer(
-            size: CGSize(width: availableWidth, height: .greatestFiniteMagnitude)
-        )
-        // Zero padding so container X equals content X; the field inset is applied once during
-        // screen mapping instead.
-        container.lineFragmentPadding = 0
-        layoutManager.addTextContainer(container)
-        storage.addLayoutManager(layoutManager)
+        container.size = CGSize(width: availableWidth, height: .greatestFiniteMagnitude)
         layoutManager.ensureLayout(for: container)
 
         let glyphCount = layoutManager.numberOfGlyphs

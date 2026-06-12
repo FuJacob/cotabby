@@ -61,6 +61,11 @@ struct AXTextGeometryResolver {
     /// Finds the best caret anchor available, preferring bounds-for-range and falling back to element frame.
     /// `cocoaAnchorFrame` is the element's AXFrame already converted to Cocoa coordinates — it serves
     /// as the ground-truth reference for detecting whether text-range rects need pixel-to-point scaling.
+    /// Throttle window for the Branch 2.5 static-text-run walk, matching the deep-walk interval:
+    /// short enough that caret geometry trails fast typing by at most one window, long enough to
+    /// keep a ~300-node AX walk off every poll tick in Gmail-class hosts.
+    private static let staticRunWalkThrottleInterval: TimeInterval = 0.1
+
     func resolveCaretRect(
         for element: AXUIElement,
         selection: NSRange,
@@ -68,7 +73,9 @@ struct AXTextGeometryResolver {
         supportsFrame: Bool,
         cocoaAnchorFrame: CGRect?,
         textValue: String? = nil,
-        textSelection: NSRange? = nil
+        textSelection: NSRange? = nil,
+        staticRunThrottle: StaticTextRunWalkThrottle? = nil,
+        focusChangeSequence: UInt64 = 0
     ) -> CaretGeometryResult? {
         let selectionInTextValue = textSelection ?? selection
 
@@ -141,7 +148,9 @@ struct AXTextGeometryResolver {
             if let result = resolveCaretFromChildTextRuns(
                 element: element,
                 parentSelection: selectionInTextValue,
-                parentText: parentText
+                parentText: parentText,
+                staticRunThrottle: staticRunThrottle,
+                focusChangeSequence: focusChangeSequence
             ) {
                 return result
             }
@@ -211,14 +220,30 @@ struct AXTextGeometryResolver {
     private func resolveCaretFromChildTextRuns(
         element: AXUIElement,
         parentSelection: NSRange,
-        parentText: String
+        parentText: String,
+        staticRunThrottle: StaticTextRunWalkThrottle? = nil,
+        focusChangeSequence: UInt64 = 0
     ) -> CaretGeometryResult? {
         let parentTextLength = (parentText as NSString).length
         guard parentSelection.location <= parentTextLength else {
             return nil
         }
 
-        let textRuns = collectStaticTextRuns(from: element)
+        // With a throttle, the expensive node walk is reused within the window while the
+        // caret-placement math below still reruns against the live text and selection, so the
+        // caret keeps tracking keystrokes inside slightly stale run frames. Deep-walk leaf calls
+        // pass no throttle: they are already bounded by `DeepGeometryWalkThrottle` upstream.
+        let textRuns: [(text: String, frame: CGRect)]
+        if let staticRunThrottle {
+            textRuns = staticRunThrottle.runs(
+                focusChangeSequence: focusChangeSequence,
+                interval: Self.staticRunWalkThrottleInterval
+            ) {
+                collectStaticTextRuns(from: element)
+            }
+        } else {
+            textRuns = collectStaticTextRuns(from: element)
+        }
 
         guard !textRuns.isEmpty else { return nil }
 
