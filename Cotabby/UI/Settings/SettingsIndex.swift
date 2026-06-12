@@ -16,8 +16,6 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     case includeClipboardContext
     case includeAppContext
     case allowMultiLine
-    case acceptPunctuation
-    case addSpaceAfterAccept
     case inlineMacros
     case onboarding
     // Appearance
@@ -36,6 +34,8 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     case emojiHistory
     // Writing
     case length
+    case acceptPunctuation
+    case addSpaceAfterAccept
     case name
     case languages
     case customRules
@@ -222,14 +222,14 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     var category: SettingsCategory {
         switch self {
         case .enableGlobally, .fastMode, .openAtLogin, .includeClipboardContext, .includeAppContext,
-             .allowMultiLine, .acceptPunctuation, .addSpaceAfterAccept, .inlineMacros, .onboarding:
+             .allowMultiLine, .inlineMacros, .onboarding:
             return .general
         case .suggestionDisplay, .streamWhileGenerating, .showFieldIndicator, .showWordCount, .showKeyHint,
              .ghostTextColor, .ghostTextOpacity, .ghostTextSize:
             return .appearance
         case .emojiPicker, .emojiSkinTone, .emojiPeopleStyle, .emojiHistory:
             return .emoji
-        case .length, .name, .languages, .customRules,
+        case .length, .acceptPunctuation, .addSpaceAfterAccept, .name, .languages, .customRules,
              .hideSuggestionsOnTypo, .offerTypoCorrections, .spellingDictionaries, .automaticallyFixTypos:
             return .writing
         case .extendedContext, .contextLivePreview:
