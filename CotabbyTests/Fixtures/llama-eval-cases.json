@@ -1,0 +1,2622 @@
+[
+ {
+  "id": "email-followup-01",
+  "tags": [
+   "email",
+   "en"
+  ],
+  "applicationName": "Mail",
+  "bundleIdentifier": "com.apple.mail",
+  "precedingText": "Hi Sarah,\n\nThanks again for taking the time to meet yesterday. I'll send over the ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "revised proposal",
+    "updated proposal",
+    "notes",
+    "documents",
+    "details",
+    "updated draft",
+    "slides",
+    "deck",
+    "agenda",
+    "summary",
+    "report",
+    "files",
+    "final",
+    "new",
+    "contract",
+    "presentation",
+    "meeting notes",
+    "next steps",
+    "information"
+   ]
+  }
+ },
+ {
+  "id": "email-followup-02",
+  "tags": [
+   "email",
+   "en"
+  ],
+  "applicationName": "Mail",
+  "bundleIdentifier": "com.apple.mail",
+  "precedingText": "Dear Mr. Alvarez,\n\nI hope this email finds you well. I am writing to follow up on ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "our conversation",
+    "the status",
+    "our meeting",
+    "my previous email",
+    "the invoice",
+    "our discussion",
+    "the proposal",
+    "your request",
+    "our last",
+    "the email",
+    "my application",
+    "our call",
+    "the matter",
+    "your inquiry"
+   ]
+  }
+ },
+ {
+  "id": "email-scheduling-03",
+  "tags": [
+   "email",
+   "en"
+  ],
+  "applicationName": "Mail",
+  "bundleIdentifier": "com.apple.mail",
+  "precedingText": "Would Tuesday at 2pm work for you? If not, I'm also free on ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Monday",
+    "Tuesday"
+   ]
+  }
+ },
+ {
+  "id": "email-signoff-04",
+  "tags": [
+   "email",
+   "en"
+  ],
+  "applicationName": "Mail",
+  "bundleIdentifier": "com.apple.mail",
+  "precedingText": "Let me know if you have any questions.\n\nBest ",
+  "expectation": {
+   "kind": "positive",
+   "mustShow": true,
+   "acceptable": [
+    "regards",
+    "wishes"
+   ]
+  }
+ },
+ {
+  "id": "email-apology-05",
+  "tags": [
+   "email",
+   "en"
+  ],
+  "applicationName": "Mail",
+  "bundleIdentifier": "com.apple.mail",
+  "precedingText": "I apologize for the delay in getting back to you. I was ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "out of",
+    "traveling",
+    "on vacation",
+    "away",
+    "tied up",
+    "busy",
+    "out sick",
+    "dealing with",
+    "swamped",
+    "caught up",
+    "unable"
+   ]
+  }
+ },
+ {
+  "id": "email-intro-06",
+  "tags": [
+   "email",
+   "en"
+  ],
+  "applicationName": "Mail",
+  "bundleIdentifier": "com.apple.mail",
+  "precedingText": "Hi team,\n\nI wanted to give everyone a quick update on the ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "project",
+    "launch",
+    "progress",
+    "status",
+    "timeline",
+    "budget",
+    "migration",
+    "release",
+    "roadmap",
+    "situation",
+    "upcoming",
+    "latest",
+    "new",
+    "current",
+    "recent"
+   ]
+  }
+ },
+ {
+  "id": "email-request-07",
+  "tags": [
+   "email",
+   "en"
+  ],
+  "applicationName": "Mail",
+  "bundleIdentifier": "com.apple.mail",
+  "precedingText": "Could you please review the attached document and ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "let me know",
+    "provide feedback",
+    "share your",
+    "send me",
+    "get back",
+    "confirm",
+    "sign",
+    "return",
+    "provide your",
+    "give me"
+   ]
+  }
+ },
+ {
+  "id": "email-thanks-08",
+  "tags": [
+   "email",
+   "en"
+  ],
+  "applicationName": "Mail",
+  "bundleIdentifier": "com.apple.mail",
+  "precedingText": "Thank you so much for your help with the move last weekend. I really ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "appreciate it",
+    "appreciate your",
+    "appreciate all",
+    "couldn't have",
+    "owe you",
+    "am grateful"
+   ]
+  }
+ },
+ {
+  "id": "email-decline-09",
+  "tags": [
+   "email",
+   "en"
+  ],
+  "applicationName": "Mail",
+  "bundleIdentifier": "com.apple.mail",
+  "precedingText": "Unfortunately, I won't be able to make it to the offsite next week due to a ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "prior commitment",
+    "scheduling conflict",
+    "family",
+    "conflict",
+    "previous",
+    "personal",
+    "doctor's",
+    "last-minute",
+    "prior engagement"
+   ]
+  }
+ },
+ {
+  "id": "email-deadline-10",
+  "tags": [
+   "email",
+   "en"
+  ],
+  "applicationName": "Mail",
+  "bundleIdentifier": "com.apple.mail",
+  "precedingText": "Just a friendly reminder that the quarterly reports are due by ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "Friday",
+    "the end",
+    "end of",
+    "Monday",
+    "tomorrow",
+    "next",
+    "EOD",
+    "close of",
+    "5pm",
+    "December",
+    "January",
+    "March",
+    "the 15th"
+   ]
+  }
+ },
+ {
+  "id": "email-recap-11",
+  "tags": [
+   "email",
+   "en"
+  ],
+  "applicationName": "Mail",
+  "bundleIdentifier": "com.apple.mail",
+  "precedingText": "Here's a quick recap of what we agreed on during today's call:\n\n1. Marketing will draft the announcement\n2. Engineering will ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "finalize",
+    "ship",
+    "handle",
+    "deploy",
+    "fix",
+    "review",
+    "deliver",
+    "complete",
+    "prepare",
+    "update",
+    "work on",
+    "build",
+    "focus on",
+    "start",
+    "implement",
+    "release",
+    "test",
+    "draft"
+   ]
+  }
+ },
+ {
+  "id": "email-newhire-12",
+  "tags": [
+   "email",
+   "en"
+  ],
+  "applicationName": "Mail",
+  "bundleIdentifier": "com.apple.mail",
+  "precedingText": "Please join me in welcoming Dana to the team! She'll be working on ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "the",
+    "our",
+    "marketing",
+    "design",
+    "product",
+    "engineering",
+    "customer",
+    "sales",
+    "data",
+    "growth",
+    "a"
+   ]
+  }
+ },
+ {
+  "id": "email-invoice-13",
+  "tags": [
+   "email",
+   "en"
+  ],
+  "applicationName": "Mail",
+  "bundleIdentifier": "com.apple.mail",
+  "precedingText": "I've attached the invoice for last month's work. Payment is due within ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "30 days",
+    "thirty days",
+    "14 days",
+    "two weeks",
+    "15 days",
+    "60 days",
+    "net",
+    "10 days",
+    "7 days",
+    "a week",
+    "one week",
+    "45 days",
+    "the next"
+   ]
+  }
+ },
+ {
+  "id": "email-ooo-14",
+  "tags": [
+   "email",
+   "en"
+  ],
+  "applicationName": "Mail",
+  "bundleIdentifier": "com.apple.mail",
+  "precedingText": "I will be out of the office from June 17 through June 21 with limited access to ",
+  "expectation": {
+   "kind": "positive",
+   "mustShow": true,
+   "acceptable": [
+    "email",
+    "my email",
+    "the internet",
+    "phone",
+    "my phone",
+    "messages"
+   ]
+  }
+ },
+ {
+  "id": "email-feedback-15",
+  "tags": [
+   "email",
+   "en"
+  ],
+  "applicationName": "Mail",
+  "bundleIdentifier": "com.apple.mail",
+  "precedingText": "Overall the draft looks great. My only suggestion would be to ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "add",
+    "shorten",
+    "tighten",
+    "clarify",
+    "expand",
+    "include",
+    "remove",
+    "simplify",
+    "reorder",
+    "rework",
+    "make",
+    "tweak",
+    "consider",
+    "change",
+    "revise",
+    "move",
+    "cut",
+    "trim",
+    "double-check",
+    "rephrase"
+   ]
+  }
+ },
+ {
+  "id": "email-confirm-16",
+  "tags": [
+   "email",
+   "en"
+  ],
+  "applicationName": "Mail",
+  "bundleIdentifier": "com.apple.mail",
+  "precedingText": "This is to confirm that your appointment has been scheduled for ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "June",
+    "July",
+    "tomorrow",
+    "next",
+    "10am",
+    "9am",
+    "2pm",
+    "3pm",
+    "the"
+   ]
+  }
+ },
+ {
+  "id": "email-jobapp-17",
+  "tags": [
+   "email",
+   "en"
+  ],
+  "applicationName": "Mail",
+  "bundleIdentifier": "com.apple.mail",
+  "precedingText": "I am excited to apply for the Senior Designer position at your company. With over eight years of ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "experience",
+    "design experience",
+    "professional experience",
+    "industry experience",
+    "hands-on"
+   ]
+  }
+ },
+ {
+  "id": "email-postmortem-18",
+  "tags": [
+   "email",
+   "en"
+  ],
+  "applicationName": "Mail",
+  "bundleIdentifier": "com.apple.mail",
+  "precedingText": "The outage lasted 43 minutes. The root cause was a misconfigured ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "load balancer",
+    "DNS",
+    "firewall",
+    "database",
+    "server",
+    "deployment",
+    "environment",
+    "certificate",
+    "cache",
+    "router",
+    "config",
+    "setting",
+    "feature flag",
+    "proxy",
+    "cron"
+   ]
+  }
+ },
+ {
+  "id": "email-travel-19",
+  "tags": [
+   "email",
+   "en"
+  ],
+  "applicationName": "Mail",
+  "bundleIdentifier": "com.apple.mail",
+  "precedingText": "My flight lands at 4:30pm, so I should be at the hotel by ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "6",
+    "5",
+    "6pm",
+    "5pm",
+    "5:30",
+    "6:30",
+    "7",
+    "7pm",
+    "evening",
+    "dinner",
+    "5:30pm",
+    "6:00",
+    "5:45"
+   ]
+  }
+ },
+ {
+  "id": "email-renewal-20",
+  "tags": [
+   "email",
+   "en"
+  ],
+  "applicationName": "Mail",
+  "bundleIdentifier": "com.apple.mail",
+  "precedingText": "Your subscription is set to renew on July 1. If you'd like to cancel or make changes, please ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "visit",
+    "log in",
+    "log into",
+    "contact",
+    "reach out",
+    "go to",
+    "click",
+    "let us",
+    "reply",
+    "call",
+    "email",
+    "do so",
+    "sign in",
+    "head to",
+    "manage"
+   ]
+  }
+ },
+ {
+  "id": "chat-lunch-01",
+  "tags": [
+   "chat",
+   "en"
+  ],
+  "applicationName": "Slack",
+  "bundleIdentifier": "com.tinyspeck.slackmacgap",
+  "isMultiLineEnabled": false,
+  "precedingText": "want to grab lunch at ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "noon",
+    "12",
+    "1",
+    "the",
+    "that"
+   ]
+  }
+ },
+ {
+  "id": "chat-eta-02",
+  "tags": [
+   "chat",
+   "en"
+  ],
+  "applicationName": "Slack",
+  "bundleIdentifier": "com.tinyspeck.slackmacgap",
+  "isMultiLineEnabled": false,
+  "precedingText": "running a few minutes late, be there in ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "10",
+    "5",
+    "15",
+    "ten",
+    "five",
+    "fifteen",
+    "20",
+    "a few",
+    "a bit",
+    "twenty"
+   ]
+  }
+ },
+ {
+  "id": "chat-standup-03",
+  "tags": [
+   "chat",
+   "en"
+  ],
+  "applicationName": "Slack",
+  "bundleIdentifier": "com.tinyspeck.slackmacgap",
+  "isMultiLineEnabled": false,
+  "precedingText": "yesterday I finished the login flow, today I'm working on ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "the",
+    "tests",
+    "the signup",
+    "error handling",
+    "the onboarding",
+    "fixing",
+    "the password",
+    "the settings",
+    "polish",
+    "cleanup",
+    "reviews",
+    "the API",
+    "bug fixes",
+    "documentation",
+    "a"
+   ]
+  }
+ },
+ {
+  "id": "chat-thanks-04",
+  "tags": [
+   "chat",
+   "en"
+  ],
+  "applicationName": "Discord",
+  "bundleIdentifier": "com.hnc.discord",
+  "isMultiLineEnabled": false,
+  "precedingText": "omg thank you so much, you're a ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "lifesaver",
+    "legend",
+    "star",
+    "hero",
+    "genius",
+    "gem",
+    "real one",
+    "godsend",
+    "life saver"
+   ]
+  }
+ },
+ {
+  "id": "chat-plans-05",
+  "tags": [
+   "chat",
+   "en"
+  ],
+  "applicationName": "Discord",
+  "bundleIdentifier": "com.hnc.discord",
+  "isMultiLineEnabled": false,
+  "precedingText": "anyone up for a movie this ",
+  "expectation": {
+   "kind": "positive",
+   "mustShow": true,
+   "acceptable": [
+    "weekend",
+    "Friday",
+    "Saturday",
+    "evening",
+    "week",
+    "afternoon",
+    "Sunday"
+   ]
+  }
+ },
+ {
+  "id": "chat-review-06",
+  "tags": [
+   "chat",
+   "en"
+  ],
+  "applicationName": "Slack",
+  "bundleIdentifier": "com.tinyspeck.slackmacgap",
+  "isMultiLineEnabled": false,
+  "precedingText": "hey, when you get a chance could you take a look at ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "the PR",
+    "my PR",
+    "this",
+    "the doc",
+    "the design",
+    "the ticket",
+    "my branch",
+    "the latest",
+    "the new",
+    "that",
+    "my"
+   ]
+  }
+ },
+ {
+  "id": "chat-deploy-07",
+  "tags": [
+   "chat",
+   "en"
+  ],
+  "applicationName": "Slack",
+  "bundleIdentifier": "com.tinyspeck.slackmacgap",
+  "isMultiLineEnabled": false,
+  "precedingText": "heads up, deploying the fix to production in ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "10",
+    "5",
+    "a few",
+    "15",
+    "ten",
+    "five",
+    "30",
+    "about",
+    "an hour",
+    "the next",
+    "two",
+    "20"
+   ]
+  }
+ },
+ {
+  "id": "chat-congrats-08",
+  "tags": [
+   "chat",
+   "en"
+  ],
+  "applicationName": "Slack",
+  "bundleIdentifier": "com.tinyspeck.slackmacgap",
+  "isMultiLineEnabled": false,
+  "precedingText": "huge congrats on the launch, the new site looks ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "amazing",
+    "great",
+    "incredible",
+    "fantastic",
+    "awesome",
+    "so good",
+    "really good",
+    "stunning",
+    "beautiful",
+    "sharp",
+    "clean",
+    "slick"
+   ]
+  }
+ },
+ {
+  "id": "chat-help-09",
+  "tags": [
+   "chat",
+   "en"
+  ],
+  "applicationName": "Discord",
+  "bundleIdentifier": "com.hnc.discord",
+  "isMultiLineEnabled": false,
+  "precedingText": "my build keeps failing with a weird linker error, has anyone ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "seen",
+    "run into",
+    "hit",
+    "encountered",
+    "had",
+    "experienced",
+    "dealt with",
+    "else"
+   ]
+  }
+ },
+ {
+  "id": "chat-food-10",
+  "tags": [
+   "chat",
+   "en"
+  ],
+  "applicationName": "Discord",
+  "bundleIdentifier": "com.hnc.discord",
+  "isMultiLineEnabled": false,
+  "precedingText": "we could do pizza, sushi, or that new ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "thai",
+    "ramen",
+    "taco",
+    "burger",
+    "italian",
+    "mexican",
+    "korean",
+    "indian",
+    "bbq",
+    "place",
+    "spot",
+    "restaurant",
+    "noodle",
+    "sandwich",
+    "chinese",
+    "vietnamese"
+   ]
+  }
+ },
+ {
+  "id": "chat-meeting-11",
+  "tags": [
+   "chat",
+   "en"
+  ],
+  "applicationName": "Slack",
+  "bundleIdentifier": "com.tinyspeck.slackmacgap",
+  "isMultiLineEnabled": false,
+  "precedingText": "can we push our 1:1 to tomorrow? something came ",
+  "expectation": {
+   "kind": "positive",
+   "mustShow": true,
+   "acceptable": [
+    "up"
+   ]
+  }
+ },
+ {
+  "id": "chat-weekend-12",
+  "tags": [
+   "chat",
+   "en"
+  ],
+  "applicationName": "Discord",
+  "bundleIdentifier": "com.hnc.discord",
+  "isMultiLineEnabled": false,
+  "precedingText": "the hike was amazing, we should do it again ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "soon",
+    "next",
+    "sometime",
+    "this",
+    "some time"
+   ]
+  }
+ },
+ {
+  "id": "chat-bug-13",
+  "tags": [
+   "chat",
+   "en"
+  ],
+  "applicationName": "Slack",
+  "bundleIdentifier": "com.tinyspeck.slackmacgap",
+  "isMultiLineEnabled": false,
+  "precedingText": "found the bug, it was a race condition in the ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "cache",
+    "init",
+    "startup",
+    "login",
+    "auth",
+    "queue",
+    "scheduler",
+    "database",
+    "sync",
+    "session",
+    "worker",
+    "event",
+    "handler",
+    "loading",
+    "network",
+    "request",
+    "timer",
+    "thread",
+    "background",
+    "async",
+    "callback",
+    "listener",
+    "state"
+   ]
+  }
+ },
+ {
+  "id": "chat-remote-14",
+  "tags": [
+   "chat",
+   "en"
+  ],
+  "applicationName": "Slack",
+  "bundleIdentifier": "com.tinyspeck.slackmacgap",
+  "isMultiLineEnabled": false,
+  "precedingText": "working from home today, my internet was out all ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "morning",
+    "night",
+    "day",
+    "weekend",
+    "yesterday",
+    "afternoon",
+    "evening",
+    "week"
+   ]
+  }
+ },
+ {
+  "id": "chat-gg-15",
+  "tags": [
+   "chat",
+   "en"
+  ],
+  "applicationName": "Discord",
+  "bundleIdentifier": "com.hnc.discord",
+  "isMultiLineEnabled": false,
+  "precedingText": "gg everyone, that last round was so ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "close",
+    "intense",
+    "fun",
+    "good",
+    "crazy",
+    "wild",
+    "clutch",
+    "sweaty",
+    "chaotic",
+    "epic",
+    "much fun"
+   ]
+  }
+ },
+ {
+  "id": "chat-onboarding-16",
+  "tags": [
+   "chat",
+   "en"
+  ],
+  "applicationName": "Slack",
+  "bundleIdentifier": "com.tinyspeck.slackmacgap",
+  "isMultiLineEnabled": false,
+  "precedingText": "welcome aboard! the team docs are pinned in this channel, and feel free to ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "ask",
+    "reach out",
+    "ping",
+    "message",
+    "DM",
+    "drop",
+    "post"
+   ]
+  }
+ },
+ {
+  "id": "chat-retro-17",
+  "tags": [
+   "chat",
+   "en"
+  ],
+  "applicationName": "Slack",
+  "bundleIdentifier": "com.tinyspeck.slackmacgap",
+  "isMultiLineEnabled": false,
+  "precedingText": "one thing that went really well this sprint was the ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "new",
+    "pairing",
+    "planning",
+    "communication",
+    "collaboration",
+    "testing",
+    "release",
+    "deploy",
+    "handoff",
+    "teamwork",
+    "demo",
+    "documentation",
+    "code review",
+    "launch",
+    "process",
+    "improved",
+    "speed",
+    "way",
+    "team",
+    "fact that"
+   ]
+  }
+ },
+ {
+  "id": "chat-pet-18",
+  "tags": [
+   "chat",
+   "en"
+  ],
+  "applicationName": "Discord",
+  "bundleIdentifier": "com.hnc.discord",
+  "isMultiLineEnabled": false,
+  "precedingText": "sorry I missed the call, had to take my dog to the ",
+  "expectation": {
+   "kind": "positive",
+   "mustShow": true,
+   "acceptable": [
+    "vet",
+    "groomer",
+    "park"
+   ]
+  }
+ },
+ {
+  "id": "prose-essay-01",
+  "tags": [
+   "prose",
+   "en"
+  ],
+  "applicationName": "Pages",
+  "bundleIdentifier": "com.apple.iWork.Pages",
+  "precedingText": "The industrial revolution transformed not only how goods were produced, but also how people ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "lived",
+    "worked",
+    "lived and worked",
+    "traveled",
+    "thought",
+    "organized",
+    "spent",
+    "related",
+    "communicated",
+    "moved",
+    "saw",
+    "understood",
+    "experienced",
+    "interacted"
+   ]
+  }
+ },
+ {
+  "id": "prose-journal-02",
+  "tags": [
+   "prose",
+   "en"
+  ],
+  "applicationName": "Notes",
+  "bundleIdentifier": "com.apple.Notes",
+  "precedingText": "Today was one of those days where everything seemed to go ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "wrong",
+    "right",
+    "smoothly",
+    "sideways",
+    "perfectly",
+    "my way",
+    "well",
+    "downhill",
+    "off"
+   ]
+  }
+ },
+ {
+  "id": "prose-recipe-03",
+  "tags": [
+   "prose",
+   "en"
+  ],
+  "applicationName": "Notes",
+  "bundleIdentifier": "com.apple.Notes",
+  "precedingText": "Preheat the oven to 375 degrees. In a large bowl, mix the flour, sugar, and ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "salt",
+    "baking powder",
+    "baking soda",
+    "butter",
+    "eggs",
+    "cinnamon",
+    "vanilla",
+    "cocoa",
+    "yeast",
+    "milk"
+   ]
+  }
+ },
+ {
+  "id": "prose-blog-04",
+  "tags": [
+   "prose",
+   "en"
+  ],
+  "applicationName": "Google Chrome",
+  "bundleIdentifier": "com.google.Chrome",
+  "precedingText": "After six months of working remotely from a tiny coastal town, I've learned that the most important thing is ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "routine",
+    "a routine",
+    "having",
+    "to have",
+    "community",
+    "structure",
+    "boundaries",
+    "connection",
+    "discipline",
+    "balance",
+    "not",
+    "finding",
+    "keeping",
+    "staying",
+    "making",
+    "setting"
+   ]
+  }
+ },
+ {
+  "id": "prose-review-05",
+  "tags": [
+   "prose",
+   "en"
+  ],
+  "applicationName": "Google Chrome",
+  "bundleIdentifier": "com.google.Chrome",
+  "precedingText": "The food was excellent and the service was friendly, but the wait time was ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "a bit",
+    "way too",
+    "too long",
+    "far too",
+    "ridiculous",
+    "unacceptable",
+    "over an",
+    "really long",
+    "absurd",
+    "quite",
+    "very long",
+    "long",
+    "terrible",
+    "awful",
+    "almost"
+   ]
+  }
+ },
+ {
+  "id": "prose-history-06",
+  "tags": [
+   "prose",
+   "en"
+  ],
+  "applicationName": "Pages",
+  "bundleIdentifier": "com.apple.iWork.Pages",
+  "precedingText": "The Roman Empire reached its greatest territorial extent under the emperor ",
+  "expectation": {
+   "kind": "positive",
+   "mustShow": true,
+   "acceptable": [
+    "Trajan",
+    "Hadrian"
+   ]
+  }
+ },
+ {
+  "id": "prose-fiction-07",
+  "tags": [
+   "prose",
+   "en"
+  ],
+  "applicationName": "Pages",
+  "bundleIdentifier": "com.apple.iWork.Pages",
+  "precedingText": "She opened the old wooden door slowly, and the smell of ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "dust",
+    "old books",
+    "mildew",
+    "mold",
+    "lavender",
+    "fresh bread",
+    "smoke",
+    "damp",
+    "cedar",
+    "rain",
+    "musty",
+    "age",
+    "stale",
+    "pine",
+    "something",
+    "decay",
+    "earth",
+    "wood"
+   ]
+  }
+ },
+ {
+  "id": "prose-notes-08",
+  "tags": [
+   "prose",
+   "en"
+  ],
+  "applicationName": "Notes",
+  "bundleIdentifier": "com.apple.Notes",
+  "precedingText": "Grocery list for the week: eggs, milk, bread, ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "butter",
+    "cheese",
+    "apples",
+    "bananas",
+    "chicken",
+    "coffee",
+    "rice",
+    "pasta",
+    "tomatoes",
+    "onions",
+    "yogurt",
+    "spinach",
+    "flour",
+    "sugar",
+    "and"
+   ]
+  }
+ },
+ {
+  "id": "prose-essay-09",
+  "tags": [
+   "prose",
+   "en"
+  ],
+  "applicationName": "Pages",
+  "bundleIdentifier": "com.apple.iWork.Pages",
+  "precedingText": "Climate change poses three major risks to coastal cities: rising sea levels, stronger storms, and ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "flooding",
+    "erosion",
+    "coastal erosion",
+    "saltwater",
+    "increased",
+    "more frequent",
+    "higher",
+    "extreme",
+    "infrastructure",
+    "frequent"
+   ]
+  }
+ },
+ {
+  "id": "prose-travel-10",
+  "tags": [
+   "prose",
+   "en"
+  ],
+  "applicationName": "Notes",
+  "bundleIdentifier": "com.apple.Notes",
+  "precedingText": "Day 3 in Kyoto: visited the bamboo grove in the morning, then spent the afternoon exploring ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "temples",
+    "the temples",
+    "the old",
+    "shrines",
+    "the markets",
+    "downtown",
+    "the gion",
+    "gion",
+    "the city",
+    "the streets",
+    "the historic",
+    "local",
+    "the nearby",
+    "arashiyama",
+    "nishiki"
+   ]
+  }
+ },
+ {
+  "id": "prose-memo-11",
+  "tags": [
+   "prose",
+   "docs",
+   "en"
+  ],
+  "applicationName": "Google Chrome",
+  "bundleIdentifier": "com.google.Chrome",
+  "precedingText": "Decision: we will migrate the billing service to the new platform in Q3. The main reasons are ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "cost",
+    "performance",
+    "scalability",
+    "reliability",
+    "maintainability",
+    "the",
+    "reduced",
+    "lower",
+    "better",
+    "improved",
+    "simpler",
+    "twofold",
+    "as follows",
+    "that"
+   ]
+  }
+ },
+ {
+  "id": "prose-bio-12",
+  "tags": [
+   "prose",
+   "en"
+  ],
+  "applicationName": "Google Chrome",
+  "bundleIdentifier": "com.google.Chrome",
+  "precedingText": "Maya is a product designer based in Toronto with a passion for ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "accessible",
+    "accessibility",
+    "user",
+    "inclusive",
+    "sustainable",
+    "design",
+    "creating",
+    "building",
+    "crafting",
+    "human",
+    "digital",
+    "typography",
+    "simple",
+    "clean",
+    "thoughtful",
+    "minimal"
+   ]
+  }
+ },
+ {
+  "id": "prose-summary-13",
+  "tags": [
+   "prose",
+   "docs",
+   "en"
+  ],
+  "applicationName": "Google Chrome",
+  "bundleIdentifier": "com.google.Chrome",
+  "precedingText": "In summary, the study found that participants who slept fewer than six hours performed significantly ",
+  "expectation": {
+   "kind": "positive",
+   "mustShow": true,
+   "acceptable": [
+    "worse",
+    "more poorly",
+    "below",
+    "lower"
+   ]
+  }
+ },
+ {
+  "id": "prose-event-14",
+  "tags": [
+   "prose",
+   "en"
+  ],
+  "applicationName": "Notes",
+  "bundleIdentifier": "com.apple.Notes",
+  "precedingText": "Birthday party planning: venue booked, cake ordered, still need to send out the ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "invitations",
+    "invites",
+    "evites",
+    "guest list",
+    "thank-you"
+   ]
+  }
+ },
+ {
+  "id": "prose-essay-15",
+  "tags": [
+   "prose",
+   "en"
+  ],
+  "applicationName": "Pages",
+  "bundleIdentifier": "com.apple.iWork.Pages",
+  "precedingText": "Photosynthesis is the process by which plants convert sunlight, water, and carbon dioxide into ",
+  "expectation": {
+   "kind": "positive",
+   "mustShow": true,
+   "acceptable": [
+    "glucose",
+    "oxygen",
+    "energy",
+    "sugar",
+    "glucose and oxygen",
+    "food",
+    "oxygen and glucose",
+    "chemical energy"
+   ]
+  }
+ },
+ {
+  "id": "prose-minutes-16",
+  "tags": [
+   "prose",
+   "docs",
+   "en"
+  ],
+  "applicationName": "Google Chrome",
+  "bundleIdentifier": "com.google.Chrome",
+  "precedingText": "Action items from the meeting: Alex will update the roadmap, Priya will schedule the ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "follow-up",
+    "next",
+    "kickoff",
+    "demo",
+    "review",
+    "user",
+    "customer",
+    "interviews",
+    "workshop",
+    "meeting",
+    "call",
+    "session",
+    "retro",
+    "planning",
+    "design",
+    "sync",
+    "stakeholder"
+   ]
+  }
+ },
+ {
+  "id": "prose-letter-17",
+  "tags": [
+   "prose",
+   "en"
+  ],
+  "applicationName": "Pages",
+  "bundleIdentifier": "com.apple.iWork.Pages",
+  "precedingText": "To whom it may concern,\n\nI am writing to express my strong support for Lena's application. I have known her for ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "five years",
+    "three years",
+    "over",
+    "more than",
+    "several years",
+    "many years",
+    "ten years",
+    "four years",
+    "two years",
+    "six years",
+    "seven years",
+    "eight years",
+    "a decade",
+    "nearly",
+    "almost",
+    "the past"
+   ]
+  }
+ },
+ {
+  "id": "prose-howto-18",
+  "tags": [
+   "prose",
+   "docs",
+   "en"
+  ],
+  "applicationName": "Google Chrome",
+  "bundleIdentifier": "com.google.Chrome",
+  "precedingText": "To reset your password, click the link in the email and enter a new password. If you don't receive the email within five minutes, check your ",
+  "expectation": {
+   "kind": "positive",
+   "mustShow": true,
+   "acceptable": [
+    "spam",
+    "junk",
+    "spam folder",
+    "spam or junk"
+   ]
+  }
+ },
+ {
+  "id": "prose-nature-19",
+  "tags": [
+   "prose",
+   "en"
+  ],
+  "applicationName": "Pages",
+  "bundleIdentifier": "com.apple.iWork.Pages",
+  "precedingText": "Monarch butterflies migrate thousands of miles each year, traveling from Canada all the way to ",
+  "expectation": {
+   "kind": "positive",
+   "mustShow": true,
+   "acceptable": [
+    "Mexico",
+    "central Mexico"
+   ]
+  }
+ },
+ {
+  "id": "prose-pitch-20",
+  "tags": [
+   "prose",
+   "docs",
+   "en"
+  ],
+  "applicationName": "Google Chrome",
+  "bundleIdentifier": "com.google.Chrome",
+  "precedingText": "Our app helps busy parents plan healthy meals in under ten minutes a week. Unlike existing meal planners, we ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "use",
+    "automatically",
+    "personalize",
+    "focus",
+    "learn",
+    "generate",
+    "build",
+    "tailor",
+    "adapt",
+    "combine",
+    "integrate",
+    "offer",
+    "don't",
+    "take",
+    "make",
+    "do"
+   ]
+  }
+ },
+ {
+  "id": "prose-condolence-21",
+  "tags": [
+   "prose",
+   "en"
+  ],
+  "applicationName": "Mail",
+  "bundleIdentifier": "com.apple.mail",
+  "precedingText": "I was so sorry to hear about your grandmother. Please know that my thoughts are ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "with you",
+    "with you and your family"
+   ]
+  }
+ },
+ {
+  "id": "prose-announce-22",
+  "tags": [
+   "prose",
+   "en"
+  ],
+  "applicationName": "Google Chrome",
+  "bundleIdentifier": "com.google.Chrome",
+  "precedingText": "We're thrilled to announce that after two years of development, our game is finally ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "here",
+    "out",
+    "available",
+    "launching",
+    "ready",
+    "released",
+    "live",
+    "coming",
+    "done",
+    "complete",
+    "shipping"
+   ]
+  }
+ },
+ {
+  "id": "code-comment-01",
+  "tags": [
+   "code",
+   "en"
+  ],
+  "applicationName": "Xcode",
+  "bundleIdentifier": "com.apple.dt.Xcode",
+  "precedingText": "// Returns the number of days between two dates, ignoring the time ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "component",
+    "of day",
+    "zone",
+    "portion",
+    "components",
+    "part",
+    "fields",
+    "information"
+   ]
+  }
+ },
+ {
+  "id": "code-comment-02",
+  "tags": [
+   "code",
+   "en"
+  ],
+  "applicationName": "Xcode",
+  "bundleIdentifier": "com.apple.dt.Xcode",
+  "precedingText": "// TODO: remove this workaround once the upstream bug is ",
+  "expectation": {
+   "kind": "positive",
+   "mustShow": true,
+   "acceptable": [
+    "fixed",
+    "resolved",
+    "patched",
+    "closed",
+    "addressed"
+   ]
+  }
+ },
+ {
+  "id": "code-swift-03",
+  "tags": [
+   "code",
+   "en"
+  ],
+  "applicationName": "Xcode",
+  "bundleIdentifier": "com.apple.dt.Xcode",
+  "precedingText": "guard let user = currentUser else {\n    return ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "nil",
+    "false",
+    "[]",
+    "nil\n}",
+    ".none",
+    "0",
+    "nothing"
+   ]
+  }
+ },
+ {
+  "id": "code-python-04",
+  "tags": [
+   "code",
+   "en"
+  ],
+  "applicationName": "Visual Studio Code",
+  "bundleIdentifier": "com.microsoft.VSCode",
+  "precedingText": "def fibonacci(n):\n    if n <= 1:\n        return ",
+  "expectation": {
+   "kind": "positive",
+   "mustShow": true,
+   "acceptable": [
+    "n",
+    "1",
+    "n\n"
+   ]
+  }
+ },
+ {
+  "id": "code-log-05",
+  "tags": [
+   "code",
+   "en"
+  ],
+  "applicationName": "Visual Studio Code",
+  "bundleIdentifier": "com.microsoft.VSCode",
+  "precedingText": "logger.error(\"Failed to connect to the ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "database",
+    "server",
+    "API",
+    "remote",
+    "service",
+    "host",
+    "endpoint",
+    "socket",
+    "network",
+    "redis",
+    "db",
+    "backend",
+    "broker",
+    "client",
+    "cluster",
+    "instance",
+    "upstream"
+   ]
+  }
+ },
+ {
+  "id": "code-readme-06",
+  "tags": [
+   "code",
+   "docs",
+   "en"
+  ],
+  "applicationName": "Visual Studio Code",
+  "bundleIdentifier": "com.microsoft.VSCode",
+  "precedingText": "## Installation\n\nClone the repository and run ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "npm install",
+    "npm",
+    "the",
+    "yarn",
+    "make",
+    "pip install",
+    "cargo",
+    "the following",
+    "the install",
+    "the setup",
+    "this",
+    "install"
+   ]
+  }
+ },
+ {
+  "id": "code-sql-07",
+  "tags": [
+   "code",
+   "en"
+  ],
+  "applicationName": "Visual Studio Code",
+  "bundleIdentifier": "com.microsoft.VSCode",
+  "precedingText": "SELECT name, email FROM users WHERE created_at > '2026-01-01' ORDER BY ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "created_at",
+    "name",
+    "email",
+    "id",
+    "date"
+   ]
+  }
+ },
+ {
+  "id": "code-css-08",
+  "tags": [
+   "code",
+   "en"
+  ],
+  "applicationName": "Visual Studio Code",
+  "bundleIdentifier": "com.microsoft.VSCode",
+  "precedingText": ".header {\n    display: flex;\n    justify-content: ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "center",
+    "space-between",
+    "flex-start",
+    "flex-end",
+    "space-around",
+    "space-evenly",
+    "start",
+    "left"
+   ]
+  }
+ },
+ {
+  "id": "cjk-ja-weather-01",
+  "tags": [
+   "cjk",
+   "ja"
+  ],
+  "applicationName": "Notes",
+  "bundleIdentifier": "com.apple.Notes",
+  "precedingText": "今日はとても天気が良いので、",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "散歩",
+    "公園",
+    "外に",
+    "外で",
+    "お出かけ",
+    "出かけ",
+    "ピクニック",
+    "洗濯",
+    "外出",
+    "お散歩"
+   ]
+  }
+ },
+ {
+  "id": "cjk-ja-email-02",
+  "tags": [
+   "cjk",
+   "ja",
+   "email"
+  ],
+  "applicationName": "Mail",
+  "bundleIdentifier": "com.apple.mail",
+  "precedingText": "お世話になっております。先日の打ち合わせの件につきまして、",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "ご確認",
+    "資料を",
+    "改めて",
+    "下記の",
+    "以下の",
+    "ご連絡",
+    "ご報告",
+    "ご相談",
+    "添付の",
+    "御礼",
+    "お礼"
+   ]
+  }
+ },
+ {
+  "id": "cjk-ja-thanks-03",
+  "tags": [
+   "cjk",
+   "ja"
+  ],
+  "applicationName": "Slack",
+  "bundleIdentifier": "com.tinyspeck.slackmacgap",
+  "isMultiLineEnabled": false,
+  "precedingText": "昨日はありがとうございました。とても",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "楽しかった",
+    "勉強に",
+    "助かりました",
+    "嬉しかった",
+    "有意義",
+    "参考に",
+    "良い",
+    "楽し"
+   ]
+  }
+ },
+ {
+  "id": "cjk-ja-plan-04",
+  "tags": [
+   "cjk",
+   "ja"
+  ],
+  "applicationName": "Notes",
+  "bundleIdentifier": "com.apple.Notes",
+  "precedingText": "明日の予定:朝9時に駅で集合して、それから",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "電車",
+    "バス",
+    "みんなで",
+    "一緒に",
+    "会場",
+    "カフェ",
+    "朝食",
+    "新幹線",
+    "歩いて",
+    "車で",
+    "昼食",
+    "移動"
+   ]
+  }
+ },
+ {
+  "id": "cjk-ja-review-05",
+  "tags": [
+   "cjk",
+   "ja"
+  ],
+  "applicationName": "Google Chrome",
+  "bundleIdentifier": "com.google.Chrome",
+  "precedingText": "このレストランは雰囲気も良く、料理も",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "美味しかった",
+    "美味しい",
+    "とても",
+    "最高",
+    "絶品",
+    "素晴らしい",
+    "どれも",
+    "美味し"
+   ]
+  }
+ },
+ {
+  "id": "cjk-ja-apology-06",
+  "tags": [
+   "cjk",
+   "ja",
+   "email"
+  ],
+  "applicationName": "Mail",
+  "bundleIdentifier": "com.apple.mail",
+  "precedingText": "ご返信が遅くなり、大変申し訳",
+  "expectation": {
+   "kind": "positive",
+   "mustShow": true,
+   "acceptable": [
+    "ありません",
+    "ございません"
+   ]
+  }
+ },
+ {
+  "id": "cjk-ja-intro-07",
+  "tags": [
+   "cjk",
+   "ja"
+  ],
+  "applicationName": "Notes",
+  "bundleIdentifier": "com.apple.Notes",
+  "precedingText": "はじめまして。東京でエンジニアをして",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "います",
+    "おります",
+    "いる"
+   ]
+  }
+ },
+ {
+  "id": "cjk-ja-travel-08",
+  "tags": [
+   "cjk",
+   "ja"
+  ],
+  "applicationName": "Notes",
+  "bundleIdentifier": "com.apple.Notes",
+  "precedingText": "京都旅行のメモ:一日目は清水寺と金閣寺を見て、夜は",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "祇園",
+    "懐石",
+    "京料理",
+    "ホテル",
+    "旅館",
+    "居酒屋",
+    "夜景",
+    "川床",
+    "鴨川",
+    "先斗町",
+    "温泉",
+    "美味しい"
+   ]
+  }
+ },
+ {
+  "id": "cjk-zh-greeting-09",
+  "tags": [
+   "cjk",
+   "zh"
+  ],
+  "applicationName": "Notes",
+  "bundleIdentifier": "com.apple.Notes",
+  "precedingText": "今天天气很好,我们一起去",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "公园",
+    "散步",
+    "爬山",
+    "郊游",
+    "野餐",
+    "海边",
+    "玩",
+    "逛街",
+    "骑车",
+    "外面"
+   ]
+  }
+ },
+ {
+  "id": "cjk-zh-thanks-10",
+  "tags": [
+   "cjk",
+   "zh"
+  ],
+  "applicationName": "Notes",
+  "bundleIdentifier": "com.apple.Notes",
+  "precedingText": "非常感谢你的帮助,这个项目",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "终于",
+    "顺利",
+    "才能",
+    "能够",
+    "进展",
+    "已经",
+    "完成",
+    "成功"
+   ]
+  }
+ },
+ {
+  "id": "cjk-ja-deadline-11",
+  "tags": [
+   "cjk",
+   "ja",
+   "email"
+  ],
+  "applicationName": "Mail",
+  "bundleIdentifier": "com.apple.mail",
+  "precedingText": "資料の提出期限は金曜日までと",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "なって",
+    "なります",
+    "させて",
+    "のこと",
+    "いたします",
+    "なっております",
+    "記載"
+   ]
+  }
+ },
+ {
+  "id": "cjk-ja-recipe-12",
+  "tags": [
+   "cjk",
+   "ja"
+  ],
+  "applicationName": "Notes",
+  "bundleIdentifier": "com.apple.Notes",
+  "precedingText": "カレーの作り方:まず玉ねぎを炒めて、次に",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "肉",
+    "じゃがいも",
+    "にんじん",
+    "お肉",
+    "野菜",
+    "鶏肉",
+    "豚肉",
+    "牛肉",
+    "水",
+    "トマト"
+   ]
+  }
+ },
+ {
+  "id": "midword-forward-01",
+  "tags": [
+   "midword",
+   "en"
+  ],
+  "applicationName": "Mail",
+  "bundleIdentifier": "com.apple.mail",
+  "precedingText": "I'm really looking forw",
+  "expectation": {
+   "kind": "positive",
+   "mustShow": false,
+   "acceptable": [
+    "ard to",
+    "ard"
+   ]
+  }
+ },
+ {
+  "id": "midword-appreciate-02",
+  "tags": [
+   "midword",
+   "en"
+  ],
+  "applicationName": "Mail",
+  "bundleIdentifier": "com.apple.mail",
+  "precedingText": "Thanks so much, I really apprec",
+  "expectation": {
+   "kind": "positive",
+   "mustShow": false,
+   "acceptable": [
+    "iate it",
+    "iate"
+   ]
+  }
+ },
+ {
+  "id": "midword-definitely-03",
+  "tags": [
+   "midword",
+   "en"
+  ],
+  "applicationName": "Slack",
+  "bundleIdentifier": "com.tinyspeck.slackmacgap",
+  "isMultiLineEnabled": false,
+  "precedingText": "sounds good, I'll defin",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "itely"
+   ]
+  }
+ },
+ {
+  "id": "midword-tomorrow-04",
+  "tags": [
+   "midword",
+   "en"
+  ],
+  "applicationName": "Slack",
+  "bundleIdentifier": "com.tinyspeck.slackmacgap",
+  "isMultiLineEnabled": false,
+  "precedingText": "let's sync up tomor",
+  "expectation": {
+   "kind": "positive",
+   "mustShow": false,
+   "acceptable": [
+    "row"
+   ]
+  }
+ },
+ {
+  "id": "midword-schedule-05",
+  "tags": [
+   "midword",
+   "en"
+  ],
+  "applicationName": "Mail",
+  "bundleIdentifier": "com.apple.mail",
+  "precedingText": "Happy to resched",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "ule"
+   ]
+  }
+ },
+ {
+  "id": "midword-congrat-06",
+  "tags": [
+   "midword",
+   "en"
+  ],
+  "applicationName": "Discord",
+  "bundleIdentifier": "com.hnc.discord",
+  "isMultiLineEnabled": false,
+  "precedingText": "congratul",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "ations"
+   ]
+  }
+ },
+ {
+  "id": "midword-unfortunately-07",
+  "tags": [
+   "midword",
+   "en"
+  ],
+  "applicationName": "Mail",
+  "bundleIdentifier": "com.apple.mail",
+  "precedingText": "Unfortun",
+  "expectation": {
+   "kind": "positive",
+   "mustShow": false,
+   "acceptable": [
+    "ately"
+   ]
+  }
+ },
+ {
+  "id": "midword-experience-08",
+  "tags": [
+   "midword",
+   "en"
+  ],
+  "applicationName": "Google Chrome",
+  "bundleIdentifier": "com.google.Chrome",
+  "precedingText": "With over ten years of exper",
+  "expectation": {
+   "kind": "positive",
+   "mustShow": false,
+   "acceptable": [
+    "ience"
+   ]
+  }
+ },
+ {
+  "id": "midword-immediately-09",
+  "tags": [
+   "midword",
+   "en"
+  ],
+  "applicationName": "Mail",
+  "bundleIdentifier": "com.apple.mail",
+  "precedingText": "Please contact us immed",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "iately"
+   ]
+  }
+ },
+ {
+  "id": "midword-available-10",
+  "tags": [
+   "midword",
+   "en"
+  ],
+  "applicationName": "Mail",
+  "bundleIdentifier": "com.apple.mail",
+  "precedingText": "I'm avail",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "able"
+   ]
+  }
+ },
+ {
+  "id": "midword-environment-11",
+  "tags": [
+   "midword",
+   "code",
+   "en"
+  ],
+  "applicationName": "Visual Studio Code",
+  "bundleIdentifier": "com.microsoft.VSCode",
+  "precedingText": "// Make sure to set the environ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "ment"
+   ]
+  }
+ },
+ {
+  "id": "midword-recommendation-12",
+  "tags": [
+   "midword",
+   "en"
+  ],
+  "applicationName": "Pages",
+  "bundleIdentifier": "com.apple.iWork.Pages",
+  "precedingText": "I am pleased to write this letter of recommend",
+  "expectation": {
+   "kind": "positive",
+   "mustShow": false,
+   "acceptable": [
+    "ation"
+   ]
+  }
+ },
+ {
+  "id": "midword-beautiful-13",
+  "tags": [
+   "midword",
+   "en"
+  ],
+  "applicationName": "Notes",
+  "bundleIdentifier": "com.apple.Notes",
+  "precedingText": "The sunset tonight was absolutely beauti",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "ful"
+   ]
+  }
+ },
+ {
+  "id": "midword-understand-14",
+  "tags": [
+   "midword",
+   "en"
+  ],
+  "applicationName": "Mail",
+  "bundleIdentifier": "com.apple.mail",
+  "precedingText": "I completely underst",
+  "expectation": {
+   "kind": "positive",
+   "mustShow": false,
+   "acceptable": [
+    "and"
+   ]
+  }
+ },
+ {
+  "id": "neg-dup-tight-01",
+  "tags": [
+   "negative",
+   "dup-trailing",
+   "en"
+  ],
+  "applicationName": "Mail",
+  "bundleIdentifier": "com.apple.mail",
+  "precedingText": "The meeting is at 3",
+  "trailingText": ":30 tomorrow afternoon in the main conference room.",
+  "expectation": {
+   "kind": "negative",
+   "reason": "Caret is tight against a continuation that already exists; any insertion duplicates or corrupts it."
+  }
+ },
+ {
+  "id": "neg-dup-tight-02",
+  "tags": [
+   "negative",
+   "dup-trailing",
+   "en"
+  ],
+  "applicationName": "Mail",
+  "bundleIdentifier": "com.apple.mail",
+  "precedingText": "Please send the report to jane",
+  "trailingText": "@example.com before the end of the day.",
+  "expectation": {
+   "kind": "negative",
+   "reason": "Mid-email-address caret; the address already continues after the cursor."
+  }
+ },
+ {
+  "id": "neg-dup-word-03",
+  "tags": [
+   "negative",
+   "dup-trailing",
+   "en"
+  ],
+  "applicationName": "Pages",
+  "bundleIdentifier": "com.apple.iWork.Pages",
+  "precedingText": "We are committed to deliv",
+  "trailingText": "ering the best possible experience for every customer.",
+  "expectation": {
+   "kind": "negative",
+   "reason": "The word is already completed after the caret; inserting a completion duplicates it."
+  }
+ },
+ {
+  "id": "neg-dup-word-04",
+  "tags": [
+   "negative",
+   "dup-trailing",
+   "en"
+  ],
+  "applicationName": "Notes",
+  "bundleIdentifier": "com.apple.Notes",
+  "precedingText": "Don't forget to water the ",
+  "trailingText": "plants before leaving for the airport.",
+  "expectation": {
+   "kind": "negative",
+   "reason": "The obvious continuation is already present after the caret."
+  }
+ },
+ {
+  "id": "neg-dup-sentence-05",
+  "tags": [
+   "negative",
+   "dup-trailing",
+   "en"
+  ],
+  "applicationName": "Mail",
+  "bundleIdentifier": "com.apple.mail",
+  "precedingText": "Thanks for your patience",
+  "trailingText": " while we sorted this out. The refund has been processed.",
+  "expectation": {
+   "kind": "negative",
+   "reason": "The sentence already continues immediately after the caret with no gap."
+  }
+ },
+ {
+  "id": "neg-dup-code-06",
+  "tags": [
+   "negative",
+   "dup-trailing",
+   "code"
+  ],
+  "applicationName": "Visual Studio Code",
+  "bundleIdentifier": "com.microsoft.VSCode",
+  "precedingText": "const total = items.red",
+  "trailingText": "uce((sum, item) => sum + item.price, 0);",
+  "expectation": {
+   "kind": "negative",
+   "reason": "Identifier already completed after the caret."
+  }
+ },
+ {
+  "id": "neg-dup-list-07",
+  "tags": [
+   "negative",
+   "dup-trailing",
+   "en"
+  ],
+  "applicationName": "Notes",
+  "bundleIdentifier": "com.apple.Notes",
+  "precedingText": "Packing list: passport, charger, head",
+  "trailingText": "phones, sunscreen, and a good book.",
+  "expectation": {
+   "kind": "negative",
+   "reason": "List item already completed after the caret."
+  }
+ },
+ {
+  "id": "neg-dup-tight-08",
+  "tags": [
+   "negative",
+   "dup-trailing",
+   "en"
+  ],
+  "applicationName": "Google Chrome",
+  "bundleIdentifier": "com.google.Chrome",
+  "precedingText": "Our office is located at 41",
+  "trailingText": "5 Mission Street, San Francisco.",
+  "expectation": {
+   "kind": "negative",
+   "reason": "Mid-number caret with the rest of the address after the cursor."
+  }
+ },
+ {
+  "id": "neg-gibberish-01",
+  "tags": [
+   "negative",
+   "gibberish"
+  ],
+  "applicationName": "Notes",
+  "bundleIdentifier": "com.apple.Notes",
+  "precedingText": "asdkfj qwpeoriu zxmcnv ",
+  "expectation": {
+   "kind": "negative",
+   "reason": "Keyboard mash; no meaningful continuation exists."
+  }
+ },
+ {
+  "id": "neg-gibberish-02",
+  "tags": [
+   "negative",
+   "gibberish"
+  ],
+  "applicationName": "Notes",
+  "bundleIdentifier": "com.apple.Notes",
+  "precedingText": "jjjjjj kkkkk hhhhhh ",
+  "expectation": {
+   "kind": "negative",
+   "reason": "Key-repeat garbage; nothing sensible follows."
+  }
+ },
+ {
+  "id": "neg-gibberish-03",
+  "tags": [
+   "negative",
+   "gibberish"
+  ],
+  "applicationName": "Google Chrome",
+  "bundleIdentifier": "com.google.Chrome",
+  "precedingText": "xq vbnz pleorty ",
+  "expectation": {
+   "kind": "negative",
+   "reason": "Random characters; suppression is the only good answer."
+  }
+ },
+ {
+  "id": "neg-gibberish-04",
+  "tags": [
+   "negative",
+   "gibberish"
+  ],
+  "applicationName": "Slack",
+  "bundleIdentifier": "com.tinyspeck.slackmacgap",
+  "isMultiLineEnabled": false,
+  "precedingText": "wfhqk zzrtp ",
+  "expectation": {
+   "kind": "negative",
+   "reason": "Random characters in a chat field."
+  }
+ },
+ {
+  "id": "neg-blank-05",
+  "tags": [
+   "negative",
+   "blank"
+  ],
+  "applicationName": "Notes",
+  "bundleIdentifier": "com.apple.Notes",
+  "precedingText": "   ",
+  "expectation": {
+   "kind": "negative",
+   "reason": "Whitespace-only field; generation should not even be attempted."
+  }
+ },
+ {
+  "id": "neg-blank-06",
+  "tags": [
+   "negative",
+   "blank"
+  ],
+  "applicationName": "Mail",
+  "bundleIdentifier": "com.apple.mail",
+  "precedingText": "\n\n",
+  "expectation": {
+   "kind": "negative",
+   "reason": "Newlines only; generation should not even be attempted."
+  }
+ },
+ {
+  "id": "forbid-scaffold-01",
+  "tags": [
+   "scaffolding",
+   "en"
+  ],
+  "applicationName": "Notes",
+  "bundleIdentifier": "com.apple.Notes",
+  "precedingText": "Pasted transcript:\n<|im_start|>user\nHow do I reset my router?<|im_end|>\n<|im_start|>assistant\nUnplug it for ten seconds.\nMy notes: the trick that worked was ",
+  "expectation": {
+   "kind": "forbidden",
+   "forbidden": [
+    "<|im_start|>",
+    "<|im_end|>",
+    "<|endoftext|>"
+   ]
+  }
+ },
+ {
+  "id": "forbid-scaffold-02",
+  "tags": [
+   "scaffolding",
+   "en"
+  ],
+  "applicationName": "Notes",
+  "bundleIdentifier": "com.apple.Notes",
+  "precedingText": "<start_of_turn>user\nWhat's a good pasta recipe?<end_of_turn>\n<start_of_turn>model\nStart with good tomatoes and ",
+  "expectation": {
+   "kind": "forbidden",
+   "forbidden": [
+    "<start_of_turn>",
+    "<end_of_turn>",
+    "<|im_end|>"
+   ]
+  }
+ },
+ {
+  "id": "forbid-scaffold-03",
+  "tags": [
+   "scaffolding",
+   "en"
+  ],
+  "applicationName": "Google Chrome",
+  "bundleIdentifier": "com.google.Chrome",
+  "precedingText": "Notes on prompt formats: ChatML wraps each turn in im_start markers. For example, after the assistant answers you usually see ",
+  "expectation": {
+   "kind": "forbidden",
+   "forbidden": [
+    "<|im_start|>",
+    "<|im_end|>"
+   ]
+  }
+ },
+ {
+  "id": "forbid-scaffold-04",
+  "tags": [
+   "scaffolding",
+   "en"
+  ],
+  "applicationName": "Visual Studio Code",
+  "bundleIdentifier": "com.microsoft.VSCode",
+  "precedingText": "# Conversation log\n[INST] How do I exit vim? [/INST] Press escape, then type ",
+  "expectation": {
+   "kind": "forbidden",
+   "forbidden": [
+    "[INST]",
+    "[/INST]",
+    "<|endoftext|>"
+   ]
+  }
+ },
+ {
+  "id": "forbid-role-05",
+  "tags": [
+   "scaffolding",
+   "en"
+  ],
+  "applicationName": "Notes",
+  "bundleIdentifier": "com.apple.Notes",
+  "precedingText": "Saved chat:\n<|user|>\nBest hiking trails near Seattle?\n<|assistant|>\nTry Rattlesnake Ledge for a ",
+  "expectation": {
+   "kind": "forbidden",
+   "forbidden": [
+    "<|user|>",
+    "<|assistant|>",
+    "<|end|>"
+   ]
+  }
+ },
+ {
+  "id": "forbid-header-06",
+  "tags": [
+   "scaffolding",
+   "en"
+  ],
+  "applicationName": "Notes",
+  "bundleIdentifier": "com.apple.Notes",
+  "precedingText": "Debug dump: <|start_header_id|>assistant<|end_header_id|> The cache expires after ",
+  "expectation": {
+   "kind": "forbidden",
+   "forbidden": [
+    "<|start_header_id|>",
+    "<|end_header_id|>",
+    "<|eot_id|>"
+   ]
+  }
+ }
+]
