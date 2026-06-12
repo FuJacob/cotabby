@@ -259,6 +259,16 @@ extension SuggestionCoordinator {
             return
         }
 
+        // Streaming half of the seam guard: the pure junk-run rule only. The spell-lookup half
+        // is an XPC and partials drain at token cadence, so it stays on the final apply, which
+        // authoritatively replaces or suppresses whatever streamed.
+        guard CompletionSeamGuard.allowsStreamedPartial(
+            precedingText: liveContext.precedingText,
+            completion: partial.text
+        ) else {
+            return
+        }
+
         _ = interactionState.startSession(
             fullText: partial.text,
             liveContext: liveContext,
@@ -548,6 +558,29 @@ extension SuggestionCoordinator {
                 workID: workID,
                 generation: result.generation,
                 message: "Dropped a regeneration that re-proposed the just-accepted tail before the host published the insert.",
+                rawOutput: result.rawText,
+                normalizedOutput: result.text
+            )
+            return
+        }
+
+        // Last line of defense before display: junk punctuation runs and mid-word splices that
+        // misspell the word being typed read as glitches, so showing nothing beats showing them.
+        // The spell lookup runs at most once per generation and only in the mid-word case.
+        let seamVerdict = CompletionSeamGuard.verdict(
+            precedingText: liveContext.precedingText,
+            completion: result.text,
+            isKnownWord: { !spellChecker.isTypo($0) }
+        )
+        if seamVerdict != .allow {
+            clearSuggestion()
+            hideOverlay(reason: "Overlay hidden because the completion failed the seam guard.")
+            state = .idle
+            logStage(
+                "seam-suppressed",
+                workID: workID,
+                generation: result.generation,
+                message: "Suppressed completion at the caret seam: \(seamVerdict).",
                 rawOutput: result.rawText,
                 normalizedOutput: result.text
             )

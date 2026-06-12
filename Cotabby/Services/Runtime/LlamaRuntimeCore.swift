@@ -401,17 +401,19 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
             // semantics make late or reordered deliveries harmless downstream.
             onPartialRawText?(generatedText)
 
-            // Stop at the first natural sentence boundary instead of running the full token budget.
-            // This keeps completions tight and is latency-positive (fewer tokens), and it adds no
-            // per-token vocabulary work: it only inspects the text already accumulated. The
-            // classifier ignores decimals, abbreviations, and list markers, so it will not truncate
-            // "e.g." or "3.14" mid-thought.
-            if DecodeStopPolicy.shouldStop(
+            // Stop at the first natural sentence boundary, or as soon as the text contains a
+            // chat-template stop marker, instead of running the full token budget. Both are
+            // latency-positive (fewer tokens) and add no per-token vocabulary work: they only
+            // inspect the text already accumulated. The boundary classifier ignores decimals,
+            // abbreviations, and list markers, so it will not truncate "e.g." or "3.14"
+            // mid-thought; the marker stop produces identical visible text because the
+            // normalizer truncates at the first marker anyway.
+            if let earlyStop = DecodeStopPolicy.verdict(
                 accumulated: generatedText,
                 tokensGenerated: tokensGenerated,
                 minimumTokens: options.sentenceStopMinimumTokens
             ) {
-                stopReason = "sentence_boundary"
+                stopReason = earlyStop.rawValue
                 break
             }
         }
