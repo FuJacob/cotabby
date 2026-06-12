@@ -157,6 +157,13 @@ extension SuggestionCoordinator {
             // *after* the `hideOverlay` above, which routes through `onStateChange(.hidden)` and
             // turns interception off; arming re-asserts it. See `armPostExhaustionAcceptance`.
             armPostExhaustionAcceptance()
+            // Start the continuation against the text the host is about to publish instead of
+            // idling through the publish poll first; the poll below validates the bet (see
+            // dispatchSpeculativePostAcceptanceGeneration).
+            dispatchSpeculativePostAcceptanceGeneration(
+                rawContext: rawContext,
+                insertionChunk: insertionChunk
+            )
             // Wait for the host to actually publish the inserted text before regenerating. A bare
             // `schedulePrediction()` here reads pre-insertion AX in Chromium editors (the publish lags
             // the synthetic keystroke), so the model re-proposes the word just accepted and the next
@@ -532,6 +539,15 @@ extension SuggestionCoordinator {
         clearDiagnostics: Bool = true
     ) {
         CotabbyLogger.suggestion.debug("Invalidating active suggestion: \(reason)")
+        // The dying session is exactly what a backspace-rollback wants restored a moment later;
+        // remember it (string-only) before the state is torn down.
+        if let session = interactionState.activeSession, !session.kind.isCorrection {
+            suggestionAnchorCache.record(
+                identityKey: session.baseContext.focusedInputIdentityKey,
+                precedingText: session.baseContext.precedingText,
+                fullText: session.fullText
+            )
+        }
         cancelPredictionWork()
         clearSuggestion(clearDiagnostics: clearDiagnostics)
         hideOverlay(reason: reason)

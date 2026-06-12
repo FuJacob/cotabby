@@ -302,6 +302,23 @@ extension SuggestionCoordinator {
         let elementChanged = currentContext?.elementIdentifier != baseline.elementIdentifier
         let selectionChanged = currentContext?.selection.location != baseline.selectionLocation
         if textChanged || elementChanged || selectionChanged {
+            // The publish arrived. When it matches the snapshot a speculative post-acceptance
+            // generation was built against, that generation is already in flight (or applied) for
+            // exactly this content: scheduling another would only retire it and pay the full
+            // round-trip the speculation existed to skip. Stand down and let it land; `apply`
+            // validates via the same signature. Any divergence falls through to the normal
+            // reschedule, whose newer work id retires the speculation automatically.
+            if let expected = pendingSpeculativeSignature,
+               currentContext?.contentSignature == expected {
+                logStage(
+                    "speculation-validated",
+                    workID: currentWorkID,
+                    generation: latestGenerationNumber,
+                    message: "Host published exactly the speculated text; keeping the in-flight generation."
+                )
+                return
+            }
+            pendingSpeculativeSignature = nil
             schedulePrediction(
                 consumedDelayMilliseconds: Self.elapsedMilliseconds(since: baseline.keystrokeUptimeNanoseconds)
             )
