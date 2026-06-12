@@ -30,7 +30,7 @@ struct AppearancePaneView: View {
                 Toggle(isOn: streamWhileGeneratingBinding) {
                     SettingsRowLabel(
                         title: "Stream Suggestions While Generating",
-                        description: "Reveal ghost text word-by-word as the model writes it, and let you accept " +
+                        description: "Reveal ghost text token-by-token as the model writes it, and let you accept " +
                             "early. Off shows each suggestion once it's fully written.",
                         systemImage: "text.append"
                     )
