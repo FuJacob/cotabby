@@ -508,6 +508,7 @@
 		BFCA7FAFDAEBF586AB615567 /* ClipboardRelevanceFilterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90B0D133AB77A2503FB08827 /* ClipboardRelevanceFilterTests.swift */; };
 		C0537A515AED443F6C61DB2A /* MenuBarSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83A810F9D28A18BA6F2066C7 /* MenuBarSections.swift */; };
 		C0B833234748E82D3382631A /* emoji.json in Resources */ = {isa = PBXBuildFile; fileRef = C379D77029D6E88C8C1B9AF7 /* emoji.json */; };
+		C0F757D74758B76DA2962BC5 /* LlamaDecodeGateDefaultsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B3E5554AAC5D0007CCC61A7 /* LlamaDecodeGateDefaultsTests.swift */; };
 		C0FE11D76BDF01A5470C554D /* FocusCapabilityFlickerGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A44BEC8C23FF227731DD0CD /* FocusCapabilityFlickerGate.swift */; };
 		C149EAED2CF6F8B6274053E0 /* AppSurfaceClassifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94B0830FBE4F2E239F670DBA /* AppSurfaceClassifier.swift */; };
 		C178E35A9A713BD4D9943E62 /* TypoCaseTransfer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08CE63B8725EBD71A4C024E1 /* TypoCaseTransfer.swift */; };
@@ -736,6 +737,7 @@
 		29CDC8BE5312B9BEFD9B22CB /* SurfaceContextComposerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurfaceContextComposerTests.swift; sourceTree = "<group>"; };
 		29ED42C4BDD0C521101AF95E /* DeviceInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceInfo.swift; sourceTree = "<group>"; };
 		2A02336442BB735EE2E8D064 /* SettingsAttentionEvaluator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsAttentionEvaluator.swift; sourceTree = "<group>"; };
+		2B3E5554AAC5D0007CCC61A7 /* LlamaDecodeGateDefaultsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LlamaDecodeGateDefaultsTests.swift; sourceTree = "<group>"; };
 		2B7A28471B8526C2693FFF65 /* AcknowledgementsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AcknowledgementsView.swift; sourceTree = "<group>"; };
 		2BC293F6125E2B14DCF05AD9 /* SettingsAttentionEvaluatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsAttentionEvaluatorTests.swift; sourceTree = "<group>"; };
 		2D1F9CEBAB0F330F8E7B61D8 /* InputSuppressionController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputSuppressionController.swift; sourceTree = "<group>"; };
@@ -1426,6 +1428,7 @@
 				2960080A726E51198225147A /* InsertionStrategySelectorTests.swift */,
 				2930EC34057319130393696B /* KeyCodeLabelsTests.swift */,
 				4793D4EA5D36D7E5CC216C27 /* LanguageSupportTests.swift */,
+				2B3E5554AAC5D0007CCC61A7 /* LlamaDecodeGateDefaultsTests.swift */,
 				906011A6C9D66EEBAF3B5CC0 /* LlamaEvalScoring.swift */,
 				6D4C1EF008B9DFA753D561D3 /* LlamaEvalScoringTests.swift */,
 				0CA88BB29BC8727878C99E95 /* LlamaPromptCacheHintTrackerTests.swift */,
@@ -2440,6 +2443,7 @@
 				F66F0D982EBAF5A3E99C5342 /* KeyCodeLabelsTests.swift in Sources */,
 				475FB7450EEC3C1B16E66CC4 /* LLMIOFileHandlerTests.swift in Sources */,
 				E912D4617AE1376061DF1F00 /* LanguageSupportTests.swift in Sources */,
+				C0F757D74758B76DA2962BC5 /* LlamaDecodeGateDefaultsTests.swift in Sources */,
 				3D82280EFF7F7E9F3FFF45ED /* LlamaEvalScoring.swift in Sources */,
 				3D56E9B3AA378400E2C081E3 /* LlamaEvalScoringTests.swift in Sources */,
 				E38801433B99E65BD7E45A0E /* LlamaPromptCacheHintTrackerTests.swift in Sources */,

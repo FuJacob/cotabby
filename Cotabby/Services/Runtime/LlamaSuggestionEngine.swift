@@ -31,11 +31,17 @@ final class LlamaSuggestionEngine {
     static let confidenceFloorOverrideKey = "cotabbyConfidenceFloorOverride"
     static let argmaxStopDisabledKey = "cotabbyArgmaxStopDisabled"
 
-    private static func resolvedConfidenceFloor(_ defaults: UserDefaults = .standard) -> Double {
+    static func resolvedConfidenceFloor(_ defaults: UserDefaults = .standard) -> Double {
         guard defaults.object(forKey: confidenceFloorOverrideKey) != nil else {
             return defaultConfidenceFloor
         }
         return defaults.double(forKey: confidenceFloorOverrideKey)
+    }
+
+    /// Mirrors `resolvedConfidenceFloor`: injectable defaults so the disable toggle is testable
+    /// against an isolated suite instead of process-global state.
+    static func resolvedStopAtArgmaxEOG(_ defaults: UserDefaults = .standard) -> Bool {
+        !defaults.bool(forKey: argmaxStopDisabledKey)
     }
 
     /// Prefills the prompt KV for the field the user just focused, so the first real suggestion
@@ -265,7 +271,7 @@ final class LlamaSuggestionEngine {
                 trailingText: request.context.trailingText
             ),
             confidenceFloor: resolvedConfidenceFloor(),
-            stopAtArgmaxEOG: !UserDefaults.standard.bool(forKey: argmaxStopDisabledKey)
+            stopAtArgmaxEOG: resolvedStopAtArgmaxEOG()
         )
     }
 }

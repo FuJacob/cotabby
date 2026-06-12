@@ -503,6 +503,10 @@ extension SuggestionCoordinator {
         guard liveContext.generation == result.generation else {
 
             latestRawModelOutput = SuggestionDebugLogger.debugPreview(result.rawText)
+            // Lifecycle discards are counted under their own reasons so `generated` always equals
+            // `shown` plus the suppression histogram; without this, every drop here silently
+            // inflated the generated count against the others.
+            qualityMetricsStore.recordSuppressed(reason: "discardedStaleContext")
             logStage(
                 "stale-drop",
                 workID: workID,
@@ -521,6 +525,11 @@ extension SuggestionCoordinator {
             clearSuggestion()
             hideOverlay(reason: "Overlay hidden because the model returned an empty continuation.")
             state = .idle
+            // The router already counted engine-attributed suppressions (normalizer, confidence
+            // floor); only the unattributed "model produced nothing" case needs a ledger entry.
+            if result.suppressionReason == nil {
+                qualityMetricsStore.recordSuppressed(reason: "emptyUnattributed")
+            }
             logStage(
                 "empty-result",
                 workID: workID,
@@ -536,6 +545,7 @@ extension SuggestionCoordinator {
             clearSuggestion(clearDiagnostics: true)
             hideOverlay(reason: "Overlay hidden because text is selected.")
             state = .idle
+            qualityMetricsStore.recordSuppressed(reason: "discardedSelection")
             logStage(
                 "selected-text",
                 workID: workID,
@@ -560,6 +570,7 @@ extension SuggestionCoordinator {
             clearSuggestion(clearDiagnostics: false)
             hideOverlay(reason: "Overlay hidden because the regeneration only echoed the just-accepted text before the host published it.")
             state = .idle
+            qualityMetricsStore.recordSuppressed(reason: "discardedAcceptEcho")
             logStage(
                 "stale-accept-echo",
                 workID: workID,
