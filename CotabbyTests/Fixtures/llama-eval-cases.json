@@ -552,7 +552,10 @@
     "12",
     "1",
     "the",
-    "that"
+    "that",
+    "12:30",
+    "12:15",
+    "1:30"
    ]
   }
  },
@@ -2616,6 +2619,89 @@
     "<|start_header_id|>",
     "<|end_header_id|>",
     "<|eot_id|>"
+   ]
+  }
+ },
+ {
+  "id": "longdoc-email-01",
+  "tags": [
+   "longdoc",
+   "email",
+   "en"
+  ],
+  "applicationName": "Mail",
+  "bundleIdentifier": "com.apple.mail",
+  "precedingText": "Hi all,\n\nQuick update on where the migration stands. Last week we finished moving the billing exports to the new pipeline and validated the output against three months of historical invoices; the totals matched to the cent in every region except Brazil, where a rounding rule in the legacy system produced one-cent differences on about two percent of line items. We decided to carry the legacy rounding forward for now rather than restate old invoices, and we documented the rule in the runbook so nobody rediscovers it the hard way. This week the focus shifts to the reporting dashboards. The hardest part is the revenue recognition view, which still reads from the old warehouse tables; finance signed off on a two-week dual-write period so we can compare results before cutting over. Infra capacity is fine, the new jobs run in about forty minutes against the old pipeline's three hours, and the on-call burden has already dropped noticeably since the flaky nightly sync was retired. Hi all,\n\nQuick update on where the migration stands. Last week we finished moving the billing exports to the new pipeline and validated the output against three months of historical invoices; the totals matched to the cent in every region except Brazil, where a rounding rule in the legacy system produced one-cent differences on about two percent of line items. We decided to carry the legacy rounding forward for now rather than restate old invoices, and we documented the rule in the runbook so nobody rediscovers it the hard way. This week the focus shifts to the reporting dashboards. The hardest part is the revenue recognition view, which still reads from the old warehouse tables; finance signed off on a two-week dual-write period so we can compare results before cutting over. Infra capacity is fine, the new jobs run in about forty minutes against the old pipeline's three hours, and the on-call burden has already dropped noticeably since the flaky nightly sync was retired. The one risk I want to flag for next week is ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "the",
+    "that",
+    "finance",
+    "the dual-write",
+    "the reporting",
+    "the revenue",
+    "Brazil",
+    "the cutover",
+    "the dashboards",
+    "capacity",
+    "timing",
+    "scope"
+   ]
+  }
+ },
+ {
+  "id": "longdoc-prose-02",
+  "tags": [
+   "longdoc",
+   "prose",
+   "en"
+  ],
+  "applicationName": "Pages",
+  "bundleIdentifier": "com.apple.iWork.Pages",
+  "precedingText": "Chapter notes. The valley settlement grew slowly at first, hemmed in by the river on one side and the escarpment on the other, and its earliest houses were built from the gray stone that still shows in the oldest foundations. Trade came up the river in flat-bottomed barges, salt and iron heading north, grain and wool heading south, and the toll bridge paid for the first school. When the railway arrived the town doubled in a decade, and the old market square, once the whole of public life, became a quiet courtyard behind the new station hotel. Photographs from that era show awnings over every shopfront and a clock tower that no longer stands; it was struck by lightning twice in one summer and pulled down before it could fall on the post office. Chapter notes. The valley settlement grew slowly at first, hemmed in by the river on one side and the escarpment on the other, and its earliest houses were built from the gray stone that still shows in the oldest foundations. Trade came up the river in flat-bottomed barges, salt and iron heading north, grain and wool heading south, and the toll bridge paid for the first school. When the railway arrived the town doubled in a decade, and the old market square, once the whole of public life, became a quiet courtyard behind the new station hotel. Photographs from that era show awnings over every shopfront and a clock tower that no longer stands; it was struck by lightning twice in one summer and pulled down before it could fall on the post office. Chapter notes. The valley settlement grew slowly at first, hemmed in by the river on one side and the escarpment on the other, and its earliest houses were built from the gray stone that still shows in the oldest foundations. Trade came up the river in flat-bottomed barges, salt and iron heading north, grain and wool heading south, and the toll bridge paid for the first school. When the railway arrived the town doubled in a decade, and the old market square, once the whole of public life, became a quiet courtyard behind the new station hotel. Photographs from that era show awnings over every shopfront and a clock tower that no longer stands; it was struck by lightning twice in one summer and pulled down before it could fall on the post office. What the photographs cannot show is ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "the",
+    "how",
+    "what",
+    "is",
+    "the sound",
+    "the smell",
+    "the noise",
+    "the life",
+    "the people",
+    "the bustle"
+   ]
+  }
+ },
+ {
+  "id": "longdoc-chat-03",
+  "tags": [
+   "longdoc",
+   "chat",
+   "en"
+  ],
+  "applicationName": "Slack",
+  "bundleIdentifier": "com.tinyspeck.slackmacgap",
+  "isMultiLineEnabled": false,
+  "precedingText": "[09:12] maya: morning! the staging deploy from last night looks healthy, error rate is flat\n[09:14] tom: nice. did the cache change go out with it?\n[09:15] maya: yes, hit rate is up to 94 percent from 81\n[09:17] tom: that explains the latency graph, p95 dropped almost 200ms overnight\n[09:20] priya: customer success just pinged me, the Acme folks noticed the speedup already\n[09:22] tom: love that. anything left before we promote to prod?\n[09:25] maya: two things: the migration dry run on the replica, and sign-off from security on the new header config\n[09:12] maya: morning! the staging deploy from last night looks healthy, error rate is flat\n[09:14] tom: nice. did the cache change go out with it?\n[09:15] maya: yes, hit rate is up to 94 percent from 81\n[09:17] tom: that explains the latency graph, p95 dropped almost 200ms overnight\n[09:20] priya: customer success just pinged me, the Acme folks noticed the speedup already\n[09:22] tom: love that. anything left before we promote to prod?\n[09:25] maya: two things: the migration dry run on the replica, and sign-off from security on the new header config\n[09:12] maya: morning! the staging deploy from last night looks healthy, error rate is flat\n[09:14] tom: nice. did the cache change go out with it?\n[09:15] maya: yes, hit rate is up to 94 percent from 81\n[09:17] tom: that explains the latency graph, p95 dropped almost 200ms overnight\n[09:20] priya: customer success just pinged me, the Acme folks noticed the speedup already\n[09:22] tom: love that. anything left before we promote to prod?\n[09:25] maya: two things: the migration dry run on the replica, and sign-off from security on the new header config\n[09:27] priya: ok, so the plan for tomorrow is ",
+  "expectation": {
+   "kind": "positive",
+   "acceptable": [
+    "the migration",
+    "migration",
+    "dry run",
+    "the dry",
+    "security",
+    "sign-off",
+    "to run",
+    "to do",
+    "to get",
+    "to promote",
+    "1",
+    "first"
    ]
   }
  }
