@@ -3,12 +3,13 @@ import SwiftUI
 /// File overview:
 /// The onboarding step where the user picks one of three starting points (Quick / Everyday /
 /// Powerful). Selecting a card applies its settings and, for local-model templates, kicks off the
-/// model download in the background so it can finish while the user completes the rest of onboarding.
+/// model download in the background so it can finish while the user completes the rest of
+/// onboarding.
 ///
 /// This view is intentionally render-only: it reports the chosen template upward via `onSelect` and
-/// the parent (`WelcomeView`) owns applying settings and starting downloads. Per-card recommendation,
-/// gating, and warning copy come from `OnboardingTemplateRecommender` so the product rules live in
-/// one testable place.
+/// the parent (`WelcomeView`) owns applying settings and starting downloads. Per-card
+/// recommendation, gating, and warning copy come from `OnboardingTemplateRecommender` so the
+/// product rules live in one testable place.
 struct WelcomeTemplateStepView: View {
     @ObservedObject var modelDownloadManager: ModelDownloadManager
     @ObservedObject var foundationModelAvailabilityService: FoundationModelAvailabilityService
@@ -21,20 +22,18 @@ struct WelcomeTemplateStepView: View {
 
     var body: some View {
         VStack(spacing: 24) {
-            VStack(spacing: 8) {
-                Text("Choose a starting point")
-                    .font(.system(size: 24, weight: .semibold, design: .rounded))
-
-                Text("Pick one to get set up. You can fine-tune everything later in Settings.")
-                    .font(.system(size: 14, design: .rounded))
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-            }
+            OnboardingStepHeader(
+                systemImage: "wand.and.stars",
+                title: "Choose a starting point",
+                subtitle: "Pick one to get set up. You can fine-tune everything later in Settings."
+            )
+            .onboardingReveal(0)
 
             engineSelector
+                .onboardingReveal(1)
 
             VStack(spacing: 10) {
-                ForEach(OnboardingTemplate.curatedTiers) { template in
+                ForEach(Array(OnboardingTemplate.curatedTiers.enumerated()), id: \.element) { index, template in
                     let availability = OnboardingTemplateRecommender.availability(
                         for: template,
                         hardware: hardware,
@@ -53,6 +52,7 @@ struct WelcomeTemplateStepView: View {
                         downloadState: downloadState(for: plan),
                         onTap: { onSelect(template) }
                     )
+                    .onboardingReveal(2 + index)
                 }
             }
         }
@@ -78,7 +78,7 @@ struct WelcomeTemplateStepView: View {
             EngineChoiceCard(
                 title: SuggestionEngineKind.llamaOpenSource.displayLabel,
                 subtitle: "Local models on your Mac",
-                systemImageName: "internaldrive",
+                systemImageName: "internaldrive.fill",
                 isSelected: selectedEngine == .llamaOpenSource,
                 isDisabled: false,
                 onTap: { onSelectEngine(.llamaOpenSource) }
@@ -93,6 +93,25 @@ struct WelcomeTemplateStepView: View {
             return nil
         }
         return modelDownloadManager.state(for: model)
+    }
+}
+
+// MARK: - Tier tint
+
+extension OnboardingTemplate {
+    /// Per-tier tile tint, defined in the UI layer so the model type stays free of SwiftUI.
+    /// Green / brand blue / purple gives the three cards distinct, scannable identities.
+    var onboardingTint: Color {
+        switch self {
+        case .quick:
+            .green
+        case .everyday:
+            OnboardingTheme.accent
+        case .powerful:
+            .purple
+        case .custom:
+            .gray
+        }
     }
 }
 
@@ -111,25 +130,42 @@ private struct TemplateCard: View {
     /// row list, and short cards preserve the "pick one" feel of this step.
     @State private var isFeatureListExpanded = false
 
+    private var isActive: Bool {
+        isSelected && !availability.isDisabled
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             selectionButton
             featureDisclosure
         }
         .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(.regularMaterial)
-                .shadow(color: .black.opacity(0.06), radius: 2, y: 1)
+            ZStack {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(.regularMaterial)
+                    .shadow(
+                        color: isActive ? OnboardingTheme.accent.opacity(0.18) : .black.opacity(0.07),
+                        radius: isActive ? 7 : 3,
+                        y: 1
+                    )
+
+                // A faint brand wash over the material marks the chosen card even at a glance from
+                // across the room; the stroke alone is too subtle once three cards are stacked.
+                if isActive {
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(OnboardingTheme.accent.opacity(0.06))
+                }
+            }
         )
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(
-                    isSelected && !availability.isDisabled
-                        ? Color.accentColor.opacity(0.45) : Color.white.opacity(0.08),
-                    lineWidth: isSelected && !availability.isDisabled ? 1.5 : 0.5
+                .strokeBorder(
+                    isActive ? OnboardingTheme.accent.opacity(0.55) : Color.primary.opacity(0.07),
+                    lineWidth: isActive ? 1.5 : 0.5
                 )
         )
         .opacity(availability.isDisabled ? 0.55 : 1.0)
+        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isActive)
     }
 
     /// Main card surface that selects the template. The feature disclosure is rendered as a sibling
@@ -138,12 +174,16 @@ private struct TemplateCard: View {
         Button(action: onTap) {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 14) {
-                    iconBadge
+                    OnboardingIconTile(
+                        systemImage: template.systemImageName,
+                        tint: availability.isDisabled ? .gray : template.onboardingTint,
+                        size: 38
+                    )
 
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 8) {
                             Text(template.title)
-                                .font(.system(size: 15, weight: .semibold))
+                                .font(.system(size: 15, weight: .semibold, design: .rounded))
                                 .foregroundStyle(availability.isDisabled ? .tertiary : .primary)
 
                             if availability.isRecommended {
@@ -158,10 +198,11 @@ private struct TemplateCard: View {
 
                     Spacer(minLength: 0)
 
-                    if isSelected && !availability.isDisabled {
+                    if isActive {
                         Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 18))
-                            .foregroundColor(.accentColor)
+                            .font(.system(size: 19))
+                            .foregroundStyle(OnboardingTheme.accent)
+                            .transition(.scale(scale: 0.6).combined(with: .opacity))
                     }
                 }
 
@@ -267,7 +308,7 @@ private struct TemplateCard: View {
         case .enabled:
             Image(systemName: "checkmark")
                 .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(OnboardingTheme.accent)
         case .disabled:
             Image(systemName: "minus")
                 .font(.system(size: 10, weight: .semibold))
@@ -277,20 +318,6 @@ private struct TemplateCard: View {
                 .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(.tertiary)
         }
-    }
-
-    private var iconBadge: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(isSelected
-                    ? AnyShapeStyle(Color.accentColor.opacity(0.12))
-                    : AnyShapeStyle(.quaternary.opacity(0.5)))
-
-            Image(systemName: template.systemImageName)
-                .font(.system(size: 16, weight: .medium))
-                .foregroundStyle(isSelected && !availability.isDisabled ? Color.accentColor : .secondary)
-        }
-        .frame(width: 38, height: 38)
     }
 
     private var engineSymbol: String {
@@ -320,6 +347,7 @@ private struct TemplateCard: View {
                 if let progress {
                     ProgressView(value: progress)
                         .progressViewStyle(.linear)
+                        .tint(OnboardingTheme.accent)
                 } else {
                     // No fraction reported yet: fall back to the default (circular) spinner, since
                     // macOS's linear style renders nothing for an indeterminate ProgressView.
@@ -354,24 +382,28 @@ private struct EngineChoiceCard: View {
     let isDisabled: Bool
     let onTap: () -> Void
 
+    private var isActive: Bool {
+        isSelected && !isDisabled
+    }
+
     var body: some View {
         Button(action: onTap) {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 8) {
                     Image(systemName: systemImageName)
                         .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(iconStyle)
+                        .foregroundStyle(isActive ? AnyShapeStyle(OnboardingTheme.accent) : AnyShapeStyle(.secondary))
 
                     Text(title)
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.system(size: 14, weight: .semibold, design: .rounded))
                         .foregroundStyle(isDisabled ? .tertiary : .primary)
 
                     Spacer(minLength: 0)
 
-                    if isSelected && !isDisabled {
+                    if isActive {
                         Image(systemName: "checkmark.circle.fill")
                             .font(.system(size: 15))
-                            .foregroundColor(.accentColor)
+                            .foregroundStyle(OnboardingTheme.accent)
                     }
                 }
 
@@ -384,26 +416,28 @@ private struct EngineChoiceCard: View {
             .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(.regularMaterial)
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(.regularMaterial)
+
+                    if isActive {
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(OnboardingTheme.accent.opacity(0.07))
+                    }
+                }
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(
-                        isSelected && !isDisabled
-                            ? Color.accentColor.opacity(0.45) : Color.white.opacity(0.08),
-                        lineWidth: isSelected && !isDisabled ? 1.5 : 0.5
+                    .strokeBorder(
+                        isActive ? OnboardingTheme.accent.opacity(0.55) : Color.primary.opacity(0.07),
+                        lineWidth: isActive ? 1.5 : 0.5
                     )
             )
             .opacity(isDisabled ? 0.55 : 1.0)
         }
         .buttonStyle(.plain)
         .disabled(isDisabled)
-    }
-
-    private var iconStyle: HierarchicalShapeStyle {
-        // `.primary` when selected reads as active without introducing a second accent color.
-        isSelected && !isDisabled ? .primary : .secondary
+        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isActive)
     }
 }
 
@@ -413,11 +447,17 @@ private struct RecommendedBadge: View {
     var body: some View {
         Text("Recommended")
             .font(.system(size: 10, weight: .semibold))
-            .foregroundStyle(Color.accentColor)
+            .foregroundStyle(.white)
             .padding(.horizontal, 7)
             .padding(.vertical, 2)
             .background(
-                Capsule().fill(Color.accentColor.opacity(0.12))
+                Capsule().fill(
+                    LinearGradient(
+                        colors: [OnboardingTheme.accentSoft, OnboardingTheme.accent],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
             )
     }
 }
