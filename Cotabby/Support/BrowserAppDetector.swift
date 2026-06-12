@@ -15,7 +15,7 @@ import Foundation
 ///
 /// Matching is by case-insensitive bundle-identifier prefix to tolerate channel suffixes
 /// (`com.google.Chrome.canary`, `com.google.Chrome.beta`, etc.).
-enum BrowserAppDetector {
+nonisolated enum BrowserAppDetector {
     /// Every browser family, used for the broad "typing in a browser" tone hint.
     private static let browserBundlePrefixes: [String] = [
         "com.apple.safari",

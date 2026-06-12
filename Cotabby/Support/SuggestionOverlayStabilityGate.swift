@@ -74,12 +74,22 @@ enum SuggestionOverlayStabilityGate {
         if isAwaitingPostInsertionSync {
             return false
         }
-        // Hold small caret deltas (post-insertion AX noise and exact-advance residual); re-anchor on
-        // genuine moves and on accumulated drift past the tolerance. Compared against the held
-        // (already-advanced) caret, not a per-tick previous value, so slow drift still gets corrected.
-        if abs(currentGeometry.caretRect.origin.x - newCaretRect.origin.x) > caretDriftTolerance
-            || abs(currentGeometry.caretRect.origin.y - newCaretRect.origin.y) > caretDriftTolerance {
-            return true
+        // A layout-estimated anchor was computed by the hidden text layout from (text, field
+        // frame, style), not from the resolver's caret. Fresh snapshots still carry the RAW
+        // resolver rect (an AXFrame proportional guess, or a derived rect the repair overrode),
+        // which lives in a different trust system and routinely sits a word or more away from the
+        // estimate; treating that gap as caret drift re-presented (and re-estimated) on every
+        // reconcile tick. With text and field unchanged the estimate is pure-function stable, so
+        // only the frame check below can demand a re-anchor for these overlays.
+        if currentGeometry.caretQuality != .layoutEstimated {
+            // Hold small caret deltas (post-insertion AX noise and exact-advance residual); re-anchor
+            // on genuine moves and on accumulated drift past the tolerance. Compared against the held
+            // (already-advanced) caret, not a per-tick previous value, so slow drift still gets
+            // corrected.
+            if abs(currentGeometry.caretRect.origin.x - newCaretRect.origin.x) > caretDriftTolerance
+                || abs(currentGeometry.caretRect.origin.y - newCaretRect.origin.y) > caretDriftTolerance {
+                return true
+            }
         }
         // `observedCharWidth` is intentionally NOT compared here. Drift in that value also affects
         // `GhostSuggestionLayout.singleLineFits` (and therefore the panel-origin branch), so during

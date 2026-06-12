@@ -20,7 +20,7 @@ import Foundation
 /// into a text field expecting a completion, so removing them cannot eat legitimate prose or code.
 /// `<think>…</think>` reasoning blocks are intentionally not listed here: they are handled separately
 /// so the text around them survives.
-enum ControlTokenMarkers {
+nonisolated enum ControlTokenMarkers {
     /// A Llama-3 role-header block, e.g. `<|start_header_id|>assistant<|end_header_id|>`. The role
     /// name sits *between* the markers, so removing the markers individually would leak the role word
     /// into the ghost text; this strips the whole block. `|` is escaped because it is a regex

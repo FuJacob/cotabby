@@ -338,6 +338,42 @@ final class SuggestionCoordinatorPredictionTests: XCTestCase {
 
     // MARK: - Post-insertion stillness
 
+    func test_accept_layoutEstimatedOverlaySkipsTheSlideAndReAnchorsViaTheEstimator() {
+        // TextKit-mirror hosts: the overlay anchor came from the hidden layout estimate, so a
+        // width-based slide leaves it a ghost-vs-host font error away from the next estimate and
+        // the settle reads as a post-accept jerk. The accept must skip the slide and go through
+        // the presenting path, where the layout repair (fed the pending insertion) re-anchors at
+        // exactly the position the post-publish estimate will reproduce.
+        let rig = retained(makeCoordinatorRig())
+        let context = FocusedInputContext(snapshot: rig.focusProvider.snapshot.context!, generation: 1)
+        _ = rig.interactionState.startSession(fullText: " world again", liveContext: context, latency: 0.05)
+        rig.overlayController.showSuggestion(
+            " world again",
+            geometry: CotabbyTestFixtures.overlayGeometry(caretQuality: .layoutEstimated)
+        )
+
+        XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
+
+        XCTAssertTrue(
+            rig.overlayController.advanceInlineCalls.isEmpty,
+            "A layout-estimated overlay must never width-slide on accept"
+        )
+        XCTAssertEqual(rig.overlayController.shownTexts.last, " again", "The estimator path re-presented the tail")
+    }
+
+    func test_accept_trustedGeometryStillAttemptsTheSlideFirst() {
+        let rig = retained(makeCoordinatorRig())
+        let context = FocusedInputContext(snapshot: rig.focusProvider.snapshot.context!, generation: 1)
+        _ = rig.interactionState.startSession(fullText: " world again", liveContext: context, latency: 0.05)
+        rig.overlayController.showSuggestion(" world again", geometry: CotabbyTestFixtures.overlayGeometry())
+
+        XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
+
+        XCTAssertEqual(rig.overlayController.advanceInlineCalls.count, 1)
+        XCTAssertEqual(rig.overlayController.advanceInlineCalls.first?.remaining, " again")
+        XCTAssertEqual(rig.overlayController.advanceInlineCalls.first?.inserted, " world")
+    }
+
     func test_reconcileDuringPostInsertionSyncWindow_neverReAnchorsTheOverlay() {
         // The TextEdit accept jitter: Tab inserts " world" and the overlay advances immediately,
         // but the +30ms refresh can read AX BEFORE the host publishes the insert. That snapshot's
