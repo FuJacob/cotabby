@@ -10,10 +10,6 @@ import SwiftUI
 @MainActor
 final class WelcomeCoordinator: NSObject, NSWindowDelegate {
     private enum Layout {
-        /// Match the first welcome step so the window does not flash at an oversized default before
-        /// SwiftUI has a chance to report its preferred content size.
-        static let initialContentSize = NSSize(width: 500, height: 360)
-
         /// Keep a margin between the onboarding window and the screen edges when a step's preferred
         /// height would otherwise exceed the visible screen. The SwiftUI content scrolls to absorb
         /// the difference, so clamping here only ever shrinks the window, never clips the footer.
@@ -51,7 +47,13 @@ final class WelcomeCoordinator: NSObject, NSWindowDelegate {
     /// relaunches Cotabby, which lands before the final "Start Using Cotabby" tap that stamps
     /// completion. Without this, that relaunch drops them back at step one and onboarding repeats
     /// every time (issue #314). Cleared on completion so a future version bump starts clean.
-    private static let onboardingProgressStepKey = "cotabbyOnboardingProgressStep"
+    ///
+    /// The "2" suffix marks the second step-numbering scheme (the redesign folded the writing-style
+    /// step into "personalize", shifting every later raw index). Reading the old key would resume a
+    /// mid-flow user onto the wrong step, so the old key is abandoned rather than reinterpreted;
+    /// anyone caught mid-flow across the update restarts at the welcome step, which is the safe
+    /// outcome. Any future change to `WelcomeStep`'s numbering must bump this suffix again.
+    private static let onboardingProgressStepKey = "cotabbyOnboardingProgressStep2"
 
     init(
         permissionManager: PermissionManager,
@@ -117,6 +119,8 @@ final class WelcomeCoordinator: NSObject, NSWindowDelegate {
             return
         }
 
+        let resumeStepIndex = userDefaults.integer(forKey: Self.onboardingProgressStepKey)
+
         let hostingController = NSHostingController(
             rootView: WelcomeView(
                 permissionManager: permissionManager,
@@ -131,7 +135,7 @@ final class WelcomeCoordinator: NSObject, NSWindowDelegate {
                 onDismiss: { [weak self] in
                     self?.completeOnboarding()
                 },
-                initialStepIndex: userDefaults.integer(forKey: Self.onboardingProgressStepKey),
+                initialStepIndex: resumeStepIndex,
                 isReturningUser: userDefaults.integer(forKey: Self.onboardingCompletedVersionKey) > 0,
                 onStepChange: { [weak self] stepIndex in
                     self?.recordProgress(stepIndex: stepIndex)
@@ -139,8 +143,13 @@ final class WelcomeCoordinator: NSObject, NSWindowDelegate {
             )
         )
 
+        // Size the window for the step the wizard actually opens on (the resume point, mirroring
+        // WelcomeView's own fallback for out-of-range indices) so it never flashes at one size and
+        // immediately animates to another.
+        let initialStep = WelcomeStep(rawValue: resumeStepIndex) ?? .welcome
+
         let window = NSWindow(
-            contentRect: CGRect(origin: .zero, size: Layout.initialContentSize),
+            contentRect: CGRect(origin: .zero, size: initialStep.preferredWindowSize),
             styleMask: [.titled, .closable, .fullSizeContentView],
             backing: .buffered,
             defer: false
