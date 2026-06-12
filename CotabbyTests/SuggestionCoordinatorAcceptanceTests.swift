@@ -71,6 +71,88 @@ final class SuggestionCoordinatorAcceptanceTests: XCTestCase {
         }
     }
 
+    func test_acceptCurrentSuggestion_withAddSpaceAfterAccept_insertsTrailingSpaceOnNonFinalWord() {
+        // Full coordinator path with the setting ON and a multi-word suggestion: accepting the first
+        // word must insert the word plus the suggestion's own following space (so the toggle fires
+        // per word, not only when the suggestion is exhausted), while the tail keeps the rest.
+        runOnMainActor {
+            let snapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello")
+            let context = FocusedInputContext(snapshot: snapshot, generation: 7)
+            let interactionState = SuggestionInteractionState()
+            let session = interactionState.startSession(
+                fullText: " world how",
+                liveContext: context,
+                latency: 0.1
+            )
+            let overlayState = OverlayState.visible(
+                text: session.remainingText,
+                geometry: CotabbyTestFixtures.overlayGeometry(caretRect: context.caretRect),
+                mode: .inline
+            )
+            let inserter = StubSuggestionInserter()
+            let coordinator = makeCoordinator(
+                snapshot: snapshot,
+                overlayState: overlayState,
+                inputMonitor: StubSuggestionInputMonitor(),
+                inserter: inserter,
+                interactionState: interactionState,
+                settingsSnapshot: CotabbyTestFixtures.settingsSnapshot(addSpaceAfterAccept: true)
+            )
+            coordinator.state = .debouncing
+
+            XCTAssertTrue(coordinator.acceptCurrentSuggestion())
+
+            // " world" plus the model's own following space, consumed in one accept.
+            XCTAssertEqual(inserter.insertedChunks, [" world "])
+            if case let .ready(remainingText, _) = coordinator.state {
+                XCTAssertEqual(remainingText, "how", "The consumed following space should not lead the tail.")
+            } else {
+                XCTFail("Partial acceptance should leave the remaining suggestion ready.")
+            }
+            Self.retainedCoordinators.append(coordinator)
+        }
+    }
+
+    func test_acceptCurrentSuggestion_withoutAddSpaceAfterAccept_insertsWordWithoutTrailingSpace() {
+        // Same setup with the setting OFF: byte-for-byte the prior behavior (no trailing space, the
+        // following space leads the next chunk).
+        runOnMainActor {
+            let snapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello")
+            let context = FocusedInputContext(snapshot: snapshot, generation: 7)
+            let interactionState = SuggestionInteractionState()
+            let session = interactionState.startSession(
+                fullText: " world how",
+                liveContext: context,
+                latency: 0.1
+            )
+            let overlayState = OverlayState.visible(
+                text: session.remainingText,
+                geometry: CotabbyTestFixtures.overlayGeometry(caretRect: context.caretRect),
+                mode: .inline
+            )
+            let inserter = StubSuggestionInserter()
+            let coordinator = makeCoordinator(
+                snapshot: snapshot,
+                overlayState: overlayState,
+                inputMonitor: StubSuggestionInputMonitor(),
+                inserter: inserter,
+                interactionState: interactionState,
+                settingsSnapshot: CotabbyTestFixtures.settingsSnapshot(addSpaceAfterAccept: false)
+            )
+            coordinator.state = .debouncing
+
+            XCTAssertTrue(coordinator.acceptCurrentSuggestion())
+
+            XCTAssertEqual(inserter.insertedChunks, [" world"])
+            if case let .ready(remainingText, _) = coordinator.state {
+                XCTAssertEqual(remainingText, " how")
+            } else {
+                XCTFail("Partial acceptance should leave the remaining suggestion ready.")
+            }
+            Self.retainedCoordinators.append(coordinator)
+        }
+    }
+
     func test_acceptCurrentSuggestionCleansVisibleOverlayWhenSessionDisappears() {
         runOnMainActor {
             let snapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello")
@@ -381,7 +463,8 @@ final class SuggestionCoordinatorAcceptanceTests: XCTestCase {
         overlayState: OverlayState,
         inputMonitor: StubSuggestionInputMonitor,
         inserter: StubSuggestionInserter,
-        interactionState: SuggestionInteractionState
+        interactionState: SuggestionInteractionState,
+        settingsSnapshot: SuggestionSettingsSnapshot = CotabbyTestFixtures.settingsSnapshot()
     ) -> SuggestionCoordinator {
         let focusSnapshot = FocusSnapshot(
             applicationName: snapshot.applicationName,
@@ -390,6 +473,8 @@ final class SuggestionCoordinatorAcceptanceTests: XCTestCase {
             context: snapshot,
             inspection: nil
         )
+        let settingsProvider = StubSuggestionSettingsProvider()
+        settingsProvider.snapshot = settingsSnapshot
         let coordinator = SuggestionCoordinator(
             permissionManager: StubSuggestionPermissionProvider(),
             focusModel: StubSuggestionFocusProvider(snapshot: focusSnapshot),
@@ -397,7 +482,7 @@ final class SuggestionCoordinatorAcceptanceTests: XCTestCase {
             overlayController: StubSuggestionOverlayController(state: overlayState),
             suggestionInserter: inserter,
             suggestionEngine: StubSuggestionEngine(),
-            suggestionSettings: StubSuggestionSettingsProvider(),
+            suggestionSettings: settingsProvider,
             clipboardContextProvider: StubClipboardContextProvider(),
             clipboardRelevanceFilter: StubClipboardRelevanceFilter(),
             visualContextCoordinator: StubVisualContextCoordinator(),
