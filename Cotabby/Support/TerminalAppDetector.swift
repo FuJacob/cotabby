@@ -5,7 +5,7 @@ import Foundation
 /// Terminal apps have their own completion, history, and shell integrations that conflict with
 /// ghost-text autocomplete. Cotabby stays out of the way automatically so the user doesn't have to
 /// manually disable each terminal they use.
-enum TerminalAppDetector {
+nonisolated enum TerminalAppDetector {
     /// Bundle identifiers of well-known macOS terminal emulators.
     private static let terminalBundleIdentifiers: Set<String> = [
         "com.apple.Terminal",

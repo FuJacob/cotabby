@@ -64,9 +64,17 @@ final class RigOverlayController: SuggestionOverlayControlling {
     var onStateChange: ((OverlayState) -> Void)?
     private(set) var shownTexts: [String] = []
     private(set) var hideReasons: [String] = []
+    /// Records slide attempts (and declines them, like the protocol default) so tests can assert
+    /// which accept paths even try to slide versus re-anchor through a present.
+    private(set) var advanceInlineCalls: [(remaining: String, inserted: String)] = []
 
     init(state: OverlayState = .hidden(reason: "initial")) {
         self.state = state
+    }
+
+    func advanceInline(to remainingText: String, insertedText: String) -> Bool {
+        advanceInlineCalls.append((remainingText, insertedText))
+        return false
     }
 
     func showSuggestion(_ text: String, geometry: SuggestionOverlayGeometry) {

@@ -18,12 +18,13 @@ final class SuggestionOverlayStabilityGateTests: XCTestCase {
     private static func geometry(
         caretRect: CGRect = caretRect,
         inputFrameRect: CGRect? = inputFrame,
+        caretQuality: CaretGeometryQuality = .exact,
         focusChangeSequence: UInt64 = 7
     ) -> SuggestionOverlayGeometry {
         SuggestionOverlayGeometry(
             caretRect: caretRect,
             inputFrameRect: inputFrameRect,
-            caretQuality: .exact,
+            caretQuality: caretQuality,
             observedCharWidth: 8,
             isRightToLeft: false,
             focusChangeSequence: focusChangeSequence
@@ -327,6 +328,73 @@ final class SuggestionOverlayStabilityGateTests: XCTestCase {
                 newInputFrameRect: Self.inputFrame,
                 newFocusChangeSequence: 7,
                 isAwaitingPostInsertionSync: false
+            )
+        )
+    }
+
+    // MARK: - Layout-estimated anchors (TextKit mirror hosts)
+
+    func test_layoutEstimatedAnchor_ignoresRawCaretDrift() {
+        // The held anchor came from the hidden text layout; fresh snapshots still carry the RAW
+        // resolver caret (an AXFrame proportional guess), which routinely sits a word or more
+        // away. Treating that gap as drift re-presented and re-estimated on every reconcile
+        // tick, and around accepts it was the jerk-left-then-back: with text and field unchanged
+        // the estimate cannot move, so the gate must hold.
+        let current: OverlayState = .visible(
+            text: " again",
+            geometry: Self.geometry(
+                caretRect: CGRect(x: 320, y: 210, width: 2, height: 18),
+                caretQuality: .layoutEstimated
+            ),
+            mode: .inline
+        )
+
+        XCTAssertFalse(
+            SuggestionOverlayStabilityGate.shouldRePresent(
+                currentOverlay: current,
+                newText: " again",
+                newCaretRect: Self.caretRect,
+                newInputFrameRect: Self.inputFrame,
+                newFocusChangeSequence: 7
+            )
+        )
+    }
+
+    func test_layoutEstimatedAnchor_stillReAnchorsOnFrameTextOrFieldChange() {
+        // The estimate is a pure function of (text, field frame, style): when one of its real
+        // inputs changes, or the field itself does, the re-anchor must still happen.
+        let current: OverlayState = .visible(
+            text: " again",
+            geometry: Self.geometry(caretQuality: .layoutEstimated),
+            mode: .inline
+        )
+
+        XCTAssertTrue(
+            SuggestionOverlayStabilityGate.shouldRePresent(
+                currentOverlay: current,
+                newText: " again",
+                newCaretRect: Self.caretRect,
+                newInputFrameRect: Self.inputFrame.offsetBy(dx: 40, dy: 0),
+                newFocusChangeSequence: 7
+            ),
+            "A field-frame move re-positions the estimate and must re-anchor"
+        )
+        XCTAssertTrue(
+            SuggestionOverlayStabilityGate.shouldRePresent(
+                currentOverlay: current,
+                newText: " different",
+                newCaretRect: Self.caretRect,
+                newInputFrameRect: Self.inputFrame,
+                newFocusChangeSequence: 7
+            )
+        )
+        XCTAssertTrue(
+            SuggestionOverlayStabilityGate.shouldRePresent(
+                currentOverlay: current,
+                newText: " again",
+                newCaretRect: Self.caretRect,
+                newInputFrameRect: Self.inputFrame,
+                newFocusChangeSequence: 8
             )
         )
     }

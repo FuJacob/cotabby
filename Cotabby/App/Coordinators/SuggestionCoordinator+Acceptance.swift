@@ -240,7 +240,21 @@ extension SuggestionCoordinator {
         insertionChunk: String,
         liveContext: FocusedInputContext
     ) {
-        if overlayController.advanceInline(to: remainingText, insertedText: insertionChunk) {
+        // A layout-estimated anchor lives in the hidden text layout's coordinate system, and the
+        // estimator models the accepted chunk's true advance (soft wrap included) better than any
+        // width shift can: that re-anchor, fed with the pending insertion below, is exactly what
+        // the caret repair was built for on these hosts. Sliding instead leaves the anchor a
+        // ghost-vs-host font error away from the next estimate and the settle showed up as a
+        // post-accept jerk. Skip the slide so the estimator places the tail where the
+        // post-publish estimate will also land; nothing moves afterwards.
+        let heldOverlayQuality: CaretGeometryQuality?
+        if case let .visible(_, geometry, _) = overlayState {
+            heldOverlayQuality = geometry.caretQuality
+        } else {
+            heldOverlayQuality = nil
+        }
+        if heldOverlayQuality != .layoutEstimated,
+           overlayController.advanceInline(to: remainingText, insertedText: insertionChunk) {
             return
         }
 
