@@ -207,6 +207,18 @@ struct FocusedInputSnapshot: Equatable {
     /// call sites compiling unchanged.
     let resolvedFieldStyle: ResolvedFieldStyle?
 
+    /// The focused window's title, read once per field session (cached by `SurfaceContextCache`)
+    /// when surface context is enabled. The window title carries the highest-signal surface cue
+    /// available over Accessibility: the email subject, document name, channel, or page title.
+    /// Nil when disabled, unavailable, or the field is secure. The initializer default keeps
+    /// existing call sites compiling unchanged.
+    let windowTitle: String?
+
+    /// The focused field's placeholder text (`AXPlaceholderValue`), read with the window title and
+    /// under the same gating. Nil when absent. The initializer default keeps existing call sites
+    /// compiling unchanged.
+    let fieldPlaceholder: String?
+
     /// Explicit initializer keeps `focusChangeSequence` immutable while preserving the old
     /// memberwise-call ergonomics for tests that do not care about focus identity.
     ///
@@ -234,7 +246,9 @@ struct FocusedInputSnapshot: Equatable {
         isWebContentField: Bool = false,
         focusChangeSequence: UInt64 = 0,
         focusedURLString: String? = nil,
-        resolvedFieldStyle: ResolvedFieldStyle? = nil
+        resolvedFieldStyle: ResolvedFieldStyle? = nil,
+        windowTitle: String? = nil,
+        fieldPlaceholder: String? = nil
     ) {
         self.applicationName = applicationName
         self.bundleIdentifier = bundleIdentifier
@@ -257,6 +271,8 @@ struct FocusedInputSnapshot: Equatable {
         self.focusChangeSequence = focusChangeSequence
         self.focusedURLString = focusedURLString
         self.resolvedFieldStyle = resolvedFieldStyle
+        self.windowTitle = windowTitle
+        self.fieldPlaceholder = fieldPlaceholder
     }
 
     var identity: FocusedInputIdentity {

@@ -66,6 +66,21 @@ enum SuggestionRequestFactory {
         let boundedVisualContextSummary = activeVisualContextSummary(
             rawSummary: visualContextSummary
         )
+        // The composed surface description; nil when the user disabled it or the surface class
+        // suppresses it (code editors, terminals, anonymous generic apps). The composer sanitizes
+        // titles/placeholders and reduces the URL to a bare domain before anything reaches a prompt.
+        let surfaceContext = settings.isSurfaceContextEnabled
+            ? SurfaceContextComposer.compose(
+                surfaceClass: AppSurfaceClassifier.classify(
+                    bundleIdentifier: context.bundleIdentifier,
+                    isIntegratedTerminal: context.isIntegratedTerminal
+                ),
+                applicationName: context.applicationName,
+                windowTitle: context.windowTitle,
+                focusedURLString: context.focusedURLString,
+                fieldPlaceholder: context.fieldPlaceholder
+            )
+            : nil
         // Cotabby 2 is a base-model continuation product on the Open Source path, so the local
         // prompt is always the base render: no instruction blob, prefix last, trailing-trimmed.
         // Custom instructions and persona condition the output rather than being obeyed. The
@@ -79,7 +94,9 @@ enum SuggestionRequestFactory {
             extendedContext: activeExtendedContext,
             languageInstruction: languageInstruction,
             clipboardContext: boundedClipboardContext,
-            visualContextSummary: boundedVisualContextSummary
+            visualContextSummary: boundedVisualContextSummary,
+            surfaceContext: surfaceContext,
+            tokenBudget: configuration.llamaPromptTokenBudget
         )
 
         let request = SuggestionRequest(
@@ -107,6 +124,7 @@ enum SuggestionRequestFactory {
             languageInstruction: languageInstruction,
             clipboardContext: boundedClipboardContext,
             visualContextSummary: boundedVisualContextSummary,
+            surfaceContext: surfaceContext,
             isMultiLineEnabled: settings.isMultiLineEnabled,
             requestID: RequestID.generate()
         )

@@ -54,6 +54,14 @@ struct GeneralPaneView: View {
                     )
                 }
 
+                Toggle(isOn: surfaceContextEnabledBinding) {
+                    SettingsRowLabel(
+                        title: "Include App Context",
+                        description: "Let suggestions know which app and window you are typing in. Everything stays on this Mac.",
+                        systemImage: "macwindow"
+                    )
+                }
+
                 Toggle(isOn: multiLineEnabledBinding) {
                     SettingsRowLabel(
                         title: "Allow Multi-line Suggestions",
@@ -151,6 +159,13 @@ struct GeneralPaneView: View {
         Binding(
             get: { suggestionSettings.isClipboardContextEnabled },
             set: { suggestionSettings.setClipboardContextEnabled($0) }
+        )
+    }
+
+    private var surfaceContextEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.isSurfaceContextEnabled },
+            set: { suggestionSettings.setSurfaceContextEnabled($0) }
         )
     }
 

@@ -93,6 +93,10 @@ struct SuggestionSettingsSnapshot: Equatable, Sendable {
     let isUsingCustomWordCountRange: Bool
     let customWordCountRange: SuggestionWordRange
     let isClipboardContextEnabled: Bool
+    /// When true (the default), the request factory may condition prompts on the focused surface
+    /// (app class, window title, web domain, field placeholder). Travels in the snapshot so
+    /// generation uses the same value the Settings UI shows.
+    let isSurfaceContextEnabled: Bool
     /// User-authored profile data for Cotabby's base-model completion prompt.
     /// This travels in the snapshot so generation uses the same value the Settings UI shows.
     let userName: String

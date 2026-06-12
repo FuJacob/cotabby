@@ -34,6 +34,9 @@ struct SuggestionSettingsData: Equatable {
     var customWordCountLowWords: Int
     var customWordCountHighWords: Int
     var isClipboardContextEnabled: Bool
+    /// When on (the default), prompts may state which app, window title, web domain, and field the
+    /// user is typing in, so suggestions stay on-topic for the surface. Everything stays on device.
+    var isSurfaceContextEnabled: Bool
     var isFastModeEnabled: Bool
     /// When on, Cotabby checks the user's current word with `NSSpellChecker` and hides the normal
     /// continuation when the word looks misspelled, so completions don't pile onto a broken word.

@@ -28,7 +28,10 @@ enum CotabbyTestFixtures {
         isSecure: Bool = false,
         isIntegratedTerminal: Bool = false,
         isWebContentField: Bool = false,
-        focusChangeSequence: UInt64 = 1
+        focusChangeSequence: UInt64 = 1,
+        focusedURLString: String? = nil,
+        windowTitle: String? = nil,
+        fieldPlaceholder: String? = nil
     ) -> FocusedInputSnapshot {
         let resolvedSelection = selection
             ?? NSRange(location: (precedingText as NSString).length, length: 0)
@@ -52,7 +55,10 @@ enum CotabbyTestFixtures {
             isSecure: isSecure,
             isIntegratedTerminal: isIntegratedTerminal,
             isWebContentField: isWebContentField,
-            focusChangeSequence: focusChangeSequence
+            focusChangeSequence: focusChangeSequence,
+            focusedURLString: focusedURLString,
+            windowTitle: windowTitle,
+            fieldPlaceholder: fieldPlaceholder
         )
     }
 
@@ -70,8 +76,12 @@ enum CotabbyTestFixtures {
         trailingText: String = "",
         selection: NSRange? = nil,
         isSecure: Bool = false,
+        isIntegratedTerminal: Bool = false,
         isWebContentField: Bool = false,
         focusChangeSequence: UInt64 = 1,
+        focusedURLString: String? = nil,
+        windowTitle: String? = nil,
+        fieldPlaceholder: String? = nil,
         generation: UInt64 = 1
     ) -> FocusedInputContext {
         FocusedInputContext(
@@ -89,8 +99,12 @@ enum CotabbyTestFixtures {
                 trailingText: trailingText,
                 selection: selection,
                 isSecure: isSecure,
+                isIntegratedTerminal: isIntegratedTerminal,
                 isWebContentField: isWebContentField,
-                focusChangeSequence: focusChangeSequence
+                focusChangeSequence: focusChangeSequence,
+                focusedURLString: focusedURLString,
+                windowTitle: windowTitle,
+                fieldPlaceholder: fieldPlaceholder
             ),
             generation: generation
         )
@@ -230,6 +244,7 @@ enum CotabbyTestFixtures {
         isUsingCustomWordCountRange: Bool = false,
         customWordCountRange: SuggestionWordRange = SuggestionWordRange(lowWords: 5, highWords: 15),
         isClipboardContextEnabled: Bool = true,
+        isSurfaceContextEnabled: Bool = true,
         userName: String = "",
         customRules: [String] = [],
         extendedContext: String = "",
@@ -256,6 +271,7 @@ enum CotabbyTestFixtures {
             isUsingCustomWordCountRange: isUsingCustomWordCountRange,
             customWordCountRange: customWordCountRange,
             isClipboardContextEnabled: isClipboardContextEnabled,
+            isSurfaceContextEnabled: isSurfaceContextEnabled,
             userName: userName,
             customRules: customRules,
             extendedContext: extendedContext,

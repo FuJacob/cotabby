@@ -603,6 +603,23 @@ enum AXHelper {
         return unsafeBitCast(value, to: AXUIElement.self)
     }
 
+    /// Best-effort, fail-safe read of the title of the window containing `element`. Most apps vend
+    /// `kAXWindowAttribute` directly on any descendant element; when that misses, nil is returned
+    /// rather than walking the tree, so the read stays a single bounded round-trip on the focus
+    /// path. Used for surface conditioning (the title carries the email subject, document name,
+    /// channel, or page title) and cached per field session by the caller.
+    static func windowTitle(near element: AXUIElement) -> String? {
+        guard let value = copyAttributeValue(kAXWindowAttribute as CFString, on: element) else {
+            return nil
+        }
+        guard CFGetTypeID(value) == AXUIElementGetTypeID() else {
+            return nil
+        }
+        // Same Core Foundation bridging rule as `parentElement(of:)`.
+        let window = unsafeBitCast(value, to: AXUIElement.self)
+        return stringValue(for: kAXTitleAttribute as CFString, on: window)
+    }
+
     /// Best-effort, fail-safe read of the web page URL near `element`, used only for per-site rules.
     /// Browsers expose `kAXURLAttribute` on the web area or window rather than the focused field, so
     /// this walks up a bounded number of ancestors. It returns nil on any miss (non-browser focus, an

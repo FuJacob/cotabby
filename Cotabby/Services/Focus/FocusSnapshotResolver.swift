@@ -45,6 +45,10 @@ struct FocusSnapshotResolver {
     /// `deepWalkThrottle`: it carries state across the value-typed resolver's non-mutating polls.
     private let fieldStyleCache = FieldStyleCache()
 
+    /// Caches the per-field surface metadata (window title, placeholder, URL) the same way; see
+    /// `SurfaceContextCache` for why the value is frozen for the whole field session.
+    private let surfaceContextCache = SurfaceContextCache()
+
     init(geometryResolver: AXTextGeometryResolver? = nil) {
         self.geometryResolver = geometryResolver ?? AXTextGeometryResolver()
     }
@@ -209,12 +213,33 @@ struct FocusSnapshotResolver {
         let nsValue = contextWindow.text as NSString
         let safeSelectionLocation = min(contextWindow.selection.location, nsValue.length)
         let trailingStart = min(contextWindow.selection.location + contextWindow.selection.length, nsValue.length)
-        // Per-site disable: read the page URL only when the feature is enabled, so the default
-        // focus-capture path performs no extra Accessibility round-trips. The read is fail-safe (nil on
-        // any miss), so the worst case is the per-site gate staying inert.
-        let focusedURLString = PerDomainDisableSettings.isEnabled()
-            ? AXHelper.webURL(near: focusedElement)
-            : nil
+        // Surface metadata (window title, field placeholder, page URL), captured once per field
+        // session and frozen for its lifetime: re-reading per poll would add cross-process AX
+        // round-trips to the hot path, and a retitling window mid-typing would change the prompt
+        // bytes ahead of the prefix and break llama KV prefix reuse. The URL is read for browsers
+        // (surface conditioning) or whenever per-site disable wants it; navigation recreates the
+        // focused web element, so a stale URL cannot outlive its page. Secure fields are never
+        // probed.
+        let capturedSurface: CapturedSurfaceContext
+        if resolvedCandidate.isSecure {
+            capturedSurface = .empty
+        } else {
+            let surfaceKey =
+                "\(application.processIdentifier):\(resolvedCandidate.elementIdentifier):\(focusChangeSequence)"
+            capturedSurface = surfaceContextCache.capture(forKey: surfaceKey) {
+                let wantsURL = PerDomainDisableSettings.isEnabled()
+                    || BrowserAppDetector.isBrowser(bundleIdentifier: bundleIdentifier)
+                return CapturedSurfaceContext(
+                    windowTitle: AXHelper.windowTitle(near: focusedElement),
+                    fieldPlaceholder: AXHelper.stringValue(
+                        for: kAXPlaceholderValueAttribute as CFString,
+                        on: resolvedCandidate.element
+                    ),
+                    urlString: wantsURL ? AXHelper.webURL(near: focusedElement) : nil
+                )
+            }
+        }
+        let focusedURLString = capturedSurface.urlString
         // Resolve the host field's own font/color so ghost text can match it. Cached by element
         // identity (this is a synchronous AX read and the resolver runs on the focus poll), and
         // skipped for secure fields, which are never styled or assisted.
@@ -277,7 +302,9 @@ struct FocusSnapshotResolver {
             isWebContentField: isWebContentField,
             focusChangeSequence: focusChangeSequence,
             focusedURLString: focusedURLString,
-            resolvedFieldStyle: resolvedFieldStyle
+            resolvedFieldStyle: resolvedFieldStyle,
+            windowTitle: capturedSurface.windowTitle,
+            fieldPlaceholder: capturedSurface.fieldPlaceholder
         )
 
         if resolvedCandidate.isSecure {

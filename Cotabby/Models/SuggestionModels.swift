@@ -136,6 +136,11 @@ struct SuggestionConfiguration: Equatable, Sendable {
     let maxPrefixWordsFoundationModel: Int
     let maxPrefixCharactersFoundationModel: Int
     let maxSuffixCharacters: Int
+    /// Estimated-token ceiling for the llama prompt (preface + prefix). Derived from the runtime's
+    /// per-sequence context window minus the output budget and a safety margin, so the renderer
+    /// truncates against what the model can actually hold instead of a flat character guess that
+    /// misjudges code, CJK, and punctuation-heavy text.
+    let llamaPromptTokenBudget: Int
     /// Shipped first-launch default for the user's saved profile.
     /// `SuggestionSettingsModel` persists the user's real preference; configuration only provides
     /// the app's starting value for a fresh install.
@@ -160,17 +165,23 @@ struct SuggestionConfiguration: Equatable, Sendable {
         minP: 0.08,
         repetitionPenalty: 1.05,
         randomSeed: nil,
-        maxPrefixWords: 50,
-        // Prompt windows should stay small for the local llama path. Sending an entire editor
-        // buffer hurts latency with little quality gain because Cotabby is only completing the
-        // immediate local continuation.
-        maxPrefixCharacters: 1000,
+        maxPrefixWords: 150,
+        // The llama prefix window matches the Foundation Models one. The earlier 1000-char/50-word
+        // cap predates KV prefix reuse: the prefill cost of a larger window is now paid once per
+        // focused field (and on reuse misses), not per keystroke, while the extra preceding
+        // sentences carry the topic and voice that multi-paragraph email/docs continuations need.
+        // The token budget below keeps the total prompt bounded by what the model can hold.
+        maxPrefixCharacters: 2500,
         // Apple's on-device model has a 4096-token shared context. Even with instructions plus
         // visual/clipboard context, there is room to send ~3x the llama window before crowding
         // the prompt, and the extra surrounding sentences materially help mid-thought completions.
         maxPrefixWordsFoundationModel: 150,
         maxPrefixCharactersFoundationModel: 2500,
         maxSuffixCharacters: 192,
+        // 2048 (LlamaRuntimeConfiguration.default.contextWindowTokens, the per-sequence KV
+        // capacity) minus the 50-token output ceiling and a 64-token margin for BOS plus
+        // estimator error. The estimator skews conservative, so real prompts land under this.
+        llamaPromptTokenBudget: 1934,
         // Seed the profile settings with lightweight defaults on first launch.
         defaultUserName: "Jacob",
         defaultWordCountPreset: .twelveToTwenty,
@@ -210,6 +221,12 @@ struct FocusedInputContext: Equatable, Sendable {
     let isWebContentField: Bool
     /// The host field's own text font/color, carried through so the overlay can match it.
     let resolvedFieldStyle: ResolvedFieldStyle?
+    /// Surface metadata captured once per field session, carried through so the request factory
+    /// can condition the prompt on what the user is writing in (see `SurfaceContextComposer`).
+    let windowTitle: String?
+    let fieldPlaceholder: String?
+    let focusedURLString: String?
+    let isIntegratedTerminal: Bool
     /// Carries the immutable focus-observation identity across debounce/generation boundaries.
     /// Without this, later visual-context lookups could fall back to `elementIdentifier` alone and
     /// reintroduce the CFHash collision class this sequence is meant to avoid.
@@ -235,6 +252,10 @@ struct FocusedInputContext: Equatable, Sendable {
         isSecure = snapshot.isSecure
         isWebContentField = snapshot.isWebContentField
         resolvedFieldStyle = snapshot.resolvedFieldStyle
+        windowTitle = snapshot.windowTitle
+        fieldPlaceholder = snapshot.fieldPlaceholder
+        focusedURLString = snapshot.focusedURLString
+        isIntegratedTerminal = snapshot.isIntegratedTerminal
         focusChangeSequence = snapshot.focusChangeSequence
         self.generation = generation
     }
@@ -345,6 +366,11 @@ struct SuggestionRequest: Equatable, Sendable {
     let clipboardContext: String?
     /// Ephemeral screen context summary injected only when available for the active text field.
     let visualContextSummary: String?
+    /// The composed writing-surface description (app class, window title, domain, placeholder),
+    /// nil when the user disabled surface context or the surface class suppresses it. The llama
+    /// prompt has already folded it in; this field exists so the Foundation Models renderer can
+    /// state the same sanitized facts in its own prompt shape.
+    let surfaceContext: SurfaceContext?
     /// When enabled, the normalizer keeps multiple lines instead of truncating to the first line.
     let isMultiLineEnabled: Bool
     /// Correlation ID stamped onto every log line touching this request — coordinator state
@@ -373,6 +399,7 @@ struct SuggestionRequest: Equatable, Sendable {
         languageInstruction: String?,
         clipboardContext: String?,
         visualContextSummary: String?,
+        surfaceContext: SurfaceContext? = nil,
         isMultiLineEnabled: Bool,
         requestID: String = "req_unknown"
     ) {
@@ -395,6 +422,7 @@ struct SuggestionRequest: Equatable, Sendable {
         self.languageInstruction = languageInstruction
         self.clipboardContext = clipboardContext
         self.visualContextSummary = visualContextSummary
+        self.surfaceContext = surfaceContext
         self.isMultiLineEnabled = isMultiLineEnabled
         self.requestID = requestID
     }
