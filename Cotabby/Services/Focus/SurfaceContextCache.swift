@@ -25,6 +25,11 @@ final class SurfaceContextCache {
     private var key: String?
     private var captured: CapturedSurfaceContext = .empty
 
+    /// Stored-property @MainActor classes deallocated inside app-hosted tests double-free without
+    /// an explicitly nonisolated deinit (the isolated-deinit runtime path over-releases). Same
+    /// workaround as the other main-actor stores exercised by tests.
+    nonisolated deinit {}
+
     /// Returns the cached capture when `key` matches the last resolution, otherwise resolves once
     /// and caches the result (including all-nil results, so a host exposing nothing is not
     /// re-probed every poll).
