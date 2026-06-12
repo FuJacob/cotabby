@@ -100,11 +100,7 @@ struct SettingsSidebarView: View {
 
     /// Short marketing version (e.g. "v1.0"), or nil if the bundle has no version string.
     private var appVersionText: String? {
-        guard let shortVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String,
-              !shortVersion.isEmpty else {
-            return nil
-        }
-        return "v\(shortVersion)"
+        Bundle.main.cotabbyDisplayVersion
     }
 
     private var selectionBinding: Binding<SettingsCategory> {
@@ -125,8 +121,14 @@ struct SettingsSidebarView: View {
         .listStyle(.sidebar)
     }
 
+    /// Single source for the rendered results AND the Return-key action, so the key always opens
+    /// exactly what the list shows.
+    private var searchResults: [SettingsItem] {
+        SettingsItem.results(for: trimmedQuery)
+    }
+
     private var searchResultsList: some View {
-        let results = SettingsItem.results(for: trimmedQuery)
+        let results = searchResults
         return List {
             if results.isEmpty {
                 Text("No settings match \u{201C}\(trimmedQuery)\u{201D}")
@@ -148,7 +150,7 @@ struct SettingsSidebarView: View {
     /// Return inside the field commits the best match so search works without reaching for the
     /// pointer.
     private func openTopResult() {
-        guard let top = SettingsItem.results(for: trimmedQuery).first else { return }
+        guard let top = searchResults.first else { return }
         open(top)
     }
 

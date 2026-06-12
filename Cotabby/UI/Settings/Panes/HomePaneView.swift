@@ -136,11 +136,7 @@ struct HomePaneView: View {
     }
 
     private var appVersionText: String? {
-        guard let shortVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String,
-              !shortVersion.isEmpty else {
-            return nil
-        }
-        return "v\(shortVersion)"
+        Bundle.main.cotabbyDisplayVersion
     }
 
     // MARK: - Search

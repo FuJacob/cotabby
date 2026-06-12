@@ -51,11 +51,18 @@ struct SettingsPaneScaffold<Content: View>: View {
             }
             .onAppear {
                 // The pane is rebuilt on every sidebar switch (`.id(selection)` in the container),
-                // so a search arrival lands here before rows have laid out. A one-beat delay lets
-                // the form settle so `scrollTo` has a real geometry target.
+                // so a search arrival lands here before rows have laid out. Two staggered attempts
+                // instead of one timed guess: the first lands once typical layout has settled, the
+                // second repairs the rare slow-machine case where layout finished late. `scrollTo`
+                // to an already-centered anchor is a visual no-op, so the repair pass is invisible
+                // whenever the first attempt worked.
                 guard let item = highlightedItem else { return }
                 Task { @MainActor in
                     try? await Task.sleep(for: .milliseconds(80))
+                    withAnimation(.easeInOut(duration: 0.35)) {
+                        proxy.scrollTo(item, anchor: .center)
+                    }
+                    try? await Task.sleep(for: .milliseconds(350))
                     withAnimation(.easeInOut(duration: 0.35)) {
                         proxy.scrollTo(item, anchor: .center)
                     }

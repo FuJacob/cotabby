@@ -1,4 +1,3 @@
-import AppKit
 import SwiftUI
 
 /// File overview:
@@ -173,18 +172,5 @@ struct SettingsContainerView: View {
             return .context
         }
         return .general
-    }
-
-    /// Mirrors the chosen pane into the hosting `NSWindow.title`, matching System Settings where
-    /// the title bar names the active pane. Home is the landing surface rather than a pane of
-    /// controls, so it titles the window with the app-wide name instead of the literal "Home".
-    private func syncWindowTitle(for category: SettingsCategory) {
-        // Capture the key window now: between the tap and the async block running, a popover or
-        // alert could become key and we would retitle the wrong window.
-        let window = NSApp.keyWindow
-        let title = category == .home ? "Cotabby Settings" : category.label
-        DispatchQueue.main.async {
-            window?.title = title
-        }
     }
 }
