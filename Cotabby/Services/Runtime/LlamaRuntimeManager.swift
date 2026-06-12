@@ -129,6 +129,11 @@ final class LlamaRuntimeManager: ObservableObject {
                 return partial
             } onCancel: {
                 task.cancel()
+                // Task cancellation is only polled between sampled tokens, so an in-flight prompt
+                // prefill would otherwise run to completion while holding the autocomplete lock,
+                // making the superseding request wait out the whole stale decode. The engine-level
+                // abort interrupts the decode at its next batch chunk.
+                core.abortInFlightGeneration()
             }
         } catch is CancellationError {
             CotabbyLogger.runtime.debug("Generation cancelled")
@@ -148,6 +153,36 @@ final class LlamaRuntimeManager: ObservableObject {
     /// Clears the native prompt KV cache without unloading the model.
     func resetPromptCache() {
         core.resetPromptCache()
+    }
+
+    /// Decodes `prompt` into the native prompt cache without sampling (the llama half of
+    /// prewarm-on-focus). Best-effort by contract: cancellation is silent and failures only log,
+    /// because a missed warmup just means the next generate pays the cold prefill it would have
+    /// paid anyway. Errors are deliberately kept out of `diagnostics.lastError`.
+    func prefill(
+        prompt: String,
+        cachedPrefixBytes: Int? = nil,
+        options: LlamaGenerationOptions
+    ) async throws {
+        _ = try await preparedRuntime()
+
+        let core = self.core
+        let task = Task.detached {
+            try core.prefill(
+                prompt: prompt,
+                cachedPrefixBytes: cachedPrefixBytes,
+                options: options
+            )
+        }
+        try await withTaskCancellationHandler {
+            try await task.value
+            try Task.checkCancellation()
+        } onCancel: {
+            task.cancel()
+            // A prefill is superseded the moment a real generation arrives; abort its native
+            // decode so the generation does not queue behind a warmup for a stale prompt.
+            core.abortInFlightGeneration()
+        }
     }
 
     /// Cancels any retained prepared runtime and releases backend resources.

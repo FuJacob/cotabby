@@ -93,10 +93,10 @@ protocol SuggestionGenerating: AnyObject {
     /// continuous. Stateless engines may implement this as a no-op.
     func resetCachedGenerationContext() async
     /// Best-effort warmup hook the coordinator calls after focus arrives on an editable surface.
-    /// Engines that benefit from prefix caching or weight loading (Apple Foundation Models) use it
-    /// to prime the next request; engines that do not (llama already keeps its KV cache hot) can
-    /// rely on the default no-op extension. Failures are intentionally swallowed by implementations
-    /// because prewarming is opportunistic.
+    /// Apple Foundation Models primes its session here, and the llama engine prefills the new
+    /// field's prompt KV (a focus change destroys the previous field's native sequence, so without
+    /// this the first suggestion in every field pays the full cold prompt decode). Failures are
+    /// intentionally swallowed by implementations because prewarming is opportunistic.
     func prewarm(for request: SuggestionRequest) async
 }
 
@@ -113,6 +113,16 @@ extension SuggestionGenerating {
 protocol LlamaRuntimeGenerating: AnyObject {
     func generate(prompt: String, cachedPrefixBytes: Int?, options: LlamaGenerationOptions) async throws -> String
     func resetPromptCache()
+    /// Decodes `prompt` into the native prompt cache without sampling any tokens, so the next
+    /// `generate` whose prompt extends this one only decodes the typed delta. Best-effort warmup:
+    /// callers treat failures as "no cache primed", never as a user-facing error.
+    func prefill(prompt: String, cachedPrefixBytes: Int?, options: LlamaGenerationOptions) async throws
+}
+
+extension LlamaRuntimeGenerating {
+    /// Default no-op so test fakes that only exercise the generate/cancel contract keep compiling;
+    /// the production manager overrides this with a real prompt prefill.
+    func prefill(prompt: String, cachedPrefixBytes: Int?, options: LlamaGenerationOptions) async throws {}
 }
 
 @MainActor

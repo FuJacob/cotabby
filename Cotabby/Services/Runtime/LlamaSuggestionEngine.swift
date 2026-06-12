@@ -12,9 +12,46 @@ import Logging
 final class LlamaSuggestionEngine {
     private let runtimeManager: LlamaRuntimeGenerating
     private var promptCacheHintTracker = LlamaPromptCacheHintTracker()
+    /// The focus-time warmup in flight, if any. A real generation cancels it on entry so it never
+    /// queues behind a warmup for a prompt the user has already typed past.
+    private var inflightPrewarmTask: Task<Void, Never>?
 
     init(runtimeManager: LlamaRuntimeGenerating) {
         self.runtimeManager = runtimeManager
+    }
+
+    /// Prefills the prompt KV for the field the user just focused, so the first real suggestion
+    /// there only decodes the typed delta instead of the whole cold prompt.
+    ///
+    /// The protocol default used to be a no-op here on the assumption that llama "keeps its KV
+    /// cache hot", but a focus change resets the cached generation context and destroys the native
+    /// sequence, so the first request in every field paid a full prefill. Best-effort by design:
+    /// failures are swallowed (a missed warmup costs nothing the cold path would not have paid)
+    /// and the tracker only records the prompt after the native decode actually succeeded.
+    func prewarm(for request: SuggestionRequest) async {
+        inflightPrewarmTask?.cancel()
+        let cachedPrefixBytes = promptCacheHintTracker.cachedPrefixBytes(for: request)
+        let options = Self.makeGenerationOptions(for: request)
+        let task = Task { [weak self, runtimeManager] in
+            do {
+                try await runtimeManager.prefill(
+                    prompt: request.prompt,
+                    cachedPrefixBytes: cachedPrefixBytes,
+                    options: options
+                )
+                guard !Task.isCancelled else {
+                    return
+                }
+                self?.promptCacheHintTracker.recordSuccessfulRequest(request)
+            } catch {
+                CotabbyLogger.suggestion.debug(
+                    "Llama prewarm skipped: \(error.localizedDescription)",
+                    metadata: ["request_id": .string(request.requestID), "engine": .string("llama")]
+                )
+            }
+        }
+        inflightPrewarmTask = task
+        await task.value
     }
 
     /// Executes one generation request and packages the raw and normalized result for the coordinator.
@@ -24,6 +61,11 @@ final class LlamaSuggestionEngine {
             "engine": .string("llama")
         ]
         do {
+            // A still-running focus warmup must not make this request wait behind it on the
+            // runtime's autocomplete lock; cancelling it aborts its native decode mid-chunk.
+            inflightPrewarmTask?.cancel()
+            inflightPrewarmTask = nil
+
             let startTime = Date()
             let cachedPrefixBytes = promptCacheHintTracker.cachedPrefixBytes(for: request)
             let hintDesc = cachedPrefixBytes.map(String.init) ?? "none"
@@ -38,20 +80,7 @@ final class LlamaSuggestionEngine {
             let rawSuggestion = try await runtimeManager.generate(
                 prompt: request.prompt,
                 cachedPrefixBytes: cachedPrefixBytes,
-                options: LlamaGenerationOptions(
-                    maxPredictionTokens: request.maxPredictionTokens,
-                    temperature: request.temperature,
-                    topK: request.topK,
-                    topP: request.topP,
-                    minP: request.minP,
-                    repetitionPenalty: request.repetitionPenalty,
-                    seed: request.randomSeed,
-                    singleLine: !request.isMultiLineEnabled,
-                    forceWordContinuation: MidWordContinuationPolicy.shouldForceContinuation(
-                        precedingText: request.context.precedingText,
-                        trailingText: request.context.trailingText
-                    )
-                )
+                options: Self.makeGenerationOptions(for: request)
             )
             try Task.checkCancellation()
 
@@ -143,8 +172,30 @@ final class LlamaSuggestionEngine {
     /// stale reuse; awaiting the runtime reset keeps native KV invalidation ordered before the next
     /// generation request that crosses this engine boundary.
     func resetCachedGenerationContext() async {
+        // The editing context moved on, so a warmup for the previous field's prompt is stale.
+        inflightPrewarmTask?.cancel()
+        inflightPrewarmTask = nil
         promptCacheHintTracker.reset()
         runtimeManager.resetPromptCache()
+    }
+
+    /// One shared mapping from a request to engine options so prewarm prefills decode under the
+    /// exact sampling fingerprint the following generation will validate its KV reuse against.
+    private static func makeGenerationOptions(for request: SuggestionRequest) -> LlamaGenerationOptions {
+        LlamaGenerationOptions(
+            maxPredictionTokens: request.maxPredictionTokens,
+            temperature: request.temperature,
+            topK: request.topK,
+            topP: request.topP,
+            minP: request.minP,
+            repetitionPenalty: request.repetitionPenalty,
+            seed: request.randomSeed,
+            singleLine: !request.isMultiLineEnabled,
+            forceWordContinuation: MidWordContinuationPolicy.shouldForceContinuation(
+                precedingText: request.context.precedingText,
+                trailingText: request.context.trailingText
+            )
+        )
     }
 }
 
