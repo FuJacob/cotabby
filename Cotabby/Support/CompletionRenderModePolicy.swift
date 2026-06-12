@@ -108,15 +108,25 @@ struct CompletionRenderModePolicy: Equatable, Sendable {
             return .mirror(reason: reason)
 
         case .auto:
-            // Only `.estimated` geometry triggers auto-mirror. `.derived` already lands close enough
-            // to the real caret to render inline ghost text confidently; promoting it would over-fire
-            // the card for hosts that work fine today (Gmail, Outlook, Discord text-marker path).
-            // `.layoutEstimated` deliberately falls through to inline as well: it only exists when
-            // the caret layout repair accepted a hidden-text-layout estimate, and rendering inline
-            // on that estimate is the entire point of the repair.
-            return geometry.caretQuality == .estimated
-                ? .mirror(reason: .caretGeometryEstimated)
-                : .inline
+            // `.derived` and `.exact` land close enough to the real caret to render inline ghost
+            // text confidently; promoting them would over-fire the card for hosts that work fine
+            // today (Gmail, Outlook, Discord text-marker path).
+            //
+            // Both estimate qualities go to the card, but with different anchors. `.estimated` has no
+            // usable caret at all, so the card anchors to the field rect (`.caretGeometryEstimated`).
+            // `.layoutEstimated` means the hidden-TextKit repair produced a confident caret estimate:
+            // we still prefer the card over inline ghost text (the estimate is good enough to place a
+            // popup, not to paint glyphs the eye will scrutinize against the host's own text), but we
+            // anchor that popup to the estimated caret (`.caretLayoutEstimated`) so it tracks the
+            // cursor TextKit located instead of floating below the whole field.
+            switch geometry.caretQuality {
+            case .estimated:
+                return .mirror(reason: .caretGeometryEstimated)
+            case .layoutEstimated:
+                return .mirror(reason: .caretLayoutEstimated)
+            case .exact, .derived:
+                return .inline
+            }
         }
     }
 }

@@ -139,6 +139,36 @@ final class MirrorOverlayLayoutTests: XCTestCase {
         )
     }
 
+    func test_make_layoutEstimatedReasonAnchorsToCaretLine_notInputField() {
+        // Same geometry as the estimated test, but `.caretLayoutEstimated` means the hidden-TextKit
+        // repair located the caret, so the card must track that estimated caret (sit just below it)
+        // rather than dropping to the field's bottom edge ~100pt away.
+        let geometry = CotabbyTestFixtures.overlayGeometry(
+            caretRect: CGRect(x: 720, y: 500, width: 2, height: 18),
+            inputFrameRect: CGRect(x: 400, y: 400, width: 640, height: 200)
+        )
+
+        let layout = MirrorOverlayLayout.make(
+            suggestion: "hello",
+            geometry: geometry,
+            visibleFrame: screen,
+            showsAcceptanceHint: true,
+            reason: .caretLayoutEstimated
+        )
+
+        // Card sits one line below the estimated caret line, not at the field's bottom edge.
+        XCTAssertLessThan(
+            layout.panelFrame.maxY,
+            geometry.caretRect.minY,
+            "Layout-estimated popup should sit below the estimated caret line"
+        )
+        XCTAssertGreaterThan(
+            layout.panelFrame.maxY,
+            geometry.inputFrameRect!.minY + 40,
+            "Layout-estimated popup should NOT drop down to the field's bottom edge"
+        )
+    }
+
     // MARK: - Fallback when input frame missing
 
     func test_make_fallsBackToCaretRectWhenInputFrameMissing() {
