@@ -24,6 +24,11 @@ enum CompletionSuppressionReason: String, Sendable, Equatable {
     case echoesPrecedingText
     /// Printable characters survived but carried control/replacement glyphs the safety gate rejects.
     case unsafeToInsert
+    /// The runtime withheld the completion because its mean per-token log-probability fell below
+    /// the confidence floor: the model itself was unsure, and showing nothing beats a guess.
+    /// Attributed by the engine (the runtime reports it on `LlamaGenerationOutput`), not by the
+    /// normalizer, which never sees the withheld text.
+    case lowConfidence
 }
 
 /// Outcome of normalizing one raw completion: the ghost text, plus the attributable reason when that

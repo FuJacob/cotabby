@@ -20,11 +20,18 @@ extension SuggestionCoordinator {
             return
         }
 
+        // The debounce window adapts to the last generation latency: snappier when the model is
+        // fast, calmer when it is slow (fewer doomed generations to cancel). The configured value
+        // is the fallback until a first latency exists.
+        let debounceMilliseconds = DebouncePolicy.milliseconds(
+            lastGenerationLatencyMilliseconds: latestLatencyMilliseconds,
+            fallback: settingsSnapshot.debounceMilliseconds
+        )
         // The debounce clock starts at the keystroke, not here. The host-publish poll has already
         // consumed real wall time waiting for the host to publish the keystroke to AX, and that
         // wait collapses bursts just as well as sleeping does. Stacking the full debounce on top
         // of the publish wait was pure added latency, so only the unconsumed remainder is slept.
-        let remainingDelay = max(0, settingsSnapshot.debounceMilliseconds - consumedDelayMilliseconds)
+        let remainingDelay = max(0, debounceMilliseconds - consumedDelayMilliseconds)
 
         // Task cancellation in Swift is cooperative, so we also use an explicit work id.
         // That gives us strict "latest request wins" semantics even if an old task wakes up late.
@@ -42,7 +49,7 @@ extension SuggestionCoordinator {
         logStage(
             "debouncing",
             workID: workID,
-            message: "Debouncing (\(settingsSnapshot.debounceMilliseconds)ms window) before generating."
+            message: "Debouncing (\(debounceMilliseconds)ms window, \(remainingDelay)ms remaining) before generating."
         )
     }
 
@@ -496,6 +503,10 @@ extension SuggestionCoordinator {
         guard liveContext.generation == result.generation else {
 
             latestRawModelOutput = SuggestionDebugLogger.debugPreview(result.rawText)
+            // Lifecycle discards are counted under their own reasons so `generated` always equals
+            // `shown` plus the suppression histogram; without this, every drop here silently
+            // inflated the generated count against the others.
+            qualityMetricsStore.recordSuppressed(reason: "discardedStaleContext")
             logStage(
                 "stale-drop",
                 workID: workID,
@@ -514,6 +525,11 @@ extension SuggestionCoordinator {
             clearSuggestion()
             hideOverlay(reason: "Overlay hidden because the model returned an empty continuation.")
             state = .idle
+            // The router already counted engine-attributed suppressions (normalizer, confidence
+            // floor); only the unattributed "model produced nothing" case needs a ledger entry.
+            if result.suppressionReason == nil {
+                qualityMetricsStore.recordSuppressed(reason: "emptyUnattributed")
+            }
             logStage(
                 "empty-result",
                 workID: workID,
@@ -529,6 +545,7 @@ extension SuggestionCoordinator {
             clearSuggestion(clearDiagnostics: true)
             hideOverlay(reason: "Overlay hidden because text is selected.")
             state = .idle
+            qualityMetricsStore.recordSuppressed(reason: "discardedSelection")
             logStage(
                 "selected-text",
                 workID: workID,
@@ -553,6 +570,7 @@ extension SuggestionCoordinator {
             clearSuggestion(clearDiagnostics: false)
             hideOverlay(reason: "Overlay hidden because the regeneration only echoed the just-accepted text before the host published it.")
             state = .idle
+            qualityMetricsStore.recordSuppressed(reason: "discardedAcceptEcho")
             logStage(
                 "stale-accept-echo",
                 workID: workID,
@@ -576,6 +594,8 @@ extension SuggestionCoordinator {
             clearSuggestion()
             hideOverlay(reason: "Overlay hidden because the completion failed the seam guard.")
             state = .idle
+            let seamReason = if case .seamMisspelling = seamVerdict { "seamMisspelling" } else { "seamJunkPunctuationRun" }
+            qualityMetricsStore.recordSuppressed(reason: seamReason)
             logStage(
                 "seam-suppressed",
                 workID: workID,
@@ -589,6 +609,9 @@ extension SuggestionCoordinator {
 
         latestLatencyMilliseconds = Int(result.latency * 1000)
         latestGenerationNumber = liveContext.generation
+        // One shown event per suggestion: this is the only place a fresh generation becomes
+        // visible (re-presentations after partial accepts reuse the same session).
+        qualityMetricsStore.recordShown()
         let session = interactionState.startSession(
             fullText: result.text,
             liveContext: liveContext,

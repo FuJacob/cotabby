@@ -100,7 +100,7 @@ final class LlamaRuntimeManager: ObservableObject {
         prompt: String,
         cachedPrefixBytes: Int? = nil,
         options: LlamaGenerationOptions
-    ) async throws -> String {
+    ) async throws -> LlamaGenerationOutput {
         try await generate(
             prompt: prompt,
             cachedPrefixBytes: cachedPrefixBytes,
@@ -116,7 +116,7 @@ final class LlamaRuntimeManager: ObservableObject {
         cachedPrefixBytes: Int? = nil,
         options: LlamaGenerationOptions,
         onPartialRawText: (@Sendable (String) -> Void)?
-    ) async throws -> String {
+    ) async throws -> LlamaGenerationOutput {
         _ = try await preparedRuntime()
 
         let core = self.core

@@ -107,8 +107,8 @@ private final class StreamingFakeRuntime: LlamaRuntimeGenerating {
         prompt: String,
         cachedPrefixBytes: Int?,
         options: LlamaGenerationOptions
-    ) async throws -> String {
-        finalText
+    ) async throws -> LlamaGenerationOutput {
+        .text(finalText)
     }
 
     func generate(
@@ -116,12 +116,12 @@ private final class StreamingFakeRuntime: LlamaRuntimeGenerating {
         cachedPrefixBytes: Int?,
         options: LlamaGenerationOptions,
         onPartialRawText: (@Sendable (String) -> Void)?
-    ) async throws -> String {
+    ) async throws -> LlamaGenerationOutput {
         streamingCallCount += 1
         for partial in partialRawTexts {
             onPartialRawText?(partial)
         }
-        return finalText
+        return .text(finalText)
     }
 
     func resetPromptCache() {}

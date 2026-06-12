@@ -53,12 +53,30 @@ final class LlamaSuggestionEngineCancellationTests: XCTestCase {
 
     func test_successfulGeneration_doesNotResetCache() async throws {
         let runtime = FakeLlamaRuntime()
-        runtime.generateResult = .success("world")
+        runtime.generateResult = .success(.text("world"))
         let engine = LlamaSuggestionEngine(runtimeManager: runtime)
 
         let result = try await engine.generateSuggestion(for: makeRequest(prompt: "hello "))
 
         XCTAssertEqual(result.generation, 1)
+        XCTAssertEqual(runtime.resetCount, 0)
+    }
+
+    func test_lowConfidenceSuppression_isAttributedAsLowConfidence() async throws {
+        let runtime = FakeLlamaRuntime()
+        runtime.generateResult = .success(
+            LlamaGenerationOutput(text: "", averageLogprob: -5.2, suppressedByLowConfidence: true)
+        )
+        let engine = LlamaSuggestionEngine(runtimeManager: runtime)
+
+        let result = try await engine.generateSuggestion(for: makeRequest(prompt: "hello "))
+
+        XCTAssertEqual(result.text, "")
+        XCTAssertEqual(
+            result.suppressionReason,
+            CompletionSuppressionReason.lowConfidence.rawValue,
+            "a runtime-withheld completion must not read as 'the model produced nothing'"
+        )
         XCTAssertEqual(runtime.resetCount, 0)
     }
 
@@ -168,14 +186,14 @@ private struct UnexpectedRuntimeBoom: LocalizedError {
 /// so the engine's failure routing can be exercised without loading a real model.
 @MainActor
 private final class FakeLlamaRuntime: LlamaRuntimeGenerating {
-    var generateResult: Result<String, Error> = .success("")
+    var generateResult: Result<LlamaGenerationOutput, Error> = .success(.text(""))
     private(set) var resetCount = 0
 
     func generate(
         prompt: String,
         cachedPrefixBytes: Int?,
         options: LlamaGenerationOptions
-    ) async throws -> String {
+    ) async throws -> LlamaGenerationOutput {
         try generateResult.get()
     }
 

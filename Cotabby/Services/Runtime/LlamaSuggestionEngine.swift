@@ -20,6 +20,30 @@ final class LlamaSuggestionEngine {
         self.runtimeManager = runtimeManager
     }
 
+    /// Shipped confidence floor (mean per-token log-probability). -infinity disables the gate AND
+    /// the per-token logprob computation behind it; any other value turns both on. -1.5 came from
+    /// an eval sweep over {off, -4, -3, -2.5, -2, -1.5, -1, -0.5, -0.3}: floors at or below -2
+    /// never fire on this model at temperature 0.1, -1 and tighter buy precision at a brutal
+    /// coverage cost, and -1.5 is the unique point where the composite quality score rose
+    /// (0.734 to 0.744), wrong-shows fell 27% relative, and not a single must-show case was lost.
+    static let defaultConfidenceFloor: Double = -1.5
+    /// `defaults write` escape hatches for dogfooding and field diagnosis without a rebuild.
+    static let confidenceFloorOverrideKey = "cotabbyConfidenceFloorOverride"
+    static let argmaxStopDisabledKey = "cotabbyArgmaxStopDisabled"
+
+    static func resolvedConfidenceFloor(_ defaults: UserDefaults = .standard) -> Double {
+        guard defaults.object(forKey: confidenceFloorOverrideKey) != nil else {
+            return defaultConfidenceFloor
+        }
+        return defaults.double(forKey: confidenceFloorOverrideKey)
+    }
+
+    /// Mirrors `resolvedConfidenceFloor`: injectable defaults so the disable toggle is testable
+    /// against an isolated suite instead of process-global state.
+    static func resolvedStopAtArgmaxEOG(_ defaults: UserDefaults = .standard) -> Bool {
+        !defaults.bool(forKey: argmaxStopDisabledKey)
+    }
+
     /// Prefills the prompt KV for the field the user just focused, so the first real suggestion
     /// there only decodes the typed delta instead of the whole cold prompt.
     ///
@@ -89,9 +113,9 @@ final class LlamaSuggestionEngine {
                 ]) { _, new in new }
             )
             let options = Self.makeGenerationOptions(for: request)
-            let rawSuggestion: String
+            let output: LlamaGenerationOutput
             if let onPartial {
-                rawSuggestion = try await runtimeManager.generate(
+                output = try await runtimeManager.generate(
                     prompt: request.prompt,
                     cachedPrefixBytes: cachedPrefixBytes,
                     options: options,
@@ -115,7 +139,7 @@ final class LlamaSuggestionEngine {
                     }
                 )
             } else {
-                rawSuggestion = try await runtimeManager.generate(
+                output = try await runtimeManager.generate(
                     prompt: request.prompt,
                     cachedPrefixBytes: cachedPrefixBytes,
                     options: options
@@ -124,7 +148,15 @@ final class LlamaSuggestionEngine {
             try Task.checkCancellation()
 
             promptCacheHintTracker.recordSuccessfulRequest(request)
-            let normalization = SuggestionTextNormalizer.normalizeDetailed(rawSuggestion, for: request)
+            let rawSuggestion = output.text
+            // A confidence-suppressed completion never reaches the normalizer (the runtime already
+            // withheld the text); attribute the real reason instead of "the model produced nothing".
+            // Streamed partials are pre-gate by nature: a completion the floor later withholds can
+            // briefly paint and then clear, which is the same contract as any other final-result
+            // suppression under streaming.
+            let normalization = output.suppressedByLowConfidence
+                ? SuggestionNormalizationResult(text: "", suppression: .lowConfidence)
+                : SuggestionTextNormalizer.normalizeDetailed(rawSuggestion, for: request)
             let normalizedSuggestion = normalization.text
             let latency = Date().timeIntervalSince(startTime)
             let rawChars = rawSuggestion.count
@@ -133,12 +165,14 @@ final class LlamaSuggestionEngine {
             // `suppression_reason` distinguishes an empty ghost text caused by the model producing
             // nothing from one a filter dropped — the join key for judging decode quality on device.
             let suppressionReason = normalization.suppression?.rawValue ?? "none"
+            let averageLogprobDescription = output.averageLogprob.map { String(format: "%.3f", $0) } ?? "off"
             CotabbyLogger.suggestion.debug(
                 "Llama generated",
                 metadata: baseMetadata.merging([
                     "raw_chars": .stringConvertible(rawChars),
                     "normalized_chars": .stringConvertible(normalizedChars),
                     "suppression_reason": .string(suppressionReason),
+                    "avg_logprob": .string(averageLogprobDescription),
                     "latency_ms": .stringConvertible(latencyMs)
                 ]) { _, new in new }
             )
@@ -152,6 +186,7 @@ final class LlamaSuggestionEngine {
                     "raw_chars": .stringConvertible(rawChars),
                     "normalized_chars": .stringConvertible(normalizedChars),
                     "suppression_reason": .string(suppressionReason),
+                    "avg_logprob": .string(averageLogprobDescription),
                     "latency_ms": .stringConvertible(latencyMs),
                     "cache_hint_bytes": .string(hintDesc),
                     "max_tokens": .stringConvertible(request.maxPredictionTokens)
@@ -161,7 +196,8 @@ final class LlamaSuggestionEngine {
                 generation: request.generation,
                 rawText: rawSuggestion,
                 text: normalizedSuggestion,
-                latency: latency
+                latency: latency,
+                suppressionReason: normalization.suppression?.rawValue
             )
         } catch is CancellationError {
             CotabbyLogger.suggestion.debug("Llama generation cancelled", metadata: baseMetadata)
@@ -233,7 +269,9 @@ final class LlamaSuggestionEngine {
             forceWordContinuation: MidWordContinuationPolicy.shouldForceContinuation(
                 precedingText: request.context.precedingText,
                 trailingText: request.context.trailingText
-            )
+            ),
+            confidenceFloor: resolvedConfidenceFloor(),
+            stopAtArgmaxEOG: resolvedStopAtArgmaxEOG()
         )
     }
 }

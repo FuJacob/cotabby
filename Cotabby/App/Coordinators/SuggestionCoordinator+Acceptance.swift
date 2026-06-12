@@ -122,6 +122,7 @@ extension SuggestionCoordinator {
 
         deferAcceptanceBookkeeping { [weak self] in
             self?.recordAcceptedWords(from: acceptedChunk)
+            self?.recordSuggestionAcceptedIfFirstChunk(of: sessionForAcceptance)
         }
 
         cancelPredictionWork()
@@ -575,6 +576,14 @@ extension SuggestionCoordinator {
         if let acceptanceAction {
             latestAcceptanceAction = acceptanceAction
         }
+    }
+
+    /// Marks the session's suggestion accepted in the quality counters, once per suggestion: only
+    /// the first chunk counts, so word-by-word walks of one suggestion add nothing further and the
+    /// acceptance rate stays suggestions-accepted over suggestions-shown.
+    private func recordSuggestionAcceptedIfFirstChunk(of session: ActiveSuggestionSession) {
+        guard session.consumedCharacterCount == 0 else { return }
+        qualityMetricsStore.recordAcceptedSuggestion()
     }
 
     /// Updates the global productivity counter from text accepted via Tab.

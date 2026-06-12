@@ -127,16 +127,21 @@ extension SuggestionGenerating {
 /// a fake runtime instead of loading a real model. `LlamaRuntimeManager` is the production conformer.
 @MainActor
 protocol LlamaRuntimeGenerating: AnyObject {
-    func generate(prompt: String, cachedPrefixBytes: Int?, options: LlamaGenerationOptions) async throws -> String
+    func generate(
+        prompt: String,
+        cachedPrefixBytes: Int?,
+        options: LlamaGenerationOptions
+    ) async throws -> LlamaGenerationOutput
     /// Streaming variant: `onPartialRawText` receives the cumulative raw completion after each
     /// sampled token, called from the decode thread (hence `@Sendable`); callers own hopping to
-    /// their actor. The returned string is still the authoritative final completion.
+    /// their actor. The returned output's text is still the authoritative final completion, and
+    /// its confidence fields describe the whole generation (partials are pre-gate by nature).
     func generate(
         prompt: String,
         cachedPrefixBytes: Int?,
         options: LlamaGenerationOptions,
         onPartialRawText: (@Sendable (String) -> Void)?
-    ) async throws -> String
+    ) async throws -> LlamaGenerationOutput
     func resetPromptCache()
     /// Decodes `prompt` into the native prompt cache without sampling any tokens, so the next
     /// `generate` whose prompt extends this one only decodes the typed delta. Best-effort warmup:
@@ -157,7 +162,7 @@ extension LlamaRuntimeGenerating {
         cachedPrefixBytes: Int?,
         options: LlamaGenerationOptions,
         onPartialRawText: (@Sendable (String) -> Void)?
-    ) async throws -> String {
+    ) async throws -> LlamaGenerationOutput {
         try await generate(prompt: prompt, cachedPrefixBytes: cachedPrefixBytes, options: options)
     }
 }

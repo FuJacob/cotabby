@@ -140,7 +140,7 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         cachedPrefixBytes: Int? = nil,
         options: LlamaGenerationOptions,
         onPartialRawText: ((String) -> Void)? = nil
-    ) throws -> String {
+    ) throws -> LlamaGenerationOutput {
         let preparation = try preparedPrompt(prompt: prompt, cachedPrefixBytes: cachedPrefixBytes, options: options, kind: "generate")
 
         lifecycleCondition.lock()
@@ -199,7 +199,7 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
             engine.destroySequence(sequenceID)
             autocompleteSequenceID = -1
         }
-        return decode.text
+        return decode.output
     }
 
     /// Decodes `prompt` into the autocomplete KV cache without sampling, so the next `generate`
@@ -364,7 +364,7 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         sequenceID: Int32,
         options: LlamaGenerationOptions,
         onPartialRawText: ((String) -> Void)? = nil
-    ) -> (text: String, engineCancelled: Bool) {
+    ) -> (output: LlamaGenerationOutput, engineCancelled: Bool) {
         var generatedText = ""
         var tokensGenerated = 0
         var sumLogprob = 0.0
@@ -390,6 +390,14 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
             }
             if result.is_eos {
                 stopReason = "eos"
+                break
+            }
+            // The raw distribution's most-likely token is end-of-generation: the model wants to
+            // stop here even though the stochastic sampler drew something else. Finalize with the
+            // text accumulated so far and discard the sampled-but-unwanted token; this is the
+            // anti-rambling stop the sentence classifier cannot express (lists, fragments, code).
+            if options.stopAtArgmaxEOG, result.argmax_is_eog {
+                stopReason = "argmax_eog"
                 break
             }
 
@@ -428,10 +436,25 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
             ]
         )
 
+        // The average is only meaningful when the engine actually computed per-token logprobs,
+        // which is keyed on the floor being enabled (see setComputeLogprob at sequence setup).
+        let averageLogprob: Double? = options.confidenceFloor > -.infinity && tokensGenerated > 0
+            ? sumLogprob / Double(tokensGenerated)
+            : nil
         if Self.shouldSuppress(sumLogprob: sumLogprob, tokensGenerated: tokensGenerated, options: options) {
-            return ("", engineCancelled)
+            let suppressed = LlamaGenerationOutput(
+                text: "",
+                averageLogprob: averageLogprob,
+                suppressedByLowConfidence: true
+            )
+            return (suppressed, engineCancelled)
         }
-        return (generatedText, engineCancelled)
+        let output = LlamaGenerationOutput(
+            text: generatedText,
+            averageLogprob: averageLogprob,
+            suppressedByLowConfidence: false
+        )
+        return (output, engineCancelled)
     }
 
     /// Low-confidence gate for the sampled decoder: drop completions the model itself was unsure

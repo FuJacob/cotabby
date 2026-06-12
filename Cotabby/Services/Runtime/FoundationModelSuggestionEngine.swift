@@ -175,7 +175,8 @@ final class FoundationModelSuggestionEngine {
                 generation: request.generation,
                 rawText: rawSuggestion,
                 text: normalizedSuggestion,
-                latency: latency
+                latency: latency,
+                suppressionReason: normalization.suppression?.rawValue
             )
         } catch is CancellationError {
             CotabbyLogger.suggestion.debug("Foundation model generation cancelled", metadata: baseMetadata)

@@ -34,6 +34,7 @@ final class CotabbyAppEnvironment {
     let welcomeCoordinator: WelcomeCoordinator
     let huggingFaceSearchService: HuggingFaceSearchService
     let performanceMetricsStore: PerformanceMetricsStore
+    let qualityMetricsStore: SuggestionQualityMetricsStore
     let settingsCoordinator: SettingsCoordinator
     let activationIndicatorController: ActivationIndicatorController
     let focusDebugOverlayController: FocusDebugOverlayController?
@@ -113,6 +114,9 @@ final class CotabbyAppEnvironment {
         )
         let huggingFaceSearchService = HuggingFaceSearchService()
         let performanceMetricsStore = PerformanceMetricsStore()
+        // Always-on quality counters (generated / shown / suppressed-by-reason / accepted).
+        // Counters only, no content, so unlike latency tracking there is no opt-in gate.
+        let qualityMetricsStore = SuggestionQualityMetricsStore()
         // Live CPU/RAM graph backing for the Performance pane. Holds no state until the pane asks it
         // to start sampling, so constructing it eagerly here costs nothing.
         let systemMetricsStore = SystemMetricsStore()
@@ -157,6 +161,7 @@ final class CotabbyAppEnvironment {
             foundationModelEngine: foundationModelEngine,
             llamaEngine: LlamaSuggestionEngine(runtimeManager: runtimeManager),
             performanceMetricsStore: performanceMetricsStore,
+            qualityMetricsStore: qualityMetricsStore,
             llamaModelNameProvider: { [weak runtimeManager] in
                 runtimeManager?.currentModelFilename
             }
@@ -176,6 +181,7 @@ final class CotabbyAppEnvironment {
             modelDownloadManager: modelDownloadManager,
             huggingFaceSearchService: huggingFaceSearchService,
             performanceMetricsStore: performanceMetricsStore,
+            qualityMetricsStore: qualityMetricsStore,
             systemMetricsStore: systemMetricsStore,
             onShowWelcome: { [weak welcomeCoordinator] in
                 welcomeCoordinator?.showWelcome()
@@ -213,7 +219,8 @@ final class CotabbyAppEnvironment {
             configuration: configuration,
             spellChecker: spellChecker,
             symSpellCorrector: symSpellCorrector,
-            spellingLanguageResolver: SpellingLanguageResolver()
+            spellingLanguageResolver: SpellingLanguageResolver(),
+            qualityMetricsStore: qualityMetricsStore
         )
 
         // The emoji picker is a sibling to the suggestion coordinator. It reuses the input monitor,
@@ -276,6 +283,7 @@ final class CotabbyAppEnvironment {
         self.welcomeCoordinator = welcomeCoordinator
         self.huggingFaceSearchService = huggingFaceSearchService
         self.performanceMetricsStore = performanceMetricsStore
+        self.qualityMetricsStore = qualityMetricsStore
         self.settingsCoordinator = settingsCoordinator
         self.activationIndicatorController = activationIndicatorController
         self.focusDebugOverlayController = FocusDebugOverlayController.isEnabled

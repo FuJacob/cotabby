@@ -308,6 +308,7 @@ final class SuggestionEngineRouterTests: XCTestCase {
             foundationModelEngine: appleEngine,
             llamaEngine: openSourceEngine,
             performanceMetricsStore: PerformanceMetricsStore(userDefaults: makeUserDefaults()),
+            qualityMetricsStore: SuggestionQualityMetricsStore(userDefaults: makeUserDefaults()),
             llamaModelNameProvider: { nil }
         )
 
