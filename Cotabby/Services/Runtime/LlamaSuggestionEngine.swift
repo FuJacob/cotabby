@@ -21,12 +21,17 @@ final class LlamaSuggestionEngine {
     }
 
     /// Shipped confidence floor (mean per-token log-probability). -infinity disables the gate AND
-    /// the per-token logprob computation behind it; any other value turns both on. -1.5 came from
-    /// an eval sweep over {off, -4, -3, -2.5, -2, -1.5, -1, -0.5, -0.3}: floors at or below -2
-    /// never fire on this model at temperature 0.1, -1 and tighter buy precision at a brutal
-    /// coverage cost, and -1.5 is the unique point where the composite quality score rose
-    /// (0.734 to 0.744), wrong-shows fell 27% relative, and not a single must-show case was lost.
-    static let defaultConfidenceFloor: Double = -1.5
+    /// the per-token logprob computation behind it; any other value turns both on.
+    ///
+    /// Shipped OFF. A floor of -1.5 won an offline eval sweep (composite quality 0.734 to 0.744,
+    /// wrong-shows down 27%, no must-show case lost), but that golden set badly under-represented
+    /// real free-form typing: in production logs the same -1.5 floor withheld ~56% of completions,
+    /// most of them perfectly usable (passed and suppressed completions sat on either side of the
+    /// threshold with no quality difference). Under streaming the gate also paints a partial and
+    /// then clears it, which reads as suggestions flickering away. Until the floor is recalibrated
+    /// against a representative real-usage distribution, it stays opt-in via
+    /// `cotabbyConfidenceFloorOverride`; the eval harness sets that key to measure with the gate on.
+    static let defaultConfidenceFloor: Double = -.infinity
     /// `defaults write` escape hatches for dogfooding and field diagnosis without a rebuild.
     static let confidenceFloorOverrideKey = "cotabbyConfidenceFloorOverride"
     static let argmaxStopDisabledKey = "cotabbyArgmaxStopDisabled"
