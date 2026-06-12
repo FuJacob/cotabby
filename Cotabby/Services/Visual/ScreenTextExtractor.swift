@@ -127,9 +127,12 @@ struct ScreenTextExtractor: ScreenTextExtracting {
                 }
 
                 // Accurate OCR is slower, but visual context is only captured once per focused
-                // field and the result can materially improve autocomplete relevance.
+                // field and the result can materially improve autocomplete relevance. Language
+                // correction is on for the same reason: it cuts garbled recognitions at the
+                // source, which matters because this text conditions the prompt and the
+                // downstream hygiene filters can only drop junk, not repair it.
                 request.recognitionLevel = .accurate
-                request.usesLanguageCorrection = false
+                request.usesLanguageCorrection = true
                 request.minimumTextHeight = 0.008
 
                 do {
