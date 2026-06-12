@@ -93,4 +93,8 @@ extension FocusTrackingModel: SuggestionFocusProviding {
     var snapshotPublisher: AnyPublisher<FocusSnapshot, Never> {
         $snapshot.eraseToAnyPublisher()
     }
+
+    var millisecondsSinceLastCapture: Int? {
+        tracker.millisecondsSinceLastCapture
+    }
 }

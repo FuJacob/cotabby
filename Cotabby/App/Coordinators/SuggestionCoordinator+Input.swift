@@ -183,10 +183,14 @@ extension SuggestionCoordinator {
         }
 
         if event.shouldClearSuggestion {
+            // Always kill pending work: a stale host-publish chain or debounce from the previous
+            // keystroke must not fire a prediction this event meant to cancel.
             cancelPredictionWork()
-            clearSuggestion(clearDiagnostics: true)
-            hideOverlay(reason: SuggestionSessionReconciler.overlayHideReason(for: event))
-            if !event.shouldSchedulePrediction {
+            if hasSuggestionArtifactsToClear {
+                clearSuggestion(clearDiagnostics: true)
+                hideOverlay(reason: SuggestionSessionReconciler.overlayHideReason(for: event))
+            }
+            if !event.shouldSchedulePrediction, state != .idle {
                 state = .idle
             }
         }
@@ -237,6 +241,12 @@ extension SuggestionCoordinator {
         hostPublishPollGeneration &+= 1
         let pollGeneration = hostPublishPollGeneration
         let baseline = focusModel.snapshot.context
+        // Anchor for folding the publish wait into the debounce: `schedulePrediction` subtracts
+        // the wall time already spent waiting for AX from the configured debounce, so the debounce
+        // window starts at the keystroke instead of stacking on top of the publish delay. Measured
+        // from real uptime rather than the scheduled poll intervals because each poll's AX capture
+        // adds milliseconds the schedule does not account for.
+        let keystrokeUptimeNanoseconds = DispatchTime.now().uptimeNanoseconds
 
         // The event tap fires before the host processes the key, so an immediate `refreshNow()`
         // almost always reads the pre-keystroke value while still paying the full AX cost. Start at
@@ -246,22 +256,32 @@ extension SuggestionCoordinator {
             deadline: .now() + .milliseconds(Self.hostPublishFirstPollIntervalMs)
         ) { [weak self] in
             self?.pollForHostPublish(
-                baselineText: baseline?.precedingText,
-                baselineElementID: baseline?.elementIdentifier,
-                baselineSelectionLocation: baseline?.selection.location,
+                baseline: HostPublishBaseline(
+                    precedingText: baseline?.precedingText,
+                    elementIdentifier: baseline?.elementIdentifier,
+                    selectionLocation: baseline?.selection.location,
+                    keystrokeUptimeNanoseconds: keystrokeUptimeNanoseconds
+                ),
                 pollGeneration: pollGeneration,
                 elapsedMs: Self.hostPublishFirstPollIntervalMs
             )
         }
     }
 
+    /// The AX state captured at keystroke time, against which the host-publish poll detects "the
+    /// host has processed the key", plus the uptime anchor for folding the wait into the debounce.
+    private struct HostPublishBaseline {
+        let precedingText: String?
+        let elementIdentifier: String?
+        let selectionLocation: Int?
+        let keystrokeUptimeNanoseconds: UInt64
+    }
+
     /// Drives the snapshot-changed gate. Reads the live focus snapshot, fires `schedulePrediction`
     /// as soon as any of the captured baseline fields move on, and otherwise tail-calls itself
     /// after `hostPublishPollIntervalMs` until the ceiling is hit.
     private func pollForHostPublish(
-        baselineText: String?,
-        baselineElementID: String?,
-        baselineSelectionLocation: Int?,
+        baseline: HostPublishBaseline,
         pollGeneration: UInt64,
         elapsedMs: Int
     ) {
@@ -278,11 +298,13 @@ extension SuggestionCoordinator {
 
         // No focus context at all means the user moved away from any editable field — let
         // `schedulePrediction` and its downstream guards handle the disabled / unsupported state.
-        let textChanged = currentContext?.precedingText != baselineText
-        let elementChanged = currentContext?.elementIdentifier != baselineElementID
-        let selectionChanged = currentContext?.selection.location != baselineSelectionLocation
+        let textChanged = currentContext?.precedingText != baseline.precedingText
+        let elementChanged = currentContext?.elementIdentifier != baseline.elementIdentifier
+        let selectionChanged = currentContext?.selection.location != baseline.selectionLocation
         if textChanged || elementChanged || selectionChanged {
-            schedulePrediction()
+            schedulePrediction(
+                consumedDelayMilliseconds: Self.elapsedMilliseconds(since: baseline.keystrokeUptimeNanoseconds)
+            )
             return
         }
 
@@ -294,19 +316,23 @@ extension SuggestionCoordinator {
         let interval = Self.hostPublishPollIntervalMs
         let nextElapsed = elapsedMs + interval
         guard nextElapsed < Self.hostPublishWaitCeilingMs else {
-            schedulePrediction()
+            schedulePrediction(
+                consumedDelayMilliseconds: Self.elapsedMilliseconds(since: baseline.keystrokeUptimeNanoseconds)
+            )
             return
         }
 
         DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(interval)) { [weak self] in
             self?.pollForHostPublish(
-                baselineText: baselineText,
-                baselineElementID: baselineElementID,
-                baselineSelectionLocation: baselineSelectionLocation,
+                baseline: baseline,
                 pollGeneration: pollGeneration,
                 elapsedMs: nextElapsed
             )
         }
+    }
+
+    private static func elapsedMilliseconds(since uptimeNanoseconds: UInt64) -> Int {
+        Int((DispatchTime.now().uptimeNanoseconds &- uptimeNanoseconds) / 1_000_000)
     }
 
     func handleSuppressedSyntheticInput() {

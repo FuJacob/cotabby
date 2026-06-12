@@ -7,22 +7,43 @@ import Logging
 extension SuggestionCoordinator {
     // MARK: - Prediction Pipeline
 
-    func schedulePrediction() {
+    /// How recent a focus capture must be for the pipeline to trust it instead of paying another
+    /// synchronous AX walk. Chosen to cover the debounce window plus scheduling jitter: a capture
+    /// younger than this was taken after the keystroke that scheduled the current work, so a fresh
+    /// read cannot observe a different editing context without the downstream generation guards
+    /// also tripping.
+    static let freshSnapshotReuseWindowMilliseconds = 30
+
+    func schedulePrediction(consumedDelayMilliseconds: Int = 0) {
         if let disabledReason = currentDisabledReason(focusSnapshot: focusModel.snapshot) {
             disablePredictions(reason: disabledReason)
             return
         }
 
+        // The debounce clock starts at the keystroke, not here. The host-publish poll has already
+        // consumed real wall time waiting for the host to publish the keystroke to AX, and that
+        // wait collapses bursts just as well as sleeping does. Stacking the full debounce on top
+        // of the publish wait was pure added latency, so only the unconsumed remainder is slept.
+        let remainingDelay = max(0, settingsSnapshot.debounceMilliseconds - consumedDelayMilliseconds)
+
         // Task cancellation in Swift is cooperative, so we also use an explicit work id.
         // That gives us strict "latest request wins" semantics even if an old task wakes up late.
         let workID = workController.replaceDebouncedWork(
-            delayMilliseconds: settingsSnapshot.debounceMilliseconds
+            delayMilliseconds: remainingDelay
         ) { [weak self] workID in
             await self?.generateFromCurrentFocus(workID: workID)
         }
 
-        state = .debouncing
-        logStage("debouncing", workID: workID, message: "Waiting \(settingsSnapshot.debounceMilliseconds)ms before generating.")
+        // Equality guards keep repeated keystrokes from republishing identical state: every
+        // @Published write re-renders every coordinator observer (menu bar label included).
+        if state != .debouncing {
+            state = .debouncing
+        }
+        logStage(
+            "debouncing",
+            workID: workID,
+            message: "Debouncing (\(settingsSnapshot.debounceMilliseconds)ms window) before generating."
+        )
     }
 
     /// Refreshes focus after debounce, materializes a stable context, and starts generation.
@@ -38,7 +59,9 @@ extension SuggestionCoordinator {
 
         // We intentionally re-read the latest focus snapshot here instead of trusting the earlier
         // key event, because the user may have switched apps or fields during the debounce window.
-        focusModel.refreshNow()
+        // The host-publish poll usually captured one milliseconds ago, though, so a fresh-enough
+        // capture is reused instead of paying another synchronous AX walk back to back.
+        focusModel.refreshIfStale(maxAgeMilliseconds: Self.freshSnapshotReuseWindowMilliseconds)
         let snapshot = focusModel.snapshot
 
         if let disabledReason = currentDisabledReason(focusSnapshot: snapshot) {
@@ -323,7 +346,11 @@ extension SuggestionCoordinator {
             return
         }
 
-        focusModel.refreshNow()
+        // The free-running focus poll keeps capturing while the engine generates, so a fresh
+        // capture often already exists here; only pay a synchronous AX walk when it does not.
+        // Any keystroke during generation bumped the work id (checked above), and non-keyboard
+        // edits are caught by the generation guard below on the materialized context.
+        focusModel.refreshIfStale(maxAgeMilliseconds: Self.freshSnapshotReuseWindowMilliseconds)
         let snapshot = focusModel.snapshot
 
         if let disabledReason = currentDisabledReason(focusSnapshot: snapshot) {
@@ -634,6 +661,14 @@ extension SuggestionCoordinator {
 
     /// Fully disables prediction, clears cached context, and updates UI messaging with the cause.
     func disablePredictions(reason: String) {
+        // In a field that stays blocked (capability, per-app, per-domain), every keystroke routes
+        // here. Once the pipeline is already torn down for this exact reason there is nothing
+        // left to cancel or hide; re-running the teardown only spawns a redundant engine-reset
+        // task and republishes identical UI state on each key.
+        if isAlreadyDisabled(for: reason) {
+            return
+        }
+
         CotabbyLogger.suggestion.debug("Predictions disabled: \(reason)")
         cancelPredictionWork()
         resetCachedGenerationContext()
@@ -652,6 +687,10 @@ extension SuggestionCoordinator {
     /// session is field-scoped and outlives individual prediction cycles; destroying it here would
     /// force a redundant re-capture when the user starts typing again.
     func disablePredictionsPreservingVisualContext(reason: String) {
+        if isAlreadyDisabled(for: reason) {
+            return
+        }
+
         cancelPredictionWork()
         resetCachedGenerationContext()
         interactionState.resetAll()
@@ -659,6 +698,37 @@ extension SuggestionCoordinator {
         hideOverlay(reason: reason)
         state = .disabled(reason)
         latestStageMessage = "Disabled: \(reason)"
+    }
+
+    /// True when a previous teardown already disabled the pipeline for this exact reason and
+    /// nothing visible or session-shaped has appeared since. The overlay and session checks are
+    /// defensive: any path that shows ghost text or starts a session also moves `state` away from
+    /// `.disabled`, but re-running the teardown is cheap insurance if that invariant ever slips.
+    private func isAlreadyDisabled(for reason: String) -> Bool {
+        guard case .disabled(let currentReason) = state, currentReason == reason else {
+            return false
+        }
+
+        return !overlayState.isVisible && interactionState.activeSession == nil
+    }
+
+    /// True when the no-session clear path still has anything to tear down. With no active
+    /// session, most keystrokes arrive with the overlay already hidden and the published
+    /// suggestion state already nil; assigning nil to an already-nil `@Published` property still
+    /// fires `objectWillChange`, so skipping the redundant clear avoids re-rendering every
+    /// coordinator observer on every key. `.disabled` counts as nothing-to-clear because entering
+    /// it already ran the full teardown.
+    var hasSuggestionArtifactsToClear: Bool {
+        if overlayState.isVisible || latestSuggestionPreview != nil || latestPromptPreview != nil {
+            return true
+        }
+
+        switch state {
+        case .idle, .disabled:
+            return false
+        default:
+            return true
+        }
     }
 
     /// Clears the active suggestion and optionally preserves or drops diagnostic breadcrumbs.

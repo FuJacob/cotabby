@@ -18,9 +18,15 @@ enum PerDomainDisableSettings {
         defaults.bool(forKey: enabledKey)
     }
 
-    /// The configured disabled-domain entries, or an empty set when unset. An empty set leaves the
-    /// per-site gate inert regardless of the flag.
+    /// The configured disabled-domain entries while the feature flag is on, or an empty set
+    /// otherwise. The flag gate lives here (not only in the evaluator) because this is read on
+    /// every keystroke's availability check; with the default-off flag, paying a defaults array
+    /// read plus `Set` construction per key would be pure waste, and the gate is inert anyway
+    /// since focus capture only reads page URLs while the flag is on.
     static func disabledDomains(_ defaults: UserDefaults = .standard) -> Set<String> {
+        guard isEnabled(defaults) else {
+            return []
+        }
         guard let entries = defaults.stringArray(forKey: disabledDomainsKey) else {
             return []
         }

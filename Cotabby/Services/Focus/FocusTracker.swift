@@ -183,6 +183,22 @@ final class FocusTracker {
         rescheduleTimerIfIntervalChanged()
     }
 
+    /// Uptime stamp of the most recent completed capture (timer tick or explicit refresh).
+    /// Backs `millisecondsSinceLastCapture` so pipeline consumers can skip a synchronous AX walk
+    /// when another caller just performed one. Uses uptime (monotonic) so wall-clock adjustments
+    /// cannot fake freshness.
+    private var lastCaptureUptimeNanoseconds: UInt64?
+
+    /// Age of the last capture in milliseconds, or `nil` before the first capture.
+    var millisecondsSinceLastCapture: Int? {
+        guard let lastCaptureUptimeNanoseconds else {
+            return nil
+        }
+
+        let elapsed = DispatchTime.now().uptimeNanoseconds &- lastCaptureUptimeNanoseconds
+        return Int(elapsed / 1_000_000)
+    }
+
     /// Captures the current snapshot, publishes any change, and reports whether anything changed.
     /// Returns `true` when the published snapshot or the focused-input identity changed; idle
     /// backoff uses this to decide whether to stay fast or stretch the poll stride.
@@ -190,6 +206,7 @@ final class FocusTracker {
     private func performCaptureAndPublish() -> Bool {
         pollSequence += 1
         let capture = captureSnapshot()
+        lastCaptureUptimeNanoseconds = DispatchTime.now().uptimeNanoseconds
 
         let snapshotChanged = capture.snapshot != snapshot
         if snapshotChanged {

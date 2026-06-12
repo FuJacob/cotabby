@@ -845,7 +845,11 @@ extension SuggestionCoordinator {
         rawOutput: String? = nil,
         normalizedOutput: String? = nil
     ) {
-        latestStageMessage = message
+        // Repeated keystrokes produce identical stage messages; republishing the same string
+        // would still fire `objectWillChange` and re-render every coordinator observer.
+        if latestStageMessage != message {
+            latestStageMessage = message
+        }
         logger.logStage(
             stage,
             workID: workID,
@@ -860,6 +864,12 @@ extension SuggestionCoordinator {
         // touching one suggestion via `request_id`. `latestRequestID` is set when `+Prediction`
         // builds the request and cleared between sessions; logs outside an active request still
         // carry a placeholder so the field shape is stable for `jq`.
+        // Level-gate before building the metadata dictionary: stages fire per keystroke, and at
+        // the default `.info` floor the line is dropped anyway, so the allocations would be waste.
+        guard CotabbyLogger.suggestion.logLevel <= .debug else {
+            return
+        }
+
         var metadata: Logger.Metadata = [
             "stage": .string(stage),
             "work_id": .stringConvertible(workID),
