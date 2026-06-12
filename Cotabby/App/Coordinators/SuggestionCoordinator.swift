@@ -107,7 +107,6 @@ final class SuggestionCoordinator: ObservableObject {
     var isStreamDrainScheduled = false
     var streamRenderedText: String?
 
-
     /// Monotonic cancellation token for the "wait until the host publishes typed text to AX" loop.
     ///
     /// Keystrokes can arrive faster than Chromium publishes contenteditable updates. Without this

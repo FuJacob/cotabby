@@ -127,7 +127,11 @@ extension SuggestionCoordinator {
     /// `generateFromCurrentFocus` so that function stays within the project's complexity budget.
     private func dispatchGeneration(request: SuggestionRequest, workID: UInt64) {
         // A new generation starts a new stream; the previous request's rendered-partial state
-        // must not gate the new partials' monotonic checks.
+        // must not gate the new partials' monotonic checks. `isStreamDrainScheduled` is left
+        // alone on purpose: an already-enqueued drain block cannot be unscheduled, and it
+        // self-heals either way — it finds nil and clears the flag, or it finds a partial the
+        // new generation queued in the meantime and renders it under the same work-id guards.
+        // Resetting the flag here would instead double-schedule a drain for one partial.
         streamRenderedText = nil
         pendingStreamPartial = nil
         workController.replaceGenerationWork(for: workID) { [weak self] in
@@ -204,7 +208,7 @@ extension SuggestionCoordinator {
     /// 10-50ms from the engine, and rendering each one would stack session updates and overlay
     /// layout on the main actor; latest-wins coalescing bounds that work while the authoritative
     /// final result still arrives through `apply`.
-    func queueStreamedPartial(_ partial: SuggestionResult, workID: UInt64) {
+    private func queueStreamedPartial(_ partial: SuggestionResult, workID: UInt64) {
         guard workController.isCurrent(workID) else {
             return
         }
