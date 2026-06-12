@@ -18,7 +18,19 @@ import Logging
 @MainActor
 final class EmojiPickerController {
     private var machine = EmojiTriggerStateMachine()
-    private let matcher: EmojiMatcher
+    /// Built on first use rather than injected ready-made: the bundled catalog decode plus index
+    /// costs a few MB of resident strings, and most sessions never open the picker. The one-time
+    /// build lands on the first `:` capture's first match request, which is user-paced.
+    private let matcherProvider: @MainActor () -> EmojiMatcher
+    private var cachedMatcher: EmojiMatcher?
+    private var matcher: EmojiMatcher {
+        if let cachedMatcher {
+            return cachedMatcher
+        }
+        let built = matcherProvider()
+        cachedMatcher = built
+        return built
+    }
     private let panel: any EmojiPickerPanelPresenting
     private let focusModel: any SuggestionFocusProviding
     private let inputMonitor: any EmojiInputIntercepting
@@ -66,7 +78,7 @@ final class EmojiPickerController {
     private static let longPauseNanoseconds: UInt64 = 8_000_000_000
 
     init(
-        matcher: EmojiMatcher,
+        matcherProvider: @MainActor @escaping () -> EmojiMatcher,
         panel: any EmojiPickerPanelPresenting,
         focusModel: any SuggestionFocusProviding,
         inputMonitor: any EmojiInputIntercepting,
@@ -77,7 +89,7 @@ final class EmojiPickerController {
         emojiUsage: @MainActor @escaping () -> EmojiUsageSnapshot,
         recordEmojiUsage: @MainActor @escaping (String) -> Void
     ) {
-        self.matcher = matcher
+        self.matcherProvider = matcherProvider
         self.panel = panel
         self.focusModel = focusModel
         self.inputMonitor = inputMonitor

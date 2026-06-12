@@ -127,7 +127,7 @@ final class EmojiPickerControllerTests: XCTestCase {
             let usageRecorder = UsageRecorder()
             usage = usageRecorder
             controller = EmojiPickerController(
-                matcher: EmojiMatcher(catalog: catalog),
+                matcherProvider: { EmojiMatcher(catalog: catalog) },
                 panel: panel,
                 focusModel: focus,
                 inputMonitor: monitor,

@@ -188,16 +188,14 @@ final class CotabbyAppEnvironment {
         // Constructed once at app scope so the underlying `NSSpellChecker` document tag survives
         // across coordinator state transitions instead of churning per keystroke.
         let spellChecker = CurrentWordSpellChecker()
-        let enabledSpellingLanguages = SpellingDictionaryCatalog.languages(
-            for: suggestionSettings.enabledSpellingDictionaryCodes
-        )
-        // Preserve the existing warm English path when it is enabled. A sole non-English choice is
-        // also preloaded; broader multilingual sets stay lazy so app launch never builds every index.
-        let preloadSpellingLanguage = enabledSpellingLanguages.count == 1
-            ? enabledSpellingLanguages.first
-            : enabledSpellingLanguages.first(where: { $0 == .english })
+        // No launch-time preload: a fully built index costs tens of MB resident for a feature that
+        // is only consulted once the typo gate actually finds a misspelling, and the first
+        // consultation triggers the same background build (`cachedIndexOrRequestLoad`) with the
+        // designed NSSpellChecker fallback ranking corrections until it lands. The only cost of
+        // staying cold is that the first correction or two after launch rank via the system
+        // checker instead of corpus frequency.
         let symSpellCorrector = SymSpellCorrector(
-            preloadLanguage: preloadSpellingLanguage
+            preloadLanguage: nil
         )
         let suggestionCoordinator = SuggestionCoordinator(
             permissionManager: permissionManager,
@@ -221,7 +219,9 @@ final class CotabbyAppEnvironment {
         // The emoji picker is a sibling to the suggestion coordinator. It reuses the input monitor,
         // focus model, and inserter, but owns its own trigger state machine and floating panel.
         let emojiPickerController = EmojiPickerController(
-            matcher: EmojiMatcher(catalog: EmojiCatalog.bundled()),
+            // Deferred: decoding and indexing the bundled emoji catalog costs a few MB of resident
+            // strings that most sessions never use; the picker builds it on first `:` capture.
+            matcherProvider: { EmojiMatcher(catalog: EmojiCatalog.bundled()) },
             panel: EmojiPickerPanelController(),
             focusModel: focusModel,
             inputMonitor: inputMonitor,
