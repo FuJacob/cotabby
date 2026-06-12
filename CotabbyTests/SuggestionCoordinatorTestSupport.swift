@@ -245,6 +245,9 @@ func makeCoordinatorRig(
         configuration: .standard,
         spellChecker: CurrentWordSpellChecker(),
         symSpellCorrector: SymSpellCorrector(preloadLanguage: nil),
+        qualityMetricsStore: SuggestionQualityMetricsStore(
+            userDefaults: UserDefaults(suiteName: "CotabbyTests.rig.quality.\(UUID().uuidString)") ?? .standard
+        ),
         userDefaults: UserDefaults(suiteName: "CotabbyTests.rig.\(UUID().uuidString)") ?? .standard
     )
     return CoordinatorRig(

@@ -20,11 +20,18 @@ extension SuggestionCoordinator {
             return
         }
 
+        // The debounce window adapts to the last generation latency: snappier when the model is
+        // fast, calmer when it is slow (fewer doomed generations to cancel). The configured value
+        // is the fallback until a first latency exists.
+        let debounceMilliseconds = DebouncePolicy.milliseconds(
+            lastGenerationLatencyMilliseconds: latestLatencyMilliseconds,
+            fallback: settingsSnapshot.debounceMilliseconds
+        )
         // The debounce clock starts at the keystroke, not here. The host-publish poll has already
         // consumed real wall time waiting for the host to publish the keystroke to AX, and that
         // wait collapses bursts just as well as sleeping does. Stacking the full debounce on top
         // of the publish wait was pure added latency, so only the unconsumed remainder is slept.
-        let remainingDelay = max(0, settingsSnapshot.debounceMilliseconds - consumedDelayMilliseconds)
+        let remainingDelay = max(0, debounceMilliseconds - consumedDelayMilliseconds)
 
         // Task cancellation in Swift is cooperative, so we also use an explicit work id.
         // That gives us strict "latest request wins" semantics even if an old task wakes up late.
@@ -42,7 +49,7 @@ extension SuggestionCoordinator {
         logStage(
             "debouncing",
             workID: workID,
-            message: "Debouncing (\(settingsSnapshot.debounceMilliseconds)ms window) before generating."
+            message: "Debouncing (\(debounceMilliseconds)ms window, \(remainingDelay)ms remaining) before generating."
         )
     }
 

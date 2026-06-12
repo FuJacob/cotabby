@@ -106,7 +106,7 @@ final class LlamaSuggestionEnginePrewarmTests: XCTestCase {
 @MainActor
 private final class RecordingPrewarmRuntime: LlamaRuntimeGenerating {
     var prefillError: Error?
-    var generateResult: Result<String, Error> = .success("ok")
+    var generateResult: Result<LlamaGenerationOutput, Error> = .success(.text("ok"))
     private(set) var prefillPrompts: [String] = []
     private(set) var generateCachedPrefixBytes: [Int?] = []
 
@@ -114,7 +114,7 @@ private final class RecordingPrewarmRuntime: LlamaRuntimeGenerating {
         prompt: String,
         cachedPrefixBytes: Int?,
         options: LlamaGenerationOptions
-    ) async throws -> String {
+    ) async throws -> LlamaGenerationOutput {
         generateCachedPrefixBytes.append(cachedPrefixBytes)
         return try generateResult.get()
     }

@@ -162,7 +162,7 @@ extension LlamaRuntimeGenerating {
         cachedPrefixBytes: Int?,
         options: LlamaGenerationOptions,
         onPartialRawText: (@Sendable (String) -> Void)?
-    ) async throws -> String {
+    ) async throws -> LlamaGenerationOutput {
         try await generate(prompt: prompt, cachedPrefixBytes: cachedPrefixBytes, options: options)
     }
 }

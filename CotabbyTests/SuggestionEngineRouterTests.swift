@@ -67,6 +67,7 @@ final class SuggestionEngineRouterRoutingTests: XCTestCase {
             foundationModelEngine: foundation,
             llamaEngine: llama,
             performanceMetricsStore: metrics,
+            qualityMetricsStore: SuggestionQualityMetricsStore(userDefaults: defaults),
             llamaModelNameProvider: { llamaModelName }
         )
         Self.retained.append(contentsOf: [router, settings, metrics] as [AnyObject])
