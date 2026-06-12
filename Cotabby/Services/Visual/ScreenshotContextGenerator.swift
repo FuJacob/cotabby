@@ -165,9 +165,12 @@ final class ScreenshotContextGenerator {
         let prime: UInt64 = 0x0000_0100_0000_01B3
         var hash: UInt64 = 0xcbf2_9ce4_8422_2325
         var index = 0
+        // 17, not 16: with 4-byte pixels a multiple-of-4 stride lands on the same color channel
+        // forever, so a chroma-only change (e.g. a theme toggle with unchanged luminance) could
+        // hash identically. A stride coprime with the pixel size cycles through all four channels.
         while index < length {
             hash = (hash ^ UInt64(bytes[index])) &* prime
-            index += 16
+            index += 17
         }
         hash = (hash ^ UInt64(image.width)) &* prime
         hash = (hash ^ UInt64(image.height)) &* prime
