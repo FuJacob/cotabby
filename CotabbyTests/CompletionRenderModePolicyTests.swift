@@ -230,21 +230,22 @@ final class CompletionRenderModePolicyTests: XCTestCase {
 
     // MARK: - Layout-estimated geometry (caret layout repair)
 
-    func test_auto_returnsInlineForLayoutEstimatedCaretGeometry() {
-        // `.layoutEstimated` only exists when the caret layout repair accepted a hidden-text-layout
-        // estimate; rendering inline on that estimate is the entire point of the repair.
+    func test_auto_returnsLayoutEstimatedMirrorForLayoutEstimatedCaretGeometry() {
+        // `.layoutEstimated` means the hidden-TextKit repair produced a confident caret estimate. We
+        // route it to the card (good enough to place a popup, not to paint inline glyphs the eye
+        // scrutinizes against host text) but anchor that popup to the estimated caret.
         let policy = CompletionRenderModePolicy(userPreference: .auto)
         let geometry = CotabbyTestFixtures.overlayGeometry(caretQuality: .layoutEstimated)
 
         XCTAssertEqual(
             policy.mode(for: geometry, bundleIdentifier: "com.microsoft.VSCode"),
-            .inline
+            .mirror(reason: .caretLayoutEstimated)
         )
     }
 
-    func test_auto_midLineCaret_promotesLayoutEstimatedGeometryToMirror() {
-        // The repair fixes geometry, not the mid-line rule: characters after the caret still have
-        // no inline home, so the card promotion applies to repaired geometry too.
+    func test_auto_midLineCaret_keepsLayoutEstimatedReasonRatherThanOverwriting() {
+        // Layout-estimated geometry already routes to the card, so the mid-line promotion (which only
+        // upgrades inline results) never runs: the more specific caret-layout reason is retained.
         let policy = CompletionRenderModePolicy(userPreference: .auto)
         let geometry = CotabbyTestFixtures.overlayGeometry(
             caretQuality: .layoutEstimated,
@@ -253,7 +254,7 @@ final class CompletionRenderModePolicyTests: XCTestCase {
 
         XCTAssertEqual(
             policy.mode(for: geometry, bundleIdentifier: "com.microsoft.VSCode"),
-            .mirror(reason: .caretMidLine)
+            .mirror(reason: .caretLayoutEstimated)
         )
     }
 

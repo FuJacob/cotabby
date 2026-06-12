@@ -175,6 +175,21 @@ struct MirrorOverlayLayout: Equatable {
             // height as unreliable; the extra slack keeps the card from overlapping the typed line.
             return geometry.caretRect.minY - Metrics.caretFallbackVerticalOffset
 
+        case .caretLayoutEstimated:
+            // The hidden-TextKit repair located the caret, so anchor to that estimated caret rect
+            // rather than the whole field — the popup should track the cursor, not float below the
+            // document. The one-line offset (not the tight `anchorGap`) drops the card a full line
+            // beneath the estimated caret so it never overlaps the line being typed, which matters
+            // most here because the estimate's exact baseline is less certain than a real AX caret.
+            // Fall back to the field rect, then the tight caret offset, only if the estimate is empty.
+            if !geometry.caretRect.isEmpty {
+                return geometry.caretRect.minY - Metrics.caretFallbackVerticalOffset
+            }
+            if let inputFrame = geometry.inputFrameRect?.standardized, !inputFrame.isEmpty {
+                return inputFrame.minY - Metrics.anchorGap
+            }
+            return geometry.caretRect.minY - Metrics.caretFallbackVerticalOffset
+
         case .userPreference, .perAppOverride, .caretMidLine:
             // Caret geometry is trustworthy in these cases. Sit just under the caret line so the
             // popup tracks the cursor like the inline ghost does, instead of floating below the

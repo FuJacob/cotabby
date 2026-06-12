@@ -27,6 +27,13 @@ nonisolated enum CompletionRenderMode: Equatable, Sendable {
         /// drifts as the user types.
         case caretGeometryEstimated
 
+        /// Caret quality is `.layoutEstimated`: the host exposed no usable caret, but Cotabby's
+        /// hidden-TextKit layout repair produced a confident caret estimate. We deliberately route
+        /// these to the card rather than inline ghost text, but unlike `.caretGeometryEstimated` the
+        /// card anchors to that estimated caret (one line below it) instead of the whole field rect,
+        /// so the popup tracks the cursor the TextKit layout located.
+        case caretLayoutEstimated
+
         /// The caret sits mid-line: real characters follow it before the next line break. Inline
         /// ghost text would draw on top of those trailing characters, so the suggestion is promoted
         /// to the card, which anchors to the caret rect (the geometry is trustworthy here) and sits
