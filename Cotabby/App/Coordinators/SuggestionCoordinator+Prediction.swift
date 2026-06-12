@@ -96,21 +96,7 @@ extension SuggestionCoordinator {
         let visualContextSummary = permissionManager.screenRecordingGranted
             ? visualContextCoordinator.excerpt(for: context)
             : nil
-        let rawClipboard = settingsSnapshot.isClipboardContextEnabled
-            ? clipboardContextProvider.currentContext()
-            : nil
-        // Same bounded window the downstream distiller sees, so the relevance gate and the
-        // per-line filter can't disagree about what "shares tokens with the prefix" means.
-        let truncatedPrefix = SuggestionRequestFactory.truncatedPromptPrefix(
-            from: rawContext.precedingText,
-            configuration: configuration,
-            engine: settingsSnapshot.selectedEngine
-        )
-        let clipboardContext = clipboardRelevanceFilter.filter(
-            clipboard: rawClipboard,
-            pasteboardChangeCount: clipboardContextProvider.currentChangeCount,
-            precedingText: truncatedPrefix
-        )
+        let clipboardContext = pinnedClipboardContext(rawContext: rawContext)
         let requestBuildResult = SuggestionRequestFactory.buildRequest(
             context: context,
             settings: settingsSnapshot,
@@ -162,6 +148,45 @@ extension SuggestionCoordinator {
                 await applyFailure(error.localizedDescription, workID: workID)
             }
         }
+    }
+
+    /// Resolves the clipboard prompt section under the pinning policy documented on
+    /// `clipboardPrefaceMemo`: an accepted (non-nil) verdict is reused for the rest of the field
+    /// session so the prompt head stays stable and the engine's KV common prefix survives; a nil
+    /// verdict re-evaluates per request because it adds nothing to the prompt and the clipboard
+    /// may only become relevant once more text is typed. A new copy or a field switch always
+    /// re-evaluates.
+    private func pinnedClipboardContext(rawContext: FocusedInputSnapshot) -> String? {
+        guard settingsSnapshot.isClipboardContextEnabled else {
+            return nil
+        }
+
+        let changeCount = clipboardContextProvider.currentChangeCount
+        if let memo = clipboardPrefaceMemo,
+           memo.focusSequence == rawContext.focusChangeSequence,
+           memo.changeCount == changeCount,
+           memo.value != nil {
+            return memo.value
+        }
+
+        // Same bounded window the downstream distiller sees, so the relevance gate and the
+        // per-line filter can't disagree about what "shares tokens with the prefix" means.
+        let truncatedPrefix = SuggestionRequestFactory.truncatedPromptPrefix(
+            from: rawContext.precedingText,
+            configuration: configuration,
+            engine: settingsSnapshot.selectedEngine
+        )
+        let value = clipboardRelevanceFilter.filter(
+            clipboard: clipboardContextProvider.currentContext(),
+            pasteboardChangeCount: changeCount,
+            precedingText: truncatedPrefix
+        )
+        clipboardPrefaceMemo = ClipboardPrefaceMemo(
+            focusSequence: rawContext.focusChangeSequence,
+            changeCount: changeCount,
+            value: value
+        )
+        return value
     }
 
     /// Runs the typo gate for the current word. Returns `true` when it handled the cycle by suppressing,

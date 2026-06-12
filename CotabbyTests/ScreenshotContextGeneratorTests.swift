@@ -80,6 +80,34 @@ final class ScreenshotContextGeneratorTests: XCTestCase {
         )
     }
 
+    func test_generateContext_reusesExtractionForIdenticalPixels() async throws {
+        let line = "GeneralPaneView.swift should say Screen Recording is required for autocomplete context"
+        let extractor = CountingTextExtractor(
+            extracted: ExtractedScreenText(
+                text: line,
+                lineCount: 1,
+                lines: [OCRTextHygiene.OCRLine(text: line, confidence: 0.9)]
+            )
+        )
+        let generator = ScreenshotContextGenerator(
+            screenshotService: StubScreenshotCapture(
+                screenshot: CapturedWindowScreenshot(image: makeImage(), windowTitle: nil)
+            ),
+            textExtractor: extractor,
+            configuration: .default
+        )
+
+        let first = try await generator.generateContext(for: makeSnapshot())
+        let second = try await generator.generateContext(for: makeSnapshot())
+
+        XCTAssertEqual(
+            extractor.extractionCount,
+            1,
+            "Re-capturing pixel-identical content must reuse the extraction instead of re-running Vision."
+        )
+        XCTAssertEqual(first.text, second.text, "A cache hit must produce the same excerpt as a fresh OCR.")
+    }
+
     func test_generateContext_dropsLowConfidenceOCRLines() async throws {
         // A clean, plausible sentence at low confidence must be dropped even though no other hygiene
         // filter would catch it, proving real per-line Vision confidence now reaches the hygiene pass.
@@ -149,6 +177,22 @@ private struct StubScreenshotCapture: WindowScreenshotCapturing {
         snapshotDimension: Int
     ) async throws -> CapturedWindowScreenshot {
         screenshot
+    }
+}
+
+/// Counts Vision-pass invocations so the pixel-hash extraction cache can be asserted on.
+@MainActor
+private final class CountingTextExtractor: ScreenTextExtracting {
+    private let extracted: ExtractedScreenText
+    private(set) var extractionCount = 0
+
+    init(extracted: ExtractedScreenText) {
+        self.extracted = extracted
+    }
+
+    func extractText(from image: CGImage) async throws -> ExtractedScreenText {
+        extractionCount += 1
+        return extracted
     }
 }
 
