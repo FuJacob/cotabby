@@ -29,6 +29,17 @@ struct FocusSnapshotResolver {
     /// Carries deep-walk throttle state across the value-typed resolver's non-mutating polls.
     private let deepWalkThrottle = DeepGeometryWalkThrottle()
 
+    /// Same lifetime trick for the Branch 2.5 static-text-run walk: collected run frames are
+    /// reused across polls of one field instead of re-walking up to ~300 nodes per tick.
+    private let staticRunWalkThrottle = StaticTextRunWalkThrottle()
+
+    /// Session-scoped caches for AX reads that are invariant while focus stays in one field.
+    /// Secure-field verdicts gate whether Cotabby operates at all, so they are scoped to the
+    /// focus-change sequence rather than raw element identity, which CFHash can recycle across
+    /// fields (see `FocusSessionScopedCache`).
+    private let secureFieldVerdictCache = FocusSessionScopedCache<Bool>()
+    private let terminalDetectionCache = FocusSessionScopedCache<Bool>()
+
     /// Caches the resolved field font/color per focused element so the attributed-string AX read
     /// happens once per field rather than on every poll. Reference type for the same reason as
     /// `deepWalkThrottle`: it carries state across the value-typed resolver's non-mutating polls.
@@ -72,9 +83,14 @@ struct FocusSnapshotResolver {
         let deepDescendants = BrowserAppDetector.needsWebAccessibilityPriming(
             bundleIdentifier: bundleIdentifier)
         let candidateResolution = resolveCandidate(
-            around: focusedElement,
+            around: FocusedElementReading(
+                element: focusedElement,
+                role: focusedRole,
+                subrole: focusedSubrole
+            ),
             bundleIdentifier: bundleIdentifier,
-            deepDescendants: deepDescendants
+            deepDescendants: deepDescendants,
+            focusChangeSequence: focusChangeSequence
         )
         let resolution = candidateResolution.resolution
         let diagnosticCandidate = candidateResolution.diagnosticCandidate
@@ -221,11 +237,18 @@ struct FocusSnapshotResolver {
         // terminal while leaving the editor and chat working. Read on the focused element because
         // that is exactly where xterm puts the caret (`xterm-helper-textarea`). Computed here — only
         // once a real editable field has resolved — so idle/non-editable focus polls don't pay for an
-        // extra AXDOMClassList round-trip; native apps don't vend the attribute anyway.
-        let isIntegratedTerminal = TerminalAppDetector.isIntegratedTerminal(
-            domClassList: AXHelper.stringArrayValue(
-                for: "AXDOMClassList" as CFString, on: focusedElement) ?? []
-        )
+        // extra AXDOMClassList round-trip; native apps don't vend the attribute anyway. Cached per
+        // focus session because the class list on one focused element cannot change without a field
+        // switch bumping the sequence, which previously cost one round-trip on every poll tick.
+        let isIntegratedTerminal = terminalDetectionCache.value(
+            forKey: focusedElementIdentifier,
+            focusChangeSequence: focusChangeSequence
+        ) {
+            TerminalAppDetector.isIntegratedTerminal(
+                domClassList: AXHelper.stringArrayValue(
+                    for: "AXDOMClassList" as CFString, on: focusedElement) ?? []
+            )
+        }
         // Web-vs-native classification for the caret-geometry trust policy. The DOM-attribute
         // signal was computed in `candidateSnapshot` from the attribute list it already fetched,
         // so this adds no AX round-trip to the focus poll.
@@ -294,32 +317,71 @@ struct FocusSnapshotResolver {
     /// reading text/selection/caret data from many wrapper and static-text nodes even after the real
     /// input target had already been discovered. This preserves the resolver's "first full
     /// capability wins" policy while avoiding unnecessary synchronous AX IPC.
+    ///
+    /// Candidate enumeration is staged the same way: the bounded descendant BFS used for Chromium
+    /// wrappers costs hundreds of additional AX round trips per pass, and a shallow candidate
+    /// (focused node, ancestors, their children) wins in the common case — including Chromium
+    /// hosts that focus the editable directly — so the BFS runs only when no shallow candidate
+    /// resolves with full capabilities. Evaluation order is unchanged: shallow candidates always
+    /// preceded BFS appends, so any shallow winner made the BFS results unreachable anyway.
     private func resolveCandidate(
-        around focusedElement: AXUIElement,
+        around focusedReading: FocusedElementReading,
         bundleIdentifier: String,
-        deepDescendants: Bool
+        deepDescendants: Bool,
+        focusChangeSequence: UInt64
     ) -> FocusCandidateResolution {
         var bestPartial: (candidate: AXFocusCandidate, evaluation: FocusCapabilityCandidateEvaluation)?
         var inspectedCount = 0
 
-        for element in candidateElements(around: focusedElement, deepDescendants: deepDescendants) {
-            inspectedCount += 1
-            let candidate = candidateSnapshot(for: element, bundleIdentifier: bundleIdentifier)
-            let evaluation = FocusCapabilityResolver.evaluate(candidate.resolverCandidate)
-
-            if evaluation.hasFullCapabilities {
-                return FocusCandidateResolution(
-                    resolvedCandidate: candidate,
-                    diagnosticCandidate: candidate,
-                    resolution: FocusCapabilityResolution(
-                        selectedEvaluation: evaluation,
-                        inspectedCandidateCount: inspectedCount
-                    )
+        func winner(in elements: [AXUIElement]) -> FocusCandidateResolution? {
+            for element in elements {
+                inspectedCount += 1
+                let candidate = candidateSnapshot(
+                    for: element,
+                    bundleIdentifier: bundleIdentifier,
+                    focusChangeSequence: focusChangeSequence,
+                    focusedReading: focusedReading
                 )
+                let evaluation = FocusCapabilityResolver.evaluate(candidate.resolverCandidate)
+
+                if evaluation.hasFullCapabilities {
+                    return FocusCandidateResolution(
+                        resolvedCandidate: candidate,
+                        diagnosticCandidate: candidate,
+                        resolution: FocusCapabilityResolution(
+                            selectedEvaluation: evaluation,
+                            inspectedCandidateCount: inspectedCount
+                        )
+                    )
+                }
+
+                if bestPartial == nil || evaluation.score > bestPartial!.evaluation.score {
+                    bestPartial = (candidate, evaluation)
+                }
             }
 
-            if bestPartial == nil || evaluation.score > bestPartial!.evaluation.score {
-                bestPartial = (candidate, evaluation)
+            return nil
+        }
+
+        var seen = Set<String>()
+        let shallow = shallowCandidateElements(around: focusedReading.element, seen: &seen)
+        if let resolved = winner(in: shallow.ordered) {
+            return resolved
+        }
+
+        if deepDescendants {
+            var deepCandidates: [AXUIElement] = []
+            appendEditableDescendants(of: [focusedReading.element] + shallow.ancestors) { element in
+                guard let element else {
+                    return
+                }
+                guard seen.insert(AXHelper.elementIdentity(for: element)).inserted else {
+                    return
+                }
+                deepCandidates.append(element)
+            }
+            if let resolved = winner(in: deepCandidates) {
+                return resolved
             }
         }
 
@@ -364,11 +426,15 @@ struct FocusSnapshotResolver {
         )
     }
 
-    private func candidateElements(
-        around focusedElement: AXUIElement, deepDescendants: Bool = false
-    ) -> [AXUIElement] {
+    /// Enumerates the cheap nearby candidates: the focused node, up to two ancestors, and their
+    /// children. The Chromium descendant BFS is intentionally not part of this list — see
+    /// `resolveCandidate` for the staging rationale (Chromium reports focus on a wrapper above the
+    /// editable, AXWebArea → AXGroup → … → AXTextField, so the BFS exists as the fallback for the
+    /// cases where this shallow neighborhood misses the real target).
+    private func shallowCandidateElements(
+        around focusedElement: AXUIElement, seen: inout Set<String>
+    ) -> (ordered: [AXUIElement], ancestors: [AXUIElement]) {
         var ordered: [AXUIElement] = []
-        var seen = Set<String>()
 
         func append(_ element: AXUIElement?) {
             guard let element else {
@@ -410,15 +476,7 @@ struct FocusSnapshotResolver {
             }
         }
 
-        // Chromium reports focus on a wrapper above the editable (AXWebArea → AXGroup → … →
-        // AXTextField), so the shallow walk above can miss the real target. Search descendants for
-        // editable-looking nodes, bounded in depth and count and appending only likely editables
-        // (not every visited node) so per-tick candidateSnapshot cost stays in check.
-        if deepDescendants {
-            appendEditableDescendants(of: [focusedElement] + ancestors, append: append)
-        }
-
-        return ordered
+        return (ordered, ancestors)
     }
 
     /// Bounded BFS for editable-looking descendants, used only for Chromium/Electron. Traverses up
@@ -604,10 +662,24 @@ struct FocusSnapshotResolver {
     }
 
     /// Extracts the AX properties Cotabby needs from one candidate element near the current focus.
-    private func candidateSnapshot(for element: AXUIElement, bundleIdentifier: String)
-        -> AXFocusCandidate {
-        let role = AXHelper.stringValue(for: kAXRoleAttribute as CFString, on: element) ?? "Unknown"
-        let subrole = AXHelper.stringValue(for: kAXSubroleAttribute as CFString, on: element)
+    private func candidateSnapshot(
+        for element: AXUIElement,
+        bundleIdentifier: String,
+        focusChangeSequence: UInt64,
+        focusedReading: FocusedElementReading
+    ) -> AXFocusCandidate {
+        // `resolveSnapshot` already read the focused element's role pair for diagnostics, and the
+        // focused element is the winning candidate in the common case; re-reading would repeat two
+        // AX round trips on every poll tick. `CFEqual` is a local comparison, not an IPC.
+        let role: String
+        let subrole: String?
+        if CFEqual(element, focusedReading.element) {
+            role = focusedReading.role
+            subrole = focusedReading.subrole
+        } else {
+            role = AXHelper.stringValue(for: kAXRoleAttribute as CFString, on: element) ?? "Unknown"
+            subrole = AXHelper.stringValue(for: kAXSubroleAttribute as CFString, on: element)
+        }
         let supportedAttributes = Set(AXHelper.attributeNames(on: element))
         let supportedParameterizedAttributes = Set(
             AXHelper.parameterizedAttributeNames(on: element))
@@ -712,17 +784,33 @@ struct FocusSnapshotResolver {
                 supportsFrame: supportedAttributes.contains("AXFrame"),
                 cocoaAnchorFrame: inputFrameRect,
                 textValue: textValue,
-                textSelection: selection
+                textSelection: selection,
+                // The run-walk throttle slot is shared across calls, so it is restricted to the
+                // focused element: that is the per-tick steady-state caller, and scoping prevents
+                // one slot from serving run frames collected under a different root element.
+                staticRunThrottle: CFEqual(element, focusedReading.element)
+                    ? staticRunWalkThrottle
+                    : nil,
+                focusChangeSequence: focusChangeSequence
             )
         }
         let caretRect = caretResult?.rect
         let caretQuality = caretResult?.quality
-        let isSecure = isSecureElement(element: element, role: role, subrole: subrole)
         // Recorded from the already-fetched attribute list (no extra AX call) so snapshot
         // assembly can classify the field as web-rendered without touching the element again.
         let vendsDOMAttributes = WebContentFieldDetector.vendsDOMAttributes(supportedAttributes)
         let elementIdentifier = AXHelper.elementIdentifier(
             for: element, bundleIdentifier: bundleIdentifier)
+        // Secure-ness is invariant for an element's lifetime, and the three marker probes behind
+        // it (role description, title, description) are separate AX round trips otherwise paid on
+        // every poll tick. Session scoping keeps recycled element identities from ever serving a
+        // stale verdict to a different field.
+        let isSecure = secureFieldVerdictCache.value(
+            forKey: elementIdentifier,
+            focusChangeSequence: focusChangeSequence
+        ) {
+            isSecureElement(element: element, role: role, subrole: subrole)
+        }
         let resolverCandidate = FocusCapabilityCandidate(
             elementIdentifier: elementIdentifier,
             role: role,
@@ -862,6 +950,14 @@ private struct FocusCandidateResolution {
     let resolvedCandidate: AXFocusCandidate?
     let diagnosticCandidate: AXFocusCandidate?
     let resolution: FocusCapabilityResolution
+}
+
+/// The focused element together with its already-read role pair, so candidate snapshotting can
+/// reuse the reads `resolveSnapshot` performed for diagnostics instead of repeating the IPC.
+private struct FocusedElementReading {
+    let element: AXUIElement
+    let role: String
+    let subrole: String?
 }
 
 private struct AXTextSelection {
