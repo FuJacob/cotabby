@@ -78,6 +78,21 @@ final class SuggestionCoordinator: ObservableObject {
     // barrier task that the next generation must cross before it can ask the runtime for output.
     var cacheResetSequence: UInt64 = 0
     var pendingCacheReset: (sequence: UInt64, task: Task<Void, Never>)?
+    /// One accepted clipboard-relevance verdict per (field session, pasteboard state). The verdict
+    /// used to be re-evaluated against the live prefix on every request, and because the clipboard
+    /// section precedes the typed prefix in the prompt, every flip rewrote the prompt HEAD and
+    /// collapsed the engine's reusable common prefix back to zero (a full re-prefill). A pinned
+    /// non-nil verdict keeps the prompt head stable for the field session; a nil verdict keeps
+    /// re-evaluating because adding nothing to the prompt cannot destabilize the head, and the
+    /// clipboard may only become relevant once more text is typed. A new copy (change count) or a
+    /// field switch (focus sequence) always re-evaluates. See `pinnedClipboardContext`.
+    struct ClipboardPrefaceMemo {
+        let focusSequence: UInt64
+        let changeCount: Int
+        let value: String?
+    }
+
+    var clipboardPrefaceMemo: ClipboardPrefaceMemo?
     /// Monotonic cancellation token for the "wait until the host publishes typed text to AX" loop.
     ///
     /// Keystrokes can arrive faster than Chromium publishes contenteditable updates. Without this

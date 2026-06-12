@@ -20,8 +20,12 @@ nonisolated struct VisualContextConfiguration: Equatable, Sendable {
     static let `default` = VisualContextConfiguration(
         // Capture a wider field-centered area so OCR can see nearby labels and conversation turns.
         snapshotDimension: 700,
-        // Vision's accurate mode benefits from more pixels, especially on dense document UIs.
-        maxImageDimension: 1600,
+        // Vision's accurate mode benefits from more pixels, but OCR cost scales with pixel area
+        // and a Retina capture of the 700pt strip arrives well above this cap either way. 1200
+        // keeps typical 11-13pt UI text comfortably above Vision's recognition floor (the strip
+        // is ~1000pt wide, so this is ~1.2 px/pt) while cutting the Vision workload ~44% versus
+        // the previous 1600 cap.
+        maxImageDimension: 1200,
         minRecognizedCharacterCount: 12,
         // The summarizer needs enough raw OCR to recover task, filenames, and nearby messages.
         maxRecognizedCharacters: 5000,

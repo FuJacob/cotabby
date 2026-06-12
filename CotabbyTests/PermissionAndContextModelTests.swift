@@ -115,7 +115,8 @@ final class VisualContextModelTests: XCTestCase {
     func test_defaultConfiguration_hasExpectedValues() {
         let config = VisualContextConfiguration.default
         XCTAssertEqual(config.snapshotDimension, 700)
-        XCTAssertEqual(config.maxImageDimension, 1600)
+        // 1200 is the measured-tradeoff OCR input cap; see the rationale on the default config.
+        XCTAssertEqual(config.maxImageDimension, 1200)
         XCTAssertEqual(config.minRecognizedCharacterCount, 12)
         XCTAssertEqual(config.maxRecognizedCharacters, 5000)
         XCTAssertEqual(config.maxSummaryCharacters, 1500)

@@ -34,6 +34,14 @@ final class ScreenshotContextGenerator {
     private let textExtractor: any ScreenTextExtracting
     private let configuration: VisualContextConfiguration
 
+    /// Recent OCR extractions keyed by a pixel hash of the captured crop, so refocusing a window
+    /// whose content has not changed skips the Vision pass (the dominant cost of this pipeline).
+    /// Only the raw extraction is cached: hygiene and bounding still rerun against the live field
+    /// text below, so a cache hit stays byte-identical to re-OCRing identical pixels. Bounded to a
+    /// few entries so alt-tabbing between two or three windows keeps hitting.
+    private var extractionCache: [(hash: UInt64, extracted: ExtractedScreenText)] = []
+    private static let extractionCacheLimit = 4
+
     init(
         screenshotService: (any WindowScreenshotCapturing)? = nil,
         textExtractor: (any ScreenTextExtracting)? = nil,
@@ -59,6 +67,11 @@ final class ScreenshotContextGenerator {
         let screenshot = try await captureScreenshot(for: context, onStatusChange: onStatusChange)
 
         await onStatusChange?(.extractingText)
+
+        let pixelHash = Self.pixelHash(of: screenshot.image)
+        if let pixelHash, let cached = cachedExtraction(for: pixelHash) {
+            return try finishedExcerpt(from: cached, context: context, image: screenshot.image)
+        }
 
         let extracted: ExtractedScreenText
         do {
@@ -89,6 +102,19 @@ final class ScreenshotContextGenerator {
             throw ScreenshotContextGenerationError.failed(error.localizedDescription)
         }
 
+        storeExtraction(extracted, for: pixelHash)
+        return try finishedExcerpt(from: extracted, context: context, image: screenshot.image)
+    }
+
+    /// Hygiene, normalization, bounding, and the meaningful-signal gate, shared by the fresh and
+    /// cache-hit paths so a hit stays byte-identical to re-OCRing the same pixels. The field-text
+    /// stripping in particular must rerun per call: the cached extraction may have been taken when
+    /// the user's own typed text differed.
+    private func finishedExcerpt(
+        from extracted: ExtractedScreenText,
+        context: FocusedInputSnapshot,
+        image: CGImage
+    ) throws -> VisualContextExcerpt {
         // Filter OCR corruption (garbled / symbol-noise / digit-substituted lines) and strip any
         // line that merely echoes the user's own field text, then sanitize for prompt-injection
         // safety. No model summarization: a base model conditions fine on cleaned raw context, and
@@ -102,7 +128,7 @@ final class ScreenshotContextGenerator {
 
         if CotabbyDebugOptions.isEnabled {
             saveDebugScreenshot(
-                screenshot.image,
+                image,
                 text: extracted.text,
                 name: sanitizedDebugName(from: context.applicationName)
             )
@@ -120,6 +146,51 @@ final class ScreenshotContextGenerator {
         )
 
         return VisualContextExcerpt(text: finalContextText)
+    }
+
+    // MARK: - Extraction cache
+
+    /// FNV-1a over a strided sample of the image bytes, mixed with the dimensions. Sampling every
+    /// 16th byte keeps the hash sub-millisecond on Retina crops while still touching every row;
+    /// any real content change moves enough antialiased pixels that a stride collision is
+    /// vanishingly unlikely, and the worst case of one is reusing OCR text for a window whose
+    /// pixels barely changed. `nil` (no readable backing data) simply disables caching.
+    private static func pixelHash(of image: CGImage) -> UInt64? {
+        guard let data = image.dataProvider?.data,
+              let bytes = CFDataGetBytePtr(data) else {
+            return nil
+        }
+
+        let length = CFDataGetLength(data)
+        let prime: UInt64 = 0x0000_0100_0000_01B3
+        var hash: UInt64 = 0xcbf2_9ce4_8422_2325
+        var index = 0
+        // 17, not 16: with 4-byte pixels a multiple-of-4 stride lands on the same color channel
+        // forever, so a chroma-only change (e.g. a theme toggle with unchanged luminance) could
+        // hash identically. A stride coprime with the pixel size cycles through all four channels.
+        while index < length {
+            hash = (hash ^ UInt64(bytes[index])) &* prime
+            index += 17
+        }
+        hash = (hash ^ UInt64(image.width)) &* prime
+        hash = (hash ^ UInt64(image.height)) &* prime
+        return hash
+    }
+
+    private func cachedExtraction(for hash: UInt64) -> ExtractedScreenText? {
+        extractionCache.first(where: { $0.hash == hash })?.extracted
+    }
+
+    private func storeExtraction(_ extracted: ExtractedScreenText, for hash: UInt64?) {
+        guard let hash else {
+            return
+        }
+
+        extractionCache.removeAll { $0.hash == hash }
+        extractionCache.append((hash, extracted))
+        if extractionCache.count > Self.extractionCacheLimit {
+            extractionCache.removeFirst(extractionCache.count - Self.extractionCacheLimit)
+        }
     }
 
     private func captureScreenshot(
