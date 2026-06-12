@@ -291,7 +291,10 @@ struct LlamaEvalReport {
             "positiveCoverage": positiveCoverage,
             "wrongShowRate": wrongShowRate,
             "latencyP50Ms": latencyPercentile(0.5) * 1000,
-            "latencyP95Ms": latencyPercentile(0.95) * 1000
+            "latencyP95Ms": latencyPercentile(0.95) * 1000,
+            // The printed report includes max; the artifact must too, or the worst-case decode
+            // tail (exactly what the scaffolding-marker stop targets) is invisible in run diffs.
+            "latencyMaxMs": latencyPercentile(1.0) * 1000
         ]
         payload["cases"] = results.map { result -> [String: Any] in
             [

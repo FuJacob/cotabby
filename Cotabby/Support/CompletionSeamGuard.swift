@@ -28,6 +28,13 @@ nonisolated enum CompletionSeamGuard {
     /// Joined seam words shorter than this are too ambiguous to judge ("a" + "t").
     private static let minimumSeamWordLength = 4
 
+    /// Streaming-path variant: only the pure junk-run rule. Partials drain at token cadence, so
+    /// the spell-lookup half of the guard (an XPC round trip) stays off that path; the full
+    /// verdict still gates the final result, which authoritatively replaces whatever streamed.
+    static func allowsStreamedPartial(precedingText: String, completion: String) -> Bool {
+        !introducesJunkPunctuationRun(precedingText: precedingText, completion: completion)
+    }
+
     /// `isKnownWord` is injected so the pure rule stays testable and the caller picks the spell
     /// checking backend; it is only invoked when the mid-word rule actually applies.
     static func verdict(
@@ -75,9 +82,11 @@ nonisolated enum CompletionSeamGuard {
                   current.isPunctuation || current.isSymbol
             else { continue }
 
-            // A run flush against the seam that continues the same character the user already
-            // typed is an existing divider being extended, not fresh junk.
-            if runStartsAtCompletionStart, precedingText.last == current {
+            // A run flush against the seam that continues a run of the same character the user
+            // already has at the caret is an existing divider being extended, not fresh junk.
+            // It must be a real preceding run (two or more): a sentence that merely ends in "."
+            // must not exempt "...." from the completion.
+            if runStartsAtCompletionStart, trailingRunLength(of: precedingText, character: current) >= 2 {
                 continue
             }
             return true
@@ -108,6 +117,10 @@ nonisolated enum CompletionSeamGuard {
         return seamWord
     }
 
+    private static func trailingRunLength(of text: String, character: Character) -> Int {
+        text.reversed().prefix(while: { $0 == character }).count
+    }
+
     private static func trailingLetterRun(of text: String) -> String {
         String(text.reversed().prefix(while: { $0.isLetter }).reversed())
     }
@@ -117,11 +130,12 @@ nonisolated enum CompletionSeamGuard {
     }
 
     /// Han, kana, and Hangul ranges; CJK has no space-delimited words, so a "seam word" is not a
-    /// meaningful unit there and the spelling dictionaries do not cover these scripts.
+    /// meaningful unit there and the spelling dictionaries do not cover these scripts. The
+    /// 0x2E80-0x9FFF block already spans the kana ranges, so they are not listed separately.
     private static func containsCJK(_ text: String) -> Bool {
         text.unicodeScalars.contains { scalar in
             switch scalar.value {
-            case 0x2E80...0x9FFF, 0x3040...0x30FF, 0xAC00...0xD7AF, 0xF900...0xFAFF, 0xFF65...0xFF9F:
+            case 0x2E80...0x9FFF, 0xAC00...0xD7AF, 0xF900...0xFAFF, 0xFF65...0xFF9F:
                 return true
             default:
                 return false

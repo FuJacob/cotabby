@@ -50,6 +50,30 @@ final class CompletionSeamGuardTests: XCTestCase {
         )
     }
 
+    func testSingleTrailingCharacterDoesNotExemptAJunkRun() {
+        // "Hello." ends with one period; that must not license "...." from the completion. Only
+        // a real preceding run (two or more) reads as a divider being extended.
+        XCTAssertEqual(
+            CompletionSeamGuard.verdict(
+                precedingText: "Hello.",
+                completion: "....",
+                isKnownWord: knowsEverything
+            ),
+            .junkPunctuationRun
+        )
+    }
+
+    func testStreamedPartialVariantAppliesOnlyTheJunkRule() {
+        XCTAssertFalse(
+            CompletionSeamGuard.allowsStreamedPartial(precedingText: "Wait", completion: " what....")
+        )
+        // A mid-word splice passes the streamed check; the spell half runs only on the final
+        // apply, which replaces or suppresses whatever streamed.
+        XCTAssertTrue(
+            CompletionSeamGuard.allowsStreamedPartial(precedingText: "gre", completion: "atful and kind")
+        )
+    }
+
     func testContinuingAnExistingDividerIsAllowed() {
         // The user already has a dash run at the caret; extending it is intentional.
         XCTAssertEqual(

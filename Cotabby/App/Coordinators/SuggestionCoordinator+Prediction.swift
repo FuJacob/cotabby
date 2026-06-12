@@ -259,6 +259,16 @@ extension SuggestionCoordinator {
             return
         }
 
+        // Streaming half of the seam guard: the pure junk-run rule only. The spell-lookup half
+        // is an XPC and partials drain at token cadence, so it stays on the final apply, which
+        // authoritatively replaces or suppresses whatever streamed.
+        guard CompletionSeamGuard.allowsStreamedPartial(
+            precedingText: liveContext.precedingText,
+            completion: partial.text
+        ) else {
+            return
+        }
+
         _ = interactionState.startSession(
             fullText: partial.text,
             liveContext: liveContext,
