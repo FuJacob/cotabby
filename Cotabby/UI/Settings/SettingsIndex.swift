@@ -16,6 +16,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     case includeClipboardContext
     case allowMultiLine
     case acceptPunctuation
+    case addSpaceAfterAccept
     case inlineMacros
     case onboarding
     // Appearance
@@ -89,6 +90,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .includeClipboardContext: return "Include Clipboard Context"
         case .allowMultiLine: return "Allow Multi-line Suggestions"
         case .acceptPunctuation: return "Accept Punctuation With Word"
+        case .addSpaceAfterAccept: return "Add Space After Accepting"
         case .inlineMacros: return "Inline Macros"
         case .onboarding: return "Onboarding"
         case .suggestionDisplay: return "Suggestion Display"
@@ -152,6 +154,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .includeClipboardContext: return "doc.on.clipboard"
         case .allowMultiLine: return "text.alignleft"
         case .acceptPunctuation: return "textformat.abc"
+        case .addSpaceAfterAccept: return "space"
         case .inlineMacros: return "slash.circle"
         case .onboarding: return "graduationcap"
         case .suggestionDisplay: return "text.cursor"
@@ -210,7 +213,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     var category: SettingsCategory {
         switch self {
         case .enableGlobally, .fastMode, .openAtLogin, .includeClipboardContext,
-             .allowMultiLine, .acceptPunctuation, .inlineMacros, .onboarding:
+             .allowMultiLine, .acceptPunctuation, .addSpaceAfterAccept, .inlineMacros, .onboarding:
             return .general
         case .suggestionDisplay, .showFieldIndicator, .showWordCount, .showKeyHint,
              .ghostTextColor, .ghostTextOpacity, .ghostTextSize:
@@ -262,6 +265,9 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .acceptPunctuation:
             return ["punctuation", "comma", "period", "accept", "trailing", "auto accept",
                     "auto-accept", "space"]
+        case .addSpaceAfterAccept:
+            return ["space", "spacebar", "trailing space", "auto space", "add space",
+                    "accept", "after accept", "whitespace", "gap", "separator"]
         case .inlineMacros:
             return ["macro", "macros", "math", "convert", "currency", "date", "random",
                     "expansion", "slash", "snippet", "shortcut", "formula", "calculator"]

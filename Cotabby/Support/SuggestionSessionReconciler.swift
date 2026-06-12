@@ -493,6 +493,27 @@ enum SuggestionSessionReconciler {
         return String(chunk.drop(while: { $0.unicodeScalars.allSatisfy(CharacterSet.whitespaces.contains) }))
     }
 
+    /// Appends a single trailing space to the text inserted by an accept that *exhausts* the
+    /// suggestion, so the user can keep typing the next word without reaching for the space bar.
+    ///
+    /// The caller gates this on exhaustion: only the final chunk of a suggestion is eligible. A
+    /// mid-suggestion word accept is already followed by the next chunk's own leading space, so a
+    /// space here would double it. The space is also suppressed unless the inserted text ends on a
+    /// finished word — a letter or digit that is not a space-less-script (CJK, Thai, ...) glyph.
+    /// Trailing punctuation (`done.`, `(yes)`, `really?!`) and existing whitespace already mark a
+    /// boundary, and space-less scripts never separate words with spaces, so for all of those the
+    /// chunk is returned untouched. This is the opt-in counterpart to the WYSIWYG default that
+    /// `insertionChunk` documents: the space is a deliberate convenience the user enabled, not a
+    /// separator silently synthesized behind a suggestion they never saw.
+    static func insertionChunkAppendingTrailingSpace(_ chunk: String) -> String {
+        guard let last = chunk.last,
+              last.isAcceptanceWordCharacter,
+              !last.beginsSpacelessScriptWord else {
+            return chunk
+        }
+        return chunk + " "
+    }
+
     /// Counts word-like tokens so punctuation-only accepts do not inflate productivity metrics.
     static func acceptedWordCount(in text: String) -> Int {
         text

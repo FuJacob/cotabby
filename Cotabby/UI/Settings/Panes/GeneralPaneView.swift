@@ -71,6 +71,15 @@ struct GeneralPaneView: View {
                     )
                 }
 
+                Toggle(isOn: addSpaceAfterAcceptBinding) {
+                    SettingsRowLabel(
+                        title: "Add Space After Accepting",
+                        description: "When accepting a suggestion finishes a word, also add a space so you can " +
+                            "keep typing. Skipped when it already ends in punctuation or a space.",
+                        systemImage: "space"
+                    )
+                }
+
                 Toggle(isOn: macroExpansionEnabledBinding) {
                     SettingsRowLabel(
                         title: "Inline Macros",
@@ -179,6 +188,13 @@ struct GeneralPaneView: View {
         Binding(
             get: { suggestionSettings.autoAcceptTrailingPunctuation },
             set: { suggestionSettings.setAutoAcceptTrailingPunctuation($0) }
+        )
+    }
+
+    private var addSpaceAfterAcceptBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.addSpaceAfterAccept },
+            set: { suggestionSettings.setAddSpaceAfterAccept($0) }
         )
     }
 

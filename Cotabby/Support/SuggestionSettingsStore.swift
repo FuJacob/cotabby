@@ -104,6 +104,7 @@ struct SuggestionSettingsStore {
     private static let preferredEmojiSkinToneDefaultsKey = "cotabbyPreferredEmojiSkinTone"
     private static let preferredEmojiGenderDefaultsKey = "cotabbyPreferredEmojiGender"
     private static let autoAcceptTrailingPunctuationDefaultsKey = "cotabbyAutoAcceptTrailingPunctuation"
+    private static let addSpaceAfterAcceptDefaultsKey = "cotabbyAddSpaceAfterAccept"
     private static let acceptanceKeyCodeDefaultsKey = "cotabbyAcceptanceKeyCode"
     private static let acceptanceKeyModifiersDefaultsKey = "cotabbyAcceptanceKeyModifiers"
     private static let acceptanceKeyLabelDefaultsKey = "cotabbyAcceptanceKeyLabel"
@@ -280,6 +281,10 @@ struct SuggestionSettingsStore {
             .flatMap(EmojiGender.init(rawValue:)) ?? .neutral
         let resolvedAutoAcceptTrailingPunctuation =
             userDefaults.object(forKey: Self.autoAcceptTrailingPunctuationDefaultsKey) as? Bool ?? true
+        // Defaults to false so the WYSIWYG accept behavior is unchanged for existing installs; the
+        // trailing space is opt-in from Settings.
+        let resolvedAddSpaceAfterAccept =
+            userDefaults.object(forKey: Self.addSpaceAfterAcceptDefaultsKey) as? Bool ?? false
 
         let resolvedAcceptanceKeyCode = CGKeyCode(
             userDefaults.object(forKey: Self.acceptanceKeyCodeDefaultsKey) as? Int
@@ -366,6 +371,7 @@ struct SuggestionSettingsStore {
             preferredEmojiSkinTone: resolvedPreferredEmojiSkinTone,
             preferredEmojiGender: resolvedPreferredEmojiGender,
             autoAcceptTrailingPunctuation: resolvedAutoAcceptTrailingPunctuation,
+            addSpaceAfterAccept: resolvedAddSpaceAfterAccept,
             acceptanceKeyCode: resolvedAcceptanceKeyCode,
             acceptanceKeyModifiers: resolvedAcceptanceKeyModifiers,
             acceptanceKeyLabel: resolvedAcceptanceKeyLabel,
@@ -418,6 +424,7 @@ struct SuggestionSettingsStore {
         savePreferredEmojiSkinTone(data.preferredEmojiSkinTone)
         savePreferredEmojiGender(data.preferredEmojiGender)
         saveAutoAcceptTrailingPunctuation(data.autoAcceptTrailingPunctuation)
+        saveAddSpaceAfterAccept(data.addSpaceAfterAccept)
         saveAcceptanceKey(
             keyCode: data.acceptanceKeyCode,
             modifiers: data.acceptanceKeyModifiers,
@@ -621,6 +628,10 @@ struct SuggestionSettingsStore {
 
     func saveAutoAcceptTrailingPunctuation(_ enabled: Bool) {
         userDefaults.set(enabled, forKey: Self.autoAcceptTrailingPunctuationDefaultsKey)
+    }
+
+    func saveAddSpaceAfterAccept(_ enabled: Bool) {
+        userDefaults.set(enabled, forKey: Self.addSpaceAfterAcceptDefaultsKey)
     }
 
     func saveAcceptanceKey(keyCode: CGKeyCode, modifiers: ShortcutModifierMask, label: String) {

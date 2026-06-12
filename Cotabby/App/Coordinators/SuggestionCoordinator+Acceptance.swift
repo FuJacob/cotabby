@@ -96,9 +96,15 @@ extension SuggestionCoordinator {
             precedingText: liveContext.precedingText
         )
 
+        let insertionText = insertionTextApplyingAutoSpace(
+            insertionChunk: insertionChunk,
+            acceptedChunk: acceptedChunk,
+            session: sessionForAcceptance
+        )
+
         // An empty chunk means the accepted span was entirely a boundary space the field already
         // supplies: advance the session without synthesizing a keystroke.
-        if !insertionChunk.isEmpty, !suggestionInserter.insert(insertionChunk) {
+        if !insertionText.isEmpty, !suggestionInserter.insert(insertionText) {
             let message = suggestionInserter.lastErrorMessage ?? "Suggestion insertion failed."
             cancelPredictionWork()
             clearSuggestion(clearDiagnostics: true)
@@ -109,7 +115,7 @@ extension SuggestionCoordinator {
                 workID: currentWorkID,
                 generation: liveContext.generation,
                 message: message,
-                normalizedOutput: insertionChunk
+                normalizedOutput: insertionText
             )
             return false
         }
@@ -188,6 +194,27 @@ extension SuggestionCoordinator {
             }
             return true
         }
+    }
+
+    /// Applies the opt-in "add a space after accepting" setting to the text about to be inserted.
+    ///
+    /// The trailing space is only appended when this accept *exhausts* the suggestion — predicted the
+    /// same way `commitAcceptedChunk` decides it — because a mid-suggestion word accept is already
+    /// followed by the next chunk's own leading space, so a space here would double up. Only the
+    /// inserted text grows: session accounting still advances by the unchanged `acceptedChunk`, and
+    /// the session tears down on exhaustion, so the extra space never disturbs the consumed-suffix
+    /// reconciliation a still-live session relies on. Whether the space actually lands (vs. being
+    /// suppressed after punctuation, whitespace, or a space-less script) is the reconciler's rule.
+    private func insertionTextApplyingAutoSpace(
+        insertionChunk: String,
+        acceptedChunk: String,
+        session: ActiveSuggestionSession
+    ) -> String {
+        guard settingsSnapshot.addSpaceAfterAccept,
+              session.advancing(by: acceptedChunk.count).isExhausted else {
+            return insertionChunk
+        }
+        return SuggestionSessionReconciler.insertionChunkAppendingTrailingSpace(insertionChunk)
     }
 
     /// Runs acceptance bookkeeping one runloop hop after the consuming tap callback returns.
