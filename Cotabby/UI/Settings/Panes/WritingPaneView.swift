@@ -70,40 +70,57 @@ struct WritingPaneView: View {
                 .settingsItem(.addSpaceAfterAccept)
             }
 
-            Section("Corrections") {
+            // Typo handling is a dependency chain, so the UI discloses it progressively rather than
+            // showing every control at once. The master gate ("Hide Suggestions on Typo") detects
+            // misspellings; the correction actions only function while it is on; the dictionaries
+            // only matter once an action can consume them. Revealing each level when it becomes
+            // relevant — instead of dimming dependents in place — makes the hierarchy unmistakable:
+            // turning the gate off removes the controls that depend on it. This is the established
+            // master/dependent idiom in this app (see `EmojiPaneView`). The earlier flat layout put
+            // all three toggles at the same visual level, so it was not obvious the gate governed the
+            // other two.
+            Section("Typos") {
                 Toggle(isOn: suppressCompletionsOnTypoBinding) {
                     SettingsRowLabel(
                         title: "Hide Suggestions on Typo",
-                        description: "Stops normal completions while the current word appears misspelled.",
+                        description: "Pauses normal completions while the current word looks misspelled. " +
+                            "Turn this on to use the correction options.",
                         systemImage: "eye.slash"
                     )
                 }
                 .settingsItem(.hideSuggestionsOnTypo)
+            }
 
-                Toggle(isOn: offerTypoCorrectionsBinding) {
-                    SettingsRowLabel(
-                        title: "Offer Corrections on Typo",
-                        description: "Shows a green replacement you can apply with your accept key.",
-                        systemImage: "checkmark.bubble"
-                    )
+            if suggestionSettings.suppressCompletionsOnTypo {
+                Section("Corrections") {
+                    Toggle(isOn: offerTypoCorrectionsBinding) {
+                        SettingsRowLabel(
+                            title: "Offer Corrections on Typo",
+                            description: "Shows a green replacement you can apply with your accept key.",
+                            systemImage: "checkmark.bubble"
+                        )
+                    }
+                    .settingsItem(.offerTypoCorrections)
+
+                    Toggle(isOn: automaticallyFixTyposBinding) {
+                        SettingsRowLabel(
+                            title: "Automatically Fix Typos",
+                            description: "After you press Space, replaces a misspelled word without requiring your accept key.",
+                            systemImage: "checkmark.circle"
+                        )
+                    }
+                    .settingsItem(.automaticallyFixTypos)
                 }
-                .disabled(!suggestionSettings.suppressCompletionsOnTypo)
-                .settingsItem(.offerTypoCorrections)
 
-                Toggle(isOn: automaticallyFixTyposBinding) {
-                    SettingsRowLabel(
-                        title: "Automatically Fix Typos",
-                        description: "After you press Space, replaces a misspelled word without requiring your accept key.",
-                        systemImage: "checkmark.circle"
-                    )
+                // Dictionaries rank candidates for the two correction actions above, so they only
+                // appear once at least one action is on. With neither active, choosing a dictionary
+                // would have no observable effect.
+                if suggestionSettings.offerTypoCorrections || suggestionSettings.automaticallyFixTypos {
+                    Section("Spelling Dictionaries") {
+                        SpellingDictionaryPicker(suggestionSettings: suggestionSettings)
+                            .settingsItem(.spellingDictionaries)
+                    }
                 }
-                .disabled(!suggestionSettings.suppressCompletionsOnTypo)
-                .settingsItem(.automaticallyFixTypos)
-
-                Divider()
-
-                SpellingDictionaryPicker(suggestionSettings: suggestionSettings)
-                    .settingsItem(.spellingDictionaries)
             }
 
             Section("Profile") {

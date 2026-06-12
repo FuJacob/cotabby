@@ -5,25 +5,16 @@ import SwiftUI
 /// This view owns presentation only. `SuggestionSettingsModel` normalizes and persists each toggle,
 /// while `SpellingLanguageResolver` and `SymSpellCorrector` own runtime selection and loading. Keeping
 /// those responsibilities separate prevents a Settings view from constructing heavyweight indexes.
+///
+/// Relevance gating lives in the parent (`WritingPaneView`): the picker is only rendered once the
+/// typo gate and at least one correction action are on, so the checkboxes here are always live and
+/// carry no self-disabling logic. The enclosing `Section("Spelling Dictionaries")` supplies the
+/// header, so this view starts straight at its explanatory caption.
 struct SpellingDictionaryPicker: View {
     @ObservedObject var suggestionSettings: SuggestionSettingsModel
 
-    /// The dictionary choices only change behavior when a correction can actually be produced and
-    /// surfaced. The typo gate must be armed (`suppressCompletionsOnTypo`) and at least one
-    /// correction path active: both "Offer Corrections on Typo" and "Automatically Fix Typos" rank
-    /// candidates through the enabled SymSpell dictionaries (see `TypoGate`/`bestCorrection`). When
-    /// none of those is on, ticking a dictionary has no observable effect, so we disable the
-    /// checkboxes, mirroring how the correction toggles disable themselves when the gate is off.
-    private var dictionariesAffectCorrections: Bool {
-        suggestionSettings.suppressCompletionsOnTypo
-            && (suggestionSettings.offerTypoCorrections || suggestionSettings.automaticallyFixTypos)
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Spelling Dictionaries")
-                .font(.system(size: 13, weight: .medium))
-
             Text(
                 "Choose which bundled dictionaries Cotabby may use for frequency-ranked corrections. "
                     + "With several enabled, Cotabby selects one from the surrounding text."
@@ -51,7 +42,6 @@ struct SpellingDictionaryPicker: View {
                     .toggleStyle(.checkbox)
                 }
             }
-            .disabled(!dictionariesAffectCorrections)
 
             Text(
                 "Indexes load on demand and Cotabby keeps at most two in memory. If no bundled "
