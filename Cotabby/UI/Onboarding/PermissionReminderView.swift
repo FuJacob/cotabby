@@ -14,6 +14,17 @@ struct PermissionReminderView: View {
     let permissionGuidanceController: PermissionGuidanceController
     let onDismiss: () -> Void
 
+    /// Permissions that block core autocomplete; the reason this window exists.
+    private var requiredPermissions: [CotabbyPermissionKind] {
+        CotabbyPermissionKind.allCases.filter(\.isRequiredForAutocomplete)
+    }
+
+    /// Optional enhancements (Screen Recording today), shown so they stay discoverable but never
+    /// gating the dismiss button.
+    private var optionalPermissions: [CotabbyPermissionKind] {
+        CotabbyPermissionKind.allCases.filter(\.isOptionalEnhancement)
+    }
+
     var body: some View {
         VStack(spacing: 26) {
             OnboardingStepHeader(
@@ -25,10 +36,7 @@ struct PermissionReminderView: View {
             .onboardingReveal(0)
 
             VStack(spacing: 10) {
-                ForEach(
-                    Array(CotabbyPermissionKind.allCases.filter(\.isRequiredForAutocomplete).enumerated()),
-                    id: \.element
-                ) { index, permission in
+                ForEach(Array(requiredPermissions.enumerated()), id: \.element) { index, permission in
                     ReminderPermissionCard(
                         permission: permission,
                         granted: permissionManager.isGranted(permission),
@@ -41,24 +49,21 @@ struct PermissionReminderView: View {
                 // so they read as a discoverable extra rather than a blocker. The "I'll do this
                 // later" / "Done" button is gated on required permissions only, so these never hold
                 // it up.
-                ForEach(
-                    Array(CotabbyPermissionKind.allCases.filter(\.isOptionalEnhancement).enumerated()),
-                    id: \.element
-                ) { index, permission in
+                ForEach(Array(optionalPermissions.enumerated()), id: \.element) { index, permission in
                     ReminderPermissionCard(
                         permission: permission,
                         granted: permissionManager.isGranted(permission),
                         isOptional: true,
                         permissionGuidanceController: permissionGuidanceController
                     )
-                    .onboardingReveal(3 + index)
+                    .onboardingReveal(1 + requiredPermissions.count + index)
                 }
             }
 
             WelcomeButton(title: permissionManager.requiredPermissionsGranted ? "Done" : "I'll do this later") {
                 onDismiss()
             }
-            .onboardingReveal(4)
+            .onboardingReveal(1 + requiredPermissions.count + optionalPermissions.count)
         }
         .padding(36)
         .frame(width: 540)
