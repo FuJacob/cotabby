@@ -133,6 +133,18 @@ final class SuggestionCoordinator: ObservableObject {
     /// accept on the last word. See `SuggestionSessionReconciler.isStaleAcceptanceEcho`.
     var lastAcceptedTail: AcceptedSuggestionTail?
 
+    /// Bounded string-only memory of recent suggestions for instant re-show on rollback and
+    /// re-entry (see `SuggestionAnchorCache`). `cotabbyAnchorReuseDisabled` is the kill switch.
+    var suggestionAnchorCache = SuggestionAnchorCache()
+    static let anchorReuseDisabledDefaultsKey = "cotabbyAnchorReuseDisabled"
+    static let speculativePrefetchDisabledDefaultsKey = "cotabbySpeculativePrefetchDisabled"
+
+    /// Content signature a speculative post-acceptance generation was built against. While set,
+    /// `apply` may accept a result whose generation predates the live one as long as the live
+    /// content matches this signature (the speculation bet paid off), and the host-publish poll
+    /// stands down instead of scheduling a duplicate regeneration.
+    var pendingSpeculativeSignature: String?
+
     /// Monotonic token for the post-exhaustion "keep owning Tab" window. Bumped on every arm so a
     /// stale backstop timer (or a window superseded by a newer accept) no-ops instead of releasing a
     /// window it no longer owns. See `armPostExhaustionAcceptance`.

@@ -131,9 +131,11 @@ final class SuggestionCoordinatorAcceptanceTests: XCTestCase {
             XCTAssertTrue(coordinator.acceptCurrentSuggestion())
 
             XCTAssertEqual(inserter.insertedChunks, [" today"])
-            // The final-chunk accept must not immediately re-enter debouncing. It waits for the host
-            // to publish the insert, so synchronously the coordinator is idle with the overlay hidden.
-            XCTAssertEqual(coordinator.state, .idle)
+            // The final-chunk accept starts the continuation immediately against the text the host
+            // is about to publish (speculative prefetch) instead of idling through the publish
+            // poll; the overlay still hides until that result lands and validates.
+            XCTAssertEqual(coordinator.state, .generating)
+            XCTAssertNotNil(coordinator.pendingSpeculativeSignature)
             XCTAssertFalse(coordinator.overlayState.isVisible)
             // It records what it committed so `apply` can drop a stale echo of the same tail.
             XCTAssertEqual(
@@ -278,6 +280,98 @@ final class SuggestionCoordinatorAcceptanceTests: XCTestCase {
             )
             XCTAssertFalse(coordinator.isPostExhaustionAcceptanceArmed)
             XCTAssertFalse(coordinator.hasQueuedPostExhaustionAccept)
+        }
+    }
+
+    /// A cached suggestion consistent with the live text must re-show without any engine call.
+    /// The stub engine throws on every generation, so reaching `.ready` proves the restore path
+    /// satisfied the prediction cycle on its own.
+    @MainActor
+    func test_anchorCacheRestoresSuggestionWithoutGenerating() async {
+        let snapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello wo")
+        let interactionState = SuggestionInteractionState()
+        let coordinator = makeCoordinator(
+            snapshot: snapshot,
+            overlayState: .hidden(reason: "test"),
+            inputMonitor: StubSuggestionInputMonitor(),
+            inserter: StubSuggestionInserter(),
+            interactionState: interactionState
+        )
+        let identityKey = FocusedInputContext(snapshot: snapshot, generation: 1).focusedInputIdentityKey
+        // The suggestion was generated when the field held "Hello"; the user has since typed
+        // " wo", which is exactly the suggestion's first three characters.
+        coordinator.suggestionAnchorCache.record(
+            identityKey: identityKey,
+            precedingText: "Hello",
+            fullText: " world again"
+        )
+
+        await coordinator.generateFromCurrentFocus(workID: coordinator.currentWorkID)
+
+        guard case let .ready(text, latency) = coordinator.state else {
+            XCTFail("Expected a restored suggestion, got \(coordinator.state)")
+            return
+        }
+        XCTAssertEqual(text, "rld again")
+        XCTAssertEqual(latency, 0)
+        XCTAssertEqual(interactionState.activeSession?.fullText, "rld again")
+    }
+
+    /// A speculative post-acceptance result carries a generation older than the live one by
+    /// construction; it must still apply when the live content matches the signature it was
+    /// built against, and must consume the exemption.
+    @MainActor
+    func test_applyAcceptsSpeculativeResultWhenContentSignatureMatches() async {
+        let snapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello world ")
+        let interactionState = SuggestionInteractionState()
+        let coordinator = makeCoordinator(
+            snapshot: snapshot,
+            overlayState: .hidden(reason: "test"),
+            inputMonitor: StubSuggestionInputMonitor(),
+            inserter: StubSuggestionInserter(),
+            interactionState: interactionState
+        )
+        coordinator.pendingSpeculativeSignature =
+            FocusedInputContext(snapshot: snapshot, generation: 1).contentSignature
+        let speculativeResult = SuggestionResult(
+            generation: 999,
+            rawText: "from here on",
+            text: "from here on",
+            latency: 0.1
+        )
+
+        await coordinator.apply(result: speculativeResult, workID: coordinator.currentWorkID)
+
+        guard case let .ready(text, _) = coordinator.state else {
+            XCTFail("Expected the speculative result to apply, got \(coordinator.state)")
+            return
+        }
+        XCTAssertEqual(text, "from here on")
+        XCTAssertNil(coordinator.pendingSpeculativeSignature, "the exemption is single-use")
+    }
+
+    /// Without the signature exemption, a stale-generation result must keep being dropped.
+    @MainActor
+    func test_applyStillDropsStaleResultsWithoutSpeculativeSignature() async {
+        let snapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello world ")
+        let coordinator = makeCoordinator(
+            snapshot: snapshot,
+            overlayState: .hidden(reason: "test"),
+            inputMonitor: StubSuggestionInputMonitor(),
+            inserter: StubSuggestionInserter(),
+            interactionState: SuggestionInteractionState()
+        )
+        let staleResult = SuggestionResult(
+            generation: 999,
+            rawText: "from here on",
+            text: "from here on",
+            latency: 0.1
+        )
+
+        await coordinator.apply(result: staleResult, workID: coordinator.currentWorkID)
+
+        if case .ready = coordinator.state {
+            XCTFail("A stale result with no speculative exemption must not apply")
         }
     }
 

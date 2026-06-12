@@ -15,6 +15,9 @@ extension SuggestionCoordinator {
     static let freshSnapshotReuseWindowMilliseconds = 30
 
     func schedulePrediction(consumedDelayMilliseconds: Int = 0) {
+        // Any normal reschedule supersedes an outstanding speculative bet (its work id retires the
+        // in-flight task; this retires the signature exemption so a late result cannot sneak in).
+        pendingSpeculativeSignature = nil
         if let disabledReason = currentDisabledReason(focusSnapshot: focusModel.snapshot) {
             disablePredictions(reason: disabledReason)
             return
@@ -98,6 +101,11 @@ extension SuggestionCoordinator {
         }
 
         let context = interactionState.materializeContext(from: rawContext)
+        // A cached suggestion consistent with the live text re-shows instantly: no debounce paid,
+        // no model run. Covers backspace rollback, type-through re-entry, and field return.
+        if restoreSuggestionFromAnchorCache(context: context, workID: workID) {
+            return
+        }
         // Screen Recording is optional. Re-check it live so a cached excerpt captured before the user
         // revoked the permission can never be injected during the 2s permission-poll window.
         let visualContextSummary = permissionManager.screenRecordingGranted
@@ -127,6 +135,128 @@ extension SuggestionCoordinator {
         )
 
         dispatchGeneration(request: request, workID: workID)
+    }
+
+    /// Re-shows the freshest cached suggestion consistent with the live text, if any survives the
+    /// same display guards a fresh generation passes. Returns true when a suggestion was restored
+    /// (the caller skips generation entirely). The win is exactly the common editing moments:
+    /// deleting a typo, retyping suggested words after an invalidation, returning to a field.
+    private func restoreSuggestionFromAnchorCache(context: FocusedInputContext, workID: UInt64) -> Bool {
+        guard !userDefaults.bool(forKey: Self.anchorReuseDisabledDefaultsKey) else { return false }
+        guard context.selection.length == 0, !context.isSecure else { return false }
+        guard let remainder = suggestionAnchorCache.remainder(
+            identityKey: context.focusedInputIdentityKey,
+            precedingText: context.precedingText
+        ), !remainder.isEmpty else { return false }
+
+        // Same display guards `apply` enforces on a fresh result. The remainder is a suffix of a
+        // suggestion that already passed the normalizer and seam guard for this exact text path,
+        // so only the guards that depend on CURRENT field state need re-checking.
+        if TrailingDuplicationFilter.duplicatesTrailingText(remainder, trailingText: context.trailingText) {
+            return false
+        }
+        if let pendingAcceptedTail = lastAcceptedTail,
+           SuggestionSessionReconciler.isStaleAcceptanceEcho(
+               resultText: remainder,
+               acceptedChunk: pendingAcceptedTail.text,
+               currentPrecedingText: context.precedingText,
+               acceptedPrecedingText: pendingAcceptedTail.precedingText
+           ) {
+            return false
+        }
+
+        lastAcceptedTail = nil
+        latestGenerationNumber = context.generation
+        latestLatencyMilliseconds = 0
+        let session = interactionState.startSession(
+            fullText: remainder,
+            liveContext: context,
+            latency: 0
+        )
+        applySessionDiagnostics(session, acceptanceAction: "Restored a cached suggestion.")
+        state = .ready(text: session.remainingText, latency: session.latency)
+        presentOverlay(
+            text: session.remainingText,
+            at: context.caretRect,
+            context: context,
+            isRightToLeft: TextDirectionDetector.isRightToLeft(context.precedingText)
+        )
+        logStage(
+            "anchor-restore",
+            workID: workID,
+            generation: context.generation,
+            message: "Re-showed a cached suggestion without regenerating.",
+            normalizedOutput: remainder
+        )
+        return true
+    }
+
+    /// Starts the next generation immediately after a final-chunk accept, against the snapshot
+    /// the host is expected to publish, instead of idling through the publish poll first. The
+    /// poll keeps running as the validator: a matching publish lets this result through
+    /// (`pendingSpeculativeSignature` in `apply`), a mismatch schedules a normal regeneration
+    /// whose newer work id retires this one automatically.
+    func dispatchSpeculativePostAcceptanceGeneration(
+        rawContext: FocusedInputSnapshot,
+        insertionChunk: String
+    ) {
+        guard !userDefaults.bool(forKey: Self.speculativePrefetchDisabledDefaultsKey) else { return }
+        guard !insertionChunk.isEmpty else { return }
+
+        let optimistic = SpeculativeAcceptanceContext.optimisticSnapshot(
+            after: rawContext,
+            inserting: insertionChunk
+        )
+
+        // Same pre-generation gates the ordinary cycle applies, minus their UI side effects: a
+        // speculative request must not spend a decode on text the normal path would refuse (too
+        // little text) or suppress (typo gate). The post-publish regeneration still runs the full
+        // gate with its correction semantics; declining here only skips the speculation.
+        guard SuggestionRequestFactory.shouldGenerateSuggestion(for: optimistic.precedingText) else {
+            return
+        }
+        if settingsSnapshot.suppressCompletionsOnTypo,
+           let trailingWord = CurrentWordExtractor.extractTrailingWord(from: optimistic.precedingText)?.result.word,
+           spellChecker.isTypo(trailingWord) {
+            return
+        }
+
+        let context = interactionState.materializeContext(from: optimistic)
+        pendingSpeculativeSignature = context.contentSignature
+
+        let visualContextSummary = permissionManager.screenRecordingGranted
+            ? visualContextCoordinator.excerpt(for: context)
+            : nil
+        // The pinned clipboard verdict, not a fresh filter pass: a speculative request that
+        // re-evaluated relevance against the optimistic prefix could flip the verdict and rewrite
+        // the prompt head mid-session, breaking prompt-byte continuity with the ordinary cycle
+        // (and the llama KV prefix reuse that depends on it).
+        let clipboardContext = pinnedClipboardContext(rawContext: optimistic)
+        let requestBuildResult = SuggestionRequestFactory.buildRequest(
+            context: context,
+            settings: settingsSnapshot,
+            configuration: configuration,
+            clipboardContext: clipboardContext,
+            visualContextSummary: visualContextSummary
+        )
+        latestGenerationNumber = context.generation
+        latestPromptPreview = requestBuildResult.promptPreview
+        latestRawModelOutput = nil
+        let request = requestBuildResult.request
+        latestRequestID = request.requestID
+
+        let workID = workController.replaceDebouncedWork(delayMilliseconds: 0) { [weak self] workID in
+            guard let self else { return }
+            self.dispatchGeneration(request: request, workID: workID)
+        }
+        state = .generating
+        logStage(
+            "speculative-generating",
+            workID: workID,
+            generation: context.generation,
+            message: "Started the post-acceptance generation against the expected post-insert text.",
+            prompt: requestBuildResult.promptPreview
+        )
     }
 
     /// Runs the engine generation for `request` as the replaceable work for `workID`, applying the
@@ -464,6 +594,34 @@ extension SuggestionCoordinator {
         )
     }
 
+    /// Empty-result bookkeeping for `apply`, extracted to keep that function inside the
+    /// complexity budget as its guard chain grew.
+    private func discardEmptyResult(_ result: SuggestionResult, workID: UInt64) {
+        clearSuggestion()
+        hideOverlay(reason: "Overlay hidden because the model returned an empty continuation.")
+        state = .idle
+        // The router already counted engine-attributed suppressions (normalizer, confidence
+        // floor); only the unattributed "model produced nothing" case needs a ledger entry.
+        if result.suppressionReason == nil {
+            qualityMetricsStore.recordSuppressed(reason: "emptyUnattributed")
+        }
+        logStage(
+            "empty-result",
+            workID: workID,
+            generation: result.generation,
+            message: "Model returned an empty or whitespace-only continuation after normalization.",
+            rawOutput: result.rawText,
+            normalizedOutput: result.text
+        )
+    }
+
+    private static func seamSuppressionReason(for verdict: CompletionSeamGuard.Verdict) -> String {
+        if case .seamMisspelling = verdict {
+            return "seamMisspelling"
+        }
+        return "seamJunkPunctuationRun"
+    }
+
     /// Promotes a generated result to `ready` only when it is still fresh for the current field.
     func apply(result: SuggestionResult, workID: UInt64) async {
 
@@ -499,8 +657,18 @@ extension SuggestionCoordinator {
         lastAcceptedTail = nil
 
         // Generation numbers are our stale-result guard. If the text changed while the model was
-        // thinking, we drop the answer instead of showing a suggestion for old content.
-        guard liveContext.generation == result.generation else {
+        // thinking, we drop the answer instead of showing a suggestion for old content. One
+        // exception: a speculative post-acceptance generation was built against text the host had
+        // not published yet, so its generation predates the live one by construction. When the
+        // live content now matches the signature the speculation was built against, the bet paid
+        // off and the result is exactly current.
+        let isPaidOffSpeculation = pendingSpeculativeSignature != nil
+            && pendingSpeculativeSignature == liveContext.contentSignature
+        if isPaidOffSpeculation {
+            pendingSpeculativeSignature = nil
+        }
+
+        guard isPaidOffSpeculation || liveContext.generation == result.generation else {
 
             latestRawModelOutput = SuggestionDebugLogger.debugPreview(result.rawText)
             // Lifecycle discards are counted under their own reasons so `generated` always equals
@@ -522,22 +690,7 @@ extension SuggestionCoordinator {
         latestRawModelOutput = SuggestionDebugLogger.debugPreview(result.rawText)
 
         guard !result.text.isEmpty else {
-            clearSuggestion()
-            hideOverlay(reason: "Overlay hidden because the model returned an empty continuation.")
-            state = .idle
-            // The router already counted engine-attributed suppressions (normalizer, confidence
-            // floor); only the unattributed "model produced nothing" case needs a ledger entry.
-            if result.suppressionReason == nil {
-                qualityMetricsStore.recordSuppressed(reason: "emptyUnattributed")
-            }
-            logStage(
-                "empty-result",
-                workID: workID,
-                generation: result.generation,
-                message: "Model returned an empty or whitespace-only continuation after normalization.",
-                rawOutput: result.rawText,
-                normalizedOutput: result.text
-            )
+            discardEmptyResult(result, workID: workID)
             return
         }
 
@@ -594,8 +747,7 @@ extension SuggestionCoordinator {
             clearSuggestion()
             hideOverlay(reason: "Overlay hidden because the completion failed the seam guard.")
             state = .idle
-            let seamReason = if case .seamMisspelling = seamVerdict { "seamMisspelling" } else { "seamJunkPunctuationRun" }
-            qualityMetricsStore.recordSuppressed(reason: seamReason)
+            qualityMetricsStore.recordSuppressed(reason: Self.seamSuppressionReason(for: seamVerdict))
             logStage(
                 "seam-suppressed",
                 workID: workID,
@@ -612,6 +764,11 @@ extension SuggestionCoordinator {
         // One shown event per suggestion: this is the only place a fresh generation becomes
         // visible (re-presentations after partial accepts reuse the same session).
         qualityMetricsStore.recordShown()
+        suggestionAnchorCache.record(
+            identityKey: liveContext.focusedInputIdentityKey,
+            precedingText: liveContext.precedingText,
+            fullText: result.text
+        )
         let session = interactionState.startSession(
             fullText: result.text,
             liveContext: liveContext,
@@ -929,6 +1086,7 @@ extension SuggestionCoordinator {
 
     /// Cancels debounce/generation tasks and advances the work id so late completions are ignored.
     func cancelPredictionWork() {
+        pendingSpeculativeSignature = nil
         hostPublishPollGeneration &+= 1
         workController.cancelAll()
     }
