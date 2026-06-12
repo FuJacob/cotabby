@@ -44,6 +44,16 @@ final class FoundationModelSuggestionEngine {
     }
 
     func generateSuggestion(for request: SuggestionRequest) async throws -> SuggestionResult {
+        try await generateSuggestion(for: request, onPartial: nil)
+    }
+
+    /// Streaming variant: Apple's response stream already yields cumulative snapshots; each one is
+    /// normalized and forwarded so ghost text can render before the stream finishes. The previous
+    /// implementation deliberately discarded the partials pending coordinator support.
+    func generateSuggestion(
+        for request: SuggestionRequest,
+        onPartial: (@MainActor (SuggestionResult) -> Void)?
+    ) async throws -> SuggestionResult {
         availabilityService.refresh()
 
         let baseMetadata: Logger.Metadata = [
@@ -98,6 +108,23 @@ final class FoundationModelSuggestionEngine {
                 rawSuggestion = partial.content
                 didReceiveSnapshot = true
                 try Task.checkCancellation()
+                // This engine is main-actor confined, so partials forward inline (no hop). Empty
+                // normalizations are withheld; the coordinator's monotonic policy handles the rest.
+                if let onPartial {
+                    let partialNormalized = SuggestionTextNormalizer.normalizeDetailed(
+                        rawSuggestion,
+                        for: request,
+                        promptEchoCandidates: [prompt]
+                    ).text
+                    if !partialNormalized.isEmpty {
+                        onPartial(SuggestionResult(
+                            generation: request.generation,
+                            rawText: rawSuggestion,
+                            text: partialNormalized,
+                            latency: Date().timeIntervalSince(startTime)
+                        ))
+                    }
+                }
             }
             try Task.checkCancellation()
             // Apple's documented contract is at least one snapshot on a successful stream, so a

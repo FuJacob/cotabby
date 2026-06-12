@@ -126,13 +126,22 @@ extension SuggestionCoordinator {
     /// result (or failure) only while it is still the current work. Extracted from
     /// `generateFromCurrentFocus` so that function stays within the project's complexity budget.
     private func dispatchGeneration(request: SuggestionRequest, workID: UInt64) {
+        // A new generation starts a new stream; the previous request's rendered-partial state
+        // must not gate the new partials' monotonic checks.
+        streamRenderedText = nil
+        pendingStreamPartial = nil
         workController.replaceGenerationWork(for: workID) { [weak self] in
             guard let self else {
                 return
             }
 
             do {
-                let result = try await suggestionEngine.generateSuggestion(for: request)
+                let result = try await suggestionEngine.generateSuggestion(
+                    for: request,
+                    onPartial: { [weak self] partial in
+                        self?.queueStreamedPartial(partial, workID: workID)
+                    }
+                )
                 guard !Task.isCancelled, self.workController.isCurrent(workID) else {
                     return
                 }
@@ -187,6 +196,77 @@ extension SuggestionCoordinator {
             value: value
         )
         return value
+    }
+
+    // MARK: - Streamed partial rendering
+
+    /// Coalesces streamed partials to at most one render per runloop turn. Tokens arrive every
+    /// 10-50ms from the engine, and rendering each one would stack session updates and overlay
+    /// layout on the main actor; latest-wins coalescing bounds that work while the authoritative
+    /// final result still arrives through `apply`.
+    func queueStreamedPartial(_ partial: SuggestionResult, workID: UInt64) {
+        guard workController.isCurrent(workID) else {
+            return
+        }
+        pendingStreamPartial = PendingStreamPartial(result: partial, workID: workID)
+        guard !isStreamDrainScheduled else {
+            return
+        }
+        isStreamDrainScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            self?.drainStreamedPartial()
+        }
+    }
+
+    private func drainStreamedPartial() {
+        isStreamDrainScheduled = false
+        guard let pending = pendingStreamPartial else {
+            return
+        }
+        pendingStreamPartial = nil
+        applyStreamedPartial(pending.result, workID: pending.workID)
+    }
+
+    /// Renders one streamed partial as a real, acceptable session.
+    ///
+    /// A real session rather than a cosmetic overlay because acceptance gates on the live session
+    /// (never on `state`), so the user can Tab into a stream the moment the first words appear;
+    /// accepting cancels the in-flight work (work id bump), freezing the suggestion at what was
+    /// streamed. Renders are monotonic (`StreamedGhostTextPolicy`) so reordered hops and
+    /// normalizer rewrites never shrink visible ghost text, and the materialize check stops
+    /// partials the moment the field text moves on without a keystroke (a keystroke already
+    /// bumped the work id before this runs).
+    private func applyStreamedPartial(_ partial: SuggestionResult, workID: UInt64) {
+        guard workController.isCurrent(workID) else {
+            return
+        }
+        guard StreamedGhostTextPolicy.isRenderableExtension(
+            candidate: partial.text,
+            currentlyRendered: streamRenderedText
+        ) else {
+            return
+        }
+        guard let rawContext = focusModel.snapshot.context else {
+            return
+        }
+
+        let liveContext = interactionState.materializeContext(from: rawContext)
+        guard liveContext.generation == partial.generation else {
+            return
+        }
+
+        _ = interactionState.startSession(
+            fullText: partial.text,
+            liveContext: liveContext,
+            latency: partial.latency
+        )
+        streamRenderedText = partial.text
+        presentOverlay(
+            text: partial.text,
+            at: liveContext.caretRect,
+            context: liveContext,
+            isRightToLeft: TextDirectionDetector.isRightToLeft(liveContext.precedingText)
+        )
     }
 
     /// Runs the typo gate for the current word. Returns `true` when it handled the cycle by suppressing,
@@ -761,6 +841,9 @@ extension SuggestionCoordinator {
         // Drop any pending accepted-tail guard whenever the suggestion state is torn down (user
         // typed, focus changed, predictions disabled). The final-chunk accept re-sets it afterward.
         lastAcceptedTail = nil
+        // Stream bookkeeping follows the session it was rendering for.
+        streamRenderedText = nil
+        pendingStreamPartial = nil
         latestSuggestionPreview = nil
         latestFullSuggestionPreview = nil
         latestRemainingSuggestionPreview = nil

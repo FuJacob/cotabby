@@ -89,6 +89,15 @@ protocol EmojiInputIntercepting: AnyObject {
 @MainActor
 protocol SuggestionGenerating: AnyObject {
     func generateSuggestion(for request: SuggestionRequest) async throws -> SuggestionResult
+    /// Streaming variant: `onPartial` receives cumulative, already-normalized partial results on
+    /// the main actor while the engine decodes, so ghost text can render after the first words
+    /// instead of waiting for the full completion. The returned result remains the authoritative
+    /// final answer; partials are best-effort hints the renderer may coalesce or drop. Engines
+    /// that cannot stream rely on the default, which degrades to the single-shot path.
+    func generateSuggestion(
+        for request: SuggestionRequest,
+        onPartial: (@MainActor (SuggestionResult) -> Void)?
+    ) async throws -> SuggestionResult
     /// Clears backend-local continuation state when the focused editing context is no longer
     /// continuous. Stateless engines may implement this as a no-op.
     func resetCachedGenerationContext() async
@@ -102,6 +111,13 @@ protocol SuggestionGenerating: AnyObject {
 
 extension SuggestionGenerating {
     func prewarm(for request: SuggestionRequest) async {}
+
+    func generateSuggestion(
+        for request: SuggestionRequest,
+        onPartial: (@MainActor (SuggestionResult) -> Void)?
+    ) async throws -> SuggestionResult {
+        try await generateSuggestion(for: request)
+    }
 }
 
 /// Behavior-shaped view of the llama runtime that `LlamaSuggestionEngine` depends on: run one
@@ -112,6 +128,15 @@ extension SuggestionGenerating {
 @MainActor
 protocol LlamaRuntimeGenerating: AnyObject {
     func generate(prompt: String, cachedPrefixBytes: Int?, options: LlamaGenerationOptions) async throws -> String
+    /// Streaming variant: `onPartialRawText` receives the cumulative raw completion after each
+    /// sampled token, called from the decode thread (hence `@Sendable`); callers own hopping to
+    /// their actor. The returned string is still the authoritative final completion.
+    func generate(
+        prompt: String,
+        cachedPrefixBytes: Int?,
+        options: LlamaGenerationOptions,
+        onPartialRawText: (@Sendable (String) -> Void)?
+    ) async throws -> String
     func resetPromptCache()
     /// Decodes `prompt` into the native prompt cache without sampling any tokens, so the next
     /// `generate` whose prompt extends this one only decodes the typed delta. Best-effort warmup:
@@ -123,6 +148,18 @@ extension LlamaRuntimeGenerating {
     /// Default no-op so test fakes that only exercise the generate/cancel contract keep compiling;
     /// the production manager overrides this with a real prompt prefill.
     func prefill(prompt: String, cachedPrefixBytes: Int?, options: LlamaGenerationOptions) async throws {}
+}
+
+extension LlamaRuntimeGenerating {
+    /// Default for fakes that only exercise the single-shot contract: ignore the partial hook.
+    func generate(
+        prompt: String,
+        cachedPrefixBytes: Int?,
+        options: LlamaGenerationOptions,
+        onPartialRawText: (@Sendable (String) -> Void)?
+    ) async throws -> String {
+        try await generate(prompt: prompt, cachedPrefixBytes: cachedPrefixBytes, options: options)
+    }
 }
 
 @MainActor
