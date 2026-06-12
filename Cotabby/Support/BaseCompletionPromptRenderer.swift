@@ -27,12 +27,26 @@ enum BaseCompletionPromptRenderer {
         languageInstruction: String? = nil,
         clipboardContext: String? = nil,
         visualContextSummary: String? = nil,
+        surfaceContext: SurfaceContext? = nil,
         contextBudget: Int = defaultContextBudget,
         tokenBudget: Int? = nil
     ) -> String {
         let trimmedPrefix = Self.trimmingTrailingWhitespace(prefixText)
 
         var sections: [PromptSection] = []
+        // The surface description leads the preface: knowing the writing surface (email in Mail,
+        // a chat in Slack, a document title) is the strongest situational cue a base model gets,
+        // and the composer already omits it for the app classes where metadata would hurt. The
+        // value is frozen per field session upstream, so these bytes stay stable across keystrokes
+        // and the llama KV prefix reuse keeps amortizing them.
+        if let surface = surfaceContext {
+            let lines = SurfaceContextComposer.prefaceLines(for: surface)
+            if !lines.isEmpty {
+                sections.append(
+                    Self.contextSection("surface", lines.joined(separator: " "), priority: 70, maxChars: 240)
+                )
+            }
+        }
         if let persona = Self.personaLine(userName) {
             sections.append(Self.contextSection("persona", persona, priority: 60, maxChars: 200))
         }

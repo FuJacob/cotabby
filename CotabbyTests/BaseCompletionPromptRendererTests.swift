@@ -93,4 +93,49 @@ final class BaseCompletionPromptRendererTests: XCTestCase {
         XCTAssertTrue(withContext.contains("Nearby on screen: build is green"))
         XCTAssertTrue(withContext.hasSuffix("Status:"))
     }
+
+    func test_surfaceContextLeadsThePrefaceAndPrefixStaysLast() {
+        let surface = SurfaceContext(
+            surfaceClass: .email,
+            applicationName: "Mail",
+            windowTitle: "Re: Q3 budget review",
+            domain: nil,
+            fieldPlaceholder: nil
+        )
+        let prompt = BaseCompletionPromptRenderer.prompt(
+            prefixText: "Thanks again for",
+            applicationName: "Mail",
+            userName: "Jacob",
+            surfaceContext: surface
+        )
+        XCTAssertTrue(prompt.hasPrefix("An email being written in Mail. The window is titled \"Re: Q3 budget review\"."))
+        XCTAssertTrue(prompt.contains("Written by Jacob"))
+        XCTAssertTrue(prompt.hasSuffix("Thanks again for"))
+    }
+
+    func test_noSurfaceContextMeansPromptIsUnchanged() {
+        let without = BaseCompletionPromptRenderer.prompt(
+            prefixText: "Once upon",
+            applicationName: "Notes",
+            userName: nil
+        )
+        XCTAssertEqual(without, "Once upon")
+    }
+
+    func test_tokenBudgetAdmitsAPrefixLargerThanTheOldCharacterBudget() {
+        // 2500 characters of ordinary prose is ~600 estimated tokens: comfortably inside the
+        // shipped token budget even though it exceeds the old 2400-character cap. The whole
+        // prefix must survive.
+        let prefix = String(repeating: "every word counts here ", count: 109) + "and the end"
+        XCTAssertGreaterThan(prefix.count, 2400)
+        let prompt = BaseCompletionPromptRenderer.prompt(
+            prefixText: prefix,
+            applicationName: "Pages",
+            userName: "Jacob",
+            tokenBudget: SuggestionConfiguration.standard.llamaPromptTokenBudget
+        )
+        XCTAssertTrue(prompt.hasSuffix("and the end"))
+        XCTAssertTrue(prompt.contains("every word counts here"), "the full prefix survives the token budget")
+        XCTAssertTrue(prompt.contains("Written by Jacob"), "context still fits alongside a large prefix")
+    }
 }

@@ -82,6 +82,7 @@ struct SuggestionSettingsStore {
     /// rewrite it to `.fourToSeven` on launch; never re-emitted to UserDefaults.
     private static let legacyShortPresetRawValue = "3-7"
     private static let clipboardContextEnabledDefaultsKey = "cotabbyClipboardContextEnabled"
+    private static let surfaceContextEnabledDefaultsKey = "cotabbySurfaceContextEnabled"
     private static let fastModeEnabledDefaultsKey = "cotabbyFastModeEnabled"
     private static let suppressCompletionsOnTypoDefaultsKey = "cotabbySuppressCompletionsOnTypo"
     private static let offerTypoCorrectionsDefaultsKey = "cotabbyOfferTypoCorrections"
@@ -183,6 +184,11 @@ struct SuggestionSettingsStore {
         )
         let resolvedClipboardContextEnabled =
             userDefaults.object(forKey: Self.clipboardContextEnabledDefaultsKey) as? Bool ?? false
+        // Defaults to true: knowing the app/window/domain is the difference between on-topic and
+        // generic suggestions, the data never leaves the device, and the capture is one cached
+        // Accessibility read per field. Users who want fully context-free prompts can switch it off.
+        let resolvedSurfaceContextEnabled =
+            userDefaults.object(forKey: Self.surfaceContextEnabledDefaultsKey) as? Bool ?? true
         // Defaults to false so the visual-context pipeline keeps running for existing users; opting
         // into fast mode turns it off.
         let resolvedFastModeEnabled =
@@ -351,6 +357,7 @@ struct SuggestionSettingsStore {
             customWordCountLowWords: resolvedCustomRange.lowWords,
             customWordCountHighWords: resolvedCustomRange.highWords,
             isClipboardContextEnabled: resolvedClipboardContextEnabled,
+            isSurfaceContextEnabled: resolvedSurfaceContextEnabled,
             isFastModeEnabled: resolvedFastModeEnabled,
             suppressCompletionsOnTypo: resolvedSuppressCompletionsOnTypo,
             offerTypoCorrections: resolvedOfferTypoCorrections,
@@ -404,6 +411,7 @@ struct SuggestionSettingsStore {
         saveUsingCustomWordCountRange(data.isUsingCustomWordCountRange)
         saveCustomWordCountRange(low: data.customWordCountLowWords, high: data.customWordCountHighWords)
         saveClipboardContextEnabled(data.isClipboardContextEnabled)
+        saveSurfaceContextEnabled(data.isSurfaceContextEnabled)
         saveFastModeEnabled(data.isFastModeEnabled)
         saveSuppressCompletionsOnTypo(data.suppressCompletionsOnTypo)
         saveOfferTypoCorrections(data.offerTypoCorrections)
@@ -541,6 +549,10 @@ struct SuggestionSettingsStore {
 
     func saveClipboardContextEnabled(_ enabled: Bool) {
         userDefaults.set(enabled, forKey: Self.clipboardContextEnabledDefaultsKey)
+    }
+
+    func saveSurfaceContextEnabled(_ enabled: Bool) {
+        userDefaults.set(enabled, forKey: Self.surfaceContextEnabledDefaultsKey)
     }
 
     func saveFastModeEnabled(_ enabled: Bool) {

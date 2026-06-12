@@ -14,6 +14,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     case fastMode
     case openAtLogin
     case includeClipboardContext
+    case includeAppContext
     case allowMultiLine
     case acceptPunctuation
     case addSpaceAfterAccept
@@ -88,6 +89,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .fastMode: return "Fast Mode"
         case .openAtLogin: return "Open at Login"
         case .includeClipboardContext: return "Include Clipboard Context"
+        case .includeAppContext: return "Include App Context"
         case .allowMultiLine: return "Allow Multi-line Suggestions"
         case .acceptPunctuation: return "Accept Punctuation With Word"
         case .addSpaceAfterAccept: return "Add Space After Accepting"
@@ -152,6 +154,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .fastMode: return "bolt.fill"
         case .openAtLogin: return "arrow.right.circle"
         case .includeClipboardContext: return "doc.on.clipboard"
+        case .includeAppContext: return "macwindow"
         case .allowMultiLine: return "text.alignleft"
         case .acceptPunctuation: return "textformat.abc"
         case .addSpaceAfterAccept: return "space"
@@ -212,7 +215,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
 
     var category: SettingsCategory {
         switch self {
-        case .enableGlobally, .fastMode, .openAtLogin, .includeClipboardContext,
+        case .enableGlobally, .fastMode, .openAtLogin, .includeClipboardContext, .includeAppContext,
              .allowMultiLine, .acceptPunctuation, .addSpaceAfterAccept, .inlineMacros, .onboarding:
             return .general
         case .suggestionDisplay, .showFieldIndicator, .showWordCount, .showKeyHint,
@@ -259,6 +262,9 @@ enum SettingsItem: String, CaseIterable, Identifiable {
                     "auto-start", "launch at login", "login items", "open at startup"]
         case .includeClipboardContext:
             return ["clipboard", "paste", "copy", "pasteboard", "context"]
+        case .includeAppContext:
+            return ["app", "window", "title", "surface", "domain", "site", "context",
+                    "privacy", "metadata", "application"]
         case .allowMultiLine:
             return ["multiline", "multi-line", "line", "newline", "wrap", "paragraph",
                     "long", "multiple lines", "line break"]

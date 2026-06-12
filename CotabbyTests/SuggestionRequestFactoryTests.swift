@@ -76,6 +76,7 @@ final class SuggestionRequestFactoryTests: XCTestCase {
             maxPrefixWordsFoundationModel: 9,
             maxPrefixCharactersFoundationModel: 96,
             maxSuffixCharacters: 192,
+            llamaPromptTokenBudget: 1934,
             defaultUserName: nil,
             defaultWordCountPreset: .sevenToTwelve,
             focusPollIntervalMilliseconds: 50
@@ -113,6 +114,7 @@ final class SuggestionRequestFactoryTests: XCTestCase {
             maxPrefixWordsFoundationModel: 6,
             maxPrefixCharactersFoundationModel: 96,
             maxSuffixCharacters: 192,
+            llamaPromptTokenBudget: 1934,
             defaultUserName: nil,
             defaultWordCountPreset: .sevenToTwelve,
             focusPollIntervalMilliseconds: 50
@@ -152,6 +154,7 @@ final class SuggestionRequestFactoryTests: XCTestCase {
             maxPrefixWordsFoundationModel: 150,
             maxPrefixCharactersFoundationModel: 2500,
             maxSuffixCharacters: 192,
+            llamaPromptTokenBudget: 1934,
             defaultUserName: nil,
             defaultWordCountPreset: .sevenToTwelve,
             focusPollIntervalMilliseconds: 50
@@ -291,5 +294,65 @@ final class SuggestionRequestFactoryTests: XCTestCase {
         let clipboardContext = try XCTUnwrap(result.request.clipboardContext)
         XCTAssertEqual(clipboardContext.count, 1_200)
         XCTAssertTrue(clipboardContext.hasSuffix("..."))
+    }
+
+    func test_buildRequest_includesSurfaceContextWhenEnabled() {
+        let context = CotabbyTestFixtures.focusedInputContext(
+            applicationName: "Mail",
+            bundleIdentifier: "com.apple.mail",
+            precedingText: "Thanks again for",
+            windowTitle: "Re: Q3 budget - Mail"
+        )
+
+        let result = SuggestionRequestFactory.buildRequest(
+            context: context,
+            settings: CotabbyTestFixtures.settingsSnapshot(),
+            configuration: .standard
+        )
+
+        XCTAssertEqual(result.request.surfaceContext?.surfaceClass, .email)
+        XCTAssertTrue(result.request.prompt.contains("An email being written in Mail."))
+        XCTAssertTrue(
+            result.request.prompt.contains("The window is titled \"Re: Q3 budget\"."),
+            "the app-name suffix is stripped from the title before it reaches the prompt"
+        )
+        XCTAssertTrue(result.request.prompt.hasSuffix("Thanks again for"))
+    }
+
+    func test_buildRequest_omitsSurfaceContextWhenDisabled() {
+        let context = CotabbyTestFixtures.focusedInputContext(
+            applicationName: "Mail",
+            bundleIdentifier: "com.apple.mail",
+            precedingText: "Thanks again for",
+            windowTitle: "Re: Q3 budget"
+        )
+
+        let result = SuggestionRequestFactory.buildRequest(
+            context: context,
+            settings: CotabbyTestFixtures.settingsSnapshot(isSurfaceContextEnabled: false),
+            configuration: .standard
+        )
+
+        XCTAssertNil(result.request.surfaceContext)
+        XCTAssertFalse(result.request.prompt.contains("An email being written"))
+        XCTAssertFalse(result.request.prompt.contains("Re: Q3 budget"))
+    }
+
+    func test_buildRequest_omitsSurfaceContextForCodeEditors() {
+        let context = CotabbyTestFixtures.focusedInputContext(
+            applicationName: "Xcode",
+            bundleIdentifier: "com.apple.dt.Xcode",
+            precedingText: "// Returns the",
+            windowTitle: "Project.swift"
+        )
+
+        let result = SuggestionRequestFactory.buildRequest(
+            context: context,
+            settings: CotabbyTestFixtures.settingsSnapshot(),
+            configuration: .standard
+        )
+
+        XCTAssertNil(result.request.surfaceContext, "app metadata biases base models toward code; editors stay bare")
+        XCTAssertFalse(result.request.prompt.contains("Project.swift"))
     }
 }

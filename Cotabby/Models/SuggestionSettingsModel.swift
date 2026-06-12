@@ -57,6 +57,9 @@ final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var customWordCountLowWords: Int
     @Published private(set) var customWordCountHighWords: Int
     @Published private(set) var isClipboardContextEnabled: Bool
+    /// When on (the default), prompts may state which app, window, domain, and field the user is
+    /// typing in. See `SurfaceContextComposer` for what is actually rendered.
+    @Published private(set) var isSurfaceContextEnabled: Bool
     @Published private(set) var isFastModeEnabled: Bool
     /// When on, a misspelled current word hides the normal continuation (see the typo gate).
     @Published private(set) var suppressCompletionsOnTypo: Bool
@@ -162,6 +165,7 @@ final class SuggestionSettingsModel: ObservableObject {
         customWordCountLowWords = data.customWordCountLowWords
         customWordCountHighWords = data.customWordCountHighWords
         isClipboardContextEnabled = data.isClipboardContextEnabled
+        isSurfaceContextEnabled = data.isSurfaceContextEnabled
         isFastModeEnabled = data.isFastModeEnabled
         suppressCompletionsOnTypo = data.suppressCompletionsOnTypo
         offerTypoCorrections = data.offerTypoCorrections
@@ -218,6 +222,7 @@ final class SuggestionSettingsModel: ObservableObject {
                 high: customWordCountHighWords
             ),
             isClipboardContextEnabled: isClipboardContextEnabled,
+            isSurfaceContextEnabled: isSurfaceContextEnabled,
             userName: userName,
             customRules: customRules,
             extendedContext: extendedContext,
@@ -366,6 +371,15 @@ final class SuggestionSettingsModel: ObservableObject {
         customWordCountLowWords = normalized.lowWords
         customWordCountHighWords = normalized.highWords
         store.saveCustomWordCountRange(low: normalized.lowWords, high: normalized.highWords)
+    }
+
+    func setSurfaceContextEnabled(_ enabled: Bool) {
+        guard isSurfaceContextEnabled != enabled else {
+            return
+        }
+
+        isSurfaceContextEnabled = enabled
+        store.saveSurfaceContextEnabled(enabled)
     }
 
     func setClipboardContextEnabled(_ enabled: Bool) {
@@ -949,12 +963,13 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
             $customWordCountLowWords,
             $customWordCountHighWords
         )
-        // `extendedContext` shares its outer slot with `suggestInIntegratedTerminals` via a paired
-        // `CombineLatest` so the new toggle costs no extra top-level slot (the outer is at the cap).
+        // `extendedContext` shares its outer slot with `suggestInIntegratedTerminals` and
+        // `isSurfaceContextEnabled` via one grouped `CombineLatest3` so new toggles cost no extra
+        // top-level slot (the outer is at the cap).
         return Publishers.CombineLatest4(
             primary,
             $acceptanceGranularity,
-            Publishers.CombineLatest($extendedContext, $suggestInIntegratedTerminals),
+            Publishers.CombineLatest3($extendedContext, $suggestInIntegratedTerminals, $isSurfaceContextEnabled),
             customRange
         )
             .map { primaryTuple, granularity, extendedContextTuple, customRangeTuple in
@@ -966,7 +981,7 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                 let (debounce, focusPoll, multiLine, acceptToggles) = timing
                 let (autoAcceptPunctuation, addSpaceAfterAccept) = acceptToggles
                 let (isCustomActive, customLow, customHigh) = customRangeTuple
-                let (extendedContext, suggestInIntegratedTerminals) = extendedContextTuple
+                let (extendedContext, suggestInIntegratedTerminals, surfaceContextEnabled) = extendedContextTuple
                 return SuggestionSettingsSnapshot(
                     isGloballyEnabled: globallyEnabled,
                     disabledAppBundleIdentifiers: Set(disabledAppRules.map(\.bundleIdentifier)),
@@ -976,6 +991,7 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                     isUsingCustomWordCountRange: isCustomActive,
                     customWordCountRange: SuggestionWordRange.clamped(low: customLow, high: customHigh),
                     isClipboardContextEnabled: clipboardContextEnabled,
+                    isSurfaceContextEnabled: surfaceContextEnabled,
                     userName: userName,
                     customRules: customRules,
                     extendedContext: extendedContext,

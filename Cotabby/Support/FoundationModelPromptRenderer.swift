@@ -116,6 +116,24 @@ enum FoundationModelPromptRenderer {
             sections.append(toneHint)
         }
 
+        // The same sanitized surface facts the llama preface states: the window title (subject,
+        // document, channel) and the web domain are the strongest on-topic cues available. Apple's
+        // session cache holds instructions, not the per-request prompt, so per-app variance here
+        // costs nothing.
+        if let surface = request.surfaceContext {
+            if let title = surface.windowTitle {
+                sections.append("The window is titled \"\(title)\".")
+            }
+            if let domain = surface.domain {
+                sections.append("The user is on \(domain).")
+            }
+            // Same fact the llama preface states; dropping it here made the two prompts disagree
+            // about what the field is for (the placeholder is often the only label a field has).
+            if let placeholder = surface.fieldPlaceholder {
+                sections.append("The text field is labeled \"\(placeholder)\".")
+            }
+        }
+
         if let summary = request.visualContextSummary,
            !summary.isEmpty {
             sections.append("Screen content:")
@@ -161,58 +179,25 @@ enum FoundationModelPromptRenderer {
         return sections.joined(separator: "\n")
     }
 
-    /// Maps the focused app's bundle identifier to a one-line tone cue or nil if no rule matches.
-    /// The set is intentionally small: each entry has to earn its tokens, so we cover the
-    /// surfaces real users complain about (code editors, email/chat clients, browsers) and let
-    /// everything else fall back to the generic instructions.
+    /// Maps the focused app's surface class to a one-line tone cue or nil if no rule matches.
+    /// Classification lives in the shared `AppSurfaceClassifier` so both engines agree about what
+    /// kind of app the user is in. Terminal emulators and unrecognized apps get no hint: a shell
+    /// prompt, log pager, or `git commit` buffer is mostly prose, not code, so the no-hint default
+    /// is safer than a guessed cue.
     private static func appToneHint(forBundleIdentifier identifier: String) -> String? {
-        let lower = identifier.lowercased()
-        if codeEditorBundlePrefixes.contains(where: { lower.hasPrefix($0) }) {
+        switch AppSurfaceClassifier.classify(bundleIdentifier: identifier) {
+        case .codeEditor:
             return "The user is writing code, so the continuation should be code rather than prose."
-        }
-        if emailBundlePrefixes.contains(where: { lower.hasPrefix($0) }) {
+        case .email:
             return "The user is writing an email, so keep the same register and finish the current thought."
-        }
-        if chatBundlePrefixes.contains(where: { lower.hasPrefix($0) }) {
+        case .chat:
             return "The user is in a chat app, so keep the continuation short and informal."
-        }
-        if BrowserAppDetector.isBrowser(bundleIdentifier: lower) {
+        case .browser:
             return "The user is typing inside a browser, so keep the continuation concise."
+        case .terminal, .other:
+            return nil
         }
-        return nil
     }
-
-    // Cursor ships under opaque ToDesktop hashes (com.todesktop.<id>) that change between builds,
-    // so prefix-matching is unreliable; omitted intentionally.
-    // Terminal emulators (iTerm2, Apple Terminal, Hyper) are also omitted: a shell prompt, log
-    // pager, or `git commit` buffer is mostly prose, not code, so the no-hint default is safer
-    // than a guessed code hint.
-    private static let codeEditorBundlePrefixes: [String] = [
-        "com.apple.dt.xcode",
-        "com.microsoft.vscode",
-        "com.jetbrains.",
-        "com.sublimetext.",
-        "com.panic.nova"
-    ]
-
-    private static let emailBundlePrefixes: [String] = [
-        "com.apple.mail",
-        "com.readdle.smartemail",
-        "com.airmailapp.airmail",
-        "com.microsoft.outlook"
-    ]
-
-    private static let chatBundlePrefixes: [String] = [
-        "com.tinyspeck.slackmacgap",
-        "com.microsoft.teams",
-        "com.hnc.discord",
-        "com.apple.mobilesms",
-        "ru.keepcoder.telegram",
-        "net.whatsapp.whatsapp"
-    ]
-
-    // Browser detection now lives in the shared `BrowserAppDetector` so the AX recovery paths and
-    // the prompt tone hint classify apps identically.
 
     /// Diagnostics need to show both payloads Apple receives: the high-priority instructions and
     /// the shorter request prompt. Keeping this renderer-owned prevents the menu/debug preview from
