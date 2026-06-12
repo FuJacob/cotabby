@@ -27,6 +27,15 @@ struct AppearancePaneView: View {
                 }
                 .pickerStyle(.menu)
 
+                Toggle(isOn: streamWhileGeneratingBinding) {
+                    SettingsRowLabel(
+                        title: "Stream Suggestions While Generating",
+                        description: "Reveal ghost text token-by-token as the model writes it, and let you accept " +
+                            "early. Off shows each suggestion once it's fully written.",
+                        systemImage: "text.append"
+                    )
+                }
+
                 Toggle(isOn: showIndicatorBinding) {
                     SettingsRowLabel(
                         title: "Show Field Indicator",
@@ -144,6 +153,13 @@ struct AppearancePaneView: View {
     }
 
     // MARK: - Bindings
+
+    private var streamWhileGeneratingBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.streamSuggestionsWhileGenerating },
+            set: { suggestionSettings.setStreamSuggestionsWhileGenerating($0) }
+        )
+    }
 
     private var showIndicatorBinding: Binding<Bool> {
         Binding(

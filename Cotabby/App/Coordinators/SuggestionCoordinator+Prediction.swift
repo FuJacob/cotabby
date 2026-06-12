@@ -271,17 +271,27 @@ extension SuggestionCoordinator {
         // Resetting the flag here would instead double-schedule a drain for one partial.
         streamRenderedText = nil
         pendingStreamPartial = nil
+        // Streaming the ghost text token-by-token is opt-in. Read the flag here on the main actor so
+        // the work closure captures a plain Bool. When off, the closure passes no `onPartial`, so the
+        // engine skips its per-token main-actor hops entirely and the suggestion appears once, fully
+        // formed, through `apply` below; when on, each partial renders as an acceptable session the
+        // user can Tab into early.
+        let shouldStreamPartials = settingsSnapshot.streamSuggestionsWhileGenerating
         workController.replaceGenerationWork(for: workID) { [weak self] in
             guard let self else {
                 return
             }
 
             do {
+                let onPartial: (@MainActor (SuggestionResult) -> Void)?
+                if shouldStreamPartials {
+                    onPartial = { [weak self] partial in self?.queueStreamedPartial(partial, workID: workID) }
+                } else {
+                    onPartial = nil
+                }
                 let result = try await suggestionEngine.generateSuggestion(
                     for: request,
-                    onPartial: { [weak self] partial in
-                        self?.queueStreamedPartial(partial, workID: workID)
-                    }
+                    onPartial: onPartial
                 )
                 guard !Task.isCancelled, self.workController.isCurrent(workID) else {
                     return

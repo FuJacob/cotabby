@@ -122,6 +122,11 @@ struct SuggestionSettingsSnapshot: Equatable, Sendable {
     /// punctuation, whitespace, or a space-less script. Defaults to false; travels in the snapshot so
     /// the acceptance path reads the live value without subscribing to the settings model.
     let addSpaceAfterAccept: Bool
+    /// When true, ghost text is streamed token-by-token as the model decodes (each partial an
+    /// acceptable session); when false (the default) the suggestion appears once after generation
+    /// finishes. Travels in the snapshot so the prediction path reads the live value when deciding
+    /// whether to pass an `onPartial` handler to the engine.
+    let streamSuggestionsWhileGenerating: Bool
     /// When true, the screenshot/OCR visual-context pipeline is skipped entirely for lower-latency
     /// suggestions. Defaults to false. Only affects visual context — predictions still run.
     let isFastModeEnabled: Bool

@@ -103,6 +103,7 @@ final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var preferredEmojiGender: EmojiGender
     @Published private(set) var autoAcceptTrailingPunctuation: Bool
     @Published private(set) var addSpaceAfterAccept: Bool
+    @Published private(set) var streamSuggestionsWhileGenerating: Bool
     @Published private(set) var acceptanceKeyCode: CGKeyCode
     @Published private(set) var acceptanceKeyModifiers: ShortcutModifierMask
     @Published private(set) var acceptanceKeyLabel: String
@@ -187,6 +188,7 @@ final class SuggestionSettingsModel: ObservableObject {
         preferredEmojiGender = data.preferredEmojiGender
         autoAcceptTrailingPunctuation = data.autoAcceptTrailingPunctuation
         addSpaceAfterAccept = data.addSpaceAfterAccept
+        streamSuggestionsWhileGenerating = data.streamSuggestionsWhileGenerating
         acceptanceKeyCode = data.acceptanceKeyCode
         acceptanceKeyModifiers = data.acceptanceKeyModifiers
         acceptanceKeyLabel = data.acceptanceKeyLabel
@@ -232,6 +234,7 @@ final class SuggestionSettingsModel: ObservableObject {
             isMultiLineEnabled: isMultiLineEnabled,
             autoAcceptTrailingPunctuation: autoAcceptTrailingPunctuation,
             addSpaceAfterAccept: addSpaceAfterAccept,
+            streamSuggestionsWhileGenerating: streamSuggestionsWhileGenerating,
             isFastModeEnabled: isFastModeEnabled,
             mirrorPreference: mirrorPreference,
             acceptanceGranularity: acceptanceGranularity,
@@ -533,6 +536,14 @@ final class SuggestionSettingsModel: ObservableObject {
         }
         addSpaceAfterAccept = enabled
         store.saveAddSpaceAfterAccept(enabled)
+    }
+
+    func setStreamSuggestionsWhileGenerating(_ enabled: Bool) {
+        guard streamSuggestionsWhileGenerating != enabled else {
+            return
+        }
+        streamSuggestionsWhileGenerating = enabled
+        store.saveStreamSuggestionsWhileGenerating(enabled)
     }
 
     func setAcceptanceGranularity(_ granularity: AcceptanceGranularity) {
@@ -945,13 +956,18 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                 $responseLanguages,
                 $enabledSpellingDictionaryCodes
             ),
-            // The two acceptance toggles share this slot via a paired `CombineLatest` so the new
-            // setting costs no extra upstream in a tuple already at Combine's four-input cap.
+            // The acceptance toggles and the streaming-reveal toggle share this slot via a grouped
+            // `CombineLatest3` so new settings cost no extra upstream in a tuple already at Combine's
+            // four-input cap.
             Publishers.CombineLatest4(
                 $debounceMilliseconds,
                 $focusPollIntervalMilliseconds,
                 $isMultiLineEnabled,
-                Publishers.CombineLatest($autoAcceptTrailingPunctuation, $addSpaceAfterAccept)
+                Publishers.CombineLatest3(
+                    $autoAcceptTrailingPunctuation,
+                    $addSpaceAfterAccept,
+                    $streamSuggestionsWhileGenerating
+                )
             )
         )
         // The outer CombineLatest stack is already at Combine's per-operator cap, so each new
@@ -979,7 +995,7 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                 let (suppressOnTypo, offerCorrections, automaticallyFixTypos) = typoToggles
                 let (userName, customRules, responseLanguages, enabledSpellingDictionaryCodes) = profile
                 let (debounce, focusPoll, multiLine, acceptToggles) = timing
-                let (autoAcceptPunctuation, addSpaceAfterAccept) = acceptToggles
+                let (autoAcceptPunctuation, addSpaceAfterAccept, streamWhileGenerating) = acceptToggles
                 let (isCustomActive, customLow, customHigh) = customRangeTuple
                 let (extendedContext, suggestInIntegratedTerminals, surfaceContextEnabled) = extendedContextTuple
                 return SuggestionSettingsSnapshot(
@@ -1001,6 +1017,7 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                     isMultiLineEnabled: multiLine,
                     autoAcceptTrailingPunctuation: autoAcceptPunctuation,
                     addSpaceAfterAccept: addSpaceAfterAccept,
+                    streamSuggestionsWhileGenerating: streamWhileGenerating,
                     isFastModeEnabled: fastModeEnabled,
                     mirrorPreference: mirrorPreference,
                     acceptanceGranularity: granularity,
