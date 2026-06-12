@@ -35,6 +35,12 @@ final class EmojiUsageStore {
     /// Cap on stored recents: ample for the panel (which shows ~24) while keeping the persisted blob
     /// small. Older aliases fall off the end as new emoji are committed.
     private static let recentsCap = 50
+    /// Bounds for the frequency map, which previously grew one entry per unique emoji forever.
+    /// Frequency only breaks ties inside a relevance tier, so trimming the rarest entries cannot
+    /// change which emoji match a query. Trimming triggers above `frequencyCap` and cuts down to
+    /// `frequencyTrimTarget` so steady use does not re-sort the map on every commit.
+    private static let frequencyCap = 300
+    private static let frequencyTrimTarget = 200
     private static let storageKey = "cotabbyEmojiUsage"
 
     private struct Persisted: Codable {
@@ -68,7 +74,25 @@ final class EmojiUsageStore {
             recents.removeLast(recents.count - Self.recentsCap)
         }
         frequency[alias, default: 0] += 1
+        trimFrequencyIfNeeded()
         persist()
+    }
+
+    /// Drops the least-used aliases once the map outgrows its cap, keeping current recents so a
+    /// just-used emoji can never lose its favorite ranking to the trim.
+    private func trimFrequencyIfNeeded() {
+        guard frequency.count > Self.frequencyCap else {
+            return
+        }
+
+        let keepAlways = Set(recents)
+        let removable = frequency
+            .filter { !keepAlways.contains($0.key) }
+            .sorted { $0.value < $1.value }
+        let overflow = frequency.count - Self.frequencyTrimTarget
+        for (alias, _) in removable.prefix(overflow) {
+            frequency.removeValue(forKey: alias)
+        }
     }
 
     /// Immutable snapshot for the pure ranker and recents helper.

@@ -56,6 +56,32 @@ final class EmojiUsageStoreTests: XCTestCase {
         }
     }
 
+    func test_frequencyIsBoundedAndKeepsHeavyHitters() {
+        runOnMainActor {
+            let sut = EmojiUsageStore(defaults: InMemoryDefaults())
+            // A heavy favorite that must survive trimming even after it falls out of recents.
+            for _ in 0..<10 {
+                sut.record(alias: "joy")
+            }
+            // Flood with one-shot unique aliases to push the map past its cap several times over.
+            for index in 0..<320 {
+                sut.record(alias: "flood\(index)")
+            }
+
+            let snapshot = sut.snapshot()
+            XCTAssertLessThanOrEqual(
+                snapshot.frequency.count,
+                300,
+                "The frequency map must stay bounded instead of growing one entry per unique emoji forever."
+            )
+            XCTAssertEqual(
+                snapshot.frequency["joy"],
+                10,
+                "Trimming removes the rarest entries; heavy hitters keep their counts."
+            )
+        }
+    }
+
     func test_clearForgetsEverything() {
         runOnMainActor {
             let sut = EmojiUsageStore(defaults: InMemoryDefaults())
