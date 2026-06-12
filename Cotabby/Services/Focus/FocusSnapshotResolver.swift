@@ -226,6 +226,13 @@ struct FocusSnapshotResolver {
             domClassList: AXHelper.stringArrayValue(
                 for: "AXDOMClassList" as CFString, on: focusedElement) ?? []
         )
+        // Web-vs-native classification for the caret-geometry trust policy. The DOM-attribute
+        // signal was computed in `candidateSnapshot` from the attribute list it already fetched,
+        // so this adds no AX round-trip to the focus poll.
+        let isWebContentField = WebContentFieldDetector.isWebContentField(
+            bundleIdentifier: bundleIdentifier,
+            vendsDOMAttributes: resolvedCandidate.vendsDOMAttributes
+        )
         let context = FocusedInputSnapshot(
             applicationName: applicationName,
             bundleIdentifier: bundleIdentifier,
@@ -244,6 +251,7 @@ struct FocusSnapshotResolver {
             selection: contextWindow.selection,
             isSecure: resolvedCandidate.isSecure,
             isIntegratedTerminal: isIntegratedTerminal,
+            isWebContentField: isWebContentField,
             focusChangeSequence: focusChangeSequence,
             focusedURLString: focusedURLString,
             resolvedFieldStyle: resolvedFieldStyle
@@ -710,6 +718,9 @@ struct FocusSnapshotResolver {
         let caretRect = caretResult?.rect
         let caretQuality = caretResult?.quality
         let isSecure = isSecureElement(element: element, role: role, subrole: subrole)
+        // Recorded from the already-fetched attribute list (no extra AX call) so snapshot
+        // assembly can classify the field as web-rendered without touching the element again.
+        let vendsDOMAttributes = WebContentFieldDetector.vendsDOMAttributes(supportedAttributes)
         let elementIdentifier = AXHelper.elementIdentifier(
             for: element, bundleIdentifier: bundleIdentifier)
         let resolverCandidate = FocusCapabilityCandidate(
@@ -739,6 +750,7 @@ struct FocusSnapshotResolver {
             caretSourceDetail: caretResult?.sourceDetail,
             inputFrameRect: inputFrameRect,
             isSecure: isSecure,
+            vendsDOMAttributes: vendsDOMAttributes,
             resolverCandidate: resolverCandidate
         )
     }
@@ -873,5 +885,8 @@ private struct AXFocusCandidate {
     let caretSourceDetail: String?
     let inputFrameRect: CGRect?
     let isSecure: Bool
+    /// Whether the element advertises DOM-reflection attributes, marking it as web-engine
+    /// content (see `WebContentFieldDetector`).
+    let vendsDOMAttributes: Bool
     let resolverCandidate: FocusCapabilityCandidate
 }
