@@ -594,6 +594,34 @@ extension SuggestionCoordinator {
         )
     }
 
+    /// Empty-result bookkeeping for `apply`, extracted to keep that function inside the
+    /// complexity budget as its guard chain grew.
+    private func discardEmptyResult(_ result: SuggestionResult, workID: UInt64) {
+        clearSuggestion()
+        hideOverlay(reason: "Overlay hidden because the model returned an empty continuation.")
+        state = .idle
+        // The router already counted engine-attributed suppressions (normalizer, confidence
+        // floor); only the unattributed "model produced nothing" case needs a ledger entry.
+        if result.suppressionReason == nil {
+            qualityMetricsStore.recordSuppressed(reason: "emptyUnattributed")
+        }
+        logStage(
+            "empty-result",
+            workID: workID,
+            generation: result.generation,
+            message: "Model returned an empty or whitespace-only continuation after normalization.",
+            rawOutput: result.rawText,
+            normalizedOutput: result.text
+        )
+    }
+
+    private static func seamSuppressionReason(for verdict: CompletionSeamGuard.Verdict) -> String {
+        if case .seamMisspelling = verdict {
+            return "seamMisspelling"
+        }
+        return "seamJunkPunctuationRun"
+    }
+
     /// Promotes a generated result to `ready` only when it is still fresh for the current field.
     func apply(result: SuggestionResult, workID: UInt64) async {
 
@@ -662,22 +690,7 @@ extension SuggestionCoordinator {
         latestRawModelOutput = SuggestionDebugLogger.debugPreview(result.rawText)
 
         guard !result.text.isEmpty else {
-            clearSuggestion()
-            hideOverlay(reason: "Overlay hidden because the model returned an empty continuation.")
-            state = .idle
-            // The router already counted engine-attributed suppressions (normalizer, confidence
-            // floor); only the unattributed "model produced nothing" case needs a ledger entry.
-            if result.suppressionReason == nil {
-                qualityMetricsStore.recordSuppressed(reason: "emptyUnattributed")
-            }
-            logStage(
-                "empty-result",
-                workID: workID,
-                generation: result.generation,
-                message: "Model returned an empty or whitespace-only continuation after normalization.",
-                rawOutput: result.rawText,
-                normalizedOutput: result.text
-            )
+            discardEmptyResult(result, workID: workID)
             return
         }
 
@@ -734,8 +747,7 @@ extension SuggestionCoordinator {
             clearSuggestion()
             hideOverlay(reason: "Overlay hidden because the completion failed the seam guard.")
             state = .idle
-            let seamReason = if case .seamMisspelling = seamVerdict { "seamMisspelling" } else { "seamJunkPunctuationRun" }
-            qualityMetricsStore.recordSuppressed(reason: seamReason)
+            qualityMetricsStore.recordSuppressed(reason: Self.seamSuppressionReason(for: seamVerdict))
             logStage(
                 "seam-suppressed",
                 workID: workID,
