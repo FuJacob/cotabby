@@ -127,6 +127,11 @@ enum FoundationModelPromptRenderer {
             if let domain = surface.domain {
                 sections.append("The user is on \(domain).")
             }
+            // Same fact the llama preface states; dropping it here made the two prompts disagree
+            // about what the field is for (the placeholder is often the only label a field has).
+            if let placeholder = surface.fieldPlaceholder {
+                sections.append("The text field is labeled \"\(placeholder)\".")
+            }
         }
 
         if let summary = request.visualContextSummary,

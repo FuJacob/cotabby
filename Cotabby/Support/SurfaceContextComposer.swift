@@ -101,8 +101,14 @@ nonisolated enum SurfaceContextComposer {
         guard var title = nonEmptyCleaned(rawTitle) else { return nil }
         for separator in [" - ", " — ", " – "] {
             let suffix = separator + applicationName
-            if title.lowercased().hasSuffix(suffix.lowercased()) {
-                title = String(title.dropLast(suffix.count))
+            // Anchored backwards range search instead of fold-then-count: characters that expand
+            // under case folding would make a lowercased `hasSuffix` length disagree with the
+            // original title's character count and clip the wrong amount.
+            if let range = title.range(
+                of: suffix,
+                options: [.caseInsensitive, .anchored, .backwards]
+            ) {
+                title = String(title[..<range.lowerBound])
                 break
             }
         }

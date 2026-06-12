@@ -148,6 +148,20 @@ struct SuggestionConfiguration: Equatable, Sendable {
     let defaultWordCountPreset: SuggestionWordCountPreset
     let focusPollIntervalMilliseconds: Int
 
+    /// Output ceiling reserved out of the llama context window when sizing the prompt budget:
+    /// the largest realistic per-request token budget (multi-line doubles the 26-token default).
+    static let llamaPromptOutputCeilingTokens = 50
+    /// Margin for BOS plus token-estimator error; the estimator skews conservative, so real
+    /// prompts land under the derived budget.
+    static let llamaPromptSafetyMarginTokens = 64
+    /// The per-sequence KV capacity minus the output ceiling and safety margin. Computed from
+    /// `LlamaRuntimeConfiguration.default` so the two constants cannot drift apart silently.
+    static var derivedLlamaPromptTokenBudget: Int {
+        Int(LlamaRuntimeConfiguration.default.contextWindowTokens)
+            - llamaPromptOutputCeilingTokens
+            - llamaPromptSafetyMarginTokens
+    }
+
     /// The configuration shipped by the app today.
     /// These are product defaults, not temporary debug overrides.
     static let standard = SuggestionConfiguration(
@@ -166,11 +180,13 @@ struct SuggestionConfiguration: Equatable, Sendable {
         repetitionPenalty: 1.05,
         randomSeed: nil,
         maxPrefixWords: 150,
-        // The llama prefix window matches the Foundation Models one. The earlier 1000-char/50-word
-        // cap predates KV prefix reuse: the prefill cost of a larger window is now paid once per
-        // focused field (and on reuse misses), not per keystroke, while the extra preceding
-        // sentences carry the topic and voice that multi-paragraph email/docs continuations need.
-        // The token budget below keeps the total prompt bounded by what the model can hold.
+        // The llama prefix window matches the Foundation Models one: the extra preceding sentences
+        // carry the topic and voice that multi-paragraph email/docs continuations need, and the
+        // token budget below keeps the total prompt bounded by what the model can hold. Latency
+        // honesty: where KV prefix reuse works (dense models), the larger window is prefilled once
+        // per field; the hybrid/SWA catalog models reject partial trims and re-prefill per request,
+        // so there the wider window costs prefill only when the field actually holds more than the
+        // old 1000-char cap, i.e. long-document sessions, which is exactly where it buys quality.
         maxPrefixCharacters: 2500,
         // Apple's on-device model has a 4096-token shared context. Even with instructions plus
         // visual/clipboard context, there is room to send ~3x the llama window before crowding
@@ -178,10 +194,9 @@ struct SuggestionConfiguration: Equatable, Sendable {
         maxPrefixWordsFoundationModel: 150,
         maxPrefixCharactersFoundationModel: 2500,
         maxSuffixCharacters: 192,
-        // 2048 (LlamaRuntimeConfiguration.default.contextWindowTokens, the per-sequence KV
-        // capacity) minus the 50-token output ceiling and a 64-token margin for BOS plus
-        // estimator error. The estimator skews conservative, so real prompts land under this.
-        llamaPromptTokenBudget: 1934,
+        // Derived from the runtime constant so a context-window change can never silently
+        // desynchronize the prompt budget from the KV capacity the model actually has.
+        llamaPromptTokenBudget: SuggestionConfiguration.derivedLlamaPromptTokenBudget,
         // Seed the profile settings with lightweight defaults on first launch.
         defaultUserName: "Jacob",
         defaultWordCountPreset: .twelveToTwenty,
