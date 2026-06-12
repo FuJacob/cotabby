@@ -207,25 +207,31 @@ extension SuggestionCoordinator {
             after: rawContext,
             inserting: insertionChunk
         )
+
+        // Same pre-generation gates the ordinary cycle applies, minus their UI side effects: a
+        // speculative request must not spend a decode on text the normal path would refuse (too
+        // little text) or suppress (typo gate). The post-publish regeneration still runs the full
+        // gate with its correction semantics; declining here only skips the speculation.
+        guard SuggestionRequestFactory.shouldGenerateSuggestion(for: optimistic.precedingText) else {
+            return
+        }
+        if settingsSnapshot.suppressCompletionsOnTypo,
+           let trailingWord = CurrentWordExtractor.extractTrailingWord(from: optimistic.precedingText)?.result.word,
+           spellChecker.isTypo(trailingWord) {
+            return
+        }
+
         let context = interactionState.materializeContext(from: optimistic)
         pendingSpeculativeSignature = context.contentSignature
 
         let visualContextSummary = permissionManager.screenRecordingGranted
             ? visualContextCoordinator.excerpt(for: context)
             : nil
-        let rawClipboard = settingsSnapshot.isClipboardContextEnabled
-            ? clipboardContextProvider.currentContext()
-            : nil
-        let truncatedPrefix = SuggestionRequestFactory.truncatedPromptPrefix(
-            from: context.precedingText,
-            configuration: configuration,
-            engine: settingsSnapshot.selectedEngine
-        )
-        let clipboardContext = clipboardRelevanceFilter.filter(
-            clipboard: rawClipboard,
-            pasteboardChangeCount: clipboardContextProvider.currentChangeCount,
-            precedingText: truncatedPrefix
-        )
+        // The pinned clipboard verdict, not a fresh filter pass: a speculative request that
+        // re-evaluated relevance against the optimistic prefix could flip the verdict and rewrite
+        // the prompt head mid-session, breaking prompt-byte continuity with the ordinary cycle
+        // (and the llama KV prefix reuse that depends on it).
+        let clipboardContext = pinnedClipboardContext(rawContext: optimistic)
         let requestBuildResult = SuggestionRequestFactory.buildRequest(
             context: context,
             settings: settingsSnapshot,

@@ -106,14 +106,25 @@ nonisolated struct SuggestionAnchorCache {
 
     /// `k` such that liveTail == anchorTail + fullText.prefix(k) (tail-bounded comparison), with
     /// `0 <= k < fullText.count`; nil when the live text is not on the anchor's path.
+    ///
+    /// The character buffers are built once per entry and every candidate window is then an
+    /// allocation-free slice comparison; the earlier form built a fresh
+    /// `tail(anchorTail + fullText.prefix(k))` string for every k of every scanned entry, which
+    /// is O(n) heap allocations per entry on a scan that visits up to the full cache.
     private static func consumedPrefixLength(
         liveTail: String,
         anchorTail: String,
         fullText: String
     ) -> Int? {
-        for consumed in 0 ..< fullText.count {
-            let candidate = tail(of: anchorTail + fullText.prefix(consumed))
-            if candidate == liveTail {
+        let live = Array(liveTail)
+        let composed = Array(anchorTail) + Array(fullText)
+        let anchorCount = anchorTail.count
+
+        for consumed in 0 ..< max(0, composed.count - anchorCount) {
+            let end = anchorCount + consumed
+            let start = max(0, end - prefixTailLength)
+            guard end - start == live.count else { continue }
+            if composed[start ..< end].elementsEqual(live) {
                 return consumed
             }
         }
