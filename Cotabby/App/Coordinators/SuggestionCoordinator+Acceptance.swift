@@ -125,6 +125,13 @@ extension SuggestionCoordinator {
             self?.recordSuggestionAcceptedIfFirstChunk(of: sessionForAcceptance)
         }
 
+        // The insert just made every geometry cache built from pre-insert reads stale: child-run
+        // hosts would otherwise map the published caret into pre-insert run frames for up to a
+        // throttle window. Stamp the acceptance so the stability gate can scope its
+        // backward-drift hold to the frames-catching-up window.
+        lastAcceptanceAt = Date()
+        focusModel.invalidateTransientCaretCaches()
+
         cancelPredictionWork()
 
         switch interactionState.commitAcceptedChunk(
@@ -357,6 +364,8 @@ extension SuggestionCoordinator {
             return false
         }
 
+        lastAcceptanceAt = Date()
+        focusModel.invalidateTransientCaretCaches()
         cancelPredictionWork()
         latestGenerationNumber = session.baseContext.generation
         clearSuggestion(clearDiagnostics: false)

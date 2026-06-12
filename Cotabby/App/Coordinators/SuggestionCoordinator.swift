@@ -133,6 +133,11 @@ final class SuggestionCoordinator: ObservableObject {
     /// accept on the last word. See `SuggestionSessionReconciler.isStaleAcceptanceEcho`.
     var lastAcceptedTail: AcceptedSuggestionTail?
 
+    /// Wall-clock moment of the most recent committed acceptance. The stability gate uses its age
+    /// to scope the backward-drift hold: only geometry read shortly after our own insert can be
+    /// the stale-frame kind, so older backward corrections stay re-anchorable.
+    var lastAcceptanceAt: Date?
+
     /// Bounded string-only memory of recent suggestions for instant re-show on rollback and
     /// re-entry (see `SuggestionAnchorCache`). `cotabbyAnchorReuseDisabled` is the kill switch.
     var suggestionAnchorCache = SuggestionAnchorCache()

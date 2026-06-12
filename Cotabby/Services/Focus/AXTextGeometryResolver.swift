@@ -282,7 +282,16 @@ struct AXTextGeometryResolver {
         }
 
         let runFrame = cocoaRunFrames[placement.runIndex]
-        let caretX = runFrame.minX + placement.fraction * runFrame.width
+        var caretX = runFrame.minX + placement.fraction * runFrame.width
+        // The parent value extends past the matched runs (text published, frames not yet
+        // reflowed): extend the estimate by the measured per-character advance instead of parking
+        // the caret at the stale trailing edge, which sat a full inserted-word left of the truth
+        // and bounced the overlay on the fresh walk. The overlay layout clamps to the usable
+        // frame at present time, so a wrap the frames cannot show yet over-extends rightward at
+        // worst, and the fresh walk settles it forward-only.
+        if placement.trailingGapCharacters > 0, let charWidth, charWidth > 0 {
+            caretX += charWidth * CGFloat(placement.trailingGapCharacters)
+        }
         return CaretGeometryResult(
             rect: CGRect(x: caretX, y: runFrame.minY, width: 2, height: runFrame.height),
             quality: .derived,
@@ -324,7 +333,33 @@ struct AXTextGeometryResolver {
         /// Position inside the run: 0 is the leading edge, 1 the trailing edge.
         let fraction: CGFloat
         let mode: CaretRunMappingMode
+        /// Characters the caret sits past the run's trailing edge when the parent value has grown
+        /// beyond the matched runs: the signature of text the host has published but whose run
+        /// frames have not reflowed yet (Cotabby's own just-accepted insert, or fast typing at
+        /// the document end against throttled frames). Callers extend the X estimate by this many
+        /// measured character widths instead of parking the caret at the stale trailing edge,
+        /// which sat a full word left of the truth. Zero when the caret lies inside a run, the
+        /// gap spans a line break (extrapolating across one would be wrong), or the gap is too
+        /// large to extrapolate credibly.
+        let trailingGapCharacters: Int
+
+        init(
+            runIndex: Int,
+            fraction: CGFloat,
+            mode: CaretRunMappingMode,
+            trailingGapCharacters: Int = 0
+        ) {
+            self.runIndex = runIndex
+            self.fraction = fraction
+            self.mode = mode
+            self.trailingGapCharacters = trailingGapCharacters
+        }
     }
+
+    /// Beyond this many characters of unmatched trailing text, per-character extrapolation stops
+    /// being credible (a large paste reflows everything anyway); the placement falls back to the
+    /// trailing-edge snap and lets the next fresh walk correct it.
+    private static let maximumExtrapolatedGapCharacters = 64
 
     /// Internal (not private) so the mapping math is unit-testable without live AX elements.
     static func caretRunPlacement(
@@ -346,7 +381,7 @@ struct AXTextGeometryResolver {
         let mode: CaretRunMappingMode = anchored.count == runTexts.count
             ? .aligned
             : .partiallyAligned
-        return placementAmongAnchors(anchored, caret: caret, mode: mode)
+        return placementAmongAnchors(anchored, caret: caret, mode: mode, parent: parent)
     }
 
     /// Anchors each run's text inside the parent value. Pass one accepts only boundary-clean
@@ -396,11 +431,14 @@ struct AXTextGeometryResolver {
     /// Maps the caret offset onto the anchored runs: inside a range is proportional, inside a
     /// separator gap snaps to the nearest rendered edge (a line break or a blank line the runs
     /// cannot represent — either choice is at most one line from the truth, which text alone
-    /// cannot resolve), and beyond every anchor lands on the last run's trailing edge.
+    /// cannot resolve), and beyond every anchor lands on the last run's trailing edge, extended
+    /// by the unmatched trailing characters when they are extrapolable (see
+    /// `CaretRunPlacement.trailingGapCharacters`).
     private static func placementAmongAnchors(
         _ anchored: [(runIndex: Int, range: NSRange)],
         caret: Int,
-        mode: CaretRunMappingMode
+        mode: CaretRunMappingMode,
+        parent: NSString
     ) -> CaretRunPlacement {
         for (position, entry) in anchored.enumerated() {
             if caret < entry.range.location {
@@ -408,7 +446,14 @@ struct AXTextGeometryResolver {
                     let previous = anchored[position - 1]
                     let previousEnd = previous.range.location + previous.range.length
                     if caret - previousEnd <= entry.range.location - caret {
-                        return CaretRunPlacement(runIndex: previous.runIndex, fraction: 1, mode: mode)
+                        return CaretRunPlacement(
+                            runIndex: previous.runIndex,
+                            fraction: 1,
+                            mode: mode,
+                            trailingGapCharacters: extrapolableGapCharacters(
+                                from: previousEnd, to: caret, in: parent
+                            )
+                        )
                     }
                 }
                 return CaretRunPlacement(runIndex: entry.runIndex, fraction: 0, mode: mode)
@@ -421,11 +466,31 @@ struct AXTextGeometryResolver {
             }
         }
 
+        let last = anchored[anchored.count - 1]
         return CaretRunPlacement(
-            runIndex: anchored[anchored.count - 1].runIndex,
+            runIndex: last.runIndex,
             fraction: 1,
-            mode: mode
+            mode: mode,
+            trailingGapCharacters: extrapolableGapCharacters(
+                from: last.range.location + last.range.length, to: caret, in: parent
+            )
         )
+    }
+
+    /// The number of characters between a run's trailing edge and the caret when extending the
+    /// caret estimate by that many measured character widths is credible: a short, same-line gap.
+    /// A gap containing a line break renders on another line entirely (the snap is closer to the
+    /// truth there), and a huge gap means a reflow-everything edit no linear extension can model.
+    private static func extrapolableGapCharacters(from runEnd: Int, to caret: Int, in parent: NSString) -> Int {
+        let gap = caret - runEnd
+        guard gap > 0, gap <= maximumExtrapolatedGapCharacters else {
+            return 0
+        }
+        let gapText = parent.substring(with: NSRange(location: runEnd, length: gap))
+        guard !gapText.contains(where: \.isNewline) else {
+            return 0
+        }
+        return gap
     }
 
     /// Maps non-breaking space variants to a plain space so matching survives hosts that mix the

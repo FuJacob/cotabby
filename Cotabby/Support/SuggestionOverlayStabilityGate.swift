@@ -50,13 +50,54 @@ enum SuggestionOverlayStabilityGate {
     /// poll tick snapped it back: the left-then-right accept jitter. While the field and text are
     /// unchanged, stale geometry is never worth re-anchoring to; the hold lasts at most one or two
     /// poll ticks because the sentinel clears the moment AX catches up.
+    /// How long after an acceptance a backward (against the writing direction) caret jump with
+    /// unchanged text is treated as stale geometry rather than a real move. Child-run hosts
+    /// publish the inserted VALUE tens of milliseconds before their run frames reflow, and the
+    /// run-walk throttle can stretch that to ~100ms more; measured stale-then-fresh re-anchor
+    /// pairs land 8-100ms after the accept. 300ms covers that with margin while keeping the
+    /// fail-safe: a host whose anchor genuinely needs a backward settle (slide overshoot in a
+    /// style-less host) still gets it once the window lapses.
+    static let backwardDriftHoldWindowMilliseconds = 300
+
+    /// Whether the caret moved in a way worth re-anchoring to: any vertical move past tolerance
+    /// (line change, scroll), or a horizontal move past tolerance UNLESS it points against the
+    /// writing direction inside the post-accept hold window. A same-line backward jump with
+    /// unchanged text right after an accept cannot be a real move: real backward moves change the
+    /// preceding text and tear the session down through the reconciler instead of reaching this
+    /// gate. What does reach it is stale geometry: child-run hosts publish the inserted value
+    /// before their run frames reflow, so the post-publish caret maps into pre-insert frames and
+    /// lands a word left of the overlay; re-anchoring there and snapping back on the fresh walk
+    /// was the runs-aligned accept jitter. Forward jumps stay re-anchorable (legitimate settles),
+    /// and the hold expires so a host that truly needs a backward correction gets it once
+    /// geometry has had time to catch up.
+    private static func caretDriftDemandsReAnchor(
+        currentGeometry: SuggestionOverlayGeometry,
+        newCaretRect: CGRect,
+        millisecondsSinceLastAcceptance: Int?
+    ) -> Bool {
+        if abs(currentGeometry.caretRect.origin.y - newCaretRect.origin.y) > caretDriftTolerance {
+            return true
+        }
+        let deltaX = newCaretRect.origin.x - currentGeometry.caretRect.origin.x
+        guard abs(deltaX) > caretDriftTolerance else {
+            return false
+        }
+        let isBackward = currentGeometry.isRightToLeft
+            ? deltaX > caretDriftTolerance
+            : deltaX < -caretDriftTolerance
+        let insideHoldWindow = millisecondsSinceLastAcceptance
+            .map { $0 <= backwardDriftHoldWindowMilliseconds } ?? false
+        return !(isBackward && insideHoldWindow)
+    }
+
     static func shouldRePresent(
         currentOverlay: OverlayState,
         newText: String,
         newCaretRect: CGRect,
         newInputFrameRect: CGRect?,
         newFocusChangeSequence: UInt64,
-        isAwaitingPostInsertionSync: Bool = false
+        isAwaitingPostInsertionSync: Bool = false,
+        millisecondsSinceLastAcceptance: Int? = nil
     ) -> Bool {
         // Render mode is the third associated value; it is not part of the stability decision, so
         // we ignore it. A mode change still re-anchors because text or geometry will also differ.
@@ -81,15 +122,13 @@ enum SuggestionOverlayStabilityGate {
         // estimate; treating that gap as caret drift re-presented (and re-estimated) on every
         // reconcile tick. With text and field unchanged the estimate is pure-function stable, so
         // only the frame check below can demand a re-anchor for these overlays.
-        if currentGeometry.caretQuality != .layoutEstimated {
-            // Hold small caret deltas (post-insertion AX noise and exact-advance residual); re-anchor
-            // on genuine moves and on accumulated drift past the tolerance. Compared against the held
-            // (already-advanced) caret, not a per-tick previous value, so slow drift still gets
-            // corrected.
-            if abs(currentGeometry.caretRect.origin.x - newCaretRect.origin.x) > caretDriftTolerance
-                || abs(currentGeometry.caretRect.origin.y - newCaretRect.origin.y) > caretDriftTolerance {
-                return true
-            }
+        if currentGeometry.caretQuality != .layoutEstimated,
+           caretDriftDemandsReAnchor(
+               currentGeometry: currentGeometry,
+               newCaretRect: newCaretRect,
+               millisecondsSinceLastAcceptance: millisecondsSinceLastAcceptance
+           ) {
+            return true
         }
         // `observedCharWidth` is intentionally NOT compared here. Drift in that value also affects
         // `GhostSuggestionLayout.singleLineFits` (and therefore the panel-origin branch), so during

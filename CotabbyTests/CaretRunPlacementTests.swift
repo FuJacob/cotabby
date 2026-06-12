@@ -169,4 +169,57 @@ final class CaretRunPlacementTests: XCTestCase {
         XCTAssertEqual(midWanted?.runIndex, 4)
         XCTAssertEqual(midWanted?.mode, .aligned)
     }
+
+    // MARK: - Trailing-gap extrapolation (text published before run frames reflow)
+
+    func test_placement_textGrownPastTheLastRunReportsTheTrailingGap() {
+        // The accept-time staleness signature: the parent value already contains the inserted
+        // " world" but the cached runs predate it. Parking the caret at the stale trailing edge
+        // sat a full word left of the truth; the gap count lets the caller extend the estimate by
+        // measured character widths instead.
+        let result = placement(runs: ["Hello"], parent: "Hello world", caret: 11)
+
+        XCTAssertEqual(
+            result,
+            Placement(runIndex: 0, fraction: 1, mode: .aligned, trailingGapCharacters: 6)
+        )
+    }
+
+    func test_placement_interiorGapNearThePreviousEdgeReportsTheGap() {
+        // Insert before a later block: the caret sits in the widened separator gap, nearer the
+        // run it extends; the gap is extrapolable because it stays on the same line.
+        let result = placement(runs: ["Hello", "later block"], parent: "Hello inserted\nlater block", caret: 8)
+
+        XCTAssertEqual(
+            result,
+            Placement(runIndex: 0, fraction: 1, mode: .aligned, trailingGapCharacters: 3)
+        )
+    }
+
+    func test_placement_gapSpanningALineBreakKeepsTheSnap() {
+        // A newline in the gap means the caret renders on another line entirely; linear
+        // extrapolation along X would be wrong, so the trailing-edge snap stays.
+        let result = placement(runs: ["Hello"], parent: "Hello\nworld", caret: 11)
+
+        XCTAssertEqual(
+            result,
+            Placement(runIndex: 0, fraction: 1, mode: .aligned, trailingGapCharacters: 0)
+        )
+    }
+
+    func test_placement_hugeTrailingGapRefusesExtrapolation() {
+        // A reflow-everything edit (large paste) cannot be modeled by a linear extension; fall
+        // back to the snap and let the fresh walk correct.
+        let pasted = String(repeating: "a", count: 80)
+        let result = placement(runs: ["Hello"], parent: "Hello " + pasted, caret: 6 + 80)
+
+        XCTAssertEqual(result?.trailingGapCharacters, 0)
+        XCTAssertEqual(result?.fraction ?? -1, 1, accuracy: 0.001)
+    }
+
+    func test_placement_caretInsideARunReportsNoGap() {
+        let result = placement(runs: ["Hello world"], parent: "Hello world", caret: 5)
+
+        XCTAssertEqual(result?.trailingGapCharacters, 0)
+    }
 }

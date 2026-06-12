@@ -550,6 +550,7 @@ extension SuggestionCoordinator {
             return
         }
 
+        focusModel.invalidateTransientCaretCaches()
         cancelPredictionWork()
         clearSuggestion(clearDiagnostics: false)
         hideOverlay(reason: "Overlay hidden because Cotabby automatically fixed a typo.")
@@ -924,7 +925,10 @@ extension SuggestionCoordinator {
             newFocusChangeSequence: liveContext.focusChangeSequence,
             // While the host has not published our own synthetic insert, this snapshot's caret is
             // the pre-insertion one; re-anchoring to it is the left-then-right accept jitter.
-            isAwaitingPostInsertionSync: interactionState.isAwaitingPostInsertionSync
+            isAwaitingPostInsertionSync: interactionState.isAwaitingPostInsertionSync,
+            millisecondsSinceLastAcceptance: lastAcceptanceAt.map {
+                Int(Date().timeIntervalSince($0) * 1000)
+            }
         ) {
             presentOverlay(
                 text: reconciledSession.remainingText,

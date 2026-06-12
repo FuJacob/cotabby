@@ -253,8 +253,12 @@ final class OverlayController: SuggestionOverlayControlling {
         // pixel-identical ghost-width slide: its anchors are approximate either way, and observed
         // char-width hosts already correct through their own machinery.
         let shift: CGFloat
-        if geometry.caretQuality == .exact,
-           let hostAdvance = InsertedTextAdvance.width(of: insertedText, style: geometry.resolvedFieldStyle) {
+        if geometry.caretQuality == .exact || geometry.caretQuality == .derived,
+           let hostAdvance = InsertedTextAdvance.width(
+               of: insertedText,
+               observedCharWidth: geometry.observedCharWidth,
+               style: geometry.resolvedFieldStyle
+           ) {
             shift = hostAdvance
         } else {
             shift = GhostSuggestionLayout.renderedWidth(of: beforeText, font: renderFont)

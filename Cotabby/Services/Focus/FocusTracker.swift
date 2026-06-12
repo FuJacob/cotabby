@@ -171,6 +171,12 @@ final class FocusTracker {
         rescheduleTimerIfIntervalChanged()
     }
 
+    /// Drops resolver caches whose contents Cotabby just made stale by mutating the focused field
+    /// itself (the static-run walk after a synthetic insert). The next capture pays fresh walks.
+    func invalidateTransientCaretCaches() {
+        snapshotResolver.invalidateStaticRunWalkCache()
+    }
+
     /// Timer entry point: capture once, fold the result into idle backoff, then re-arm the timer at
     /// the backoff-derived interval.
     ///

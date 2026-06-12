@@ -26,6 +26,18 @@ final class StaticTextRunWalkThrottle {
     // no main-actor hop. Same workaround as `EmojiUsageStore` and `SystemMetricsStore`.
     nonisolated deinit {}
 
+    /// Drops the cached walk so the next caller pays a fresh one regardless of the window.
+    ///
+    /// Called after Cotabby's own synthetic insert: the cached run texts predate the inserted
+    /// chunk, so mapping the post-publish caret against them lands on the pre-insert position
+    /// (the accept-time jitter). Invalidation cannot fix the host's own reflow lag, but it
+    /// removes the up-to-one-interval of staleness this throttle would otherwise add on top.
+    func invalidate() {
+        lastSequence = nil
+        lastWalkAt = nil
+        cachedRuns = nil
+    }
+
     /// Runs `walk` only when the throttle window elapsed or the focused field changed; otherwise
     /// returns the previous run list (including a cached empty result). `now` is injectable for
     /// tests.

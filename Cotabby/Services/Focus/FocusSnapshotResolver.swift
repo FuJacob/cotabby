@@ -53,6 +53,14 @@ struct FocusSnapshotResolver {
         self.geometryResolver = geometryResolver ?? AXTextGeometryResolver()
     }
 
+    /// Drops the cached static-text-run walk so the next capture pays a fresh one. Called through
+    /// the focus provider after Cotabby's own synthetic insert: the cached run texts predate the
+    /// inserted chunk, and mapping the published caret against them lands a word left of the
+    /// truth (the accept-time jitter on child-run hosts).
+    func invalidateStaticRunWalkCache() {
+        staticRunWalkThrottle.invalidate()
+    }
+
     /// Resolves the best editable candidate around the focused AX node and materializes a focus snapshot.
     ///
     /// `focusChangeSequence` is a monotonic counter owned by `FocusTracker`. The resolver threads

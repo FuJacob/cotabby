@@ -79,6 +79,29 @@ final class InsertedTextAdvanceTests: XCTestCase {
         XCTAssertGreaterThan(withHostFont.origin.x, oldCaret.origin.x)
     }
 
+    func test_width_prefersTheMeasuredRunCharWidthOverTheResolvedFont() throws {
+        // Child-run derived hosts measure the average character width from the host's own rendered
+        // run frames; that direct measurement outranks any font-based approximation.
+        let style = ResolvedFieldStyle(fontName: "Helvetica", fontPointSize: 12, colorHex: nil)
+        let measured = try XCTUnwrap(
+            InsertedTextAdvance.width(of: " world", observedCharWidth: 7.5, style: style)
+        )
+        XCTAssertEqual(measured, 7.5 * 6, accuracy: 0.001)
+
+        // Without the measurement the resolved font carries the estimate.
+        let viaFont = try XCTUnwrap(
+            InsertedTextAdvance.width(of: " world", observedCharWidth: nil, style: style)
+        )
+        XCTAssertEqual(
+            viaFont,
+            try XCTUnwrap(InsertedTextAdvance.width(of: " world", style: style)),
+            accuracy: 0.001
+        )
+
+        XCTAssertNil(InsertedTextAdvance.width(of: " world", observedCharWidth: nil, style: nil))
+        XCTAssertNil(InsertedTextAdvance.width(of: "", observedCharWidth: 7.5, style: style))
+    }
+
     func test_width_refusesUnusableInputs() {
         XCTAssertNil(InsertedTextAdvance.width(of: "", style: ResolvedFieldStyle(fontName: "Helvetica", fontPointSize: 12, colorHex: nil)))
         XCTAssertNil(InsertedTextAdvance.width(of: " world", style: nil))

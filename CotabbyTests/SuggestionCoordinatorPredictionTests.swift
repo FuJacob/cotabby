@@ -374,6 +374,23 @@ final class SuggestionCoordinatorPredictionTests: XCTestCase {
         XCTAssertEqual(rig.overlayController.advanceInlineCalls.first?.inserted, " world")
     }
 
+    func test_accept_stampsTheAcceptanceAndInvalidatesTransientCaretCaches() {
+        // Child-run hosts cache their static-run walk; after our own insert those cached runs
+        // predate the inserted chunk and would map the published caret a word left. The accept
+        // must invalidate that cache and stamp the acceptance time so the stability gate can
+        // scope its backward-drift hold.
+        let rig = retained(makeCoordinatorRig())
+        let context = FocusedInputContext(snapshot: rig.focusProvider.snapshot.context!, generation: 1)
+        _ = rig.interactionState.startSession(fullText: " world again", liveContext: context, latency: 0.05)
+        rig.overlayController.showSuggestion(" world again", geometry: CotabbyTestFixtures.overlayGeometry())
+
+        XCTAssertNil(rig.coordinator.lastAcceptanceAt)
+        XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
+
+        XCTAssertNotNil(rig.coordinator.lastAcceptanceAt)
+        XCTAssertEqual(rig.focusProvider.transientCaretCacheInvalidations, 1)
+    }
+
     func test_reconcileDuringPostInsertionSyncWindow_neverReAnchorsTheOverlay() {
         // The TextEdit accept jitter: Tab inserts " world" and the overlay advances immediately,
         // but the +30ms refresh can read AX BEFORE the host publishes the insert. That snapshot's

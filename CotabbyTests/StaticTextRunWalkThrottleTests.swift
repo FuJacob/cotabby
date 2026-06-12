@@ -98,4 +98,30 @@ final class StaticTextRunWalkThrottleTests: XCTestCase {
         XCTAssertTrue(first.isEmpty)
         XCTAssertTrue(second.isEmpty)
     }
+
+    func test_invalidate_forcesAFreshWalkInsideTheWindow() {
+        // After Cotabby's own synthetic insert the cached run texts predate the inserted chunk;
+        // invalidation makes the next caller walk fresh frames even though neither the field nor
+        // the window changed.
+        let throttle = StaticTextRunWalkThrottle()
+        let start = Date(timeIntervalSinceReferenceDate: 100)
+        var walkCount = 0
+
+        _ = throttle.runs(focusChangeSequence: 1, interval: 0.1, now: start) {
+            walkCount += 1
+            return runA
+        }
+        throttle.invalidate()
+        let afterInvalidation = throttle.runs(
+            focusChangeSequence: 1,
+            interval: 0.1,
+            now: start.addingTimeInterval(0.01)
+        ) {
+            walkCount += 1
+            return runB
+        }
+
+        XCTAssertEqual(walkCount, 2)
+        XCTAssertEqual(afterInvalidation.map(\.text), ["beta"])
+    }
 }

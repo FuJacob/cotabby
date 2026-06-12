@@ -121,7 +121,7 @@ struct FocusInspectionSnapshot: Equatable {
 /// Every field is optional: any attribute the host does not expose stays nil and the overlay falls
 /// back to its default styling. Stored as plain value types (no `NSFont`/`NSColor`) so the snapshot
 /// stays `Equatable`/`Sendable` and is cheap to carry across async boundaries.
-struct ResolvedFieldStyle: Equatable, Sendable {
+nonisolated struct ResolvedFieldStyle: Equatable, Sendable {
     /// PostScript font name suitable for `NSFont(name:size:)`.
     let fontName: String?
     /// Host-reported point size, used only as the reference for scale-invariant metric sizing.
@@ -148,7 +148,7 @@ nonisolated struct ObservedContentEdges: Equatable, Sendable {
 
 /// This snapshot is the future handoff point into suggestion generation.
 /// We store enough information to understand text context and caret placement without generating yet.
-struct FocusedInputSnapshot: Equatable {
+nonisolated struct FocusedInputSnapshot: Equatable {
     let applicationName: String
     let bundleIdentifier: String
     let processIdentifier: Int32

@@ -32,12 +32,20 @@ protocol SuggestionFocusProviding: AnyObject {
     var millisecondsSinceLastCapture: Int? { get }
 
     func refreshNow()
+
+    /// Hint that Cotabby just mutated the focused field itself (synthetic insert or replace), so
+    /// provider-side caches built from pre-mutation reads must not serve the next capture.
+    /// Providers without such caches use the default no-op.
+    func invalidateTransientCaretCaches()
 }
 
 extension SuggestionFocusProviding {
     /// Conservative default: age unknown, so `refreshIfStale` always refreshes. Production
     /// providers report a real age; test fakes can ignore freshness entirely.
     var millisecondsSinceLastCapture: Int? { nil }
+
+    /// Default: nothing cached, nothing to invalidate.
+    func invalidateTransientCaretCaches() {}
 
     /// Refreshes only when the last capture is older than `maxAgeMilliseconds`. The suggestion
     /// pipeline performs several captures per keystroke (host-publish poll, post-debounce check,

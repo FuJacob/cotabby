@@ -1,7 +1,7 @@
 import Foundation
 
 /// One remembered suggestion, anchored to the text that preceded it.
-struct SuggestionAnchor: Equatable {
+nonisolated struct SuggestionAnchor: Equatable {
     /// `FocusedInputContext.focusedInputIdentityKey` of the field the suggestion belonged to.
     let identityKey: UInt64
     /// The tail of `precedingText` at generation time (bounded; see `prefixTailLength`).

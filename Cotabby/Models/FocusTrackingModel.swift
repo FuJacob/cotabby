@@ -71,6 +71,12 @@ final class FocusTrackingModel: ObservableObject {
         tracker.refreshNow()
     }
 
+    /// Forwards the coordinator's "I just mutated the focused field" hint so resolver caches that
+    /// predate the mutation cannot serve stale geometry to the next capture.
+    func invalidateTransientCaretCaches() {
+        tracker.invalidateTransientCaretCaches()
+    }
+
     /// Updates the AX polling interval at runtime. Restarts the timer if already running.
     func updatePollInterval(milliseconds: Int) {
         tracker.updatePollInterval(TimeInterval(milliseconds) / 1000.0)

@@ -398,4 +398,140 @@ final class SuggestionOverlayStabilityGateTests: XCTestCase {
             )
         )
     }
+
+    // MARK: - Backward drift after an accept (stale child-run frames)
+
+    func test_backwardDriftShortlyAfterAnAccept_holds() {
+        // Child-run hosts publish the inserted value before their run frames reflow, so the
+        // post-publish caret maps into pre-insert frames and lands a word LEFT of the overlay.
+        // Re-anchoring there and snapping back on the fresh walk was the runs-aligned accept
+        // jitter; within the post-accept window a same-line backward jump is always staleness.
+        let current: OverlayState = .visible(
+            text: " again",
+            geometry: Self.geometry(caretRect: CGRect(x: 320, y: 210, width: 2, height: 18)),
+            mode: .inline
+        )
+
+        XCTAssertFalse(
+            SuggestionOverlayStabilityGate.shouldRePresent(
+                currentOverlay: current,
+                newText: " again",
+                newCaretRect: Self.caretRect,
+                newInputFrameRect: Self.inputFrame,
+                newFocusChangeSequence: 7,
+                millisecondsSinceLastAcceptance: 80
+            )
+        )
+    }
+
+    func test_backwardDriftOutsideTheAcceptWindow_reAnchors() {
+        // The hold is a staleness shield, not a one-way ratchet: once geometry has had time to
+        // catch up, a backward correction (e.g. settling a slide overshoot in a style-less host)
+        // must still land.
+        let current: OverlayState = .visible(
+            text: " again",
+            geometry: Self.geometry(caretRect: CGRect(x: 320, y: 210, width: 2, height: 18)),
+            mode: .inline
+        )
+
+        XCTAssertTrue(
+            SuggestionOverlayStabilityGate.shouldRePresent(
+                currentOverlay: current,
+                newText: " again",
+                newCaretRect: Self.caretRect,
+                newInputFrameRect: Self.inputFrame,
+                newFocusChangeSequence: 7,
+                millisecondsSinceLastAcceptance: 800
+            )
+        )
+        XCTAssertTrue(
+            SuggestionOverlayStabilityGate.shouldRePresent(
+                currentOverlay: current,
+                newText: " again",
+                newCaretRect: Self.caretRect,
+                newInputFrameRect: Self.inputFrame,
+                newFocusChangeSequence: 7,
+                millisecondsSinceLastAcceptance: nil
+            ),
+            "No recorded acceptance means no staleness shield"
+        )
+    }
+
+    func test_forwardDriftInsideTheAcceptWindow_stillReAnchors() {
+        // Forward jumps are the legitimate settles (the host published and the caret moved on);
+        // the directional hold must not block them.
+        let current: OverlayState = .visible(
+            text: " again",
+            geometry: Self.geometry(),
+            mode: .inline
+        )
+
+        XCTAssertTrue(
+            SuggestionOverlayStabilityGate.shouldRePresent(
+                currentOverlay: current,
+                newText: " again",
+                newCaretRect: Self.caretRect.offsetBy(dx: 40, dy: 0),
+                newInputFrameRect: Self.inputFrame,
+                newFocusChangeSequence: 7,
+                millisecondsSinceLastAcceptance: 80
+            )
+        )
+    }
+
+    func test_backwardDriftWithALineChange_reAnchors() {
+        // A vertical move past tolerance is a real line change (wrap, scroll); direction on X no
+        // longer marks it as stale.
+        let current: OverlayState = .visible(
+            text: " again",
+            geometry: Self.geometry(caretRect: CGRect(x: 320, y: 210, width: 2, height: 18)),
+            mode: .inline
+        )
+
+        XCTAssertTrue(
+            SuggestionOverlayStabilityGate.shouldRePresent(
+                currentOverlay: current,
+                newText: " again",
+                newCaretRect: CGRect(x: 140, y: 240, width: 2, height: 18),
+                newInputFrameRect: Self.inputFrame,
+                newFocusChangeSequence: 7,
+                millisecondsSinceLastAcceptance: 80
+            )
+        )
+    }
+
+    func test_backwardDriftForRTL_isMirrored() {
+        // In RTL the caret advances leftward, so "backward" staleness arrives as a RIGHTWARD jump.
+        let rtlGeometry = SuggestionOverlayGeometry(
+            caretRect: Self.caretRect,
+            inputFrameRect: Self.inputFrame,
+            caretQuality: .exact,
+            observedCharWidth: 8,
+            isRightToLeft: true,
+            focusChangeSequence: 7
+        )
+        let current: OverlayState = .visible(text: " again", geometry: rtlGeometry, mode: .inline)
+
+        XCTAssertFalse(
+            SuggestionOverlayStabilityGate.shouldRePresent(
+                currentOverlay: current,
+                newText: " again",
+                newCaretRect: Self.caretRect.offsetBy(dx: 60, dy: 0),
+                newInputFrameRect: Self.inputFrame,
+                newFocusChangeSequence: 7,
+                millisecondsSinceLastAcceptance: 80
+            ),
+            "A rightward jump is against the RTL writing direction and must be held in the window"
+        )
+        XCTAssertTrue(
+            SuggestionOverlayStabilityGate.shouldRePresent(
+                currentOverlay: current,
+                newText: " again",
+                newCaretRect: Self.caretRect.offsetBy(dx: -60, dy: 0),
+                newInputFrameRect: Self.inputFrame,
+                newFocusChangeSequence: 7,
+                millisecondsSinceLastAcceptance: 80
+            ),
+            "A leftward jump is the RTL forward direction and stays re-anchorable"
+        )
+    }
 }

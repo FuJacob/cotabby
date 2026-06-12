@@ -14,6 +14,24 @@ import AppKit
 /// keeps the anchor aligned with where AX will report the caret once the host publishes the
 /// insert, so post-accept reconciles have nothing to correct.
 nonisolated enum InsertedTextAdvance {
+    /// The caret's travel for `text` using the best host measurement available: the run-frame
+    /// average character width first (a direct measurement of the host's rendered glyphs, present
+    /// on child-run derived hosts), then the field's resolved font. Nil when neither exists, so
+    /// callers keep their previous approximation.
+    static func width(
+        of text: String,
+        observedCharWidth: CGFloat?,
+        style: ResolvedFieldStyle?
+    ) -> CGFloat? {
+        guard !text.isEmpty else {
+            return nil
+        }
+        if let observedCharWidth, observedCharWidth > 0 {
+            return observedCharWidth * CGFloat((text as NSString).length)
+        }
+        return width(of: text, style: style)
+    }
+
     /// Width of `text` in the field's resolved font, or nil when the style does not carry a
     /// usable font (callers keep their previous approximation).
     ///

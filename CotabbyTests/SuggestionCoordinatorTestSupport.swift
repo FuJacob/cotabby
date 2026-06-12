@@ -30,6 +30,7 @@ final class RigPermissionProvider: SuggestionPermissionProviding {
 final class RigFocusProvider: SuggestionFocusProviding {
     var snapshot: FocusSnapshot
     private(set) var refreshCount = 0
+    private(set) var transientCaretCacheInvalidations = 0
 
     let snapshotSubject = PassthroughSubject<FocusSnapshot, Never>()
 
@@ -43,6 +44,10 @@ final class RigFocusProvider: SuggestionFocusProviding {
 
     func refreshNow() {
         refreshCount += 1
+    }
+
+    func invalidateTransientCaretCaches() {
+        transientCaretCacheInvalidations += 1
     }
 }
 
