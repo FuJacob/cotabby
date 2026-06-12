@@ -19,7 +19,7 @@ final class SuggestionCoordinatorAcceptanceTests: XCTestCase {
     }
 
     func test_acceptCurrentSuggestionAllowsVisibleSessionWhileDebugStateIsDebouncing() {
-        runOnMainActor {
+        let coordinator: SuggestionCoordinator = runOnMainActor {
             let snapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello")
             let context = FocusedInputContext(snapshot: snapshot, generation: 7)
             let interactionState = SuggestionInteractionState()
@@ -51,12 +51,23 @@ final class SuggestionCoordinatorAcceptanceTests: XCTestCase {
             XCTAssertTrue(coordinator.acceptCurrentSuggestion())
 
             XCTAssertEqual(inserter.insertedChunks, [" world"])
-            XCTAssertEqual(coordinator.latestAcceptanceAction, "Accepted next chunk with Tab.")
-            guard case let .ready(remainingText, _) = coordinator.state else {
+            if case let .ready(remainingText, _) = coordinator.state {
+                XCTAssertEqual(remainingText, " again")
+            } else {
                 XCTFail("Partial acceptance should leave the remaining suggestion ready.")
-                return
             }
-            XCTAssertEqual(remainingText, " again")
+            return coordinator
+        }
+
+        // Acceptance bookkeeping (diagnostics publishes, counters, stage logs) lands one runloop
+        // hop after the gating tap callback returns (`deferAcceptanceBookkeeping`); drain that hop
+        // before asserting on it. The session math and overlay state above are still synchronous.
+        let bookkeepingDrained = expectation(description: "acceptance bookkeeping hop")
+        DispatchQueue.main.async { bookkeepingDrained.fulfill() }
+        wait(for: [bookkeepingDrained], timeout: 1.0)
+
+        runOnMainActor {
+            XCTAssertEqual(coordinator.latestAcceptanceAction, "Accepted next chunk with Tab.")
         }
     }
 

@@ -114,7 +114,9 @@ extension SuggestionCoordinator {
             return false
         }
 
-        recordAcceptedWords(from: acceptedChunk)
+        deferAcceptanceBookkeeping { [weak self] in
+            self?.recordAcceptedWords(from: acceptedChunk)
+        }
 
         cancelPredictionWork()
 
@@ -133,13 +135,16 @@ extension SuggestionCoordinator {
             // a regeneration that only re-proposes the same tail before the host publishes the insert
             // (see the `schedulePredictionAfterHostPublishDelay` rationale below).
             lastAcceptedTail = AcceptedSuggestionTail(text: acceptedChunk, precedingText: liveContext.precedingText)
-            logStage(
-                "\(keyName)-accepted-final-chunk",
-                workID: currentWorkID,
-                generation: liveContext.generation,
-                message: "Inserted the final suggestion chunk and queued a refresh.",
-                normalizedOutput: acceptedChunk
-            )
+            let workID = currentWorkID
+            deferAcceptanceBookkeeping { [weak self] in
+                self?.logStage(
+                    "\(keyName)-accepted-final-chunk",
+                    workID: workID,
+                    generation: liveContext.generation,
+                    message: "Inserted the final suggestion chunk and queued a refresh.",
+                    normalizedOutput: acceptedChunk
+                )
+            }
             // Keep owning Tab while the continuation regenerates so a fast follow-up press is
             // swallowed and queued instead of leaking into the host app as a real Tab. Must run
             // *after* the `hideOverlay` above, which routes through `onStateChange(.hidden)` and
@@ -157,22 +162,45 @@ extension SuggestionCoordinator {
 
         case let .advanced(advancedSession, _):
             latestGenerationNumber = liveContext.generation
-            applySessionDiagnostics(advancedSession, acceptanceAction: "Accepted next chunk with \(keyName).")
             state = .ready(text: advancedSession.remainingText, latency: advancedSession.latency)
+            // The overlay slide stays synchronous on purpose: acceptance validation compares the
+            // visible overlay text against the session tail, so a deferred slide could make a
+            // rapid follow-up Tab read a stale overlay and pass through to the host.
             presentAdvancedOverlay(
                 remainingText: advancedSession.remainingText,
                 insertionChunk: insertionChunk,
                 liveContext: liveContext
             )
             schedulePostInsertionRefresh()
-            logStage(
-                "\(keyName)-accepted-chunk",
-                workID: currentWorkID,
-                generation: liveContext.generation,
-                message: "Inserted the next suggestion chunk and kept the remaining tail active.",
-                normalizedOutput: acceptedChunk
-            )
+            let workID = currentWorkID
+            deferAcceptanceBookkeeping { [weak self] in
+                self?.applySessionDiagnostics(
+                    advancedSession,
+                    acceptanceAction: "Accepted next chunk with \(keyName)."
+                )
+                self?.logStage(
+                    "\(keyName)-accepted-chunk",
+                    workID: workID,
+                    generation: liveContext.generation,
+                    message: "Inserted the next suggestion chunk and kept the remaining tail active.",
+                    normalizedOutput: acceptedChunk
+                )
+            }
             return true
+        }
+    }
+
+    /// Runs acceptance bookkeeping one runloop hop after the consuming tap callback returns.
+    ///
+    /// While ghost text is visible the accept tap gates every keyDown system-wide, and the whole
+    /// acceptance executes inside that callback before the original key is released. Work that
+    /// neither decides consumption nor upholds the overlay/session invariant (counter persistence,
+    /// stage logging, diagnostics publishes) does not belong on that synchronous path; a
+    /// `UserDefaults` write in particular can stall on the preferences daemon at the worst moment.
+    /// Captured values keep the deferred log lines describing the accept that scheduled them.
+    private func deferAcceptanceBookkeeping(_ work: @escaping @MainActor () -> Void) {
+        DispatchQueue.main.async {
+            work()
         }
     }
 
@@ -279,20 +307,23 @@ extension SuggestionCoordinator {
             return false
         }
 
-        recordAcceptedWords(from: replacement.replacementText)
         cancelPredictionWork()
         latestGenerationNumber = session.baseContext.generation
         clearSuggestion(clearDiagnostics: false)
         hideOverlay(reason: "Overlay hidden because \(keyName) accepted a typo correction.")
-        latestAcceptanceAction = "Accepted typo correction with \(keyName)."
         state = .idle
-        logStage(
-            "\(keyName)-accepted-correction",
-            workID: currentWorkID,
-            generation: session.baseContext.generation,
-            message: "Replaced the user's last word with the corrected version.",
-            normalizedOutput: replacement.replacementText
-        )
+        let workID = currentWorkID
+        deferAcceptanceBookkeeping { [weak self] in
+            self?.recordAcceptedWords(from: replacement.replacementText)
+            self?.latestAcceptanceAction = "Accepted typo correction with \(keyName)."
+            self?.logStage(
+                "\(keyName)-accepted-correction",
+                workID: workID,
+                generation: session.baseContext.generation,
+                message: "Replaced the user's last word with the corrected version.",
+                normalizedOutput: replacement.replacementText
+            )
+        }
         // Re-arm prediction so the next keystroke can produce a fresh continuation now that the typo
         // is gone — the user usually keeps typing right after accepting.
         schedulePrediction()
@@ -310,12 +341,15 @@ extension SuggestionCoordinator {
         clearSuggestion(clearDiagnostics: true)
         hideOverlay(reason: reason)
         state = .idle
-        logStage(
-            "tab-passed-through",
-            workID: currentWorkID,
-            generation: generation,
-            message: reason
-        )
+        let workID = currentWorkID
+        deferAcceptanceBookkeeping { [weak self] in
+            self?.logStage(
+                "tab-passed-through",
+                workID: workID,
+                generation: generation,
+                message: reason
+            )
+        }
         return false
     }
 
