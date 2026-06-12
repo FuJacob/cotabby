@@ -69,10 +69,13 @@ final class EmojiUsageStoreTests: XCTestCase {
             }
 
             let snapshot = sut.snapshot()
-            XCTAssertLessThanOrEqual(
+            // Exactly 220: the 301st unique alias trips the cap and trims down to the 200 target,
+            // and the remaining 20 flood inserts land afterwards. An exact bound catches both a
+            // trim that never fires and one that removes fewer entries than the target demands.
+            XCTAssertEqual(
                 snapshot.frequency.count,
-                300,
-                "The frequency map must stay bounded instead of growing one entry per unique emoji forever."
+                220,
+                "The frequency map must trim to its target instead of growing one entry per unique emoji forever."
             )
             XCTAssertEqual(
                 snapshot.frequency["joy"],

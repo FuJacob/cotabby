@@ -89,7 +89,11 @@ final class EmojiUsageStore {
         let removable = frequency
             .filter { !keepAlways.contains($0.key) }
             .sorted { $0.value < $1.value }
-        let overflow = frequency.count - Self.frequencyTrimTarget
+        // The effective floor is the larger of the trim target and the protected recents, so the
+        // bound holds by construction even if `recentsCap` is ever raised past
+        // `frequencyTrimTarget` instead of silently under-trimming.
+        let effectiveTarget = max(Self.frequencyTrimTarget, keepAlways.count)
+        let overflow = frequency.count - effectiveTarget
         for (alias, _) in removable.prefix(overflow) {
             frequency.removeValue(forKey: alias)
         }
