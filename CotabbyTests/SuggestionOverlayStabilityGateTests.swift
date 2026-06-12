@@ -253,4 +253,81 @@ final class SuggestionOverlayStabilityGateTests: XCTestCase {
             )
         )
     }
+
+    // MARK: - Post-insertion sync window
+
+    func test_awaitingPostInsertionSync_holdsEvenAcrossAWordWidthOfCaretDrift() {
+        // The +30ms refresh racing the host publish reads the PRE-insertion caret, a full accepted
+        // word left of where the overlay correctly sits. The drift tolerance cannot tell that from
+        // a genuine caret move; only the awaiting flag can, and it must win. This is the TextEdit
+        // left-then-right accept jitter.
+        let current: OverlayState = .visible(
+            text: " again",
+            geometry: Self.geometry(caretRect: CGRect(x: 180, y: 210, width: 2, height: 18)),
+            mode: .inline
+        )
+
+        XCTAssertFalse(
+            SuggestionOverlayStabilityGate.shouldRePresent(
+                currentOverlay: current,
+                newText: " again",
+                newCaretRect: Self.caretRect,
+                newInputFrameRect: Self.inputFrame,
+                newFocusChangeSequence: 7,
+                isAwaitingPostInsertionSync: true
+            )
+        )
+    }
+
+    func test_awaitingPostInsertionSync_stillReAnchorsOnFieldOrTextChange() {
+        // The hold only covers stale geometry for the same field and text: a real field switch or
+        // a text change mid-window must keep re-anchoring.
+        let current: OverlayState = .visible(
+            text: " again",
+            geometry: Self.geometry(),
+            mode: .inline
+        )
+
+        XCTAssertTrue(
+            SuggestionOverlayStabilityGate.shouldRePresent(
+                currentOverlay: current,
+                newText: " again",
+                newCaretRect: Self.caretRect,
+                newInputFrameRect: Self.inputFrame,
+                newFocusChangeSequence: 8,
+                isAwaitingPostInsertionSync: true
+            )
+        )
+        XCTAssertTrue(
+            SuggestionOverlayStabilityGate.shouldRePresent(
+                currentOverlay: current,
+                newText: " different tail",
+                newCaretRect: Self.caretRect,
+                newInputFrameRect: Self.inputFrame,
+                newFocusChangeSequence: 7,
+                isAwaitingPostInsertionSync: true
+            )
+        )
+    }
+
+    func test_syncCleared_wordWidthDriftReAnchorsAgain() {
+        // Once the host publishes (the sentinel clears), the same drift must re-anchor: that is
+        // the legitimate settle onto the real caret.
+        let current: OverlayState = .visible(
+            text: " again",
+            geometry: Self.geometry(caretRect: CGRect(x: 180, y: 210, width: 2, height: 18)),
+            mode: .inline
+        )
+
+        XCTAssertTrue(
+            SuggestionOverlayStabilityGate.shouldRePresent(
+                currentOverlay: current,
+                newText: " again",
+                newCaretRect: Self.caretRect,
+                newInputFrameRect: Self.inputFrame,
+                newFocusChangeSequence: 7,
+                isAwaitingPostInsertionSync: false
+            )
+        )
+    }
 }

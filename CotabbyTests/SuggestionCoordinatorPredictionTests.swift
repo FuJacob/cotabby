@@ -336,6 +336,57 @@ final class SuggestionCoordinatorPredictionTests: XCTestCase {
         XCTAssertFalse(rig.coordinator.overlayState.isVisible)
     }
 
+    // MARK: - Post-insertion stillness
+
+    func test_reconcileDuringPostInsertionSyncWindow_neverReAnchorsTheOverlay() {
+        // The TextEdit accept jitter: Tab inserts " world" and the overlay advances immediately,
+        // but the +30ms refresh can read AX BEFORE the host publishes the insert. That snapshot's
+        // caret is the pre-insertion one, a full word left of the overlay; re-presenting there
+        // jumped the ghost left, and the post-publish poll snapped it back right. While the
+        // session is awaiting the publish, reconciles must hold the overlay exactly where it is.
+        let rig = retained(makeCoordinatorRig())
+        let context = FocusedInputContext(snapshot: rig.focusProvider.snapshot.context!, generation: 1)
+        _ = rig.interactionState.startSession(fullText: " world again", liveContext: context, latency: 0.05)
+        rig.overlayController.showSuggestion(" world again", geometry: CotabbyTestFixtures.overlayGeometry())
+
+        XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
+        XCTAssertEqual(rig.inserter.insertedChunks, [" world"])
+        XCTAssertTrue(
+            rig.interactionState.isAwaitingPostInsertionSync,
+            "An accept must arm the publish sentinel before any reconcile can fire"
+        )
+        let presentsAfterAccept = rig.overlayController.shownTexts
+
+        // The +30ms refresh racing the publish: the field still shows the PRE-insertion text and
+        // caret. The reconciler tolerates the lag; presentation must not re-anchor.
+        rig.coordinator.reconcileActiveSession(with: rig.focusProvider.snapshot)
+
+        XCTAssertEqual(
+            rig.overlayController.shownTexts,
+            presentsAfterAccept,
+            "A pre-publish reconcile re-presented the overlay at the stale caret"
+        )
+        XCTAssertTrue(rig.interactionState.isAwaitingPostInsertionSync, "The sentinel survives the tolerated tick")
+        XCTAssertNotNil(rig.interactionState.activeSession)
+
+        // The host publishes: the same reconcile path clears the sentinel and may settle normally.
+        let publishedSnapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello world")
+        rig.focusProvider.snapshot = FocusSnapshot(
+            applicationName: publishedSnapshot.applicationName,
+            bundleIdentifier: publishedSnapshot.bundleIdentifier,
+            capability: .supported,
+            context: publishedSnapshot,
+            inspection: nil
+        )
+        rig.coordinator.reconcileActiveSession(with: rig.focusProvider.snapshot)
+
+        XCTAssertFalse(
+            rig.interactionState.isAwaitingPostInsertionSync,
+            "The publish must lift the hold so genuine caret moves re-anchor again"
+        )
+        XCTAssertNotNil(rig.interactionState.activeSession, "The session survives the publish settle")
+    }
+
     // MARK: - Cache reset barrier
 
     func test_resetCachedGenerationContext_barrierRunsTheEngineResetExactlyOnce() async {

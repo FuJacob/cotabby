@@ -226,18 +226,19 @@ protocol SuggestionOverlayControlling: AnyObject {
     func showSuggestion(_ text: String, geometry: SuggestionOverlayGeometry)
     func hide(reason: String)
 
-    /// Advances a visible single-line inline ghost to `remainingText` by sliding the panel by the
-    /// exact rendered width of the text just handed off, keeping the remaining glyphs on the same
-    /// pixels (no caret re-read, no jitter). Returns `false` when the controller cannot safely slide
-    /// (hidden, mirror mode, RTL, multi-line, or nothing rendered to measure against); callers then
-    /// fall back to a caret-anchored present.
-    func advanceInline(to remainingText: String) -> Bool
+    /// Advances a visible single-line inline ghost to `remainingText` by sliding the panel right
+    /// by the caret's travel for `insertedText` (the text that just landed in the host, whether
+    /// Cotabby typed it or the user did). The slide reads the held overlay state, never a fresh AX
+    /// caret, so it cannot jitter against AX noise. Returns `false` when the controller cannot
+    /// safely slide (hidden, mirror mode, RTL, multi-line, or nothing rendered to measure
+    /// against); callers then fall back to a caret-anchored present.
+    func advanceInline(to remainingText: String, insertedText: String) -> Bool
 }
 
 extension SuggestionOverlayControlling {
     /// Default: not supported, so conformers that do not render an inline panel (e.g. test doubles)
     /// transparently fall back to the caret-anchored present path.
-    func advanceInline(to remainingText: String) -> Bool { false }
+    func advanceInline(to remainingText: String, insertedText: String) -> Bool { false }
 }
 
 @MainActor

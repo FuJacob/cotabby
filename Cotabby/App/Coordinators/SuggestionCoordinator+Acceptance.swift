@@ -240,7 +240,7 @@ extension SuggestionCoordinator {
         insertionChunk: String,
         liveContext: FocusedInputContext
     ) {
-        if overlayController.advanceInline(to: remainingText) {
+        if overlayController.advanceInline(to: remainingText, insertedText: insertionChunk) {
             return
         }
 
@@ -250,6 +250,7 @@ extension SuggestionCoordinator {
             oldCaretRect: liveContext.caretRect,
             caretQuality: liveContext.caretQuality,
             observedCharWidth: liveContext.observedCharWidth,
+            fieldStyle: liveContext.resolvedFieldStyle,
             isRightToLeft: isRTL
         )
         presentOverlay(
@@ -492,9 +493,9 @@ extension SuggestionCoordinator {
         }
 
         state = .ready(text: advancedSession.remainingText, latency: advancedSession.latency)
-        // Same exact-width slide as Tab acceptance; the user typed the next characters, so the tail
-        // shrank by them. Fall back to the (session-start) caret anchor only if the slide can't apply.
-        if !overlayController.advanceInline(to: advancedSession.remainingText) {
+        // Same slide as Tab acceptance; the user typed the next characters, so the caret traveled
+        // by exactly them. Fall back to the (session-start) caret anchor only if the slide can't apply.
+        if !overlayController.advanceInline(to: advancedSession.remainingText, insertedText: typedCharacters) {
             presentOverlay(
                 text: advancedSession.remainingText,
                 at: session.baseContext.caretRect,
@@ -578,17 +579,21 @@ extension SuggestionCoordinator {
     /// Estimates the caret rect after inserting a chunk by shifting the old caret in the text
     /// direction. LTR shifts right; RTL shifts left.
     /// When `observedCharWidth` is available (measured from real AX child frames), we use it
-    /// directly — this matches the target app's actual font. Falls back to NSFont measurement.
+    /// directly — this matches the target app's actual font. Otherwise the field's resolved font
+    /// measures the chunk (the host's true caret travel), and only a host with no usable style
+    /// falls back to a system-font approximation.
     static func predictedCaretRect(
         after insertedChunk: String,
         oldCaretRect: CGRect,
         caretQuality: CaretGeometryQuality,
         observedCharWidth: CGFloat?,
+        fieldStyle: ResolvedFieldStyle? = nil,
         isRightToLeft: Bool = false
     ) -> CGRect {
         let measuredWidth = predictedChunkWidth(
             insertedChunk: insertedChunk,
-            observedCharWidth: observedCharWidth
+            observedCharWidth: observedCharWidth,
+            fieldStyle: fieldStyle
         )
         let chunkWidth: CGFloat
 
@@ -628,10 +633,18 @@ extension SuggestionCoordinator {
 
     private static func predictedChunkWidth(
         insertedChunk: String,
-        observedCharWidth: CGFloat?
+        observedCharWidth: CGFloat?,
+        fieldStyle: ResolvedFieldStyle? = nil
     ) -> CGFloat {
         if let observed = observedCharWidth {
             return observed * CGFloat(insertedChunk.count)
+        }
+
+        // The field's own font is the host's true caret travel; the system-14 fallback measured
+        // TextEdit's Helvetica 12 a quarter too wide, and the resulting overshoot surfaced as a
+        // corrective snap once AX published the real caret.
+        if let hostAdvance = InsertedTextAdvance.width(of: insertedChunk, style: fieldStyle) {
+            return hostAdvance
         }
 
         let attrs: [NSAttributedString.Key: Any] = [
@@ -641,7 +654,7 @@ extension SuggestionCoordinator {
     }
 
     /// Gives the host app ~30ms to process the synthetic keystroke, then forces an AX snapshot
-    /// so the overlay snaps to the real caret position without waiting for the 250ms poll.
+    /// so the overlay snaps to the real caret position without waiting for the 80ms poll.
     func schedulePostInsertionRefresh() {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.03) { [weak self] in
             guard let self else { return }

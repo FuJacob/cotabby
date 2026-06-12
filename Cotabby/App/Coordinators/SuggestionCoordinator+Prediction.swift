@@ -698,7 +698,10 @@ extension SuggestionCoordinator {
             newText: reconciledSession.remainingText,
             newCaretRect: liveContext.caretRect,
             newInputFrameRect: liveContext.inputFrameRect,
-            newFocusChangeSequence: liveContext.focusChangeSequence
+            newFocusChangeSequence: liveContext.focusChangeSequence,
+            // While the host has not published our own synthetic insert, this snapshot's caret is
+            // the pre-insertion one; re-anchoring to it is the left-then-right accept jitter.
+            isAwaitingPostInsertionSync: interactionState.isAwaitingPostInsertionSync
         ) {
             presentOverlay(
                 text: reconciledSession.remainingText,

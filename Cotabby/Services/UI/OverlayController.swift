@@ -225,12 +225,12 @@ final class OverlayController: SuggestionOverlayControlling {
     }
 
     /// Advances a visible single-line inline ghost to `remainingText` by sliding the panel right by
-    /// the exact rendered width of the text just handed off, so the remaining glyphs stay on the same
-    /// pixels. This is the "perfectly still" path for word-by-word acceptance and type-through: it
-    /// reads the held overlay state (not a fresh AX caret), so it cannot jitter against AX noise.
+    /// the caret's travel for `insertedText`. This is the "perfectly still" path for word-by-word
+    /// acceptance and type-through: it reads the held overlay state (not a fresh AX caret), so it
+    /// cannot jitter against AX noise.
     /// Returns `false` when the held overlay is not a single-line, LTR, inline ghost this can safely
     /// slide; the caller then falls back to a caret-anchored present.
-    func advanceInline(to remainingText: String) -> Bool {
+    func advanceInline(to remainingText: String, insertedText: String) -> Bool {
         guard case let .visible(beforeText, geometry, mode) = state,
               case .inline = mode,
               !geometry.isRightToLeft,
@@ -242,8 +242,24 @@ final class OverlayController: SuggestionOverlayControlling {
         }
 
         let renderFont = lastInlineRenderFont ?? NSFont.systemFont(ofSize: fontSize)
-        let shift = GhostSuggestionLayout.renderedWidth(of: beforeText, font: renderFont)
-            - GhostSuggestionLayout.renderedWidth(of: remainingText, font: renderFont)
+        // Trusted-geometry hosts get the slide measured in the field's own font: that is the
+        // caret's true travel, so the anchor stays aligned with the post-publish AX caret and the
+        // stability gate never has to issue a delayed corrective nudge. The ghost render font is
+        // floored at 14pt for legibility, so its width of the same text overshoots a 12pt host by
+        // ~15% per accepted word; that error used to accumulate in the anchor until the gate
+        // snapped the tail sideways with no input in flight. The cost is a few points of tail
+        // shift at the accept keystroke itself (the ghost glyphs are wider than the host's), which
+        // lands exactly when the text visibly changes anyway. Untrusted/web geometry keeps the
+        // pixel-identical ghost-width slide: its anchors are approximate either way, and observed
+        // char-width hosts already correct through their own machinery.
+        let shift: CGFloat
+        if geometry.caretQuality == .exact,
+           let hostAdvance = InsertedTextAdvance.width(of: insertedText, style: geometry.resolvedFieldStyle) {
+            shift = hostAdvance
+        } else {
+            shift = GhostSuggestionLayout.renderedWidth(of: beforeText, font: renderFont)
+                - GhostSuggestionLayout.renderedWidth(of: remainingText, font: renderFont)
+        }
         // A non-positive or non-finite shift means the tail did not shrink as expected; re-anchor.
         guard shift.isFinite, shift > 0 else {
             return false

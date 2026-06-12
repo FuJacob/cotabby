@@ -41,12 +41,22 @@ enum SuggestionOverlayStabilityGate {
     ///   - The caret moved beyond `caretDriftTolerance` from where the overlay is currently anchored
     ///     (a genuine caret move, or accumulated advance drift that needs correcting).
     ///   - The host editor's frame moved on screen (window drag, sheet appear, etc.).
+    ///
+    /// `isAwaitingPostInsertionSync` short-circuits the geometry checks entirely: between a
+    /// synthesized insert and the host publishing it back through AX, the snapshot's caret is the
+    /// PRE-insertion one, a full accepted-word-width left of where the overlay correctly sits. The
+    /// drift tolerance cannot tell that stale rect from a genuine caret move, so the +30ms
+    /// post-insertion refresh used to re-anchor the ghost onto the just-accepted word and the next
+    /// poll tick snapped it back: the left-then-right accept jitter. While the field and text are
+    /// unchanged, stale geometry is never worth re-anchoring to; the hold lasts at most one or two
+    /// poll ticks because the sentinel clears the moment AX catches up.
     static func shouldRePresent(
         currentOverlay: OverlayState,
         newText: String,
         newCaretRect: CGRect,
         newInputFrameRect: CGRect?,
-        newFocusChangeSequence: UInt64
+        newFocusChangeSequence: UInt64,
+        isAwaitingPostInsertionSync: Bool = false
     ) -> Bool {
         // Render mode is the third associated value; it is not part of the stability decision, so
         // we ignore it. A mode change still re-anchors because text or geometry will also differ.
@@ -58,6 +68,11 @@ enum SuggestionOverlayStabilityGate {
         }
         if currentText != newText {
             return true
+        }
+        // Same field, same text, host has not published our own insert yet: every geometric field
+        // of this snapshot describes the pre-insertion state and must not move the overlay.
+        if isAwaitingPostInsertionSync {
+            return false
         }
         // Hold small caret deltas (post-insertion AX noise and exact-advance residual); re-anchor on
         // genuine moves and on accumulated drift past the tolerance. Compared against the held
