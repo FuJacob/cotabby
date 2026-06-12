@@ -80,7 +80,11 @@ extension SuggestionCoordinator {
         case let .ready(preparedLiveContext, preparedSession, preparedAcceptedChunk):
             liveContext = preparedLiveContext
             sessionForAcceptance = preparedSession
-            acceptedChunk = preparedAcceptedChunk
+            // With "add space after accepting" on, a word-ending accept also takes the suggestion's
+            // own following space so the trailing space lands now instead of with the next accept.
+            // This is what makes the setting fire on every word, not only the final one that
+            // exhausts the suggestion (which `insertionTextApplyingAutoSpace` still covers).
+            acceptedChunk = autoSpaceAdjustedChunk(preparedAcceptedChunk, session: preparedSession)
 
         case let .invalid(reason):
             return passTabThrough(reason: reason)
@@ -211,15 +215,30 @@ extension SuggestionCoordinator {
         }
     }
 
-    /// Applies the opt-in "add a space after accepting" setting to the text about to be inserted.
-    ///
-    /// The trailing space is only appended when this accept *exhausts* the suggestion — predicted the
-    /// same way `commitAcceptedChunk` decides it — because a mid-suggestion word accept is already
-    /// followed by the next chunk's own leading space, so a space here would double up. Only the
-    /// inserted text grows: session accounting still advances by the unchanged `acceptedChunk`, and
-    /// the session tears down on exhaustion, so the extra space never disturbs the consumed-suffix
-    /// reconciliation a still-live session relies on. Whether the space actually lands (vs. being
-    /// suppressed after punctuation, whitespace, or a space-less script) is the reconciler's rule.
+    /// Applies the opt-in "add a space after accepting" setting to the chunk being accepted, by
+    /// extending a word-ending chunk to also take the suggestion's own following space. The whole
+    /// flow (insertion text, session advance, overlay) then runs on the extended chunk, so the space
+    /// is consumed from the buffered suggestion rather than synthesized: the session stays in
+    /// lockstep with the field and the reconciler's existing rule drops the next chunk's now-leading
+    /// space, so there is no double space. See `acceptanceChunkConsumingTrailingSpace`.
+    private func autoSpaceAdjustedChunk(_ chunk: String, session: ActiveSuggestionSession) -> String {
+        guard settingsSnapshot.addSpaceAfterAccept else {
+            return chunk
+        }
+        return SuggestionSessionReconciler.acceptanceChunkConsumingTrailingSpace(
+            chunk,
+            remainingText: session.remainingText
+        )
+    }
+
+    /// Appends the trailing space for the *final* accept of a suggestion — the one case
+    /// `autoSpaceAdjustedChunk` cannot cover, because an exhausting accept has no following
+    /// suggestion whitespace to consume. Fires only when this accept exhausts the suggestion
+    /// (predicted the same way `commitAcceptedChunk` decides it). Here the inserted text grows by a
+    /// synthesized space, but the session tears down on exhaustion, so it never disturbs the
+    /// consumed-suffix reconciliation a still-live session relies on. Whether the space actually
+    /// lands (vs. being suppressed after punctuation, whitespace, or a space-less script) is the
+    /// reconciler's rule.
     private func insertionTextApplyingAutoSpace(
         insertionChunk: String,
         acceptedChunk: String,

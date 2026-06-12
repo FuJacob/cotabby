@@ -674,6 +674,66 @@ final class SuggestionSessionReconcilerTests: XCTestCase {
         )
     }
 
+    func test_acceptanceChunkConsumingTrailingSpace_takesFollowingSpaceAfterWord() {
+        XCTAssertEqual(
+            SuggestionSessionReconciler.acceptanceChunkConsumingTrailingSpace("world", remainingText: "world how are you"),
+            "world "
+        )
+    }
+
+    func test_acceptanceChunkConsumingTrailingSpace_keepsLeadingWhitespaceAndTakesFollowingSpace() {
+        // nextAcceptanceChunk returns leading whitespace with the token, so the extension must keep it
+        // and still consume the space that follows the word.
+        XCTAssertEqual(
+            SuggestionSessionReconciler.acceptanceChunkConsumingTrailingSpace(" world", remainingText: " world how"),
+            " world "
+        )
+    }
+
+    func test_acceptanceChunkConsumingTrailingSpace_takesWholeHorizontalRun() {
+        XCTAssertEqual(
+            SuggestionSessionReconciler.acceptanceChunkConsumingTrailingSpace("world", remainingText: "world\t  how"),
+            "world\t  "
+        )
+    }
+
+    func test_acceptanceChunkConsumingTrailingSpace_noFollowingWhitespaceLeavesChunkUntouched() {
+        // End of the suggestion: nothing to consume here — the exhaustion-time append covers it.
+        XCTAssertEqual(
+            SuggestionSessionReconciler.acceptanceChunkConsumingTrailingSpace("world", remainingText: "world"),
+            "world"
+        )
+    }
+
+    func test_acceptanceChunkConsumingTrailingSpace_doesNotCrossNewline() {
+        XCTAssertEqual(
+            SuggestionSessionReconciler.acceptanceChunkConsumingTrailingSpace("line", remainingText: "line\nnext"),
+            "line"
+        )
+    }
+
+    func test_acceptanceChunkConsumingTrailingSpace_doesNotConsumeBeforePunctuation() {
+        XCTAssertEqual(
+            SuggestionSessionReconciler.acceptanceChunkConsumingTrailingSpace("world", remainingText: "world, how"),
+            "world"
+        )
+    }
+
+    func test_acceptanceChunkConsumingTrailingSpace_skipsWhenChunkEndsInPunctuation() {
+        XCTAssertEqual(
+            SuggestionSessionReconciler.acceptanceChunkConsumingTrailingSpace("done.", remainingText: "done. next"),
+            "done."
+        )
+    }
+
+    func test_acceptanceChunkConsumingTrailingSpace_skipsForSpacelessScript() {
+        // CJK scripts do not separate words with spaces, so even a stray following space is not taken.
+        XCTAssertEqual(
+            SuggestionSessionReconciler.acceptanceChunkConsumingTrailingSpace("資料", remainingText: "資料 です"),
+            "資料"
+        )
+    }
+
     func test_acceptedWordCount_countsOnlyTokensWithAlphanumerics() {
         let count = SuggestionSessionReconciler.acceptedWordCount(
             in: "hello, !!! world 123 --"
