@@ -106,6 +106,7 @@ struct SuggestionSettingsStore {
     private static let preferredEmojiGenderDefaultsKey = "cotabbyPreferredEmojiGender"
     private static let autoAcceptTrailingPunctuationDefaultsKey = "cotabbyAutoAcceptTrailingPunctuation"
     private static let addSpaceAfterAcceptDefaultsKey = "cotabbyAddSpaceAfterAccept"
+    private static let streamWhileGeneratingDefaultsKey = "cotabbyStreamSuggestionsWhileGenerating"
     private static let acceptanceKeyCodeDefaultsKey = "cotabbyAcceptanceKeyCode"
     private static let acceptanceKeyModifiersDefaultsKey = "cotabbyAcceptanceKeyModifiers"
     private static let acceptanceKeyLabelDefaultsKey = "cotabbyAcceptanceKeyLabel"
@@ -291,6 +292,10 @@ struct SuggestionSettingsStore {
         // trailing space is opt-in from Settings.
         let resolvedAddSpaceAfterAccept =
             userDefaults.object(forKey: Self.addSpaceAfterAcceptDefaultsKey) as? Bool ?? false
+        // Defaults to false so the suggestion appears once, fully formed; token-by-token streaming
+        // is opt-in from Settings.
+        let resolvedStreamSuggestionsWhileGenerating =
+            userDefaults.object(forKey: Self.streamWhileGeneratingDefaultsKey) as? Bool ?? false
 
         let resolvedAcceptanceKeyCode = CGKeyCode(
             userDefaults.object(forKey: Self.acceptanceKeyCodeDefaultsKey) as? Int
@@ -379,6 +384,7 @@ struct SuggestionSettingsStore {
             preferredEmojiGender: resolvedPreferredEmojiGender,
             autoAcceptTrailingPunctuation: resolvedAutoAcceptTrailingPunctuation,
             addSpaceAfterAccept: resolvedAddSpaceAfterAccept,
+            streamSuggestionsWhileGenerating: resolvedStreamSuggestionsWhileGenerating,
             acceptanceKeyCode: resolvedAcceptanceKeyCode,
             acceptanceKeyModifiers: resolvedAcceptanceKeyModifiers,
             acceptanceKeyLabel: resolvedAcceptanceKeyLabel,
@@ -433,6 +439,7 @@ struct SuggestionSettingsStore {
         savePreferredEmojiGender(data.preferredEmojiGender)
         saveAutoAcceptTrailingPunctuation(data.autoAcceptTrailingPunctuation)
         saveAddSpaceAfterAccept(data.addSpaceAfterAccept)
+        saveStreamSuggestionsWhileGenerating(data.streamSuggestionsWhileGenerating)
         saveAcceptanceKey(
             keyCode: data.acceptanceKeyCode,
             modifiers: data.acceptanceKeyModifiers,
@@ -644,6 +651,10 @@ struct SuggestionSettingsStore {
 
     func saveAddSpaceAfterAccept(_ enabled: Bool) {
         userDefaults.set(enabled, forKey: Self.addSpaceAfterAcceptDefaultsKey)
+    }
+
+    func saveStreamSuggestionsWhileGenerating(_ enabled: Bool) {
+        userDefaults.set(enabled, forKey: Self.streamWhileGeneratingDefaultsKey)
     }
 
     func saveAcceptanceKey(keyCode: CGKeyCode, modifiers: ShortcutModifierMask, label: String) {

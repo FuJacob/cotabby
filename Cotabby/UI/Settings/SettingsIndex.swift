@@ -22,6 +22,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     case onboarding
     // Appearance
     case suggestionDisplay
+    case streamWhileGenerating
     case showFieldIndicator
     case showWordCount
     case showKeyHint
@@ -96,6 +97,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .inlineMacros: return "Inline Macros"
         case .onboarding: return "Onboarding"
         case .suggestionDisplay: return "Suggestion Display"
+        case .streamWhileGenerating: return "Stream Suggestions While Generating"
         case .showFieldIndicator: return "Show Field Indicator"
         case .showWordCount: return "Show Word Count in Menu Bar"
         case .showKeyHint: return "Show Accept-Key Hint"
@@ -161,6 +163,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .inlineMacros: return "slash.circle"
         case .onboarding: return "graduationcap"
         case .suggestionDisplay: return "text.cursor"
+        case .streamWhileGenerating: return "text.append"
         case .showFieldIndicator: return "dot.viewfinder"
         case .showWordCount: return "number"
         case .showKeyHint: return "keyboard"
@@ -218,7 +221,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .enableGlobally, .fastMode, .openAtLogin, .includeClipboardContext, .includeAppContext,
              .allowMultiLine, .acceptPunctuation, .addSpaceAfterAccept, .inlineMacros, .onboarding:
             return .general
-        case .suggestionDisplay, .showFieldIndicator, .showWordCount, .showKeyHint,
+        case .suggestionDisplay, .streamWhileGenerating, .showFieldIndicator, .showWordCount, .showKeyHint,
              .ghostTextColor, .ghostTextOpacity, .ghostTextSize:
             return .appearance
         case .emojiPicker, .emojiSkinTone, .emojiPeopleStyle, .emojiHistory:
@@ -283,6 +286,10 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .suggestionDisplay:
             return ["inline", "popup", "ghost", "card", "display", "mirror", "auto",
                     "appearance", "style", "show suggestion", "rendering", "ui"]
+        case .streamWhileGenerating:
+            return ["stream", "streaming", "live", "typewriter", "token", "incremental",
+                    "progressive", "word by word", "character by character", "reveal",
+                    "while generating", "as it types", "decode", "partial", "all at once"]
         case .showFieldIndicator:
             return ["indicator", "icon", "field", "ready", "dot", "marker", "badge",
                     "show", "hide"]

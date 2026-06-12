@@ -71,6 +71,10 @@ struct SuggestionSettingsData: Equatable {
     /// ends in punctuation or whitespace, or in a space-less script. Defaults to off so the WYSIWYG
     /// accept behavior is unchanged unless the user opts in.
     var addSpaceAfterAccept: Bool
+    /// When on, ghost text is revealed token-by-token as the model decodes, and each partial is an
+    /// acceptable session the user can Tab into early. When off (the default), the suggestion appears
+    /// once, fully formed, after generation finishes.
+    var streamSuggestionsWhileGenerating: Bool
     var acceptanceKeyCode: CGKeyCode
     var acceptanceKeyModifiers: ShortcutModifierMask
     var acceptanceKeyLabel: String
