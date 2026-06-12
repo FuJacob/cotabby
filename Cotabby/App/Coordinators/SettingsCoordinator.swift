@@ -20,6 +20,7 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
     private let modelDownloadManager: ModelDownloadManager
     private let huggingFaceSearchService: HuggingFaceSearchService
     private let performanceMetricsStore: PerformanceMetricsStore
+    private let qualityMetricsStore: SuggestionQualityMetricsStore
     private let systemMetricsStore: SystemMetricsStore
     private let onShowWelcome: () -> Void
     private let clearEmojiHistory: () -> Void
@@ -36,6 +37,7 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
         modelDownloadManager: ModelDownloadManager,
         huggingFaceSearchService: HuggingFaceSearchService,
         performanceMetricsStore: PerformanceMetricsStore,
+        qualityMetricsStore: SuggestionQualityMetricsStore,
         systemMetricsStore: SystemMetricsStore,
         onShowWelcome: @escaping () -> Void,
         clearEmojiHistory: @escaping () -> Void
@@ -49,6 +51,7 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
         self.modelDownloadManager = modelDownloadManager
         self.huggingFaceSearchService = huggingFaceSearchService
         self.performanceMetricsStore = performanceMetricsStore
+        self.qualityMetricsStore = qualityMetricsStore
         self.systemMetricsStore = systemMetricsStore
         self.onShowWelcome = onShowWelcome
         self.clearEmojiHistory = clearEmojiHistory
@@ -76,6 +79,7 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
                     modelDownloadManager: modelDownloadManager,
                     huggingFaceSearchService: huggingFaceSearchService,
                     performanceMetricsStore: performanceMetricsStore,
+                    qualityMetricsStore: qualityMetricsStore,
                     systemMetricsStore: systemMetricsStore,
                     onShowWelcome: onShowWelcome,
                     clearEmojiHistory: clearEmojiHistory

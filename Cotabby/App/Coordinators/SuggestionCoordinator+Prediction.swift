@@ -576,6 +576,8 @@ extension SuggestionCoordinator {
             clearSuggestion()
             hideOverlay(reason: "Overlay hidden because the completion failed the seam guard.")
             state = .idle
+            let seamReason = if case .seamMisspelling = seamVerdict { "seamMisspelling" } else { "seamJunkPunctuationRun" }
+            qualityMetricsStore.recordSuppressed(reason: seamReason)
             logStage(
                 "seam-suppressed",
                 workID: workID,
@@ -589,6 +591,9 @@ extension SuggestionCoordinator {
 
         latestLatencyMilliseconds = Int(result.latency * 1000)
         latestGenerationNumber = liveContext.generation
+        // One shown event per suggestion: this is the only place a fresh generation becomes
+        // visible (re-presentations after partial accepts reuse the same session).
+        qualityMetricsStore.recordShown()
         let session = interactionState.startSession(
             fullText: result.text,
             liveContext: liveContext,

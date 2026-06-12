@@ -54,6 +54,9 @@ final class SuggestionCoordinator: ObservableObject {
     /// `CotabbyAppEnvironment`) so the underlying `NSSpellChecker` document tag persists across the
     /// coordinator's lifetime instead of churning per keystroke.
     let spellChecker: CurrentWordSpellChecker
+    /// Always-on quality counters (shown / suppressed / accepted). The router counts generation
+    /// outcomes; the coordinator owns the display-time and acceptance events only it can see.
+    let qualityMetricsStore: SuggestionQualityMetricsStore
     /// Frequency-ranked correction source (SymSpell). Used first for the correction word, with
     /// `spellChecker` as the fallback while its index is still loading or when it has no suggestion.
     let symSpellCorrector: SymSpellCorrector
@@ -163,6 +166,7 @@ final class SuggestionCoordinator: ObservableObject {
         spellChecker: CurrentWordSpellChecker,
         symSpellCorrector: SymSpellCorrector,
         spellingLanguageResolver: SpellingLanguageResolver = SpellingLanguageResolver(),
+        qualityMetricsStore: SuggestionQualityMetricsStore,
         userDefaults: UserDefaults = .standard
     ) {
         let storedTotalTabAcceptedWordCount = userDefaults.integer(
@@ -184,6 +188,7 @@ final class SuggestionCoordinator: ObservableObject {
         self.spellChecker = spellChecker
         self.symSpellCorrector = symSpellCorrector
         self.spellingLanguageResolver = spellingLanguageResolver
+        self.qualityMetricsStore = qualityMetricsStore
         self.userDefaults = userDefaults
         settingsSnapshot = suggestionSettings.snapshot
         // These collaborators isolate "how overlay/logging works" from "when the coordinator

@@ -11,11 +11,14 @@ import SwiftUI
 struct PerformancePaneView: View {
     @ObservedObject var suggestionSettings: SuggestionSettingsModel
     @ObservedObject var performanceMetricsStore: PerformanceMetricsStore
+    @ObservedObject var qualityMetricsStore: SuggestionQualityMetricsStore
     @ObservedObject var systemMetricsStore: SystemMetricsStore
 
     var body: some View {
         SettingsPaneScaffold {
             liveResourceSection
+
+            suggestionQualitySection
 
             Section("Tracking") {
                 Toggle(isOn: trackingEnabledBinding) {
@@ -57,6 +60,71 @@ struct PerformancePaneView: View {
         // sidebar switch, so these fire reliably as the user navigates in and out of Performance.
         .onAppear { systemMetricsStore.beginSampling() }
         .onDisappear { systemMetricsStore.endSampling() }
+    }
+
+    // MARK: - Suggestion quality counters
+
+    /// Lifetime counters: how often suggestions appear, why withheld ones were withheld, and how
+    /// many shown suggestions the user accepted. Always on (counters carry no content), unlike the
+    /// per-request latency log below, which records timestamps and stays opt-in.
+    private var suggestionQualitySection: some View {
+        Section {
+            qualityCounterRow(label: "Suggestions shown", value: "\(qualityMetricsStore.counters.shown)")
+            qualityCounterRow(label: "Accepted", value: acceptedLabel)
+            qualityCounterRow(label: "Generations", value: "\(qualityMetricsStore.counters.generated)")
+            if !topSuppressionReasons.isEmpty {
+                qualityCounterRow(
+                    label: "Withheld (\(qualityMetricsStore.counters.suppressedTotal))",
+                    value: topSuppressionReasons
+                )
+            }
+        } header: {
+            HStack {
+                Text(qualityHeaderLabel)
+                Spacer()
+                if qualityMetricsStore.counters.shown > 0 || qualityMetricsStore.counters.generated > 0 {
+                    Button("Reset") {
+                        qualityMetricsStore.reset()
+                    }
+                    .buttonStyle(.borderless)
+                    .controlSize(.small)
+                }
+            }
+        }
+    }
+
+    private func qualityCounterRow(label: String, value: String) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(label)
+            Spacer()
+            Text(value)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.trailing)
+        }
+    }
+
+    private var acceptedLabel: String {
+        let accepted = qualityMetricsStore.counters.acceptedSuggestions
+        guard let rate = qualityMetricsStore.counters.acceptanceRate else {
+            return "\(accepted)"
+        }
+        return "\(accepted) (\(Int((rate * 100).rounded()))%)"
+    }
+
+    private var topSuppressionReasons: String {
+        qualityMetricsStore.counters.suppressedByReason
+            .sorted { lhs, rhs in lhs.value == rhs.value ? lhs.key < rhs.key : lhs.value > rhs.value }
+            .prefix(4)
+            .map { "\($0.key) \($0.value)" }
+            .joined(separator: ", ")
+    }
+
+    private var qualityHeaderLabel: String {
+        guard let since = qualityMetricsStore.counters.firstRecordedAt else {
+            return "Suggestion Quality"
+        }
+        let formatted = since.formatted(date: .abbreviated, time: .omitted)
+        return "Suggestion Quality (since \(formatted))"
     }
 
     // MARK: - Live resource graphs

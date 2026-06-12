@@ -11,6 +11,7 @@ final class SuggestionEngineRouter {
     private let foundationModelEngine: any SuggestionGenerating
     private let llamaEngine: any SuggestionGenerating
     private let performanceMetricsStore: PerformanceMetricsStore
+    private let qualityMetricsStore: SuggestionQualityMetricsStore
     /// Closure that returns the currently selected llama model filename (e.g. `Qwen3-0.6B-Q8_0.gguf`).
     /// A closure instead of a direct `LlamaRuntimeManager` reference keeps the router from depending
     /// on the concrete runtime type — useful for tests that want to fake the model label.
@@ -21,12 +22,14 @@ final class SuggestionEngineRouter {
         foundationModelEngine: any SuggestionGenerating,
         llamaEngine: any SuggestionGenerating,
         performanceMetricsStore: PerformanceMetricsStore,
+        qualityMetricsStore: SuggestionQualityMetricsStore,
         llamaModelNameProvider: @escaping @MainActor () -> String?
     ) {
         self.suggestionSettings = suggestionSettings
         self.foundationModelEngine = foundationModelEngine
         self.llamaEngine = llamaEngine
         self.performanceMetricsStore = performanceMetricsStore
+        self.qualityMetricsStore = qualityMetricsStore
         self.llamaModelNameProvider = llamaModelNameProvider
     }
 
@@ -48,6 +51,7 @@ final class SuggestionEngineRouter {
             do {
                 let result = try await foundationModelEngine.generateSuggestion(for: request, onPartial: onPartial)
                 recordPerformanceMetric(modelName: "Apple Intelligence", latency: result.latency)
+                recordQualityOutcome(result)
                 return result
             } catch SuggestionClientError.unsupportedLanguageOrLocale(let message) {
                 CotabbyLogger.suggestion.info(
@@ -67,7 +71,20 @@ final class SuggestionEngineRouter {
             CotabbyLogger.suggestion.debug("Routing to open-source llama engine", metadata: metadata)
             let result = try await llamaEngine.generateSuggestion(for: request, onPartial: onPartial)
             recordPerformanceMetric(modelName: llamaModelNameProvider() ?? "Llama", latency: result.latency)
+            recordQualityOutcome(result)
             return result
+        }
+    }
+
+    /// Counts every finished generation plus the engine-attributed suppression reason when the
+    /// pipeline emptied the text. The router is the single point that sees every finished result
+    /// regardless of engine or fallback, which keeps these counters complete by construction.
+    /// Display-time outcomes (shown, seam-guard suppressions, acceptance) are recorded by the
+    /// coordinator, the only layer that knows them.
+    private func recordQualityOutcome(_ result: SuggestionResult) {
+        qualityMetricsStore.recordGenerated()
+        if let reason = result.suppressionReason {
+            qualityMetricsStore.recordSuppressed(reason: reason)
         }
     }
 
@@ -121,6 +138,7 @@ final class SuggestionEngineRouter {
         do {
             let result = try await llamaEngine.generateSuggestion(for: request, onPartial: onPartial)
             recordPerformanceMetric(modelName: llamaModelNameProvider() ?? "Llama", latency: result.latency)
+            recordQualityOutcome(result)
             return result
         } catch SuggestionClientError.cancelled {
             throw SuggestionClientError.cancelled

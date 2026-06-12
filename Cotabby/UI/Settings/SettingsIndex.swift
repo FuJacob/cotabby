@@ -71,6 +71,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     case screenRecording
     // Performance
     case performanceTracking
+    case suggestionQualityStats
     case resourceUsage
     case recentRequests
     // About
@@ -137,6 +138,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .inputMonitoring: return "Input Monitoring"
         case .screenRecording: return "Screen Recording"
         case .performanceTracking: return "Enable Performance Tracking"
+        case .suggestionQualityStats: return "Suggestion Quality"
         case .resourceUsage: return "Live Resource Usage"
         case .recentRequests: return "Recent Requests"
         case .checkForUpdates: return "Check for Updates"
@@ -202,6 +204,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .inputMonitoring: return "keyboard"
         case .screenRecording: return "camera.viewfinder"
         case .performanceTracking: return "stopwatch"
+        case .suggestionQualityStats: return "checkmark.seal"
         case .resourceUsage: return "chart.line.uptrend.xyaxis"
         case .recentRequests: return "list.bullet.clipboard"
         case .checkForUpdates: return "arrow.triangle.2.circlepath"
@@ -238,7 +241,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
             return .apps
         case .accessibility, .inputMonitoring, .screenRecording:
             return .permissions
-        case .performanceTracking, .resourceUsage, .recentRequests:
+        case .performanceTracking, .suggestionQualityStats, .resourceUsage, .recentRequests:
             return .performance
         case .checkForUpdates, .support, .githubRepository, .wiki,
              .acknowledgements, .uninstall:
@@ -409,6 +412,9 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .performanceTracking:
             return ["performance", "tracking", "latency", "metrics", "timing",
                     "telemetry", "analytics", "diagnostics", "measure"]
+        case .suggestionQualityStats:
+            return ["quality", "acceptance", "accepted", "shown", "suppressed", "withheld",
+                    "rate", "stats", "counters", "suggestions"]
         case .resourceUsage:
             return ["cpu", "memory", "ram", "usage", "resource", "graph", "chart",
                     "live", "load", "monitor"]

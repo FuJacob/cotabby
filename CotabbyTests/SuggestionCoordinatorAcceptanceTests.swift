@@ -312,6 +312,9 @@ final class SuggestionCoordinatorAcceptanceTests: XCTestCase {
             configuration: .standard,
             spellChecker: CurrentWordSpellChecker(),
             symSpellCorrector: SymSpellCorrector(preloadLanguage: nil),
+            qualityMetricsStore: SuggestionQualityMetricsStore(
+                userDefaults: UserDefaults(suiteName: "CotabbyTests.quality.\(UUID().uuidString)") ?? .standard
+            ),
             userDefaults: UserDefaults(suiteName: "CotabbyTests.\(UUID().uuidString)") ?? .standard
         )
         Self.retainedCoordinators.append(coordinator)

@@ -21,6 +21,7 @@ struct SettingsContainerView: View {
     @ObservedObject var modelDownloadManager: ModelDownloadManager
     @ObservedObject var huggingFaceSearchService: HuggingFaceSearchService
     @ObservedObject var performanceMetricsStore: PerformanceMetricsStore
+    @ObservedObject var qualityMetricsStore: SuggestionQualityMetricsStore
     @ObservedObject var systemMetricsStore: SystemMetricsStore
 
     let onShowWelcome: () -> Void
@@ -130,6 +131,7 @@ struct SettingsContainerView: View {
             PerformancePaneView(
                 suggestionSettings: suggestionSettings,
                 performanceMetricsStore: performanceMetricsStore,
+                qualityMetricsStore: qualityMetricsStore,
                 systemMetricsStore: systemMetricsStore
             )
         case .about:
