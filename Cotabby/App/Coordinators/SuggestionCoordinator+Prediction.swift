@@ -554,6 +554,29 @@ extension SuggestionCoordinator {
             return
         }
 
+        // Last line of defense before display: junk punctuation runs and mid-word splices that
+        // misspell the word being typed read as glitches, so showing nothing beats showing them.
+        // The spell lookup runs at most once per generation and only in the mid-word case.
+        let seamVerdict = CompletionSeamGuard.verdict(
+            precedingText: liveContext.precedingText,
+            completion: result.text,
+            isKnownWord: { !spellChecker.isTypo($0) }
+        )
+        if seamVerdict != .allow {
+            clearSuggestion()
+            hideOverlay(reason: "Overlay hidden because the completion failed the seam guard.")
+            state = .idle
+            logStage(
+                "seam-suppressed",
+                workID: workID,
+                generation: result.generation,
+                message: "Suppressed completion at the caret seam: \(seamVerdict).",
+                rawOutput: result.rawText,
+                normalizedOutput: result.text
+            )
+            return
+        }
+
         latestLatencyMilliseconds = Int(result.latency * 1000)
         latestGenerationNumber = liveContext.generation
         let session = interactionState.startSession(
