@@ -313,6 +313,219 @@ final class GhostSuggestionLayoutTests: XCTestCase {
         )
     }
 
+    // MARK: - Line identity
+
+    func test_make_lineIdsMatchLineIndices() {
+        let geometry = CotabbyTestFixtures.overlayGeometry(
+            caretRect: CGRect(x: 10, y: 80, width: 2, height: 18),
+            inputFrameRect: CGRect(x: 0, y: 70, width: 400, height: 30),
+            observedCharWidth: 7
+        )
+
+        let layout = GhostSuggestionLayout.make(
+            text: "hello\nworld",
+            geometry: geometry,
+            fontSize: 14,
+            visibleFrame: CGRect(x: 0, y: 0, width: 500, height: 300)
+        )
+
+        XCTAssertEqual(layout.lines.map(\.id), layout.lines.map(\.index))
+        XCTAssertEqual(layout.lines.map(\.id), [0, 1])
+    }
+
+    // MARK: - Explicit newlines
+
+    func test_make_explicitNewlineForcesLineBreakAtThatPoint() {
+        // usable frame: minX = max(0 + 8, 0 + 16) = 16; caret anchor = 12 + 6 = 18, so the first
+        // line is indented 2pt from the panel origin and the wrapped line starts at the origin.
+        let geometry = CotabbyTestFixtures.overlayGeometry(
+            caretRect: CGRect(x: 10, y: 80, width: 2, height: 18),
+            inputFrameRect: CGRect(x: 0, y: 70, width: 400, height: 30),
+            observedCharWidth: 7
+        )
+
+        let layout = GhostSuggestionLayout.make(
+            text: "hello\nworld",
+            geometry: geometry,
+            fontSize: 14,
+            visibleFrame: CGRect(x: 0, y: 0, width: 500, height: 300)
+        )
+
+        XCTAssertEqual(layout.lines.map(\.text), ["hello", "world"])
+        XCTAssertEqual(layout.lines[0].leadingIndent, 2)
+        XCTAssertEqual(layout.lines[1].leadingIndent, 0)
+        XCTAssertEqual(layout.topLineCenterOffsetFromCaret, 0)
+        XCTAssertEqual(layout.panelOriginX, 16)
+    }
+
+    func test_make_leadingNewlineYieldsOnlyTheTextAfterIt() {
+        // The empty segment before a leading newline is skipped, so the visible line is the text
+        // after the break, still anchored at the caret.
+        let geometry = CotabbyTestFixtures.overlayGeometry(
+            caretRect: CGRect(x: 10, y: 80, width: 2, height: 18),
+            inputFrameRect: CGRect(x: 0, y: 70, width: 400, height: 30),
+            observedCharWidth: 7
+        )
+
+        let layout = GhostSuggestionLayout.make(
+            text: "\nworld",
+            geometry: geometry,
+            fontSize: 14,
+            visibleFrame: CGRect(x: 0, y: 0, width: 500, height: 300)
+        )
+
+        XCTAssertEqual(layout.lines.map(\.text), ["world"])
+        XCTAssertEqual(layout.lines[0].leadingIndent, 2)
+        XCTAssertEqual(layout.topLineCenterOffsetFromCaret, 0)
+    }
+
+    func test_make_newlineOnlyTextProducesOnePlaceholderLineBelowCaret() {
+        // A suggestion that is just a line break has no splittable content: the layout falls back
+        // to a single raw line and renders it below the caret instead of beside it.
+        let geometry = CotabbyTestFixtures.overlayGeometry(
+            caretRect: CGRect(x: 10, y: 80, width: 2, height: 18),
+            inputFrameRect: CGRect(x: 0, y: 70, width: 400, height: 30),
+            observedCharWidth: 7
+        )
+
+        let layout = GhostSuggestionLayout.make(
+            text: "\n",
+            geometry: geometry,
+            fontSize: 14,
+            visibleFrame: CGRect(x: 0, y: 0, width: 500, height: 300)
+        )
+
+        XCTAssertEqual(layout.lines.map(\.text), ["\n"])
+        XCTAssertEqual(layout.lines[0].leadingIndent, 0)
+        XCTAssertEqual(layout.lineHeight, 18, "ceil(14 * 1.25)")
+        XCTAssertEqual(layout.topLineCenterOffsetFromCaret, -layout.lineHeight)
+        XCTAssertEqual(layout.panelOriginX, 16)
+    }
+
+    func test_make_overwideSegmentBeforeNewlineWidthWrapsAndCarriesRemainder() {
+        // usable: minX 16, maxX 492; first-line budget = 492 - 18 - 36 (keycap) = 438; at 10pt per
+        // char the 60-char segment splits after 43 chars, and the leftover 17 chars must carry
+        // forward together with the post-newline text as separate lines.
+        let geometry = CotabbyTestFixtures.overlayGeometry(
+            caretRect: CGRect(x: 10, y: 80, width: 2, height: 18),
+            inputFrameRect: CGRect(x: 0, y: 70, width: 500, height: 30),
+            observedCharWidth: 10
+        )
+
+        let layout = GhostSuggestionLayout.make(
+            text: String(repeating: "a", count: 60) + "\nrest",
+            geometry: geometry,
+            fontSize: 14,
+            visibleFrame: CGRect(x: 0, y: 0, width: 1000, height: 600)
+        )
+
+        XCTAssertEqual(
+            layout.lines.map(\.text),
+            [String(repeating: "a", count: 43), String(repeating: "a", count: 17), "rest"]
+        )
+        XCTAssertEqual(layout.lines[0].leadingIndent, 2)
+        XCTAssertEqual(layout.topLineCenterOffsetFromCaret, 0)
+        XCTAssertEqual(layout.lines.last?.showsKeycap, true)
+    }
+
+    func test_make_overwideSingleCharacterSegmentStillEmitsItBeforeTheNewlineText() {
+        // A single glyph wider than the whole budget cannot be split further: it must ship as its
+        // own line (never an empty line) and the post-newline text follows, one glyph per line.
+        let geometry = CotabbyTestFixtures.overlayGeometry(
+            caretRect: CGRect(x: 10, y: 80, width: 2, height: 18),
+            inputFrameRect: CGRect(x: 0, y: 70, width: 500, height: 30),
+            observedCharWidth: 500
+        )
+
+        let layout = GhostSuggestionLayout.make(
+            text: "W\nnext",
+            geometry: geometry,
+            fontSize: 14,
+            visibleFrame: CGRect(x: 0, y: 0, width: 1000, height: 600)
+        )
+
+        XCTAssertEqual(layout.lines.map(\.text), ["W", "n", "e", "x", "t"])
+        XCTAssertEqual(layout.lines[0].leadingIndent, 2)
+    }
+
+    func test_make_trailingNewlineAfterOverwideSegmentKeepsWidthWrappedRemainder() {
+        // Same overwide segment, but nothing follows the newline: the width-wrapped leftover is
+        // the entire remainder and the trailing break adds no extra line.
+        let geometry = CotabbyTestFixtures.overlayGeometry(
+            caretRect: CGRect(x: 10, y: 80, width: 2, height: 18),
+            inputFrameRect: CGRect(x: 0, y: 70, width: 500, height: 30),
+            observedCharWidth: 10
+        )
+
+        let layout = GhostSuggestionLayout.make(
+            text: String(repeating: "a", count: 60) + "\n",
+            geometry: geometry,
+            fontSize: 14,
+            visibleFrame: CGRect(x: 0, y: 0, width: 1000, height: 600)
+        )
+
+        XCTAssertEqual(
+            layout.lines.map(\.text),
+            [String(repeating: "a", count: 43), String(repeating: "a", count: 17)]
+        )
+    }
+
+    // MARK: - RTL fallback frame (no input frame)
+
+    func test_make_rtlWithoutInputFrameUsesAreaLeftOfCaret() {
+        let geometry = CotabbyTestFixtures.overlayGeometry(
+            caretRect: CGRect(x: 300, y: 80, width: 2, height: 18),
+            inputFrameRect: nil,
+            observedCharWidth: 7,
+            isRightToLeft: true
+        )
+
+        let layout = GhostSuggestionLayout.make(
+            text: "مرحبا",
+            geometry: geometry,
+            fontSize: 14,
+            visibleFrame: CGRect(x: 0, y: 0, width: 500, height: 300)
+        )
+
+        // The fallback text frame runs from the screen margin to the caret gap, so the RTL anchor
+        // is exactly caret.minX - 6.
+        XCTAssertEqual(layout.lines.count, 1)
+        XCTAssertEqual(layout.panelOriginX, 294)
+        XCTAssertEqual(layout.topLineCenterOffsetFromCaret, 0)
+        XCTAssertTrue(layout.isRightToLeft)
+    }
+
+    // MARK: - Width measurement without an observed char width
+
+    func test_make_measuresWithFontWhenNoObservedCharWidth() {
+        // No AX-observed average width: the layout must measure the rendered string with a real
+        // font. The same 19-char text fits one line at the system fallback size but must wrap once
+        // the host's (much wider) monospace font is supplied, proving the host font drives wrap.
+        let geometry = CotabbyTestFixtures.overlayGeometry(
+            caretRect: CGRect(x: 10, y: 80, width: 2, height: 18),
+            inputFrameRect: CGRect(x: 0, y: 70, width: 400, height: 30)
+        )
+        let visibleFrame = CGRect(x: 0, y: 0, width: 500, height: 300)
+        let text = " brief reply coming"
+
+        let systemMeasured = GhostSuggestionLayout.make(
+            text: text,
+            geometry: geometry,
+            fontSize: 14,
+            visibleFrame: visibleFrame
+        )
+        let hostMeasured = GhostSuggestionLayout.make(
+            text: text,
+            geometry: geometry,
+            fontSize: 14,
+            visibleFrame: visibleFrame,
+            font: NSFont.monospacedSystemFont(ofSize: 40, weight: .regular)
+        )
+
+        XCTAssertEqual(systemMeasured.lines.count, 1)
+        XCTAssertGreaterThan(hostMeasured.lines.count, 1)
+    }
+
     // MARK: - renderedWidth (exact-advance measurement)
 
     func test_renderedWidth_emptyAndWhitespaceOnlyAreZero() {

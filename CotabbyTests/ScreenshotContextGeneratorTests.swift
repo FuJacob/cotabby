@@ -104,6 +104,86 @@ final class ScreenshotContextGeneratorTests: XCTestCase {
         XCTAssertTrue(excerpt.text.contains("budget spreadsheet"))
     }
 
+    // MARK: - OCR-empty fallback to the window title
+
+    private func makeGenerator(
+        extractionError: Error,
+        windowTitle: String?
+    ) -> ScreenshotContextGenerator {
+        ScreenshotContextGenerator(
+            screenshotService: StubScreenshotCapture(
+                screenshot: CapturedWindowScreenshot(image: makeImage(), windowTitle: windowTitle)
+            ),
+            textExtractor: StubTextExtractor(result: .failure(extractionError)),
+            configuration: .default
+        )
+    }
+
+    func test_generateContext_noRecognizedTextFallsBackToTheWindowTitle() async throws {
+        // A screenshot of an image-heavy window can OCR to nothing while its title still names
+        // the document; the title is the last usable signal before giving up.
+        let generator = makeGenerator(
+            extractionError: ScreenTextExtractionError.noRecognizedText,
+            windowTitle: "Quarterly budget review draft for the finance meeting"
+        )
+
+        let excerpt = try await generator.generateContext(for: makeSnapshot())
+
+        XCTAssertTrue(excerpt.text.contains("Quarterly budget review"))
+    }
+
+    func test_generateContext_noRecognizedTextWithoutATitleIsUnavailable() async {
+        let generator = makeGenerator(
+            extractionError: ScreenTextExtractionError.noRecognizedText,
+            windowTitle: nil
+        )
+
+        do {
+            _ = try await generator.generateContext(for: makeSnapshot())
+            XCTFail("Expected unavailable")
+        } catch let error as ScreenshotContextGenerationError {
+            XCTAssertTrue(error.localizedDescription.contains("not contain enough visible text"))
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func test_generateContext_noRecognizedTextWithAJunkTitleIsUnavailable() async {
+        // A title with no meaningful signal (window chrome noise) must not be promoted to prompt
+        // context just because OCR came up empty.
+        let generator = makeGenerator(
+            extractionError: ScreenTextExtractionError.noRecognizedText,
+            windowTitle: "x1 9z"
+        )
+
+        do {
+            _ = try await generator.generateContext(for: makeSnapshot())
+            XCTFail("Expected unavailable")
+        } catch is ScreenshotContextGenerationError {
+            // Expected: the junk title fails the meaningful-signal gate.
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func test_generateContext_unexpectedExtractionErrorSurfacesAsFailed() async {
+        struct VisionExploded: Error {}
+        let generator = makeGenerator(extractionError: VisionExploded(), windowTitle: nil)
+
+        do {
+            _ = try await generator.generateContext(for: makeSnapshot())
+            XCTFail("Expected failure")
+        } catch let error as ScreenshotContextGenerationError {
+            if case .failed = error {
+                // Non-extraction errors keep their distinct "failed" classification.
+            } else {
+                XCTFail("Expected .failed, got \(error)")
+            }
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
     private func makeSnapshot() -> FocusedInputSnapshot {
         FocusedInputSnapshot(
             applicationName: "Xcode",

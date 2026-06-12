@@ -40,4 +40,9 @@ final class DeepGeometryWalkThrottle {
         cachedResult = result
         return result
     }
+
+    // Mirrors FieldStyleCache: keep deallocation off the back-deployment main-actor executor
+    // shim, whose StopLookupScope double-frees on macOS 26. Only test-scoped resolvers ever
+    // deallocate this type.
+    nonisolated deinit {}
 }

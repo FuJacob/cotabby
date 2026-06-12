@@ -42,6 +42,14 @@ final class SentenceBoundaryClassifierTests: XCTestCase {
         XCTAssertFalse(SentenceBoundaryClassifier.isTerminalPeriod(in: text, at: lastPeriodIndex(in: text)))
     }
 
+    func test_leadingPeriodWithNothingBefore_isTerminal() {
+        // A period at the very start has no preceding word to qualify it, so it keeps the old
+        // unconditional behavior and counts as terminal.
+        let text = "."
+        XCTAssertTrue(SentenceBoundaryClassifier.isTerminalPeriod(in: text, at: text.startIndex))
+        XCTAssertTrue(SentenceBoundaryClassifier.endsSentence("."))
+    }
+
     // MARK: - endsSentence
 
     func test_endsSentence_trueForTerminalPeriod() {

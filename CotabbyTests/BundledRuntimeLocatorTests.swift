@@ -264,7 +264,98 @@ final class BundledRuntimeLocatorTests: XCTestCase {
         XCTAssertNil(BundledRuntimeLocator.enabledLMStudioModelsDirectory())
     }
 
+    // MARK: - User runtime directory resolution
+
+    func test_userRuntimeDirectoryURL_usesBundleNameFromInfoPlist() throws {
+        let bundle = try makeBundle(withInfo: ["CFBundleName": "LocatorProbe"])
+
+        let url = BundledRuntimeLocator.userRuntimeDirectoryURL(bundle: bundle)
+
+        XCTAssertEqual(url.lastPathComponent, BundledRuntimeLocator.runtimeFolderName)
+        XCTAssertEqual(url.deletingLastPathComponent().lastPathComponent, "LocatorProbe")
+        XCTAssertEqual(
+            url.deletingLastPathComponent().deletingLastPathComponent().lastPathComponent,
+            "Application Support"
+        )
+    }
+
+    func test_userRuntimeDirectoryURL_fallsBackToCotabbyFolderWhenBundleNameMissing() throws {
+        // A bare directory bundle carries no Info.plist, so CFBundleName resolves to nil and the
+        // app-folder name must fall back to "Cotabby" rather than producing a nameless path.
+        let bundle = try makeBundle(withInfo: nil)
+
+        let url = BundledRuntimeLocator.userRuntimeDirectoryURL(bundle: bundle)
+
+        XCTAssertEqual(url.lastPathComponent, BundledRuntimeLocator.runtimeFolderName)
+        XCTAssertEqual(url.deletingLastPathComponent().lastPathComponent, "Cotabby")
+    }
+
+    // MARK: - Default candidate enumeration (nil runtimeDirectoryPath)
+
+    func test_resolve_defaultCandidates_throwsLocatorErrorForUnknownSelectedModel() {
+        // No explicit runtime directory: the locator walks its default candidates (the user-managed
+        // Application Support directory, plus LM Studio when enabled). The selected filename is
+        // unique, so resolution must fail with a locator error on every machine regardless of which
+        // models happen to be installed. This is read-only against the real directories.
+        let config = LlamaRuntimeConfiguration(
+            runtimeDirectoryPath: nil,
+            preferredModelNames: [],
+            contextWindowTokens: 2048,
+            batchSize: 512,
+            gpuLayerCount: -1
+        )
+        let locator = BundledRuntimeLocator()
+
+        XCTAssertThrowsError(
+            try locator.resolve(
+                configuration: config,
+                selectedModelFilename: "cotabby-test-missing-\(UUID().uuidString).gguf"
+            )
+        ) { error in
+            XCTAssertTrue(error is BundledRuntimeLocatorError, "Expected a locator error, got \(error)")
+        }
+    }
+
+    func test_runtimeSearchDirectories_putsUserManagedDirectoryFirst() {
+        let directories = BundledRuntimeLocator.runtimeSearchDirectories(bundle: .main)
+
+        // Cotabby's own directory is authoritative (and the download target), so it must always be
+        // scanned first; the LM Studio library may or may not be appended depending on the toggle.
+        XCTAssertEqual(directories.first, BundledRuntimeLocator.userRuntimeDirectoryURL(bundle: .main))
+        XCTAssertFalse(directories.isEmpty)
+    }
+
+    func test_lmStudioModelsDirectoryIfAvailable_returnsWellKnownPathOnlyWhenPresent() {
+        // Machine-state dependent by design, so assert the contract that holds either way: nil when
+        // ~/.lmstudio/models does not exist, otherwise exactly that directory.
+        let url = BundledRuntimeLocator.lmStudioModelsDirectoryIfAvailable()
+
+        if let url {
+            XCTAssertTrue(url.path.hasSuffix("/.lmstudio/models"))
+            XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
+        } else {
+            let expected = FileManager.default.homeDirectoryForCurrentUser
+                .appendingPathComponent(".lmstudio/models")
+            XCTAssertFalse(FileManager.default.fileExists(atPath: expected.path))
+        }
+    }
+
     // MARK: - Helpers
+
+    /// Builds a throwaway on-disk bundle. With `info`, a minimal `.app` layout carrying that
+    /// Info.plist; with nil, a bare directory whose Bundle has no info dictionary values.
+    private func makeBundle(withInfo info: [String: Any]?) throws -> Bundle {
+        let root = try makeTemporaryDirectory()
+        guard let info else {
+            return try XCTUnwrap(Bundle(url: root))
+        }
+        let appURL = root.appendingPathComponent("Probe.app", isDirectory: true)
+        let contentsURL = appURL.appendingPathComponent("Contents", isDirectory: true)
+        try FileManager.default.createDirectory(at: contentsURL, withIntermediateDirectories: true)
+        let plistData = try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0)
+        try plistData.write(to: contentsURL.appendingPathComponent("Info.plist", isDirectory: false))
+        return try XCTUnwrap(Bundle(url: appURL))
+    }
 
     private func makeTemporaryDirectory() throws -> URL {
         let dir = FileManager.default.temporaryDirectory

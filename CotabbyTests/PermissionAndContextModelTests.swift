@@ -75,6 +75,20 @@ final class CotabbyPermissionKindTests: XCTestCase {
             )
         }
     }
+
+    func test_id_isTheCaseItself() {
+        for kind in CotabbyPermissionKind.allCases {
+            XCTAssertEqual(kind.id, kind)
+        }
+    }
+
+    func test_compactRowTitle_appendsOptionalQualifierOnlyForEnhancements() {
+        // Compact rows reuse the required rows' styling, so this suffix is the only thing that
+        // marks Screen Recording as optional there.
+        XCTAssertEqual(CotabbyPermissionKind.accessibility.compactRowTitle, "Accessibility")
+        XCTAssertEqual(CotabbyPermissionKind.inputMonitoring.compactRowTitle, "Input Monitoring")
+        XCTAssertEqual(CotabbyPermissionKind.screenRecording.compactRowTitle, "Screen Recording (Optional)")
+    }
 }
 
 final class VisualContextModelTests: XCTestCase {

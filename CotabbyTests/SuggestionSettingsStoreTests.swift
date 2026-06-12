@@ -300,14 +300,142 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         XCTAssertEqual(data.pluggedInModelFilename, "big-model.gguf")
     }
 
+    // MARK: - Custom suggestion text color
+
+    func test_load_normalizesPersistedColorHexAndWritesItBack() async {
+        let defaults = makeIsolatedDefaults()
+        // Hand-written value: leading #, lowercase, stray whitespace. The store must canonicalize it
+        // so the overlay and the picker agree on one representation.
+        defaults.set("  #a1b2c3 ", forKey: "cotabbyCustomSuggestionTextColorHex")
+
+        let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
+
+        XCTAssertEqual(data.customSuggestionTextColorHex, "A1B2C3")
+        XCTAssertEqual(defaults.string(forKey: "cotabbyCustomSuggestionTextColorHex"), "A1B2C3")
+    }
+
+    func test_load_discardsMalformedColorHex() async {
+        let defaults = makeIsolatedDefaults()
+        defaults.set("ZZZZZZ", forKey: "cotabbyCustomSuggestionTextColorHex")
+
+        let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
+
+        XCTAssertNil(data.customSuggestionTextColorHex)
+        // The write-back must scrub the unusable value rather than re-persisting it.
+        XCTAssertNil(defaults.string(forKey: "cotabbyCustomSuggestionTextColorHex"))
+    }
+
+    func test_saveCustomSuggestionTextColorHex_persistsValueAndNilRemoves() async {
+        let defaults = makeIsolatedDefaults()
+        let store = SuggestionSettingsStore(userDefaults: defaults)
+
+        store.saveCustomSuggestionTextColorHex("AABBCC")
+        XCTAssertEqual(defaults.string(forKey: "cotabbyCustomSuggestionTextColorHex"), "AABBCC")
+
+        store.saveCustomSuggestionTextColorHex(nil)
+        XCTAssertNil(defaults.object(forKey: "cotabbyCustomSuggestionTextColorHex"))
+    }
+
+    func test_normalizedHexString_acceptsOnlySixHexDigits() async {
+        XCTAssertNil(SuggestionSettingsStore.normalizedHexString(nil))
+        XCTAssertEqual(SuggestionSettingsStore.normalizedHexString("#ffcc00"), "FFCC00")
+        XCTAssertEqual(SuggestionSettingsStore.normalizedHexString(" 0011fF "), "0011FF")
+        XCTAssertNil(SuggestionSettingsStore.normalizedHexString("FFF"), "Three-digit shorthand is not supported")
+        XCTAssertNil(SuggestionSettingsStore.normalizedHexString("A1B2C3D"), "Seven digits is not a color")
+        XCTAssertNil(SuggestionSettingsStore.normalizedHexString("GGGGGG"), "Non-hex characters must be rejected")
+    }
+
+    // MARK: - Clamp guards for non-finite values
+
+    func test_clampedGhostTextOpacity_nonFiniteFallsBackToDefault() async {
+        XCTAssertEqual(
+            SuggestionSettingsStore.clampedGhostTextOpacity(.nan),
+            SuggestionSettingsStore.defaultGhostTextOpacity
+        )
+        XCTAssertEqual(
+            SuggestionSettingsStore.clampedGhostTextOpacity(.infinity),
+            SuggestionSettingsStore.defaultGhostTextOpacity
+        )
+    }
+
+    func test_clampedGhostTextSizeMultiplier_nonFiniteFallsBackToDefault() async {
+        XCTAssertEqual(
+            SuggestionSettingsStore.clampedGhostTextSizeMultiplier(.nan),
+            SuggestionSettingsStore.defaultGhostTextSizeMultiplier
+        )
+        XCTAssertEqual(
+            SuggestionSettingsStore.clampedGhostTextSizeMultiplier(-.infinity),
+            SuggestionSettingsStore.defaultGhostTextSizeMultiplier
+        )
+    }
+
+    // MARK: - Disabled-app rule sanitization
+
+    func test_load_dropsDisabledAppRulesWithBlankBundleIdentifiers() async throws {
+        let defaults = makeIsolatedDefaults()
+        // A rule without a bundle identifier can never match a focused app, so it must be dropped
+        // on load instead of lingering as an unmatchable ghost row in Settings.
+        let persisted = [
+            DisabledApplicationRule(bundleIdentifier: "   ", displayName: "Ghost"),
+            DisabledApplicationRule(bundleIdentifier: " com.example.keep ", displayName: "  ")
+        ]
+        defaults.set(try JSONEncoder().encode(persisted), forKey: "cotabbyDisabledAppRules")
+
+        let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
+
+        XCTAssertEqual(data.disabledAppRules.map(\.bundleIdentifier), ["com.example.keep"])
+        // A blank display name falls back to the bundle identifier so the row is never unlabeled.
+        XCTAssertEqual(data.disabledAppRules.first?.displayName, "com.example.keep")
+    }
+
+    func test_sortedDisabledAppRules_tieBreaksEqualNamesByBundleIdentifier() async {
+        let sorted = SuggestionSettingsStore.sortedDisabledAppRules([
+            DisabledApplicationRule(bundleIdentifier: "com.z.notes", displayName: "Notes"),
+            DisabledApplicationRule(bundleIdentifier: "com.a.notes", displayName: "notes")
+        ])
+
+        // Case-insensitively equal display names must order deterministically by identifier.
+        XCTAssertEqual(sorted.map(\.bundleIdentifier), ["com.a.notes", "com.z.notes"])
+    }
+
+    func test_normalizedBundleIdentifier_nilAndBlankCollapseToNil() async {
+        XCTAssertNil(SuggestionSettingsStore.normalizedBundleIdentifier(nil))
+        XCTAssertNil(SuggestionSettingsStore.normalizedBundleIdentifier("   "))
+        XCTAssertEqual(SuggestionSettingsStore.normalizedBundleIdentifier(" com.example.app "), "com.example.app")
+    }
+
+    // MARK: - Corrupt persisted types degrade gracefully
+
+    func test_load_recoversFromWrongValueTypesInDefaults() async {
+        let defaults = makeIsolatedDefaults()
+        // A hand-edited or corrupted plist can hold the wrong type under our keys. Load must treat
+        // each one as "present but unusable" and degrade to a safe value instead of crashing.
+        // Data is used for the user name because UserDefaults converts numbers to strings.
+        defaults.set(Data([0x01]), forKey: "cotabbyUserName")
+        defaults.set("not-an-array", forKey: "cotabbyCustomRules")
+        defaults.set("not-an-array", forKey: "cotabbyResponseLanguages")
+        defaults.set("not-an-array", forKey: "cotabbyEnabledSpellingDictionaryCodes")
+
+        let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
+
+        XCTAssertEqual(data.userName, "")
+        XCTAssertEqual(data.customRules, [])
+        XCTAssertEqual(data.responseLanguages, [])
+        XCTAssertEqual(data.enabledSpellingDictionaryCodes, [])
+    }
+
     // MARK: - helpers
 
     /// Each store test gets its own isolated UserDefaults so state cannot leak between cases.
-    /// `removePersistentDomain` resets the in-memory suite to a clean slate before use.
+    /// `removePersistentDomain` resets the in-memory suite to a clean slate before use, and the
+    /// teardown block removes whatever the test persisted so suites do not accumulate on disk.
     private func makeIsolatedDefaults() -> UserDefaults {
         let suiteName = "cotabby.test.settingsStore.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
         defaults.removePersistentDomain(forName: suiteName)
+        addTeardownBlock {
+            defaults.removePersistentDomain(forName: suiteName)
+        }
         return defaults
     }
 }

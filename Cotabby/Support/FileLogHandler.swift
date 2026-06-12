@@ -29,11 +29,20 @@ final class FileLogWriter: @unchecked Sendable {
     private var handle: FileHandle?
     private var currentByteOffset: UInt64 = 0
 
-    init(sizeCapBytes: UInt64? = nil) {
+    /// `fileURL` overrides the default `~/Library/Logs/<bundle>/cotabby.jsonl` destination. Tests
+    /// inject a temp-directory URL so rotation and write behavior can be exercised against a real
+    /// file handle without touching the user's live logs.
+    init(sizeCapBytes: UInt64? = nil, fileURL: URL? = nil) {
         self.sizeCapBytesOverride = sizeCapBytes
-        self.logFileURL = Self.makeLogFileURL()
+        self.logFileURL = fileURL ?? Self.makeLogFileURL()
         openHandle()
     }
+
+    // The target's default MainActor isolation applies to this unannotated class, so without this
+    // a deallocation routes through the back-deployment main-actor executor shim, which
+    // double-frees in its StopLookupScope on macOS 26 (see InputSuppressionController). The shared
+    // singleton never deallocates in production; tests deallocate per-case writers constantly.
+    nonisolated deinit {}
 
     private let sizeCapBytesOverride: UInt64?
     private var effectiveCap: UInt64 { sizeCapBytesOverride ?? sizeCapBytes }

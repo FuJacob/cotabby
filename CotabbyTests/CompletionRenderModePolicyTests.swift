@@ -256,4 +256,20 @@ final class CompletionRenderModePolicyTests: XCTestCase {
             .mirror(reason: .caretMidLine)
         )
     }
+
+    // MARK: - User-facing preference metadata
+
+    func test_mirrorPreference_displayLabelsUseProductVocabulary() {
+        // The policy is the single source of truth for the Settings copy: "mirror" is internal
+        // naming, the user-facing word is "Popup".
+        XCTAssertEqual(MirrorPreference.auto.displayLabel, "Auto")
+        XCTAssertEqual(MirrorPreference.alwaysInline.displayLabel, "Inline")
+        XCTAssertEqual(MirrorPreference.alwaysMirror.displayLabel, "Popup")
+    }
+
+    func test_mirrorPreference_identifiableIdIsTheRawValue() {
+        for preference in MirrorPreference.allCases {
+            XCTAssertEqual(preference.id, preference.rawValue)
+        }
+    }
 }

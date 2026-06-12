@@ -29,4 +29,10 @@ final class FieldStyleCache {
         style = resolved
         return resolved
     }
+
+    // Stored state is plain value types, safe to release anywhere. The nonisolated deinit keeps
+    // deallocation off the back-deployment main-actor executor shim, whose StopLookupScope
+    // double-frees on macOS 26 (see InputSuppressionController). Production's single long-lived
+    // instance never deallocates; test-scoped resolvers do.
+    nonisolated deinit {}
 }

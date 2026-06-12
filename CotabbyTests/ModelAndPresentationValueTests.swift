@@ -158,6 +158,120 @@ final class SuggestionModelValueTests: XCTestCase {
         XCTAssertEqual(SuggestionDebugState.failed("Runtime failed").detail, "Runtime failed")
         XCTAssertEqual(SuggestionDebugState.ready(text: "hello", latency: 0.2).shortLabel, "Ready")
     }
+
+    func test_suggestionWordRange_labelsRenderLowAndHighBounds() {
+        let range = SuggestionWordRange(lowWords: 5, highWords: 15)
+
+        XCTAssertEqual(range.displayLabel, "5-15 words")
+        XCTAssertEqual(range.compactLabel, "5-15 w")
+    }
+
+    func test_wordCountPreset_idsAndCompactLabelsStayInSyncWithRawValues() {
+        XCTAssertEqual(
+            SuggestionWordCountPreset.allCases.map(\.id),
+            ["2-4", "4-7", "7-12", "12-20"]
+        )
+        XCTAssertEqual(
+            SuggestionWordCountPreset.allCases.map(\.compactLabel),
+            ["2-4 w", "4-7 w", "7-12 w", "12-20 w"]
+        )
+    }
+
+    func test_focusedInputContext_identityPairsElementWithFocusSequence() {
+        let context = CotabbyTestFixtures.focusedInputContext(
+            elementIdentifier: "field-a",
+            focusChangeSequence: 7
+        )
+
+        XCTAssertEqual(
+            context.identity,
+            FocusedInputIdentity(elementIdentifier: "field-a", focusChangeSequence: 7)
+        )
+    }
+
+    func test_focusedInputContext_contentSignatureMirrorsSnapshotAndTagsSecureFields() {
+        let context = CotabbyTestFixtures.focusedInputContext(
+            elementIdentifier: "field-a",
+            precedingText: "Hello",
+            trailingText: " tail",
+            focusChangeSequence: 7
+        )
+        let snapshot = CotabbyTestFixtures.focusedInputSnapshot(
+            elementIdentifier: "field-a",
+            precedingText: "Hello",
+            trailingText: " tail",
+            focusChangeSequence: 7
+        )
+
+        XCTAssertEqual(context.contentSignature, "5::0::Hello:: tail::plain")
+        // The context's fingerprint must stay interchangeable with the snapshot's so staleness
+        // checks can compare across the debounce boundary.
+        XCTAssertEqual(context.contentSignature, snapshot.contentSignature)
+
+        let secure = CotabbyTestFixtures.focusedInputContext(isSecure: true)
+        XCTAssertTrue(secure.contentSignature.hasSuffix("::secure"))
+    }
+
+    func test_suggestionKind_isCorrectionOnlyForCorrections() {
+        XCTAssertTrue(SuggestionKind.correction(typoWord: "teh").isCorrection)
+        XCTAssertFalse(SuggestionKind.continuation.isCorrection)
+    }
+
+    func test_overlayGeometry_withCaretRectReplacesOnlyTheCaretRect() {
+        let style = ResolvedFieldStyle(fontName: "Helvetica", fontPointSize: 13, colorHex: "336699")
+        let original = SuggestionOverlayGeometry(
+            caretRect: CGRect(x: 10, y: 20, width: 2, height: 18),
+            inputFrameRect: CGRect(x: 0, y: 0, width: 240, height: 32),
+            caretQuality: .derived,
+            isCaretAtEndOfLine: false,
+            observedCharWidth: 7,
+            isRightToLeft: true,
+            focusChangeSequence: 9,
+            focusedInputIdentityKey: 77,
+            resolvedFieldStyle: style
+        )
+
+        let advanced = original.withCaretRect(CGRect(x: 52, y: 20, width: 2, height: 18))
+
+        XCTAssertEqual(advanced.caretRect, CGRect(x: 52, y: 20, width: 2, height: 18))
+        XCTAssertEqual(advanced.inputFrameRect, original.inputFrameRect)
+        XCTAssertEqual(advanced.caretQuality, .derived)
+        XCTAssertFalse(advanced.isCaretAtEndOfLine)
+        XCTAssertEqual(advanced.observedCharWidth, 7)
+        XCTAssertTrue(advanced.isRightToLeft)
+        XCTAssertEqual(advanced.focusChangeSequence, 9)
+        XCTAssertEqual(advanced.focusedInputIdentityKey, 77)
+        XCTAssertEqual(advanced.resolvedFieldStyle, style)
+    }
+
+    func test_overlayState_hiddenExposesNoVisibleTextOrMode() {
+        let hidden = OverlayState.hidden(reason: "No suggestion buffered")
+
+        XCTAssertEqual(hidden.shortLabel, "Hidden")
+        XCTAssertEqual(hidden.detail, "No suggestion buffered")
+        XCTAssertFalse(hidden.isVisible)
+        XCTAssertNil(hidden.visibleText)
+        XCTAssertNil(hidden.visibleMode)
+    }
+
+    func test_suggestionClientError_errorDescriptionSurfacesTheUnderlyingMessage() {
+        XCTAssertEqual(
+            SuggestionClientError.unavailable("Engine offline").errorDescription,
+            "Engine offline"
+        )
+        XCTAssertEqual(
+            SuggestionClientError.unsupportedLanguageOrLocale("Locale unsupported").errorDescription,
+            "Locale unsupported"
+        )
+        XCTAssertEqual(
+            SuggestionClientError.generationFailed("Decode failed").errorDescription,
+            "Decode failed"
+        )
+        XCTAssertEqual(
+            SuggestionClientError.cancelled.errorDescription,
+            "Generation was cancelled."
+        )
+    }
 }
 
 final class RuntimeAndInputModelValueTests: XCTestCase {
@@ -224,6 +338,83 @@ final class RuntimeAndInputModelValueTests: XCTestCase {
         XCTAssertFalse(CotabbyTestFixtures.inputEvent(kind: .fullAcceptance).shouldClearSuggestion)
         XCTAssertFalse(CotabbyTestFixtures.inputEvent(kind: .fullAcceptance).shouldSchedulePrediction)
         XCTAssertFalse(CotabbyTestFixtures.inputEvent(kind: .other).shouldClearSuggestion)
+    }
+
+    func test_runtimeBootstrapState_summaryShowsDetailForEveryNonIdleState() {
+        XCTAssertEqual(RuntimeBootstrapState.idle.summary, "Idle")
+        XCTAssertEqual(RuntimeBootstrapState.starting("Locating runtime").summary, "Locating runtime")
+        XCTAssertEqual(RuntimeBootstrapState.loading("Loading model").summary, "Loading model")
+        XCTAssertEqual(RuntimeBootstrapState.ready("tabby-2-base ready").summary, "tabby-2-base ready")
+        XCTAssertEqual(RuntimeBootstrapState.failed("Missing model file").summary, "Missing model file")
+    }
+
+    func test_runtimeBootstrapState_failureDetailIsNonNilOnlyWhenFailed() {
+        XCTAssertEqual(RuntimeBootstrapState.failed("Missing model file").failureDetail, "Missing model file")
+        XCTAssertNil(RuntimeBootstrapState.idle.failureDetail)
+        XCTAssertNil(RuntimeBootstrapState.starting("Locating runtime").failureDetail)
+        XCTAssertNil(RuntimeBootstrapState.loading("Loading model").failureDetail)
+        XCTAssertNil(RuntimeBootstrapState.ready("tabby-2-base ready").failureDetail)
+    }
+
+    func test_runtimeModelOption_keepsRawFilenameAsIdentityButAliasesDisplayName() {
+        let option = RuntimeModelOption(
+            filename: "Qwen3.5-0.8B-Base.i1-Q6_K.gguf",
+            url: URL(fileURLWithPath: "/tmp/models/Qwen3.5-0.8B-Base.i1-Q6_K.gguf")
+        )
+
+        XCTAssertEqual(option.id, "Qwen3.5-0.8B-Base.i1-Q6_K.gguf")
+        XCTAssertEqual(option.actualModelName, "Qwen3.5-0.8B-Base.i1-Q6_K.gguf")
+        XCTAssertEqual(option.displayName, "tabby-2-nano")
+    }
+
+    func test_downloadableRuntimeModel_defaultsLeaveValidationMetadataEmpty() throws {
+        let url = try XCTUnwrap(URL(string: "https://example.com/custom.gguf"))
+        let model = DownloadableRuntimeModel(
+            filename: "custom.gguf",
+            displayName: "Custom",
+            downloadURL: url,
+            approximateSizeInGigabytes: 1.4
+        )
+
+        XCTAssertEqual(model.id, "custom.gguf")
+        XCTAssertEqual(model.actualModelName, "custom.gguf")
+        XCTAssertNil(model.expectedSizeBytes)
+        XCTAssertNil(model.sha256)
+        XCTAssertEqual(model.allKnownFilenames, ["custom.gguf"])
+        XCTAssertEqual(model.approximateSizeLabel, "~1.4 GB")
+    }
+
+    func test_downloadableModelCatalog_entriesAreUniqueHuggingFaceGGUFDownloads() {
+        let models = RuntimeModelCatalog.downloadableModels
+
+        XCTAssertEqual(models.count, 4)
+        XCTAssertEqual(Set(models.map(\.id)).count, models.count)
+        for model in models {
+            XCTAssertTrue(model.filename.hasSuffix(".gguf"), "\(model.filename) should be a GGUF")
+            XCTAssertEqual(model.downloadURL.host, "huggingface.co")
+            XCTAssertTrue(model.downloadURL.absoluteString.hasSuffix("?download=true"))
+            XCTAssertEqual(model.displayName, RuntimeModelCatalog.displayName(for: model.filename))
+        }
+    }
+
+    func test_llamaGenerationOptions_defaultsKeepMaskingAndSuppressionOff() {
+        // Omitting the trailing parameters must reproduce the conservative production defaults:
+        // no line masking, no forced word continuation, suppression disabled, two-token stop floor.
+        let options = LlamaGenerationOptions(
+            maxPredictionTokens: 8,
+            temperature: 0.1,
+            topK: 20,
+            topP: 0.7,
+            minP: 0.08,
+            repetitionPenalty: 1.05,
+            seed: nil
+        )
+
+        XCTAssertNil(options.seed)
+        XCTAssertFalse(options.singleLine)
+        XCTAssertFalse(options.forceWordContinuation)
+        XCTAssertEqual(options.confidenceFloor, -.infinity)
+        XCTAssertEqual(options.sentenceStopMinimumTokens, 2)
     }
 }
 

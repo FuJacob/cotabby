@@ -297,6 +297,72 @@ final class MirrorOverlayLayoutTests: XCTestCase {
         XCTAssertTrue(layout.isRightToLeft)
     }
 
+    // MARK: - Degenerate caret rect (empty rect at the origin)
+
+    func test_make_emptyCaretRect_anchorsToInputFrameForUserPreference() {
+        // A zero caret rect is the degenerate shape some hosts publish right after focus. With a
+        // trustworthy reason the caret anchor is preferred, but an empty rect forces the safety-net
+        // anchor: just below the field's bottom edge, centered on the field.
+        let geometry = CotabbyTestFixtures.overlayGeometry(
+            caretRect: .zero,
+            inputFrameRect: CGRect(x: 100, y: 100, width: 200, height: 40)
+        )
+
+        let layout = MirrorOverlayLayout.make(
+            suggestion: "hi",
+            geometry: geometry,
+            visibleFrame: screen,
+            showsAcceptanceHint: true,
+            reason: .userPreference
+        )
+
+        // Card width: 120pt text floor + 36pt keycap + 2 * 10pt padding. Height: ceil(13 * 1.6) + 12.
+        // Anchor top: field minY (100) - 8pt gap = 92; center: field midX (200).
+        XCTAssertEqual(layout.panelFrame, CGRect(x: 112, y: 59, width: 176, height: 33))
+    }
+
+    func test_make_emptyCaretRectAndMissingInputFrame_clampsToScreenMargin() {
+        // With no usable anchor at all, the fixed caret fallback lands off-screen and the clamp
+        // must pull the card back to the visible frame's margin instead of dropping it off-screen.
+        let geometry = CotabbyTestFixtures.overlayGeometry(
+            caretRect: .zero,
+            inputFrameRect: nil
+        )
+
+        let layout = MirrorOverlayLayout.make(
+            suggestion: "hi",
+            geometry: geometry,
+            visibleFrame: screen,
+            showsAcceptanceHint: true,
+            reason: .userPreference
+        )
+
+        XCTAssertEqual(layout.panelFrame, CGRect(x: 12, y: 12, width: 176, height: 33))
+    }
+
+    // MARK: - Visible frame smaller than the card
+
+    func test_make_pinsCardToMarginWhenVisibleFrameIsSmallerThanCard() {
+        // When the visible frame cannot contain the card at all (tiny screen or extreme zoom), the
+        // min/max clamp inverts; the layout must pin to the leading margin on both axes rather
+        // than producing a frame outside the screen.
+        let tinyScreen = CGRect(x: 0, y: 0, width: 150, height: 28)
+        let geometry = CotabbyTestFixtures.overlayGeometry(
+            caretRect: CGRect(x: 60, y: 200, width: 2, height: 18),
+            inputFrameRect: nil
+        )
+
+        let layout = MirrorOverlayLayout.make(
+            suggestion: "hi",
+            geometry: geometry,
+            visibleFrame: tinyScreen,
+            showsAcceptanceHint: true,
+            reason: .userPreference
+        )
+
+        XCTAssertEqual(layout.panelFrame, CGRect(x: 12, y: 12, width: 176, height: 33))
+    }
+
     // MARK: - Acceptance-hint reservation
 
     func test_make_widerCardWhenAcceptanceHintEnabled() {

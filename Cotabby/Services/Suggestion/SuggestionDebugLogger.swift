@@ -53,6 +53,11 @@ final class SuggestionDebugLogger {
         self.colorizedOutput = colorizedOutput ?? shouldUseColor
     }
 
+    // All stored state is thread-safe to release (a Bool and an optional String). The nonisolated
+    // deinit prevents Swift from scheduling the teardown through the back-deployment main-actor
+    // executor shim, which double-frees in app-hosted tests (see InputSuppressionController).
+    nonisolated deinit {}
+
     /// Emits only the model-boundary artifacts that are useful for debugging suggestion quality.
     ///
     /// Lifecycle stages such as debounce, acceptance, and visual-context session dedup still update

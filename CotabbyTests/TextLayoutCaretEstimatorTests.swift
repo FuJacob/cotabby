@@ -333,6 +333,61 @@ final class TextLayoutCaretEstimatorTests: XCTestCase {
         XCTAssertEqual(estimate.caretRect.maxY, frame.maxY - topInset, accuracy: 0.01)
     }
 
+    func test_estimate_observedCharWidthWithinTwoPercentDoesNotRescaleFont() throws {
+        // The width calibration has a 2% dead band: an observed average that close to the layout
+        // font's own average is measurement noise, and rescaling on it would jitter the font size
+        // every present. Mirrors the estimator's width-sample constant on purpose so this breaks
+        // loudly if the calibration sample changes.
+        let sample = "the quick brown fox jumps over the lazy dog, The Quick 0123456789. " as NSString
+        let menlo = try XCTUnwrap(NSFont(name: "Menlo-Regular", size: 16))
+        let sampleAverage = sample.size(withAttributes: [.font: menlo]).width / CGFloat(sample.length)
+
+        let estimate = try XCTUnwrap(
+            acceptedEstimate(for: makeInput(
+                prefix: "Hello",
+                frame: CGRect(x: 0, y: 0, width: 400, height: 24),
+                style: ResolvedFieldStyle(fontName: "Menlo-Regular", fontPointSize: 16, colorHex: nil),
+                observedCharWidth: sampleAverage * 1.015
+            ))
+        )
+
+        // Without the dead band the layout font would become 16 * 1.015 = 16.24pt.
+        XCTAssertEqual(estimate.layoutFontPointSize, 16)
+    }
+
+    func test_estimate_rightToLeftTrailingNewlineAnchorsCaretAtTrailingEdge() throws {
+        // After a hard line break in an RTL editor the insertion point sits at the line's leading
+        // edge, which is the field's right side; the empty new line must not snap the caret to the
+        // left edge the way LTR does.
+        let frame = CGRect(x: 100, y: 100, width: 300, height: 200)
+        let estimate = try XCTUnwrap(
+            acceptedEstimate(for: makeInput(prefix: "שלום\n", frame: frame, isRightToLeft: true))
+        )
+
+        XCTAssertEqual(estimate.lineIndex, 1)
+        XCTAssertEqual(estimate.caretRect.minX, frame.maxX - horizontalInset, accuracy: 0.01)
+    }
+
+    // MARK: - Memoization
+
+    func test_estimate_repeatedIdenticalInputReturnsIdenticalOutcome() {
+        // Reconcile ticks re-present byte-identical inputs several times per second; the memo must
+        // return the exact same outcome for them (and the second call exercises the cached path).
+        let input = makeInput(
+            prefix: "memo probe text",
+            frame: CGRect(x: 0, y: 0, width: 300, height: 24)
+        )
+
+        let first = TextLayoutCaretEstimator.estimate(for: input)
+        let second = TextLayoutCaretEstimator.estimate(for: input)
+
+        XCTAssertEqual(first, second)
+        guard case .estimate = first else {
+            XCTFail("Expected the probe input to produce an accepted estimate")
+            return
+        }
+    }
+
     func test_estimate_measuredTopIgnoredWhenPrefixStartsWithLineBreak() throws {
         // The topmost run is the first *rendered* text; leading blank lines sit above it, so the
         // measured top edge would anchor the layout one line too high per blank.

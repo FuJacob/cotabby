@@ -234,4 +234,27 @@ final class EmojiTriggerStateMachineTests: XCTestCase {
         XCTAssertEqual(output.actions, [.cancel])
         XCTAssertFalse(sut.isCapturing)
     }
+
+    func test_nonCharacterInputsWhileIdle_areIgnoredAndEraseBoundaryKnowledge() {
+        let inputs: [EmojiTriggerInput] = [
+            .backspace, .navigate(.down), .commitKey, .escape, .focusChanged, .dismissExternally
+        ]
+        for input in inputs {
+            var sut = EmojiTriggerStateMachine()
+            type("a", into: &sut)
+
+            let output = sut.reduce(input, selectableMatchCount: 3)
+
+            XCTAssertEqual(output, .ignored, "input \(input) should be ignored while idle")
+            XCTAssertFalse(sut.isCapturing)
+            // The preceding "a" is forgotten, so the next ":" is evaluated like the start of the
+            // field and opens a capture even though a letter was the last typed character.
+            let reopened = sut.reduce(.character(":"), selectableMatchCount: 0)
+            XCTAssertEqual(
+                reopened.actions,
+                [.open(query: "")],
+                "input \(input) should erase the preceding-character memory"
+            )
+        }
+    }
 }

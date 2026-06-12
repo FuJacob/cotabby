@@ -65,4 +65,28 @@ final class SpellingLanguageResolverTests: XCTestCase {
             )
         )
     }
+
+    func test_emptyContextWithMultipleEnabledLanguagesReturnsNil() {
+        // With several dictionaries enabled and no text to sample, the resolver must not guess.
+        XCTAssertNil(
+            resolver.resolve(
+                precedingText: "",
+                currentWord: "",
+                enabledLanguages: [.english, .german]
+            )
+        )
+    }
+
+    func test_currentWordNotAtEndOfContextStillResolvesFromFullContext() {
+        // The typo is not the suffix of the preceding text (mid-edit correction), so the resolver
+        // samples the whole preceding context instead of dropping a trailing word.
+        XCTAssertEqual(
+            resolver.resolve(
+                precedingText: "Das ist ein kurzer deutscher Satz mit einem",
+                currentWord: "Feler",
+                enabledLanguages: [.english, .german, .spanish]
+            ),
+            .german
+        )
+    }
 }

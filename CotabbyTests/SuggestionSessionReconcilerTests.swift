@@ -41,6 +41,14 @@ final class SuggestionSessionReconcilerTests: XCTestCase {
         XCTAssertNil(advanced)
     }
 
+    func test_advanceIfTypedCharactersMatch_returnsNilForEmptyInput() {
+        // An empty capture is not a text mutation; advancing by zero would silently re-validate a
+        // session that no key event actually confirmed.
+        let session = CotabbyTestFixtures.activeSession(fullText: " world again")
+
+        XCTAssertNil(SuggestionSessionReconciler.advanceIfTypedCharactersMatch("", session: session))
+    }
+
     func test_nextAcceptanceChunk_includesLeadingWhitespaceAndNextVisibleToken() {
         XCTAssertEqual(
             SuggestionSessionReconciler.nextAcceptanceChunk(from: "  world again"),
@@ -327,6 +335,14 @@ final class SuggestionSessionReconcilerTests: XCTestCase {
         XCTAssertEqual(SuggestionSessionReconciler.nextAcceptanceChunk(from: "。」「次の文"), "。」「")
     }
 
+    /// The katakana middle dot lives in the kana block, so it enters the ICU branch, but a run of
+    /// middle dots contains no segmentable word. The chunker must fall back to the whole
+    /// whitespace-bounded token rather than producing an empty chunk and stalling.
+    func test_nextAcceptanceChunk_kanaPunctuationRunWithoutWordsAcceptsWholeToken() {
+        XCTAssertEqual(SuggestionSessionReconciler.nextAcceptanceChunk(from: "・・・ あと"), "・・・")
+        XCTAssertEqual(SuggestionSessionReconciler.nextAcceptanceChunk(from: "・・・"), "・・・")
+    }
+
     /// The trailing binding must stop before an opening bracket: the closer and full stop belong to
     /// the word, but the next quote's opener belongs to the next word.
     func test_nextAcceptanceChunk_trailingBindingStopsBeforeOpeningBracket() {
@@ -446,6 +462,15 @@ final class SuggestionSessionReconcilerTests: XCTestCase {
         XCTAssertEqual(
             SuggestionSessionReconciler.nextAcceptancePhrase(from: "\"hi\" there"),
             "\"hi\" there"
+        )
+    }
+
+    func test_nextAcceptancePhrase_chunkOfOnlyClosingPunctuationIsNotABoundary() {
+        // The closer walk-back can consume the entire accumulated chunk; with no character left
+        // underneath there is no terminator, so the phrase must keep accumulating.
+        XCTAssertEqual(
+            SuggestionSessionReconciler.nextAcceptancePhrase(from: "\"\" hello"),
+            "\"\" hello"
         )
     }
 
@@ -660,6 +685,25 @@ final class SuggestionSessionReconcilerTests: XCTestCase {
         )
     }
 
+    func test_overlayHideReason_acceptanceAndOtherEventsUseTheGenericReason() {
+        // Acceptance-driven hides are expected behavior, not invalidation, so they get the plain
+        // message; shortcut mutations read as typing.
+        for kind in [CapturedInputEvent.Kind.acceptance, .fullAcceptance, .other] {
+            XCTAssertEqual(
+                SuggestionSessionReconciler.overlayHideReason(
+                    for: CotabbyTestFixtures.inputEvent(kind: kind)
+                ),
+                "Overlay hidden."
+            )
+        }
+        XCTAssertEqual(
+            SuggestionSessionReconciler.overlayHideReason(
+                for: CotabbyTestFixtures.inputEvent(kind: .shortcutMutation)
+            ),
+            "Overlay hidden because typing invalidated the current suggestion."
+        )
+    }
+
     func test_reconcile_validWhenLiveContextStillMatchesBaseContext() {
         let session = CotabbyTestFixtures.activeSession(
             fullText: " world again",
@@ -828,6 +872,105 @@ final class SuggestionSessionReconcilerTests: XCTestCase {
         XCTAssertEqual(reconciledSession.remainingText, " again")
         XCTAssertEqual(advancement?.stage, "session-reconciled")
         XCTAssertNil(nextPending)
+    }
+
+    func test_reconcile_invalidWhenSuggestionPartiallyUndoneOutsideInsertionSyncWindow() {
+        // The session has consumed " worl" (5 chars) but the live field only shows " wo": the user
+        // deleted part of the accepted text, so the session must die.
+        let session = CotabbyTestFixtures.activeSession(
+            fullText: " world again",
+            consumedCharacterCount: 5,
+            basePrecedingText: "Hello"
+        )
+        let liveContext = CotabbyTestFixtures.focusedInputContext(precedingText: "Hello wo")
+
+        let reconciliation = SuggestionSessionReconciler.reconcile(
+            session: session,
+            with: liveContext,
+            pendingInsertionConsumedCount: nil
+        )
+
+        assertInvalid(
+            reconciliation,
+            reason: "Overlay hidden because the active suggestion was partially undone."
+        )
+    }
+
+    func test_reconcile_toleratesShorterConsumedSuffixRightAfterAcceptedInsertion() {
+        // Same field state as the undo case, but we just Tab-inserted up to 5 consumed characters
+        // (the sentinel matches): AX simply has not published the full insert yet, so the session
+        // must survive untouched for one more cycle.
+        let session = CotabbyTestFixtures.activeSession(
+            fullText: " world again",
+            consumedCharacterCount: 5,
+            basePrecedingText: "Hello"
+        )
+        let liveContext = CotabbyTestFixtures.focusedInputContext(precedingText: "Hello wo")
+
+        let reconciliation = SuggestionSessionReconciler.reconcile(
+            session: session,
+            with: liveContext,
+            pendingInsertionConsumedCount: 5
+        )
+
+        guard case let .valid(reconciledSession, advancement, nextPending) = reconciliation else {
+            XCTFail("Expected post-insertion AX lag to be tolerated")
+            return
+        }
+        XCTAssertEqual(reconciledSession.acceptedText, session.acceptedText)
+        XCTAssertEqual(reconciledSession.remainingText, session.remainingText)
+        XCTAssertNil(advancement)
+        XCTAssertEqual(nextPending, 5)
+    }
+
+    func test_reconcile_toleratesPrefixAnchorRaceRightAfterAcceptedInsertion() {
+        // Inverse Chromium race: trailing text already stable, but the prefix still reflects the
+        // pre-insertion snapshot. With the sentinel armed the session waits instead of dying.
+        let session = CotabbyTestFixtures.activeSession(
+            fullText: " world again",
+            consumedCharacterCount: 6,
+            basePrecedingText: "Hello"
+        )
+        let liveContext = CotabbyTestFixtures.focusedInputContext(precedingText: "Goodbye")
+
+        let reconciliation = SuggestionSessionReconciler.reconcile(
+            session: session,
+            with: liveContext,
+            pendingInsertionConsumedCount: 6
+        )
+
+        guard case let .valid(reconciledSession, advancement, nextPending) = reconciliation else {
+            XCTFail("Expected prefix-anchor race to be tolerated during the insertion sync window")
+            return
+        }
+        XCTAssertEqual(reconciledSession.remainingText, session.remainingText)
+        XCTAssertNil(advancement)
+        XCTAssertEqual(nextPending, 6)
+    }
+
+    func test_reconcile_toleratesConsumedSuffixDivergenceRightAfterAcceptedInsertion() {
+        // The preceding text grew with characters that do not match the suggestion: outside the
+        // sync window that is invalidating, but right after Tab it is just stale AX content.
+        let session = CotabbyTestFixtures.activeSession(
+            fullText: " world again",
+            consumedCharacterCount: 6,
+            basePrecedingText: "Hello"
+        )
+        let liveContext = CotabbyTestFixtures.focusedInputContext(precedingText: "Helloxyz")
+
+        let reconciliation = SuggestionSessionReconciler.reconcile(
+            session: session,
+            with: liveContext,
+            pendingInsertionConsumedCount: 6
+        )
+
+        guard case let .valid(reconciledSession, advancement, nextPending) = reconciliation else {
+            XCTFail("Expected consumed-suffix divergence to be tolerated during the insertion sync window")
+            return
+        }
+        XCTAssertEqual(reconciledSession.remainingText, session.remainingText)
+        XCTAssertNil(advancement)
+        XCTAssertEqual(nextPending, 6)
     }
 
     func test_reconcile_clearsPendingInsertionSentinelWhenAXCatchesUp() {

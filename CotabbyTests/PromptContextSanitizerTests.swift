@@ -174,6 +174,36 @@ final class PromptContextSanitizerTests: XCTestCase {
         XCTAssertFalse(result.contains("54tbdbDX"))
     }
 
+    func test_sanitizeOCR_dropsLineOfOnlyWeakShortWords() {
+        // Preserved short words survive token scoring but are never strong signal on their own, so
+        // a line made entirely of them is UI chrome ("we", "go", "to") and must be dropped whole.
+        XCTAssertEqual(PromptContextSanitizer.sanitizeOCR("we go to it"), "")
+    }
+
+    func test_sanitizeOCR_dropsRepeatedGlyphRuns() {
+        // "aaaa" is the repeated-glyph hallucination shape; the real words around it must survive.
+        XCTAssertEqual(PromptContextSanitizer.sanitizeOCR("meeting notes aaaa"), "meeting notes")
+    }
+
+    func test_sanitizeOCR_returnsEmptyWhenBaseSanitizationLeavesNothing() {
+        // Symbols-only input sanitizes to an empty base string, which becomes one empty line; the
+        // OCR line filter must treat that as no tokens, not crash or emit whitespace.
+        XCTAssertEqual(PromptContextSanitizer.sanitizeOCR("*** ---"), "")
+        XCTAssertEqual(PromptContextSanitizer.sanitizeOCR(""), "")
+    }
+
+    func test_sanitizeOCR_dropsLetterlessDottedToken() {
+        // "12.34" splits like a domain but carries no letters, is not all-digits (the dot), and has
+        // no word signal, so it scores as numeric UI chrome and is dropped.
+        XCTAssertEqual(PromptContextSanitizer.sanitizeOCR("meeting notes 12.34"), "meeting notes")
+    }
+
+    func test_sanitizeOCR_dropsLowercaseLedTokenWithInteriorCapital() {
+        // "abeW" has vowels, so only the mixed-case rule can reject it: a non-leading capital in a
+        // short token without a known technical word is OCR garbage, unlike "Safari"-style prose.
+        XCTAssertEqual(PromptContextSanitizer.sanitizeOCR("meeting notes abeW"), "meeting notes")
+    }
+
     // MARK: - containsAlphanumericSignal
 
     func test_containsAlphanumericSignal_returnsTrueForMixedInput() {

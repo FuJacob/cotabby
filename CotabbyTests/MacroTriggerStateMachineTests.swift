@@ -115,4 +115,48 @@ final class MacroTriggerStateMachineTests: XCTestCase {
         let output = sut.reduce(.backspace, hasInsertableResult: false)
         XCTAssertEqual(output.actions, [.updateQuery("a")])
     }
+
+    func test_reset_returnsToIdleAndRestoresBoundary() {
+        var sut = MacroTriggerStateMachine()
+        openCapture(&sut)
+        _ = sut.reduce(.character("5"), hasInsertableResult: false)
+
+        sut.reset()
+
+        XCTAssertFalse(sut.isCapturing)
+        XCTAssertEqual(sut.state, .idle(previousCharacter: nil))
+        // A cleared machine has no boundary memory, so the next `/` opens as at the start of a field.
+        let output = sut.reduce(.character("/"), hasInsertableResult: false)
+        XCTAssertEqual(output.actions, [.open])
+    }
+
+    func test_nonCharacterInputsWhileIdle_areIgnoredAndClearBoundaryMemory() {
+        let inputs: [MacroTriggerInput] = [.backspace, .commitKey, .escape, .navigate, .focusChanged, .dismissExternally]
+        for input in inputs {
+            var sut = MacroTriggerStateMachine()
+            _ = sut.reduce(.character("x"), hasInsertableResult: false)
+
+            let output = sut.reduce(input, hasInsertableResult: true)
+
+            XCTAssertEqual(output, .ignored, "input \(input) should be ignored while idle")
+            // The machine forgot the preceding "x", so the next `/` is evaluated as a fresh boundary.
+            let reopened = sut.reduce(.character("/"), hasInsertableResult: false)
+            XCTAssertEqual(reopened.actions, [.open], "input \(input) should clear boundary memory")
+        }
+    }
+
+    func test_navigationAndFocusEventsWhileCapturing_cancelWithoutConsuming() {
+        let inputs: [MacroTriggerInput] = [.navigate, .focusChanged, .dismissExternally]
+        for input in inputs {
+            var sut = MacroTriggerStateMachine()
+            openCapture(&sut)
+            _ = sut.reduce(.character("5"), hasInsertableResult: false)
+
+            let output = sut.reduce(input, hasInsertableResult: true)
+
+            XCTAssertEqual(output.actions, [.cancel], "input \(input) should cancel capture")
+            XCTAssertFalse(output.consumesKey, "input \(input) must reach the focused app")
+            XCTAssertFalse(sut.isCapturing)
+        }
+    }
 }

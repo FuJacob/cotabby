@@ -21,3 +21,33 @@ final class SpellingDictionaryResourceTests: XCTestCase {
         }
     }
 }
+
+final class SpellingDictionaryLanguageMetadataTests: XCTestCase {
+    func test_id_matchesPersistedISOCodeInStableCatalogOrder() {
+        for language in SpellingDictionaryLanguage.allCases {
+            XCTAssertEqual(language.id, language.rawValue)
+        }
+        // `SpellingDictionaryCatalog.normalize` emits codes in `allCases` order, so this order is a
+        // persistence and rendering contract, not an implementation detail.
+        XCTAssertEqual(
+            SpellingDictionaryLanguage.allCases.map(\.rawValue),
+            ["en", "de", "es", "fr", "he", "it", "ru"]
+        )
+    }
+
+    func test_settingsLabel_includesEnglishNameForEveryLanguageAndStaysUnique() {
+        let labels = SpellingDictionaryLanguage.allCases.map(\.settingsLabel)
+        XCTAssertEqual(Set(labels).count, labels.count)
+
+        for language in SpellingDictionaryLanguage.allCases {
+            XCTAssertTrue(
+                language.settingsLabel.contains(language.displayName),
+                "\(language.rawValue) settings label should include the English name"
+            )
+        }
+
+        XCTAssertEqual(SpellingDictionaryLanguage.english.settingsLabel, "English")
+        XCTAssertEqual(SpellingDictionaryLanguage.german.settingsLabel, "Deutsch (German)")
+        XCTAssertEqual(SpellingDictionaryLanguage.hebrew.settingsLabel, "עברית (Hebrew)")
+    }
+}

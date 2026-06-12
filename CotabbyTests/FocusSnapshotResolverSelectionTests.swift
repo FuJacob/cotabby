@@ -88,4 +88,43 @@ final class FocusSnapshotResolverSelectionTests: XCTestCase {
         XCTAssertEqual(selected.quality, .estimated)
         XCTAssertEqual(selected.source, "estimated primary-fallback")
     }
+
+    func testSelectReturnsNilWhenNeitherSourceProducedARect() {
+        XCTAssertNil(CaretGeometrySelector.select(
+            primaryRect: nil,
+            primaryQuality: nil,
+            primaryObservedCharWidth: nil,
+            deepResult: nil
+        ))
+    }
+
+    func testPrimarySourceDetailIsAppendedToTheSourceLabel() throws {
+        // The resolver-supplied mapping detail must surface in the debug badge label so logs show
+        // not just which branch won but how the caret mapped.
+        let selected = try XCTUnwrap(CaretGeometrySelector.select(
+            primaryRect: primaryRect,
+            primaryQuality: .exact,
+            primaryObservedCharWidth: nil,
+            primarySourceDetail: "marker-run",
+            deepResult: nil
+        ))
+
+        XCTAssertEqual(selected.source, "exact primary (marker-run)")
+        XCTAssertEqual(selected.quality, .exact)
+    }
+
+    func testUnknownPrimaryQualityFallsBackToEstimatedWithUnknownLabel() throws {
+        // A rect with no quality signal at all still ships (better than nothing), but it must be
+        // labeled "unknown" and demoted to `.estimated` so downstream policy treats it as weak.
+        let selected = try XCTUnwrap(CaretGeometrySelector.select(
+            primaryRect: primaryRect,
+            primaryQuality: nil,
+            primaryObservedCharWidth: nil,
+            deepResult: nil
+        ))
+
+        XCTAssertEqual(selected.rect, primaryRect)
+        XCTAssertEqual(selected.quality, .estimated)
+        XCTAssertEqual(selected.source, "unknown primary-fallback")
+    }
 }

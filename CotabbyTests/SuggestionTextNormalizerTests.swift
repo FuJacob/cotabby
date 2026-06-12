@@ -234,6 +234,79 @@ final class SuggestionTextNormalizerTests: XCTestCase {
         XCTAssertEqual(normalized, "first Task: review")
     }
 
+    // MARK: - Multi-line mode
+
+    func test_normalize_multiLineKeepsLinesUpToBlankLineBoundary() {
+        // Multi-line mode keeps real line breaks but must stop at the first blank line, which is
+        // the runaway-paragraph signature.
+        let request = CotabbyTestFixtures.suggestionRequest(
+            precedingText: "Notes",
+            isMultiLineEnabled: true
+        )
+
+        let normalized = SuggestionTextNormalizer.normalize(
+            "first line\nsecond line\n\nrunaway paragraph",
+            for: request
+        )
+
+        XCTAssertEqual(normalized, "first line\nsecond line")
+    }
+
+    func test_normalize_multiLineWithoutBlankLineKeepsEveryLine() {
+        let request = CotabbyTestFixtures.suggestionRequest(
+            precedingText: "Notes",
+            isMultiLineEnabled: true
+        )
+
+        let normalized = SuggestionTextNormalizer.normalize(
+            "first line\nsecond line",
+            for: request
+        )
+
+        XCTAssertEqual(normalized, "first line\nsecond line")
+    }
+
+    // MARK: - Reasoning-block stripping
+
+    func test_normalize_stripsCompleteThinkBlockBeforeContinuation() {
+        let request = CotabbyTestFixtures.suggestionRequest(precedingText: "Hello")
+
+        let normalized = SuggestionTextNormalizer.normalize(
+            "<think>the user is mid-sentence</think>next words",
+            for: request
+        )
+
+        XCTAssertEqual(normalized, "next words")
+    }
+
+    func test_normalize_stripsCompleteAndDanglingThinkBlocks() {
+        // A completed block is removed in place; a second block cut off by the token limit has no
+        // closing tag, so everything from its open tag onward is dropped.
+        let request = CotabbyTestFixtures.suggestionRequest(precedingText: "Hello")
+
+        let normalized = SuggestionTextNormalizer.normalize(
+            "<think>first</think>real<think>second never closes",
+            for: request
+        )
+
+        XCTAssertEqual(normalized, "real")
+    }
+
+    func test_normalizeDetailed_danglingThinkBlockOnlyReportsNormalizedToEmpty() {
+        // The model spent its whole budget reasoning: raw had content, but nothing printable
+        // survives the strip, which must be attributed as normalized-to-empty (not empty
+        // generation, and not a filter drop).
+        let request = CotabbyTestFixtures.suggestionRequest(precedingText: "Hello")
+
+        let result = SuggestionTextNormalizer.normalizeDetailed(
+            "<think>reasoning that never closes",
+            for: request
+        )
+
+        XCTAssertEqual(result.text, "")
+        XCTAssertEqual(result.suppression, .normalizedToEmpty)
+    }
+
     // MARK: - Suppression-reason attribution (normalizeDetailed)
 
     func test_normalizeDetailed_successHasNoSuppressionReason() {

@@ -62,6 +62,42 @@ final class LlamaSuggestionEngineCancellationTests: XCTestCase {
         XCTAssertEqual(runtime.resetCount, 0)
     }
 
+    func test_suggestionClientError_resetsCache_andRethrowsSameError() async {
+        // A `SuggestionClientError` crossing the runtime boundary is a genuine failure, so it must
+        // reset the cache but keep its original case and message for the coordinator's diagnostics.
+        let runtime = FakeLlamaRuntime()
+        runtime.generateResult = .failure(SuggestionClientError.unavailable("model not loaded"))
+        let engine = LlamaSuggestionEngine(runtimeManager: runtime)
+
+        do {
+            _ = try await engine.generateSuggestion(for: makeRequest(prompt: "hello"))
+            XCTFail("Expected a thrown error")
+        } catch SuggestionClientError.unavailable(let message) {
+            XCTAssertEqual(message, "model not loaded")
+        } catch {
+            XCTFail("Expected SuggestionClientError.unavailable to pass through unchanged, got \(error)")
+        }
+        XCTAssertEqual(runtime.resetCount, 1, "A client error should reset the KV cache exactly once")
+    }
+
+    func test_unexpectedError_resetsCache_andWrapsAsGenerationFailed() async {
+        // Errors outside the engine's known vocabulary fall into the catch-all: reset the cache and
+        // surface a `generationFailed` carrying the underlying description.
+        let runtime = FakeLlamaRuntime()
+        runtime.generateResult = .failure(UnexpectedRuntimeBoom())
+        let engine = LlamaSuggestionEngine(runtimeManager: runtime)
+
+        do {
+            _ = try await engine.generateSuggestion(for: makeRequest(prompt: "hello"))
+            XCTFail("Expected a thrown error")
+        } catch SuggestionClientError.generationFailed(let message) {
+            XCTAssertEqual(message, "UNEXPECTED_BOOM")
+        } catch {
+            XCTFail("Expected SuggestionClientError.generationFailed, got \(error)")
+        }
+        XCTAssertEqual(runtime.resetCount, 1, "An unexpected error should reset the KV cache exactly once")
+    }
+
     // MARK: - Helpers
 
     private func assertThrowsCancelled(
@@ -121,6 +157,11 @@ final class LlamaSuggestionEngineCancellationTests: XCTestCase {
             isMultiLineEnabled: false
         )
     }
+}
+
+/// An error type the engine has no dedicated handling for, used to drive the catch-all wrap path.
+private struct UnexpectedRuntimeBoom: LocalizedError {
+    var errorDescription: String? { "UNEXPECTED_BOOM" }
 }
 
 /// Minimal `LlamaRuntimeGenerating` fake that returns a staged result and counts cache resets,

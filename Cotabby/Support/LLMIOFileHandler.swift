@@ -25,11 +25,19 @@ final class LLMIOFileWriter: @unchecked Sendable {
     private var handle: FileHandle?
     private var currentByteOffset: UInt64 = 0
 
-    init(sizeCapBytes: UInt64? = nil) {
+    /// `fileURL` overrides the default `~/Library/Logs/<bundle>/llm-io.jsonl` destination. Tests
+    /// inject a temp-directory URL so rotation and write behavior can be exercised against a real
+    /// file handle without touching the user's live logs.
+    init(sizeCapBytes: UInt64? = nil, fileURL: URL? = nil) {
         self.sizeCapBytesOverride = sizeCapBytes
-        self.logFileURL = Self.makeLogFileURL()
+        self.logFileURL = fileURL ?? Self.makeLogFileURL()
         openHandle()
     }
+
+    // Mirrors FileLogWriter: the target's default MainActor isolation would otherwise route
+    // deallocation through the back-deployment executor shim, which double-frees in its
+    // StopLookupScope on macOS 26. Production only ever uses the never-deallocated singleton.
+    nonisolated deinit {}
 
     private let sizeCapBytesOverride: UInt64?
     private var effectiveCap: UInt64 { sizeCapBytesOverride ?? sizeCapBytes }
