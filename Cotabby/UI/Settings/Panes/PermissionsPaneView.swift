@@ -25,6 +25,7 @@ struct PermissionsPaneView: View {
                     granted: permissionManager.accessibilityGranted,
                     permissionGuidanceController: permissionGuidanceController
                 )
+                .settingsItem(.accessibility)
 
                 SettingsPermissionRow(
                     permission: .inputMonitoring,
@@ -34,6 +35,7 @@ struct PermissionsPaneView: View {
                     granted: permissionManager.inputMonitoringGranted,
                     permissionGuidanceController: permissionGuidanceController
                 )
+                .settingsItem(.inputMonitoring)
 
                 SettingsPermissionRow(
                     permission: .screenRecording,
@@ -43,6 +45,7 @@ struct PermissionsPaneView: View {
                     granted: permissionManager.screenRecordingGranted,
                     permissionGuidanceController: permissionGuidanceController
                 )
+                .settingsItem(.screenRecording)
             }
         }
         .onAppear { permissionManager.refresh() }
@@ -91,9 +94,13 @@ private struct SettingsPermissionRow: View {
             // neutral "Off" state or "Enable" verb. The pane-level warning callout still fires for
             // required permissions only, so nothing here claims autocomplete is broken when just
             // Screen Recording is missing.
-            Text(granted ? "Granted" : "Needs Access")
-                .font(.caption.weight(.medium))
-                .foregroundStyle(granted ? .green : .orange)
+            HStack(spacing: 4) {
+                Image(systemName: granted ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
+                    .accessibilityHidden(true)
+                Text(granted ? "Granted" : "Needs Access")
+            }
+            .font(.caption.weight(.medium))
+            .foregroundStyle(granted ? .green : .orange)
 
             if !granted {
                 Button("Grant Access") {

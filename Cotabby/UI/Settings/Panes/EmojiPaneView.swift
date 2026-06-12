@@ -19,6 +19,7 @@ struct EmojiPaneView: View {
                         systemImage: "face.smiling"
                     )
                 }
+                .settingsItem(.emojiPicker)
             }
 
             if suggestionSettings.isEmojiPickerEnabled {
@@ -37,6 +38,7 @@ struct EmojiPaneView: View {
                             systemImage: "hand.raised.fingers.spread"
                         )
                     }
+                    .settingsItem(.emojiSkinTone)
 
                     LabeledContent {
                         HStack(spacing: 8) {
@@ -51,6 +53,7 @@ struct EmojiPaneView: View {
                             systemImage: "person.2"
                         )
                     }
+                    .settingsItem(.emojiPeopleStyle)
 
                     LabeledContent {
                         Button("Clear History") {
@@ -63,6 +66,7 @@ struct EmojiPaneView: View {
                             systemImage: "clock.arrow.circlepath"
                         )
                     }
+                    .settingsItem(.emojiHistory)
                 }
             }
         }

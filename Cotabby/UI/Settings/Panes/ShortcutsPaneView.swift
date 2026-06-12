@@ -14,6 +14,7 @@ struct ShortcutsPaneView: View {
         SettingsPaneScaffold {
             Section("Mode") {
                 AcceptanceModePickerView(suggestionSettings: suggestionSettings)
+                    .settingsItem(.acceptanceMode)
             }
 
             Section("Keys") {
@@ -55,6 +56,7 @@ struct ShortcutsPaneView: View {
                         systemImage: "arrow.right.to.line"
                     )
                 }
+                .settingsItem(.acceptWord)
 
                 LabeledContent {
                     KeybindRow(
@@ -94,6 +96,7 @@ struct ShortcutsPaneView: View {
                         systemImage: "text.insert"
                     )
                 }
+                .settingsItem(.acceptEntireSuggestion)
 
                 // No factory default — the hotkey is opt-in, so the only "reset" gesture that
                 // makes sense is "unbind", which the Clear button already covers. Passing
@@ -130,6 +133,7 @@ struct ShortcutsPaneView: View {
                         systemImage: "power.circle"
                     )
                 }
+                .settingsItem(.toggleTabby)
             }
         }
     }

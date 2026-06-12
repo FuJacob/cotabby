@@ -72,6 +72,7 @@ struct ContextPaneView: View {
                     .foregroundStyle(.tertiary)
             }
             .padding(.vertical, 6)
+            .settingsItem(.contextLivePreview)
         }
     }
 
@@ -127,6 +128,7 @@ struct ContextPaneView: View {
                 }
             }
             .padding(.vertical, 6)
+            .settingsItem(.extendedContext)
         }
     }
 

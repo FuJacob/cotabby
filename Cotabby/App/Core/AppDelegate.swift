@@ -140,6 +140,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         welcomeCoordinator.presentPermissionReminderIfNeeded()
         didStartServices = true
         CotabbyLogger.app.info("All services started")
+
+        // Dev affordance in the spirit of `-cotabby-debug`: a menu-bar-only app has no scriptable
+        // path to its Settings window (the status item is unreachable from AppleScript), so UI
+        // work on Settings cannot be exercised by tooling without this. No-op unless passed.
+        if ProcessInfo.processInfo.arguments.contains("-cotabby-open-settings") {
+            settingsCoordinator.showSettings()
+        }
     }
 
     /// One-time default: enable Open at Login for every user (new and existing) the first time this

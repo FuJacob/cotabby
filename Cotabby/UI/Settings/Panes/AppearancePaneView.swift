@@ -26,6 +26,7 @@ struct AppearancePaneView: View {
                     )
                 }
                 .pickerStyle(.menu)
+                .settingsItem(.suggestionDisplay)
 
                 Toggle(isOn: streamWhileGeneratingBinding) {
                     SettingsRowLabel(
@@ -35,6 +36,7 @@ struct AppearancePaneView: View {
                         systemImage: "text.append"
                     )
                 }
+                .settingsItem(.streamWhileGenerating)
 
                 Toggle(isOn: showIndicatorBinding) {
                     SettingsRowLabel(
@@ -43,6 +45,7 @@ struct AppearancePaneView: View {
                         systemImage: "dot.viewfinder"
                     )
                 }
+                .settingsItem(.showFieldIndicator)
 
                 Toggle(isOn: menuBarWordCountVisibleBinding) {
                     SettingsRowLabel(
@@ -51,6 +54,7 @@ struct AppearancePaneView: View {
                         systemImage: "number"
                     )
                 }
+                .settingsItem(.showWordCount)
 
                 Toggle(isOn: showAcceptanceHintBinding) {
                     HStack(alignment: .firstTextBaseline, spacing: 10) {
@@ -78,6 +82,7 @@ struct AppearancePaneView: View {
                         }
                     }
                 }
+                .settingsItem(.showKeyHint)
             }
 
             Section("Appearance") {
@@ -100,6 +105,7 @@ struct AppearancePaneView: View {
                         systemImage: "paintpalette"
                     )
                 }
+                .settingsItem(.ghostTextColor)
 
                 LabeledContent {
                     HStack(spacing: 10) {
@@ -124,6 +130,7 @@ struct AppearancePaneView: View {
                         systemImage: "circle.lefthalf.filled"
                     )
                 }
+                .settingsItem(.ghostTextOpacity)
 
                 LabeledContent {
                     HStack(spacing: 10) {
@@ -148,6 +155,7 @@ struct AppearancePaneView: View {
                         systemImage: "textformat.size"
                     )
                 }
+                .settingsItem(.ghostTextSize)
             }
         }
     }

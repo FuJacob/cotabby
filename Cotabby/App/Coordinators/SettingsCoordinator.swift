@@ -86,13 +86,14 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
                 )
             )
         )
-        // Sized so the native split view opens with a readable sidebar and a comfortable grouped
-        // detail form. The user can still resize from here; the sidebar provides its own range.
-        let initialFrame = CGRect(x: 0, y: 0, width: 980, height: 700)
+        // Sized so the native split view opens with a readable sidebar, a comfortable grouped
+        // detail form, and room for the Home pane's status-card row to breathe. The user can still
+        // resize from here; the sidebar provides its own range.
+        let initialFrame = CGRect(x: 0, y: 0, width: 1060, height: 720)
         let minSize = NSSize(width: 900, height: 560)
         // Bump the autosave name to reset everyone onto the current default instead of restoring
-        // any narrower frame saved by the previous sidebar experiments.
-        let autosaveName = "CotabbySettingsWindowV6"
+        // any narrower frame saved before the Home redesign.
+        let autosaveName = "CotabbySettingsWindowV7"
 
         let window = NSWindow(
             contentRect: initialFrame,

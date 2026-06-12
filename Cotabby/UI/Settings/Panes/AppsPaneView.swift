@@ -22,6 +22,7 @@ struct AppsPaneView: View {
                     + "menu bar, like a launcher that closes the moment it loses focus.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .settingsItem(.disabledApps)
 
                 if suggestionSettings.disabledAppRules.isEmpty {
                     Text("No apps are disabled. Cotabby is active in every supported field.")
@@ -48,6 +49,7 @@ struct AppsPaneView: View {
                         systemImage: "terminal"
                     )
                 }
+                .settingsItem(.suggestInIntegratedTerminals)
             }
 
             if !filteredRunningAppSuggestions.isEmpty {

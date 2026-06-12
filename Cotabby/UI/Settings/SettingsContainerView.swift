@@ -2,14 +2,16 @@ import AppKit
 import SwiftUI
 
 /// File overview:
-/// Root of the redesigned Settings window. A `NavigationSplitView` with a sidebar of categorized
-/// rows sits on the left and a switching detail pane fills the right side. The detail body is built
-/// from `SettingsCategory`, so adding a new pane is a matter of adding an enum case and a `case` in
-/// the switch below.
+/// Root of the redesigned Settings window. A `NavigationSplitView` with a sidebar of clustered
+/// category rows sits on the left and a switching detail pane fills the right side. The detail body
+/// is built from `SettingsCategory`, so adding a new pane is a matter of adding an enum case and a
+/// `case` in the switch below.
 ///
-/// Selection is persisted via `@AppStorage` so reopening Settings lands on the last-used pane.
-/// `.id(selection)` on the detail body is the documented workaround for the macOS 14 split-view
-/// selection bug where the first sidebar pick doesn't always re-render the detail column.
+/// Navigation flows through `SettingsNavigationModel` so the sidebar, the Home pane's search and
+/// quick links, and the window-level Cmd-F shortcut all drive one source of truth. Selection is
+/// persisted via `@AppStorage` so reopening Settings lands on the last-used pane. `.id(selection)`
+/// on the detail body is the documented workaround for the macOS 14 split-view selection bug where
+/// the first sidebar pick doesn't always re-render the detail column.
 struct SettingsContainerView: View {
     let appUpdateManager: AppUpdateManager
 
@@ -30,7 +32,7 @@ struct SettingsContainerView: View {
     @AppStorage("cotabbySettingsSelectedCategoryV2")
     private var storedCategoryRawValue: String = SettingsCategory.home.rawValue
 
-    @State private var selection: SettingsCategory = .home
+    @StateObject private var navigation = SettingsNavigationModel()
     // Settings should behave like a traditional two-column preferences window: the sidebar is
     // always visible, but SwiftUI can still manage the native navigation/split-view chrome.
     @State private var columnVisibility: NavigationSplitViewVisibility = .all
@@ -38,16 +40,32 @@ struct SettingsContainerView: View {
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             SettingsSidebarView(
-                selection: $selection,
+                navigation: navigation,
                 attentionCategories: attentionCategories
             )
             .toolbar(removing: .sidebarToggle)
         } detail: {
             detailPane
-                .id(selection)
+                .id(navigation.selection)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .toolbar(removing: .sidebarToggle)
+                // SwiftUI owns the hosting window's title once a navigation stack is involved, so
+                // the title must be declared here rather than written to `NSWindow.title` (any
+                // AppKit-side write gets stomped on the next navigation update). Home is the
+                // landing surface rather than a pane of controls, so it titles the window with
+                // the app-wide name instead of the literal "Home".
+                .navigationTitle(navigation.selection == .home ? "Cotabby Settings" : navigation.selection.label)
         }
+        .environment(\.settingsHighlightedItem, navigation.highlightedItem)
+        // Window-level Cmd-F: jump to the search surface from any pane. The button renders
+        // nothing; it exists to host the keyboard shortcut inside this window's responder chain.
+        .background(
+            Button("") { navigation.requestSearchFocus() }
+                .keyboardShortcut("f", modifiers: .command)
+                .opacity(0)
+                .frame(width: 0, height: 0)
+                .accessibilityHidden(true)
+        )
         // Keep the native split view, but pin the outer Settings window to a practical minimum.
         // The sidebar itself provides a width range, so the default opens readable without forcing
         // an exact column size forever.
@@ -56,15 +74,11 @@ struct SettingsContainerView: View {
             // Migration: the previous sidebar had two engine sub-rows (`appleIntelligence`,
             // `openSource`). Users whose persisted selection still points to either should land on
             // the unified Engine & Model pane rather than fall back to General.
-            selection = Self.restoreSelection(from: storedCategoryRawValue)
+            navigation.selection = Self.restoreSelection(from: storedCategoryRawValue)
             permissionManager.refresh()
-            // Set the title unconditionally on open: when the restored selection equals the
-            // initial @State value, `.onChange` does not fire and the title would stay blank.
-            syncWindowTitle(for: selection)
         }
-        .onChange(of: selection) { _, newValue in
+        .onChange(of: navigation.selection) { _, newValue in
             storedCategoryRawValue = newValue.rawValue
-            syncWindowTitle(for: newValue)
         }
         .onChange(of: columnVisibility) { _, newValue in
             if newValue != .all {
@@ -90,9 +104,16 @@ struct SettingsContainerView: View {
 
     @ViewBuilder
     private var detailPane: some View {
-        switch selection {
+        switch navigation.selection {
         case .home:
-            HomePaneView()
+            HomePaneView(
+                navigation: navigation,
+                suggestionSettings: suggestionSettings,
+                permissionManager: permissionManager,
+                foundationModelAvailabilityService: foundationModelAvailabilityService,
+                runtimeModel: runtimeModel,
+                attentionCategories: attentionCategories
+            )
         case .general:
             GeneralPaneView(
                 suggestionSettings: suggestionSettings,
@@ -154,16 +175,16 @@ struct SettingsContainerView: View {
         return .general
     }
 
-    /// Mirrors the chosen pane into the hosting `NSWindow.title` so the title bar reflects the
-    /// current selection. macOS settings windows traditionally use an inline title for the active
-    /// pane; this preserves that convention without rendering a duplicate large title inside the
-    /// content.
+    /// Mirrors the chosen pane into the hosting `NSWindow.title`, matching System Settings where
+    /// the title bar names the active pane. Home is the landing surface rather than a pane of
+    /// controls, so it titles the window with the app-wide name instead of the literal "Home".
     private func syncWindowTitle(for category: SettingsCategory) {
         // Capture the key window now: between the tap and the async block running, a popover or
         // alert could become key and we would retitle the wrong window.
         let window = NSApp.keyWindow
+        let title = category == .home ? "Cotabby Settings" : category.label
         DispatchQueue.main.async {
-            window?.title = "Settings — \(category.label)"
+            window?.title = title
         }
     }
 }

@@ -30,16 +30,21 @@ struct PerformancePaneView: View {
                         systemImage: "stopwatch"
                     )
                 }
+                .settingsItem(.performanceTracking)
             }
 
             Section {
+                // Both branches carry the anchor; only one exists at a time, so the scroll target
+                // stays unique whichever state the log is in.
                 if performanceMetricsStore.entries.isEmpty {
                     Text(emptyStateMessage)
                         .font(.callout)
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                        .settingsItem(.recentRequests)
                 } else {
                     latencyChart
+                        .settingsItem(.recentRequests)
                     metricsTable
                 }
             } header: {
@@ -70,6 +75,7 @@ struct PerformancePaneView: View {
     private var suggestionQualitySection: some View {
         Section {
             qualityCounterRow(label: "Suggestions shown", value: "\(qualityMetricsStore.counters.shown)")
+                .settingsItem(.suggestionQualityStats)
             qualityCounterRow(label: "Accepted", value: acceptedLabel)
             qualityCounterRow(label: "Generations", value: "\(qualityMetricsStore.counters.generated)")
             if !topSuppressionReasons.isEmpty {
@@ -137,6 +143,7 @@ struct PerformancePaneView: View {
                 tint: .blue,
                 valueLabel: cpuCurrentLabel
             )
+            .settingsItem(.resourceUsage)
             MetricSparkline(
                 points: ramPoints,
                 yDomainUpper: ramDomainUpperMB,

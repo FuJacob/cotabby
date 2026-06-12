@@ -12,10 +12,10 @@ struct AboutPaneView: View {
 
     var body: some View {
         SettingsPaneScaffold {
-            Section { aboutHeader }
-            Section("Support") { supportRow }
-            Section("Resources") { linksRow }
-            Section("Uninstall") { uninstallText }
+            Section { aboutHeader.settingsItem(.checkForUpdates) }
+            Section("Support") { supportRow.settingsItem(.support) }
+            Section("Resources") { resourceRows }
+            Section("Uninstall") { uninstallText.settingsItem(.uninstall) }
         }
         .sheet(isPresented: $isShowingAcknowledgements) {
             AcknowledgementsView { isShowingAcknowledgements = false }
@@ -86,26 +86,29 @@ struct AboutPaneView: View {
         }
     }
 
+    /// One row per resource (rather than one stacked row) so each link is a separate form row that
+    /// search can scroll to and pulse individually.
     @ViewBuilder
-    private var linksRow: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if let repoURL = URL(string: "https://github.com/FuJacob/Cotabby") {
-                Link(destination: repoURL) {
-                    Label("GitHub Repository", systemImage: "chevron.left.forwardslash.chevron.right")
-                }
+    private var resourceRows: some View {
+        if let repoURL = URL(string: "https://github.com/FuJacob/Cotabby") {
+            Link(destination: repoURL) {
+                Label("GitHub Repository", systemImage: "chevron.left.forwardslash.chevron.right")
             }
-            if let wikiURL = URL(string: "https://github.com/FuJacob/Cotabby/wiki") {
-                Link(destination: wikiURL) {
-                    Label("Wiki & Contributor Guide", systemImage: "book")
-                }
-            }
-            Button {
-                isShowingAcknowledgements = true
-            } label: {
-                Label("Acknowledgements", systemImage: "doc.text")
-            }
-            .buttonStyle(.link)
+            .settingsItem(.githubRepository)
         }
+        if let wikiURL = URL(string: "https://github.com/FuJacob/Cotabby/wiki") {
+            Link(destination: wikiURL) {
+                Label("Wiki & Contributor Guide", systemImage: "book")
+            }
+            .settingsItem(.wiki)
+        }
+        Button {
+            isShowingAcknowledgements = true
+        } label: {
+            Label("Acknowledgements", systemImage: "doc.text")
+        }
+        .buttonStyle(.link)
+        .settingsItem(.acknowledgements)
     }
 
     @ViewBuilder

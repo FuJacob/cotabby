@@ -1,13 +1,16 @@
 import Foundation
 
 /// File overview:
-/// A searchable index of individual settings that powers the Settings search field. Each item knows
-/// its display title, the pane (`SettingsCategory`) that hosts it, an SF Symbol, and extra keywords
-/// so a query like "dark", "tab", or "startup" lands on the right pane.
+/// A searchable index of individual settings that powers Settings search (the sidebar field and
+/// the Home hero search). Each item knows its display title, the pane (`SettingsCategory`) that
+/// hosts it, an SF Symbol, a one-line summary, and extra keywords so a query like "dark", "tab",
+/// or "startup" lands on the right row. Relevance ordering comes from the pure
+/// `SettingsSearchRanker`; this file only declares the catalog.
 ///
 /// This is a navigational map, not the rendering source: panes still own their own rows and labels.
 /// Keeping the index here means search coverage is reviewed in one place and a new setting is one
-/// case away from being findable.
+/// case away from being findable. Panes mark the matching row with `.settingsItem(_:)` so search
+/// can scroll to and highlight it on arrival.
 enum SettingsItem: String, CaseIterable, Identifiable {
     // General
     case enableGlobally
@@ -252,6 +255,75 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         }
     }
 
+    /// One-line caption shown under the title in search results, and searched for descriptive
+    /// phrasing the title doesn't carry ("looks too big", "on every keystroke").
+    var summary: String {
+        switch self {
+        case .enableGlobally: return "Turn Cotabby on or off everywhere without quitting."
+        case .fastMode: return "Skip screenshot context for faster suggestions."
+        case .openAtLogin: return "Start Cotabby automatically when you log in."
+        case .includeClipboardContext: return "Let suggestions reference what you last copied."
+        case .includeAppContext: return "Tell the model which app and window you are typing in."
+        case .allowMultiLine: return "Allow continuations that span more than one line."
+        case .acceptPunctuation: return "Also accept trailing commas and periods with a word."
+        case .addSpaceAfterAccept: return "Add a space when an accept finishes a word."
+        case .inlineMacros: return "Type / for dates, math, units, currency, and randoms."
+        case .onboarding: return "Replay the first-run setup walkthrough."
+        case .suggestionDisplay: return "Inline ghost text, popup card, or automatic per app."
+        case .streamWhileGenerating: return "Reveal ghost text token by token as the model writes."
+        case .showFieldIndicator: return "Show a small icon when a field is ready for suggestions."
+        case .showWordCount: return "Count accepted words next to the menu bar icon."
+        case .showKeyHint: return "Show the accept-key badge beside the ghost text."
+        case .ghostTextColor: return "Pick the color of the inline suggestion."
+        case .ghostTextOpacity: return "How faint the suggestion looks before you accept it."
+        case .ghostTextSize: return "Scale suggestions if the ghost text looks too big or small."
+        case .emojiPicker: return "Type :name to search and insert emoji inline."
+        case .emojiSkinTone: return "Prefer a skin tone in emoji suggestions."
+        case .emojiPeopleStyle: return "Person, man, or woman variants when available."
+        case .emojiHistory: return "Clear recently and frequently used emoji."
+        case .length: return "How many words Cotabby aims for per suggestion."
+        case .name: return "What Cotabby should call you."
+        case .languages: return "Languages suggestions should be written in."
+        case .customRules: return "Your own style rules passed to the model."
+        case .hideSuggestionsOnTypo: return "Pause completions while a word looks misspelled."
+        case .offerTypoCorrections: return "Offer a green replacement for the misspelled word."
+        case .spellingDictionaries: return "Dictionaries used to detect typos."
+        case .automaticallyFixTypos: return "Replace a misspelled word right after you press Space."
+        case .extendedContext: return "A glossary or notes sent with every suggestion."
+        case .contextLivePreview: return "A real field that exercises the full pipeline."
+        case .engine: return "Apple Intelligence or an open-source local model."
+        case .appleIntelligenceAvailability: return "Whether this Mac can run Apple Intelligence."
+        case .modelStatus: return "Whether the local model is loaded and ready."
+        case .selectedModel: return "Which downloaded model generates suggestions."
+        case .powerBasedModelSwitching: return "Use a different engine or model by power source."
+        case .batteryModel: return "Engine and model used while on battery."
+        case .pluggedInModel: return "Engine and model used while plugged in."
+        case .downloadModels: return "Curated models you can download and run."
+        case .huggingFaceBrowser: return "Search Hugging Face for GGUF models."
+        case .modelsFolder: return "Where downloaded model files live on this Mac."
+        case .lmStudio: return "Also load models from your LM Studio library."
+        case .acceptanceMode: return "Whether the accept key takes a word or a phrase."
+        case .acceptWord: return "The key that inserts the next word."
+        case .acceptEntireSuggestion: return "The key that inserts the whole suggestion."
+        case .toggleTabby: return "A global hotkey that turns Cotabby on or off."
+        case .disabledApps: return "Apps where Cotabby never autocompletes."
+        case .suggestInIntegratedTerminals: return "Ghost text in VS Code and Cursor terminals."
+        case .accessibility: return "Required to read the focused field and caret."
+        case .inputMonitoring: return "Required to see keystrokes and the accept key."
+        case .screenRecording: return "Optional visual context from the focused window."
+        case .performanceTracking: return "Record timing for every model request."
+        case .suggestionQualityStats: return "Shown, accepted, and withheld counters."
+        case .resourceUsage: return "Live CPU and memory graphs for the app."
+        case .recentRequests: return "Latency log of the most recent generations."
+        case .checkForUpdates: return "See if a newer Cotabby is available."
+        case .support: return "Tip the two students who build Cotabby."
+        case .githubRepository: return "Browse the source code and issues."
+        case .wiki: return "Documentation and the contributor guide."
+        case .acknowledgements: return "Third-party packages Cotabby ships with."
+        case .uninstall: return "Remove Cotabby and its data from this Mac."
+        }
+    }
+
     /// Extra terms a user might type that are not in the title, so search still finds the row.
     /// Lean toward generous synonyms (UI vocab, common typos, prior names, related features) so
     /// search behaves more like "find anything that mentions this" than strict label matching.
@@ -449,17 +521,17 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         }
     }
 
-    func matches(_ query: String) -> Bool {
-        let needle = query.lowercased()
-        if title.lowercased().contains(needle) { return true }
-        if category.label.lowercased().contains(needle) { return true }
-        return keywords.contains { $0.lowercased().contains(needle) }
-    }
-
-    /// Items whose title or keywords match the query, in declaration order. Empty for a blank query.
+    /// Items matching the query, most relevant first. Empty for a blank query. Relevance and
+    /// typo tolerance come from `SettingsSearchRanker`, so this stays a thin catalog accessor.
     static func results(for query: String) -> [SettingsItem] {
-        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return [] }
-        return allCases.filter { $0.matches(trimmed) }
+        SettingsSearchRanker.rank(query, in: allCases)
     }
+}
+
+/// Feeds the catalog's fields to the pure ranker without the ranker importing this UI type.
+extension SettingsItem: SettingsSearchable {
+    var searchTitle: String { title }
+    var searchKeywords: [String] { keywords }
+    var searchGroupLabel: String { category.label }
+    var searchSummary: String { summary }
 }

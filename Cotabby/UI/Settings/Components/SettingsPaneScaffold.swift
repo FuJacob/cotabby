@@ -10,9 +10,16 @@ import SwiftUI
 /// surfaces attention per pane: when a pane is in a degraded state (missing permission, runtime
 /// unavailable) we render an inline callout above the form so the actionable surface lives next to
 /// the controls that fix it.
+///
+/// Search arrival:
+/// When search reveals a specific setting, the scaffold scrolls to the row carrying the matching
+/// `.settingsItem(_:)` anchor. The row's own modifier renders the pulse; the scaffold only owns
+/// the scroll, so panes stay declarative.
 struct SettingsPaneScaffold<Content: View>: View {
     let callout: SettingsPaneCallout?
     @ViewBuilder let content: () -> Content
+
+    @Environment(\.settingsHighlightedItem) private var highlightedItem
 
     init(
         callout: SettingsPaneCallout? = nil,
@@ -23,22 +30,44 @@ struct SettingsPaneScaffold<Content: View>: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 0) {
-                if let callout {
-                    SettingsCalloutView(callout: callout)
-                        .padding(.horizontal, 20)
-                        .padding(.top, 16)
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(spacing: 0) {
+                    if let callout {
+                        SettingsCalloutView(callout: callout)
+                            .padding(.horizontal, 20)
+                            .padding(.top, 16)
+                    }
+                    Form {
+                        content()
+                    }
+                    .formStyle(.grouped)
+                    // `.formStyle(.grouped)` only pads BEFORE a `Section` that has a header. Panes
+                    // whose first section is header-less (General, About, Apps) would otherwise butt
+                    // flush against the title bar. A fixed top inset gives every pane the same
+                    // breathing room regardless of whether the first section carries a header.
+                    .padding(.top, 12)
                 }
-                Form {
-                    content()
+            }
+            .onAppear {
+                // The pane is rebuilt on every sidebar switch (`.id(selection)` in the container),
+                // so a search arrival lands here before rows have laid out. A one-beat delay lets
+                // the form settle so `scrollTo` has a real geometry target.
+                guard let item = highlightedItem else { return }
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(80))
+                    withAnimation(.easeInOut(duration: 0.35)) {
+                        proxy.scrollTo(item, anchor: .center)
+                    }
                 }
-                .formStyle(.grouped)
-                // `.formStyle(.grouped)` only pads BEFORE a `Section` that has a header. Panes
-                // whose first section is header-less (General, About, Apps) would otherwise butt
-                // flush against the title bar. A fixed top inset gives every pane the same
-                // breathing room regardless of whether the first section carries a header.
-                .padding(.top, 12)
+            }
+            .onChange(of: highlightedItem) { _, item in
+                // Same-pane reveals (a second search while already on the pane) skip onAppear, so
+                // the scroll also rides the highlight change itself.
+                guard let item else { return }
+                withAnimation(.easeInOut(duration: 0.35)) {
+                    proxy.scrollTo(item, anchor: .center)
+                }
             }
         }
     }

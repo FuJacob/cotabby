@@ -23,6 +23,7 @@ struct WritingPaneView: View {
                         systemImage: "ruler"
                     )
                 }
+                .settingsItem(.length)
 
                 // Min and Max are editable while Custom is active: type a value or nudge it with the
                 // arrows. Both rows commit through `setCustomWordCountRange`, which clamps to
@@ -56,6 +57,7 @@ struct WritingPaneView: View {
                         systemImage: "textformat.abc"
                     )
                 }
+                .settingsItem(.acceptPunctuation)
 
                 Toggle(isOn: addSpaceAfterAcceptBinding) {
                     SettingsRowLabel(
@@ -65,6 +67,7 @@ struct WritingPaneView: View {
                         systemImage: "space"
                     )
                 }
+                .settingsItem(.addSpaceAfterAccept)
             }
 
             Section("Corrections") {
@@ -75,6 +78,7 @@ struct WritingPaneView: View {
                         systemImage: "eye.slash"
                     )
                 }
+                .settingsItem(.hideSuggestionsOnTypo)
 
                 Toggle(isOn: offerTypoCorrectionsBinding) {
                     SettingsRowLabel(
@@ -84,6 +88,7 @@ struct WritingPaneView: View {
                     )
                 }
                 .disabled(!suggestionSettings.suppressCompletionsOnTypo)
+                .settingsItem(.offerTypoCorrections)
 
                 Toggle(isOn: automaticallyFixTyposBinding) {
                     SettingsRowLabel(
@@ -93,10 +98,12 @@ struct WritingPaneView: View {
                     )
                 }
                 .disabled(!suggestionSettings.suppressCompletionsOnTypo)
+                .settingsItem(.automaticallyFixTypos)
 
                 Divider()
 
                 SpellingDictionaryPicker(suggestionSettings: suggestionSettings)
+                    .settingsItem(.spellingDictionaries)
             }
 
             Section("Profile") {
@@ -123,6 +130,7 @@ struct WritingPaneView: View {
                     }
                 }
                 .padding(.vertical, 6)
+                .settingsItem(.name)
             }
 
             // The editors suppress their own titles here so the Section headers ("Languages"/"Rules")
@@ -130,6 +138,7 @@ struct WritingPaneView: View {
             Section("Languages") {
                 LanguageTagsEditor(suggestionSettings: suggestionSettings, showsTitleHeader: false)
                     .padding(.vertical, 6)
+                    .settingsItem(.languages)
             }
 
             // Hidden while custom rules are gated off (CustomRulesCatalog.isUserFacingEnabled). The
@@ -138,6 +147,7 @@ struct WritingPaneView: View {
                 Section("Rules") {
                     CustomRulesEditor(suggestionSettings: suggestionSettings, showsTitleHeader: false)
                         .padding(.vertical, 6)
+                        .settingsItem(.customRules)
                 }
             }
         }

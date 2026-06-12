@@ -13,8 +13,6 @@ struct GeneralPaneView: View {
 
     var body: some View {
         SettingsPaneScaffold {
-            supportSection
-
             Section("Status") {
                 Toggle(isOn: globallyEnabledBinding) {
                     SettingsRowLabel(
@@ -23,6 +21,7 @@ struct GeneralPaneView: View {
                         systemImage: "power"
                     )
                 }
+                .settingsItem(.enableGlobally)
 
                 Toggle(isOn: fastModeForcedOn ? .constant(true) : fastModeEnabledBinding) {
                     SettingsRowLabel(
@@ -32,6 +31,7 @@ struct GeneralPaneView: View {
                     )
                 }
                 .disabled(fastModeForcedOn)
+                .settingsItem(.fastMode)
 
                 // Backed by `SMAppService.mainApp` via the LaunchAtLogin package, which owns the
                 // observable for the login-item status and refreshes the toggle if the user changes
@@ -43,6 +43,7 @@ struct GeneralPaneView: View {
                         systemImage: "arrow.right.circle"
                     )
                 }
+                .settingsItem(.openAtLogin)
             }
 
             // Split from the old catch-all "Behavior" group: what the model is allowed to read
@@ -57,6 +58,7 @@ struct GeneralPaneView: View {
                         systemImage: "doc.on.clipboard"
                     )
                 }
+                .settingsItem(.includeClipboardContext)
 
                 Toggle(isOn: surfaceContextEnabledBinding) {
                     SettingsRowLabel(
@@ -65,6 +67,7 @@ struct GeneralPaneView: View {
                         systemImage: "macwindow"
                     )
                 }
+                .settingsItem(.includeAppContext)
             }
 
             Section("Suggestions") {
@@ -75,6 +78,7 @@ struct GeneralPaneView: View {
                         systemImage: "text.alignleft"
                     )
                 }
+                .settingsItem(.allowMultiLine)
 
                 Toggle(isOn: macroExpansionEnabledBinding) {
                     SettingsRowLabel(
@@ -85,6 +89,7 @@ struct GeneralPaneView: View {
                         systemImage: "slash.circle"
                     )
                 }
+                .settingsItem(.inlineMacros)
             }
 
             Section("Help") {
@@ -99,38 +104,9 @@ struct GeneralPaneView: View {
                         systemImage: "graduationcap"
                     )
                 }
+                .settingsItem(.onboarding)
             }
 
-        }
-    }
-
-    // MARK: - Support
-
-    /// Pinned at the top of General so the support pitch is the first thing in the pane. The action
-    /// is a filled pill (white background, pink "heart Support" text) so it reads as a real button to
-    /// tap rather than an easy-to-miss inline link.
-    @ViewBuilder
-    private var supportSection: some View {
-        if let kofiURL = URL(string: "https://ko-fi.com/cotabby") {
-            Section {
-                LabeledContent {
-                    Link(destination: kofiURL) {
-                        Label("Support", systemImage: "heart.fill")
-                            .font(.callout.weight(.semibold))
-                            .foregroundStyle(.pink)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 6)
-                            .background(.white, in: Capsule())
-                    }
-                    .buttonStyle(.plain)
-                } label: {
-                    SettingsRowLabel(
-                        title: "Support Cotabby",
-                        description: "Cotabby is free and open source. Tips help fund development.",
-                        systemImage: "heart"
-                    )
-                }
-            }
         }
     }
 

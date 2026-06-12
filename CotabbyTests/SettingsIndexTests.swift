@@ -6,12 +6,22 @@ import XCTest
 /// cheap invariants loud: every item must carry a non-empty title, symbol, and keyword set, and
 /// the queries users actually type for recently shipped settings must land on them.
 final class SettingsIndexTests: XCTestCase {
-    func test_everyItemHasTitleSymbolAndKeywords() {
+    func test_everyItemHasTitleSymbolKeywordsAndSummary() {
         for item in SettingsItem.allCases {
             XCTAssertFalse(item.title.isEmpty, "\(item) needs a title")
             XCTAssertFalse(item.systemImage.isEmpty, "\(item) needs an SF Symbol")
             XCTAssertFalse(item.keywords.isEmpty, "\(item) needs search keywords")
+            XCTAssertFalse(item.summary.isEmpty, "\(item) needs a one-line summary for search results")
         }
+    }
+
+    func test_sidebarGroupsCoverEveryCategoryExactlyOnce() {
+        // The sidebar renders from `sidebarGroups`, not `allCases`, so a category missing from the
+        // groups would silently disappear from the window. Order is pinned too: the flattened
+        // groups must read in the same top-down sequence the enum declares.
+        let flattened = SettingsCategory.sidebarGroups.flatMap { $0 }
+        XCTAssertEqual(flattened, SettingsCategory.allCases,
+                       "sidebar groups must list every category exactly once, in declaration order")
     }
 
     func test_itemIdsAreUnique() {

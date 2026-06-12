@@ -39,6 +39,7 @@ struct EngineAndModelPaneView: View {
                     )
                 }
                 .pickerStyle(.menu)
+                .settingsItem(.engine)
             }
 
             powerSection
@@ -101,6 +102,7 @@ struct EngineAndModelPaneView: View {
                     systemImage: "battery.100.bolt"
                 )
             }
+            .settingsItem(.powerBasedModelSwitching)
 
             if suggestionSettings.isPowerBasedModelSwitchingEnabled {
                 powerProfilePicker(
@@ -108,12 +110,14 @@ struct EngineAndModelPaneView: View {
                     systemImage: "battery.25",
                     selection: batteryProfileBinding
                 )
+                .settingsItem(.batteryModel)
 
                 powerProfilePicker(
                     title: "Plugged In",
                     systemImage: "powerplug",
                     selection: pluggedInProfileBinding
                 )
+                .settingsItem(.pluggedInModel)
             }
         }
     }
@@ -186,6 +190,7 @@ struct EngineAndModelPaneView: View {
                     systemImage: "apple.logo"
                 )
             }
+            .settingsItem(.appleIntelligenceAvailability)
         }
     }
 
@@ -207,6 +212,7 @@ struct EngineAndModelPaneView: View {
                     systemImage: "info.circle"
                 )
             }
+            .settingsItem(.modelStatus)
         }
 
         Section("Models") {
@@ -237,18 +243,21 @@ struct EngineAndModelPaneView: View {
                 // per-source profile pickers are the source of truth, and any pick here would be
                 // reverted on the next power evaluation.
                 .disabled(suggestionSettings.isPowerBasedModelSwitchingEnabled)
+                .settingsItem(.selectedModel)
             }
 
             DownloadableModelCatalogView(
                 modelDownloadManager: modelDownloadManager,
                 onRefreshModels: refreshModels
             )
+            .settingsItem(.downloadModels)
 
             HuggingFaceModelBrowserView(
                 searchService: huggingFaceSearchService,
                 modelDownloadManager: modelDownloadManager,
                 onRefreshModels: refreshModels
             )
+            .settingsItem(.huggingFaceBrowser)
         }
 
         Section("Folder") {
@@ -276,6 +285,7 @@ struct EngineAndModelPaneView: View {
                     systemImage: "folder"
                 )
             }
+            .settingsItem(.modelsFolder)
 
             Toggle(isOn: $lmStudioSourceEnabled) {
                 SettingsRowLabel(
@@ -292,6 +302,7 @@ struct EngineAndModelPaneView: View {
                 modelDownloadManager.refreshSearchDirectories()
                 refreshModels()
             }
+            .settingsItem(.lmStudio)
         }
 
         if !runtimeModel.availableModels.isEmpty {
