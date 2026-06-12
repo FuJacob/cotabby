@@ -449,6 +449,25 @@ struct SuggestionResult: Equatable, Sendable {
     let rawText: String
     let text: String
     let latency: TimeInterval
+    /// Raw value of the `CompletionSuppressionReason` that emptied `text`, when one applies.
+    /// Carried as a string so the coordinator's quality accounting never needs the normalizer
+    /// type, and so engine-specific reasons can ride along without enum churn. The explicit
+    /// initializer default keeps existing call sites compiling unchanged.
+    let suppressionReason: String?
+
+    init(
+        generation: UInt64,
+        rawText: String,
+        text: String,
+        latency: TimeInterval,
+        suppressionReason: String? = nil
+    ) {
+        self.generation = generation
+        self.rawText = rawText
+        self.text = text
+        self.latency = latency
+        self.suppressionReason = suppressionReason
+    }
 }
 
 /// Represents one active inline-completion session after the model has produced a suggestion.

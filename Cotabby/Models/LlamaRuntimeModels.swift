@@ -197,6 +197,28 @@ struct LlamaGenerationOptions: Equatable, Sendable {
     /// degenerate instant stops (e.g. a lone leading period). Lives here so length presets can tune
     /// the floor without reaching into `DecodeStopPolicy`; the default preserves prior behavior.
     var sentenceStopMinimumTokens: Int = 2
+
+    /// Stop decoding the moment the raw distribution's most-likely next token is end-of-generation,
+    /// even when the stochastic sampler drew something else. The model's top choice being "stop"
+    /// is the strongest anti-rambling signal available per token, and the engine computes it while
+    /// the logits row is hot, so honoring it costs nothing here.
+    var stopAtArgmaxEOG: Bool = true
+}
+
+/// One generation's text plus the confidence signals the caller needs for suppression accounting.
+/// Returned instead of a bare string so a confidence-suppressed completion is attributed to the
+/// real reason rather than reading as "the model produced nothing".
+struct LlamaGenerationOutput: Equatable, Sendable {
+    let text: String
+    /// Mean per-token log-probability of the generated tokens; nil when confidence gating was off
+    /// (the engine skips the per-token logprob work entirely) or nothing was generated.
+    let averageLogprob: Double?
+    /// True when the completion was withheld because `averageLogprob` fell below the floor.
+    let suppressedByLowConfidence: Bool
+
+    static func text(_ text: String) -> LlamaGenerationOutput {
+        LlamaGenerationOutput(text: text, averageLogprob: nil, suppressedByLowConfidence: false)
+    }
 }
 
 /// The concrete runtime assets selected during bootstrap after checking available model files.
