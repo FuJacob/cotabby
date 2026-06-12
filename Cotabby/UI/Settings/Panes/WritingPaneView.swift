@@ -45,6 +45,28 @@ struct WritingPaneView: View {
                 }
             }
 
+            // What an accept inserts beyond the bare word. These shape the written output, so they sit
+            // with Writing rather than General; the accept keys themselves live in the Shortcuts pane.
+            Section("Acceptance") {
+                Toggle(isOn: autoAcceptTrailingPunctuationBinding) {
+                    SettingsRowLabel(
+                        title: "Accept Punctuation With Word",
+                        description: "When you accept a word, also accept the punctuation that follows it " +
+                            "(commas, periods) so you don't have to type it.",
+                        systemImage: "textformat.abc"
+                    )
+                }
+
+                Toggle(isOn: addSpaceAfterAcceptBinding) {
+                    SettingsRowLabel(
+                        title: "Add Space After Accepting",
+                        description: "When accepting a suggestion finishes a word, also add a space so you can " +
+                            "keep typing. Skipped when it already ends in punctuation or a space.",
+                        systemImage: "space"
+                    )
+                }
+            }
+
             Section("Corrections") {
                 Toggle(isOn: suppressCompletionsOnTypoBinding) {
                     SettingsRowLabel(
@@ -125,6 +147,20 @@ struct WritingPaneView: View {
         Binding(
             get: { suggestionSettings.selectedWordCountPreset },
             set: { suggestionSettings.selectWordCountPreset($0) }
+        )
+    }
+
+    private var autoAcceptTrailingPunctuationBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.autoAcceptTrailingPunctuation },
+            set: { suggestionSettings.setAutoAcceptTrailingPunctuation($0) }
+        )
+    }
+
+    private var addSpaceAfterAcceptBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.addSpaceAfterAccept },
+            set: { suggestionSettings.setAddSpaceAfterAccept($0) }
         )
     }
 
