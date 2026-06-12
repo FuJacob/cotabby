@@ -12,7 +12,7 @@ import Foundation
 ///
 /// `aliases` are the canonical `:name:` tokens a user types (for example `grinning`, `+1`), while
 /// `keywords` are looser synonyms used only to widen search recall.
-struct EmojiEntry: Equatable, Decodable {
+nonisolated struct EmojiEntry: Equatable, Decodable {
     let glyph: String
     let name: String
     let aliases: [String]
@@ -25,7 +25,7 @@ struct EmojiEntry: Equatable, Decodable {
 ///
 /// `id` is the glyph because the bundled dataset has one record per glyph, which keeps SwiftUI list
 /// identity stable as the query narrows.
-struct EmojiMatch: Equatable, Identifiable {
+nonisolated struct EmojiMatch: Equatable, Identifiable {
     let entry: EmojiEntry
 
     /// The glyph to display and insert. Defaults to `entry.glyph`; the variant resolver overrides it
@@ -117,14 +117,14 @@ struct EmojiVariantPreferences: Equatable, Sendable {
 // MARK: - Trigger state machine vocabulary
 
 /// Direction for moving the highlighted row while the picker is open.
-enum EmojiSelectionMove: Equatable {
+nonisolated enum EmojiSelectionMove: Equatable {
     case up
     case down
 }
 
 /// How a capture was committed. `.key` is a consumed Tab/Return; `.closingColon` is the
 /// passed-through second `:` of `:query:` (EMOJI.md Mode B).
-enum EmojiCommitMode: Equatable {
+nonisolated enum EmojiCommitMode: Equatable {
     case key
     case closingColon
 }
@@ -143,7 +143,7 @@ enum EmojiTriggerInput: Equatable {
 
 /// Side effects the controller performs after a transition. The machine itself stays pure; it only
 /// describes what should happen.
-enum EmojiTriggerAction: Equatable {
+nonisolated enum EmojiTriggerAction: Equatable {
     case open(query: String)
     case updateQuery(String)
     case moveSelection(EmojiSelectionMove)
@@ -153,7 +153,7 @@ enum EmojiTriggerAction: Equatable {
 
 /// The two lifecycle states. `idle` remembers the previously typed character so the trigger can
 /// require a word boundary (start of field or after whitespace) before opening a capture.
-enum EmojiTriggerState: Equatable {
+nonisolated enum EmojiTriggerState: Equatable {
     case idle(previousCharacter: Character?)
     case capturing(query: String)
 }

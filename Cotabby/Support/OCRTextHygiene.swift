@@ -14,7 +14,7 @@ import Foundation
 /// in isolation, and so the orchestrating service (`ScreenTextExtractor` / `ScreenshotContextGenerator`)
 /// stays free of OCR-noise heuristics. There is no I/O, no logging, and no dependency beyond
 /// `Foundation`; the same input always yields the same output.
-enum OCRTextHygiene {
+nonisolated enum OCRTextHygiene {
 
     /// A single recognized OCR line paired with the recognizer's confidence for that line.
     ///

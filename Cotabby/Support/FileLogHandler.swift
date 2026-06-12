@@ -18,7 +18,7 @@ import Logging
 ///
 /// `@unchecked Sendable`: the only mutable state is `handle` and `currentByteOffset`,
 /// both guarded by `lock`. FileHandle itself is not Sendable so we cannot mark it cleanly.
-final class FileLogWriter: @unchecked Sendable {
+nonisolated final class FileLogWriter: @unchecked Sendable {
     static let shared = FileLogWriter()
 
     /// Default cap of 10 MB. Large enough for hours of debug output without ballooning disk.

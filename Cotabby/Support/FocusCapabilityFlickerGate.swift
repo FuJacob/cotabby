@@ -27,7 +27,7 @@ struct FocusCapabilityFlickerGate {
     static let requiredConsecutiveBlockedReads = 2
 
     /// Outcome the caller acts on.
-    enum Decision: Equatable {
+    nonisolated enum Decision: Equatable {
         /// Apply this snapshot as-is.
         case apply
         /// Treat as a transient flicker: pretend the previous Supported snapshot is still current.

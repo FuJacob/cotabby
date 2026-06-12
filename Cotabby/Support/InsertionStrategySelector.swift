@@ -5,7 +5,7 @@ import Foundation
 /// keystrokes are reliable and clipboard-free for the common short, single-line completion, but some
 /// apps mishandle a long or multi-line synthetic string; pasting is steadier there. Keeping the
 /// decision here (separate from the side-effectful inserter) makes the policy trivially testable.
-enum InsertionStrategy: Equatable {
+nonisolated enum InsertionStrategy: Equatable {
     /// Synthesize the text as a Unicode keyboard event (the default, clipboard-free path).
     case keystroke
     /// Place the text on the pasteboard and synthesize Cmd-V. Only used when paste insertion is

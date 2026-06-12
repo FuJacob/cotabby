@@ -14,7 +14,7 @@ import Foundation
 /// The matcher consumes this through `boostedAliases(for:)`: an exact key match boosts its aliases to
 /// the alias-prefix tier, and a prefix key match boosts to the keyword tier, so intent ranks high
 /// without ever overriding a literal exact-alias match the user typed.
-enum EmojiSynonymCatalog {
+nonisolated enum EmojiSynonymCatalog {
     /// Lowercased query word -> canonical aliases to boost, in rough preference order (final ordering
     /// among equally-boosted aliases is decided by the matcher's popularity tiebreak).
     static let map: [String: [String]] = [

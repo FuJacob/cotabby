@@ -10,7 +10,7 @@ import Foundation
 /// `OnboardingTemplate`. If a template gains a new behavior flag, the row order here is the only
 /// place to extend — the UI walks whatever rows this returns.
 
-enum OnboardingTemplateFeatureValue: Equatable, Sendable {
+nonisolated enum OnboardingTemplateFeatureValue: Equatable, Sendable {
     /// Toggled on by the template. UI renders a positive affordance (e.g., a check).
     case enabled
     /// Explicitly off under the template. UI renders a neutral/negative affordance (e.g., a dash).

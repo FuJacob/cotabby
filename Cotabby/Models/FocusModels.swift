@@ -10,7 +10,7 @@ import Foundation
 /// `elementIdentifier` is still useful because it describes the AX node we resolved, but it is not
 /// globally unique over time: macOS can recycle `CFHash` values after AX elements are destroyed.
 /// Pairing it with `focusChangeSequence` gives async consumers a stable "same focus event" key.
-struct FocusedInputIdentity: Equatable, Sendable {
+nonisolated struct FocusedInputIdentity: Equatable, Sendable {
     let elementIdentifier: String
     let focusChangeSequence: UInt64
 }

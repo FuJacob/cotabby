@@ -4,7 +4,7 @@ import Foundation
 /// These are pure value types with no business logic beyond URL construction.
 
 /// One result from `GET /api/models?filter=gguf&search=...&sort=downloads`.
-struct HFModelSearchResult: Codable, Identifiable, Equatable {
+nonisolated struct HFModelSearchResult: Codable, Identifiable, Equatable {
     let id: String
     let modelId: String
     let downloads: Int

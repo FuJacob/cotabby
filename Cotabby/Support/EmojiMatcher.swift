@@ -17,7 +17,7 @@ import Foundation
 /// matched token (so `smile` beats `smiley`), then the curated popularity prior, then catalog order.
 /// Favorites and popularity only break ties inside a tier, so relevance is never sacrificed to make
 /// a popular or frequently-used emoji jump ahead of a genuinely better match.
-struct EmojiMatcher {
+nonisolated struct EmojiMatcher {
     let catalog: EmojiCatalog
 
     /// Default number of rows the panel shows. Bounded so a one-character query does not build a

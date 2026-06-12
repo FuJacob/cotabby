@@ -586,7 +586,7 @@ private extension String {
 /// The CJK punctuation primitives, internal because they are the single source of truth shared by
 /// this file's acceptance policy and `SentenceBoundaryClassifier`'s sentence-end detection. Adding a
 /// codepoint here updates phrase boundaries, chunk binding, and the generation stop in one edit.
-extension Character {
+nonisolated extension Character {
     /// The CJK sentence terminators: ideographic full stop `。`, fullwidth `！` `？`, and the halfwidth
     /// ideographic stop `｡`. Unlike the ASCII period these are unambiguous (they never mark decimals,
     /// list numbers, or abbreviations), so every consumer treats them as terminal without classifier
@@ -605,7 +605,7 @@ extension Character {
     }
 }
 
-private extension Character {
+nonisolated private extension Character {
     /// True when the character begins a word of a space-less script (Han, Hiragana, Katakana, Hangul,
     /// Thai, Lao, Khmer, Myanmar, ...). These scripts write words without separating spaces, so the
     /// whitespace-run acceptance rule would over-accept a whole run; `nextAcceptanceChunk` switches to

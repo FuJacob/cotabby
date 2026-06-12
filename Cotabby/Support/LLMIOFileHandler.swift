@@ -13,7 +13,7 @@ import Logging
 ///
 /// Like `FileLogHandler`, this handler is only installed when `-cotabby-debug` is set, so a release
 /// build never touches the user's disk with prompt or completion text.
-final class LLMIOFileWriter: @unchecked Sendable {
+nonisolated final class LLMIOFileWriter: @unchecked Sendable {
     static let shared = LLMIOFileWriter()
 
     /// Same 10 MB cap as the main log. LLM I/O records are larger per line, so this corresponds to

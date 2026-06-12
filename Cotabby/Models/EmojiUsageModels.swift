@@ -8,7 +8,7 @@ import Foundation
 /// Usage is keyed by an emoji's primary alias (e.g. `joy`), not its glyph, so a concept's signal is
 /// stable across skin-tone and gender variants: using 👍🏽 still boosts the 👍 concept, and recents
 /// render in the user's current variant preference at display time.
-struct EmojiUsageSnapshot: Equatable, Sendable {
+nonisolated struct EmojiUsageSnapshot: Equatable, Sendable {
     /// Primary aliases of recently committed emoji, most recent first, de-duplicated.
     let recentAliases: [String]
     /// Primary alias -> number of times committed.

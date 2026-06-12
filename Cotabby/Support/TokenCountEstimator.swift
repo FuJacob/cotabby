@@ -10,7 +10,7 @@ import Foundation
 /// global chars-per-token ratio — especially for code or short function words — while staying
 /// allocation-light and deterministic for tests. It is not exact, so it is used only for relative
 /// budgeting decisions, never to assert a hard token limit.
-enum TokenCountEstimator {
+nonisolated enum TokenCountEstimator {
     static func estimate(_ text: String) -> Int {
         // Split on punctuation as well as whitespace: real subword tokenizers break "can't", "end.",
         // and "func()" into multiple tokens, so gluing punctuation to a word would systematically

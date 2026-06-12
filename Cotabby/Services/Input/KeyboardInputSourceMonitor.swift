@@ -34,7 +34,10 @@ final class KeyboardInputSourceMonitor {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.handleInputSourceChanged()
+            // Same main-queue delivery contract as above; assumeIsolated makes it checkable.
+            MainActor.assumeIsolated {
+                self?.handleInputSourceChanged()
+            }
         }
     }
 

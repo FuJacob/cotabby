@@ -10,7 +10,7 @@ import Foundation
 /// Tunables for converting a focused-input screenshot into OCR text for prompt injection.
 /// These values are intentionally separate from `SuggestionConfiguration` because they govern
 /// screenshot capture and OCR, not normal text completion behavior.
-struct VisualContextConfiguration: Equatable, Sendable {
+nonisolated struct VisualContextConfiguration: Equatable, Sendable {
     let snapshotDimension: Int
     let maxImageDimension: Int
     let minRecognizedCharacterCount: Int

@@ -13,7 +13,7 @@ import Foundation
 /// order is roughly age-based, not usage-based. A curated list is the cheapest way to encode "what
 /// people reach for" until per-user history (see `EmojiUsageStore`) takes over. Aliases that are not
 /// present in the active catalog simply never rank or resolve, so a stale entry here is harmless.
-enum EmojiPopularity {
+nonisolated enum EmojiPopularity {
     /// Ranked aliases, most popular first. The index is the rank, so order is the contract; keep the
     /// highest-traffic reactions at the top. Grouped only for readability.
     static let ordered: [String] = [

@@ -11,7 +11,7 @@ import Foundation
 /// A short minimum-token guard avoids degenerate instant stops (for example, the model's first token
 /// being a lone period). `SentenceBoundaryClassifier` already rejects decimals, abbreviations, and
 /// list markers, so this never truncates "e.g.", "3.14", or a numbered "1." mid-thought.
-enum DecodeStopPolicy {
+nonisolated enum DecodeStopPolicy {
     static func shouldStop(
         accumulated: String,
         tokensGenerated: Int,

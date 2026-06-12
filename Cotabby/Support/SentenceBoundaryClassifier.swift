@@ -9,7 +9,7 @@ import Foundation
 /// "e.g.", and a numbered "1." mid-tail. A purely structural scanner cannot resolve every case, but
 /// it can resolve the frequent ones with a few local rules. `!` and `?` are always terminal and do
 /// not need this; only the period is ambiguous.
-enum SentenceBoundaryClassifier {
+nonisolated enum SentenceBoundaryClassifier {
     /// Lowercased abbreviations whose trailing period is part of the word, not a sentence end.
     private static let abbreviations: Set<String> = [
         "mr", "mrs", "ms", "dr", "st", "vs", "eg", "ie", "etc", "no", "fig", "approx", "inc", "ltd"
@@ -101,7 +101,7 @@ enum SentenceBoundaryClassifier {
     }
 }
 
-private extension Character {
+nonisolated private extension Character {
     /// Closing punctuation that may follow a sentence terminator: straight and curly quotes,
     /// parentheses, square brackets, and braces, plus the shared CJK closer set (see
     /// `Character.isCJKClosingPunctuation`). `endsSentence` walks back past a run of these to find

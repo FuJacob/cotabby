@@ -12,7 +12,7 @@ import Foundation
 /// commit time. This keeps the active, gating event tap out of the ordinary-typing path (the
 /// issue #328 invariant that the base branch fixed) while still consuming navigation, commit, and
 /// Escape keys so the picker can be driven without the foreground app seeing them.
-struct EmojiTriggerStateMachine {
+nonisolated struct EmojiTriggerStateMachine {
     private(set) var state: EmojiTriggerState = .idle(previousCharacter: nil)
 
     var isCapturing: Bool {

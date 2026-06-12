@@ -10,7 +10,7 @@ import Foundation
 /// instead of showing a confident-looking guess. The policy is pure and isolated so the threshold
 /// is easy to test and tune. A floor of negative infinity (the default) disables suppression, so
 /// this is a no-op until a caller opts in by raising the floor.
-enum ConfidenceSuppressionPolicy {
+nonisolated enum ConfidenceSuppressionPolicy {
     /// Suppress when the completion's average per-token log-probability is below `floor`.
     static func shouldSuppress(averageLogprob: Double, floor: Double) -> Bool {
         guard floor > -.infinity else {

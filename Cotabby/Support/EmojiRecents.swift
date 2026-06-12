@@ -8,7 +8,7 @@ import Foundation
 /// This is what makes the very first `:` useful instead of empty. A brand-new user with no history
 /// sees popular emoji; a returning user sees what they actually reach for. Variant resolution (skin
 /// tone / gender) is applied by the caller, the same way it is for query results.
-enum EmojiRecents {
+nonisolated enum EmojiRecents {
     /// Recents-first, popularity-padded suggestions for an empty query, capped at `limit`.
     static func suggestions(
         usage: EmojiUsageSnapshot,

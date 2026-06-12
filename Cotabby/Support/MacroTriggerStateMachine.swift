@@ -10,7 +10,7 @@ import Foundation
 /// sigil, `/` does not overlap the emoji picker's `:`, so there is no deferred hand-off and no
 /// shared-key race: one keystroke, one open. That directness is deliberate, it is what makes the
 /// preview reliably appear instead of intermittently losing the second colon to the emoji feature.
-struct MacroTriggerStateMachine {
+nonisolated struct MacroTriggerStateMachine {
     private(set) var state: MacroTriggerState = .idle(previousCharacter: nil)
 
     var isCapturing: Bool {
@@ -124,7 +124,7 @@ enum MacroTriggerInput: Equatable {
 
 /// Side effects the controller performs after a transition. The machine stays pure; it only
 /// describes what should happen.
-enum MacroTriggerAction: Equatable {
+nonisolated enum MacroTriggerAction: Equatable {
     case open
     case updateQuery(String)
     case commit
@@ -133,7 +133,7 @@ enum MacroTriggerAction: Equatable {
 
 /// The two lifecycle states. `idle` remembers the previously typed character so the trigger can
 /// require a word boundary; `capturing` holds the live query typed after the `/`.
-enum MacroTriggerState: Equatable {
+nonisolated enum MacroTriggerState: Equatable {
     case idle(previousCharacter: Character?)
     case capturing(query: String)
 }
@@ -142,7 +142,7 @@ enum MacroTriggerState: Equatable {
 /// lists use `,`, conversions use `->`, and `/` is division (the leading `/` is the sigil, any later
 /// `/` is an operator). Only the rendered output is localized, which avoids the comma-decimal
 /// ambiguity a localized input grammar would create.
-enum MacroQueryGrammar {
+nonisolated enum MacroQueryGrammar {
     static func extends(_ character: Character) -> Bool {
         if character.isLetter || character.isNumber {
             return true

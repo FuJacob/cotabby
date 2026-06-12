@@ -20,7 +20,7 @@ struct SystemResourceSample: Equatable {
     let footprintBytes: UInt64
 }
 
-enum SystemResourceSampler {
+nonisolated enum SystemResourceSampler {
     static func sample() -> SystemResourceSample {
         SystemResourceSample(
             cpuPercent: currentCPUPercent(),

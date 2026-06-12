@@ -14,7 +14,7 @@ import Logging
 /// `Resources/Emoji/emoji.json` is generated from GitHub's gemoji dataset (MIT licensed). To refresh
 /// it, transform the upstream `db/emoji.json` into this file's `{glyph,name,aliases,keywords,group,
 /// unicodeVersion}` shape.
-struct EmojiCatalog {
+nonisolated struct EmojiCatalog {
     /// An entry paired with its lowercased searchable tokens, computed once at load time.
     struct IndexedEntry: Equatable {
         let entry: EmojiEntry

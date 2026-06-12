@@ -5,7 +5,7 @@ import Foundation
 /// `SuggestionCoordinator` so the "suppress vs correct vs proceed" logic is unit-testable without
 /// `NSSpellChecker` or a live AX snapshot: the coordinator passes the spell-check behaviors in as
 /// closures, and tests pass deterministic stubs.
-enum TypoGateDecision: Equatable {
+nonisolated enum TypoGateDecision: Equatable {
     /// No actionable typo on the current word. Proceed with a normal continuation.
     case proceed
     /// The current word looks misspelled and corrections are off (or none was available). Hide the

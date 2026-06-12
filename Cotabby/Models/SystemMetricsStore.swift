@@ -22,7 +22,7 @@ final class SystemMetricsStore: ObservableObject {
     /// Number of samples retained. At the default one-second cadence this is a rolling 60-second
     /// window, which is enough to watch a generation spike rise and fall without unbounded growth.
     static let maximumSamples = 60
-    static let defaultInterval: TimeInterval = 1.0
+    nonisolated static let defaultInterval: TimeInterval = 1.0
 
     @Published private(set) var samples: [SystemMetricSample] = []
 

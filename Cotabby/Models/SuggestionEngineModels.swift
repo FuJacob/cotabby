@@ -58,7 +58,7 @@ enum PowerProfile: Equatable, Hashable {
 /// The bundle identifier is the durable identity used by the suggestion pipeline. The display name
 /// is saved only so Settings can show a readable list without having to resolve installed
 /// applications again on every launch.
-struct DisabledApplicationRule: Codable, Equatable, Identifiable, Sendable {
+nonisolated struct DisabledApplicationRule: Codable, Equatable, Identifiable, Sendable {
     let bundleIdentifier: String
     let displayName: String
 

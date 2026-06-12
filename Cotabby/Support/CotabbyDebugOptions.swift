@@ -9,7 +9,7 @@ import os
 /// privacy-sensitive diagnostic path has one obvious gate. Passing `-cotabby-debug` means the
 /// developer intentionally opted into local debugging artifacts such as overlays, detailed service
 /// logs, and screenshot/OCR captures.
-enum CotabbyDebugOptions {
+nonisolated enum CotabbyDebugOptions {
     static let launchArgument = "-cotabby-debug"
 
     static var isEnabled: Bool {
@@ -61,7 +61,7 @@ enum CotabbyDebugOptions {
 /// subsystem as a filterable column. When the `-cotabby-debug` launch argument is set we
 /// additionally fan out to `FileLogHandler`, which writes JSONL to
 /// `~/Library/Logs/Cotabby/cotabby.jsonl` for AI-assisted debugging without copy-paste.
-enum CotabbyLogger {
+nonisolated enum CotabbyLogger {
     /// Reserved label that routes only to the dedicated LLM I/O sink, never to OSLog or the main
     /// JSONL file. Kept out of OSLog because full prompts/completions can be many KB per request
     /// and would dominate Console.app; kept out of `cotabby.jsonl` because it would drown the

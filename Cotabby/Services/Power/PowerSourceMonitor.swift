@@ -26,7 +26,11 @@ final class PowerSourceMonitor: ObservableObject {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.refreshPowerState()
+            // Delivered on the main queue (see `queue:` above), so entering the main actor is an
+            // assertion, not a hop; a queue change would trap here rather than corrupt state.
+            MainActor.assumeIsolated {
+                self?.refreshPowerState()
+            }
         }
     }
 
