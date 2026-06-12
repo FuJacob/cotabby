@@ -114,7 +114,9 @@ extension SuggestionCoordinator {
             return false
         }
 
-        recordAcceptedWords(from: acceptedChunk)
+        deferAcceptanceBookkeeping { [weak self] in
+            self?.recordAcceptedWords(from: acceptedChunk)
+        }
 
         cancelPredictionWork()
 
@@ -133,13 +135,16 @@ extension SuggestionCoordinator {
             // a regeneration that only re-proposes the same tail before the host publishes the insert
             // (see the `schedulePredictionAfterHostPublishDelay` rationale below).
             lastAcceptedTail = AcceptedSuggestionTail(text: acceptedChunk, precedingText: liveContext.precedingText)
-            logStage(
-                "\(keyName)-accepted-final-chunk",
-                workID: currentWorkID,
-                generation: liveContext.generation,
-                message: "Inserted the final suggestion chunk and queued a refresh.",
-                normalizedOutput: acceptedChunk
-            )
+            let workID = currentWorkID
+            deferAcceptanceBookkeeping { [weak self] in
+                self?.logStage(
+                    "\(keyName)-accepted-final-chunk",
+                    workID: workID,
+                    generation: liveContext.generation,
+                    message: "Inserted the final suggestion chunk and queued a refresh.",
+                    normalizedOutput: acceptedChunk
+                )
+            }
             // Keep owning Tab while the continuation regenerates so a fast follow-up press is
             // swallowed and queued instead of leaking into the host app as a real Tab. Must run
             // *after* the `hideOverlay` above, which routes through `onStateChange(.hidden)` and
@@ -157,22 +162,45 @@ extension SuggestionCoordinator {
 
         case let .advanced(advancedSession, _):
             latestGenerationNumber = liveContext.generation
-            applySessionDiagnostics(advancedSession, acceptanceAction: "Accepted next chunk with \(keyName).")
             state = .ready(text: advancedSession.remainingText, latency: advancedSession.latency)
+            // The overlay slide stays synchronous on purpose: acceptance validation compares the
+            // visible overlay text against the session tail, so a deferred slide could make a
+            // rapid follow-up Tab read a stale overlay and pass through to the host.
             presentAdvancedOverlay(
                 remainingText: advancedSession.remainingText,
                 insertionChunk: insertionChunk,
                 liveContext: liveContext
             )
             schedulePostInsertionRefresh()
-            logStage(
-                "\(keyName)-accepted-chunk",
-                workID: currentWorkID,
-                generation: liveContext.generation,
-                message: "Inserted the next suggestion chunk and kept the remaining tail active.",
-                normalizedOutput: acceptedChunk
-            )
+            let workID = currentWorkID
+            deferAcceptanceBookkeeping { [weak self] in
+                self?.applySessionDiagnostics(
+                    advancedSession,
+                    acceptanceAction: "Accepted next chunk with \(keyName)."
+                )
+                self?.logStage(
+                    "\(keyName)-accepted-chunk",
+                    workID: workID,
+                    generation: liveContext.generation,
+                    message: "Inserted the next suggestion chunk and kept the remaining tail active.",
+                    normalizedOutput: acceptedChunk
+                )
+            }
             return true
+        }
+    }
+
+    /// Runs acceptance bookkeeping one runloop hop after the consuming tap callback returns.
+    ///
+    /// While ghost text is visible the accept tap gates every keyDown system-wide, and the whole
+    /// acceptance executes inside that callback before the original key is released. Work that
+    /// neither decides consumption nor upholds the overlay/session invariant (counter persistence,
+    /// stage logging, diagnostics publishes) does not belong on that synchronous path; a
+    /// `UserDefaults` write in particular can stall on the preferences daemon at the worst moment.
+    /// Captured values keep the deferred log lines describing the accept that scheduled them.
+    private func deferAcceptanceBookkeeping(_ work: @escaping @MainActor () -> Void) {
+        DispatchQueue.main.async {
+            work()
         }
     }
 
@@ -279,20 +307,23 @@ extension SuggestionCoordinator {
             return false
         }
 
-        recordAcceptedWords(from: replacement.replacementText)
         cancelPredictionWork()
         latestGenerationNumber = session.baseContext.generation
         clearSuggestion(clearDiagnostics: false)
         hideOverlay(reason: "Overlay hidden because \(keyName) accepted a typo correction.")
-        latestAcceptanceAction = "Accepted typo correction with \(keyName)."
         state = .idle
-        logStage(
-            "\(keyName)-accepted-correction",
-            workID: currentWorkID,
-            generation: session.baseContext.generation,
-            message: "Replaced the user's last word with the corrected version.",
-            normalizedOutput: replacement.replacementText
-        )
+        let workID = currentWorkID
+        deferAcceptanceBookkeeping { [weak self] in
+            self?.recordAcceptedWords(from: replacement.replacementText)
+            self?.latestAcceptanceAction = "Accepted typo correction with \(keyName)."
+            self?.logStage(
+                "\(keyName)-accepted-correction",
+                workID: workID,
+                generation: session.baseContext.generation,
+                message: "Replaced the user's last word with the corrected version.",
+                normalizedOutput: replacement.replacementText
+            )
+        }
         // Re-arm prediction so the next keystroke can produce a fresh continuation now that the typo
         // is gone — the user usually keeps typing right after accepting.
         schedulePrediction()
@@ -310,12 +341,15 @@ extension SuggestionCoordinator {
         clearSuggestion(clearDiagnostics: true)
         hideOverlay(reason: reason)
         state = .idle
-        logStage(
-            "tab-passed-through",
-            workID: currentWorkID,
-            generation: generation,
-            message: reason
-        )
+        let workID = currentWorkID
+        deferAcceptanceBookkeeping { [weak self] in
+            self?.logStage(
+                "tab-passed-through",
+                workID: workID,
+                generation: generation,
+                message: reason
+            )
+        }
         return false
     }
 
@@ -629,14 +663,21 @@ extension SuggestionCoordinator {
 
     /// Repairs untrustworthy caret anchors with a hidden-text-layout estimate before presentation.
     ///
-    /// Two repair modes, by resolver quality:
+    /// The repair's authority is scoped by where the AX geometry came from, not just its quality:
     ///   - `.estimated` (AXFrame-only hosts): the AX guess has no real position at all, so a
-    ///     passing estimate always replaces it.
+    ///     passing estimate always replaces it. Applies to web and native hosts alike, because
+    ///     there is no real measurement to protect.
+    ///   - `.derived` in a native host: never repaired, the estimator does not run. Native AX
+    ///     per-character bounds come from the app's real layout manager and reflect rendering the
+    ///     uniform hidden layout cannot model (Notes renders a 23pt title line above 16pt body
+    ///     lines, plus paragraph spacing, so the layout "disagrees" within a few lines while AX is
+    ///     exactly right). A vertical mismatch there indicts the estimate, not AX.
     ///   - `.derived` with measured run frames (Gmail/Outlook child-run hosts): the rect's Y is a
     ///     real rendered line, so it is always kept and the estimator does not run at all; the
     ///     layout estimate cannot beat measurement (and is blind to blank lines those hosts
     ///     collapse out of the AX text).
-    ///   - `.derived` without run frames (previous-character bounds): the estimate (calibrated
+    ///   - `.derived` web content without run frames (previous-character bounds through a web
+    ///     engine's AX bridge, which has known wrong-line pathologies): the estimate (calibrated
     ///     with whatever the host revealed) only overrides the AX rect when the two disagree
     ///     vertically by more than `verticallyAgrees` tolerates; on agreement the AX rect is kept.
     ///
@@ -659,19 +700,34 @@ extension SuggestionCoordinator {
     ) -> LayoutRepairedAnchor {
         let quality = context.caretQuality
         guard quality == .estimated || quality == .derived else {
-            return LayoutRepairedAnchor(rect: fallbackRect, quality: quality, outcome: nil)
+            return LayoutRepairedAnchor(rect: fallbackRect, quality: quality, outcome: nil, skipReason: nil)
         }
 
-        // Run-measured derived rects are kept unconditionally — run frames carry the host's real
-        // line positions, including blank lines some hosts omit from the AX text — so skip the
-        // estimator entirely instead of computing a diagnostic it can never act on. This path runs
+        // Derived rects carry a real AX measurement, so whether the estimate may second-guess
+        // them depends on who produced the measurement. Both bypasses skip the estimator
+        // entirely rather than computing a diagnostic they can never act on: this path runs
         // inside the accept keystroke's handling window, where every spent millisecond of layout
         // work on a large flat prefix is pure risk during a rapid Tab burst.
-        if quality == .derived, context.observedContentEdges != nil {
-            return LayoutRepairedAnchor(rect: fallbackRect, quality: .derived, outcome: nil)
+        if quality == .derived {
+            // Native hosts: per-character bounds come from the app's own layout manager and are
+            // ground truth, while the uniform hidden layout cannot model rich text (Notes' taller
+            // title line and paragraph spacing put it a line off within a few paragraphs). Only
+            // web engines' AX bridges have the wrong-line pathologies the override exists for.
+            if !context.isWebContentField {
+                return LayoutRepairedAnchor(
+                    rect: fallbackRect, quality: .derived, outcome: nil, skipReason: .nativeHostGeometry
+                )
+            }
+            // Run-measured derived rects are kept unconditionally: run frames carry the host's
+            // real line positions, including blank lines some hosts omit from the AX text.
+            if context.observedContentEdges != nil {
+                return LayoutRepairedAnchor(
+                    rect: fallbackRect, quality: .derived, outcome: nil, skipReason: .runMeasuredGeometry
+                )
+            }
         }
 
-        // A `.derived` rect's height is a real rendered line box (child-run frame height); the
+        // A `.derived` rect's height is a real rendered line box (previous-character bounds); the
         // `.estimated` AXFrame fallback's height is the whole field, which the estimator's
         // sanitizer would discard anyway — pass it for derived geometry only.
         let observedLineHeight: CGFloat? = quality == .derived ? context.caretRect.height : nil
@@ -694,11 +750,13 @@ extension SuggestionCoordinator {
         case .estimate(let estimate):
             if quality == .derived, verticallyAgrees(estimate: estimate, axRect: fallbackRect) {
                 // Same line: keep the AX rect, whose X carries the host's real glyph positions.
-                return LayoutRepairedAnchor(rect: fallbackRect, quality: .derived, outcome: outcome)
+                return LayoutRepairedAnchor(rect: fallbackRect, quality: .derived, outcome: outcome, skipReason: nil)
             }
-            return LayoutRepairedAnchor(rect: estimate.caretRect, quality: .layoutEstimated, outcome: outcome)
+            return LayoutRepairedAnchor(
+                rect: estimate.caretRect, quality: .layoutEstimated, outcome: outcome, skipReason: nil
+            )
         case .rejected:
-            return LayoutRepairedAnchor(rect: fallbackRect, quality: quality, outcome: outcome)
+            return LayoutRepairedAnchor(rect: fallbackRect, quality: quality, outcome: outcome, skipReason: nil)
         }
     }
 
@@ -720,6 +778,20 @@ extension SuggestionCoordinator {
         let rect: CGRect
         let quality: CaretGeometryQuality
         let outcome: TextLayoutCaretEstimator.Outcome?
+        /// Why a derived rect bypassed the estimator without running it (nil when the estimator
+        /// ran, or when repair was out of scope for the quality entirely). Logged so "the caret
+        /// came from trusted AX and repair stood down" is distinguishable from "this field never
+        /// triggered repair" when diagnosing a misplaced overlay from the JSONL stream.
+        let skipReason: LayoutRepairSkipReason?
+    }
+
+    /// Why `layoutRepairedAnchor` kept a derived AX rect without running the estimator at all.
+    /// Raw values feed the structured log stream.
+    enum LayoutRepairSkipReason: String {
+        /// Native (non-web) host: AX-derived geometry is ground truth for the trust policy.
+        case nativeHostGeometry = "native_host_geometry"
+        /// The rect was measured from child text-run frames, which outrank any estimate.
+        case runMeasuredGeometry = "run_measured_geometry"
     }
 
     /// Mirrors the repair outcome into the structured JSONL stream so a misplaced overlay can be
@@ -734,7 +806,9 @@ extension SuggestionCoordinator {
         fallbackRect: CGRect,
         context: FocusedInputContext
     ) {
-        guard let outcome = anchor.outcome else {
+        // Exact/layout-estimated presentations never reach repair and carry nothing to log; bail
+        // before building metadata so the common path pays nothing per present.
+        guard anchor.outcome != nil || anchor.skipReason != nil else {
             return
         }
         var metadata: Logger.Metadata = [
@@ -750,13 +824,24 @@ extension SuggestionCoordinator {
         if let fieldFrame = context.inputFrameRect {
             metadata["field_top_y"] = .stringConvertible(Double(fieldFrame.maxY))
         }
+        guard let outcome = anchor.outcome else {
+            // A trusted-AX bypass stood the estimator down without running it. Logged (unlike the
+            // qualities repair never applies to) so the stream can distinguish "repair deferred to
+            // trusted AX" from "this presentation never reached repair".
+            if let skipReason = anchor.skipReason {
+                metadata["repair_outcome"] = .string("skipped")
+                metadata["skip_reason"] = .string(skipReason.rawValue)
+                CotabbyLogger.suggestion.debug(
+                    "Kept the AX caret; its geometry source outranks the layout estimate.",
+                    metadata: metadata
+                )
+            }
+            return
+        }
         switch outcome {
         case .estimate(let estimate):
             let substituted = anchor.quality == .layoutEstimated
-            let keptReason = context.observedContentEdges != nil
-                ? "kept_ax_run_measured"
-                : "kept_ax_agreement"
-            metadata["repair_outcome"] = .string(substituted ? "substituted" : keptReason)
+            metadata["repair_outcome"] = .string(substituted ? "substituted" : "kept_ax_agreement")
             metadata["line_index"] = .stringConvertible(estimate.lineIndex)
             metadata["multi_line_field"] = .stringConvertible(estimate.isMultiLineField)
             metadata["ax_mid_y_delta"] = .stringConvertible(
@@ -794,7 +879,11 @@ extension SuggestionCoordinator {
         rawOutput: String? = nil,
         normalizedOutput: String? = nil
     ) {
-        latestStageMessage = message
+        // Repeated keystrokes produce identical stage messages; republishing the same string
+        // would still fire `objectWillChange` and re-render every coordinator observer.
+        if latestStageMessage != message {
+            latestStageMessage = message
+        }
         logger.logStage(
             stage,
             workID: workID,
@@ -809,6 +898,12 @@ extension SuggestionCoordinator {
         // touching one suggestion via `request_id`. `latestRequestID` is set when `+Prediction`
         // builds the request and cleared between sessions; logs outside an active request still
         // carry a placeholder so the field shape is stable for `jq`.
+        // Level-gate before building the metadata dictionary: stages fire per keystroke, and at
+        // the default `.info` floor the line is dropped anyway, so the allocations would be waste.
+        guard CotabbyLogger.suggestion.logLevel <= .debug else {
+            return
+        }
+
         var metadata: Logger.Metadata = [
             "stage": .string(stage),
             "work_id": .stringConvertible(workID),

@@ -204,6 +204,10 @@ struct FocusedInputContext: Equatable, Sendable {
     let trailingText: String
     let selection: NSRange
     let isSecure: Bool
+    /// Whether the field's text is rendered by a web engine (see `WebContentFieldDetector`),
+    /// carried through so the presentation-time caret repair can scope estimator authority to
+    /// hosts whose AX caret geometry actually needs repairing.
+    let isWebContentField: Bool
     /// The host field's own text font/color, carried through so the overlay can match it.
     let resolvedFieldStyle: ResolvedFieldStyle?
     /// Carries the immutable focus-observation identity across debounce/generation boundaries.
@@ -229,6 +233,7 @@ struct FocusedInputContext: Equatable, Sendable {
         trailingText = snapshot.trailingText
         selection = snapshot.selection
         isSecure = snapshot.isSecure
+        isWebContentField = snapshot.isWebContentField
         resolvedFieldStyle = snapshot.resolvedFieldStyle
         focusChangeSequence = snapshot.focusChangeSequence
         self.generation = generation

@@ -34,8 +34,18 @@ final class PerDomainDisableSettingsTests: XCTestCase {
         XCTAssertEqual(PerDomainDisableSettings.disabledDomains(defaults), [])
     }
 
-    func test_disabledDomains_readsStoredArrayAsSet() {
+    func test_disabledDomains_readsStoredArrayAsSet_whenEnabled() {
+        defaults.set(true, forKey: PerDomainDisableSettings.enabledKey)
         defaults.set(["bank.com", "example.org", "bank.com"], forKey: PerDomainDisableSettings.disabledDomainsKey)
         XCTAssertEqual(PerDomainDisableSettings.disabledDomains(defaults), ["bank.com", "example.org"])
+    }
+
+    /// The reader is consulted on every keystroke's availability check, so with the default-off
+    /// flag it must short-circuit to empty without touching the stored array. Behaviorally this is
+    /// identical to the old contract: with the flag off, focus capture never reads page URLs, so
+    /// the per-site gate could never match anyway.
+    func test_disabledDomains_emptyWhileFlagOff_evenWithStoredEntries() {
+        defaults.set(["bank.com"], forKey: PerDomainDisableSettings.disabledDomainsKey)
+        XCTAssertEqual(PerDomainDisableSettings.disabledDomains(defaults), [])
     }
 }

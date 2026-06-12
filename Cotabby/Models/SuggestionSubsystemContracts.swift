@@ -26,8 +26,30 @@ protocol SuggestionPermissionProviding: AnyObject {
 protocol SuggestionFocusProviding: AnyObject {
     var snapshot: FocusSnapshot { get }
     var snapshotPublisher: AnyPublisher<FocusSnapshot, Never> { get }
+    /// Milliseconds since the provider last completed a full AX capture, or `nil` when unknown.
+    /// Each capture is a synchronous multi-IPC Accessibility walk, so hot-path consumers use this
+    /// to skip a redundant capture that another caller performed moments earlier.
+    var millisecondsSinceLastCapture: Int? { get }
 
     func refreshNow()
+}
+
+extension SuggestionFocusProviding {
+    /// Conservative default: age unknown, so `refreshIfStale` always refreshes. Production
+    /// providers report a real age; test fakes can ignore freshness entirely.
+    var millisecondsSinceLastCapture: Int? { nil }
+
+    /// Refreshes only when the last capture is older than `maxAgeMilliseconds`. The suggestion
+    /// pipeline performs several captures per keystroke (host-publish poll, post-debounce check,
+    /// result apply); when two of those land within one debounce window the second read cannot
+    /// observe anything the first missed, so paying another synchronous AX walk buys nothing.
+    func refreshIfStale(maxAgeMilliseconds: Int) {
+        if let age = millisecondsSinceLastCapture, age <= maxAgeMilliseconds {
+            return
+        }
+
+        refreshNow()
+    }
 }
 
 @MainActor
