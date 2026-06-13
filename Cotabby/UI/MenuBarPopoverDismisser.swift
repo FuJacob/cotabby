@@ -63,19 +63,31 @@ final class MenuBarPopoverDismisser: ObservableObject {
 /// real backing window without affecting layout.
 struct MenuBarPopoverDismisserBinder: NSViewRepresentable {
     let dismisser: MenuBarPopoverDismisser
+    let onWindowBind: (NSWindow) -> Void
+
+    init(
+        dismisser: MenuBarPopoverDismisser,
+        onWindowBind: @escaping (NSWindow) -> Void = { _ in }
+    ) {
+        self.dismisser = dismisser
+        self.onWindowBind = onWindowBind
+    }
 
     func makeNSView(context: Context) -> WindowBindingView {
         let view = WindowBindingView()
         view.dismisser = dismisser
+        view.onWindowBind = onWindowBind
         return view
     }
 
     func updateNSView(_ nsView: WindowBindingView, context: Context) {
         nsView.dismisser = dismisser
+        nsView.onWindowBind = onWindowBind
     }
 
     final class WindowBindingView: NSView {
         weak var dismisser: MenuBarPopoverDismisser?
+        var onWindowBind: ((NSWindow) -> Void)?
 
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
@@ -83,6 +95,7 @@ struct MenuBarPopoverDismisserBinder: NSViewRepresentable {
             // case keeps a stale reference from outliving the actual popover instance.
             if let window {
                 dismisser?.hostWindow = window
+                onWindowBind?(window)
             }
         }
     }
