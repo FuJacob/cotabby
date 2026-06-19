@@ -13,6 +13,18 @@ final class InputMonitorTests: XCTestCase {
     /// process lifetime keeps the tests focused on routing behavior instead of deinit mechanics.
     @MainActor private static var retainedMonitors: [InputMonitor] = []
 
+    func test_observerTapForwardsPointerLocationWithoutConsumingIt() {
+        runOnMainActor {
+            let monitor = makeMonitor()
+            var observedPoint: CGPoint?
+            monitor.onPointerDown = { observedPoint = $0 }
+
+            monitor.handleObserverPointerDown(at: CGPoint(x: 321, y: 654))
+
+            XCTAssertEqual(observedPoint, CGPoint(x: 321, y: 654))
+        }
+    }
+
     func test_observerTapIgnoresPrimaryAcceptKeyWhenConsumingTapOwnsIt() {
         runOnMainActor {
             let monitor = makeMonitor()
