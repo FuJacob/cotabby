@@ -52,6 +52,9 @@ struct SuggestionSettingsData: Equatable {
     /// green preview while typing, disable it, or use both behaviors together.
     var automaticallyFixTypos: Bool
     var isPerformanceTrackingEnabled: Bool
+    /// Controls whether SwiftUI inserts Cotabby's `MenuBarExtra` into the system menu bar. The app
+    /// keeps running when this is false; reopening Cotabby provides the recovery path to Settings.
+    var isMenuBarIconVisible: Bool
     var isMenuBarWordCountVisible: Bool
     var mirrorPreference: MirrorPreference
     var userName: String

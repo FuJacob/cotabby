@@ -89,6 +89,9 @@ struct SuggestionSettingsStore {
     private static let spellingDictionaryCodesDefaultsKey = "cotabbyEnabledSpellingDictionaryCodes"
     private static let automaticallyFixTyposDefaultsKey = "cotabbyAutomaticallyFixTypos"
     private static let performanceTrackingEnabledDefaultsKey = "cotabbyPerformanceTrackingEnabled"
+    /// Shared with `CotabbyApp` because SwiftUI's scene-level `@AppStorage` is what invalidates the
+    /// `MenuBarExtra` insertion binding when the settings model writes this preference.
+    static let menuBarIconVisibleDefaultsKey = "cotabbyMenuBarIconVisible"
     private static let menuBarWordCountVisibleDefaultsKey = "cotabbyMenuBarWordCountVisible"
     private static let mirrorPreferenceDefaultsKey = "cotabbyMirrorPreference"
     private static let userNameDefaultsKey = "cotabbyUserName"
@@ -215,6 +218,10 @@ struct SuggestionSettingsStore {
         // in from the Performance pane.
         let resolvedPerformanceTrackingEnabled =
             userDefaults.object(forKey: Self.performanceTrackingEnabledDefaultsKey) as? Bool ?? false
+        // Existing installs keep the status item unless the user explicitly hides it. Hiding the
+        // item must never terminate the accessory app because autocomplete continues in the background.
+        let resolvedMenuBarIconVisible =
+            userDefaults.object(forKey: Self.menuBarIconVisibleDefaultsKey) as? Bool ?? true
         // Default to visible so existing installs keep the running-word-count badge they're used
         // to seeing. The toggle lets users who find the badge noisy hide it from the menu bar.
         let resolvedMenuBarWordCountVisible =
@@ -369,6 +376,7 @@ struct SuggestionSettingsStore {
             enabledSpellingDictionaryCodes: resolvedEnabledSpellingDictionaryCodes,
             automaticallyFixTypos: resolvedAutomaticallyFixTypos,
             isPerformanceTrackingEnabled: resolvedPerformanceTrackingEnabled,
+            isMenuBarIconVisible: resolvedMenuBarIconVisible,
             isMenuBarWordCountVisible: resolvedMenuBarWordCountVisible,
             mirrorPreference: resolvedMirrorPreference,
             userName: resolvedUserName,
@@ -424,6 +432,7 @@ struct SuggestionSettingsStore {
         saveEnabledSpellingDictionaryCodes(data.enabledSpellingDictionaryCodes)
         saveAutomaticallyFixTypos(data.automaticallyFixTypos)
         savePerformanceTrackingEnabled(data.isPerformanceTrackingEnabled)
+        saveMenuBarIconVisible(data.isMenuBarIconVisible)
         saveMenuBarWordCountVisible(data.isMenuBarWordCountVisible)
         saveMirrorPreference(data.mirrorPreference)
         saveUserName(data.userName)
@@ -587,6 +596,10 @@ struct SuggestionSettingsStore {
 
     func savePerformanceTrackingEnabled(_ enabled: Bool) {
         userDefaults.set(enabled, forKey: Self.performanceTrackingEnabledDefaultsKey)
+    }
+
+    func saveMenuBarIconVisible(_ visible: Bool) {
+        userDefaults.set(visible, forKey: Self.menuBarIconVisibleDefaultsKey)
     }
 
     func saveMenuBarWordCountVisible(_ visible: Bool) {

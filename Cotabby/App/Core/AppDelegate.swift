@@ -149,6 +149,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// Launch Services sends a reopen event when the user opens Cotabby while this accessory app is
+    /// already running. When the status item is hidden, Settings is the app's only visible recovery
+    /// surface, so reopening must reveal it instead of leaving the user with no apparent response.
+    func applicationShouldHandleReopen(
+        _ sender: NSApplication,
+        hasVisibleWindows flag: Bool
+    ) -> Bool {
+        guard !suggestionSettings.isMenuBarIconVisible else {
+            return true
+        }
+
+        CotabbyLogger.app.info("Opening Settings because Cotabby was reopened with its menu bar icon hidden")
+        settingsCoordinator.showSettings()
+        return false
+    }
+
     /// One-time default: enable Open at Login for every user (new and existing) the first time this
     /// build runs. The applied-flag persists the decision so any later opt-out the user makes is
     /// respected on subsequent launches and we only ever flip the toggle once per user.
