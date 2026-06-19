@@ -160,6 +160,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return true
         }
 
+        guard !flag else {
+            return false
+        }
+
         CotabbyLogger.app.info("Opening Settings because Cotabby was reopened with its menu bar icon hidden")
         settingsCoordinator.showSettings()
         return false
