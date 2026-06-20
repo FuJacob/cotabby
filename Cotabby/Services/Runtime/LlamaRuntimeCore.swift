@@ -651,15 +651,19 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
     private static let defaultSamplerSeed: UInt32 = 0x00C0_FFEE
 
     private static func samplingConfig(from options: LlamaGenerationOptions) -> SamplingConfig {
-        SamplingConfig(
-            max_prediction_tokens: Int32(options.maxPredictionTokens),
-            temperature: Float(options.temperature),
-            top_k: Int32(options.topK),
-            top_p: Float(options.topP),
-            min_p: Float(options.minP),
-            repetition_penalty: Float(options.repetitionPenalty),
-            seed: options.seed ?? Self.defaultSamplerSeed
-        )
+        // `SamplingConfig` is a C++ interop struct from CotabbyInference. Assigning each field keeps
+        // Swift's type checker out of a large bridged initializer expression and makes package API
+        // additions obvious at this boundary.
+        var config = SamplingConfig()
+        config.max_prediction_tokens = Int32(options.maxPredictionTokens)
+        config.temperature = Float(options.temperature)
+        config.top_k = Int32(options.topK)
+        config.top_p = Float(options.topP)
+        config.min_p = Float(options.minP)
+        config.repetition_penalty = Float(options.repetitionPenalty)
+        config.seed = options.seed ?? Self.defaultSamplerSeed
+        config.single_line = options.singleLine
+        return config
     }
 
     private static func reusableTokenCount(commonTokenPrefix: Int, newPromptTokenCount: Int) -> Int {
@@ -685,6 +689,7 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         let minP: Double
         let repetitionPenalty: Double
         let seed: UInt32?
+        let singleLine: Bool
 
         init(options: LlamaGenerationOptions) {
             maxPredictionTokens = options.maxPredictionTokens
@@ -694,6 +699,7 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
             minP = options.minP
             repetitionPenalty = options.repetitionPenalty
             seed = options.seed
+            singleLine = options.singleLine
         }
     }
 }
