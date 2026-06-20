@@ -1,0 +1,19 @@
+// Per-developer signing config.
+//
+// Copy this file to Config/Signing.local.xcconfig (which is gitignored) and set your Apple
+// Development team id, or just run scripts/dev-setup.sh to generate it automatically.
+//
+// Your team id is the 10-character Organizational Unit of your Apple Development certificate. Find
+// it in Xcode under Settings > Accounts (select your team), or run:
+//
+//   security find-certificate -c "Apple Development" -p | openssl x509 -noout -subject -nameopt sep_multiline
+//
+// and read the OU= line. Do not use the "(...)" in the certificate name; that is a per-developer
+// id, not the team id.
+
+DEVELOPMENT_TEAM = YOUR_TEAM_ID
+
+// Optional. Only needed if your personal team rejects the shared dev bundle id and Xcode reports
+// "Failed to register bundle identifier". This gives the "Cotabby Dev" build its own identity:
+//
+// COTABBY_DEV_BUNDLE_ID = com.yourname.tabby.dev

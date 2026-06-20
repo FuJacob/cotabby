@@ -8,6 +8,9 @@ build/
 *.dSYM.zip
 *.dSYM
 
+# Local signing (per-developer Apple team id; written by scripts/dev-setup.sh)
+Signing.local.xcconfig
+
 # Swift Package Manager
 .build/
 .swiftpm/

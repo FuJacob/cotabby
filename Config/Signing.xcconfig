@@ -1,0 +1,26 @@
+// Code signing for local development.
+//
+// DEVELOPMENT_TEAM is deliberately empty here, and absent from project.yml, so the repo can be
+// cloned and built by any contributor rather than only members of the maintainer's Apple team.
+// Each developer supplies their own team in Config/Signing.local.xcconfig (gitignored). Generate
+// it with
+//
+//   scripts/dev-setup.sh
+//
+// or copy Config/Signing.local.xcconfig.example and fill it in by hand.
+//
+// The trailing `?` makes the include optional: a fresh clone with no local file still resolves
+// (empty team), which is fine for `xcodebuild ... CODE_SIGNING_ALLOWED=NO` compile checks and for
+// CI. A real team is only needed to launch the signed app from Xcode.
+//
+// This file lives in a subdirectory on purpose. XcodeGen names the group for a root-level file
+// reference after the checkout directory, which differs between clones and CI and would break the
+// project.yml drift gate. A named subdirectory keeps generation deterministic; do not move it to
+// the repo root.
+//
+// DEVELOPMENT_TEAM must not be set in project.yml's build settings either: project-level build
+// settings outrank an xcconfig, so a value there would silently override this file.
+
+DEVELOPMENT_TEAM =
+
+#include? "Signing.local.xcconfig"

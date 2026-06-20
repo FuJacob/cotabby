@@ -52,7 +52,6 @@ settings:
     CLANG_WARN_UNREACHABLE_CODE: YES
     CLANG_WARN__DUPLICATE_METHOD_MATCH: YES
     COPY_PHASE_STRIP: NO
-    DEVELOPMENT_TEAM: G946M8K23B
     ENABLE_STRICT_OBJC_MSGSEND: YES
     ENABLE_USER_SCRIPT_SANDBOXING: YES
     GCC_C_LANGUAGE_STANDARD: gnu17
@@ -85,6 +84,16 @@ settings:
       ENABLE_NS_ASSERTIONS: NO
       MTL_ENABLE_DEBUG_INFO: NO
       SWIFT_COMPILATION_MODE: wholemodule
+# Per-developer signing lives in an xcconfig, not here, so any contributor can build the repo
+# without being on the maintainer's Apple team. `Config/Signing.xcconfig` (committed) leaves
+# DEVELOPMENT_TEAM empty and optionally includes the gitignored `Config/Signing.local.xcconfig`
+# that `scripts/dev-setup.sh` writes. It sits in a subdirectory on purpose: a root-level config
+# file makes XcodeGen name a group after the checkout directory, which drifts between clones and
+# CI. DEVELOPMENT_TEAM must also stay out of the build settings above: project-level settings
+# outrank an xcconfig, so a value there would override the local file.
+configFiles:
+  Debug: Config/Signing.xcconfig
+  Release: Config/Signing.xcconfig
 # Shared application target body. `Cotabby` (prod) and `Cotabby Dev` both build the same sources
 # from this template and differ only in identity-bearing settings below, so the dev build can hold
 # its own Accessibility/TCC grant without ever clobbering the released app's.
@@ -156,7 +165,9 @@ targets:
     settings:
       base:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIconDev
-        PRODUCT_BUNDLE_IDENTIFIER: com.jacobfu.tabby.dev
+        # Overridable so a contributor whose personal team rejects the shared id can set their own
+        # COTABBY_DEV_BUNDLE_ID in Signing.local.xcconfig; defaults to the canonical dev identity.
+        PRODUCT_BUNDLE_IDENTIFIER: "$(COTABBY_DEV_BUNDLE_ID:default=com.jacobfu.tabby.dev)"
         # Keep this under `base:` so COTABBY_DEV is defined in EVERY configuration, Release included.
         # Do not scope it to `configs: Debug:`. A Release-config dev build (the scheme's Profile and
         # Archive actions) must still compile Sparkle out; otherwise it could pull the prod appcast

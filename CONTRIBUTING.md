@@ -29,8 +29,9 @@ You need:
 - macOS 14.0 or later for running the app and tests. Apple Intelligence runtime work requires
   macOS 26 or later.
 - Xcode with Command Line Tools installed.
-- A local Apple development team configured in Xcode if you want to launch the signed app from the
-  IDE.
+- An Apple ID added to Xcode (Settings > Accounts) if you want to launch the app from the IDE. A
+  free account is enough; the paid Apple Developer Program is not required for local development.
+  Run `scripts/dev-setup.sh` once to configure signing (see Local Setup).
 - SwiftLint for local lint checks. CI installs it with Homebrew when needed.
 - XcodeGen if you need to change the project structure (targets, build settings, dependencies,
   or scheme). Install it with `brew install xcodegen`. CI installs it the same way.
@@ -39,16 +40,30 @@ Apple Silicon is strongly recommended for local model-runtime work.
 
 ## Local Setup
 
-Clone the repo and open the project:
+Clone the repo, configure local signing, and open the project:
 
 ```sh
 git clone https://github.com/FuJacob/Cotabby.git
 cd Cotabby
+scripts/dev-setup.sh
 open Cotabby.xcodeproj
 ```
 
-In Xcode, select the `Cotabby` scheme. If you run from Xcode, set your signing team under
-`Signing & Capabilities`.
+`scripts/dev-setup.sh` writes a gitignored `Config/Signing.local.xcconfig` with your Apple
+Development team id, so local builds sign as you. The team is deliberately not hardcoded in
+`project.yml`, so the repo builds for any contributor without being on the maintainer's team. If
+you have not added an Apple ID to Xcode yet, do that first under Settings > Accounts (a free
+account is enough), then re-run the script. To set the team by hand instead, copy
+`Config/Signing.local.xcconfig.example` to `Config/Signing.local.xcconfig`, or pass it explicitly:
+`DEVELOPMENT_TEAM=XXXXXXXXXX scripts/dev-setup.sh`.
+
+You do not need a paid Apple Developer account to build or run Cotabby locally; a free personal
+team can sign and launch it. The paid program is only needed to distribute notarized builds.
+
+For everyday local work, use the **Cotabby Dev** scheme rather than `Cotabby`. It builds a separate
+app identity (`com.jacobfu.tabby.dev`, its own icon, auto-update disabled), so the permissions you
+grant your dev build never collide with a released copy of Cotabby you have installed, and your
+Accessibility grant survives rebuilds. See [Run](#run).
 
 ## The Xcode Project Is Generated
 
@@ -111,13 +126,29 @@ locally.
 
 From Xcode:
 
-1. Select the `Cotabby` scheme.
+1. Select the **Cotabby Dev** scheme (see [Local Setup](#local-setup) for why).
 2. Choose your Mac as the run destination.
-3. Build and run.
+3. Build and run. The dev build is named "Cotabby Dev" and has its own menu bar icon.
 4. Complete onboarding.
-5. Grant Accessibility and Input Monitoring when prompted.
+5. Grant **Accessibility** and **Input Monitoring** to "Cotabby Dev" when prompted, and optionally
+   **Screen Recording** for visual context. These map to the features in
+   [README.md](README.md#permissions).
 6. Pick Apple Intelligence if available, or use the Open Source engine with a downloaded GGUF
    model.
+
+Because the dev build signs with your own stable team, macOS remembers these grants across
+rebuilds. If a permission reads as enabled but the app behaves as if it is not (common after
+switching signing identity, or when an earlier unsigned build left a stale entry), reset it and
+grant again:
+
+```sh
+tccutil reset Accessibility com.jacobfu.tabby.dev
+tccutil reset ListenEvent com.jacobfu.tabby.dev
+```
+
+Then toggle the app back on in System Settings > Privacy & Security. Avoid ad-hoc "Sign to Run
+Locally" builds for real testing: macOS ties the Accessibility grant to the code signature, so an
+ad-hoc build changes identity on every rebuild and loses the grant each time.
 
 If a suggestion does not appear or the overlay is misplaced, start with the focus and geometry
 sections in [ARCHITECTURE.md](ARCHITECTURE.md) before changing coordinator logic.
