@@ -7,7 +7,7 @@ import XCTest
 final class SuggestionEngineModelsTests: XCTestCase {
     func test_suggestionEngineKind_displayLabelsArePinnedProductCopy() {
         XCTAssertEqual(SuggestionEngineKind.appleIntelligence.displayLabel, "Apple Intelligence")
-        XCTAssertEqual(SuggestionEngineKind.llamaOpenSource.displayLabel, "Open Source")
+        XCTAssertEqual(SuggestionEngineKind.llamaOpenSource.displayLabel, "Open Source (GGUF)")
     }
 
     func test_suggestionEngineKind_systemImageNamesArePinnedSharedGlyphs() {
@@ -18,7 +18,7 @@ final class SuggestionEngineModelsTests: XCTestCase {
     }
 
     func test_suggestionEngineKind_idMatchesRawValueForEveryCase() {
-        XCTAssertEqual(SuggestionEngineKind.allCases.count, 2)
+        XCTAssertEqual(SuggestionEngineKind.allCases.count, 3)
         for kind in SuggestionEngineKind.allCases {
             XCTAssertEqual(kind.id, kind.rawValue)
         }
