@@ -82,7 +82,8 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
                     qualityMetricsStore: qualityMetricsStore,
                     systemMetricsStore: systemMetricsStore,
                     onShowWelcome: onShowWelcome,
-                    clearEmojiHistory: clearEmojiHistory
+                    clearEmojiHistory: clearEmojiHistory,
+                    onQuit: { NSApplication.shared.terminate(nil) }
                 )
             )
         )

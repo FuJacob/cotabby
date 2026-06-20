@@ -27,6 +27,7 @@ struct SettingsContainerView: View {
 
     let onShowWelcome: () -> Void
     let clearEmojiHistory: () -> Void
+    let onQuit: () -> Void
 
     @AppStorage("cotabbySettingsSelectedCategoryV2")
     private var storedCategoryRawValue: String = SettingsCategory.home.rawValue
@@ -40,7 +41,8 @@ struct SettingsContainerView: View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             SettingsSidebarView(
                 navigation: navigation,
-                attentionCategories: attentionCategories
+                attentionCategories: attentionCategories,
+                onQuit: onQuit
             )
             .toolbar(removing: .sidebarToggle)
         } detail: {
