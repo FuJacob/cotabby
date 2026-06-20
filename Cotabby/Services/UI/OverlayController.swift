@@ -111,11 +111,11 @@ final class OverlayController: SuggestionOverlayControlling {
         }
 
         // Decide on the fade using the panel state captured *before* `state` is reassigned below, so
-        // the animation plays only on a genuine appearance. A reposition, a streamed-token extension,
-        // and a `advanceInline` word accept all re-enter the show path while the panel stays visible;
-        // restarting the opacity ramp on any of those would make stable ghost text flicker. Note
-        // `advanceInline` calls `showInline` directly and never routes through here, so it is exempt
-        // by construction.
+        // the animation plays only on a genuine appearance. A reposition and a streamed-token
+        // extension re-enter this path while the panel stays visible; restarting the opacity ramp on
+        // either would make stable ghost text flicker. Note `advanceInline` calls `showInline`
+        // directly and never routes through here, so it is exempt by construction without needing
+        // the `overlayWasVisible` guard.
         let fadesIn = SuggestionFadeInPolicy.shouldFadeIn(
             isEnabled: suggestionSettings.fadeInSuggestions,
             overlayWasVisible: state.isVisible,
@@ -130,9 +130,13 @@ final class OverlayController: SuggestionOverlayControlling {
         )
 
         // Start fully transparent so the panel's first composited frame is invisible. Setting alpha
-        // before the show paths call `orderFront` avoids a one-frame flash at full opacity.
+        // before the show paths call `orderFront` avoids a one-frame flash at full opacity. The else
+        // branch resets the model value directly (off the animator), which cancels any stale mid-ramp
+        // animation left paused by an order-out so a non-fading show can't resume semi-transparent.
         if fadesIn {
             panel.alphaValue = 0
+        } else {
+            panel.alphaValue = 1
         }
 
         switch mode {
