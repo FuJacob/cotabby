@@ -372,7 +372,8 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .fadeInSuggestions:
             return ["fade", "fade in", "animation", "animate", "opacity", "transition", "smooth",
                     "appear", "instant", "instantly", "motion", "ease", "reveal", "gradual",
-                    "reduce motion", "effect"]
+                    "reduce motion", "effect", "fade speed", "speed", "duration", "faster", "slower",
+                    "quick", "ramp"]
         case .showFieldIndicator:
             return ["indicator", "icon", "field", "ready", "dot", "marker", "badge",
                     "show", "hide"]

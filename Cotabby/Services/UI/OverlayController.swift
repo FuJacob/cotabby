@@ -19,10 +19,6 @@ final class OverlayController: SuggestionOverlayControlling {
         static let fontToLineHeightRatio: CGFloat = 0.78
     }
 
-    /// Duration of the opt-in opacity ramp a freshly shown suggestion fades in over. Short enough to
-    /// read as the ghost text settling in at the caret rather than a window animating onto screen.
-    private static let fadeInDuration: TimeInterval = 0.15
-
     var onStateChange: ((OverlayState) -> Void)?
 
     private let suggestionSettings: SuggestionSettingsModel
@@ -165,13 +161,15 @@ final class OverlayController: SuggestionOverlayControlling {
         NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
     }
 
-    /// Ramps the panel from fully transparent to opaque. Driven through the AppKit animator proxy,
-    /// which animates independently of `panel.animationBehavior` (kept `.none` so AppKit's own
-    /// order-in spring stays off). Starting a fresh ramp supersedes any still-running one, so a
-    /// rapid hide/show cannot strand the panel mid-fade.
+    /// Ramps the panel from fully transparent to opaque over the user's configured fade duration.
+    /// Driven through the AppKit animator proxy, which animates independently of
+    /// `panel.animationBehavior` (kept `.none` so AppKit's own order-in spring stays off). Starting a
+    /// fresh ramp supersedes any still-running one, so a rapid hide/show cannot strand the panel
+    /// mid-fade. The duration is read live (the model keeps it clamped to a sane band), so the
+    /// Settings speed slider takes effect on the very next suggestion.
     private func fadeInPanel() {
         NSAnimationContext.runAnimationGroup { context in
-            context.duration = Self.fadeInDuration
+            context.duration = suggestionSettings.fadeInDurationSeconds
             context.timingFunction = CAMediaTimingFunction(name: .easeOut)
             panel.animator().alphaValue = 1
         }

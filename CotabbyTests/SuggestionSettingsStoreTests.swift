@@ -160,6 +160,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         store.saveAutomaticallyFixTypos(true)
         store.saveMenuBarWordCountVisible(false)
         store.saveFadeInSuggestions(false)
+        store.saveFadeInDurationSeconds(0.25)
 
         let data = store.load(configuration: .standard)
 
@@ -171,6 +172,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         XCTAssertTrue(data.automaticallyFixTypos)
         XCTAssertFalse(data.isMenuBarWordCountVisible)
         XCTAssertFalse(data.fadeInSuggestions)
+        XCTAssertEqual(data.fadeInDurationSeconds, 0.25, accuracy: 0.0001)
     }
 
     func test_load_fadeInSuggestionsDefaultsOn() async {
@@ -179,6 +181,45 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
 
         XCTAssertTrue(data.fadeInSuggestions)
+    }
+
+    func test_load_fadeInDurationDefaultsToShippedValue() async {
+        let defaults = makeIsolatedDefaults()
+
+        let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
+
+        // Absent key must seed the shipped 0.15s so the fade is unchanged for existing installs.
+        XCTAssertEqual(
+            data.fadeInDurationSeconds,
+            SuggestionSettingsStore.defaultFadeInDuration,
+            accuracy: 0.0001
+        )
+    }
+
+    func test_load_clampsOutOfRangeFadeInDuration() async {
+        let defaults = makeIsolatedDefaults()
+        // Above the ceiling: must clamp down so a hand-edited default can't strand the user on a fade
+        // long enough to read as the suggestion lagging the caret.
+        defaults.set(5.0, forKey: "cotabbyFadeInDurationSeconds")
+
+        let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
+
+        XCTAssertEqual(
+            data.fadeInDurationSeconds,
+            SuggestionSettingsStore.maximumFadeInDuration,
+            accuracy: 0.0001
+        )
+    }
+
+    func test_clampedFadeInDuration_nonFiniteFallsBackToDefault() async {
+        XCTAssertEqual(
+            SuggestionSettingsStore.clampedFadeInDuration(.nan),
+            SuggestionSettingsStore.defaultFadeInDuration
+        )
+        XCTAssertEqual(
+            SuggestionSettingsStore.clampedFadeInDuration(.infinity),
+            SuggestionSettingsStore.defaultFadeInDuration
+        )
     }
 
     func test_saveThenLoad_roundTripsAcceptanceKey() async {

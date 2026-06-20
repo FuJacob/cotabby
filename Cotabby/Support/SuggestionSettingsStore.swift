@@ -47,6 +47,16 @@ struct SuggestionSettingsStore {
     static let defaultGhostTextSizeMultiplier: Double = 1.0
     static let ghostTextSizeMultiplierStep: Double = 0.1
 
+    /// Duration in seconds of the suggestion fade-in ramp, surfaced as a Slow-to-Fast speed slider.
+    /// The band is narrow on purpose: below the floor the ramp is imperceptible (reads as an instant
+    /// snap), and above the ceiling the ghost text feels like it lags the caret rather than settling
+    /// in at it. 0.15s — the value the fade shipped with before it became tunable — is the out-of-box
+    /// default, so existing installs are unchanged. Lower is a faster fade.
+    static let minimumFadeInDuration: Double = 0.05
+    static let maximumFadeInDuration: Double = 0.30
+    static let defaultFadeInDuration: Double = 0.15
+    static let fadeInDurationStep: Double = 0.05
+
     /// Hard upper bound on the persisted Extended Context blob, in characters. Sized to match what the
     /// engines actually consume rather than what they can store: the OSS base path renders this as a
     /// budgeted "notes" section (`BaseCompletionPromptRenderer`, `maxChars` 1300) inside a 2400-char
@@ -108,6 +118,7 @@ struct SuggestionSettingsStore {
     private static let addSpaceAfterAcceptDefaultsKey = "cotabbyAddSpaceAfterAccept"
     private static let streamWhileGeneratingDefaultsKey = "cotabbyStreamSuggestionsWhileGenerating"
     private static let fadeInSuggestionsDefaultsKey = "cotabbyFadeInSuggestions"
+    private static let fadeInDurationSecondsDefaultsKey = "cotabbyFadeInDurationSeconds"
     private static let acceptanceKeyCodeDefaultsKey = "cotabbyAcceptanceKeyCode"
     private static let acceptanceKeyModifiersDefaultsKey = "cotabbyAcceptanceKeyModifiers"
     private static let acceptanceKeyLabelDefaultsKey = "cotabbyAcceptanceKeyLabel"
@@ -302,6 +313,15 @@ struct SuggestionSettingsStore {
         // Reduce Motion regardless. Existing installs (no key) get the fade on the next launch.
         let resolvedFadeInSuggestions =
             userDefaults.object(forKey: Self.fadeInSuggestionsDefaultsKey) as? Bool ?? true
+        // Absent key means the user has never touched the speed slider: seed the shipped 0.15s so
+        // the fade is byte-for-byte what it was before the duration became tunable. A present value
+        // is clamped to the band in case a hand-edited default lands outside it.
+        let resolvedFadeInDurationSeconds: Double =
+            if userDefaults.object(forKey: Self.fadeInDurationSecondsDefaultsKey) == nil {
+                Self.defaultFadeInDuration
+            } else {
+                Self.clampedFadeInDuration(userDefaults.double(forKey: Self.fadeInDurationSecondsDefaultsKey))
+            }
 
         let resolvedAcceptanceKeyCode = CGKeyCode(
             userDefaults.object(forKey: Self.acceptanceKeyCodeDefaultsKey) as? Int
@@ -392,6 +412,7 @@ struct SuggestionSettingsStore {
             addSpaceAfterAccept: resolvedAddSpaceAfterAccept,
             streamSuggestionsWhileGenerating: resolvedStreamSuggestionsWhileGenerating,
             fadeInSuggestions: resolvedFadeInSuggestions,
+            fadeInDurationSeconds: resolvedFadeInDurationSeconds,
             acceptanceKeyCode: resolvedAcceptanceKeyCode,
             acceptanceKeyModifiers: resolvedAcceptanceKeyModifiers,
             acceptanceKeyLabel: resolvedAcceptanceKeyLabel,
@@ -448,6 +469,7 @@ struct SuggestionSettingsStore {
         saveAddSpaceAfterAccept(data.addSpaceAfterAccept)
         saveStreamSuggestionsWhileGenerating(data.streamSuggestionsWhileGenerating)
         saveFadeInSuggestions(data.fadeInSuggestions)
+        saveFadeInDurationSeconds(data.fadeInDurationSeconds)
         saveAcceptanceKey(
             keyCode: data.acceptanceKeyCode,
             modifiers: data.acceptanceKeyModifiers,
@@ -669,6 +691,10 @@ struct SuggestionSettingsStore {
         userDefaults.set(enabled, forKey: Self.fadeInSuggestionsDefaultsKey)
     }
 
+    func saveFadeInDurationSeconds(_ seconds: Double) {
+        userDefaults.set(seconds, forKey: Self.fadeInDurationSecondsDefaultsKey)
+    }
+
     func saveAcceptanceKey(keyCode: CGKeyCode, modifiers: ShortcutModifierMask, label: String) {
         userDefaults.set(Int(keyCode), forKey: Self.acceptanceKeyCodeDefaultsKey)
         userDefaults.set(Int(modifiers.rawValue), forKey: Self.acceptanceKeyModifiersDefaultsKey)
@@ -771,6 +797,14 @@ struct SuggestionSettingsStore {
         }
 
         return min(maximumGhostTextSizeMultiplier, max(minimumGhostTextSizeMultiplier, value))
+    }
+
+    static func clampedFadeInDuration(_ value: Double) -> Double {
+        guard value.isFinite else {
+            return defaultFadeInDuration
+        }
+
+        return min(maximumFadeInDuration, max(minimumFadeInDuration, value))
     }
 
     static func normalizedHexString(_ hex: String?) -> String? {
