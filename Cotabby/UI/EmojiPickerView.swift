@@ -4,18 +4,19 @@ import SwiftUI
 /// File overview:
 /// The SwiftUI content hosted inside the floating emoji picker panel. It is a pure renderer of
 /// `EmojiPickerViewModel`: the trigger state machine and controller own all behavior, while this view
-/// only reflects the current query, matches, and highlighted row. Keyboard navigation arrives through
+/// only reflects the current query, matches, and selected glyph. Keyboard navigation arrives through
 /// the global event tap (not the panel, which never becomes key), so this view does not handle key
-/// input. Mouse clicks on a row report the index back through `onSelect`.
+/// input. Mouse clicks on a cell report the index back through `onSelect`.
 
 /// Observable state the controller pushes into the panel. Kept tiny so selection moves re-render only
-/// the row highlight and scroll position, not the whole list.
+/// the highlighted cell and scroll position, not the whole ribbon.
 @MainActor
 final class EmojiPickerViewModel: ObservableObject {
     @Published var query: String = ""
     @Published var matches: [EmojiMatch] = []
     @Published var selectedIndex: Int = 0
-    /// The accept-word key label shown on the highlighted row; `nil` hides the keycap.
+    /// The accept-word key label. Retained for the panel contract; the minimal ribbon no longer draws
+    /// a per-cell keycap, so it is currently unused by the view.
     @Published var acceptKeyLabel: String?
 }
 
@@ -25,119 +26,89 @@ struct EmojiPickerView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            header
-            Divider()
-            content
+            queryRow
+            ribbon
         }
-        .frame(width: EmojiPickerMetrics.width)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(Color.primary.opacity(0.1), lineWidth: 0.5)
-        )
+        .frame(width: EmojiPickerMetrics.contentSize(matchCount: model.matches.count).width)
+        .popupHUDChrome()
     }
 
-    private var header: some View {
-        HStack(spacing: 0) {
-            Text(":")
-                .foregroundStyle(.secondary)
-            Text(model.query)
-                .foregroundStyle(.primary)
+    /// Row 1: the live ":query" the user is typing. Echoing it titles the ribbon and confirms which
+    /// query produced these glyphs, since the ribbon itself shows no per-glyph names.
+    private var queryRow: some View {
+        HStack(spacing: 1) {
+            Text(":").foregroundStyle(PopupTheme.secondaryText)
+            Text(model.query).foregroundStyle(PopupTheme.primaryText)
             Spacer(minLength: 0)
         }
         .font(.system(size: 12, weight: .medium, design: .monospaced))
         .lineLimit(1)
-        .padding(.horizontal, 10)
-        .frame(height: EmojiPickerMetrics.headerHeight)
+        .padding(.horizontal, EmojiPickerMetrics.horizontalInset)
+        .frame(height: EmojiPickerMetrics.queryRowHeight)
     }
 
+    /// Row 2: ranked glyphs left-to-right, the selection moved by the arrow keys. Scrolls horizontally
+    /// once the match count passes `maxVisibleCells`, keeping the selected cell centered in view.
     @ViewBuilder
-    private var content: some View {
+    private var ribbon: some View {
         if model.matches.isEmpty {
-            if model.query.isEmpty {
-                Color.clear.frame(height: EmojiPickerMetrics.rowHeight)
-            } else {
-                Text("No emoji found")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 10)
-                    .frame(height: EmojiPickerMetrics.rowHeight)
-            }
+            emptyRibbon
         } else {
             ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(spacing: 0) {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: EmojiPickerMetrics.cellSpacing) {
                         ForEach(model.matches.indices, id: \.self) { index in
-                            EmojiPickerRow(
-                                match: model.matches[index],
-                                isSelected: index == model.selectedIndex,
-                                acceptKeyLabel: index == model.selectedIndex ? model.acceptKeyLabel : nil
+                            EmojiRibbonCell(
+                                glyph: model.matches[index].glyph,
+                                isSelected: index == model.selectedIndex
                             )
                             .id(index)
                             .contentShape(Rectangle())
                             .onTapGesture { onSelect(index) }
                         }
                     }
-                    .padding(.vertical, 4)
+                    .padding(.horizontal, EmojiPickerMetrics.horizontalInset)
                 }
+                .frame(height: EmojiPickerMetrics.ribbonRowHeight)
                 .onChange(of: model.selectedIndex) { _, newValue in
-                    proxy.scrollTo(newValue, anchor: .center)
+                    withAnimation(.easeOut(duration: 0.12)) {
+                        proxy.scrollTo(newValue, anchor: .center)
+                    }
                 }
             }
         }
     }
 
-}
-
-private struct EmojiPickerRow: View {
-    let match: EmojiMatch
-    let isSelected: Bool
-    let acceptKeyLabel: String?
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Text(match.glyph)
-                .font(.system(size: 18))
-            Text(":\(match.primaryAlias):")
-                .font(.system(size: 13))
-                .foregroundStyle(isSelected ? Color.white : Color.primary)
-                .lineLimit(1)
-                .truncationMode(.tail)
-            Spacer(minLength: 0)
-            if let acceptKeyLabel {
-                EmojiKeycap(label: acceptKeyLabel, onAccent: isSelected)
-            }
+    /// Empty state. A bare ":" with no recents reserves the ribbon row so the panel keeps its shape; a
+    /// typed query that matches nothing says so rather than showing a blank strip.
+    @ViewBuilder
+    private var emptyRibbon: some View {
+        if model.query.isEmpty {
+            Color.clear.frame(height: EmojiPickerMetrics.ribbonRowHeight)
+        } else {
+            Text("No emoji")
+                .font(.system(size: 12))
+                .foregroundStyle(PopupTheme.secondaryText)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, EmojiPickerMetrics.horizontalInset)
+                .frame(height: EmojiPickerMetrics.ribbonRowHeight)
         }
-        .padding(.horizontal, 10)
-        .frame(height: EmojiPickerMetrics.rowHeight)
-        .background(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(isSelected ? Color.accentColor : Color.clear)
-        )
-        .padding(.horizontal, 4)
     }
 }
 
-/// Small keycap pill on the highlighted row, mirroring the user's configured word-accept shortcut.
-private struct EmojiKeycap: View {
-    let label: String
-    let onAccent: Bool
+/// One ribbon glyph. The selected cell gets a soft white chip (the calm Spotlight-style highlight);
+/// the rest are bare so the row reads as a clean line of emoji.
+private struct EmojiRibbonCell: View {
+    let glyph: String
+    let isSelected: Bool
 
     var body: some View {
-        Text(label)
-            .font(.system(size: 10, weight: .medium, design: .rounded))
-            .foregroundStyle(onAccent ? Color.white : Color.secondary)
-            .padding(.horizontal, 5)
-            .padding(.vertical, 2)
+        Text(glyph)
+            .font(.system(size: 20))
+            .frame(width: EmojiPickerMetrics.cellSize, height: EmojiPickerMetrics.cellSize)
             .background(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(onAccent ? Color.white.opacity(0.22) : Color.primary.opacity(0.08))
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(isSelected ? PopupTheme.selectionFill : Color.clear)
             )
-            .overlay(
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .stroke(onAccent ? Color.white.opacity(0.35) : Color.primary.opacity(0.15), lineWidth: 1)
-            )
-            .fixedSize()
     }
 }

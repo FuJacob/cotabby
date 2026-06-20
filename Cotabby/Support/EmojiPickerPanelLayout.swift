@@ -7,20 +7,36 @@ import CoreGraphics
 ///
 /// All rectangles are in AppKit screen coordinates (bottom-left origin, y increases upward), the
 /// same space `FocusedInputSnapshot.caretRect` already uses.
+/// Pure geometry for the two-row emoji picker: a typed-query row above a horizontal ribbon of
+/// ranked glyphs. The window width hugs the ribbon's cells up to `maxVisibleCells` (then the ribbon
+/// scrolls), so the panel stays compact for a narrow result set instead of reserving a fixed slab.
 enum EmojiPickerMetrics {
-    static let width: CGFloat = 300
-    static let rowHeight: CGFloat = 30
-    static let headerHeight: CGFloat = 26
-    static let dividerHeight: CGFloat = 1
-    static let listVerticalPadding: CGFloat = 8
-    static let maxVisibleRows = 8
+    /// Square cell that holds one glyph and its selection chip.
+    static let cellSize: CGFloat = 30
+    /// Gap between adjacent ribbon cells.
+    static let cellSpacing: CGFloat = 2
+    /// Leading/trailing inset shared by the query row and the ribbon.
+    static let horizontalInset: CGFloat = 8
+    /// Height of the typed-query row sitting above the ribbon.
+    static let queryRowHeight: CGFloat = 22
+    /// Height of the glyph ribbon row (the cell plus a little vertical breathing room).
+    static let ribbonRowHeight: CGFloat = 40
+    /// How many cells are shown before the ribbon scrolls horizontally.
+    static let maxVisibleCells = 8
+    /// Floor so a one- or two-match ribbon (or the bare-":" empty state) never collapses to a sliver.
+    static let minWidth: CGFloat = 132
 
-    /// The panel size for a given number of matches. An empty result still reserves one row so the
-    /// panel never collapses to nothing when the query is empty.
+    /// The panel size for a given number of matches. An empty result still reserves the ribbon row
+    /// so the panel never collapses to nothing when the query is empty or matches nothing.
     static func contentSize(matchCount: Int) -> CGSize {
-        let rows = matchCount == 0 ? 1 : min(matchCount, maxVisibleRows)
-        let listHeight = CGFloat(rows) * rowHeight + (matchCount == 0 ? 0 : listVerticalPadding)
-        return CGSize(width: width, height: headerHeight + dividerHeight + listHeight)
+        let cells = matchCount == 0 ? 0 : min(matchCount, maxVisibleCells)
+        let ribbonWidth = cells == 0
+            ? minWidth
+            : CGFloat(cells) * cellSize + CGFloat(cells - 1) * cellSpacing + horizontalInset * 2
+        return CGSize(
+            width: max(minWidth, ribbonWidth),
+            height: queryRowHeight + ribbonRowHeight
+        )
     }
 }
 

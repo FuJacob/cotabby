@@ -23,19 +23,15 @@ struct InlinePreviewView: View {
         HStack(spacing: 8) {
             Text(model.previewText)
                 .font(.system(size: 13, weight: .medium, design: .rounded))
-                .foregroundStyle(.primary)
+                .foregroundStyle(PopupTheme.primaryText)
                 .lineLimit(1)
             if let label = model.acceptKeyLabel {
                 InlinePreviewKeycap(label: label)
             }
         }
         .padding(.horizontal, 12)
-        .frame(height: 30)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(Color.primary.opacity(0.1), lineWidth: 0.5)
-        )
+        .frame(height: 28)
+        .popupHUDChrome()
         .contentShape(Rectangle())
         .onTapGesture { onTap() }
         .fixedSize()
@@ -49,16 +45,16 @@ private struct InlinePreviewKeycap: View {
     var body: some View {
         Text(label)
             .font(.system(size: 10, weight: .medium, design: .rounded))
-            .foregroundStyle(.secondary)
+            .foregroundStyle(PopupTheme.secondaryText)
             .padding(.horizontal, 5)
             .padding(.vertical, 2)
             .background(
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(Color.primary.opacity(0.08))
+                    .fill(Color.white.opacity(0.10))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .stroke(Color.primary.opacity(0.15), lineWidth: 1)
+                    .stroke(PopupTheme.hairline, lineWidth: 1)
             )
             .fixedSize()
     }

@@ -329,7 +329,9 @@ private struct EmojiPickerDemoCard: View {
     private let leadIn = "Nice work "
     private let trigger = ":smi"
     private let chosenGlyph = "😄"
-    private let candidates: [(glyph: String, alias: String)] = [("😄", "smile"), ("😁", "smiley")]
+    private let candidates: [(glyph: String, alias: String)] = [
+        ("😄", "smile"), ("😁", "smiley"), ("😊", "blush"), ("😆", "laughing"), ("😅", "sweat_smile")
+    ]
 
     var body: some View {
         DemoCard(caption: "Inline emoji", contentHeight: 124) {
@@ -403,88 +405,50 @@ private struct EmojiPickerDemoCard: View {
     }
 }
 
-/// Scaled-down replica of the real inline emoji popup (`EmojiPickerView`): a `.regularMaterial`
-/// panel with a monospaced query header, a divider, and the candidate rows.
+/// Scaled-down replica of the real inline emoji popup (`EmojiPickerView`): the committed-dark HUD
+/// with a monospaced query row above a horizontal ribbon of ranked glyphs, the first selected.
 private struct DemoEmojiPopup: View {
     let query: String
     let candidates: [(glyph: String, alias: String)]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 0) {
-                Text(":").foregroundStyle(.secondary)
-                Text(query).foregroundStyle(.primary)
+            HStack(spacing: 1) {
+                Text(":").foregroundStyle(PopupTheme.secondaryText)
+                Text(query).foregroundStyle(PopupTheme.primaryText)
                 Spacer(minLength: 0)
             }
             .font(.system(size: 12, weight: .medium, design: .monospaced))
-            .padding(.horizontal, 10)
-            .frame(height: 26)
+            .padding(.horizontal, 8)
+            .frame(height: 22)
 
-            Divider()
-
-            VStack(spacing: 0) {
+            HStack(spacing: 2) {
                 ForEach(Array(candidates.enumerated()), id: \.element.alias) { index, candidate in
-                    DemoEmojiRow(glyph: candidate.glyph, alias: candidate.alias, isSelected: index == 0)
+                    DemoEmojiRibbonCell(glyph: candidate.glyph, isSelected: index == 0)
                 }
             }
-            .padding(.vertical, 4)
+            .padding(.horizontal, 8)
+            .frame(height: 40)
         }
-        .frame(width: 210)
-        .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.regularMaterial)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(Color.primary.opacity(0.1), lineWidth: 0.5)
-        )
-        .shadow(color: .black.opacity(0.18), radius: 8, y: 4)
+        .frame(width: 174)
+        .popupHUDChrome()
+        .shadow(color: .black.opacity(0.28), radius: 8, y: 4)
     }
 }
 
-private struct DemoEmojiRow: View {
+/// One ribbon glyph in the onboarding replica, mirroring the real `EmojiRibbonCell`.
+private struct DemoEmojiRibbonCell: View {
     let glyph: String
-    let alias: String
     let isSelected: Bool
 
     var body: some View {
-        HStack(spacing: 8) {
-            Text(glyph).font(.system(size: 18))
-            Text(":\(alias):")
-                .font(.system(size: 13))
-                .foregroundStyle(isSelected ? Color.white : Color.primary)
-                .lineLimit(1)
-            Spacer(minLength: 0)
-            if isSelected {
-                DemoEmojiKeycap(label: "Tab")
-            }
-        }
-        .padding(.horizontal, 10)
-        .frame(height: 30)
-        .background(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(isSelected ? Color.accentColor : Color.clear)
-        )
-        .padding(.horizontal, 4)
-    }
-}
-
-/// The on-accent keycap variant from `EmojiPickerView` (shown only on the highlighted row).
-private struct DemoEmojiKeycap: View {
-    let label: String
-
-    var body: some View {
-        Text(label)
-            .font(.system(size: 10, weight: .medium, design: .rounded))
-            .foregroundStyle(Color.white)
-            .padding(.horizontal, 5)
-            .padding(.vertical, 2)
+        Text(glyph)
+            .font(.system(size: 20))
+            .frame(width: 30, height: 30)
             .background(
-                RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.white.opacity(0.22))
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(isSelected ? PopupTheme.selectionFill : Color.clear)
             )
-            .overlay(
-                RoundedRectangle(cornerRadius: 6, style: .continuous).stroke(Color.white.opacity(0.35), lineWidth: 1)
-            )
-            .fixedSize()
     }
 }
 

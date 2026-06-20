@@ -99,6 +99,43 @@ final class EmojiPickerControllerTests: XCTestCase {
         }
     }
 
+    func test_rightArrowNavigatesAndIsConsumedWhenMatchesPresent() {
+        runOnMainActor {
+            let harness = Harness(precedingText: ":smile")
+            harness.openAndType(":smile")   // matches present
+
+            // The picker is a horizontal ribbon now: Right (124) moves the selection instead of
+            // dismissing, so it is consumed before the host sees it and the panel stays open.
+            XCTAssertTrue(harness.controller.observe(Harness.keyEvent(124)))
+            XCTAssertEqual(harness.controller.decideCaptureKey(Harness.monitorKey(124)), .consume)
+            XCTAssertFalse(harness.panel.isHidden)
+        }
+    }
+
+    func test_leftArrowNavigatesAndIsConsumedWhenMatchesPresent() {
+        runOnMainActor {
+            let harness = Harness(precedingText: ":smile")
+            harness.openAndType(":smile")
+
+            XCTAssertTrue(harness.controller.observe(Harness.keyEvent(123)))
+            XCTAssertEqual(harness.controller.decideCaptureKey(Harness.monitorKey(123)), .consume)
+            XCTAssertFalse(harness.panel.isHidden)
+        }
+    }
+
+    func test_arrowWithNoMatchesPassesThroughAndClosesCapture() {
+        runOnMainActor {
+            let harness = Harness(precedingText: ":zzzzz")
+            harness.openAndType(":zzzzz")   // no catalog match
+
+            // With nothing to move through, the arrow must reach the host (so the caret still moves)
+            // and the capture closes rather than trapping the key.
+            XCTAssertTrue(harness.controller.observe(Harness.keyEvent(124)))
+            XCTAssertEqual(harness.controller.decideCaptureKey(Harness.monitorKey(124)), .passThrough)
+            XCTAssertTrue(harness.panel.isHidden)
+        }
+    }
+
     // MARK: - Harness
 
     @MainActor

@@ -47,9 +47,10 @@ struct MirrorOverlayLayout: Equatable {
         /// card. Large enough that the card does not look like it is part of the field.
         static let anchorGap: CGFloat = 8
 
-        /// Internal padding inside the card around the text + keycap row.
+        /// Internal padding inside the card around the text + keycap row. Must stay in lockstep with
+        /// the `.padding` on `MirrorOverlayView`, since the card fills this computed panel frame.
         static let horizontalPadding: CGFloat = 10
-        static let verticalPadding: CGFloat = 6
+        static let verticalPadding: CGFloat = 4
 
         /// Estimated keycap pill width (matches GhostKeycap's roughly 28pt label + spacing). Used to
         /// reserve room for the acceptance hint when computing card width.
