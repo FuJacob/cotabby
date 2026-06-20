@@ -125,10 +125,6 @@ targetTemplates:
         product: Tokenizers
       - package: swift-transformers
         product: Hub
-      - package: swift-transformers
-        product: Generation
-      - package: swift-transformers
-        product: Models
     settings:
       base:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
