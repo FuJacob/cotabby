@@ -21,7 +21,7 @@ enum SettingsAttentionEvaluator {
         let foundationModelAvailable: Bool
         let foundationModelMessage: String
         let llamaRuntimeFailedReason: String?
-        var mlxRuntimeFailedReason: String? = nil
+        var mlxRuntimeFailedReason: String?
     }
 
     /// Returns the set of categories that should render an attention dot in the sidebar.
