@@ -113,6 +113,135 @@ final class SuggestionSettingsModelTests: XCTestCase {
         XCTAssertEqual(reloaded.pluggedInModelFilename, "big.gguf")
     }
 
+    // MARK: - Reset to defaults
+
+    func test_resetToDefaults_restoresEveryFieldToItsDefault() {
+        // Seed the fields that have no facade setter (keybindings, debounce/poll, list-valued prefs)
+        // straight through a store on the same suite, so the model loads them non-default and the
+        // assertions below would catch a missing line in `resetToDefaults`'s fan-out for any of them.
+        let seed = SuggestionSettingsStore(userDefaults: defaults)
+        seed.saveAcceptanceKey(keyCode: 36, modifiers: [], label: "Return")
+        seed.saveFullAcceptanceKey(keyCode: 49, modifiers: [], label: "Space")
+        seed.saveGlobalToggleKey(keyCode: 47, modifiers: [], label: ".")
+        seed.saveDebounceMilliseconds(15)
+        seed.saveFocusPollIntervalMilliseconds(30)
+        seed.saveResponseLanguages(["French"])
+        seed.saveCustomRules(["Be terse"])
+        seed.saveEnabledSpellingDictionaryCodes([])
+        seed.saveDisabledAppRules(
+            [DisabledApplicationRule(bundleIdentifier: "com.example.app", displayName: "Example")]
+        )
+
+        let model = makeModel()
+
+        // Dirty every field reachable through a setter with a genuine non-default value.
+        model.setGloballyEnabled(false)
+        model.selectEngine(.appleIntelligence)
+        model.selectWordCountPreset(.fourToSeven)
+        model.setUsingCustomWordCountRange(true)
+        model.setCustomWordCountRange(low: 3, high: 9)
+        model.setClipboardContextEnabled(true)
+        model.setSurfaceContextEnabled(false)
+        model.setFastModeEnabled(true)
+        model.setSuppressCompletionsOnTypo(false)
+        model.setOfferTypoCorrections(false)
+        model.setAutomaticallyFixTypos(true)
+        model.setPerformanceTrackingEnabled(true)
+        model.setMenuBarWordCountVisible(false)
+        model.setMirrorPreference(.alwaysMirror)
+        model.setMultiLineEnabled(true)
+        model.setEmojiPickerEnabled(false)
+        model.setMacroExpansionEnabled(false)
+        model.setPreferredEmojiSkinTone(.mediumDark)
+        model.setPreferredEmojiGender(.female)
+        model.setAutoAcceptTrailingPunctuation(false)
+        model.setAddSpaceAfterAccept(true)
+        model.setStreamSuggestionsWhileGenerating(true)
+        model.setAcceptanceGranularity(.phrase)
+        model.setSuggestInIntegratedTerminals(true)
+        model.setShowIndicator(false)
+        model.setShowAcceptanceHint(false)
+        model.setUserName("Ada")
+        model.setExtendedContext("Glossary: cotabby means tea whisk")
+        model.setGhostTextOpacity(SuggestionSettingsModel.minimumGhostTextOpacity)
+        model.setGhostTextSizeMultiplier(SuggestionSettingsModel.maximumGhostTextSizeMultiplier)
+        model.setCustomSuggestionTextColorHex("#a1b2c3")
+        model.setPowerBasedModelSwitchingEnabled(true)
+        model.setBatteryEngine(.appleIntelligence)
+        model.setBatteryModelFilename("small.gguf")
+        model.setPluggedInEngine(.appleIntelligence)
+        model.setPluggedInModelFilename("big.gguf")
+
+        model.resetToDefaults()
+
+        // A model freshly loaded on a clean suite IS the default state; compare field-for-field so a
+        // dropped assignment in `resetToDefaults` (or a missed store key) fails here.
+        let pristineSuite = "cotabby.test.settingsModel.pristine.\(UUID().uuidString)"
+        let pristineDefaults = UserDefaults(suiteName: pristineSuite)!
+        pristineDefaults.removePersistentDomain(forName: pristineSuite)
+        addTeardownBlock { pristineDefaults.removePersistentDomain(forName: pristineSuite) }
+        let pristine = SuggestionSettingsModel(configuration: .standard, userDefaults: pristineDefaults)
+
+        XCTAssertEqual(model.isGloballyEnabled, pristine.isGloballyEnabled)
+        XCTAssertEqual(model.selectedEngine, pristine.selectedEngine)
+        XCTAssertEqual(model.selectedWordCountPreset, pristine.selectedWordCountPreset)
+        XCTAssertEqual(model.isUsingCustomWordCountRange, pristine.isUsingCustomWordCountRange)
+        XCTAssertEqual(model.customWordCountLowWords, pristine.customWordCountLowWords)
+        XCTAssertEqual(model.customWordCountHighWords, pristine.customWordCountHighWords)
+        XCTAssertEqual(model.isClipboardContextEnabled, pristine.isClipboardContextEnabled)
+        XCTAssertEqual(model.isSurfaceContextEnabled, pristine.isSurfaceContextEnabled)
+        XCTAssertEqual(model.isFastModeEnabled, pristine.isFastModeEnabled)
+        XCTAssertEqual(model.suppressCompletionsOnTypo, pristine.suppressCompletionsOnTypo)
+        XCTAssertEqual(model.offerTypoCorrections, pristine.offerTypoCorrections)
+        XCTAssertEqual(model.automaticallyFixTypos, pristine.automaticallyFixTypos)
+        XCTAssertEqual(model.isPerformanceTrackingEnabled, pristine.isPerformanceTrackingEnabled)
+        XCTAssertEqual(model.isMenuBarWordCountVisible, pristine.isMenuBarWordCountVisible)
+        XCTAssertEqual(model.mirrorPreference, pristine.mirrorPreference)
+        XCTAssertEqual(model.isMultiLineEnabled, pristine.isMultiLineEnabled)
+        XCTAssertEqual(model.isEmojiPickerEnabled, pristine.isEmojiPickerEnabled)
+        XCTAssertEqual(model.isMacroExpansionEnabled, pristine.isMacroExpansionEnabled)
+        XCTAssertEqual(model.preferredEmojiSkinTone, pristine.preferredEmojiSkinTone)
+        XCTAssertEqual(model.preferredEmojiGender, pristine.preferredEmojiGender)
+        XCTAssertEqual(model.autoAcceptTrailingPunctuation, pristine.autoAcceptTrailingPunctuation)
+        XCTAssertEqual(model.addSpaceAfterAccept, pristine.addSpaceAfterAccept)
+        XCTAssertEqual(model.streamSuggestionsWhileGenerating, pristine.streamSuggestionsWhileGenerating)
+        XCTAssertEqual(model.acceptanceGranularity, pristine.acceptanceGranularity)
+        XCTAssertEqual(model.suggestInIntegratedTerminals, pristine.suggestInIntegratedTerminals)
+        XCTAssertEqual(model.showIndicator, pristine.showIndicator)
+        XCTAssertEqual(model.showAcceptanceHint, pristine.showAcceptanceHint)
+        XCTAssertEqual(model.userName, pristine.userName)
+        XCTAssertEqual(model.extendedContext, pristine.extendedContext)
+        XCTAssertEqual(model.ghostTextOpacity, pristine.ghostTextOpacity)
+        XCTAssertEqual(model.ghostTextSizeMultiplier, pristine.ghostTextSizeMultiplier)
+        XCTAssertEqual(model.customSuggestionTextColorHex, pristine.customSuggestionTextColorHex)
+        XCTAssertEqual(model.isPowerBasedModelSwitchingEnabled, pristine.isPowerBasedModelSwitchingEnabled)
+        XCTAssertEqual(model.batteryEngine, pristine.batteryEngine)
+        XCTAssertEqual(model.batteryModelFilename, pristine.batteryModelFilename)
+        XCTAssertEqual(model.pluggedInEngine, pristine.pluggedInEngine)
+        XCTAssertEqual(model.pluggedInModelFilename, pristine.pluggedInModelFilename)
+        // Seeded (no-setter) fields:
+        XCTAssertEqual(model.acceptanceKeyCode, pristine.acceptanceKeyCode)
+        XCTAssertEqual(model.acceptanceKeyLabel, pristine.acceptanceKeyLabel)
+        XCTAssertEqual(model.fullAcceptanceKeyCode, pristine.fullAcceptanceKeyCode)
+        XCTAssertEqual(model.fullAcceptanceKeyLabel, pristine.fullAcceptanceKeyLabel)
+        XCTAssertEqual(model.globalToggleKeyCode, pristine.globalToggleKeyCode)
+        XCTAssertEqual(model.globalToggleKeyLabel, pristine.globalToggleKeyLabel)
+        XCTAssertEqual(model.debounceMilliseconds, pristine.debounceMilliseconds)
+        XCTAssertEqual(model.focusPollIntervalMilliseconds, pristine.focusPollIntervalMilliseconds)
+        XCTAssertEqual(model.responseLanguages, pristine.responseLanguages)
+        XCTAssertEqual(model.customRules, pristine.customRules)
+        XCTAssertEqual(model.enabledSpellingDictionaryCodes, pristine.enabledSpellingDictionaryCodes)
+        XCTAssertEqual(model.disabledAppRules, pristine.disabledAppRules)
+
+        // Durable: a fresh model on the same suite reads the defaults the reset persisted.
+        let reloaded = makeModel()
+        XCTAssertEqual(reloaded.isGloballyEnabled, pristine.isGloballyEnabled)
+        XCTAssertEqual(reloaded.userName, pristine.userName)
+        XCTAssertEqual(reloaded.mirrorPreference, pristine.mirrorPreference)
+        XCTAssertEqual(reloaded.acceptanceKeyCode, pristine.acceptanceKeyCode)
+        XCTAssertTrue(reloaded.disabledAppRules.isEmpty)
+    }
+
     // MARK: - Power profiles
 
     func test_powerProfiles_mapEngineAndFilenameIntoProfileValues() {

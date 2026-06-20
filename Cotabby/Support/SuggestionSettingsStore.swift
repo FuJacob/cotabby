@@ -124,6 +124,70 @@ struct SuggestionSettingsStore {
     private static let pluggedInEngineDefaultsKey = "cotabbyPluggedInEngine"
     private static let pluggedInModelFilenameDefaultsKey = "cotabbyPluggedInModelFilename"
 
+    /// Every persisted-preference key this store owns, in one place so `resetToDefaults` clears the
+    /// full set. App state that is deliberately *not* a preference lives under other keys and is
+    /// intentionally excluded: onboarding progress, the one-time login-item default flag, the lifetime
+    /// accepted-word count, emoji usage history, and the performance/quality metrics. A new preference
+    /// key must be added here; `test_resetToDefaults_clearsAllKeysAndReloadsDefaults` fails if one is
+    /// missed. The legacy single-language key is included so a reset also scrubs a value a migration
+    /// would otherwise resurrect.
+    private static let allPreferenceDefaultsKeys: [String] = [
+        isGloballyEnabledDefaultsKey,
+        disabledAppRulesDefaultsKey,
+        suggestInIntegratedTerminalsDefaultsKey,
+        showCaretIndicatorDefaultsKey,
+        selectedIndicatorModeDefaultsKey,
+        showAcceptanceHintDefaultsKey,
+        customSuggestionTextColorHexDefaultsKey,
+        ghostTextOpacityDefaultsKey,
+        ghostTextSizeMultiplierDefaultsKey,
+        selectedEngineDefaultsKey,
+        selectedWordCountPresetDefaultsKey,
+        usingCustomWordCountRangeDefaultsKey,
+        customWordCountLowWordsDefaultsKey,
+        customWordCountHighWordsDefaultsKey,
+        clipboardContextEnabledDefaultsKey,
+        surfaceContextEnabledDefaultsKey,
+        fastModeEnabledDefaultsKey,
+        suppressCompletionsOnTypoDefaultsKey,
+        offerTypoCorrectionsDefaultsKey,
+        spellingDictionaryCodesDefaultsKey,
+        automaticallyFixTyposDefaultsKey,
+        performanceTrackingEnabledDefaultsKey,
+        menuBarWordCountVisibleDefaultsKey,
+        mirrorPreferenceDefaultsKey,
+        userNameDefaultsKey,
+        customRulesDefaultsKey,
+        extendedContextDefaultsKey,
+        responseLanguagesDefaultsKey,
+        legacyResponseLanguageDefaultsKey,
+        debounceMillisecondsDefaultsKey,
+        focusPollIntervalMillisecondsDefaultsKey,
+        multiLineEnabledDefaultsKey,
+        emojiPickerEnabledDefaultsKey,
+        macroExpansionEnabledDefaultsKey,
+        preferredEmojiSkinToneDefaultsKey,
+        preferredEmojiGenderDefaultsKey,
+        autoAcceptTrailingPunctuationDefaultsKey,
+        addSpaceAfterAcceptDefaultsKey,
+        streamWhileGeneratingDefaultsKey,
+        acceptanceKeyCodeDefaultsKey,
+        acceptanceKeyModifiersDefaultsKey,
+        acceptanceKeyLabelDefaultsKey,
+        fullAcceptanceKeyCodeDefaultsKey,
+        fullAcceptanceKeyModifiersDefaultsKey,
+        fullAcceptanceKeyLabelDefaultsKey,
+        globalToggleKeyCodeDefaultsKey,
+        globalToggleKeyModifiersDefaultsKey,
+        globalToggleKeyLabelDefaultsKey,
+        acceptanceGranularityDefaultsKey,
+        powerModelSwitchingEnabledDefaultsKey,
+        batteryEngineDefaultsKey,
+        batteryModelFilenameDefaultsKey,
+        pluggedInEngineDefaultsKey,
+        pluggedInModelFilenameDefaultsKey
+    ]
+
     // MARK: - Load
 
     /// Resolves every preference from `UserDefaults`, applying first-launch defaults and the legacy
@@ -467,6 +531,21 @@ struct SuggestionSettingsStore {
         userDefaults.removeObject(forKey: "cotabbyCustomIndicatorImageData")
 
         return data
+    }
+
+    // MARK: - Reset
+
+    /// Clears every persisted preference this store owns, then re-resolves and writes back the
+    /// first-launch defaults, returning the pristine `SuggestionSettingsData`. Routing through `load`
+    /// means the same migrations and write-back the app relies on at launch also run here, so the
+    /// reset is durable on the next launch and cannot drift from normal startup. Scope is exactly the
+    /// keys in `allPreferenceDefaultsKeys`; unrelated app state (onboarding, login-item flag, counters,
+    /// usage history, metrics) is left untouched.
+    func resetToDefaults(configuration: SuggestionConfiguration) -> SuggestionSettingsData {
+        for key in Self.allPreferenceDefaultsKeys {
+            userDefaults.removeObject(forKey: key)
+        }
+        return load(configuration: configuration)
     }
 
     // MARK: - Save (one method per field; the facade routes its setters through these)
