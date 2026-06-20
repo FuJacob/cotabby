@@ -152,7 +152,6 @@
 		2F227738D7834B1A7A81D1D6 /* ModelDownloadManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51020F8CD58338BD643FBF63 /* ModelDownloadManager.swift */; };
 		2FC40D4BFDD05C2401D7A5E9 /* SuggestionInserter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A3D1125B962CBE0269EEDDB /* SuggestionInserter.swift */; };
 		303652F15C0FE55595669D81 /* SpellingDictionaryResourceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D562A73C7C680F2AA65F9F7F /* SpellingDictionaryResourceTests.swift */; };
-		30AE3C5C8CFAE7DA4C68D6FB /* Hub in Frameworks */ = {isa = PBXBuildFile; productRef = 0A5609A3639D6B6B2ACB0BA2 /* Hub */; };
 		30D4728580451C7D3BDF42E3 /* SurfaceContextCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CF6B7FFBF77B4290F5F2FB8 /* SurfaceContextCache.swift */; };
 		30F3F2B6D13CD583136CD787 /* AXHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC70775535A3428991025AB8 /* AXHelper.swift */; };
 		3112A355E61878A6A6D1FDF8 /* EmojiQueryRun.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDF6A4E9CE93FD53C60E67E3 /* EmojiQueryRun.swift */; };
@@ -550,7 +549,6 @@
 		BEF746D51C69FE426376C89A /* SystemResourceSampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27A5D63F390E9B7A7FE343FE /* SystemResourceSampler.swift */; };
 		BF60D99576F60321078464AD /* SystemSettingsWindowLocator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5976600F428C1265121D4C0C /* SystemSettingsWindowLocator.swift */; };
 		BFCA7FAFDAEBF586AB615567 /* ClipboardRelevanceFilterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90B0D133AB77A2503FB08827 /* ClipboardRelevanceFilterTests.swift */; };
-		BFFBA299521A41C3879CB1C6 /* Hub in Frameworks */ = {isa = PBXBuildFile; productRef = A8A6E5D6EDF5710071B4C7A6 /* Hub */; };
 		C0537A515AED443F6C61DB2A /* MenuBarSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83A810F9D28A18BA6F2066C7 /* MenuBarSections.swift */; };
 		C0B833234748E82D3382631A /* emoji.json in Resources */ = {isa = PBXBuildFile; fileRef = C379D77029D6E88C8C1B9AF7 /* emoji.json */; };
 		C0F757D74758B76DA2962BC5 /* LlamaDecodeGateDefaultsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B3E5554AAC5D0007CCC61A7 /* LlamaDecodeGateDefaultsTests.swift */; };
@@ -1156,7 +1154,6 @@
 				185179B79D6AB2C3D24B7E7F /* MLXLLM in Frameworks */,
 				40412351B908B9B19FCD39B3 /* MLXLMCommon in Frameworks */,
 				A6370D0DE8669F25DEDACD59 /* Tokenizers in Frameworks */,
-				30AE3C5C8CFAE7DA4C68D6FB /* Hub in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1173,7 +1170,6 @@
 				2597836335B3B94E318BF342 /* MLXLLM in Frameworks */,
 				25C1921549D3691662A7F2F7 /* MLXLMCommon in Frameworks */,
 				EDFB4B3DD979A80E69E61081 /* Tokenizers in Frameworks */,
-				BFFBA299521A41C3879CB1C6 /* Hub in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1871,7 +1867,6 @@
 				2F735A2CC8DFFDD231F2B70F /* MLXLLM */,
 				359D454B426D7866DAD422DA /* MLXLMCommon */,
 				13E923E68B6A4BD0F3B18E75 /* Tokenizers */,
-				A8A6E5D6EDF5710071B4C7A6 /* Hub */,
 			);
 			productName = "Cotabby Dev";
 			productReference = 4BC92317837813ACA5051177 /* Cotabby Dev.app */;
@@ -1900,7 +1895,6 @@
 				E4D21E9305E92FF59BBD3702 /* MLXLLM */,
 				C74A89874731CE8C6D285B4E /* MLXLMCommon */,
 				1CE8530F0ED104DD40248A25 /* Tokenizers */,
-				0A5609A3639D6B6B2ACB0BA2 /* Hub */,
 			);
 			productName = Cotabby;
 			productReference = 262BE2F1E97389FE8D7A5FB9 /* Cotabby.app */;
@@ -3146,11 +3140,6 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		0A5609A3639D6B6B2ACB0BA2 /* Hub */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 3D0C3DA536F35C2B7738A2FC /* XCRemoteSwiftPackageReference "swift-transformers" */;
-			productName = Hub;
-		};
 		13E923E68B6A4BD0F3B18E75 /* Tokenizers */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 3D0C3DA536F35C2B7738A2FC /* XCRemoteSwiftPackageReference "swift-transformers" */;
@@ -3210,11 +3199,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 413C306D13ADDD8B5C747551 /* XCRemoteSwiftPackageReference "swift-log" */;
 			productName = InMemoryLogging;
-		};
-		A8A6E5D6EDF5710071B4C7A6 /* Hub */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 3D0C3DA536F35C2B7738A2FC /* XCRemoteSwiftPackageReference "swift-transformers" */;
-			productName = Hub;
 		};
 		BAADA69C6172DD7F4A642E93 /* Sparkle */ = {
 			isa = XCSwiftPackageProductDependency;

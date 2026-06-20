@@ -123,8 +123,6 @@ targetTemplates:
         product: MLXLMCommon
       - package: swift-transformers
         product: Tokenizers
-      - package: swift-transformers
-        product: Hub
     settings:
       base:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
