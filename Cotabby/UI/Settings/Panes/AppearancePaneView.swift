@@ -54,6 +54,7 @@ struct AppearancePaneView: View {
                         systemImage: "number"
                     )
                 }
+                .disabled(!suggestionSettings.isMenuBarIconVisible)
                 .settingsItem(.showWordCount)
 
                 Toggle(isOn: menuBarIconVisibleBinding) {
