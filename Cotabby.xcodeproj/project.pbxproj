@@ -74,6 +74,7 @@
 		1681C0F22323FB1156579D99 /* AGPL-3.0.txt in Resources */ = {isa = PBXBuildFile; fileRef = 6F0EE728C0B1A7AD6B19CD0C /* AGPL-3.0.txt */; };
 		175C4FA56C29DEE58C2D4D7E /* SuggestionSettingsModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86460C747AA883FDE756BDBA /* SuggestionSettingsModel.swift */; };
 		18382D1919D90E3C1EE143C2 /* AppSurfaceClassifierTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C451E144D220D5C63372A8C0 /* AppSurfaceClassifierTests.swift */; };
+		185179B79D6AB2C3D24B7E7F /* MLXLLM in Frameworks */ = {isa = PBXBuildFile; productRef = E4D21E9305E92FF59BBD3702 /* MLXLLM */; };
 		18680D0D66469A2954A50B6C /* SuggestionQualityMetricsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81718CA62FBC775A6CEBCED1 /* SuggestionQualityMetricsStore.swift */; };
 		1899BC5A35DC96B4D04B18A5 /* es.txt in Resources */ = {isa = PBXBuildFile; fileRef = 0B6816DF5D33863F966240B4 /* es.txt */; };
 		18F8E078D0CE6B3AF2C6AFFC /* WelcomeHeroDemo.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6FE1277859A1402F8FB7E4E /* WelcomeHeroDemo.swift */; };
@@ -115,6 +116,8 @@
 		257C2A5D299365C1D98527A8 /* SpellingLanguageResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0348A7053E5683C68879A71A /* SpellingLanguageResolver.swift */; };
 		258EAFB0292290C88520E915 /* SystemSettingsWindowLocator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5976600F428C1265121D4C0C /* SystemSettingsWindowLocator.swift */; };
 		258EC4BDDBD31A4509B668AE /* SuggestionAnchorCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = E99C99D2782EAF0492F964EF /* SuggestionAnchorCache.swift */; };
+		2597836335B3B94E318BF342 /* MLXLLM in Frameworks */ = {isa = PBXBuildFile; productRef = 2F735A2CC8DFFDD231F2B70F /* MLXLLM */; };
+		25C1921549D3691662A7F2F7 /* MLXLMCommon in Frameworks */ = {isa = PBXBuildFile; productRef = 359D454B426D7866DAD422DA /* MLXLMCommon */; };
 		25D4FC8D191A50F63E6391F9 /* ModelAndPresentationValueTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03766F6253FF17639230C0F6 /* ModelAndPresentationValueTests.swift */; };
 		25F91CEF38400FD1ADB6B1AF /* CompletionRenderModePolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D504BEB224E0C176F5FCFF6E /* CompletionRenderModePolicyTests.swift */; };
 		261FA692D19C48E53D6999BC /* DeepGeometryWalkThrottle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 684737E62EE6495A71344923 /* DeepGeometryWalkThrottle.swift */; };
@@ -196,6 +199,7 @@
 		3FCEF50FDD9EE01AE3711083 /* AXTreeDumpWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B27492B04B627DA53BDAD938 /* AXTreeDumpWriter.swift */; };
 		3FF6B7DE34A01C4AB7FA54E3 /* MacroTriggerStateMachine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C201A65A6B040F90C528A3B /* MacroTriggerStateMachine.swift */; };
 		400E1A5145FC8C5BA2FAED0A /* DeepGeometryWalkThrottle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 684737E62EE6495A71344923 /* DeepGeometryWalkThrottle.swift */; };
+		40412351B908B9B19FCD39B3 /* MLXLMCommon in Frameworks */ = {isa = PBXBuildFile; productRef = C74A89874731CE8C6D285B4E /* MLXLMCommon */; };
 		4086A1B07488C4D3D43D86C9 /* KeyboardInputSourceMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 534F1297DEF3547D0DE56FB2 /* KeyboardInputSourceMonitor.swift */; };
 		4134ADBE464D00BB748BD9AE /* GeneralPaneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07480CE96ED0EBD94817C6B1 /* GeneralPaneView.swift */; };
 		418055EF945C17BAEFAB89ED /* CaretRunPlacementTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 421FD16E18622824E038DFB4 /* CaretRunPlacementTests.swift */; };
@@ -1145,6 +1149,8 @@
 				8DA36F1521B6A59D8C20AC59 /* Logging in Frameworks */,
 				A7A1B9BE242959B3EE396D27 /* LaunchAtLogin in Frameworks */,
 				A38F892919E0B8C84F1BAC3D /* MLX in Frameworks */,
+				185179B79D6AB2C3D24B7E7F /* MLXLLM in Frameworks */,
+				40412351B908B9B19FCD39B3 /* MLXLMCommon in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1158,6 +1164,8 @@
 				FEF2CF888D8709D1FB0D2B20 /* Logging in Frameworks */,
 				D1D7D50E5C620042CEA3A77E /* LaunchAtLogin in Frameworks */,
 				47E5F10D324E05B5091B63F9 /* MLX in Frameworks */,
+				2597836335B3B94E318BF342 /* MLXLLM in Frameworks */,
+				25C1921549D3691662A7F2F7 /* MLXLMCommon in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1852,6 +1860,8 @@
 				6F27073D2818C0218C3F4370 /* Logging */,
 				E0AA9F90B83B823132880E6F /* LaunchAtLogin */,
 				3DEA36E5901BE1DFC1C5834B /* MLX */,
+				2F735A2CC8DFFDD231F2B70F /* MLXLLM */,
+				359D454B426D7866DAD422DA /* MLXLMCommon */,
 			);
 			productName = "Cotabby Dev";
 			productReference = 4BC92317837813ACA5051177 /* Cotabby Dev.app */;
@@ -1877,6 +1887,8 @@
 				5A60D1467BBFECB3DFEB39C2 /* Logging */,
 				7B0278A63FEEE8DEDB6C50DB /* LaunchAtLogin */,
 				82C74713220922574F13FEBD /* MLX */,
+				E4D21E9305E92FF59BBD3702 /* MLXLLM */,
+				C74A89874731CE8C6D285B4E /* MLXLMCommon */,
 			);
 			productName = Cotabby;
 			productReference = 262BE2F1E97389FE8D7A5FB9 /* Cotabby.app */;
@@ -3122,6 +3134,16 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		2F735A2CC8DFFDD231F2B70F /* MLXLLM */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F8E600050524CEB6097DBCBF /* XCRemoteSwiftPackageReference "mlx-swift-lm" */;
+			productName = MLXLLM;
+		};
+		359D454B426D7866DAD422DA /* MLXLMCommon */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F8E600050524CEB6097DBCBF /* XCRemoteSwiftPackageReference "mlx-swift-lm" */;
+			productName = MLXLMCommon;
+		};
 		3DEA36E5901BE1DFC1C5834B /* MLX */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = F8E600050524CEB6097DBCBF /* XCRemoteSwiftPackageReference "mlx-swift-lm" */;
@@ -3172,6 +3194,11 @@
 			package = 413C306D13ADDD8B5C747551 /* XCRemoteSwiftPackageReference "swift-log" */;
 			productName = InMemoryLogging;
 		};
+		C74A89874731CE8C6D285B4E /* MLXLMCommon */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F8E600050524CEB6097DBCBF /* XCRemoteSwiftPackageReference "mlx-swift-lm" */;
+			productName = MLXLMCommon;
+		};
 		D11AB0F962CCC5BD79B630CA /* CotabbyInference */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 537E79EE0EEF2030A5923ED9 /* XCRemoteSwiftPackageReference "cotabbyinference" */;
@@ -3181,6 +3208,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 16E10845516A4DE793CC1BF6 /* XCRemoteSwiftPackageReference "LaunchAtLogin-Modern" */;
 			productName = LaunchAtLogin;
+		};
+		E4D21E9305E92FF59BBD3702 /* MLXLLM */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F8E600050524CEB6097DBCBF /* XCRemoteSwiftPackageReference "mlx-swift-lm" */;
+			productName = MLXLLM;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
