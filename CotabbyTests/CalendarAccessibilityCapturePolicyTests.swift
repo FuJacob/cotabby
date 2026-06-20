@@ -58,6 +58,32 @@ final class CalendarAccessibilityCapturePolicyTests: XCTestCase {
         )
     }
 
+    func testUnresolvedOwnerBundleKeepsExistingSuppression() {
+        // A nil bundle id means the AX owner lookup failed while Calendar is frontmost (the guard
+        // already gated on that), not that the click left Calendar. Suppression must persist rather
+        // than spuriously resume mid-edit and reintroduce the collapse bug.
+        XCTAssertTrue(
+            CalendarAccessibilityCapturePolicy.shouldSuppressCapture(
+                currentlySuppressed: true,
+                targetBundleIdentifier: nil,
+                targetRole: kAXButtonRole as String,
+                targetIdentifier: nil
+            )
+        )
+    }
+
+    func testUnresolvedOwnerBundleStillResumesOnTextField() {
+        // An editable role is an explicit safe boundary even when the owning bundle can't be read.
+        XCTAssertFalse(
+            CalendarAccessibilityCapturePolicy.shouldSuppressCapture(
+                currentlySuppressed: true,
+                targetBundleIdentifier: nil,
+                targetRole: kAXTextFieldRole as String,
+                targetIdentifier: nil
+            )
+        )
+    }
+
     func testOrdinaryCalendarClickDoesNotStartSuppression() {
         XCTAssertFalse(
             CalendarAccessibilityCapturePolicy.shouldSuppressCapture(

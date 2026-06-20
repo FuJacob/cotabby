@@ -1,4 +1,5 @@
 import AppKit
+import ApplicationServices
 import Foundation
 import Logging
 
@@ -20,6 +21,11 @@ final class CalendarAccessibilityCaptureGuard {
             return
         }
 
+        // A click that resolves to no AX element (e.g. empty Calendar canvas) leaves the current
+        // state untouched rather than resuming. The date-picker popup is the fragile surface this
+        // guard protects, and forcing a resume on every unresolved click risks dropping suppression
+        // mid-edit. Active suppression still ends the moment the pointer lands on a real text field
+        // or another app (handled below and in the policy), so a normal editing flow cannot strand it.
         guard let target = AXHelper.element(atAccessibilityPoint: point) else {
             return
         }
@@ -35,6 +41,12 @@ final class CalendarAccessibilityCaptureGuard {
     }
 
     /// `FocusTracker` calls this after its cheap focused-element lookup and before resolver traversal.
+    ///
+    /// This both reads and updates state: observing any non-Calendar bundle clears an active
+    /// suppression. The mutation lives here (rather than in a separate step) because an app switch can
+    /// happen by keyboard with no pointer event, so this poll is the only signal that the user left
+    /// Calendar. The `updateSuppression` guard makes the repeated calls on the focus/key-event hot
+    /// paths cheap no-ops once the state has settled.
     func shouldSuppressCapture(for bundleIdentifier: String?) -> Bool {
         guard bundleIdentifier == CalendarAccessibilityCapturePolicy.calendarBundleIdentifier else {
             // App switches can happen by keyboard with no pointer event. Clearing here prevents a

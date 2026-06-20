@@ -39,7 +39,12 @@ enum CalendarAccessibilityCapturePolicy {
         targetRole: String?,
         targetIdentifier: String?
     ) -> Bool {
-        guard targetBundleIdentifier == calendarBundleIdentifier else {
+        // Only a positively-identified non-Calendar app is an explicit "resume" signal. A nil bundle
+        // id means the AX owner lookup failed, not that the click left Calendar (the guard already
+        // confirmed Calendar is frontmost), so treating nil as "resume" could drop suppression
+        // mid-edit and reintroduce the collapse bug. Fall through and let the role/identifier checks
+        // — or the held state — decide instead.
+        if let targetBundleIdentifier, targetBundleIdentifier != calendarBundleIdentifier {
             return false
         }
 
