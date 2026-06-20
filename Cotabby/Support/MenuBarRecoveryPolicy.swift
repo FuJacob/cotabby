@@ -15,9 +15,9 @@ enum MenuBarRecoveryPolicy {
             || (!isMenuBarIconVisible && !wasLaunchedAtLogin)
     }
 
-    /// Lets AppKit perform its normal reopen work when the status item is available, or when the
-    /// Settings window is already among the visible app windows. A different visible window is not
-    /// a recovery surface for this preference, so Cotabby must still open Settings in that case.
+    /// Lets AppKit perform its normal reopen work when the status item is available, or when the app
+    /// already has visible windows and the Settings window exists (so AppKit can activate/restore it).
+    /// If only a non-Settings window is visible, Cotabby still opens Settings as the recovery surface.
     static func shouldLetAppKitHandleReopen(
         isMenuBarIconVisible: Bool,
         hasVisibleWindows: Bool,
