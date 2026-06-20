@@ -51,14 +51,14 @@ struct CotabbyApp: App {
     }
 
     /// SwiftUI owns insertion/removal of the status item, while the settings model remains the
-    /// single durable source of truth. The setter also captures removal initiated by the system.
+    /// single durable source of truth. The setter writes only through the model; `@AppStorage`
+    /// observes the same `UserDefaults` key, so the getter and the scene re-evaluate off that one
+    /// write instead of persisting the value twice (which could drift if model-side validation is
+    /// ever added).
     private var menuBarIconVisibilityBinding: Binding<Bool> {
         Binding(
             get: { isMenuBarIconVisible },
-            set: { visible in
-                isMenuBarIconVisible = visible
-                appDelegate.suggestionSettings.setMenuBarIconVisible(visible)
-            }
+            set: { appDelegate.suggestionSettings.setMenuBarIconVisible($0) }
         )
     }
 }
