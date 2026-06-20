@@ -115,6 +115,8 @@ targetTemplates:
         product: Logging
       - package: LaunchAtLogin
         product: LaunchAtLogin
+      - package: mlx-swift-lm
+        product: MLX
     settings:
       base:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
