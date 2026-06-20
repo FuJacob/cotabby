@@ -21,6 +21,7 @@ enum SettingsAttentionEvaluator {
         let foundationModelAvailable: Bool
         let foundationModelMessage: String
         let llamaRuntimeFailedReason: String?
+        var mlxRuntimeFailedReason: String? = nil
     }
 
     /// Returns the set of categories that should render an attention dot in the sidebar.
@@ -38,6 +39,10 @@ enum SettingsAttentionEvaluator {
             }
         case .llamaOpenSource:
             if inputs.llamaRuntimeFailedReason != nil {
+                categories.insert(.engineAndModel)
+            }
+        case .mlx:
+            if inputs.mlxRuntimeFailedReason != nil {
                 categories.insert(.engineAndModel)
             }
         }
@@ -63,6 +68,10 @@ enum SettingsAttentionEvaluator {
                 return inputs.foundationModelMessage
             case .llamaOpenSource:
                 guard let reason = inputs.llamaRuntimeFailedReason,
+                      !reason.isEmpty else { return nil }
+                return reason
+            case .mlx:
+                guard let reason = inputs.mlxRuntimeFailedReason,
                       !reason.isEmpty else { return nil }
                 return reason
             }

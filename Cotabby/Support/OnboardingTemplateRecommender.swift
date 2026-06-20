@@ -29,9 +29,9 @@ enum OnboardingTemplateRecommender {
         engine: SuggestionEngineKind
     ) -> ResolvedTemplatePlan {
         let model: DownloadableRuntimeModel? =
-            engine == .appleIntelligence
-            ? nil
-            : downloadableModel(filename: template.openSourceModelFilename)
+            engine == .llamaOpenSource
+            ? downloadableModel(filename: template.openSourceModelFilename)
+            : nil
 
         return ResolvedTemplatePlan(
             template: template,
@@ -87,14 +87,15 @@ enum OnboardingTemplateRecommender {
     }
 
     /// The single tier to highlight as the safe default under the chosen engine. Apple Intelligence
-    /// has no size cost, so Everyday is the obvious balance; on Open Source we keep low-memory Macs
-    /// on Quick and everyone else on Everyday. Powerful is never the default — it is an opt-in for
-    /// users who deliberately want the big model.
+    /// has no size cost, so Everyday is the obvious balance; MLX is not offered in onboarding yet,
+    /// so it follows that no-download default if selected programmatically. On Open Source we keep
+    /// low-memory Macs on Quick and everyone else on Everyday. Powerful is never the default — it is
+    /// an opt-in for users who deliberately want the big model.
     static func recommendedTemplate(
         hardware: HardwareCapability,
         engine: SuggestionEngineKind
     ) -> OnboardingTemplate {
-        if engine == .appleIntelligence {
+        if engine == .appleIntelligence || engine == .mlx {
             return .everyday
         }
         if hardware.physicalMemoryGigabytes < everydayWarnBelowGigabytes {

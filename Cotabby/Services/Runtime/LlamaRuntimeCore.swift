@@ -367,7 +367,6 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
     ) -> (output: LlamaGenerationOutput, engineCancelled: Bool) {
         var generatedText = ""
         var tokensGenerated = 0
-        var sumLogprob = 0.0
         var stopReason = "budget_exhausted"
         var engineCancelled = false
 
@@ -392,19 +391,9 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
                 stopReason = "eos"
                 break
             }
-            // The raw distribution's most-likely token is end-of-generation: the model wants to
-            // stop here even though the stochastic sampler drew something else. Finalize with the
-            // text accumulated so far and discard the sampled-but-unwanted token; this is the
-            // anti-rambling stop the sentence classifier cannot express (lists, fragments, code).
-            if options.stopAtArgmaxEOG, result.argmax_is_eog {
-                stopReason = "argmax_eog"
-                break
-            }
-
             let piece = Self.extractPiece(result)
             generatedText += piece
             tokensGenerated += 1
-            sumLogprob += Double(result.logprob)
             // Cumulative text, not the delta: consumers render whole partials, and cumulative
             // semantics make late or reordered deliveries harmless downstream.
             onPartialRawText?(generatedText)
@@ -436,51 +425,16 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
             ]
         )
 
-        // The average is only meaningful when the engine actually computed per-token logprobs,
-        // which is keyed on the floor being enabled (see setComputeLogprob at sequence setup).
-        let averageLogprob: Double? = options.confidenceFloor > -.infinity && tokensGenerated > 0
-            ? sumLogprob / Double(tokensGenerated)
-            : nil
-        if Self.shouldSuppress(sumLogprob: sumLogprob, tokensGenerated: tokensGenerated, options: options) {
-            let suppressed = LlamaGenerationOutput(
-                text: "",
-                averageLogprob: averageLogprob,
-                suppressedByLowConfidence: true
-            )
-            return (suppressed, engineCancelled)
-        }
+        // The currently resolved CotabbyInference package exposes the sampler text/EOS/cancel
+        // result, but not per-token logprobs or argmax-EOG metadata. Surface nil confidence here
+        // so callers can distinguish "not computed by this backend" from a strong/weak score.
+        let averageLogprob: Double? = nil
         let output = LlamaGenerationOutput(
             text: generatedText,
             averageLogprob: averageLogprob,
             suppressedByLowConfidence: false
         )
         return (output, engineCancelled)
-    }
-
-    /// Low-confidence gate for the sampled decoder: drop completions the model itself was unsure
-    /// about. Disabled by default (confidenceFloor == -infinity). The KV-trim defer in `generate`
-    /// still runs because the caller returns "" rather than throwing.
-    private static func shouldSuppress(
-        sumLogprob: Double,
-        tokensGenerated: Int,
-        options: LlamaGenerationOptions
-    ) -> Bool {
-        guard tokensGenerated > 0 else { return false }
-        let averageLogprob = sumLogprob / Double(tokensGenerated)
-        let suppress = ConfidenceSuppressionPolicy.shouldSuppress(
-            averageLogprob: averageLogprob,
-            floor: options.confidenceFloor
-        )
-        if suppress {
-            CotabbyLogger.runtime.debug(
-                "Suppressed low-confidence completion",
-                metadata: [
-                    "tokens_generated": .stringConvertible(tokensGenerated),
-                    "avg_logprob": .stringConvertible(averageLogprob)
-                ]
-            )
-        }
-        return suppress
     }
 
     // MARK: - Cache and lifecycle
@@ -574,20 +528,6 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
                     if engine.trimKV(autocompleteSequenceID, Int32(reusableTokenCount)) {
                         let remaining = Array(promptTokens[reusableTokenCount...])
                         if !remaining.isEmpty {
-                            // Seed for the reuse path is sampled at the end of this decodePrompt;
-                            // apply the word-continuation constraint to it like the fresh path does.
-                            engine.setForceWordContinuation(
-                                autocompleteSequenceID,
-                                options.forceWordContinuation
-                            )
-                            // Per-token log-probabilities cost two O(vocab) passes each in the
-                            // engine; only compute them when the confidence gate would actually
-                            // read them. Re-assert per request: the floor is not part of the
-                            // sampling fingerprint, so a reused sequence must not carry a stale flag.
-                            engine.setComputeLogprob(
-                                autocompleteSequenceID,
-                                options.confidenceFloor > -.infinity
-                            )
                             setAbortTarget(autocompleteSequenceID)
                             var mutableRemaining = remaining
                             let status = engine.decodePrompt(
@@ -643,14 +583,6 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         guard seqID >= 0 else {
             throw LlamaRuntimeError.generationFailed("Unable to create inference sequence.")
         }
-
-        // The engine samples the first (seed) token at the end of decodePrompt, so set the
-        // word-continuation constraint here, before decoding.
-        engine.setForceWordContinuation(seqID, options.forceWordContinuation)
-        // Skip the engine's per-token log-probability work (two O(vocab) passes per token)
-        // whenever confidence suppression is disabled — the shipping default — since the value
-        // would be summed and then discarded.
-        engine.setComputeLogprob(seqID, options.confidenceFloor > -.infinity)
 
         setAbortTarget(seqID)
         var tokens = promptTokens
@@ -726,8 +658,7 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
             top_p: Float(options.topP),
             min_p: Float(options.minP),
             repetition_penalty: Float(options.repetitionPenalty),
-            seed: options.seed ?? Self.defaultSamplerSeed,
-            single_line: options.singleLine
+            seed: options.seed ?? Self.defaultSamplerSeed
         )
     }
 

@@ -6,10 +6,12 @@ import Foundation
 ///
 /// The important architectural distinction is:
 /// - a local GGUF file is a model option inside the llama runtime
+/// - a local MLX snapshot is a model option inside the MLX runtime
 /// - Apple Intelligence vs. local llama is an engine choice above the runtime layer
 enum SuggestionEngineKind: String, CaseIterable, Equatable, Hashable, Sendable, Identifiable {
     case appleIntelligence
     case llamaOpenSource
+    case mlx
 
     var id: String { rawValue }
 
@@ -18,7 +20,9 @@ enum SuggestionEngineKind: String, CaseIterable, Equatable, Hashable, Sendable, 
         case .appleIntelligence:
             return "Apple Intelligence"
         case .llamaOpenSource:
-            return "Open Source"
+            return "Open Source (GGUF)"
+        case .mlx:
+            return "MLX"
         }
     }
 
@@ -31,6 +35,8 @@ enum SuggestionEngineKind: String, CaseIterable, Equatable, Hashable, Sendable, 
             return "apple.logo"
         case .llamaOpenSource:
             return "cpu.fill"
+        case .mlx:
+            return "cpu"
         }
     }
 
@@ -38,7 +44,7 @@ enum SuggestionEngineKind: String, CaseIterable, Equatable, Hashable, Sendable, 
         switch self {
         case .appleIntelligence:
             return false
-        case .llamaOpenSource:
+        case .llamaOpenSource, .mlx:
             return true
         }
     }

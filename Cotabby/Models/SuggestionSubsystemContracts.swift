@@ -175,6 +175,16 @@ extension LlamaRuntimeGenerating {
     }
 }
 
+/// Behavior-shaped view of the MLX runtime used by `MlxSuggestionEngine`.
+///
+/// It intentionally mirrors `LlamaRuntimeGenerating`: both local backends receive the same rendered
+/// base-completion prompt and sampling controls, but each runtime owns its own cache correctness.
+@MainActor
+protocol MlxRuntimeGenerating: AnyObject {
+    func generate(prompt: String, cachedPrefixBytes: Int?, options: LlamaGenerationOptions) async throws -> String
+    func resetPromptCache()
+}
+
 @MainActor
 protocol SuggestionSettingsProviding: AnyObject {
     var snapshot: SuggestionSettingsSnapshot { get }

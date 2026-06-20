@@ -17,6 +17,7 @@ struct HomePaneView: View {
     @ObservedObject var permissionManager: PermissionManager
     @ObservedObject var foundationModelAvailabilityService: FoundationModelAvailabilityService
     @ObservedObject var runtimeModel: RuntimeBootstrapModel
+    @ObservedObject var mlxRuntimeModel: MlxRuntimeBootstrapModel
     let attentionCategories: Set<SettingsCategory>
 
     @State private var query = ""
@@ -325,6 +326,10 @@ struct HomePaneView: View {
             let selected = runtimeModel.availableModels
                 .first { $0.filename == runtimeModel.selectedModelFilename }
             return selected?.displayName ?? "No model selected"
+        case .mlx:
+            let selected = mlxRuntimeModel.availableModels
+                .first { $0.id == mlxRuntimeModel.selectedModelID }
+            return selected?.displayName ?? "No MLX model selected"
         }
     }
 

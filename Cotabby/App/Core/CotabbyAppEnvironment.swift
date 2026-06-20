@@ -13,6 +13,7 @@ import Logging
 final class CotabbyAppEnvironment {
     let permissionManager: PermissionManager
     let runtimeModel: RuntimeBootstrapModel
+    let mlxRuntimeModel: MlxRuntimeBootstrapModel
     let modelDownloadManager: ModelDownloadManager
     let focusModel: FocusTrackingModel
     let inputMonitor: InputMonitor
@@ -50,6 +51,8 @@ final class CotabbyAppEnvironment {
         )
         let runtimeManager = LlamaRuntimeManager()
         let runtimeModel = RuntimeBootstrapModel(runtimeManager: runtimeManager)
+        let mlxRuntimeManager = MlxRuntimeManager()
+        let mlxRuntimeModel = MlxRuntimeBootstrapModel(runtimeManager: mlxRuntimeManager)
         let modelDownloadManager = ModelDownloadManager()
         let suggestionSettings = SuggestionSettingsModel(configuration: configuration)
         let foundationModelAvailabilityService = FoundationModelAvailabilityService()
@@ -160,10 +163,14 @@ final class CotabbyAppEnvironment {
             suggestionSettings: suggestionSettings,
             foundationModelEngine: foundationModelEngine,
             llamaEngine: LlamaSuggestionEngine(runtimeManager: runtimeManager),
+            mlxEngine: MlxSuggestionEngine(runtimeManager: mlxRuntimeManager),
             performanceMetricsStore: performanceMetricsStore,
             qualityMetricsStore: qualityMetricsStore,
             llamaModelNameProvider: { [weak runtimeManager] in
                 runtimeManager?.currentModelFilename
+            },
+            mlxModelNameProvider: { [weak mlxRuntimeManager] in
+                mlxRuntimeManager?.currentModelID
             }
         )
 
@@ -178,6 +185,7 @@ final class CotabbyAppEnvironment {
             suggestionSettings: suggestionSettings,
             foundationModelAvailabilityService: foundationModelAvailabilityService,
             runtimeModel: runtimeModel,
+            mlxRuntimeModel: mlxRuntimeModel,
             modelDownloadManager: modelDownloadManager,
             huggingFaceSearchService: huggingFaceSearchService,
             performanceMetricsStore: performanceMetricsStore,
@@ -265,6 +273,7 @@ final class CotabbyAppEnvironment {
 
         self.permissionManager = permissionManager
         self.runtimeModel = runtimeModel
+        self.mlxRuntimeModel = mlxRuntimeModel
         self.modelDownloadManager = modelDownloadManager
         self.focusModel = focusModel
         self.inputMonitor = inputMonitor

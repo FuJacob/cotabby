@@ -175,6 +175,10 @@
 		3AC2F7F221F7C59242B06DFC /* InputSuppressionController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D1F9CEBAB0F330F8E7B61D8 /* InputSuppressionController.swift */; };
 		3AFDA4A5BE9486A1B367815B /* SettingsNavigationModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D1AC5EC06664F49A6AE2B17 /* SettingsNavigationModel.swift */; };
 		3B3E08D1204E85F3776D8853 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = BAADA69C6172DD7F4A642E93 /* Sparkle */; };
+		920000000000000000000201 /* MLXLLM in Frameworks */ = {isa = PBXBuildFile; productRef = 920000000000000000000301 /* MLXLLM */; };
+		920000000000000000000202 /* MLXLMCommon in Frameworks */ = {isa = PBXBuildFile; productRef = 920000000000000000000302 /* MLXLMCommon */; };
+		920000000000000000000204 /* HuggingFace in Frameworks */ = {isa = PBXBuildFile; productRef = 920000000000000000000304 /* HuggingFace */; };
+		920000000000000000000205 /* Tokenizers in Frameworks */ = {isa = PBXBuildFile; productRef = 920000000000000000000305 /* Tokenizers */; };
 		3B5F96F9CC6D4D81B470DB2C /* EmojiSynonymCatalogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF474064973F4752F79BB041 /* EmojiSynonymCatalogTests.swift */; };
 		3BB16F9F9F84C7A8D87DF044 /* es-100l.txt in Resources */ = {isa = PBXBuildFile; fileRef = 620D393D3B7E687A08FA9446 /* es-100l.txt */; };
 		3BC4FCF9A51F57A0A8F6944D /* ArithmeticEvaluator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F7ED2D9D71CFAD9A30977E9 /* ArithmeticEvaluator.swift */; };
@@ -254,6 +258,13 @@
 		53FB56A095BCF0389DAC0A56 /* SuggestionTextColorCodec.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CE61E74928C221B8BB261C6 /* SuggestionTextColorCodec.swift */; };
 		543D71217CA218426E9638BF /* CaretLinePosition.swift in Sources */ = {isa = PBXBuildFile; fileRef = D77364C1AF183EF1C0A4074D /* CaretLinePosition.swift */; };
 		54BDF0D9C3DC7175555BD0F6 /* LlamaRuntimeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A52D0B550E00EF173A5D157E /* LlamaRuntimeManager.swift */; };
+		920000000000000000000007 /* MlxRuntimeLocatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 920000000000000000000107 /* MlxRuntimeLocatorTests.swift */; };
+		920000000000000000000001 /* MlxRuntimeModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 920000000000000000000101 /* MlxRuntimeModels.swift */; };
+		920000000000000000000002 /* MlxRuntimeBootstrapModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 920000000000000000000102 /* MlxRuntimeBootstrapModel.swift */; };
+		920000000000000000000003 /* MlxRuntimeLocator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 920000000000000000000103 /* MlxRuntimeLocator.swift */; };
+		920000000000000000000004 /* MlxRuntimeCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 920000000000000000000104 /* MlxRuntimeCore.swift */; };
+		920000000000000000000005 /* MlxRuntimeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 920000000000000000000105 /* MlxRuntimeManager.swift */; };
+		920000000000000000000006 /* MlxSuggestionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 920000000000000000000106 /* MlxSuggestionEngine.swift */; };
 		54E515A0E75B3902E6497A71 /* EmojiPopularity.swift in Sources */ = {isa = PBXBuildFile; fileRef = E27B962C66727776D00069DE /* EmojiPopularity.swift */; };
 		5560B54FBBEC80F13BCD2054 /* EmojiPickerPanelLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62EDF1199CC5E18BD7651661 /* EmojiPickerPanelLayout.swift */; };
 		55D4E6FB63E3475749E61EB3 /* CustomRulesCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = E43E587E421AF544A8300CE4 /* CustomRulesCatalog.swift */; };
@@ -778,6 +789,7 @@
 		2B3E5554AAC5D0007CCC61A7 /* LlamaDecodeGateDefaultsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LlamaDecodeGateDefaultsTests.swift; sourceTree = "<group>"; };
 		2B7A28471B8526C2693FFF65 /* AcknowledgementsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AcknowledgementsView.swift; sourceTree = "<group>"; };
 		2BC293F6125E2B14DCF05AD9 /* SettingsAttentionEvaluatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsAttentionEvaluatorTests.swift; sourceTree = "<group>"; };
+		920000000000000000000107 /* MlxRuntimeLocatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MlxRuntimeLocatorTests.swift; sourceTree = "<group>"; };
 		2D1F9CEBAB0F330F8E7B61D8 /* InputSuppressionController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputSuppressionController.swift; sourceTree = "<group>"; };
 		2D7360A6D4261989A66658ED /* SentenceBoundaryClassifierTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SentenceBoundaryClassifierTests.swift; sourceTree = "<group>"; };
 		2D8AA55C2B730110E8598F91 /* it-100k.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "it-100k.txt"; sourceTree = "<group>"; };
@@ -843,6 +855,12 @@
 		5F34AE24BB7C99D66E1F3904 /* InputModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InputModels.swift; sourceTree = "<group>"; };
 		60629DFE309C1A4BD8A7FB3B /* RuntimeBootstrapModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeBootstrapModel.swift; sourceTree = "<group>"; };
 		620D393D3B7E687A08FA9446 /* es-100l.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "es-100l.txt"; sourceTree = "<group>"; };
+		920000000000000000000101 /* MlxRuntimeModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MlxRuntimeModels.swift; sourceTree = "<group>"; };
+		920000000000000000000102 /* MlxRuntimeBootstrapModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MlxRuntimeBootstrapModel.swift; sourceTree = "<group>"; };
+		920000000000000000000103 /* MlxRuntimeLocator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MlxRuntimeLocator.swift; sourceTree = "<group>"; };
+		920000000000000000000104 /* MlxRuntimeCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MlxRuntimeCore.swift; sourceTree = "<group>"; };
+		920000000000000000000105 /* MlxRuntimeManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MlxRuntimeManager.swift; sourceTree = "<group>"; };
+		920000000000000000000106 /* MlxSuggestionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MlxSuggestionEngine.swift; sourceTree = "<group>"; };
 		62BD2ADED33249F5BA53D0AD /* EmojiPickerControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiPickerControllerTests.swift; sourceTree = "<group>"; };
 		62EDF1199CC5E18BD7651661 /* EmojiPickerPanelLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiPickerPanelLayout.swift; sourceTree = "<group>"; };
 		63F7C6D15674B3043C4CEEAC /* WelcomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WelcomeView.swift; sourceTree = "<group>"; };
@@ -1116,13 +1134,17 @@
 		658F2109EF7F1517DEA48DEB /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
-			files = (
-				3B3E08D1204E85F3776D8853 /* Sparkle in Frameworks */,
-				9F2FDCABCC941CBECAA3B4AB /* CotabbyInference in Frameworks */,
-				7FC103944F4EF39DB965F469 /* InMemoryLogging in Frameworks */,
-				8DA36F1521B6A59D8C20AC59 /* Logging in Frameworks */,
-				A7A1B9BE242959B3EE396D27 /* LaunchAtLogin in Frameworks */,
-			);
+				files = (
+					3B3E08D1204E85F3776D8853 /* Sparkle in Frameworks */,
+					9F2FDCABCC941CBECAA3B4AB /* CotabbyInference in Frameworks */,
+					7FC103944F4EF39DB965F469 /* InMemoryLogging in Frameworks */,
+					8DA36F1521B6A59D8C20AC59 /* Logging in Frameworks */,
+					A7A1B9BE242959B3EE396D27 /* LaunchAtLogin in Frameworks */,
+					920000000000000000000201 /* MLXLLM in Frameworks */,
+					920000000000000000000202 /* MLXLMCommon in Frameworks */,
+					920000000000000000000204 /* HuggingFace in Frameworks */,
+					920000000000000000000205 /* Tokenizers in Frameworks */,
+				);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		D66643968D3BCEBA2ADCF895 /* Frameworks */ = {
@@ -1367,6 +1389,8 @@
 				5F34AE24BB7C99D66E1F3904 /* InputModels.swift */,
 				BF4BB93056F291FD24EFAD22 /* LanguageCatalog.swift */,
 				A804F4DB6FD9BC8C27B2B65F /* LlamaRuntimeModels.swift */,
+				920000000000000000000102 /* MlxRuntimeBootstrapModel.swift */,
+				920000000000000000000101 /* MlxRuntimeModels.swift */,
 				4451D6673112575DF24C4A48 /* OnboardingTemplate.swift */,
 				979A7867966180A545BB44C4 /* PerformanceMetricsStore.swift */,
 				9D82FFC568527700EC17C07D /* PermissionModels.swift */,
@@ -1508,6 +1532,7 @@
 				52BAFA2F989C3C4F7FB892B5 /* MarkerSelectionSynthesizerTests.swift */,
 				1274F897631B1B3A835D157F /* MidWordContinuationPolicyTests.swift */,
 				FC83D14A7557BC0196E59007 /* MirrorOverlayLayoutTests.swift */,
+				920000000000000000000107 /* MlxRuntimeLocatorTests.swift */,
 				03766F6253FF17639230C0F6 /* ModelAndPresentationValueTests.swift */,
 				A829F28F01FAE76CA7244BBC /* ModelFileValidatorTests.swift */,
 				5EED3CD2BC7B48DF35DEE562 /* OCRTextHygieneTests.swift */,
@@ -1743,6 +1768,7 @@
 				A863F41C0C03D7B4AC5DC002 /* MarkerSelectionSynthesizer.swift */,
 				357C18383B047F24A531BDCD /* MidWordContinuationPolicy.swift */,
 				54150A507B03221F137D539B /* MirrorOverlayLayout.swift */,
+				920000000000000000000103 /* MlxRuntimeLocator.swift */,
 				B22FDEB3B1DCC9ADE906CC73 /* OCRTextHygiene.swift */,
 				2578311F4ABCB3CDFF795A86 /* OnboardingFlowSteps.swift */,
 				24F613F0E2F7046E6532A09C /* OnboardingTemplateFeatureList.swift */,
@@ -1793,6 +1819,9 @@
 				944065A858D9BC936CB12B23 /* LlamaRuntimeCore.swift */,
 				A52D0B550E00EF173A5D157E /* LlamaRuntimeManager.swift */,
 				BE04620C905041680116BE80 /* LlamaSuggestionEngine.swift */,
+				920000000000000000000104 /* MlxRuntimeCore.swift */,
+				920000000000000000000105 /* MlxRuntimeManager.swift */,
+				920000000000000000000106 /* MlxSuggestionEngine.swift */,
 				384FBCF5D7A3A446C5BE2B8D /* SuggestionEngineRouter.swift */,
 			);
 			path = Runtime;
@@ -1841,10 +1870,14 @@
 			packageProductDependencies = (
 				BAADA69C6172DD7F4A642E93 /* Sparkle */,
 				48A46AD6B613CF06072603E4 /* CotabbyInference */,
-				88921938DC814625ED57D605 /* InMemoryLogging */,
-				5A60D1467BBFECB3DFEB39C2 /* Logging */,
-				7B0278A63FEEE8DEDB6C50DB /* LaunchAtLogin */,
-			);
+					88921938DC814625ED57D605 /* InMemoryLogging */,
+					5A60D1467BBFECB3DFEB39C2 /* Logging */,
+					7B0278A63FEEE8DEDB6C50DB /* LaunchAtLogin */,
+					920000000000000000000301 /* MLXLLM */,
+					920000000000000000000302 /* MLXLMCommon */,
+					920000000000000000000304 /* HuggingFace */,
+					920000000000000000000305 /* Tokenizers */,
+				);
 			productName = Cotabby;
 			productReference = 262BE2F1E97389FE8D7A5FB9 /* Cotabby.app */;
 			productType = "com.apple.product-type.application";
@@ -1882,7 +1915,6 @@
 						ProvisioningStyle = Automatic;
 					};
 					622CFE93F0FE48C8243E060C = {
-						DevelopmentTeam = G946M8K23B;
 						ProvisioningStyle = Automatic;
 					};
 					AB3DFA4CFA5EBC6161F02A30 = {
@@ -1902,10 +1934,13 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				537E79EE0EEF2030A5923ED9 /* XCRemoteSwiftPackageReference "cotabbyinference" */,
-				16E10845516A4DE793CC1BF6 /* XCRemoteSwiftPackageReference "LaunchAtLogin-Modern" */,
-				D8563066187C38DAA4206016 /* XCRemoteSwiftPackageReference "Sparkle" */,
-				413C306D13ADDD8B5C747551 /* XCRemoteSwiftPackageReference "swift-log" */,
-			);
+					16E10845516A4DE793CC1BF6 /* XCRemoteSwiftPackageReference "LaunchAtLogin-Modern" */,
+					D8563066187C38DAA4206016 /* XCRemoteSwiftPackageReference "Sparkle" */,
+					413C306D13ADDD8B5C747551 /* XCRemoteSwiftPackageReference "swift-log" */,
+					920000000000000000000401 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */,
+					920000000000000000000402 /* XCRemoteSwiftPackageReference "swift-huggingface" */,
+					920000000000000000000403 /* XCRemoteSwiftPackageReference "swift-transformers" */,
+				);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 3725B1A195A06A4F014B75B1 /* Products */;
 			projectDirPath = "";
@@ -2355,6 +2390,12 @@
 				BBBD7B4628BA1160DD6B4BDB /* MacroModels.swift in Sources */,
 				0B378201616831626DEC3AB6 /* MacroReferenceSheet.swift in Sources */,
 				3FF6B7DE34A01C4AB7FA54E3 /* MacroTriggerStateMachine.swift in Sources */,
+				920000000000000000000002 /* MlxRuntimeBootstrapModel.swift in Sources */,
+				920000000000000000000004 /* MlxRuntimeCore.swift in Sources */,
+				920000000000000000000003 /* MlxRuntimeLocator.swift in Sources */,
+				920000000000000000000005 /* MlxRuntimeManager.swift in Sources */,
+				920000000000000000000001 /* MlxRuntimeModels.swift in Sources */,
+				920000000000000000000006 /* MlxSuggestionEngine.swift in Sources */,
 				5C119807B84F84B0B1B1C2D5 /* MarkerSelectionSynthesizer.swift in Sources */,
 				0BEBB33EB75B59EE83C6FE44 /* MenuBarPopoverDismisser.swift in Sources */,
 				F08C139B246C1EC7BB435455 /* MenuBarPresentationObserver.swift in Sources */,
@@ -2561,6 +2602,7 @@
 				87806DE08881D11F2608A13D /* MarkerSelectionSynthesizerTests.swift in Sources */,
 				7C36DBA762E19C8C31676D44 /* MidWordContinuationPolicyTests.swift in Sources */,
 				14D77F0B8A195AC2FA8D24A9 /* MirrorOverlayLayoutTests.swift in Sources */,
+				920000000000000000000007 /* MlxRuntimeLocatorTests.swift in Sources */,
 				25D4FC8D191A50F63E6391F9 /* ModelAndPresentationValueTests.swift in Sources */,
 				65478B0DABF5460C32D4C458 /* ModelFileValidatorTests.swift in Sources */,
 				3F5630CFB7BA40B900E832A1 /* OCRTextHygieneTests.swift in Sources */,
@@ -2692,6 +2734,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = C4BVFMK9V2;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
@@ -2919,6 +2962,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = C4BVFMK9V2;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
@@ -3046,6 +3090,30 @@
 				version = 2.9.1;
 			};
 		};
+		920000000000000000000401 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/ml-explore/mlx-swift-lm";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 3.31.3;
+			};
+		};
+		920000000000000000000402 /* XCRemoteSwiftPackageReference "swift-huggingface" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/huggingface/swift-huggingface";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.9.0;
+			};
+		};
+		920000000000000000000403 /* XCRemoteSwiftPackageReference "swift-transformers" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/huggingface/swift-transformers";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.3.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -3098,6 +3166,26 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 16E10845516A4DE793CC1BF6 /* XCRemoteSwiftPackageReference "LaunchAtLogin-Modern" */;
 			productName = LaunchAtLogin;
+		};
+		920000000000000000000301 /* MLXLLM */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 920000000000000000000401 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */;
+			productName = MLXLLM;
+		};
+		920000000000000000000302 /* MLXLMCommon */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 920000000000000000000401 /* XCRemoteSwiftPackageReference "mlx-swift-lm" */;
+			productName = MLXLMCommon;
+		};
+		920000000000000000000304 /* HuggingFace */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 920000000000000000000402 /* XCRemoteSwiftPackageReference "swift-huggingface" */;
+			productName = HuggingFace;
+		};
+		920000000000000000000305 /* Tokenizers */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 920000000000000000000403 /* XCRemoteSwiftPackageReference "swift-transformers" */;
+			productName = Tokenizers;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

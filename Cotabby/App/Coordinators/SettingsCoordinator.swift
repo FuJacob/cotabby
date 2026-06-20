@@ -17,6 +17,7 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
     private let suggestionSettings: SuggestionSettingsModel
     private let foundationModelAvailabilityService: FoundationModelAvailabilityService
     private let runtimeModel: RuntimeBootstrapModel
+    private let mlxRuntimeModel: MlxRuntimeBootstrapModel
     private let modelDownloadManager: ModelDownloadManager
     private let huggingFaceSearchService: HuggingFaceSearchService
     private let performanceMetricsStore: PerformanceMetricsStore
@@ -34,6 +35,7 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
         suggestionSettings: SuggestionSettingsModel,
         foundationModelAvailabilityService: FoundationModelAvailabilityService,
         runtimeModel: RuntimeBootstrapModel,
+        mlxRuntimeModel: MlxRuntimeBootstrapModel,
         modelDownloadManager: ModelDownloadManager,
         huggingFaceSearchService: HuggingFaceSearchService,
         performanceMetricsStore: PerformanceMetricsStore,
@@ -48,6 +50,7 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
         self.suggestionSettings = suggestionSettings
         self.foundationModelAvailabilityService = foundationModelAvailabilityService
         self.runtimeModel = runtimeModel
+        self.mlxRuntimeModel = mlxRuntimeModel
         self.modelDownloadManager = modelDownloadManager
         self.huggingFaceSearchService = huggingFaceSearchService
         self.performanceMetricsStore = performanceMetricsStore
@@ -76,6 +79,7 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
                     suggestionSettings: suggestionSettings,
                     foundationModelAvailabilityService: foundationModelAvailabilityService,
                     runtimeModel: runtimeModel,
+                    mlxRuntimeModel: mlxRuntimeModel,
                     modelDownloadManager: modelDownloadManager,
                     huggingFaceSearchService: huggingFaceSearchService,
                     performanceMetricsStore: performanceMetricsStore,

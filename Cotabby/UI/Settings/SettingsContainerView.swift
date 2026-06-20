@@ -19,6 +19,7 @@ struct SettingsContainerView: View {
     @ObservedObject var suggestionSettings: SuggestionSettingsModel
     @ObservedObject var foundationModelAvailabilityService: FoundationModelAvailabilityService
     @ObservedObject var runtimeModel: RuntimeBootstrapModel
+    @ObservedObject var mlxRuntimeModel: MlxRuntimeBootstrapModel
     @ObservedObject var modelDownloadManager: ModelDownloadManager
     @ObservedObject var huggingFaceSearchService: HuggingFaceSearchService
     @ObservedObject var performanceMetricsStore: PerformanceMetricsStore
@@ -96,7 +97,8 @@ struct SettingsContainerView: View {
                 selectedEngine: suggestionSettings.selectedEngine,
                 foundationModelAvailable: foundationModelAvailabilityService.isAvailable,
                 foundationModelMessage: foundationModelAvailabilityService.userVisibleMessage,
-                llamaRuntimeFailedReason: runtimeModel.state.failureDetail
+                llamaRuntimeFailedReason: runtimeModel.state.failureDetail,
+                mlxRuntimeFailedReason: mlxRuntimeModel.state.failureDetail
             )
         )
     }
@@ -111,6 +113,7 @@ struct SettingsContainerView: View {
                 permissionManager: permissionManager,
                 foundationModelAvailabilityService: foundationModelAvailabilityService,
                 runtimeModel: runtimeModel,
+                mlxRuntimeModel: mlxRuntimeModel,
                 attentionCategories: attentionCategories
             )
         case .general:
@@ -131,6 +134,7 @@ struct SettingsContainerView: View {
                 suggestionSettings: suggestionSettings,
                 foundationModelAvailabilityService: foundationModelAvailabilityService,
                 runtimeModel: runtimeModel,
+                mlxRuntimeModel: mlxRuntimeModel,
                 modelDownloadManager: modelDownloadManager,
                 huggingFaceSearchService: huggingFaceSearchService
             )

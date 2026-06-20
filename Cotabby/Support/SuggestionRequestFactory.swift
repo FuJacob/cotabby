@@ -153,7 +153,7 @@ enum SuggestionRequestFactory {
         case .appleIntelligence:
             maxCharacters = configuration.maxPrefixCharactersFoundationModel
             maxWords = configuration.maxPrefixWordsFoundationModel
-        case .llamaOpenSource:
+        case .llamaOpenSource, .mlx:
             maxCharacters = configuration.maxPrefixCharacters
             maxWords = configuration.maxPrefixWords
         }
@@ -251,7 +251,7 @@ enum SuggestionRequestFactory {
         switch selectedEngine {
         case .appleIntelligence:
             return FoundationModelPromptRenderer.promptPreview(for: request)
-        case .llamaOpenSource:
+        case .llamaOpenSource, .mlx:
             return request.prompt
         }
     }

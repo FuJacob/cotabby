@@ -331,6 +331,8 @@ private struct TemplateCard: View {
         case .llamaOpenSource:
             guard let model = plan.modelToDownload else { return "Local model" }
             return "\(model.displayName) · \(model.approximateSizeLabel) download"
+        case .mlx:
+            return "MLX · local snapshot"
         }
     }
 

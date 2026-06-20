@@ -10,27 +10,33 @@ final class SuggestionEngineRouter {
     private let suggestionSettings: SuggestionSettingsModel
     private let foundationModelEngine: any SuggestionGenerating
     private let llamaEngine: any SuggestionGenerating
+    private let mlxEngine: any SuggestionGenerating
     private let performanceMetricsStore: PerformanceMetricsStore
     private let qualityMetricsStore: SuggestionQualityMetricsStore
     /// Closure that returns the currently selected llama model filename (e.g. `Qwen3-0.6B-Q8_0.gguf`).
     /// A closure instead of a direct `LlamaRuntimeManager` reference keeps the router from depending
     /// on the concrete runtime type — useful for tests that want to fake the model label.
     private let llamaModelNameProvider: @MainActor () -> String?
+    private let mlxModelNameProvider: @MainActor () -> String?
 
     init(
         suggestionSettings: SuggestionSettingsModel,
         foundationModelEngine: any SuggestionGenerating,
         llamaEngine: any SuggestionGenerating,
+        mlxEngine: any SuggestionGenerating,
         performanceMetricsStore: PerformanceMetricsStore,
         qualityMetricsStore: SuggestionQualityMetricsStore,
-        llamaModelNameProvider: @escaping @MainActor () -> String?
+        llamaModelNameProvider: @escaping @MainActor () -> String?,
+        mlxModelNameProvider: @escaping @MainActor () -> String?
     ) {
         self.suggestionSettings = suggestionSettings
         self.foundationModelEngine = foundationModelEngine
         self.llamaEngine = llamaEngine
+        self.mlxEngine = mlxEngine
         self.performanceMetricsStore = performanceMetricsStore
         self.qualityMetricsStore = qualityMetricsStore
         self.llamaModelNameProvider = llamaModelNameProvider
+        self.mlxModelNameProvider = mlxModelNameProvider
     }
 
     func generateSuggestion(for request: SuggestionRequest) async throws -> SuggestionResult {
@@ -73,6 +79,11 @@ final class SuggestionEngineRouter {
             recordPerformanceMetric(modelName: llamaModelNameProvider() ?? "Llama", latency: result.latency)
             recordQualityOutcome(result)
             return result
+        case .mlx:
+            CotabbyLogger.suggestion.debug("Routing to MLX engine", metadata: metadata)
+            let result = try await mlxEngine.generateSuggestion(for: request)
+            recordPerformanceMetric(modelName: mlxModelNameProvider() ?? "MLX", latency: result.latency)
+            return result
         }
     }
 
@@ -104,6 +115,8 @@ final class SuggestionEngineRouter {
             return "apple_intelligence"
         case .llamaOpenSource:
             return "llama"
+        case .mlx:
+            return "mlx"
         }
     }
 
@@ -113,6 +126,7 @@ final class SuggestionEngineRouter {
     func resetCachedGenerationContext() async {
         await foundationModelEngine.resetCachedGenerationContext()
         await llamaEngine.resetCachedGenerationContext()
+        await mlxEngine.resetCachedGenerationContext()
     }
 
     /// Forwards the warmup hook only to the currently selected engine. The inactive backend has
@@ -124,6 +138,8 @@ final class SuggestionEngineRouter {
             await foundationModelEngine.prewarm(for: request)
         case .llamaOpenSource:
             await llamaEngine.prewarm(for: request)
+        case .mlx:
+            await mlxEngine.prewarm(for: request)
         }
     }
 
