@@ -27,6 +27,13 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
 
     private var settingsWindowController: NSWindowController?
 
+    /// Whether this coordinator currently owns an open Settings window. This intentionally means
+    /// "created and not closed" rather than `isVisible`: AppKit reports miniaturized windows as
+    /// visible during reopen handling, and should be allowed to restore those normally.
+    var isSettingsWindowOpen: Bool {
+        settingsWindowController?.window != nil
+    }
+
     init(
         appUpdateManager: AppUpdateManager,
         permissionManager: PermissionManager,
