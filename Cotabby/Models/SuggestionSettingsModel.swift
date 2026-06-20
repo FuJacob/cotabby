@@ -104,6 +104,10 @@ final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var autoAcceptTrailingPunctuation: Bool
     @Published private(set) var addSpaceAfterAccept: Bool
     @Published private(set) var streamSuggestionsWhileGenerating: Bool
+    /// Whether a newly shown suggestion fades in. Read live by `OverlayController` at present time, so
+    /// toggling it takes effect on the very next suggestion without any subscription bookkeeping. Not
+    /// part of `snapshot`: it never reaches generation, only the overlay renderer.
+    @Published private(set) var fadeInSuggestions: Bool
     @Published private(set) var acceptanceKeyCode: CGKeyCode
     @Published private(set) var acceptanceKeyModifiers: ShortcutModifierMask
     @Published private(set) var acceptanceKeyLabel: String
@@ -189,6 +193,7 @@ final class SuggestionSettingsModel: ObservableObject {
         autoAcceptTrailingPunctuation = data.autoAcceptTrailingPunctuation
         addSpaceAfterAccept = data.addSpaceAfterAccept
         streamSuggestionsWhileGenerating = data.streamSuggestionsWhileGenerating
+        fadeInSuggestions = data.fadeInSuggestions
         acceptanceKeyCode = data.acceptanceKeyCode
         acceptanceKeyModifiers = data.acceptanceKeyModifiers
         acceptanceKeyLabel = data.acceptanceKeyLabel
@@ -544,6 +549,14 @@ final class SuggestionSettingsModel: ObservableObject {
         }
         streamSuggestionsWhileGenerating = enabled
         store.saveStreamSuggestionsWhileGenerating(enabled)
+    }
+
+    func setFadeInSuggestions(_ enabled: Bool) {
+        guard fadeInSuggestions != enabled else {
+            return
+        }
+        fadeInSuggestions = enabled
+        store.saveFadeInSuggestions(enabled)
     }
 
     func setAcceptanceGranularity(_ granularity: AcceptanceGranularity) {

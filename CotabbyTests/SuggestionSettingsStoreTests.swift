@@ -159,6 +159,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         store.saveFastModeEnabled(true)
         store.saveAutomaticallyFixTypos(true)
         store.saveMenuBarWordCountVisible(false)
+        store.saveFadeInSuggestions(false)
 
         let data = store.load(configuration: .standard)
 
@@ -169,6 +170,15 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         XCTAssertTrue(data.isFastModeEnabled)
         XCTAssertTrue(data.automaticallyFixTypos)
         XCTAssertFalse(data.isMenuBarWordCountVisible)
+        XCTAssertFalse(data.fadeInSuggestions)
+    }
+
+    func test_load_fadeInSuggestionsDefaultsOn() async {
+        let defaults = makeIsolatedDefaults()
+
+        let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
+
+        XCTAssertTrue(data.fadeInSuggestions)
     }
 
     func test_saveThenLoad_roundTripsAcceptanceKey() async {

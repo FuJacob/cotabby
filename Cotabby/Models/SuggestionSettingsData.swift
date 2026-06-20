@@ -75,6 +75,10 @@ struct SuggestionSettingsData: Equatable {
     /// acceptable session the user can Tab into early. When off (the default), the suggestion appears
     /// once, fully formed, after generation finishes.
     var streamSuggestionsWhileGenerating: Bool
+    /// When on (the default), a newly shown suggestion fades in over a short opacity ramp instead of
+    /// snapping to full strength. Purely cosmetic and consumed only by the overlay renderer; the fade
+    /// is suppressed automatically when the system "Reduce Motion" setting is on.
+    var fadeInSuggestions: Bool
     var acceptanceKeyCode: CGKeyCode
     var acceptanceKeyModifiers: ShortcutModifierMask
     var acceptanceKeyLabel: String

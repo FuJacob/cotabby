@@ -38,6 +38,16 @@ struct AppearancePaneView: View {
                 }
                 .settingsItem(.streamWhileGenerating)
 
+                Toggle(isOn: fadeInSuggestionsBinding) {
+                    SettingsRowLabel(
+                        title: "Fade In Suggestions",
+                        description: "Let a new suggestion fade in smoothly instead of appearing all at once. " +
+                            "Follows the system Reduce Motion setting.",
+                        systemImage: "sparkles"
+                    )
+                }
+                .settingsItem(.fadeInSuggestions)
+
                 Toggle(isOn: showIndicatorBinding) {
                     SettingsRowLabel(
                         title: "Show Field Indicator",
@@ -166,6 +176,13 @@ struct AppearancePaneView: View {
         Binding(
             get: { suggestionSettings.streamSuggestionsWhileGenerating },
             set: { suggestionSettings.setStreamSuggestionsWhileGenerating($0) }
+        )
+    }
+
+    private var fadeInSuggestionsBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.fadeInSuggestions },
+            set: { suggestionSettings.setFadeInSuggestions($0) }
         )
     }
 

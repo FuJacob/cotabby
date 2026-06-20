@@ -24,6 +24,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     // Appearance
     case suggestionDisplay
     case streamWhileGenerating
+    case fadeInSuggestions
     case showFieldIndicator
     case showWordCount
     case showKeyHint
@@ -102,6 +103,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .onboarding: return "Onboarding"
         case .suggestionDisplay: return "Suggestion Display"
         case .streamWhileGenerating: return "Stream Suggestions While Generating"
+        case .fadeInSuggestions: return "Fade In Suggestions"
         case .showFieldIndicator: return "Show Field Indicator"
         case .showWordCount: return "Show Word Count in Menu Bar"
         case .showKeyHint: return "Show Accept-Key Hint"
@@ -169,6 +171,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .onboarding: return "graduationcap"
         case .suggestionDisplay: return "text.cursor"
         case .streamWhileGenerating: return "text.append"
+        case .fadeInSuggestions: return "sparkles"
         case .showFieldIndicator: return "dot.viewfinder"
         case .showWordCount: return "number"
         case .showKeyHint: return "keyboard"
@@ -227,8 +230,8 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .enableGlobally, .fastMode, .openAtLogin, .includeClipboardContext, .includeAppContext,
              .allowMultiLine, .inlineMacros, .onboarding:
             return .general
-        case .suggestionDisplay, .streamWhileGenerating, .showFieldIndicator, .showWordCount, .showKeyHint,
-             .ghostTextColor, .ghostTextOpacity, .ghostTextSize:
+        case .suggestionDisplay, .streamWhileGenerating, .fadeInSuggestions, .showFieldIndicator,
+             .showWordCount, .showKeyHint, .ghostTextColor, .ghostTextOpacity, .ghostTextSize:
             return .appearance
         case .emojiPicker, .emojiSkinTone, .emojiPeopleStyle, .emojiHistory:
             return .emoji
@@ -271,6 +274,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .onboarding: return "Replay the first-run setup walkthrough."
         case .suggestionDisplay: return "Inline ghost text, popup card, or automatic per app."
         case .streamWhileGenerating: return "Reveal ghost text token by token as the model writes."
+        case .fadeInSuggestions: return "Fade new suggestions in smoothly instead of all at once."
         case .showFieldIndicator: return "Show a small icon when a field is ready for suggestions."
         case .showWordCount: return "Count accepted words next to the menu bar icon."
         case .showKeyHint: return "Show the accept-key badge beside the ghost text."
@@ -365,6 +369,10 @@ enum SettingsItem: String, CaseIterable, Identifiable {
             return ["stream", "streaming", "live", "typewriter", "token", "incremental",
                     "progressive", "word by word", "character by character", "reveal",
                     "while generating", "as it types", "decode", "partial", "all at once"]
+        case .fadeInSuggestions:
+            return ["fade", "fade in", "animation", "animate", "opacity", "transition", "smooth",
+                    "appear", "instant", "instantly", "motion", "ease", "reveal", "gradual",
+                    "reduce motion", "effect"]
         case .showFieldIndicator:
             return ["indicator", "icon", "field", "ready", "dot", "marker", "badge",
                     "show", "hide"]

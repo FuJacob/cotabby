@@ -107,6 +107,7 @@ struct SuggestionSettingsStore {
     private static let autoAcceptTrailingPunctuationDefaultsKey = "cotabbyAutoAcceptTrailingPunctuation"
     private static let addSpaceAfterAcceptDefaultsKey = "cotabbyAddSpaceAfterAccept"
     private static let streamWhileGeneratingDefaultsKey = "cotabbyStreamSuggestionsWhileGenerating"
+    private static let fadeInSuggestionsDefaultsKey = "cotabbyFadeInSuggestions"
     private static let acceptanceKeyCodeDefaultsKey = "cotabbyAcceptanceKeyCode"
     private static let acceptanceKeyModifiersDefaultsKey = "cotabbyAcceptanceKeyModifiers"
     private static let acceptanceKeyLabelDefaultsKey = "cotabbyAcceptanceKeyLabel"
@@ -296,6 +297,11 @@ struct SuggestionSettingsStore {
         // is opt-in from Settings.
         let resolvedStreamSuggestionsWhileGenerating =
             userDefaults.object(forKey: Self.streamWhileGeneratingDefaultsKey) as? Bool ?? false
+        // Defaults to true: the gentle fade-in is the intended out-of-box feel. Users who prefer
+        // ghost text to snap in instantly can turn it off, and the overlay suppresses it under
+        // Reduce Motion regardless. Existing installs (no key) get the fade on the next launch.
+        let resolvedFadeInSuggestions =
+            userDefaults.object(forKey: Self.fadeInSuggestionsDefaultsKey) as? Bool ?? true
 
         let resolvedAcceptanceKeyCode = CGKeyCode(
             userDefaults.object(forKey: Self.acceptanceKeyCodeDefaultsKey) as? Int
@@ -385,6 +391,7 @@ struct SuggestionSettingsStore {
             autoAcceptTrailingPunctuation: resolvedAutoAcceptTrailingPunctuation,
             addSpaceAfterAccept: resolvedAddSpaceAfterAccept,
             streamSuggestionsWhileGenerating: resolvedStreamSuggestionsWhileGenerating,
+            fadeInSuggestions: resolvedFadeInSuggestions,
             acceptanceKeyCode: resolvedAcceptanceKeyCode,
             acceptanceKeyModifiers: resolvedAcceptanceKeyModifiers,
             acceptanceKeyLabel: resolvedAcceptanceKeyLabel,
@@ -440,6 +447,7 @@ struct SuggestionSettingsStore {
         saveAutoAcceptTrailingPunctuation(data.autoAcceptTrailingPunctuation)
         saveAddSpaceAfterAccept(data.addSpaceAfterAccept)
         saveStreamSuggestionsWhileGenerating(data.streamSuggestionsWhileGenerating)
+        saveFadeInSuggestions(data.fadeInSuggestions)
         saveAcceptanceKey(
             keyCode: data.acceptanceKeyCode,
             modifiers: data.acceptanceKeyModifiers,
@@ -655,6 +663,10 @@ struct SuggestionSettingsStore {
 
     func saveStreamSuggestionsWhileGenerating(_ enabled: Bool) {
         userDefaults.set(enabled, forKey: Self.streamWhileGeneratingDefaultsKey)
+    }
+
+    func saveFadeInSuggestions(_ enabled: Bool) {
+        userDefaults.set(enabled, forKey: Self.fadeInSuggestionsDefaultsKey)
     }
 
     func saveAcceptanceKey(keyCode: CGKeyCode, modifiers: ShortcutModifierMask, label: String) {
