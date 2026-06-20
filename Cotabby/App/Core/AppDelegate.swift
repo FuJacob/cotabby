@@ -161,7 +161,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         guard !flag else {
-            return false
+            // Let AppKit activate the app and bring the existing Settings window forward.
+            return true
         }
 
         CotabbyLogger.app.info("Opening Settings because Cotabby was reopened with its menu bar icon hidden")
