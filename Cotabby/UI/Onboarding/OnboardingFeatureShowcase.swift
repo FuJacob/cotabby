@@ -444,7 +444,7 @@ private struct DemoEmojiRibbonCell: View {
     var body: some View {
         Text(glyph)
             .font(.system(size: 20))
-            .frame(width: 30, height: 30)
+            .frame(width: EmojiPickerMetrics.cellSize, height: EmojiPickerMetrics.cellSize)
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(isSelected ? PopupTheme.selectionFill : Color.clear)

@@ -15,9 +15,9 @@ final class EmojiPickerViewModel: ObservableObject {
     @Published var query: String = ""
     @Published var matches: [EmojiMatch] = []
     @Published var selectedIndex: Int = 0
-    /// The accept-word key label. Retained for the panel contract; the minimal ribbon no longer draws
-    /// a per-cell keycap, so it is currently unused by the view.
-    @Published var acceptKeyLabel: String?
+    /// Retained for the panel contract, but deliberately not published: the minimal ribbon does not
+    /// draw a keycap, so updates should not invalidate the SwiftUI view hierarchy.
+    var acceptKeyLabel: String?
 }
 
 struct EmojiPickerView: View {
