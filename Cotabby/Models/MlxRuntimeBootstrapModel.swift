@@ -20,6 +20,7 @@ final class MlxRuntimeBootstrapModel: ObservableObject {
     private let userDefaults: UserDefaults
     private var cancellables = Set<AnyCancellable>()
     private var runtimeTask: Task<Void, Never>?
+    private var runtimeTaskID: UUID?
 
     var onWillReloadModel: (() -> Void)?
 
@@ -72,9 +73,11 @@ final class MlxRuntimeBootstrapModel: ObservableObject {
             return
         }
 
+        let taskID = UUID()
+        runtimeTaskID = taskID
         runtimeTask = Task { [weak self] in
             guard let self else { return }
-            defer { self.runtimeTask = nil }
+            defer { self.clearRuntimeTask(ifCurrent: taskID) }
 
             do {
                 try await self.runtimeManager.prepare()
@@ -93,17 +96,18 @@ final class MlxRuntimeBootstrapModel: ObservableObject {
             return
         }
 
-        guard runtimeTask == nil else {
-            return
-        }
-
         selectedModelID = modelID
         persistSelectedModelID(modelID)
         onWillReloadModel?()
 
-        runtimeTask = Task { [weak self] in
+        // A picker change supersedes startup or an older switch. Cancelling before publishing the
+        // replacement preserves the latest user intent while the manager tears down stale work.
+        runtimeTask?.cancel()
+        let taskID = UUID()
+        runtimeTaskID = taskID
+        let task = Task { [weak self] in
             guard let self else { return }
-            defer { self.runtimeTask = nil }
+            defer { self.clearRuntimeTask(ifCurrent: taskID) }
 
             do {
                 try await self.runtimeManager.selectModel(id: modelID)
@@ -111,26 +115,39 @@ final class MlxRuntimeBootstrapModel: ObservableObject {
                 CotabbyLogger.runtime.error("MLX runtime model switch failed: \(error.localizedDescription)")
             }
         }
+        runtimeTask = task
 
-        await runtimeTask?.value
+        await task.value
     }
 
     func stop() {
         runtimeTask?.cancel()
         runtimeTask = nil
+        runtimeTaskID = nil
         runtimeManager.stop()
     }
 
     func stopAndWait() async {
         runtimeTask?.cancel()
         runtimeTask = nil
+        runtimeTaskID = nil
         await runtimeManager.stopAndWait()
     }
 
     func shutdownSync(timeoutSeconds: TimeInterval) {
         runtimeTask?.cancel()
         runtimeTask = nil
+        runtimeTaskID = nil
         runtimeManager.shutdownSync(timeoutSeconds: timeoutSeconds)
+    }
+
+    /// Clears task state only when the completing task is still the active bootstrap operation.
+    /// A cancelled task may finish after its replacement starts, so unconditional cleanup would
+    /// make `startIfNeeded` believe no work is running and permit duplicate model loads.
+    private func clearRuntimeTask(ifCurrent taskID: UUID) {
+        guard runtimeTaskID == taskID else { return }
+        runtimeTask = nil
+        runtimeTaskID = nil
     }
 
     private static func initialSelectedModelID(

@@ -17,7 +17,12 @@ nonisolated final class MlxRuntimeCore: @unchecked Sendable {
     private var modelContainer: ModelContainer?
     private var autocompleteCache: [KVCache]?
 
-    private let autocompleteLock = NSLock()
+    /// Serializes the whole cache-backed decode without relying on thread ownership.
+    ///
+    /// Generation suspends while MLX produces tokens and may resume on another cooperative-pool
+    /// thread. Unlike `NSLock`, a semaphore may be signalled from that different thread, so it is
+    /// safe to hold across the `await` while still preventing overlapping cache mutations.
+    private let autocompleteSemaphore = DispatchSemaphore(value: 1)
     private var autocompletePromptBytes: [UInt8] = []
     private var autocompletePromptTokens: [Int] = []
     private var autocompleteSamplingFingerprint: String?
@@ -152,8 +157,9 @@ nonisolated final class MlxRuntimeCore: @unchecked Sendable {
         let fingerprint = samplingFingerprint(options: options, configuration: configuration)
         let generationParameters = Self.generateParameters(options: options, configuration: configuration)
 
-        autocompleteLock.lock()
-        defer { autocompleteLock.unlock() }
+        autocompleteSemaphore.wait()
+        defer { autocompleteSemaphore.signal() }
+        try Task.checkCancellation()
 
         let preparedPrompt = preparePromptCache(
             promptTokens: promptTokens,
@@ -163,26 +169,35 @@ nonisolated final class MlxRuntimeCore: @unchecked Sendable {
         )
         logCacheDecision(preparedPrompt.decision)
 
-        let generated = try await modelContainer.perform { context in
-            let cache = autocompleteCache ?? context.model.newCache(parameters: generationParameters)
-            autocompleteCache = cache
-            // Tokens must be a 1-D (L,) array: MLX Swift LM adds the batch axis itself inside its
-            // decode loop (`model(previous[text: .newAxis], …)`). Pre-adding `[.newAxis]` here would
-            // double-batch the prompt, collapsing the hidden-state shape and aborting the first
-            // attention matmul (`[quantized_matmul] … does not match …`). Every canonical
-            // `LMInput(tokens:)` usage in mlx-swift-lm passes the bare `MLXArray(tokens)`.
-            let input = LMInput(tokens: MLXArray(preparedPrompt.inputTokens))
-            let stream = try generateTokens(
-                input: input,
-                cache: cache,
-                parameters: generationParameters,
-                context: context
-            )
-            return try await Self.collectGeneratedText(
-                stream: stream,
-                tokenizer: context.tokenizer,
-                options: options
-            )
+        let generated: GeneratedText
+        do {
+            generated = try await modelContainer.perform { context in
+                let cache = autocompleteCache ?? context.model.newCache(parameters: generationParameters)
+                autocompleteCache = cache
+                // Tokens must be a 1-D (L,) array: MLX Swift LM adds the batch axis itself inside its
+                // decode loop (`model(previous[text: .newAxis], …)`). Pre-adding `[.newAxis]` here would
+                // double-batch the prompt, collapsing the hidden-state shape and aborting the first
+                // attention matmul (`[quantized_matmul] … does not match …`). Every canonical
+                // `LMInput(tokens:)` usage in mlx-swift-lm passes the bare `MLXArray(tokens)`.
+                let input = LMInput(tokens: MLXArray(preparedPrompt.inputTokens))
+                let stream = try generateTokens(
+                    input: input,
+                    cache: cache,
+                    parameters: generationParameters,
+                    context: context
+                )
+                return try await Self.collectGeneratedText(
+                    stream: stream,
+                    tokenizer: context.tokenizer,
+                    options: options
+                )
+            }
+        } catch {
+            // MLX mutates the cache as it evaluates prompt and generated tokens. If generation is
+            // cancelled or throws, the exact processed depth is unavailable, so retaining the old
+            // prompt metadata would make the next reuse decision trim against a different cache.
+            resetPromptCacheLocked()
+            throw error
         }
 
         if let autocompleteCache, generated.tokensGenerated > 0 {
@@ -207,8 +222,8 @@ nonisolated final class MlxRuntimeCore: @unchecked Sendable {
     }
 
     func resetPromptCache() {
-        autocompleteLock.lock()
-        defer { autocompleteLock.unlock() }
+        autocompleteSemaphore.wait()
+        defer { autocompleteSemaphore.signal() }
         resetPromptCacheLocked()
     }
 
