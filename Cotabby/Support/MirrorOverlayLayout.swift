@@ -56,11 +56,10 @@ struct MirrorOverlayLayout: Equatable {
         /// reserve room for the acceptance hint when computing card width.
         static let keycapReservation: CGFloat = 36
 
-        /// Width budget caps. We do not want a card that spans the whole monitor for a long
-        /// completion; clamp to a comfortable reading width with horizontal scrolling-style ellipsis
-        /// handled by SwiftUI lineLimit.
+        /// Width budget cap. The card hugs short suggestions instead of imposing a minimum text
+        /// width, while long completions clamp to a comfortable reading width and SwiftUI supplies
+        /// the trailing ellipsis.
         static let maxCardWidth: CGFloat = 520
-        static let minCardWidth: CGFloat = 120
 
         /// Distance the card must keep from screen edges so it never clips against the menu bar or
         /// dock. The visibleFrame already excludes those, but a small inset still looks more
@@ -99,11 +98,10 @@ struct MirrorOverlayLayout: Equatable {
         let measuredTextWidth = measuredWidth(of: normalizedSuggestion, fontSize: scaledFontSize)
         let keycapReservation = showsAcceptanceHint ? Metrics.keycapReservation : 0
 
-        // Reserve the keycap on top of the text width, not inside the min/max clamp. Otherwise a
-        // short suggestion (measured width below `minCardWidth`) gets the same card as one with the
-        // hint disabled because the minimum floor absorbs the reservation.
+        // Reserve the keycap on top of the measured text width so the panel follows the actual
+        // suggestion rather than carrying empty space from an arbitrary minimum card width.
         let textBudget = max(0, Metrics.maxCardWidth - keycapReservation)
-        let textContentWidth = min(textBudget, max(Metrics.minCardWidth, measuredTextWidth))
+        let textContentWidth = min(textBudget, measuredTextWidth)
         let contentWidth = textContentWidth + keycapReservation
         let cardWidth = contentWidth + (Metrics.horizontalPadding * 2)
         let cardHeight = ceil(scaledFontSize * 1.6) + (Metrics.verticalPadding * 2)

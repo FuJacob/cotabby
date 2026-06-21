@@ -346,9 +346,12 @@ final class MirrorOverlayLayoutTests: XCTestCase {
             reason: .userPreference
         )
 
-        // Card width: 120pt text floor + 36pt keycap + 2 * 10pt padding. Height: ceil(13 * 1.6) + 8.
-        // Anchor top: field minY (100) - 8pt gap = 92, minus the 29pt card height; center: field midX.
-        XCTAssertEqual(layout.panelFrame, CGRect(x: 112, y: 63, width: 176, height: 29))
+        // The popup should hug the measured "hi" text plus its keycap and padding rather than
+        // retaining the old 120pt minimum text area. Height and anchor behavior remain unchanged.
+        XCTAssertLessThan(layout.panelFrame.width, 176)
+        XCTAssertEqual(layout.panelFrame.height, 29)
+        XCTAssertEqual(layout.panelFrame.midX, geometry.inputFrameRect!.midX)
+        XCTAssertEqual(layout.panelFrame.minY, 63)
     }
 
     func test_make_emptyCaretRectAndMissingInputFrame_clampsToScreenMargin() {
@@ -367,7 +370,9 @@ final class MirrorOverlayLayoutTests: XCTestCase {
             reason: .userPreference
         )
 
-        XCTAssertEqual(layout.panelFrame, CGRect(x: 12, y: 12, width: 176, height: 29))
+        XCTAssertEqual(layout.panelFrame.origin, CGPoint(x: 12, y: 12))
+        XCTAssertLessThan(layout.panelFrame.width, 176)
+        XCTAssertEqual(layout.panelFrame.height, 29)
     }
 
     // MARK: - Visible frame smaller than the card
@@ -390,7 +395,9 @@ final class MirrorOverlayLayoutTests: XCTestCase {
             reason: .userPreference
         )
 
-        XCTAssertEqual(layout.panelFrame, CGRect(x: 12, y: 12, width: 176, height: 29))
+        XCTAssertEqual(layout.panelFrame.origin, CGPoint(x: 12, y: 12))
+        XCTAssertLessThan(layout.panelFrame.width, 176)
+        XCTAssertEqual(layout.panelFrame.height, 29)
     }
 
     // MARK: - Acceptance-hint reservation
