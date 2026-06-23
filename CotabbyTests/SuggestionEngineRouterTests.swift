@@ -18,6 +18,7 @@ final class SuggestionEngineRouterRoutingTests: XCTestCase {
         let settings: SuggestionSettingsModel
         let foundation: ScriptedEngine
         let llama: ScriptedEngine
+        let mlx: ScriptedEngine
         let metrics: PerformanceMetricsStore
     }
 
@@ -51,7 +52,8 @@ final class SuggestionEngineRouterRoutingTests: XCTestCase {
     private func makeRig(
         engine: SuggestionEngineKind,
         performanceTracking: Bool = true,
-        llamaModelName: String? = "test-model.gguf"
+        llamaModelName: String? = "test-model.gguf",
+        mlxModelName: String? = "test-mlx-model"
     ) -> Rig {
         let suiteName = "cotabby.test.router.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
@@ -62,16 +64,19 @@ final class SuggestionEngineRouterRoutingTests: XCTestCase {
         let metrics = PerformanceMetricsStore(userDefaults: defaults)
         let foundation = ScriptedEngine()
         let llama = ScriptedEngine()
+        let mlx = ScriptedEngine()
         let router = SuggestionEngineRouter(
             suggestionSettings: settings,
             foundationModelEngine: foundation,
             llamaEngine: llama,
+            mlxEngine: mlx,
             performanceMetricsStore: metrics,
             qualityMetricsStore: SuggestionQualityMetricsStore(userDefaults: defaults),
-            llamaModelNameProvider: { llamaModelName }
+            llamaModelNameProvider: { llamaModelName },
+            mlxModelNameProvider: { mlxModelName }
         )
         Self.retained.append(contentsOf: [router, settings, metrics] as [AnyObject])
-        return Rig(router: router, settings: settings, foundation: foundation, llama: llama, metrics: metrics)
+        return Rig(router: router, settings: settings, foundation: foundation, llama: llama, mlx: mlx, metrics: metrics)
     }
 
     func test_appleIntelligenceSelection_routesToFoundationEngineAndRecordsMetric() async throws {
@@ -102,6 +107,17 @@ final class SuggestionEngineRouterRoutingTests: XCTestCase {
         _ = try await rig.router.generateSuggestion(for: CotabbyTestFixtures.suggestionRequest())
 
         XCTAssertEqual(rig.metrics.entries.first?.modelName, "Llama")
+    }
+
+    func test_mlxSelection_routesToMlxEngineAndRecordsTheModelName() async throws {
+        let rig = makeRig(engine: .mlx)
+
+        _ = try await rig.router.generateSuggestion(for: CotabbyTestFixtures.suggestionRequest())
+
+        XCTAssertEqual(rig.mlx.requests.count, 1)
+        XCTAssertTrue(rig.foundation.requests.isEmpty)
+        XCTAssertTrue(rig.llama.requests.isEmpty)
+        XCTAssertEqual(rig.metrics.entries.first?.modelName, "test-mlx-model")
     }
 
     func test_performanceTrackingOff_recordsNothing() async throws {
@@ -167,11 +183,19 @@ final class SuggestionEngineRouterRoutingTests: XCTestCase {
         await appleRig.router.prewarm(for: CotabbyTestFixtures.suggestionRequest())
         XCTAssertEqual(appleRig.foundation.prewarmCount, 1)
         XCTAssertEqual(appleRig.llama.prewarmCount, 0)
+        XCTAssertEqual(appleRig.mlx.prewarmCount, 0)
 
         let llamaRig = makeRig(engine: .llamaOpenSource)
         await llamaRig.router.prewarm(for: CotabbyTestFixtures.suggestionRequest())
         XCTAssertEqual(llamaRig.foundation.prewarmCount, 0)
         XCTAssertEqual(llamaRig.llama.prewarmCount, 1)
+        XCTAssertEqual(llamaRig.mlx.prewarmCount, 0)
+
+        let mlxRig = makeRig(engine: .mlx)
+        await mlxRig.router.prewarm(for: CotabbyTestFixtures.suggestionRequest())
+        XCTAssertEqual(mlxRig.foundation.prewarmCount, 0)
+        XCTAssertEqual(mlxRig.llama.prewarmCount, 0)
+        XCTAssertEqual(mlxRig.mlx.prewarmCount, 1)
     }
 
     func test_resetCachedGenerationContext_fansOutToBothEngines() async {
@@ -181,6 +205,7 @@ final class SuggestionEngineRouterRoutingTests: XCTestCase {
 
         XCTAssertEqual(rig.foundation.resetCount, 1)
         XCTAssertEqual(rig.llama.resetCount, 1, "Switching engines must not leave stale state behind")
+        XCTAssertEqual(rig.mlx.resetCount, 1, "Switching engines must not leave stale state behind")
     }
 
     func test_unavailableEngine_throwsItsConfiguredMessage() async {

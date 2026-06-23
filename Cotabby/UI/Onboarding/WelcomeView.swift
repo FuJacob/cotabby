@@ -517,6 +517,8 @@ extension WelcomeView {
                 return false
             }
             return state == .downloaded || state.isDownloading
+        case .mlx:
+            return true
         }
     }
 

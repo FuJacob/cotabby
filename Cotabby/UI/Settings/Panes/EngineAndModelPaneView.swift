@@ -10,6 +10,7 @@ struct EngineAndModelPaneView: View {
     @ObservedObject var suggestionSettings: SuggestionSettingsModel
     @ObservedObject var foundationModelAvailabilityService: FoundationModelAvailabilityService
     @ObservedObject var runtimeModel: RuntimeBootstrapModel
+    @ObservedObject var mlxRuntimeModel: MlxRuntimeBootstrapModel
     @ObservedObject var modelDownloadManager: ModelDownloadManager
     @ObservedObject var huggingFaceSearchService: HuggingFaceSearchService
 
@@ -49,6 +50,8 @@ struct EngineAndModelPaneView: View {
                 appleIntelligenceSections
             case .llamaOpenSource:
                 openSourceSections
+            case .mlx:
+                mlxSections
             }
         }
         .onAppear {
@@ -314,6 +317,101 @@ struct EngineAndModelPaneView: View {
         }
     }
 
+    // MARK: - MLX
+
+    @ViewBuilder
+    private var mlxSections: some View {
+        Section("Runtime") {
+            LabeledContent {
+                Text(mlxRuntimeModel.state.summary)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.trailing)
+                    .fixedSize(horizontal: false, vertical: true)
+            } label: {
+                SettingsRowLabel(
+                    title: "Status",
+                    description: "Whether the selected MLX snapshot is loaded and ready. " +
+                        "MLX uses Apple Silicon acceleration through the MLX Swift runtime."
+                )
+            }
+
+            if let cacheStatus = mlxRuntimeModel.diagnostics.lastCacheStatus {
+                LabeledContent("KV Cache") {
+                    Text(cacheStatus)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+
+        Section("MLX Models") {
+            Text("MLX models are local snapshot folders containing weights, config, and tokenizer files.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            if mlxRuntimeModel.availableModels.isEmpty {
+                Text("No MLX snapshots found. Add a snapshot folder below.")
+                    .foregroundStyle(.secondary)
+            } else {
+                Picker(selection: selectedMlxModelBinding) {
+                    ForEach(mlxRuntimeModel.availableModels) { model in
+                        Text(model.displayName).tag(model.id)
+                    }
+                } label: {
+                    SettingsRowLabel(
+                        title: "Selected MLX Model",
+                        description: "Which local MLX snapshot generates suggestions. " +
+                            "Larger models are slower but can produce stronger continuations."
+                    )
+                }
+            }
+        }
+
+        Section("Folder") {
+            LabeledContent("Path") {
+                VStack(alignment: .trailing, spacing: 8) {
+                    Text(modelDownloadManager.mlxModelsDirectoryPath)
+                        .font(.callout.monospaced())
+                        .textSelection(.enabled)
+                        .multilineTextAlignment(.trailing)
+
+                    HStack(spacing: 8) {
+                        Button("Open Folder") {
+                            modelDownloadManager.openMlxModelsDirectory()
+                        }
+
+                        Button("Refresh") {
+                            mlxRuntimeModel.refreshAvailableModels()
+                        }
+                    }
+                }
+            }
+        }
+
+        if !MlxRuntimeModelCatalog.downloadableModels.isEmpty {
+            Section("Recommended") {
+                ForEach(MlxRuntimeModelCatalog.downloadableModels) { model in
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(model.displayName)
+                            Text("\(model.repositoryID) · \(model.approximateSizeLabel)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer(minLength: 0)
+                    }
+                }
+            }
+        }
+
+        if !mlxRuntimeModel.availableModels.isEmpty {
+            Section("Installed") {
+                ForEach(mlxRuntimeModel.availableModels) { model in
+                    installedMlxModelRow(model)
+                }
+            }
+        }
+    }
+
     @ViewBuilder
     private func installedModelRow(_ model: RuntimeModelOption) -> some View {
         HStack {
@@ -344,6 +442,28 @@ struct EngineAndModelPaneView: View {
         }
     }
 
+    @ViewBuilder
+    private func installedMlxModelRow(_ model: MlxRuntimeModelOption) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(model.displayName)
+
+                if model.displayName != model.actualModelName {
+                    Text(model.actualModelName)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            Spacer(minLength: 0)
+
+            if model.id == mlxRuntimeModel.selectedModelID {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(.tint)
+            }
+        }
+    }
+
     // MARK: - Callout
 
     /// Surface the engine's failure mode at the top of the pane so it sits next to the controls
@@ -359,6 +479,9 @@ struct EngineAndModelPaneView: View {
             )
         case .llamaOpenSource:
             guard case .failed(let detail) = runtimeModel.state else { return nil }
+            return SettingsPaneCallout(tone: .warning, message: detail)
+        case .mlx:
+            guard case .failed(let detail) = mlxRuntimeModel.state else { return nil }
             return SettingsPaneCallout(tone: .warning, message: detail)
         }
     }
@@ -381,6 +504,19 @@ struct EngineAndModelPaneView: View {
             },
             set: { filename in
                 Task { await runtimeModel.selectModel(filename) }
+            }
+        )
+    }
+
+    private var selectedMlxModelBinding: Binding<String> {
+        Binding(
+            get: {
+                mlxRuntimeModel.selectedModelID
+                    ?? mlxRuntimeModel.availableModels.first?.id
+                    ?? ""
+            },
+            set: { modelID in
+                Task { await mlxRuntimeModel.selectModel(modelID) }
             }
         )
     }

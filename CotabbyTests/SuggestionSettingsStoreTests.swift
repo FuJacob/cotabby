@@ -184,6 +184,16 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         XCTAssertTrue(data.acceptanceKeyModifiers.isEmpty)
     }
 
+    func test_saveThenLoad_roundTripsMlxEngineSelection() async {
+        let defaults = makeIsolatedDefaults()
+        let store = SuggestionSettingsStore(userDefaults: defaults)
+
+        store.saveSelectedEngine(.mlx)
+
+        let data = store.load(configuration: .standard)
+        XCTAssertEqual(data.selectedEngine, .mlx)
+    }
+
     func test_load_clampsOutOfRangeGhostTextOpacity() async {
         let defaults = makeIsolatedDefaults()
         // Below the floor: must clamp up rather than render the suggestion invisible.

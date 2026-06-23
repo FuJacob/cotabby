@@ -10,14 +10,16 @@ final class SettingsAttentionEvaluatorTests: XCTestCase {
         selectedEngine: SuggestionEngineKind = .llamaOpenSource,
         foundationModelAvailable: Bool = true,
         foundationModelMessage: String = "Apple Intelligence is available.",
-        llamaRuntimeFailedReason: String? = nil
+        llamaRuntimeFailedReason: String? = nil,
+        mlxRuntimeFailedReason: String? = nil
     ) -> SettingsAttentionEvaluator.Inputs {
         SettingsAttentionEvaluator.Inputs(
             permissionsGranted: permissionsGranted,
             selectedEngine: selectedEngine,
             foundationModelAvailable: foundationModelAvailable,
             foundationModelMessage: foundationModelMessage,
-            llamaRuntimeFailedReason: llamaRuntimeFailedReason
+            llamaRuntimeFailedReason: llamaRuntimeFailedReason,
+            mlxRuntimeFailedReason: mlxRuntimeFailedReason
         )
     }
 
@@ -67,6 +69,16 @@ final class SettingsAttentionEvaluatorTests: XCTestCase {
         XCTAssertEqual(categories, [.engineAndModel])
     }
 
+    func test_mlxRuntimeFailed_flagsEngineAndModel() {
+        let categories = SettingsAttentionEvaluator.categoriesNeedingAttention(
+            makeInputs(
+                selectedEngine: .mlx,
+                mlxRuntimeFailedReason: "MLX model failed to load."
+            )
+        )
+        XCTAssertEqual(categories, [.engineAndModel])
+    }
+
     func test_callout_permissions_returnsActionableMessage() {
         let message = SettingsAttentionEvaluator.calloutMessage(
             for: .permissions,
@@ -93,6 +105,15 @@ final class SettingsAttentionEvaluatorTests: XCTestCase {
         )
         let message = SettingsAttentionEvaluator.calloutMessage(for: .engineAndModel, inputs: inputs)
         XCTAssertEqual(message, "Couldn't open the GGUF file.")
+    }
+
+    func test_callout_engineAndModel_mlx_echoesRuntimeFailureReason() {
+        let inputs = makeInputs(
+            selectedEngine: .mlx,
+            mlxRuntimeFailedReason: "Couldn't open the MLX snapshot."
+        )
+        let message = SettingsAttentionEvaluator.calloutMessage(for: .engineAndModel, inputs: inputs)
+        XCTAssertEqual(message, "Couldn't open the MLX snapshot.")
     }
 
     func test_callout_engineAndModel_healthyEngine_isNil() {

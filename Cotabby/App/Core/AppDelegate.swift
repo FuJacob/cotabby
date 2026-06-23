@@ -17,6 +17,7 @@ import Logging
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let permissionManager: PermissionManager
     let runtimeModel: RuntimeBootstrapModel
+    let mlxRuntimeModel: MlxRuntimeBootstrapModel
     let modelDownloadManager: ModelDownloadManager
     let focusModel: FocusTrackingModel
     let inputMonitor: InputMonitor
@@ -49,6 +50,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.environment = environment
         permissionManager = environment.permissionManager
         runtimeModel = environment.runtimeModel
+        mlxRuntimeModel = environment.mlxRuntimeModel
         modelDownloadManager = environment.modelDownloadManager
         focusModel = environment.focusModel
         inputMonitor = environment.inputMonitor
@@ -68,6 +70,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // These closures bridge events across subsystems without forcing those subsystems
         // to know about each other directly.
         runtimeModel.onWillReloadModel = { [weak suggestionCoordinator] in
+            suggestionCoordinator?.prepareForRuntimeModelSwitch()
+        }
+        mlxRuntimeModel.onWillReloadModel = { [weak suggestionCoordinator] in
             suggestionCoordinator?.prepareForRuntimeModelSwitch()
         }
 
@@ -189,6 +194,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         focusModel.stop()
 
         runtimeModel.shutdownSync(timeoutSeconds: 1.5)
+        mlxRuntimeModel.shutdownSync(timeoutSeconds: 1.5)
     }
 
     /// Shows or hides the field-edge Cotabby icon based on focus state, global enable, per-app
@@ -216,6 +222,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         switch suggestionSettings.selectedEngine {
         case .llamaOpenSource:
             runtimeModel.startIfNeeded()
+        case .mlx:
+            mlxRuntimeModel.startIfNeeded()
         case .appleIntelligence:
             break
         }
@@ -225,6 +233,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// warm the runtime only if the current engine choice needs it.
     private func handleModelDirectoryChange() {
         runtimeModel.refreshAvailableModels()
+        mlxRuntimeModel.refreshAvailableModels()
         startRuntimeIfPreferredEngineRequiresIt()
     }
 

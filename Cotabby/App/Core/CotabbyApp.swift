@@ -16,6 +16,7 @@ struct CotabbyApp: App {
             MenuBarView(
                 permissionManager: appDelegate.permissionManager,
                 runtimeModel: appDelegate.runtimeModel,
+                mlxRuntimeModel: appDelegate.mlxRuntimeModel,
                 modelDownloadManager: appDelegate.modelDownloadManager,
                 focusModel: appDelegate.focusModel,
                 permissionGuidanceController: appDelegate.permissionGuidanceController,

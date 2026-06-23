@@ -59,6 +59,7 @@ final class ModelDownloadManager: ObservableObject {
     var onModelDirectoryChanged: (() -> Void)?
 
     private let runtimeDirectoryURL: URL
+    private let mlxRuntimeDirectoryURL: URL
     private var runtimeSearchDirectories: [URL]
     /// GGUF filenames discovered across every search directory, recomputed whenever the search set
     /// or on-disk contents change. Cached so the per-catalog-model install check in
@@ -70,6 +71,7 @@ final class ModelDownloadManager: ObservableObject {
         let primaryDirectoryURL =
             runtimeDirectoryURL ?? BundledRuntimeLocator.userRuntimeDirectoryURL()
         self.runtimeDirectoryURL = primaryDirectoryURL
+        self.mlxRuntimeDirectoryURL = MlxRuntimeLocator.userRuntimeDirectoryURL()
         runtimeSearchDirectories = Self.resolveSearchDirectories(primary: primaryDirectoryURL)
 
         refreshModelStates()
@@ -97,6 +99,12 @@ final class ModelDownloadManager: ObservableObject {
     /// are read-only and surfaced only through the model picker, not this control.
     var modelsDirectoryPath: String {
         runtimeDirectoryURL.path
+    }
+
+    /// Separate MLX snapshot directory. MLX models are folders rather than single GGUF files, so the
+    /// path is surfaced independently to keep the user's mental model clear.
+    var mlxModelsDirectoryPath: String {
+        mlxRuntimeDirectoryURL.path
     }
 
     /// Re-reads the current search directories (including the LM Studio source when toggled) and
@@ -210,6 +218,20 @@ final class ModelDownloadManager: ObservableObject {
         }
 
         NSWorkspace.shared.open(runtimeDirectoryURL)
+    }
+
+    func openMlxModelsDirectory() {
+        do {
+            try ensureDirectoryExists(mlxRuntimeDirectoryURL)
+        } catch {
+            CotabbyLogger.models.error(
+                "Failed to ensure MLX runtime directory before opening: \(error.localizedDescription)",
+                metadata: ["directory": .string(mlxRuntimeDirectoryURL.path)]
+            )
+            return
+        }
+
+        NSWorkspace.shared.open(mlxRuntimeDirectoryURL)
     }
 
     func importModel() {
@@ -390,8 +412,12 @@ final class ModelDownloadManager: ObservableObject {
     }
 
     private func ensureRuntimeDirectoryExists() throws {
+        try ensureDirectoryExists(runtimeDirectoryURL)
+    }
+
+    private func ensureDirectoryExists(_ directoryURL: URL) throws {
         try FileManager.default.createDirectory(
-            at: runtimeDirectoryURL,
+            at: directoryURL,
             withIntermediateDirectories: true
         )
     }

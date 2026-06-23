@@ -16,6 +16,7 @@ import SwiftUI
 struct MenuBarView: View {
     @ObservedObject var permissionManager: PermissionManager
     @ObservedObject var runtimeModel: RuntimeBootstrapModel
+    @ObservedObject var mlxRuntimeModel: MlxRuntimeBootstrapModel
     @ObservedObject var modelDownloadManager: ModelDownloadManager
     @ObservedObject var focusModel: FocusTrackingModel
     let permissionGuidanceController: PermissionGuidanceController
@@ -45,6 +46,7 @@ struct MenuBarView: View {
             MenuBarPresentationObserver {
                 permissionManager.refresh()
                 runtimeModel.refreshAvailableModels()
+                mlxRuntimeModel.refreshAvailableModels()
             }
         )
         .background(
@@ -56,6 +58,7 @@ struct MenuBarView: View {
         .onAppear {
             permissionManager.refresh()
             runtimeModel.refreshAvailableModels()
+            mlxRuntimeModel.refreshAvailableModels()
         }
     }
 
@@ -172,8 +175,13 @@ struct MenuBarView: View {
                         .foregroundStyle(.orange)
                 }
 
-                if suggestionSettings.selectedEngine.supportsLocalModelManagement {
-                    modelRow
+                switch suggestionSettings.selectedEngine {
+                case .llamaOpenSource:
+                    llamaModelRow
+                case .mlx:
+                    mlxModelRow
+                case .appleIntelligence:
+                    EmptyView()
                 }
 
                 MenuBarPickerRow(title: "Length") {
@@ -203,7 +211,7 @@ struct MenuBarView: View {
     /// `.truncationMode` modifiers are unreliable here because AppKit's native popup ignores them
     /// for the selected-value label.
     @ViewBuilder
-    private var modelRow: some View {
+    private var llamaModelRow: some View {
         MenuBarPickerRow(title: "Model") {
             HStack(spacing: 6) {
                 if runtimeModel.availableModels.isEmpty {
@@ -234,6 +242,48 @@ struct MenuBarView: View {
                 Button {
                     modelDownloadManager.refreshModelStates()
                     runtimeModel.refreshAvailableModels()
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .buttonStyle(.borderless)
+                .controlSize(.small)
+            }
+        }
+    }
+
+    /// MLX model selector. MLX models are snapshot directories, so the picker tags model IDs rather
+    /// than GGUF filenames.
+    @ViewBuilder
+    private var mlxModelRow: some View {
+        MenuBarPickerRow(title: "MLX Model") {
+            HStack(spacing: 6) {
+                if mlxRuntimeModel.availableModels.isEmpty {
+                    Text("No MLX models found")
+                        .foregroundStyle(.secondary)
+                        .font(.subheadline)
+                } else {
+                    Picker("MLX Model", selection: selectedMlxModelBinding) {
+                        ForEach(mlxRuntimeModel.availableModels) { model in
+                            Text(model.displayName)
+                                .tag(model.id)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .frame(maxWidth: .infinity)
+                    .disabled(mlxRuntimePickerDisabled)
+                }
+
+                Button {
+                    modelDownloadManager.openMlxModelsDirectory()
+                } label: {
+                    Image(systemName: "folder")
+                }
+                .buttonStyle(.borderless)
+                .controlSize(.small)
+
+                Button {
+                    mlxRuntimeModel.refreshAvailableModels()
                 } label: {
                     Image(systemName: "arrow.clockwise")
                 }
@@ -450,8 +500,32 @@ struct MenuBarView: View {
         }
     }
 
+    private var selectedMlxModelBinding: Binding<String> {
+        Binding(
+            get: {
+                mlxRuntimeModel.selectedModelID
+                    ?? mlxRuntimeModel.availableModels.first?.id
+                    ?? ""
+            },
+            set: { modelID in
+                Task {
+                    await mlxRuntimeModel.selectModel(modelID)
+                }
+            }
+        )
+    }
+
     private var runtimePickerDisabled: Bool {
         switch runtimeModel.state {
+        case .starting, .loading:
+            return true
+        case .idle, .ready, .failed:
+            return false
+        }
+    }
+
+    private var mlxRuntimePickerDisabled: Bool {
+        switch mlxRuntimeModel.state {
         case .starting, .loading:
             return true
         case .idle, .ready, .failed:
