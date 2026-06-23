@@ -381,7 +381,7 @@ final class MirrorOverlayLayoutTests: XCTestCase {
         // When the visible frame cannot contain the card at all (tiny screen or extreme zoom), the
         // min/max clamp inverts; the layout must pin to the leading margin on both axes rather
         // than producing a frame outside the screen.
-        let tinyScreen = CGRect(x: 0, y: 0, width: 150, height: 28)
+        let tinyScreen = CGRect(x: 0, y: 0, width: 80, height: 28)
         let geometry = CotabbyTestFixtures.overlayGeometry(
             caretRect: CGRect(x: 60, y: 200, width: 2, height: 18),
             inputFrameRect: nil
