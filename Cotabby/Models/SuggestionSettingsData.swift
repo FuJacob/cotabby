@@ -92,6 +92,9 @@ struct SuggestionSettingsData: Equatable {
     var globalToggleKeyCode: CGKeyCode
     var globalToggleKeyModifiers: ShortcutModifierMask
     var globalToggleKeyLabel: String
+    /// Per-app accept/full-accept overrides keyed by bundle id. Empty by default; a row is present
+    /// only for apps the user explicitly customized. `ShortcutResolver` consumes this at event time.
+    var perAppShortcutOverrides: [PerAppShortcutOverride]
     var acceptanceGranularity: AcceptanceGranularity
     var isPowerBasedModelSwitchingEnabled: Bool
     var batteryEngine: SuggestionEngineKind
