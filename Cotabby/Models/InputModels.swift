@@ -13,7 +13,7 @@ import Foundation
 /// We don't reuse `CGEventFlags` directly because it carries unrelated bits — caps lock,
 /// numeric pad, secondary fn, device-specific flags — that we don't want to participate in
 /// shortcut equality. Reducing to a 4-bit mask gives unambiguous storage and comparison.
-struct ShortcutModifierMask: OptionSet, Hashable {
+struct ShortcutModifierMask: OptionSet, Hashable, Sendable, Codable {
     let rawValue: UInt32
 
     init(rawValue: UInt32) {
@@ -34,6 +34,19 @@ struct ShortcutModifierMask: OptionSet, Hashable {
         if eventFlags.contains(.maskAlternate) { mask.insert(.option) }
         if eventFlags.contains(.maskControl) { mask.insert(.control) }
         self = mask
+    }
+
+    // Single-value coding lets persisted per-app overrides store the modifier set as a plain
+    // integer in JSON — same on-disk shape the standalone `acceptanceKeyModifiers` UserDefault
+    // uses, so the two are debuggable side by side and migrate cleanly if we ever consolidate.
+    init(from decoder: Decoder) throws {
+        let raw = try decoder.singleValueContainer().decode(UInt32.self)
+        self.init(rawValue: raw)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
     }
 }
 

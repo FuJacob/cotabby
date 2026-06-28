@@ -59,18 +59,18 @@ final class InputMonitor {
     /// event, so this closure is a fast, side-effect-free read.
     var emojiCaptureKeyDecider: (@MainActor (InputMonitorKeyEvent) -> InputMonitorAcceptTapDecision)?
 
-    /// Reads the current word-accept key code from the model at event time, avoiding
-    /// Combine delivery lag between settings changes and the event classifier.
-    var acceptanceKeyCodeProvider: @MainActor () -> CGKeyCode = { 48 }
+    /// Reads the current word-accept binding (key code + required modifiers) from the model at event
+    /// time, avoiding Combine delivery lag between settings changes and the event classifier. The two
+    /// fields are returned together so a per-app override is scanned at most once per binding and the
+    /// key code and its modifiers can never come from two different resolutions.
+    var acceptanceBindingProvider: @MainActor () -> (keyCode: CGKeyCode, modifiers: ShortcutModifierMask) = {
+        (48, [])
+    }
 
-    /// Modifier mask required alongside the word-accept key code. Empty means the bare key.
-    var acceptanceKeyModifiersProvider: @MainActor () -> ShortcutModifierMask = { [] }
-
-    /// Reads the current full-accept key code from the model at event time.
-    var fullAcceptanceKeyCodeProvider: @MainActor () -> CGKeyCode = { CGKeyCode(UInt16.max) }
-
-    /// Modifier mask required alongside the full-accept key code. Empty means the bare key.
-    var fullAcceptanceKeyModifiersProvider: @MainActor () -> ShortcutModifierMask = { [] }
+    /// Reads the current full-accept binding (key code + required modifiers) from the model at event time.
+    var fullAcceptanceBindingProvider: @MainActor () -> (keyCode: CGKeyCode, modifiers: ShortcutModifierMask) = {
+        (CGKeyCode(UInt16.max), [])
+    }
 
     /// Reads the global-toggle hotkey at event time. `disabledKeyCode` (UInt16.max) means unbound;
     /// the dedicated toggle tap is torn down whenever the provider returns that sentinel so users
@@ -702,20 +702,20 @@ final class InputMonitor {
     private func acceptanceKind(for keyEvent: InputMonitorKeyEvent) -> CapturedInputEvent.Kind? {
         let eventModifiers = ShortcutModifierMask(eventFlags: keyEvent.flags)
 
-        // Read shortcut state from the model at event time so changes are always current.
-        let fullAcceptKey = fullAcceptanceKeyCodeProvider()
-        let fullAcceptModifiers = fullAcceptanceKeyModifiersProvider()
-        let acceptKey = acceptanceKeyCodeProvider()
-        let acceptModifiers = acceptanceKeyModifiersProvider()
+        // Read shortcut state from the model at event time so changes are always current. Each binding
+        // resolves once as a unit, so the key code and modifiers can never disagree and a per-app
+        // override is scanned at most once per binding per keystroke.
+        let fullAccept = fullAcceptanceBindingProvider()
+        let accept = acceptanceBindingProvider()
 
         // Full-suggestion acceptance takes priority so pressing the full-accept key doesn't
         // silently fall through to word-accept when both are assigned. The bound modifier set must
         // match exactly after normalization, so `Tab` and `Shift+Tab` remain distinct bindings.
-        if keyEvent.keyCode == fullAcceptKey, eventModifiers == fullAcceptModifiers {
+        if keyEvent.keyCode == fullAccept.keyCode, eventModifiers == fullAccept.modifiers {
             return .fullAcceptance
         }
 
-        if keyEvent.keyCode == acceptKey, eventModifiers == acceptModifiers {
+        if keyEvent.keyCode == accept.keyCode, eventModifiers == accept.modifiers {
             return .acceptance
         }
 

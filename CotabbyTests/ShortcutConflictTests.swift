@@ -71,6 +71,75 @@ final class ShortcutConflictTests: XCTestCase {
         XCTAssertNil(conflict)
     }
 
+    // MARK: - Per-app override scoping
+
+    /// Per-app conflict scoping: two different apps can bind the same combo without conflict,
+    /// because the resolver picks based on the frontmost bundle id at event time. Refusing this
+    /// combo would force the user into a "globally unique" universe that has no reason to exist.
+    func test_perAppConflict_allowsSameComboAcrossDifferentApps() {
+        let model = makeModel()
+        model.setPerAppAcceptKey(
+            bundleIdentifier: "com.apple.notes", displayName: "Notes",
+            keyCode: 49, modifiers: [], label: "Space"
+        )
+
+        let conflict = model.conflictingPerAppShortcutName(
+            forBundleIdentifier: "com.apple.terminal",
+            keyCode: 49,
+            modifiers: [],
+            excluding: .acceptWord
+        )
+        XCTAssertNil(conflict, "Different app + same combo is not a conflict.")
+    }
+
+    /// Within ONE app, binding accept-word to the same combo already held by full-accept must be
+    /// flagged so the keystroke isn't ambiguous on that app.
+    func test_perAppConflict_flagsSameAppCrossActionCollision() {
+        let model = makeModel()
+        model.setPerAppFullAcceptKey(
+            bundleIdentifier: "com.apple.notes", displayName: "Notes",
+            keyCode: 49, modifiers: [], label: "Space"
+        )
+
+        let conflict = model.conflictingPerAppShortcutName(
+            forBundleIdentifier: "com.apple.notes",
+            keyCode: 49,
+            modifiers: [],
+            excluding: .acceptWord
+        )
+        XCTAssertEqual(conflict, "Accept Entire Suggestion")
+    }
+
+    /// The global toggle is app-spanning, so a per-app accept that collides with it would still
+    /// be eaten by the toggle tap. Refuse the combo up front.
+    func test_perAppConflict_flagsGlobalToggleCollision() {
+        let model = makeModel()
+        model.setGlobalToggleKey(keyCode: 49, modifiers: [.command, .shift], label: "⌘⇧Space")
+        let conflict = model.conflictingPerAppShortcutName(
+            forBundleIdentifier: "com.apple.notes",
+            keyCode: 49,
+            modifiers: [.command, .shift],
+            excluding: .acceptWord
+        )
+        XCTAssertEqual(conflict, "Toggle Tabby")
+    }
+
+    /// Re-recording the same action on the same app must not be flagged as a self-collision.
+    func test_perAppConflict_allowsRebindingSameActionToSameKey() {
+        let model = makeModel()
+        model.setPerAppAcceptKey(
+            bundleIdentifier: "com.apple.notes", displayName: "Notes",
+            keyCode: 49, modifiers: [], label: "Space"
+        )
+        let conflict = model.conflictingPerAppShortcutName(
+            forBundleIdentifier: "com.apple.notes",
+            keyCode: 49,
+            modifiers: [],
+            excluding: .acceptWord
+        )
+        XCTAssertNil(conflict)
+    }
+
     // MARK: - Helpers
 
     private func makeModel() -> SuggestionSettingsModel {
