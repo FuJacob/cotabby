@@ -16,6 +16,8 @@ final class CotabbyAppEnvironment {
     let modelDownloadManager: ModelDownloadManager
     let focusModel: FocusTrackingModel
     let inputMonitor: InputMonitor
+    /// Temporarily pauses Calendar AX traversal only while its date/time editor is active.
+    let calendarAccessibilityCaptureGuard: CalendarAccessibilityCaptureGuard
     let appUpdateManager: AppUpdateManager
     let permissionGuidanceController: PermissionGuidanceController
     let suggestionSettings: SuggestionSettingsModel
@@ -60,6 +62,10 @@ final class CotabbyAppEnvironment {
             permissionProvider: { permissionManager.inputMonitoringGranted },
             suppressionController: suppressionController
         )
+        let calendarAccessibilityCaptureGuard = CalendarAccessibilityCaptureGuard()
+        inputMonitor.onPointerDown = { [weak calendarAccessibilityCaptureGuard] point in
+            calendarAccessibilityCaptureGuard?.handlePointerDown(atAccessibilityPoint: point)
+        }
         inputMonitor.acceptanceKeyCodeProvider = { suggestionSettings.acceptanceKeyCode }
         inputMonitor.acceptanceKeyModifiersProvider = { suggestionSettings.acceptanceKeyModifiers }
         inputMonitor.fullAcceptanceKeyCodeProvider = { suggestionSettings.fullAcceptanceKeyCode }
@@ -69,11 +75,9 @@ final class CotabbyAppEnvironment {
         inputMonitor.onGlobalToggleHotkey = { [weak suggestionSettings] in
             suggestionSettings?.toggleGloballyEnabled()
         }
-        // Stop the deep AX walk when Cotabby is disabled for the focused app. Without this the
-        // focus poll keeps enumerating the frontmost app's AX attributes every 50-80ms even after
-        // the user toggles Cotabby off, which can dismiss transient popovers in apps like Calendar
-        // (#476). Gating here also makes the "I disabled it but the bug remained" symptom go away:
-        // the disable toggles now actually stop touching the focused app.
+        // Stop the deep AX walk when Cotabby is disabled for the focused app or while Calendar's
+        // fragile date/time editor is active. The latter is interaction-scoped: Calendar text fields
+        // still resolve normally, unlike the old app-wide suppression workaround for #544.
         let focusModel = FocusTrackingModel(
             permissionProvider: { permissionManager.accessibilityGranted },
             ignoredBundleIdentifier: Bundle.main.bundleIdentifier,
@@ -86,7 +90,9 @@ final class CotabbyAppEnvironment {
                    suggestionSettings.isApplicationDisabled(bundleIdentifier: bundleIdentifier) {
                     return true
                 }
-                return false
+                return calendarAccessibilityCaptureGuard.shouldSuppressCapture(
+                    for: bundleIdentifier
+                )
             },
             publishesPollingEvents: FocusDebugOverlayController.isEnabled
         )
@@ -96,6 +102,11 @@ final class CotabbyAppEnvironment {
         inputMonitor.shouldProcessEventsProvider = { [weak focusModel] in
             guard suggestionSettings.isGloballyEnabled else { return false }
             guard let snapshot = focusModel?.snapshot else { return true }
+            if calendarAccessibilityCaptureGuard.shouldSuppressCapture(
+                for: snapshot.bundleIdentifier
+            ) {
+                return false
+            }
             if TerminalAppDetector.isTerminal(bundleIdentifier: snapshot.bundleIdentifier) { return false }
             if let bundleID = snapshot.bundleIdentifier,
                suggestionSettings.isApplicationDisabled(bundleIdentifier: bundleID) {
@@ -268,6 +279,7 @@ final class CotabbyAppEnvironment {
         self.modelDownloadManager = modelDownloadManager
         self.focusModel = focusModel
         self.inputMonitor = inputMonitor
+        self.calendarAccessibilityCaptureGuard = calendarAccessibilityCaptureGuard
         self.appUpdateManager = appUpdateManager
         self.permissionGuidanceController = permissionGuidanceController
         self.suggestionSettings = suggestionSettings

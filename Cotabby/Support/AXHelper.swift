@@ -550,10 +550,20 @@ enum AXHelper {
         guard let primaryHeight = NSScreen.screens.first?.frame.height else {
             return nil
         }
-        let axX = Float(point.x)
-        let axY = Float(primaryHeight - point.y)
+        let accessibilityPoint = CGPoint(x: point.x, y: primaryHeight - point.y)
+        return element(atAccessibilityPoint: accessibilityPoint)
+    }
+
+    /// Hit-tests an Accessibility element from Quartz/CGEvent global coordinates (top-left origin).
+    ///
+    /// Global input taps already report points in AX screen space, so converting those points through
+    /// Cocoa would introduce an unnecessary second coordinate flip. Calendar's interaction guard uses
+    /// this overload directly from the listen-only pointer event callback.
+    static func element(atAccessibilityPoint point: CGPoint) -> AXUIElement? {
         var element: AXUIElement?
-        guard AXUIElementCopyElementAtPosition(systemWideElement(), axX, axY, &element) == .success else {
+        guard AXUIElementCopyElementAtPosition(
+            systemWideElement(), Float(point.x), Float(point.y), &element
+        ) == .success else {
             return nil
         }
         return element
