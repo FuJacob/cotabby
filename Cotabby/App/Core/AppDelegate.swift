@@ -141,12 +141,45 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         didStartServices = true
         CotabbyLogger.app.info("All services started")
 
-        // Dev affordance in the spirit of `-cotabby-debug`: a menu-bar-only app has no scriptable
-        // path to its Settings window (the status item is unreachable from AppleScript), so UI
-        // work on Settings cannot be exercised by tooling without this. No-op unless passed.
-        if ProcessInfo.processInfo.arguments.contains("-cotabby-open-settings") {
+        // A manual cold launch must remain recoverable after the user hides the only status item.
+        // Login-item launches stay silent so hiding the icon does not make Settings appear after
+        // every sign-in. The development argument deliberately overrides both policies.
+        let wasSettingsExplicitlyRequested =
+            ProcessInfo.processInfo.arguments.contains("-cotabby-open-settings")
+        let shouldShowSettings = MenuBarRecoveryPolicy.shouldShowSettingsOnColdLaunch(
+            isMenuBarIconVisible: suggestionSettings.isMenuBarIconVisible,
+            wasLaunchedAtLogin: LaunchAtLogin.wasLaunchedAtLogin,
+            wasSettingsExplicitlyRequested: wasSettingsExplicitlyRequested
+        )
+        if shouldShowSettings {
+            if !suggestionSettings.isMenuBarIconVisible && !wasSettingsExplicitlyRequested {
+                CotabbyLogger.app.info(
+                    "Opening Settings because Cotabby launched with its menu bar icon hidden"
+                )
+            }
             settingsCoordinator.showSettings()
         }
+    }
+
+    /// Launch Services sends a reopen event when the user opens Cotabby while this accessory app is
+    /// already running. When the status item is hidden, Settings is the app's only visible recovery
+    /// surface, so reopening must reveal it instead of leaving the user with no apparent response.
+    func applicationShouldHandleReopen(
+        _ sender: NSApplication,
+        hasVisibleWindows flag: Bool
+    ) -> Bool {
+        if MenuBarRecoveryPolicy.shouldLetAppKitHandleReopen(
+            isMenuBarIconVisible: suggestionSettings.isMenuBarIconVisible,
+            hasVisibleWindows: flag,
+            isSettingsWindowOpen: settingsCoordinator.isSettingsWindowOpen
+        ) {
+            // Let AppKit activate the app and bring the existing Settings window forward.
+            return true
+        }
+
+        CotabbyLogger.app.info("Opening Settings because Cotabby was reopened with its menu bar icon hidden")
+        settingsCoordinator.showSettings()
+        return false
     }
 
     /// One-time default: enable Open at Login for every user (new and existing) the first time this

@@ -426,6 +426,7 @@
 		96498E097A5899AFC9F0C853 /* EmojiCatalogMatcherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 292DC9D4D9D5D26AE882E39B /* EmojiCatalogMatcherTests.swift */; };
 		96782E57CA26A16409368B69 /* TextDirectionDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 328847A0F494360033366791 /* TextDirectionDetector.swift */; };
 		96C3128BCB17A05A7C7DEFF7 /* StaticTextRunWalkThrottleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B3179B40A81DF121D1221C6 /* StaticTextRunWalkThrottleTests.swift */; };
+		96ECE89BD96CF93CC159B437 /* MenuBarRecoveryPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F32455AE743D1D0E9E2CB38 /* MenuBarRecoveryPolicy.swift */; };
 		9706D778FB549E9E7AE05F4F /* EmojiMatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1441B2D89DAE6878DAD11F17 /* EmojiMatcher.swift */; };
 		97ECEF5AA17B26FA6F187461 /* FocusCapabilityFlickerGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A44BEC8C23FF227731DD0CD /* FocusCapabilityFlickerGate.swift */; };
 		97EF76E6B7A1AFB3FA4879D1 /* LGPL-3.0.txt in Resources */ = {isa = PBXBuildFile; fileRef = 7513810E78F3C94FE972EB07 /* LGPL-3.0.txt */; };
@@ -570,6 +571,7 @@
 		CC98B842D10574C5206BEFA7 /* FocusCapabilityResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70367FCC1E0F08EE3B8EB26F /* FocusCapabilityResolver.swift */; };
 		CCB8D287A5FF3863B9DE9246 /* ChromiumAccessibilityEnabler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8896D976C7F116EBA0F3969F /* ChromiumAccessibilityEnabler.swift */; };
 		CCC83DC5AE51C17F153D5A6A /* PermissionModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D82FFC568527700EC17C07D /* PermissionModels.swift */; };
+		CE20BDEA713D21200B8822C7 /* MenuBarRecoveryPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39366D6D7D5946BF9330D038 /* MenuBarRecoveryPolicyTests.swift */; };
 		CF2EADEEEF5AA63FB9B9EA8E /* SuggestionInserter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A3D1125B962CBE0269EEDDB /* SuggestionInserter.swift */; };
 		CF39EB76C3ECF8F764C1B4FB /* DeviceInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29ED42C4BDD0C521101AF95E /* DeviceInfo.swift */; };
 		CF4205B85D881B8176590D25 /* FocusSnapshotResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04E25414C307A20B6F9F20EC /* FocusSnapshotResolver.swift */; };
@@ -688,6 +690,7 @@
 		FEF2CF888D8709D1FB0D2B20 /* Logging in Frameworks */ = {isa = PBXBuildFile; productRef = 6F27073D2818C0218C3F4370 /* Logging */; };
 		FF3F7B74B561EF0807D28FD8 /* SystemMetricsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 807148A920E003DEF8BA6092 /* SystemMetricsStore.swift */; };
 		FF773F168B20502C68239967 /* SurfaceContextComposer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C602357DDED5D11C8B4567FB /* SurfaceContextComposer.swift */; };
+		FFF5215EAC4A931CCD0C3142 /* MenuBarRecoveryPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F32455AE743D1D0E9E2CB38 /* MenuBarRecoveryPolicy.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -754,6 +757,7 @@
 		1D1AC5EC06664F49A6AE2B17 /* SettingsNavigationModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsNavigationModel.swift; sourceTree = "<group>"; };
 		1E0513E3B23937B099A3CFF2 /* WordCountFormatterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WordCountFormatterTests.swift; sourceTree = "<group>"; };
 		1ED1EA9282E0AC7592E60889 /* SuggestionCoordinator+Prediction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SuggestionCoordinator+Prediction.swift"; sourceTree = "<group>"; };
+		1F32455AE743D1D0E9E2CB38 /* MenuBarRecoveryPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarRecoveryPolicy.swift; sourceTree = "<group>"; };
 		1F761083EA5465023D82B5F4 /* BrowserDomainTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrowserDomainTests.swift; sourceTree = "<group>"; };
 		1F7ED2D9D71CFAD9A30977E9 /* ArithmeticEvaluator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArithmeticEvaluator.swift; sourceTree = "<group>"; };
 		210F9AD332273FE2EB3A9A01 /* WebContentFieldDetectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebContentFieldDetectorTests.swift; sourceTree = "<group>"; };
@@ -801,6 +805,7 @@
 		384FBCF5D7A3A446C5BE2B8D /* SuggestionEngineRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionEngineRouter.swift; sourceTree = "<group>"; };
 		386C98FFCF76EC1C8C7E82BB /* SuggestionModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionModels.swift; sourceTree = "<group>"; };
 		38931C165873B50B405CC602 /* SystemMetricsStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemMetricsStoreTests.swift; sourceTree = "<group>"; };
+		39366D6D7D5946BF9330D038 /* MenuBarRecoveryPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarRecoveryPolicyTests.swift; sourceTree = "<group>"; };
 		3BDA36955CCCFA87C1F67268 /* SuggestionEngineRouterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionEngineRouterTests.swift; sourceTree = "<group>"; };
 		3DE1975F3B5F4A70478DBF41 /* DownloadOutcomeClassifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadOutcomeClassifier.swift; sourceTree = "<group>"; };
 		41BBD5A4BA08CABE77860886 /* HardwareCapabilityProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HardwareCapabilityProbe.swift; sourceTree = "<group>"; };
@@ -1520,6 +1525,7 @@
 				D8083D44ABCDCFA68A4CD497 /* MacroEngineTests.swift */,
 				22BE47D1DBF6C23151458836 /* MacroTriggerStateMachineTests.swift */,
 				52BAFA2F989C3C4F7FB892B5 /* MarkerSelectionSynthesizerTests.swift */,
+				39366D6D7D5946BF9330D038 /* MenuBarRecoveryPolicyTests.swift */,
 				1274F897631B1B3A835D157F /* MidWordContinuationPolicyTests.swift */,
 				FC83D14A7557BC0196E59007 /* MirrorOverlayLayoutTests.swift */,
 				03766F6253FF17639230C0F6 /* ModelAndPresentationValueTests.swift */,
@@ -1757,6 +1763,7 @@
 				8D610FCA3A97249DCCE7D0B8 /* LLMIOFileHandler.swift */,
 				1C201A65A6B040F90C528A3B /* MacroTriggerStateMachine.swift */,
 				A863F41C0C03D7B4AC5DC002 /* MarkerSelectionSynthesizer.swift */,
+				1F32455AE743D1D0E9E2CB38 /* MenuBarRecoveryPolicy.swift */,
 				357C18383B047F24A531BDCD /* MidWordContinuationPolicy.swift */,
 				54150A507B03221F137D539B /* MirrorOverlayLayout.swift */,
 				B22FDEB3B1DCC9ADE906CC73 /* OCRTextHygiene.swift */,
@@ -2129,6 +2136,7 @@
 				057CEA7858012C1501F1785C /* MarkerSelectionSynthesizer.swift in Sources */,
 				4FC42808D61BF110425801ED /* MenuBarPopoverDismisser.swift in Sources */,
 				783BEC91DBC86AF75CEDB269 /* MenuBarPresentationObserver.swift in Sources */,
+				96ECE89BD96CF93CC159B437 /* MenuBarRecoveryPolicy.swift in Sources */,
 				C0537A515AED443F6C61DB2A /* MenuBarSections.swift in Sources */,
 				0ED2E5A4C1F80E3B5B767596 /* MenuBarStatusLabelView.swift in Sources */,
 				F04D9470439699DB1F016000 /* MenuBarView.swift in Sources */,
@@ -2376,6 +2384,7 @@
 				5C119807B84F84B0B1B1C2D5 /* MarkerSelectionSynthesizer.swift in Sources */,
 				0BEBB33EB75B59EE83C6FE44 /* MenuBarPopoverDismisser.swift in Sources */,
 				F08C139B246C1EC7BB435455 /* MenuBarPresentationObserver.swift in Sources */,
+				FFF5215EAC4A931CCD0C3142 /* MenuBarRecoveryPolicy.swift in Sources */,
 				0333B3CE8F189DD1BEC4AD26 /* MenuBarSections.swift in Sources */,
 				AECC7289DA796B071B4FE3C0 /* MenuBarStatusLabelView.swift in Sources */,
 				5E92E3C1EB41D482FC06BC52 /* MenuBarView.swift in Sources */,
@@ -2578,6 +2587,7 @@
 				8429B116328C392DCA018D95 /* MacroEngineTests.swift in Sources */,
 				3F8CBCBCC45E377DF9ADB216 /* MacroTriggerStateMachineTests.swift in Sources */,
 				87806DE08881D11F2608A13D /* MarkerSelectionSynthesizerTests.swift in Sources */,
+				CE20BDEA713D21200B8822C7 /* MenuBarRecoveryPolicyTests.swift in Sources */,
 				7C36DBA762E19C8C31676D44 /* MidWordContinuationPolicyTests.swift in Sources */,
 				14D77F0B8A195AC2FA8D24A9 /* MirrorOverlayLayoutTests.swift in Sources */,
 				25D4FC8D191A50F63E6391F9 /* ModelAndPresentationValueTests.swift in Sources */,

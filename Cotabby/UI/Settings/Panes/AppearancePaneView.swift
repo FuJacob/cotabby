@@ -93,7 +93,17 @@ struct AppearancePaneView: View {
                         systemImage: "number"
                     )
                 }
+                .disabled(!suggestionSettings.isMenuBarIconVisible)
                 .settingsItem(.showWordCount)
+
+                Toggle(isOn: menuBarIconVisibleBinding) {
+                    SettingsRowLabel(
+                        title: "Show Cotabby in Menu Bar",
+                        description: "Keep Cotabby's icon in the menu bar. If hidden, open Cotabby again to show Settings.",
+                        systemImage: "menubar.rectangle"
+                    )
+                }
+                .settingsItem(.showMenuBarIcon)
 
                 Toggle(isOn: showAcceptanceHintBinding) {
                     HStack(alignment: .firstTextBaseline, spacing: 10) {
@@ -258,6 +268,13 @@ struct AppearancePaneView: View {
         Binding(
             get: { suggestionSettings.isMenuBarWordCountVisible },
             set: { suggestionSettings.setMenuBarWordCountVisible($0) }
+        )
+    }
+
+    private var menuBarIconVisibleBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.isMenuBarIconVisible },
+            set: { suggestionSettings.setMenuBarIconVisible($0) }
         )
     }
 

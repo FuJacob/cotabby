@@ -77,6 +77,9 @@ final class SuggestionSettingsModel: ObservableObject {
     /// default user never pays any extra storage or write cost — recording only kicks in once the
     /// user opts in from Settings.
     @Published private(set) var isPerformanceTrackingEnabled: Bool
+    /// Whether Cotabby's status item is inserted into the menu bar. The process and suggestion
+    /// pipeline remain active when hidden; launching the app again opens Settings as the recovery path.
+    @Published private(set) var isMenuBarIconVisible: Bool
     /// Whether the accepted-word counter is drawn next to the menu bar icon. Off hides the badge
     /// entirely; the count itself keeps accruing so toggling it back on restores the running total.
     @Published private(set) var isMenuBarWordCountVisible: Bool
@@ -190,6 +193,7 @@ final class SuggestionSettingsModel: ObservableObject {
         enabledSpellingDictionaryCodes = data.enabledSpellingDictionaryCodes
         automaticallyFixTypos = data.automaticallyFixTypos
         isPerformanceTrackingEnabled = data.isPerformanceTrackingEnabled
+        isMenuBarIconVisible = data.isMenuBarIconVisible
         isMenuBarWordCountVisible = data.isMenuBarWordCountVisible
         mirrorPreference = data.mirrorPreference
         userName = data.userName
@@ -257,6 +261,7 @@ final class SuggestionSettingsModel: ObservableObject {
         enabledSpellingDictionaryCodes = data.enabledSpellingDictionaryCodes
         automaticallyFixTypos = data.automaticallyFixTypos
         isPerformanceTrackingEnabled = data.isPerformanceTrackingEnabled
+        isMenuBarIconVisible = data.isMenuBarIconVisible
         isMenuBarWordCountVisible = data.isMenuBarWordCountVisible
         mirrorPreference = data.mirrorPreference
         userName = data.userName
@@ -544,6 +549,15 @@ final class SuggestionSettingsModel: ObservableObject {
 
         isPerformanceTrackingEnabled = enabled
         store.savePerformanceTrackingEnabled(enabled)
+    }
+
+    func setMenuBarIconVisible(_ visible: Bool) {
+        guard isMenuBarIconVisible != visible else {
+            return
+        }
+
+        isMenuBarIconVisible = visible
+        store.saveMenuBarIconVisible(visible)
     }
 
     func setMenuBarWordCountVisible(_ visible: Bool) {

@@ -28,6 +28,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     case fadeInSuggestions
     case showFieldIndicator
     case showWordCount
+    case showMenuBarIcon
     case showKeyHint
     case ghostTextColor
     case ghostTextOpacity
@@ -108,6 +109,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .fadeInSuggestions: return "Fade In Suggestions"
         case .showFieldIndicator: return "Show Field Indicator"
         case .showWordCount: return "Show Word Count in Menu Bar"
+        case .showMenuBarIcon: return "Show Cotabby in Menu Bar"
         case .showKeyHint: return "Show Accept-Key Hint"
         case .ghostTextColor: return "Ghost Text Color"
         case .ghostTextOpacity: return "Ghost Text Opacity"
@@ -177,6 +179,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .fadeInSuggestions: return "sparkles"
         case .showFieldIndicator: return "dot.viewfinder"
         case .showWordCount: return "number"
+        case .showMenuBarIcon: return "menubar.rectangle"
         case .showKeyHint: return "keyboard"
         case .ghostTextColor: return "paintpalette"
         case .ghostTextOpacity: return "circle.lefthalf.filled"
@@ -234,7 +237,8 @@ enum SettingsItem: String, CaseIterable, Identifiable {
              .allowMultiLine, .inlineMacros, .onboarding, .resetAllSettings:
             return .general
         case .suggestionDisplay, .streamWhileGenerating, .fadeInSuggestions, .showFieldIndicator,
-             .showWordCount, .showKeyHint, .ghostTextColor, .ghostTextOpacity, .ghostTextSize:
+             .showWordCount, .showMenuBarIcon, .showKeyHint, .ghostTextColor,
+             .ghostTextOpacity, .ghostTextSize:
             return .appearance
         case .emojiPicker, .emojiSkinTone, .emojiPeopleStyle, .emojiHistory:
             return .emoji
@@ -281,6 +285,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .fadeInSuggestions: return "Fade new suggestions in smoothly instead of all at once."
         case .showFieldIndicator: return "Show a small icon when a field is ready for suggestions."
         case .showWordCount: return "Count accepted words next to the menu bar icon."
+        case .showMenuBarIcon: return "Hide menu bar clutter while Cotabby keeps running."
         case .showKeyHint: return "Show the accept-key badge beside the ghost text."
         case .ghostTextColor: return "Pick the color of the inline suggestion."
         case .ghostTextOpacity: return "How faint the suggestion looks before you accept it."
@@ -388,6 +393,9 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .showWordCount:
             return ["word count", "words", "menu bar", "menubar", "stats", "counter",
                     "statistics", "show count"]
+        case .showMenuBarIcon:
+            return ["menu bar", "menubar", "status item", "icon", "hide", "hidden",
+                    "clutter", "launch", "reopen", "settings"]
         case .showKeyHint:
             return ["hint", "badge", "keycap", "accept key", "tip", "label", "key hint",
                     "show key"]
