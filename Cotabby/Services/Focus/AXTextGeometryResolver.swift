@@ -722,7 +722,7 @@ struct AXTextGeometryResolver {
                     selection.length == 0,
                     selection.location > 0,
                     selection.location <= (text as NSString).length,
-                    Set(AXHelper.parameterizedAttributeNames(on: element)).contains(
+                    AXHelper.parameterizedAttributeNames(on: element).contains(
                         kAXBoundsForRangeParameterizedAttribute as String
                     ) {
                     caretCharacterFrame = AXHelper.parameterizedRectValue(
