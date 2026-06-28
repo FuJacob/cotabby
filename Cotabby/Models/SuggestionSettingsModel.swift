@@ -107,6 +107,14 @@ final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var autoAcceptTrailingPunctuation: Bool
     @Published private(set) var addSpaceAfterAccept: Bool
     @Published private(set) var streamSuggestionsWhileGenerating: Bool
+    /// Whether a newly shown suggestion fades in. Read live by `OverlayController` at present time, so
+    /// toggling it takes effect on the very next suggestion without any subscription bookkeeping. Not
+    /// part of `snapshot`: it never reaches generation, only the overlay renderer.
+    @Published private(set) var fadeInSuggestions: Bool
+    /// Duration of the fade-in ramp in seconds. Read live by `OverlayController` alongside
+    /// `fadeInSuggestions`, so dragging the speed slider takes effect on the next suggestion. Lower is
+    /// a faster fade. Like `fadeInSuggestions`, it never reaches generation, only the overlay renderer.
+    @Published private(set) var fadeInDurationSeconds: Double
     @Published private(set) var acceptanceKeyCode: CGKeyCode
     @Published private(set) var acceptanceKeyModifiers: ShortcutModifierMask
     @Published private(set) var acceptanceKeyLabel: String
@@ -129,6 +137,10 @@ final class SuggestionSettingsModel: ObservableObject {
     /// routes every load and save through it.
     private let store: SuggestionSettingsStore
 
+    /// Retained so `resetToDefaults` can re-resolve the same first-launch values the app shipped with
+    /// (a few defaults — word-count preset, profile name, debounce/poll cadence — come from here).
+    private let configuration: SuggestionConfiguration
+
     // Public default constants re-exported from `SuggestionSettingsStore` (the single source of
     // truth) so the Settings UI can keep referencing them as `SuggestionSettingsModel.X`.
     static let defaultAcceptanceKeyCode = SuggestionSettingsStore.defaultAcceptanceKeyCode
@@ -145,6 +157,10 @@ final class SuggestionSettingsModel: ObservableObject {
     static let maximumGhostTextSizeMultiplier = SuggestionSettingsStore.maximumGhostTextSizeMultiplier
     static let defaultGhostTextSizeMultiplier = SuggestionSettingsStore.defaultGhostTextSizeMultiplier
     static let ghostTextSizeMultiplierStep = SuggestionSettingsStore.ghostTextSizeMultiplierStep
+    static let minimumFadeInDuration = SuggestionSettingsStore.minimumFadeInDuration
+    static let maximumFadeInDuration = SuggestionSettingsStore.maximumFadeInDuration
+    static let defaultFadeInDuration = SuggestionSettingsStore.defaultFadeInDuration
+    static let fadeInDurationStep = SuggestionSettingsStore.fadeInDurationStep
     static let maximumExtendedContextCharacters = SuggestionSettingsStore.maximumExtendedContextCharacters
 
     init(
@@ -154,6 +170,7 @@ final class SuggestionSettingsModel: ObservableObject {
         let store = SuggestionSettingsStore(userDefaults: userDefaults)
         let data = store.load(configuration: configuration)
         self.store = store
+        self.configuration = configuration
 
         isGloballyEnabled = data.isGloballyEnabled
         showIndicator = data.showIndicator
@@ -193,6 +210,76 @@ final class SuggestionSettingsModel: ObservableObject {
         autoAcceptTrailingPunctuation = data.autoAcceptTrailingPunctuation
         addSpaceAfterAccept = data.addSpaceAfterAccept
         streamSuggestionsWhileGenerating = data.streamSuggestionsWhileGenerating
+        fadeInSuggestions = data.fadeInSuggestions
+        fadeInDurationSeconds = data.fadeInDurationSeconds
+        acceptanceKeyCode = data.acceptanceKeyCode
+        acceptanceKeyModifiers = data.acceptanceKeyModifiers
+        acceptanceKeyLabel = data.acceptanceKeyLabel
+        fullAcceptanceKeyCode = data.fullAcceptanceKeyCode
+        fullAcceptanceKeyModifiers = data.fullAcceptanceKeyModifiers
+        fullAcceptanceKeyLabel = data.fullAcceptanceKeyLabel
+        globalToggleKeyCode = data.globalToggleKeyCode
+        globalToggleKeyModifiers = data.globalToggleKeyModifiers
+        globalToggleKeyLabel = data.globalToggleKeyLabel
+        acceptanceGranularity = data.acceptanceGranularity
+        isPowerBasedModelSwitchingEnabled = data.isPowerBasedModelSwitchingEnabled
+        batteryEngine = data.batteryEngine
+        batteryModelFilename = data.batteryModelFilename
+        pluggedInEngine = data.pluggedInEngine
+        pluggedInModelFilename = data.pluggedInModelFilename
+    }
+
+    /// Restores every preference this facade owns to its first-launch default and persists the reset.
+    ///
+    /// The store clears its keys and re-resolves defaults; this then re-fans the pristine values across
+    /// the `@Published` properties so SwiftUI, the snapshot publisher, and every live reader (overlay,
+    /// input monitor, coordinator) pick up the defaults immediately, with no relaunch. The assignment
+    /// list mirrors `init` on purpose — `test_resetToDefaults_restoresEveryFieldToItsDefault` fails if
+    /// the two ever drift. Scope matches the store: unrelated app state (onboarding, the lifetime
+    /// accepted-word count, emoji history, the login-item flag) is intentionally left untouched.
+    func resetToDefaults() {
+        let data = store.resetToDefaults(configuration: configuration)
+
+        isGloballyEnabled = data.isGloballyEnabled
+        showIndicator = data.showIndicator
+        showAcceptanceHint = data.showAcceptanceHint
+        disabledAppRules = data.disabledAppRules
+        suggestInIntegratedTerminals = data.suggestInIntegratedTerminals
+        customSuggestionTextColorHex = data.customSuggestionTextColorHex
+        ghostTextOpacity = data.ghostTextOpacity
+        ghostTextSizeMultiplier = data.ghostTextSizeMultiplier
+        selectedEngine = data.selectedEngine
+        selectedWordCountPreset = data.selectedWordCountPreset
+        isUsingCustomWordCountRange = data.isUsingCustomWordCountRange
+        customWordCountLowWords = data.customWordCountLowWords
+        customWordCountHighWords = data.customWordCountHighWords
+        isClipboardContextEnabled = data.isClipboardContextEnabled
+        isSurfaceContextEnabled = data.isSurfaceContextEnabled
+        isFastModeEnabled = data.isFastModeEnabled
+        suppressCompletionsOnTypo = data.suppressCompletionsOnTypo
+        offerTypoCorrections = data.offerTypoCorrections
+        enabledSpellingDictionaryCodes = data.enabledSpellingDictionaryCodes
+        automaticallyFixTypos = data.automaticallyFixTypos
+        isPerformanceTrackingEnabled = data.isPerformanceTrackingEnabled
+        isMenuBarIconVisible = data.isMenuBarIconVisible
+        isMenuBarWordCountVisible = data.isMenuBarWordCountVisible
+        mirrorPreference = data.mirrorPreference
+        userName = data.userName
+        customRules = data.customRules
+        responseLanguages = data.responseLanguages
+        extendedContext = data.extendedContext
+        debounceMilliseconds = data.debounceMilliseconds
+        focusPollIntervalMilliseconds = data.focusPollIntervalMilliseconds
+        isMultiLineEnabled = data.isMultiLineEnabled
+        isEmojiPickerEnabled = data.isEmojiPickerEnabled
+        isMacroExpansionEnabled = data.isMacroExpansionEnabled
+        preferredEmojiSkinTone = data.preferredEmojiSkinTone
+        preferredEmojiGender = data.preferredEmojiGender
+        autoAcceptTrailingPunctuation = data.autoAcceptTrailingPunctuation
+        addSpaceAfterAccept = data.addSpaceAfterAccept
+        streamSuggestionsWhileGenerating = data.streamSuggestionsWhileGenerating
+        fadeInSuggestions = data.fadeInSuggestions
+        fadeInDurationSeconds = data.fadeInDurationSeconds
         acceptanceKeyCode = data.acceptanceKeyCode
         acceptanceKeyModifiers = data.acceptanceKeyModifiers
         acceptanceKeyLabel = data.acceptanceKeyLabel
@@ -557,6 +644,23 @@ final class SuggestionSettingsModel: ObservableObject {
         }
         streamSuggestionsWhileGenerating = enabled
         store.saveStreamSuggestionsWhileGenerating(enabled)
+    }
+
+    func setFadeInSuggestions(_ enabled: Bool) {
+        guard fadeInSuggestions != enabled else {
+            return
+        }
+        fadeInSuggestions = enabled
+        store.saveFadeInSuggestions(enabled)
+    }
+
+    func setFadeInDurationSeconds(_ seconds: Double) {
+        let clamped = SuggestionSettingsStore.clampedFadeInDuration(seconds)
+        guard fadeInDurationSeconds != clamped else {
+            return
+        }
+        fadeInDurationSeconds = clamped
+        store.saveFadeInDurationSeconds(clamped)
     }
 
     func setAcceptanceGranularity(_ granularity: AcceptanceGranularity) {

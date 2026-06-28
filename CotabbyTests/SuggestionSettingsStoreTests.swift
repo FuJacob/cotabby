@@ -168,6 +168,8 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         store.saveAutomaticallyFixTypos(true)
         store.saveMenuBarIconVisible(false)
         store.saveMenuBarWordCountVisible(false)
+        store.saveFadeInSuggestions(false)
+        store.saveFadeInDurationSeconds(0.25)
 
         let data = store.load(configuration: .standard)
 
@@ -179,6 +181,55 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         XCTAssertTrue(data.automaticallyFixTypos)
         XCTAssertFalse(data.isMenuBarIconVisible)
         XCTAssertFalse(data.isMenuBarWordCountVisible)
+        XCTAssertFalse(data.fadeInSuggestions)
+        XCTAssertEqual(data.fadeInDurationSeconds, 0.25, accuracy: 0.0001)
+    }
+
+    func test_load_fadeInSuggestionsDefaultsOn() async {
+        let defaults = makeIsolatedDefaults()
+
+        let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
+
+        XCTAssertTrue(data.fadeInSuggestions)
+    }
+
+    func test_load_fadeInDurationDefaultsToShippedValue() async {
+        let defaults = makeIsolatedDefaults()
+
+        let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
+
+        // Absent key must seed the shipped 0.15s so the fade is unchanged for existing installs.
+        XCTAssertEqual(
+            data.fadeInDurationSeconds,
+            SuggestionSettingsStore.defaultFadeInDuration,
+            accuracy: 0.0001
+        )
+    }
+
+    func test_load_clampsOutOfRangeFadeInDuration() async {
+        let defaults = makeIsolatedDefaults()
+        // Above the ceiling: must clamp down so a hand-edited default can't strand the user on a fade
+        // long enough to read as the suggestion lagging the caret.
+        defaults.set(5.0, forKey: "cotabbyFadeInDurationSeconds")
+
+        let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
+
+        XCTAssertEqual(
+            data.fadeInDurationSeconds,
+            SuggestionSettingsStore.maximumFadeInDuration,
+            accuracy: 0.0001
+        )
+    }
+
+    func test_clampedFadeInDuration_nonFiniteFallsBackToDefault() async {
+        XCTAssertEqual(
+            SuggestionSettingsStore.clampedFadeInDuration(.nan),
+            SuggestionSettingsStore.defaultFadeInDuration
+        )
+        XCTAssertEqual(
+            SuggestionSettingsStore.clampedFadeInDuration(.infinity),
+            SuggestionSettingsStore.defaultFadeInDuration
+        )
     }
 
     func test_saveThenLoad_roundTripsAcceptanceKey() async {
@@ -432,6 +483,78 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         XCTAssertEqual(data.customRules, [])
         XCTAssertEqual(data.responseLanguages, [])
         XCTAssertEqual(data.enabledSpellingDictionaryCodes, [])
+    }
+
+    // MARK: - Reset to defaults
+
+    func test_resetToDefaults_clearsAllKeysAndReloadsDefaults() async {
+        // Baseline: defaults resolved from a clean suite.
+        let pristine = SuggestionSettingsStore(userDefaults: makeIsolatedDefaults())
+            .load(configuration: .standard)
+
+        let defaults = makeIsolatedDefaults()
+        let store = SuggestionSettingsStore(userDefaults: defaults)
+
+        // Dirty every persisted field with a genuine non-default (correct types, through the same save
+        // methods the facade uses), plus the legacy single-language key. If `resetToDefaults` misses
+        // any key, the reloaded data stays != pristine and the Equatable check below fails loudly.
+        store.saveGloballyEnabled(false)
+        store.saveDisabledAppRules(
+            [DisabledApplicationRule(bundleIdentifier: "com.example.app", displayName: "Example")]
+        )
+        store.saveSuggestInIntegratedTerminals(true)
+        store.saveShowIndicator(false)
+        store.saveShowAcceptanceHint(false)
+        store.saveCustomSuggestionTextColorHex("A1B2C3")
+        store.saveGhostTextOpacity(0.4)
+        store.saveGhostTextSizeMultiplier(1.2)
+        store.saveSelectedEngine(.appleIntelligence)
+        store.saveSelectedWordCountPreset(.fourToSeven)
+        store.saveUsingCustomWordCountRange(true)
+        store.saveCustomWordCountRange(low: 3, high: 9)
+        store.saveClipboardContextEnabled(true)
+        store.saveSurfaceContextEnabled(false)
+        store.saveFastModeEnabled(true)
+        store.saveSuppressCompletionsOnTypo(false)
+        store.saveOfferTypoCorrections(false)
+        store.saveEnabledSpellingDictionaryCodes([])
+        store.saveAutomaticallyFixTypos(true)
+        store.savePerformanceTrackingEnabled(true)
+        store.saveMenuBarWordCountVisible(false)
+        store.saveMirrorPreference(.alwaysMirror)
+        store.saveUserName("Ada")
+        store.saveCustomRules(["Be terse"])
+        store.saveExtendedContext("glossary")
+        store.saveResponseLanguages([])
+        store.saveDebounceMilliseconds(15)
+        store.saveFocusPollIntervalMilliseconds(30)
+        store.saveMultiLineEnabled(true)
+        store.saveEmojiPickerEnabled(false)
+        store.saveMacroExpansionEnabled(false)
+        store.savePreferredEmojiSkinTone(.mediumDark)
+        store.savePreferredEmojiGender(.female)
+        store.saveAutoAcceptTrailingPunctuation(false)
+        store.saveAddSpaceAfterAccept(true)
+        store.saveStreamSuggestionsWhileGenerating(true)
+        store.saveAcceptanceKey(keyCode: 36, modifiers: [], label: "Return")
+        store.saveFullAcceptanceKey(keyCode: 49, modifiers: [], label: "Space")
+        store.saveGlobalToggleKey(keyCode: 47, modifiers: [], label: ".")
+        store.saveAcceptanceGranularity(.phrase)
+        store.savePowerBasedModelSwitchingEnabled(true)
+        store.saveBatteryEngine(.appleIntelligence)
+        store.saveBatteryModelFilename("small.gguf")
+        store.savePluggedInEngine(.appleIntelligence)
+        store.savePluggedInModelFilename("big.gguf")
+        defaults.set("Spanish", forKey: "cotabbyResponseLanguage")
+
+        // Sanity: the dirty values really landed, so the assertions below aren't vacuous.
+        XCTAssertNotEqual(store.load(configuration: .standard), pristine)
+
+        let afterReset = store.resetToDefaults(configuration: .standard)
+
+        XCTAssertEqual(afterReset, pristine)
+        XCTAssertEqual(store.load(configuration: .standard), pristine, "reset must persist for the next launch")
+        XCTAssertNil(defaults.object(forKey: "cotabbyResponseLanguage"), "the legacy key must be scrubbed too")
     }
 
     // MARK: - helpers

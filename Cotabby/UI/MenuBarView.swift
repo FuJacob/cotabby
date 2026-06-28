@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// File overview:
@@ -46,7 +47,12 @@ struct MenuBarView: View {
                 runtimeModel.refreshAvailableModels()
             }
         )
-        .background(MenuBarPopoverDismisserBinder(dismisser: popoverDismisser))
+        .background(
+            MenuBarPopoverDismisserBinder(
+                dismisser: popoverDismisser,
+                onWindowBind: configureMenuBarWindowIfNeeded
+            )
+        )
         .onAppear {
             permissionManager.refresh()
             runtimeModel.refreshAvailableModels()
@@ -90,6 +96,12 @@ struct MenuBarView: View {
     /// `CFBundleShortVersionString`, the same canonical source the About pane uses.
     private var appShortVersion: String? {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+    }
+
+    private func configureMenuBarWindowIfNeeded(_ window: NSWindow) {
+        if #available(macOS 26.0, *) {
+            MenuBarWindowChromeConfigurator.configure(window)
+        }
     }
 
     // MARK: - Quick controls
@@ -468,11 +480,6 @@ struct MenuBarView: View {
 /// `MenuBarExtra`. Keeping this as a dedicated modifier gives the UI a narrow boundary for one
 /// platform-specific presentation rule without mixing availability checks into the main view body.
 private struct MenuBarWindowBackgroundModifier: ViewModifier {
-    /// Corner radius of the macOS 26 popover window, measured against the system chrome. The opaque
-    /// fill is clipped to this so it reaches the rounded edge of the non-opaque window. It is an
-    /// intentional coupling to a system measurement: if a future macOS changes the popover shape,
-    /// this is the single value to update (too small leaves a transparent sliver that re-detaches
-    /// the shadow; too large is harmlessly clipped by the window mask).
     private static let macOS26PopoverCornerRadius: CGFloat = 16
 
     @ViewBuilder
@@ -485,15 +492,21 @@ private struct MenuBarWindowBackgroundModifier: ViewModifier {
             // is why #492 (translucent material) recurred as #646 even after #566 swapped the
             // material for an opaque color, which the system still re-routed through the backdrop.
             //
-            // Draw the fill as ordinary content instead. A plain `.background` renders as a normal
-            // opaque layer rather than the glass backdrop, and we clip it to the native popover
-            // shape (see `macOS26PopoverCornerRadius`) so it covers the whole non-opaque window up
-            // to the rounded edge. The popup then reads as one solid rounded panel that the system
-            // shadow can hug, with no desktop bleed-through.
-            content.background {
-                RoundedRectangle(cornerRadius: Self.macOS26PopoverCornerRadius, style: .continuous)
-                    .fill(Color(nsColor: .windowBackgroundColor))
-            }
+            // Draw the panel as ordinary SwiftUI content and make the native host window clear in
+            // `MenuBarWindowChromeConfigurator`. On macOS 26 the host adds its own rounded frame
+            // outside the content; keeping both surfaces visible is what creates the double
+            // outline. By owning the one visible rounded surface here, the menu has a single border
+            // regardless of how much padding the system host reserves around it.
+            content
+                .background {
+                    RoundedRectangle(cornerRadius: Self.macOS26PopoverCornerRadius, style: .continuous)
+                        .fill(Color(nsColor: .windowBackgroundColor))
+                        .shadow(color: .black.opacity(0.28), radius: 18, x: 0, y: 8)
+                }
+                .overlay {
+                    RoundedRectangle(cornerRadius: Self.macOS26PopoverCornerRadius, style: .continuous)
+                        .stroke(Color(nsColor: .separatorColor).opacity(0.7), lineWidth: 1)
+                }
         } else if #available(macOS 15.0, *) {
             // MenuBarExtra's `.window` style already gives us native rounded window chrome. Place
             // the fill at the hosting window instead of this view's local bounds so it reaches the
@@ -504,5 +517,30 @@ private struct MenuBarWindowBackgroundModifier: ViewModifier {
         } else {
             content
         }
+    }
+}
+
+/// Configures the AppKit window behind `MenuBarExtra(.window)` on macOS 26.
+///
+/// SwiftUI owns the menu contents, but the double-outline regression lives one layer above SwiftUI:
+/// macOS 26 gives the menu popover a larger non-opaque host window than the SwiftUI root view. A
+/// normal SwiftUI background can stop at that root view and read as a second rounded panel. This
+/// helper clears the actual `NSWindow` and its content view so the SwiftUI panel remains the only
+/// visible rounded shape.
+@available(macOS 26.0, *)
+private enum MenuBarWindowChromeConfigurator {
+    static func configure(_ window: NSWindow) {
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        window.hasShadow = false
+
+        for backingView in [window.contentView, window.contentView?.superview].compactMap({ $0 }) {
+            backingView.wantsLayer = true
+            backingView.layer?.backgroundColor = NSColor.clear.cgColor
+            backingView.layer?.borderWidth = 0
+            backingView.layer?.shadowOpacity = 0
+            backingView.layer?.masksToBounds = false
+        }
+        window.invalidateShadow()
     }
 }

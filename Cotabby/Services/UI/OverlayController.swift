@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import Logging
+import QuartzCore
 import SwiftUI
 
 /// File overview:
@@ -105,12 +106,34 @@ final class OverlayController: SuggestionOverlayControlling {
             return
         }
 
+        // Decide on the fade using the panel state captured *before* `state` is reassigned below, so
+        // the animation plays only on a genuine appearance. A reposition and a streamed-token
+        // extension re-enter this path while the panel stays visible; restarting the opacity ramp on
+        // either would make stable ghost text flicker. Note `advanceInline` calls `showInline`
+        // directly and never routes through here, so it is exempt by construction without needing
+        // the `overlayWasVisible` guard.
+        let fadesIn = SuggestionFadeInPolicy.shouldFadeIn(
+            isEnabled: suggestionSettings.fadeInSuggestions,
+            overlayWasVisible: state.isVisible,
+            reduceMotionEnabled: reduceMotionEnabled
+        )
+
         // Per-app render-mode overrides are not wired yet, so the policy always resolves without a
         // host bundle identifier; thread the focused app's id here when per-app overrides ship.
         let mode = currentRenderModePolicy.mode(
             for: geometry,
             bundleIdentifier: nil
         )
+
+        // Start fully transparent so the panel's first composited frame is invisible. Setting alpha
+        // before the show paths call `orderFront` avoids a one-frame flash at full opacity. The else
+        // branch resets the model value directly (off the animator), which cancels any stale mid-ramp
+        // animation left paused by an order-out so a non-fading show can't resume semi-transparent.
+        if fadesIn {
+            panel.alphaValue = 0
+        } else {
+            panel.alphaValue = 1
+        }
 
         switch mode {
         case .inline:
@@ -120,12 +143,36 @@ final class OverlayController: SuggestionOverlayControlling {
         }
 
         state = .visible(text: text, geometry: geometry, mode: mode)
+
+        if fadesIn {
+            fadeInPanel()
+        }
     }
 
     /// Hides the floating panel and records why the overlay is no longer visible.
     func hide(reason: String) {
         panel.orderOut(nil)
         state = .hidden(reason: reason)
+    }
+
+    /// Mirrors the system Accessibility "Reduce Motion" preference. Read live so flipping it in
+    /// System Settings suppresses the fade on the next suggestion without relaunching Cotabby.
+    private var reduceMotionEnabled: Bool {
+        NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+    }
+
+    /// Ramps the panel from fully transparent to opaque over the user's configured fade duration.
+    /// Driven through the AppKit animator proxy, which animates independently of
+    /// `panel.animationBehavior` (kept `.none` so AppKit's own order-in spring stays off). Starting a
+    /// fresh ramp supersedes any still-running one, so a rapid hide/show cannot strand the panel
+    /// mid-fade. The duration is read live (the model keeps it clamped to a sane band), so the
+    /// Settings speed slider takes effect on the very next suggestion.
+    private func fadeInPanel() {
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = suggestionSettings.fadeInDurationSeconds
+            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            panel.animator().alphaValue = 1
+        }
     }
 
     /// Inline ghost text drawn next to the caret. This is the original rendering path; the body

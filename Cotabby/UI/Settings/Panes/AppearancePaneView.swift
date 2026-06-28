@@ -38,6 +38,45 @@ struct AppearancePaneView: View {
                 }
                 .settingsItem(.streamWhileGenerating)
 
+                Toggle(isOn: fadeInSuggestionsBinding) {
+                    SettingsRowLabel(
+                        title: "Fade In Suggestions",
+                        description: "Let a new suggestion fade in smoothly instead of appearing all at once. " +
+                            "Follows the system Reduce Motion setting.",
+                        systemImage: "sparkles"
+                    )
+                }
+                .settingsItem(.fadeInSuggestions)
+
+                // Revealed only while the fade is on, mirroring how the custom word-count range
+                // exposes its fields under its own toggle. The slider runs Slow -> Fast; the binding
+                // reflects that onto the stored duration, so dragging right shortens the ramp.
+                if suggestionSettings.fadeInSuggestions {
+                    LabeledContent {
+                        HStack(spacing: 8) {
+                            Text("Slow")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            TickMarkSlider(
+                                value: fadeSpeedBinding,
+                                range: SuggestionSettingsModel.minimumFadeInDuration
+                                    ... SuggestionSettingsModel.maximumFadeInDuration,
+                                step: SuggestionSettingsModel.fadeInDurationStep
+                            )
+                            .frame(width: 150)
+                            Text("Fast")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    } label: {
+                        SettingsRowLabel(
+                            title: "Fade Speed",
+                            description: "Drag toward Fast to make a new suggestion fade in more quickly.",
+                            systemImage: "speedometer"
+                        )
+                    }
+                }
+
                 Toggle(isOn: showIndicatorBinding) {
                     SettingsRowLabel(
                         title: "Show Field Indicator",
@@ -177,6 +216,31 @@ struct AppearancePaneView: View {
             get: { suggestionSettings.streamSuggestionsWhileGenerating },
             set: { suggestionSettings.setStreamSuggestionsWhileGenerating($0) }
         )
+    }
+
+    private var fadeInSuggestionsBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.fadeInSuggestions },
+            set: { suggestionSettings.setFadeInSuggestions($0) }
+        )
+    }
+
+    /// The slider reads left-to-right as Slow -> Fast, but the stored value is a *duration*, which
+    /// runs the other way (a faster fade is a shorter duration). Reflecting the duration across the
+    /// midpoint of its range lets the plain `TickMarkSlider` — whose ticks and snapping assume an
+    /// increasing value — present a speed axis with no custom AppKit work: the knob moves right as the
+    /// duration shrinks. `fadeSpeedAxis` is an involution, so the same map serves get and set.
+    private var fadeSpeedBinding: Binding<Double> {
+        Binding(
+            get: { Self.fadeSpeedAxis(suggestionSettings.fadeInDurationSeconds) },
+            set: { suggestionSettings.setFadeInDurationSeconds(Self.fadeSpeedAxis($0)) }
+        )
+    }
+
+    /// Reflects a value across the midpoint of the fade-duration band, mapping a stored duration to
+    /// its slider position and back. Applying it twice is the identity, so get and set stay in sync.
+    private static func fadeSpeedAxis(_ value: Double) -> Double {
+        (SuggestionSettingsModel.minimumFadeInDuration + SuggestionSettingsModel.maximumFadeInDuration) - value
     }
 
     private var showIndicatorBinding: Binding<Bool> {

@@ -21,9 +21,11 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     case allowMultiLine
     case inlineMacros
     case onboarding
+    case resetAllSettings
     // Appearance
     case suggestionDisplay
     case streamWhileGenerating
+    case fadeInSuggestions
     case showFieldIndicator
     case showWordCount
     case showMenuBarIcon
@@ -101,8 +103,10 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .addSpaceAfterAccept: return "Add Space After Accepting"
         case .inlineMacros: return "Inline Macros"
         case .onboarding: return "Onboarding"
+        case .resetAllSettings: return "Reset All Settings"
         case .suggestionDisplay: return "Suggestion Display"
         case .streamWhileGenerating: return "Stream Suggestions While Generating"
+        case .fadeInSuggestions: return "Fade In Suggestions"
         case .showFieldIndicator: return "Show Field Indicator"
         case .showWordCount: return "Show Word Count in Menu Bar"
         case .showMenuBarIcon: return "Show Cotabby in Menu Bar"
@@ -169,8 +173,10 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .addSpaceAfterAccept: return "space"
         case .inlineMacros: return "slash.circle"
         case .onboarding: return "graduationcap"
+        case .resetAllSettings: return "arrow.counterclockwise"
         case .suggestionDisplay: return "text.cursor"
         case .streamWhileGenerating: return "text.append"
+        case .fadeInSuggestions: return "sparkles"
         case .showFieldIndicator: return "dot.viewfinder"
         case .showWordCount: return "number"
         case .showMenuBarIcon: return "menubar.rectangle"
@@ -228,11 +234,11 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     var category: SettingsCategory {
         switch self {
         case .enableGlobally, .fastMode, .openAtLogin, .includeClipboardContext, .includeAppContext,
-             .allowMultiLine, .inlineMacros, .onboarding:
+             .allowMultiLine, .inlineMacros, .onboarding, .resetAllSettings:
             return .general
-        case .suggestionDisplay, .streamWhileGenerating, .showFieldIndicator, .showWordCount,
-             .showMenuBarIcon, .showKeyHint,
-             .ghostTextColor, .ghostTextOpacity, .ghostTextSize:
+        case .suggestionDisplay, .streamWhileGenerating, .fadeInSuggestions, .showFieldIndicator,
+             .showWordCount, .showMenuBarIcon, .showKeyHint, .ghostTextColor,
+             .ghostTextOpacity, .ghostTextSize:
             return .appearance
         case .emojiPicker, .emojiSkinTone, .emojiPeopleStyle, .emojiHistory:
             return .emoji
@@ -273,8 +279,10 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .addSpaceAfterAccept: return "Add a space when an accept finishes a word."
         case .inlineMacros: return "Type / for dates, math, units, currency, and randoms."
         case .onboarding: return "Replay the first-run setup walkthrough."
+        case .resetAllSettings: return "Restore every Cotabby setting to its original default."
         case .suggestionDisplay: return "Inline ghost text, popup card, or automatic per app."
         case .streamWhileGenerating: return "Reveal ghost text token by token as the model writes."
+        case .fadeInSuggestions: return "Fade new suggestions in smoothly instead of all at once."
         case .showFieldIndicator: return "Show a small icon when a field is ready for suggestions."
         case .showWordCount: return "Count accepted words next to the menu bar icon."
         case .showMenuBarIcon: return "Hide menu bar clutter while Cotabby keeps running."
@@ -363,6 +371,10 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .onboarding:
             return ["welcome", "guide", "tutorial", "intro", "help", "getting started",
                     "first run", "walkthrough"]
+        case .resetAllSettings:
+            return ["reset", "defaults", "default", "restore", "factory reset", "factory settings",
+                    "clear settings", "start over", "revert", "wipe", "erase", "restore defaults",
+                    "reset everything"]
         case .suggestionDisplay:
             return ["inline", "popup", "ghost", "card", "display", "mirror", "auto",
                     "appearance", "style", "show suggestion", "rendering", "ui"]
@@ -370,6 +382,11 @@ enum SettingsItem: String, CaseIterable, Identifiable {
             return ["stream", "streaming", "live", "typewriter", "token", "incremental",
                     "progressive", "word by word", "character by character", "reveal",
                     "while generating", "as it types", "decode", "partial", "all at once"]
+        case .fadeInSuggestions:
+            return ["fade", "fade in", "animation", "animate", "opacity", "transition", "smooth",
+                    "appear", "instant", "instantly", "motion", "ease", "reveal", "gradual",
+                    "reduce motion", "effect", "fade speed", "speed", "duration", "faster", "slower",
+                    "quick", "ramp"]
         case .showFieldIndicator:
             return ["indicator", "icon", "field", "ready", "dot", "marker", "badge",
                     "show", "hide"]

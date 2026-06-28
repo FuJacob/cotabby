@@ -11,6 +11,10 @@ struct GeneralPaneView: View {
     @ObservedObject var permissionManager: PermissionManager
     let onShowWelcome: () -> Void
 
+    /// Gates the destructive reset behind an explicit confirmation so a stray click can't wipe a
+    /// user's entire configuration.
+    @State private var isShowingResetConfirmation = false
+
     var body: some View {
         SettingsPaneScaffold {
             Section("Status") {
@@ -107,6 +111,33 @@ struct GeneralPaneView: View {
                 .settingsItem(.onboarding)
             }
 
+            Section("Reset") {
+                LabeledContent {
+                    Button("Reset All Settings…", role: .destructive) {
+                        isShowingResetConfirmation = true
+                    }
+                } label: {
+                    SettingsRowLabel(
+                        title: "Reset All Settings",
+                        description: "Restore every Cotabby setting to its original default. This does not change " +
+                            "macOS permissions, your Open at Login choice, or your accepted-word count.",
+                        systemImage: "arrow.counterclockwise"
+                    )
+                }
+                .settingsItem(.resetAllSettings)
+            }
+        }
+        .confirmationDialog(
+            "Reset all settings to their defaults?",
+            isPresented: $isShowingResetConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Reset All Settings", role: .destructive) {
+                suggestionSettings.resetToDefaults()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Every Cotabby setting returns to its original default. This can't be undone.")
         }
     }
 

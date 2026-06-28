@@ -49,7 +49,33 @@ enum ScreenTextExtractionError: LocalizedError {
     }
 }
 
+/// Guards the callback-to-async bridge for a single OCR request.
+///
+/// Vision can report a request failure through `VNRecognizeTextRequest`'s completion handler and
+/// then rethrow that same failure from `VNImageRequestHandler.perform(_:)`. Swift checked
+/// continuations must resume exactly once, so both paths share this short-lived gate.
+private final class OCRContinuationResumer {
+    private let lock = NSLock()
+    private var hasResumed = false
+
+    func resume(_ action: () -> Void) {
+        lock.lock()
+        let shouldResume = !hasResumed
+        if shouldResume {
+            hasResumed = true
+        }
+        lock.unlock()
+
+        guard shouldResume else { return }
+        action()
+    }
+}
+
 struct ScreenTextExtractor: ScreenTextExtracting {
+    /// Vision cannot produce useful text from near-zero-sized request images. Treating those as
+    /// empty OCR keeps degenerate screenshots on the same unavailable-context path as blank windows.
+    private static let minimumOCRImageDimension = 4
+
     let maxImageDimension: Int
     let maxRecognizedCharacters: Int
 
@@ -72,13 +98,28 @@ struct ScreenTextExtractor: ScreenTextExtracting {
                 "downsampled=\(wasDownsampled)"
         )
 
+        guard preparedImage.width >= Self.minimumOCRImageDimension,
+              preparedImage.height >= Self.minimumOCRImageDimension else {
+            log(
+                "ocr-skipped-too-small input=\(image.width)x\(image.height) " +
+                    "prepared=\(preparedImage.width)x\(preparedImage.height)"
+            )
+            throw ScreenTextExtractionError.noRecognizedText
+        }
+
         return try await withCheckedThrowingContinuation { continuation in
+            let resumer = OCRContinuationResumer()
+
             DispatchQueue.global(qos: .userInitiated).async {
                 let request = VNRecognizeTextRequest { request, error in
                     if let error {
-                        let elapsedMilliseconds = Int(Date().timeIntervalSince(startedAt) * 1000)
-                        self.log("ocr-failed elapsed_ms=\(elapsedMilliseconds) reason=\(error.localizedDescription)")
-                        continuation.resume(throwing: ScreenTextExtractionError.ocrFailed(error.localizedDescription))
+                        resumer.resume {
+                            let elapsedMilliseconds = Int(Date().timeIntervalSince(startedAt) * 1000)
+                            self.log("ocr-failed elapsed_ms=\(elapsedMilliseconds) reason=\(error.localizedDescription)")
+                            continuation.resume(
+                                throwing: ScreenTextExtractionError.ocrFailed(error.localizedDescription)
+                            )
+                        }
                         return
                     }
 
@@ -105,25 +146,29 @@ struct ScreenTextExtractor: ScreenTextExtracting {
                     let cappedText = String(joinedText.prefix(maxRecognizedCharacters))
 
                     guard !cappedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                        let elapsedMilliseconds = Int(Date().timeIntervalSince(startedAt) * 1000)
-                        self.log("ocr-empty elapsed_ms=\(elapsedMilliseconds) lines=\(recognizedLines.count)")
-                        continuation.resume(throwing: ScreenTextExtractionError.noRecognizedText)
+                        resumer.resume {
+                            let elapsedMilliseconds = Int(Date().timeIntervalSince(startedAt) * 1000)
+                            self.log("ocr-empty elapsed_ms=\(elapsedMilliseconds) lines=\(recognizedLines.count)")
+                            continuation.resume(throwing: ScreenTextExtractionError.noRecognizedText)
+                        }
                         return
                     }
 
-                    let elapsedMilliseconds = Int(Date().timeIntervalSince(startedAt) * 1000)
-                    self.log(
-                        "ocr-success elapsed_ms=\(elapsedMilliseconds) lines=\(recognizedLines.count) chars=\(cappedText.count) " +
-                            "preview=\(self.preview(cappedText))"
-                    )
-
-                    continuation.resume(
-                        returning: ExtractedScreenText(
-                            text: cappedText,
-                            lineCount: recognizedLines.count,
-                            lines: recognizedLines
+                    resumer.resume {
+                        let elapsedMilliseconds = Int(Date().timeIntervalSince(startedAt) * 1000)
+                        self.log(
+                            "ocr-success elapsed_ms=\(elapsedMilliseconds) lines=\(recognizedLines.count) chars=\(cappedText.count) " +
+                                "preview=\(self.preview(cappedText))"
                         )
-                    )
+
+                        continuation.resume(
+                            returning: ExtractedScreenText(
+                                text: cappedText,
+                                lineCount: recognizedLines.count,
+                                lines: recognizedLines
+                            )
+                        )
+                    }
                 }
 
                 // Accurate OCR is slower, but visual context is only captured once per focused
@@ -139,9 +184,13 @@ struct ScreenTextExtractor: ScreenTextExtracting {
                     let handler = VNImageRequestHandler(cgImage: preparedImage, options: [:])
                     try handler.perform([request])
                 } catch {
-                    let elapsedMilliseconds = Int(Date().timeIntervalSince(startedAt) * 1000)
-                    self.log("ocr-failed elapsed_ms=\(elapsedMilliseconds) reason=\(error.localizedDescription)")
-                    continuation.resume(throwing: ScreenTextExtractionError.ocrFailed(error.localizedDescription))
+                    resumer.resume {
+                        let elapsedMilliseconds = Int(Date().timeIntervalSince(startedAt) * 1000)
+                        self.log("ocr-failed elapsed_ms=\(elapsedMilliseconds) reason=\(error.localizedDescription)")
+                        continuation.resume(
+                            throwing: ScreenTextExtractionError.ocrFailed(error.localizedDescription)
+                        )
+                    }
                 }
             }
         }
