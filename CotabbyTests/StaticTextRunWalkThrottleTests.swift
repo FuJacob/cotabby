@@ -9,13 +9,15 @@ final class StaticTextRunWalkThrottleTests: XCTestCase {
     private let runA = [
         StaticTextRunWalkThrottle.TextRun(
             text: "alpha",
-            frame: CGRect(x: 0, y: 0, width: 50, height: 10)
+            frame: CGRect(x: 0, y: 0, width: 50, height: 10),
+            allowsProportionalCaretPlacement: true
         )
     ]
     private let runB = [
         StaticTextRunWalkThrottle.TextRun(
             text: "beta",
-            frame: CGRect(x: 0, y: 10, width: 40, height: 10)
+            frame: CGRect(x: 0, y: 10, width: 40, height: 10),
+            allowsProportionalCaretPlacement: true
         )
     ]
 
@@ -146,7 +148,8 @@ final class StaticTextRunWalkThrottleTests: XCTestCase {
             StaticTextRunWalkThrottle.TextRun(
                 text: "wrapped text",
                 frame: CGRect(x: 0, y: 0, width: 100, height: 42),
-                caretCharacterFrame: characterFrame
+                caretCharacterFrame: characterFrame,
+                allowsProportionalCaretPlacement: false
             )
         ]
 
@@ -162,5 +165,6 @@ final class StaticTextRunWalkThrottleTests: XCTestCase {
         }
 
         XCTAssertEqual(cached.first?.caretCharacterFrame, characterFrame)
+        XCTAssertEqual(cached.first?.allowsProportionalCaretPlacement, false)
     }
 }

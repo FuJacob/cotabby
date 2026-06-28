@@ -19,17 +19,26 @@ final class StaticTextRunWalkThrottle {
     ///
     /// Most hosts expose one frame per visual line. Claude instead exposes a wrapped union frame,
     /// but its selected leaf still answers BoundsForRange for the character before the caret. That
-    /// optional character frame lets the geometry resolver recover the real line and baseline
-    /// without retaining an AXUIElement across polls or repeating a deep descendant walk.
+    /// optional character frame lets the geometry resolver recover the real line and baseline.
+    /// The proportional-placement classification is cached beside that geometry because deriving
+    /// it measures text with AppKit and should happen only during the throttled AX walk, not on
+    /// every live caret poll.
     struct TextRun {
         let text: String
         let frame: CGRect
         let caretCharacterFrame: CGRect?
+        let allowsProportionalCaretPlacement: Bool
 
-        init(text: String, frame: CGRect, caretCharacterFrame: CGRect? = nil) {
+        init(
+            text: String,
+            frame: CGRect,
+            caretCharacterFrame: CGRect? = nil,
+            allowsProportionalCaretPlacement: Bool
+        ) {
             self.text = text
             self.frame = frame
             self.caretCharacterFrame = caretCharacterFrame
+            self.allowsProportionalCaretPlacement = allowsProportionalCaretPlacement
         }
     }
 

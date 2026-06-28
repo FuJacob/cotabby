@@ -272,10 +272,7 @@ struct AXTextGeometryResolver {
         // if the host withholds those too, demote to field-frame geometry so presentation-time
         // TextKit repair can lay out the complete prefix.
         let selectedRun = textRuns[placement.runIndex]
-        guard Self.canUseProportionalCaretPlacement(
-            text: selectedRun.text,
-            frame: selectedRun.frame
-        ) else {
+        guard selectedRun.allowsProportionalCaretPlacement else {
             return resolveWrappedRunCaret(
                 selectedRun,
                 parentText: parentText,
@@ -287,9 +284,7 @@ struct AXTextGeometryResolver {
         // Derive metrics only from runs that plausibly describe one visual line. A wrapped union
         // frame would divide one line's width by several lines' characters, poisoning both the
         // observed character width and the layout estimator that consumes it.
-        let measurableRuns = textRuns.filter {
-            Self.canUseProportionalCaretPlacement(text: $0.text, frame: $0.frame)
-        }
+        let measurableRuns = textRuns.filter(\.allowsProportionalCaretPlacement)
         var totalChars = 0
         var totalWidth: CGFloat = 0
         for run in measurableRuns {
@@ -711,11 +706,15 @@ struct AXTextGeometryResolver {
                 !text.isEmpty,
                 let frame = AXHelper.rectValue(for: "AXFrame" as CFString, on: element),
                 !frame.isEmpty {
+                let allowsProportionalCaretPlacement = Self.canUseProportionalCaretPlacement(
+                    text: text,
+                    frame: frame
+                )
                 var caretCharacterFrame: CGRect?
                 // Pay the extra parameterized AX query only for an ambiguous wrapped frame that
                 // also carries the active zero-length selection. Ordinary Gmail-style line runs
                 // keep the existing walk cost.
-                if !Self.canUseProportionalCaretPlacement(text: text, frame: frame),
+                if !allowsProportionalCaretPlacement,
                     let selection = AXHelper.rangeValue(
                         for: kAXSelectedTextRangeAttribute as CFString,
                         on: element
@@ -736,7 +735,8 @@ struct AXTextGeometryResolver {
                     StaticTextRunWalkThrottle.TextRun(
                         text: text,
                         frame: frame,
-                        caretCharacterFrame: caretCharacterFrame
+                        caretCharacterFrame: caretCharacterFrame,
+                        allowsProportionalCaretPlacement: allowsProportionalCaretPlacement
                     )
                 )
             }
