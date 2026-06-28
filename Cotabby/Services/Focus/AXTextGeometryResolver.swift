@@ -276,49 +276,11 @@ struct AXTextGeometryResolver {
             text: selectedRun.text,
             frame: selectedRun.frame
         ) else {
-            // Claude's wrapped leaf still exposes the exact previous-character rectangle even
-            // though its zero-length caret query fails. Its trailing edge is the real caret X and
-            // its height/Y are the real visual line box, so it outranks any text-layout estimate.
-            if let characterFrame = selectedRun.caretCharacterFrame {
-                let cocoaCharacterFrame = AXHelper.validatedCocoaTextRect(
-                    fromAccessibilityRect: characterFrame,
-                    anchorFrame: fallbackFrame
-                )
-                if !cocoaCharacterFrame.isEmpty,
-                    rectIsNearAnchor(cocoaCharacterFrame, anchor: fallbackFrame) {
-                    let unionFrame = AXHelper.cocoaRect(fromAccessibilityRect: selectedRun.frame)
-                    return CaretGeometryResult(
-                        rect: Self.caretRect(afterCharacterFrame: cocoaCharacterFrame),
-                        quality: .derived,
-                        observedContentEdges: ObservedContentEdges(
-                            leftX: unionFrame.minX,
-                            topY: unionFrame.maxY
-                        ),
-                        sourceDetail: "wrapped-run-character-bounds"
-                    )
-                }
-            }
-
-            guard let fallbackFrame, !fallbackFrame.isEmpty else {
-                return nil
-            }
-            let estimatedX = conservativeEstimatedCaretX(
-                in: fallbackFrame,
-                text: parentText,
-                selection: parentSelection
-            )
-            return CaretGeometryResult(
-                rect: CGRect(
-                    x: min(estimatedX, fallbackFrame.maxX),
-                    y: fallbackFrame.minY,
-                    width: 2,
-                    height: fallbackFrame.height
-                ),
-                quality: .estimated,
-                sourceDetail: "wrapped-run",
-                // The child walk already found the best descendant and proved its frame ambiguous.
-                // Repeating a deep BFS would rediscover the same union rect on every poll.
-                allowsDeepSearch: false
+            return resolveWrappedRunCaret(
+                selectedRun,
+                parentText: parentText,
+                parentSelection: parentSelection,
+                fallbackFrame: fallbackFrame
             )
         }
 
@@ -366,6 +328,62 @@ struct AXTextGeometryResolver {
             observedCharWidth: charWidth,
             observedContentEdges: contentEdges,
             sourceDetail: placement.mode.rawValue
+        )
+    }
+
+    /// Resolves an ambiguous multi-line AXStaticText frame without proportional placement.
+    ///
+    /// Keeping this recovery path separate makes the main child-run resolver describe only run
+    /// selection and single-line geometry. It also keeps Claude's exact-character preference and
+    /// TextKit fallback as one invariant: both paths must avoid repeating the same deep AX walk.
+    private func resolveWrappedRunCaret(
+        _ selectedRun: StaticTextRunWalkThrottle.TextRun,
+        parentText: String,
+        parentSelection: NSRange,
+        fallbackFrame: CGRect?
+    ) -> CaretGeometryResult? {
+        // Claude's wrapped leaf still exposes the exact previous-character rectangle even though
+        // its zero-length caret query fails. The trailing edge is the real caret insertion point.
+        if let characterFrame = selectedRun.caretCharacterFrame {
+            let cocoaCharacterFrame = AXHelper.validatedCocoaTextRect(
+                fromAccessibilityRect: characterFrame,
+                anchorFrame: fallbackFrame
+            )
+            if !cocoaCharacterFrame.isEmpty,
+                rectIsNearAnchor(cocoaCharacterFrame, anchor: fallbackFrame) {
+                let unionFrame = AXHelper.cocoaRect(fromAccessibilityRect: selectedRun.frame)
+                return CaretGeometryResult(
+                    rect: Self.caretRect(afterCharacterFrame: cocoaCharacterFrame),
+                    quality: .derived,
+                    observedContentEdges: ObservedContentEdges(
+                        leftX: unionFrame.minX,
+                        topY: unionFrame.maxY
+                    ),
+                    sourceDetail: "wrapped-run-character-bounds"
+                )
+            }
+        }
+
+        guard let fallbackFrame, !fallbackFrame.isEmpty else {
+            return nil
+        }
+        let estimatedX = conservativeEstimatedCaretX(
+            in: fallbackFrame,
+            text: parentText,
+            selection: parentSelection
+        )
+        return CaretGeometryResult(
+            rect: CGRect(
+                x: min(estimatedX, fallbackFrame.maxX),
+                y: fallbackFrame.minY,
+                width: 2,
+                height: fallbackFrame.height
+            ),
+            quality: .estimated,
+            sourceDetail: "wrapped-run",
+            // The child walk already found the best descendant and proved its frame ambiguous.
+            // Repeating a deep BFS would rediscover the same union rect on every poll.
+            allowsDeepSearch: false
         )
     }
 
