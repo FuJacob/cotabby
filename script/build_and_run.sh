@@ -26,6 +26,19 @@ open_app() {
   /usr/bin/open -n "$APP_BUNDLE" --args -cotabby-debug
 }
 
+wait_for_app() {
+  local attempt
+  for attempt in {1..20}; do
+    if pgrep -x "$APP_NAME" >/dev/null; then
+      return 0
+    fi
+    sleep 0.25
+  done
+
+  echo "$APP_NAME did not launch within 5 seconds" >&2
+  return 1
+}
+
 case "$MODE" in
   run)
     open_app
@@ -43,8 +56,7 @@ case "$MODE" in
     ;;
   --verify|verify)
     open_app
-    sleep 1
-    pgrep -x "$APP_NAME" >/dev/null
+    wait_for_app
     ;;
   *)
     echo "usage: $0 [run|--debug|--logs|--telemetry|--verify]" >&2
