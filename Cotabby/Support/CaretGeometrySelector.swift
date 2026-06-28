@@ -31,8 +31,12 @@ enum CaretGeometrySelector {
     /// avoid it whenever the primary geometry is already good enough.
     static func shouldSearchDeep(
         primaryRect: CGRect?,
-        primaryQuality: CaretGeometryQuality?
+        primaryQuality: CaretGeometryQuality?,
+        primaryAllowsDeepSearch: Bool = true
     ) -> Bool {
+        guard primaryAllowsDeepSearch else {
+            return false
+        }
         guard primaryRect != nil else {
             return true
         }

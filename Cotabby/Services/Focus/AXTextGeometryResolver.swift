@@ -27,19 +27,25 @@ struct CaretGeometryResult {
     /// Extra source granularity for diagnostics (e.g. which caret-to-run mapping mode ran).
     /// Surfaces in the debug caret badge and the structured logs via the caret source label.
     let sourceDetail: String?
+    /// Whether a weak primary result should trigger the expensive descendant geometry search.
+    /// False when this resolver already inspected the relevant descendants and intentionally
+    /// demoted an ambiguous frame so presentation-time text layout can repair it.
+    let allowsDeepSearch: Bool
 
     init(
         rect: CGRect,
         quality: CaretGeometryQuality,
         observedCharWidth: CGFloat? = nil,
         observedContentEdges: ObservedContentEdges? = nil,
-        sourceDetail: String? = nil
+        sourceDetail: String? = nil,
+        allowsDeepSearch: Bool = true
     ) {
         self.rect = rect
         self.quality = quality
         self.observedCharWidth = observedCharWidth
         self.observedContentEdges = observedContentEdges
         self.sourceDetail = sourceDetail
+        self.allowsDeepSearch = allowsDeepSearch
     }
 }
 
@@ -149,6 +155,7 @@ struct AXTextGeometryResolver {
                 element: element,
                 parentSelection: selectionInTextValue,
                 parentText: parentText,
+                fallbackFrame: cocoaAnchorFrame,
                 staticRunThrottle: staticRunThrottle,
                 focusChangeSequence: focusChangeSequence
             ) {
@@ -221,6 +228,7 @@ struct AXTextGeometryResolver {
         element: AXUIElement,
         parentSelection: NSRange,
         parentText: String,
+        fallbackFrame: CGRect?,
         staticRunThrottle: StaticTextRunWalkThrottle? = nil,
         focusChangeSequence: UInt64 = 0
     ) -> CaretGeometryResult? {
@@ -233,7 +241,7 @@ struct AXTextGeometryResolver {
         // caret-placement math below still reruns against the live text and selection, so the
         // caret keeps tracking keystrokes inside slightly stale run frames. Deep-walk leaf calls
         // pass no throttle: they are already bounded by `DeepGeometryWalkThrottle` upstream.
-        let textRuns: [(text: String, frame: CGRect)]
+        let textRuns: [StaticTextRunWalkThrottle.TextRun]
         if let staticRunThrottle {
             textRuns = staticRunThrottle.runs(
                 focusChangeSequence: focusChangeSequence,
@@ -247,29 +255,6 @@ struct AXTextGeometryResolver {
 
         guard !textRuns.isEmpty else { return nil }
 
-        // Derive the average character width from the child frames — this is a direct measurement
-        // of the actual rendered font, not a guess. We aggregate across all children so a single
-        // short run doesn't skew the estimate.
-        var totalChars = 0
-        var totalWidth: CGFloat = 0
-        for run in textRuns {
-            totalChars += (run.text as NSString).length
-            totalWidth += run.frame.width
-        }
-        let charWidth: CGFloat? = totalChars > 0 ? totalWidth / CGFloat(totalChars) : nil
-
-        // Measure the content edges from the same frames: the leftmost run's leading edge and the
-        // topmost run's top edge reveal the field's real padding, which `AXFrame` hides. The caret
-        // layout estimator anchors to these instead of guessed insets.
-        let cocoaRunFrames = textRuns.map { AXHelper.cocoaRect(fromAccessibilityRect: $0.frame) }
-        let contentEdges: ObservedContentEdges?
-        if let leftX = cocoaRunFrames.map(\.minX).min(),
-            let topY = cocoaRunFrames.map(\.maxY).max() {
-            contentEdges = ObservedContentEdges(leftX: leftX, topY: topY)
-        } else {
-            contentEdges = nil
-        }
-
         // Map the caret offset to a run by aligning run texts inside the parent value (see
         // `caretRunPlacement`). The run frame's Y is a real rendered line position, so a correct
         // run choice is what makes derived geometry trustworthy vertically.
@@ -281,7 +266,47 @@ struct AXTextGeometryResolver {
             return nil
         }
 
-        let runFrame = cocoaRunFrames[placement.runIndex]
+        // Electron editors may expose one AXStaticText child whose frame is the union of several
+        // soft-wrapped lines. A proportional X inside that union has no relationship to the caret,
+        // and the union's height is not a line box. Prefer the selected leaf's character bounds;
+        // if the host withholds those too, demote to field-frame geometry so presentation-time
+        // TextKit repair can lay out the complete prefix.
+        let selectedRun = textRuns[placement.runIndex]
+        guard selectedRun.allowsProportionalCaretPlacement else {
+            return resolveWrappedRunCaret(
+                selectedRun,
+                parentText: parentText,
+                parentSelection: parentSelection,
+                fallbackFrame: fallbackFrame
+            )
+        }
+
+        // Derive metrics only from runs that plausibly describe one visual line. A wrapped union
+        // frame would divide one line's width by several lines' characters, poisoning both the
+        // observed character width and the layout estimator that consumes it.
+        let measurableRuns = textRuns.filter(\.allowsProportionalCaretPlacement)
+        var totalChars = 0
+        var totalWidth: CGFloat = 0
+        for run in measurableRuns {
+            totalChars += (run.text as NSString).length
+            totalWidth += run.frame.width
+        }
+        let charWidth: CGFloat? = totalChars > 0 ? totalWidth / CGFloat(totalChars) : nil
+
+        // Measure content edges from the same single-line frames. These reveal the field's real
+        // padding without letting a multi-line union frame masquerade as calibrated geometry.
+        let cocoaRunFrames = measurableRuns.map {
+            AXHelper.cocoaRect(fromAccessibilityRect: $0.frame)
+        }
+        let contentEdges: ObservedContentEdges?
+        if let leftX = cocoaRunFrames.map(\.minX).min(),
+            let topY = cocoaRunFrames.map(\.maxY).max() {
+            contentEdges = ObservedContentEdges(leftX: leftX, topY: topY)
+        } else {
+            contentEdges = nil
+        }
+
+        let runFrame = AXHelper.cocoaRect(fromAccessibilityRect: selectedRun.frame)
         var caretX = runFrame.minX + placement.fraction * runFrame.width
         // The parent value extends past the matched runs (text published, frames not yet
         // reflowed): extend the estimate by the measured per-character advance instead of parking
@@ -298,6 +323,62 @@ struct AXTextGeometryResolver {
             observedCharWidth: charWidth,
             observedContentEdges: contentEdges,
             sourceDetail: placement.mode.rawValue
+        )
+    }
+
+    /// Resolves an ambiguous multi-line AXStaticText frame without proportional placement.
+    ///
+    /// Keeping this recovery path separate makes the main child-run resolver describe only run
+    /// selection and single-line geometry. It also keeps Claude's exact-character preference and
+    /// TextKit fallback as one invariant: both paths must avoid repeating the same deep AX walk.
+    private func resolveWrappedRunCaret(
+        _ selectedRun: StaticTextRunWalkThrottle.TextRun,
+        parentText: String,
+        parentSelection: NSRange,
+        fallbackFrame: CGRect?
+    ) -> CaretGeometryResult? {
+        // Claude's wrapped leaf still exposes the exact previous-character rectangle even though
+        // its zero-length caret query fails. The trailing edge is the real caret insertion point.
+        if let characterFrame = selectedRun.caretCharacterFrame {
+            let cocoaCharacterFrame = AXHelper.validatedCocoaTextRect(
+                fromAccessibilityRect: characterFrame,
+                anchorFrame: fallbackFrame
+            )
+            if !cocoaCharacterFrame.isEmpty,
+                rectIsNearAnchor(cocoaCharacterFrame, anchor: fallbackFrame) {
+                let unionFrame = AXHelper.cocoaRect(fromAccessibilityRect: selectedRun.frame)
+                return CaretGeometryResult(
+                    rect: Self.caretRect(afterCharacterFrame: cocoaCharacterFrame),
+                    quality: .derived,
+                    observedContentEdges: ObservedContentEdges(
+                        leftX: unionFrame.minX,
+                        topY: unionFrame.maxY
+                    ),
+                    sourceDetail: "wrapped-run-character-bounds"
+                )
+            }
+        }
+
+        guard let fallbackFrame, !fallbackFrame.isEmpty else {
+            return nil
+        }
+        let estimatedX = conservativeEstimatedCaretX(
+            in: fallbackFrame,
+            text: parentText,
+            selection: parentSelection
+        )
+        return CaretGeometryResult(
+            rect: CGRect(
+                x: min(estimatedX, fallbackFrame.maxX),
+                y: fallbackFrame.minY,
+                width: 2,
+                height: fallbackFrame.height
+            ),
+            quality: .estimated,
+            sourceDetail: "wrapped-run",
+            // The child walk already found the best descendant and proved its frame ambiguous.
+            // Repeating a deep BFS would rediscover the same union rect on every poll.
+            allowsDeepSearch: false
         )
     }
 
@@ -326,6 +407,39 @@ struct AXTextGeometryResolver {
         case partiallyAligned = "runs-partial"
         /// No run could be anchored; fell back to the legacy cumulative-length walk.
         case legacyCumulative = "runs-legacy"
+    }
+
+    /// Whether an AXStaticText frame can safely support proportional caret placement.
+    ///
+    /// AX does not say whether a static-text frame describes one rendered line or the union of a
+    /// wrapped paragraph. We conservatively compare the frame width with the text's one-line width
+    /// at a small font derived from the frame height. If the text cannot plausibly fit even under
+    /// those forgiving assumptions, the frame is wrapped or clipped and proportional placement is
+    /// invalid. False negatives merely keep the existing fallback; false positives would put ghost
+    /// text over user content, so the threshold intentionally favors declining ambiguous frames.
+    static func canUseProportionalCaretPlacement(text: String, frame: CGRect) -> Bool {
+        guard !text.isEmpty, AXHelper.rectHasFiniteComponents(frame), !frame.isEmpty else {
+            return false
+        }
+        guard !text.contains(where: \.isNewline) else {
+            return false
+        }
+
+        // A single-line AXStaticText frame is close to the rendered line box. Using 75% of its
+        // height remains smaller than the likely host font (so the test is conservative) without
+        // shrinking so far that a two-line union can pretend all of its text fits on one line.
+        let conservativePointSize = min(max(frame.height * 0.75, 8), 72)
+        let estimatedSingleLineWidth = (text as NSString).size(withAttributes: [
+            .font: NSFont.systemFont(ofSize: conservativePointSize)
+        ]).width
+        let widthTolerance: CGFloat = 1.15
+        return estimatedSingleLineWidth <= frame.width * widthTolerance
+    }
+
+    /// Converts the measured character immediately before the selection into Cotabby's normalized
+    /// caret shape. The trailing edge—not the character origin—is the insertion point.
+    static func caretRect(afterCharacterFrame frame: CGRect) -> CGRect {
+        CGRect(x: frame.maxX, y: frame.minY, width: 2, height: frame.height)
     }
 
     struct CaretRunPlacement: Equatable {
@@ -565,12 +679,14 @@ struct AXTextGeometryResolver {
     /// anonymous containers, etc.). Walking only one child level misses those runs and forces
     /// Branch 3 (`AXFrame`) fallback. We scan descendants in pre-order so cumulative text length
     /// still tracks visual reading order in most editor trees.
-    private func collectStaticTextRuns(from root: AXUIElement) -> [(text: String, frame: CGRect)] {
+    private func collectStaticTextRuns(
+        from root: AXUIElement
+    ) -> [StaticTextRunWalkThrottle.TextRun] {
         let maxDepth = 8
         let maxNodes = 300
         var visitedNodes = 0
         var seen = Set<String>()
-        var runs: [(text: String, frame: CGRect)] = []
+        var runs: [StaticTextRunWalkThrottle.TextRun] = []
 
         func walk(_ element: AXUIElement, depth: Int) {
             guard depth <= maxDepth, visitedNodes < maxNodes else {
@@ -590,7 +706,39 @@ struct AXTextGeometryResolver {
                 !text.isEmpty,
                 let frame = AXHelper.rectValue(for: "AXFrame" as CFString, on: element),
                 !frame.isEmpty {
-                runs.append((text, frame))
+                let allowsProportionalCaretPlacement = Self.canUseProportionalCaretPlacement(
+                    text: text,
+                    frame: frame
+                )
+                var caretCharacterFrame: CGRect?
+                // Pay the extra parameterized AX query only for an ambiguous wrapped frame that
+                // also carries the active zero-length selection. Ordinary Gmail-style line runs
+                // keep the existing walk cost.
+                if !allowsProportionalCaretPlacement,
+                    let selection = AXHelper.rangeValue(
+                        for: kAXSelectedTextRangeAttribute as CFString,
+                        on: element
+                    ),
+                    selection.length == 0,
+                    selection.location > 0,
+                    selection.location <= (text as NSString).length,
+                    AXHelper.parameterizedAttributeNames(on: element).contains(
+                        kAXBoundsForRangeParameterizedAttribute as String
+                    ) {
+                    caretCharacterFrame = AXHelper.parameterizedRectValue(
+                        for: kAXBoundsForRangeParameterizedAttribute as CFString,
+                        range: NSRange(location: selection.location - 1, length: 1),
+                        on: element
+                    )
+                }
+                runs.append(
+                    StaticTextRunWalkThrottle.TextRun(
+                        text: text,
+                        frame: frame,
+                        caretCharacterFrame: caretCharacterFrame,
+                        allowsProportionalCaretPlacement: allowsProportionalCaretPlacement
+                    )
+                )
             }
 
             guard depth < maxDepth else {
