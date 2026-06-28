@@ -206,6 +206,8 @@ final class SuggestionSettingsModel: ObservableObject {
         autoAcceptTrailingPunctuation = data.autoAcceptTrailingPunctuation
         addSpaceAfterAccept = data.addSpaceAfterAccept
         streamSuggestionsWhileGenerating = data.streamSuggestionsWhileGenerating
+        fadeInSuggestions = data.fadeInSuggestions
+        fadeInDurationSeconds = data.fadeInDurationSeconds
         acceptanceKeyCode = data.acceptanceKeyCode
         acceptanceKeyModifiers = data.acceptanceKeyModifiers
         acceptanceKeyLabel = data.acceptanceKeyLabel
