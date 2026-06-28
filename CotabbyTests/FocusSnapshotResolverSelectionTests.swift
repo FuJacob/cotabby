@@ -34,6 +34,14 @@ final class FocusSnapshotResolverSelectionTests: XCTestCase {
         ))
     }
 
+    func testShouldNotRepeatDeepSearchAfterWrappedRunWasDemoted() {
+        XCTAssertFalse(CaretGeometrySelector.shouldSearchDeep(
+            primaryRect: primaryRect,
+            primaryQuality: .estimated,
+            primaryAllowsDeepSearch: false
+        ))
+    }
+
     func testPrimaryExactWinsOverDeepExact() throws {
         let selected = try XCTUnwrap(CaretGeometrySelector.select(
             primaryRect: primaryRect,

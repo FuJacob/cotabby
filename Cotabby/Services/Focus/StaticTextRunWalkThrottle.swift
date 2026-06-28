@@ -15,7 +15,23 @@ import Foundation
 /// never serve runs collected from a different root.
 @MainActor
 final class StaticTextRunWalkThrottle {
-    typealias TextRun = (text: String, frame: CGRect)
+    /// One rendered AXStaticText descendant captured by the throttled walk.
+    ///
+    /// Most hosts expose one frame per visual line. Claude instead exposes a wrapped union frame,
+    /// but its selected leaf still answers BoundsForRange for the character before the caret. That
+    /// optional character frame lets the geometry resolver recover the real line and baseline
+    /// without retaining an AXUIElement across polls or repeating a deep descendant walk.
+    struct TextRun {
+        let text: String
+        let frame: CGRect
+        let caretCharacterFrame: CGRect?
+
+        init(text: String, frame: CGRect, caretCharacterFrame: CGRect? = nil) {
+            self.text = text
+            self.frame = frame
+            self.caretCharacterFrame = caretCharacterFrame
+        }
+    }
 
     private var lastSequence: UInt64?
     private var lastWalkAt: Date?
