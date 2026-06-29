@@ -736,12 +736,11 @@ final class SuggestionSettingsModel: ObservableObject {
 
         // The timer only publishes the state transition. The coordinator's existing settings-change
         // boundary owns cancellation while pausing and normal reconciliation when the pause ends.
-        let timer = Timer(timeInterval: interval, repeats: false) { [weak self] _ in
+        let timer = Timer(fire: expiration, interval: 0, repeats: false) { [weak self] _ in
             Task { @MainActor [weak self] in
                 self?.clearPause()
             }
         }
-        timer.fireDate = expiration
         RunLoop.main.add(timer, forMode: .common)
         pauseExpirationTimer = timer
     }
