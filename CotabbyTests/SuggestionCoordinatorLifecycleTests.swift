@@ -138,4 +138,19 @@ final class SuggestionCoordinatorLifecycleTests: XCTestCase {
         // The obsolete visual context is still torn down.
         XCTAssertEqual(rig.visualContext.cancelCalls, [true])
     }
+
+    func test_settingsChange_pausingDoesNotRestartThePipeline() {
+        let rig = retained(makeCoordinatorRig())
+
+        rig.coordinator.handleSuggestionSettingsChange(
+            CotabbyTestFixtures.settingsSnapshot(
+                isTemporarilyPaused: true,
+                debounceMilliseconds: 1
+            )
+        )
+
+        XCTAssertNotEqual(rig.coordinator.state, .debouncing)
+        XCTAssertTrue(rig.visualContext.startedSessions.isEmpty)
+        XCTAssertEqual(rig.visualContext.cancelCalls, [true])
+    }
 }

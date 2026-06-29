@@ -85,7 +85,9 @@ final class CotabbyAppEnvironment {
             // complete inside its own UI; the focus tracker recognises it by this AX identifier.
             selfCaptureAllowedElementIdentifier: ContextLivePreview.accessibilityIdentifier,
             isCaptureSuppressedForBundle: { bundleIdentifier in
-                guard suggestionSettings.isGloballyEnabled else { return true }
+                guard suggestionSettings.isGloballyEnabled,
+                      !suggestionSettings.isTemporarilyPaused
+                else { return true }
                 if let bundleIdentifier,
                    suggestionSettings.isApplicationDisabled(bundleIdentifier: bundleIdentifier) {
                     return true
@@ -100,7 +102,9 @@ final class CotabbyAppEnvironment {
         // evaluate against the previous app's identity until the next AX poll fires. This
         // is the same race the downstream evaluator already has — not a new regression.
         inputMonitor.shouldProcessEventsProvider = { [weak focusModel] in
-            guard suggestionSettings.isGloballyEnabled else { return false }
+            guard suggestionSettings.isGloballyEnabled,
+                  !suggestionSettings.isTemporarilyPaused
+            else { return false }
             guard let snapshot = focusModel?.snapshot else { return true }
             if calendarAccessibilityCaptureGuard.shouldSuppressCapture(
                 for: snapshot.bundleIdentifier

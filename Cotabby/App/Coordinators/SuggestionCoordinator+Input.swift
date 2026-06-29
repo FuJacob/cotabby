@@ -22,6 +22,7 @@ extension SuggestionCoordinator {
 
         if SuggestionAvailabilityEvaluator.shouldSchedulePrediction(
             globallyEnabled: settingsSnapshot.isGloballyEnabled,
+            temporarilyPaused: settingsSnapshot.isTemporarilyPaused,
             disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
             disabledDomains: PerDomainDisableSettings.disabledDomains(),
             suggestInIntegratedTerminals: settingsSnapshot.suggestInIntegratedTerminals,
@@ -58,6 +59,7 @@ extension SuggestionCoordinator {
         if let context = snapshot.context,
            SuggestionAvailabilityEvaluator.shouldCaptureVisualContext(
                globallyEnabled: settingsSnapshot.isGloballyEnabled,
+               temporarilyPaused: settingsSnapshot.isTemporarilyPaused,
                disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
                disabledDomains: PerDomainDisableSettings.disabledDomains(),
                suggestInIntegratedTerminals: settingsSnapshot.suggestInIntegratedTerminals,
@@ -87,6 +89,7 @@ extension SuggestionCoordinator {
         // earlier `shouldCaptureVisualContext` check already declined.
         if SuggestionAvailabilityEvaluator.shouldCaptureVisualContext(
             globallyEnabled: settingsSnapshot.isGloballyEnabled,
+            temporarilyPaused: settingsSnapshot.isTemporarilyPaused,
             disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
             disabledDomains: PerDomainDisableSettings.disabledDomains(),
             suggestInIntegratedTerminals: settingsSnapshot.suggestInIntegratedTerminals,

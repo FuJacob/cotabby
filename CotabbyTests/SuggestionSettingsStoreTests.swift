@@ -185,6 +185,25 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         XCTAssertEqual(data.fadeInDurationSeconds, 0.25, accuracy: 0.0001)
     }
 
+    func test_saveThenLoad_roundTripsIndefinitePause() async {
+        let defaults = makeIsolatedDefaults()
+        let store = SuggestionSettingsStore(userDefaults: defaults)
+
+        store.savePauseState(.indefinitely)
+
+        XCTAssertEqual(store.load(configuration: .standard).pauseState, .indefinitely)
+    }
+
+    func test_loadDropsExpiredTimedPause() async {
+        let defaults = makeIsolatedDefaults()
+        let store = SuggestionSettingsStore(userDefaults: defaults)
+
+        store.savePauseState(.until(Date().addingTimeInterval(-1)))
+
+        XCTAssertNil(store.load(configuration: .standard).pauseState)
+        XCTAssertNil(defaults.object(forKey: "cotabbySuggestionPauseState"))
+    }
+
     func test_load_fadeInSuggestionsDefaultsOn() async {
         let defaults = makeIsolatedDefaults()
 
@@ -499,6 +518,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         // methods the facade uses), plus the legacy single-language key. If `resetToDefaults` misses
         // any key, the reloaded data stays != pristine and the Equatable check below fails loudly.
         store.saveGloballyEnabled(false)
+        store.savePauseState(.indefinitely)
         store.saveDisabledAppRules(
             [DisabledApplicationRule(bundleIdentifier: "com.example.app", displayName: "Example")]
         )
