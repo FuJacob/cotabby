@@ -26,6 +26,10 @@ extension SuggestionCoordinator {
     ) -> Bool {
         let snapshot = focusModel.snapshot
 
+        if let disabledReason = currentDisabledReason(focusSnapshot: snapshot) {
+            return passTabThrough(reason: disabledReason)
+        }
+
         guard permissionManager.inputMonitoringGranted else {
             return passTabThrough(
                 reason: "Input Monitoring permission is required before Cotabby can accept suggestions."

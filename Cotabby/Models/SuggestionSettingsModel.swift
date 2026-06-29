@@ -34,6 +34,8 @@ enum ShortcutAction: CaseIterable {
 @MainActor
 final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var isGloballyEnabled: Bool
+    /// The settings model owns pause lifetime so views and services observe one shared state.
+    @Published private(set) var pauseState: SuggestionPauseState?
     @Published private(set) var showIndicator: Bool
     /// Whether the keycap hint (the small pill that teaches the accept key) is drawn after ghost text.
     @Published private(set) var showAcceptanceHint: Bool
@@ -140,6 +142,7 @@ final class SuggestionSettingsModel: ObservableObject {
     /// Retained so `resetToDefaults` can re-resolve the same first-launch values the app shipped with
     /// (a few defaults — word-count preset, profile name, debounce/poll cadence — come from here).
     private let configuration: SuggestionConfiguration
+    private var pauseExpirationTimer: Timer?
 
     // Public default constants re-exported from `SuggestionSettingsStore` (the single source of
     // truth) so the Settings UI can keep referencing them as `SuggestionSettingsModel.X`.
@@ -173,6 +176,7 @@ final class SuggestionSettingsModel: ObservableObject {
         self.configuration = configuration
 
         isGloballyEnabled = data.isGloballyEnabled
+        pauseState = data.pauseState
         showIndicator = data.showIndicator
         showAcceptanceHint = data.showAcceptanceHint
         disabledAppRules = data.disabledAppRules
@@ -227,6 +231,7 @@ final class SuggestionSettingsModel: ObservableObject {
         batteryModelFilename = data.batteryModelFilename
         pluggedInEngine = data.pluggedInEngine
         pluggedInModelFilename = data.pluggedInModelFilename
+        schedulePauseExpirationIfNeeded()
     }
 
     /// Restores every preference this facade owns to its first-launch default and persists the reset.
@@ -241,6 +246,7 @@ final class SuggestionSettingsModel: ObservableObject {
         let data = store.resetToDefaults(configuration: configuration)
 
         isGloballyEnabled = data.isGloballyEnabled
+        pauseState = data.pauseState
         showIndicator = data.showIndicator
         showAcceptanceHint = data.showAcceptanceHint
         disabledAppRules = data.disabledAppRules
@@ -295,6 +301,7 @@ final class SuggestionSettingsModel: ObservableObject {
         batteryModelFilename = data.batteryModelFilename
         pluggedInEngine = data.pluggedInEngine
         pluggedInModelFilename = data.pluggedInModelFilename
+        schedulePauseExpirationIfNeeded()
     }
 
     /// Legacy compatibility shim. Reads through to `showIndicator`.
@@ -305,6 +312,7 @@ final class SuggestionSettingsModel: ObservableObject {
     var snapshot: SuggestionSettingsSnapshot {
         SuggestionSettingsSnapshot(
             isGloballyEnabled: isGloballyEnabled,
+            isTemporarilyPaused: isTemporarilyPaused,
             disabledAppBundleIdentifiers: Set(disabledAppRules.map(\.bundleIdentifier)),
             suggestInIntegratedTerminals: suggestInIntegratedTerminals,
             selectedEngine: selectedEngine,
@@ -680,6 +688,65 @@ final class SuggestionSettingsModel: ObservableObject {
         store.saveGloballyEnabled(enabled)
     }
 
+    /// Whether autocomplete is currently paused. Expired state is rejected synchronously too, so
+    /// callers stay correct if the system delayed the timer while the Mac was asleep.
+    var isTemporarilyPaused: Bool {
+        pauseState?.isActive() == true
+    }
+
+    var pauseStatusText: String? {
+        pauseState?.statusText()
+    }
+
+    func pauseSuggestions(for duration: SuggestionPauseDuration) {
+        let newState = duration.pauseState()
+        guard pauseState != newState else { return }
+
+        pauseState = newState
+        store.savePauseState(newState)
+        schedulePauseExpirationIfNeeded()
+    }
+
+    /// Clears both disable mechanisms used by the menu-bar recovery action. This makes the single
+    /// "Enable Cotabby" button reliable whether a pause or the older global switch disabled it.
+    func enableCotabby() {
+        clearPause()
+        setGloballyEnabled(true)
+    }
+
+    func clearPause() {
+        pauseExpirationTimer?.invalidate()
+        pauseExpirationTimer = nil
+        guard pauseState != nil else { return }
+
+        pauseState = nil
+        store.savePauseState(nil)
+    }
+
+    private func schedulePauseExpirationIfNeeded() {
+        pauseExpirationTimer?.invalidate()
+        pauseExpirationTimer = nil
+
+        guard let expiration = pauseState?.expirationDate else { return }
+        let interval = expiration.timeIntervalSinceNow
+        guard interval > 0 else {
+            clearPause()
+            return
+        }
+
+        // The timer only publishes the state transition. The coordinator's existing settings-change
+        // boundary owns cancellation while pausing and normal reconciliation when the pause ends.
+        let timer = Timer(timeInterval: interval, repeats: false) {
+            [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.clearPause()
+            }
+        }
+        timer.fireDate = expiration
+        RunLoop.main.add(timer, forMode: .common)
+        pauseExpirationTimer = timer
+    }
+
     func setSuggestInIntegratedTerminals(_ enabled: Bool) {
         guard suggestInIntegratedTerminals != enabled else {
             return
@@ -997,7 +1064,11 @@ final class SuggestionSettingsModel: ObservableObject {
     /// Convenience used by the hotkey callback. Wrapping the flip here keeps the InputMonitor
     /// closure trivial and gives the menu bar / tests a single entry point.
     func toggleGloballyEnabled() {
-        setGloballyEnabled(!isGloballyEnabled)
+        if isTemporarilyPaused || !isGloballyEnabled {
+            enableCotabby()
+        } else {
+            setGloballyEnabled(false)
+        }
     }
 
     /// Returns the user-facing name of the shortcut action already bound to `(keyCode, modifiers)`,
@@ -1048,7 +1119,7 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
         // via a second CombineLatest to avoid restructuring the existing groupings.
         let primary = Publishers.CombineLatest4(
             Publishers.CombineLatest4(
-                $isGloballyEnabled,
+                Publishers.CombineLatest($isGloballyEnabled, $pauseState),
                 $disabledAppRules,
                 $selectedEngine,
                 $selectedWordCountPreset
@@ -1107,7 +1178,8 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
         )
             .map { primaryTuple, granularity, extendedContextTuple, customRangeTuple in
                 let (combinedSettings, presentationToggles, profile, timing) = primaryTuple
-                let (globallyEnabled, disabledAppRules, engine, wordCountPreset) = combinedSettings
+                let (globalState, disabledAppRules, engine, wordCountPreset) = combinedSettings
+                let (globallyEnabled, pauseState) = globalState
                 let (clipboardContextEnabled, fastModeEnabled, mirrorPreference, typoToggles) = presentationToggles
                 let (suppressOnTypo, offerCorrections, automaticallyFixTypos) = typoToggles
                 let (userName, customRules, responseLanguages, enabledSpellingDictionaryCodes) = profile
@@ -1117,6 +1189,7 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                 let (extendedContext, suggestInIntegratedTerminals, surfaceContextEnabled) = extendedContextTuple
                 return SuggestionSettingsSnapshot(
                     isGloballyEnabled: globallyEnabled,
+                    isTemporarilyPaused: pauseState?.isActive() == true,
                     disabledAppBundleIdentifiers: Set(disabledAppRules.map(\.bundleIdentifier)),
                     suggestInIntegratedTerminals: suggestInIntegratedTerminals,
                     selectedEngine: engine,

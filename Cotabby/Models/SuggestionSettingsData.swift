@@ -12,6 +12,8 @@ import Foundation
 /// round-trip and so the store can compare resolved-versus-stored state.
 struct SuggestionSettingsData: Equatable {
     var isGloballyEnabled: Bool
+    /// Temporary suppression persists independently from the user's normal global preference.
+    var pauseState: SuggestionPauseState?
     var showIndicator: Bool
     var showAcceptanceHint: Bool
     var disabledAppRules: [DisabledApplicationRule]

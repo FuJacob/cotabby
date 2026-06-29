@@ -19,6 +19,12 @@ struct MenuBarStatusLabelView: View {
                 .scaledToFit()
                 .frame(height: 16)
 
+            if suggestionSettings.isTemporarilyPaused || !suggestionSettings.isGloballyEnabled {
+                Image(systemName: "pause.fill")
+                    .font(.system(size: 8, weight: .bold))
+                    .accessibilityLabel("Cotabby paused")
+            }
+
             if suggestionSettings.isMenuBarWordCountVisible,
                let label = WordCountFormatter.compactLabel(
                    for: suggestionCoordinator.totalTabAcceptedWordCount
