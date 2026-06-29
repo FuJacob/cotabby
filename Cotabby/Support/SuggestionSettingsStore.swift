@@ -603,13 +603,14 @@ struct SuggestionSettingsStore {
     }
 
     func savePauseState(_ pauseState: SuggestionPauseState?) {
-        guard let pauseState,
-              let data = try? JSONEncoder().encode(pauseState)
-        else {
+        guard let pauseState else {
             userDefaults.removeObject(forKey: Self.pauseStateDefaultsKey)
             return
         }
-        userDefaults.set(data, forKey: Self.pauseStateDefaultsKey)
+
+        if let data = try? JSONEncoder().encode(pauseState) {
+            userDefaults.set(data, forKey: Self.pauseStateDefaultsKey)
+        }
     }
 
     func saveSuggestInIntegratedTerminals(_ enabled: Bool) {
