@@ -182,11 +182,14 @@ final class EmojiPickerController {
             return .escape
         case 36, 76:                      // Return, Keypad Enter: dismiss and pass through, never commit
             return .dismissExternally
-        case 126:
+        // The picker is now a horizontal ribbon, so Left/Right drive the selection alongside Up/Down.
+        // `.up` means "previous" and `.down` means "next" in the 1-D match list (the names predate the
+        // ribbon). With no matches the state machine lets these pass through, so the caret still moves.
+        case 126, 123:                    // Up, Left: previous glyph
             return .navigate(.up)
-        case 125:
+        case 125, 124:                    // Down, Right: next glyph
             return .navigate(.down)
-        case 123, 124, 117:               // Left, Right, Forward-Delete: caret moved, end capture
+        case 117:                         // Forward-Delete: text changed under the caret, end capture
             return .dismissExternally
         case 51:
             // Option + Backspace deletes a whole word, which the single-character query model can't

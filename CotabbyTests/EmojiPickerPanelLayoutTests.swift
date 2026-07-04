@@ -10,25 +10,23 @@ final class EmojiPickerPanelLayoutTests: XCTestCase {
 
     private let visibleFrame = CGRect(x: 0, y: 0, width: 1000, height: 800)
 
-    func test_contentSize_reservesOneRowWhenEmpty() {
+    func test_contentSize_reservesRibbonRowWhenEmpty() {
         let size = EmojiPickerMetrics.contentSize(matchCount: 0)
-        let expectedHeight = EmojiPickerMetrics.headerHeight
-            + EmojiPickerMetrics.dividerHeight
-            + EmojiPickerMetrics.rowHeight
+        let expectedHeight = EmojiPickerMetrics.queryRowHeight + EmojiPickerMetrics.ribbonRowHeight
 
-        XCTAssertEqual(size.width, EmojiPickerMetrics.width)
+        XCTAssertEqual(size.width, EmojiPickerMetrics.minWidth)
         XCTAssertEqual(size.height, expectedHeight)
     }
 
-    func test_contentSize_capsAtMaxVisibleRows() {
+    func test_contentSize_capsAtMaxVisibleCells() {
         let size = EmojiPickerMetrics.contentSize(matchCount: 20)
-        let visibleRowsHeight = CGFloat(EmojiPickerMetrics.maxVisibleRows) * EmojiPickerMetrics.rowHeight
-            + EmojiPickerMetrics.listVerticalPadding
-        let expectedHeight = EmojiPickerMetrics.headerHeight
-            + EmojiPickerMetrics.dividerHeight
-            + visibleRowsHeight
+        let cells = CGFloat(EmojiPickerMetrics.maxVisibleCells)
+        let expectedWidth = cells * EmojiPickerMetrics.cellSize
+            + (cells - 1) * EmojiPickerMetrics.cellSpacing
+            + EmojiPickerMetrics.horizontalInset * 2
 
-        XCTAssertEqual(size.height, expectedHeight)
+        XCTAssertEqual(size.width, expectedWidth)
+        XCTAssertEqual(size.height, EmojiPickerMetrics.queryRowHeight + EmojiPickerMetrics.ribbonRowHeight)
     }
 
     func test_frame_sitsBelowCaretWhenItFits() {
@@ -52,7 +50,8 @@ final class EmojiPickerPanelLayoutTests: XCTestCase {
     }
 
     func test_frame_clampsToRightEdge() {
-        let caret = CGRect(x: 850, y: 400, width: 2, height: 16)
+        // Caret far enough right that even the compact ribbon overflows the visible frame.
+        let caret = CGRect(x: 950, y: 400, width: 2, height: 16)
         let size = EmojiPickerMetrics.contentSize(matchCount: 3)
 
         let frame = EmojiPickerPanelLayout.frame(caretRect: caret, contentSize: size, visibleFrame: visibleFrame)
