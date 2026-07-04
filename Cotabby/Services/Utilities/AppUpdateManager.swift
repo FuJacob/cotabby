@@ -17,6 +17,11 @@ final class AppUpdateManager {
 
     private var isStarted = false
 
+    /// Sparkle persists this setting in user defaults, which take precedence over the value in
+    /// `CotabbyInfo.plist`. Reapplying the product policy repairs older installs that may have saved
+    /// a shorter development interval while the plist still gives fresh installs the same default.
+    private static let automaticCheckInterval: TimeInterval = 24 * 60 * 60
+
     private static let debugCheckForUpdatesOnLaunchArgument = "-Cotabby-check-for-updates-on-launch"
     private static let publicKeyPlaceholder = "REPLACE_WITH_GENERATED_SPARKLE_PUBLIC_ED_KEY"
 
@@ -53,18 +58,12 @@ final class AppUpdateManager {
             return
         }
 
+        // Configure the interval before starting so Sparkle's first scheduling decision uses the
+        // daily cadence together with its persisted last-check date.
+        updaterController.updater.updateCheckInterval = Self.automaticCheckInterval
         updaterController.startUpdater()
         isStarted = true
         log("Sparkle updater started.")
-
-        // Check once on every launch. Sparkle's scheduled check only fires on launch when the
-        // interval has already elapsed, so frequent users (who reopen within a day) would never
-        // see a check on open. This is a *background* check: it silently does nothing when the app
-        // is up to date and only surfaces UI when an update is actually available — unlike
-        // `checkForUpdates()`, which always shows a result dialog and is reserved for the manual
-        // "Check for Updates" button. The daily `SUScheduledCheckInterval` then covers long-running
-        // sessions where the app stays open for days.
-        updaterController.updater.checkForUpdatesInBackground()
 
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains(Self.debugCheckForUpdatesOnLaunchArgument) {
