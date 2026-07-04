@@ -237,6 +237,7 @@ enum CotabbyTestFixtures {
 
     static func settingsSnapshot(
         isGloballyEnabled: Bool = true,
+        isTemporarilyPaused: Bool = false,
         disabledAppBundleIdentifiers: Set<String> = [],
         suggestInIntegratedTerminals: Bool = false,
         selectedEngine: SuggestionEngineKind = .llamaOpenSource,
@@ -265,6 +266,7 @@ enum CotabbyTestFixtures {
     ) -> SuggestionSettingsSnapshot {
         SuggestionSettingsSnapshot(
             isGloballyEnabled: isGloballyEnabled,
+            isTemporarilyPaused: isTemporarilyPaused,
             disabledAppBundleIdentifiers: disabledAppBundleIdentifiers,
             suggestInIntegratedTerminals: suggestInIntegratedTerminals,
             selectedEngine: selectedEngine,

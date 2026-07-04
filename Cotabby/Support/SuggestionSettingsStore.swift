@@ -70,6 +70,7 @@ struct SuggestionSettingsStore {
     // MARK: - UserDefaults keys
 
     private static let isGloballyEnabledDefaultsKey = "cotabbyGloballyEnabled"
+    private static let pauseStateDefaultsKey = "cotabbySuggestionPauseState"
     private static let disabledAppRulesDefaultsKey = "cotabbyDisabledAppRules"
     private static let suggestInIntegratedTerminalsDefaultsKey = "cotabbySuggestInIntegratedTerminals"
     private static let showCaretIndicatorDefaultsKey = "cotabbyShowCaretIndicator"
@@ -148,6 +149,7 @@ struct SuggestionSettingsStore {
     /// would otherwise resurrect.
     private static let allPreferenceDefaultsKeys: [String] = [
         isGloballyEnabledDefaultsKey,
+        pauseStateDefaultsKey,
         disabledAppRulesDefaultsKey,
         suggestInIntegratedTerminalsDefaultsKey,
         showCaretIndicatorDefaultsKey,
@@ -212,6 +214,11 @@ struct SuggestionSettingsStore {
     /// without a matching migration test; each one protects an existing user's settings.
     func load(configuration: SuggestionConfiguration) -> SuggestionSettingsData {
         let resolvedGloballyEnabled = userDefaults.object(forKey: Self.isGloballyEnabledDefaultsKey) as? Bool ?? true
+        // Expired pauses are discarded during launch so a Mac that was asleep or powered off past
+        // the deadline never comes back in a stale disabled state.
+        let persistedPauseState = userDefaults.data(forKey: Self.pauseStateDefaultsKey)
+            .flatMap { try? JSONDecoder().decode(SuggestionPauseState.self, from: $0) }
+        let resolvedPauseState = persistedPauseState?.activeState()
         let resolvedDisabledAppRules = loadDisabledAppRules()
         let resolvedShowIndicator: Bool = if let modeString = userDefaults.string(
             forKey: Self.selectedIndicatorModeDefaultsKey
@@ -446,6 +453,7 @@ struct SuggestionSettingsStore {
 
         let data = SuggestionSettingsData(
             isGloballyEnabled: resolvedGloballyEnabled,
+            pauseState: resolvedPauseState,
             showIndicator: resolvedShowIndicator,
             showAcceptanceHint: resolvedShowAcceptanceHint,
             disabledAppRules: resolvedDisabledAppRules,
@@ -505,6 +513,7 @@ struct SuggestionSettingsStore {
         // Unconditional write-back so the resolved (possibly migrated or default-capped) values are
         // sticky on the next launch. Mirrors the resolution above field-for-field.
         saveGloballyEnabled(data.isGloballyEnabled)
+        savePauseState(data.pauseState)
         saveDisabledAppRules(data.disabledAppRules)
         saveSuggestInIntegratedTerminals(data.suggestInIntegratedTerminals)
         saveShowIndicator(data.showIndicator)
@@ -591,6 +600,17 @@ struct SuggestionSettingsStore {
 
     func saveGloballyEnabled(_ enabled: Bool) {
         userDefaults.set(enabled, forKey: Self.isGloballyEnabledDefaultsKey)
+    }
+
+    func savePauseState(_ pauseState: SuggestionPauseState?) {
+        guard let pauseState else {
+            userDefaults.removeObject(forKey: Self.pauseStateDefaultsKey)
+            return
+        }
+
+        if let data = try? JSONEncoder().encode(pauseState) {
+            userDefaults.set(data, forKey: Self.pauseStateDefaultsKey)
+        }
     }
 
     func saveSuggestInIntegratedTerminals(_ enabled: Bool) {

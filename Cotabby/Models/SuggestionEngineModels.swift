@@ -93,6 +93,8 @@ enum AcceptanceGranularity: String, CaseIterable, Codable, Sendable {
 /// time. Keeping this as a value type makes change detection simple and deterministic.
 struct SuggestionSettingsSnapshot: Equatable, Sendable {
     let isGloballyEnabled: Bool
+    /// Resolved live pause state. Timed pauses publish `false` when their expiration fires.
+    let isTemporarilyPaused: Bool
     let disabledAppBundleIdentifiers: Set<String>
     /// When false (the default), ghost text is suppressed in integrated terminals (VS Code / Cursor
     /// xterm.js surfaces). Power users can opt back in. Travels in the snapshot so the availability

@@ -72,6 +72,7 @@ extension SuggestionCoordinator {
         if let focusedSnapshot = focusModel.snapshot.context,
            SuggestionAvailabilityEvaluator.shouldCaptureVisualContext(
                globallyEnabled: settingsSnapshot.isGloballyEnabled,
+               temporarilyPaused: settingsSnapshot.isTemporarilyPaused,
                disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
                disabledDomains: PerDomainDisableSettings.disabledDomains(),
                suggestInIntegratedTerminals: settingsSnapshot.suggestInIntegratedTerminals,
@@ -85,6 +86,7 @@ extension SuggestionCoordinator {
 
         if SuggestionAvailabilityEvaluator.shouldSchedulePrediction(
             globallyEnabled: settingsSnapshot.isGloballyEnabled,
+            temporarilyPaused: settingsSnapshot.isTemporarilyPaused,
             disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
             disabledDomains: PerDomainDisableSettings.disabledDomains(),
             suggestInIntegratedTerminals: settingsSnapshot.suggestInIntegratedTerminals,

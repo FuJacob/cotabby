@@ -19,6 +19,12 @@ struct MenuBarStatusLabelView: View {
                 .scaledToFit()
                 .frame(height: 16)
 
+            if suggestionSettings.isTemporarilyPaused || !suggestionSettings.isGloballyEnabled {
+                Image(systemName: "pause.fill")
+                    .font(.system(size: 8, weight: .bold))
+                    .accessibilityLabel(inactiveAccessibilityLabel)
+            }
+
             if suggestionSettings.isMenuBarWordCountVisible,
                let label = WordCountFormatter.compactLabel(
                    for: suggestionCoordinator.totalTabAcceptedWordCount
@@ -27,5 +33,12 @@ struct MenuBarStatusLabelView: View {
                     .font(.system(size: 10, weight: .medium).monospacedDigit())
             }
         }
+    }
+
+    /// VoiceOver needs the persistent global disable state distinguished from a temporary pause.
+    /// Global disable takes precedence when both states are present because it remains in effect
+    /// after the temporary pause is cleared.
+    private var inactiveAccessibilityLabel: String {
+        suggestionSettings.isGloballyEnabled ? "Cotabby paused" : "Cotabby disabled"
     }
 }
