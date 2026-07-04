@@ -140,8 +140,8 @@ nonisolated struct OpenAICompatibleEndpointConfiguration: Equatable, Sendable {
             return .publicInternet
         }
 
-        if host.hasSuffix(".local") || !host.contains(".")
-            || host.hasPrefix("fc") || host.hasPrefix("fd")
+        // A single-label DNS name is not proof of LAN scope: DNS may resolve it publicly.
+        if host.hasSuffix(".local") || host.hasPrefix("fc") || host.hasPrefix("fd")
             || (host.hasPrefix("fe") && (host.dropFirst(2).first.map { "89ab".contains($0) } ?? false)) {
             return .localNetwork
         }

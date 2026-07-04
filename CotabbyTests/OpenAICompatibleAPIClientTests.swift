@@ -26,14 +26,26 @@ final class OpenAICompatibleAPIClientTests: XCTestCase {
         XCTAssertEqual(lan.hostScope, .localNetwork)
         XCTAssertNotNil(lan.privacyWarning)
 
+        let mdns = try configuration(baseURL: "http://ollama.local:11434/v1")
+        XCTAssertEqual(mdns.hostScope, .localNetwork)
+
         let publicHTTPS = try configuration(baseURL: "https://models.example.com/custom/v1")
         XCTAssertEqual(publicHTTPS.hostScope, .publicInternet)
         XCTAssertNotNil(publicHTTPS.privacyWarning)
+
+        let singleLabelHTTPS = try configuration(baseURL: "https://internal-llm:11434/v1")
+        XCTAssertEqual(singleLabelHTTPS.hostScope, .publicInternet)
     }
 
     func test_configuration_rejectsInsecurePublicHTTPAndInvalidComponents() {
-        XCTAssertThrowsError(try configuration(baseURL: "http://models.example.com/v1")) { error in
-            XCTAssertEqual(error as? OpenAICompatibleEndpointError, .insecurePublicHTTP)
+        for insecure in [
+            "http://models.example.com/v1",
+            "http://internal-llm:11434/v1",
+            "http://[2001:4860:4860::8888]/v1"
+        ] {
+            XCTAssertThrowsError(try configuration(baseURL: insecure), insecure) { error in
+                XCTAssertEqual(error as? OpenAICompatibleEndpointError, .insecurePublicHTTP)
+            }
         }
         for invalid in ["localhost:11434", "file:///tmp/model", "https://host/v1?token=secret"] {
             XCTAssertThrowsError(try configuration(baseURL: invalid), invalid)
