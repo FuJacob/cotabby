@@ -355,30 +355,43 @@ struct EngineAndModelPaneView: View {
     @ViewBuilder
     private var openAICompatibleSections: some View {
         Section("Connection") {
-            LabeledContent {
-                HStack(spacing: 8) {
-                    TextField(
-                        OpenAICompatibleEndpointConfiguration.defaultBaseURLString,
-                        text: endpointBaseURLBinding
-                    )
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 300)
-                    .onSubmit(refreshEndpointModels)
-
-                    Button(
-                        openAICompatibleConnectionModel.state == .ready(modelCount: openAICompatibleConnectionModel.models.count)
-                            ? "Refresh" : "Connect",
-                        action: refreshEndpointModels
-                    )
-                    .disabled(openAICompatibleConnectionModel.state == .connecting)
-                }
-            } label: {
+            VStack(alignment: .leading, spacing: 10) {
                 SettingsRowLabel(
                     title: "Base URL",
                     description: "The OpenAI-compatible /v1 base URL. Ollama uses " +
                         "http://127.0.0.1:11434/v1 by default.",
                     systemImage: "network"
                 )
+
+                TextField(
+                    OpenAICompatibleEndpointConfiguration.defaultBaseURLString,
+                    text: endpointBaseURLBinding
+                )
+                .textFieldStyle(.roundedBorder)
+                .onSubmit(refreshEndpointModels)
+
+                HStack(spacing: 8) {
+                    Text("Press Return or connect to check this endpoint.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    Spacer(minLength: 8)
+
+                    Button("Reset to Default", systemImage: "arrow.counterclockwise") {
+                        resetEndpointBaseURL()
+                    }
+                    .disabled(
+                        suggestionSettings.openAICompatibleBaseURL
+                            == OpenAICompatibleEndpointConfiguration.defaultBaseURLString
+                    )
+
+                    Button(
+                        endpointConnectButtonTitle,
+                        action: refreshEndpointModels
+                    )
+                    .buttonStyle(.borderedProminent)
+                    .disabled(openAICompatibleConnectionModel.state == .connecting)
+                }
             }
             .settingsItem(.endpointBaseURL)
 
@@ -424,21 +437,7 @@ struct EngineAndModelPaneView: View {
             }
             .settingsItem(.endpointAPIKey)
 
-            LabeledContent {
-                Text(openAICompatibleConnectionModel.state.summary)
-                    .foregroundStyle(
-                        openAICompatibleConnectionModel.state.failureDetail == nil
-                            ? Color.secondary : Color.orange
-                    )
-                    .multilineTextAlignment(.trailing)
-                    .fixedSize(horizontal: false, vertical: true)
-            } label: {
-                SettingsRowLabel(
-                    title: "Server Status",
-                    description: "Whether Cotabby can reach this server and list its models.",
-                    systemImage: "info.circle"
-                )
-            }
+            endpointConnectionSummary
             .settingsItem(.endpointStatus)
 
             if let warning = endpointPrivacyWarning {
@@ -603,6 +602,86 @@ struct EngineAndModelPaneView: View {
         (try? suggestionSettings.openAICompatibleConfiguration)?.privacyWarning
     }
 
+    /// The status card keeps the configured server identity visible without making the editable
+    /// text field carry two jobs. A user can now distinguish "this is what I typed" from "this is
+    /// the endpoint Cotabby most recently tried to reach" at a glance.
+    private var endpointConnectionSummary: some View {
+        HStack(spacing: 12) {
+            Group {
+                if openAICompatibleConnectionModel.state == .connecting {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    Image(systemName: endpointConnectionSymbol)
+                        .foregroundStyle(endpointConnectionColor)
+                }
+            }
+            .frame(width: 18)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(openAICompatibleConnectionModel.state.summary)
+                    .font(.callout.weight(.medium))
+                    .foregroundStyle(endpointConnectionColor)
+
+                Text(endpointDisplayURL)
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .textSelection(.enabled)
+                    .help(endpointDisplayURL)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color.secondary.opacity(0.08))
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(Color.secondary.opacity(0.16), lineWidth: 1)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Server status")
+        .accessibilityValue("\(openAICompatibleConnectionModel.state.summary), \(endpointDisplayURL)")
+    }
+
+    private var endpointConnectButtonTitle: String {
+        if case .ready = openAICompatibleConnectionModel.state {
+            return "Refresh"
+        }
+        return "Connect"
+    }
+
+    private var endpointConnectionSymbol: String {
+        switch openAICompatibleConnectionModel.state {
+        case .idle: return "circle.dashed"
+        case .connecting: return "circle.dashed"
+        case .ready: return "checkmark.circle.fill"
+        case .failed: return "exclamationmark.triangle.fill"
+        }
+    }
+
+    private var endpointConnectionColor: Color {
+        switch openAICompatibleConnectionModel.state {
+        case .idle, .connecting: return .secondary
+        case .ready: return .green
+        case .failed: return .orange
+        }
+    }
+
+    private var endpointDisplayURL: String {
+        if let configuration = try? suggestionSettings.openAICompatibleConfiguration {
+            return configuration.baseURL.absoluteString
+        }
+        let enteredURL = suggestionSettings.openAICompatibleBaseURL
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return enteredURL.isEmpty ? "No endpoint configured" : enteredURL
+    }
+
     private var pendingDeletionAlertBinding: Binding<Bool> {
         Binding(
             get: { pendingDeletionModel != nil },
@@ -623,6 +702,16 @@ struct EngineAndModelPaneView: View {
     private func refreshModels() {
         modelDownloadManager.refreshModelStates()
         runtimeModel.refreshAvailableModels()
+    }
+
+    /// Reset is intentionally local to the address. The selected model and Keychain credential
+    /// remain untouched because they may still be valid for the default Ollama server. Invalidating
+    /// discovery makes the status honest until the user explicitly connects again.
+    private func resetEndpointBaseURL() {
+        suggestionSettings.setOpenAICompatibleBaseURL(
+            OpenAICompatibleEndpointConfiguration.defaultBaseURLString
+        )
+        openAICompatibleConnectionModel.invalidate()
     }
 
     private func loadEndpointAPIKey() {

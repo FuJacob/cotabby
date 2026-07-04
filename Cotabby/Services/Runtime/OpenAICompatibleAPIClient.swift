@@ -273,7 +273,16 @@ private nonisolated struct ChatCompletionRequest: Encodable {
 
     init(model: String, prompt: String, options: OpenAICompatibleGenerationOptions) {
         self.model = model
-        messages = [Message(role: "user", content: prompt)]
+        // The shared prompt is shaped as a base-model continuation and intentionally ends at the
+        // caret. Chat models otherwise tend to answer by repeating that final line, which Cotabby
+        // correctly normalizes away and makes the user wait for a suggestion that never appears.
+        // A short instruction in the same user message preserves the single-message wire contract
+        // while making the expected output explicit for instruction-tuned endpoint models.
+        messages = [Message(
+            role: "user",
+            content: "Continue the text at the end of the context. Reply with only new continuation " +
+                "text; do not repeat or quote existing text.\n\n" + prompt
+        )]
         maxTokens = options.maxPredictionTokens
         temperature = options.temperature
         topP = options.topP

@@ -128,7 +128,9 @@ final class OpenAICompatibleAPIClientTests: XCTestCase {
             let messages = try XCTUnwrap(json["messages"] as? [[String: Any]])
             XCTAssertEqual(messages.count, 1)
             XCTAssertEqual(messages.first?["role"] as? String, "user")
-            XCTAssertEqual(messages.first?["content"] as? String, "Continue me")
+            let content = try XCTUnwrap(messages.first?["content"] as? String)
+            XCTAssertTrue(content.hasPrefix("Continue the text at the end of the context."))
+            XCTAssertTrue(content.hasSuffix("\n\nContinue me"))
             XCTAssertEqual(json["reasoning_effort"] as? String, "none")
             XCTAssertNil(json["prompt"])
             return Self.response(

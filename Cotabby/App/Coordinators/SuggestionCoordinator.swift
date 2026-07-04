@@ -77,6 +77,11 @@ final class SuggestionCoordinator: ObservableObject {
     // Async work and active-session storage now live in dedicated collaborators below.
     var cancellables = Set<AnyCancellable>()
     var settingsSnapshot: SuggestionSettingsSnapshot
+    /// Last completed round trip per backend, retained across keystrokes. `latestLatencyMilliseconds`
+    /// belongs to the currently displayed suggestion and is cleared as soon as the user types, so it
+    /// cannot drive adaptive scheduling. Keeping this separate lets a slow HTTP backend retain an
+    /// appropriate debounce without leaking that latency into the in-process engines.
+    var lastGenerationLatencyMillisecondsByEngine: [SuggestionEngineKind: Int] = [:]
     // Synchronous input/focus callbacks cannot directly `await`, so resets are represented as a
     // barrier task that the next generation must cross before it can ask the runtime for output.
     var cacheResetSequence: UInt64 = 0
