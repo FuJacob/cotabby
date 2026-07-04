@@ -81,7 +81,7 @@ final class SuggestionCoordinator: ObservableObject {
     /// belongs to the currently displayed suggestion and is cleared as soon as the user types, so it
     /// cannot drive adaptive scheduling. Keeping this separate lets a slow HTTP backend retain an
     /// appropriate debounce without leaking that latency into the in-process engines.
-    var lastGenerationLatencyMillisecondsByEngine: [SuggestionEngineKind: Int] = [:]
+    var lastLatencyByEngine: [SuggestionEngineKind: Int] = [:]
     // Synchronous input/focus callbacks cannot directly `await`, so resets are represented as a
     // barrier task that the next generation must cross before it can ask the runtime for output.
     var cacheResetSequence: UInt64 = 0

@@ -215,6 +215,11 @@ final class InMemoryOpenAICompatibleCredentialStore: OpenAICompatibleCredentialS
         self.apiKey = apiKey
     }
 
+    // Xcode 26.0–26.3 can generate an invalid isolated deinitializer for a class stored behind a
+    // protocol existential in a MainActor-isolated owner. An explicit deinitializer avoids that
+    // Swift runtime bug; this can be removed once CI no longer supports those toolchains.
+    deinit {}
+
     func readAPIKey() throws -> String? { apiKey }
 
     func saveAPIKey(_ apiKey: String?) throws {

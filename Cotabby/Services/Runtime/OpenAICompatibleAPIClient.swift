@@ -197,8 +197,7 @@ nonisolated enum OpenAICompatibleSSEDecoder {
     ) throws -> OpenAICompatibleSSEEvent {
         var payload = line.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !payload.isEmpty else { return .ignore }
-        if payload.hasPrefix(":") || payload.hasPrefix("event:")
-            || payload.hasPrefix("id:") || payload.hasPrefix("retry:") {
+        if isMetadataLine(payload) {
             return .ignore
         }
         if payload.hasPrefix("data:") {
@@ -209,12 +208,21 @@ nonisolated enum OpenAICompatibleSSEDecoder {
         guard let data = payload.data(using: .utf8) else {
             throw OpenAICompatibleClientError.malformedResponse
         }
-        let chunk: StreamChunk
+        return event(from: try streamChunk(from: data, decoder: decoder), mode: mode)
+    }
+
+    private static func streamChunk(from data: Data, decoder: JSONDecoder) throws -> StreamChunk {
         do {
-            chunk = try decoder.decode(StreamChunk.self, from: data)
+            return try decoder.decode(StreamChunk.self, from: data)
         } catch {
             throw OpenAICompatibleClientError.malformedResponse
         }
+    }
+
+    private static func event(
+        from chunk: StreamChunk,
+        mode: OpenAICompatibleAPIMode
+    ) -> OpenAICompatibleSSEEvent {
         if let message = chunk.error?.message, !message.isEmpty { return .error(message) }
         guard let choice = chunk.choices?.first else { return .ignore }
         let text: String? = switch mode {
@@ -223,6 +231,10 @@ nonisolated enum OpenAICompatibleSSEDecoder {
         }
         guard let text, !text.isEmpty else { return .ignore }
         return .text(text)
+    }
+
+    private static func isMetadataLine(_ payload: String) -> Bool {
+        [":", "event:", "id:", "retry:"].contains { payload.hasPrefix($0) }
     }
 }
 
@@ -298,13 +310,16 @@ private nonisolated struct ChatCompletionRequest: Encodable {
 
 private nonisolated struct StreamChunk: Decodable {
     struct Choice: Decodable {
-        struct Content: Decodable { let content: String? }
         let text: String?
-        let delta: Content?
-        let message: Content?
+        let delta: StreamContent?
+        let message: StreamContent?
     }
     struct ErrorPayload: Decodable { let message: String }
 
     let choices: [Choice]?
     let error: ErrorPayload?
+}
+
+private nonisolated struct StreamContent: Decodable {
+    let content: String?
 }

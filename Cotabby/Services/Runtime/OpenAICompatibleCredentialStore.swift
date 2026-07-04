@@ -15,6 +15,10 @@ final class KeychainOpenAICompatibleCredentialStore: OpenAICompatibleCredentialS
         service = "\(bundleIdentifier).openai-compatible-endpoint"
     }
 
+    // Keep this explicit while Xcode 26.0–26.3 remain supported. Those toolchains can emit an
+    // invalid isolated deinitializer when this class is retained through the credential protocol.
+    deinit {}
+
     func readAPIKey() throws -> String? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,

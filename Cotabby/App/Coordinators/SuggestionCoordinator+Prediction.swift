@@ -28,7 +28,7 @@ extension SuggestionCoordinator {
         // is the fallback until a first latency exists.
         let debounceMilliseconds = DebouncePolicy.milliseconds(
             lastGenerationLatencyMilliseconds:
-                lastGenerationLatencyMillisecondsByEngine[settingsSnapshot.selectedEngine],
+                lastLatencyByEngine[settingsSnapshot.selectedEngine],
             fallback: settingsSnapshot.debounceMilliseconds,
             engine: settingsSnapshot.selectedEngine
         )
@@ -646,7 +646,7 @@ extension SuggestionCoordinator {
         // Record every completed result, including output later suppressed by normalization or seam
         // checks. Those requests still consumed backend time and are exactly the evidence the next
         // debounce needs to avoid another burst of doomed HTTP work.
-        lastGenerationLatencyMillisecondsByEngine[settingsSnapshot.selectedEngine] =
+        lastLatencyByEngine[settingsSnapshot.selectedEngine] =
             Int((result.latency * 1_000).rounded())
 
         // The free-running focus poll keeps capturing while the engine generates, so a fresh
