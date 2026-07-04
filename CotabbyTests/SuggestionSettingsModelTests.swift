@@ -41,6 +41,7 @@ final class SuggestionSettingsModelTests: XCTestCase {
         // invisible here, but a broken save or a load/save key mismatch fails the reload below.
         for _ in 0..<2 {
             model.setGloballyEnabled(false)
+            model.pauseSuggestions(for: .indefinitely)
             model.selectEngine(.appleIntelligence)
             model.setOpenAICompatibleBaseURL("https://models.example.com/v1")
             model.setOpenAICompatibleModelName("endpoint-model")
@@ -85,6 +86,7 @@ final class SuggestionSettingsModelTests: XCTestCase {
 
         let reloaded = makeModel()
         XCTAssertFalse(reloaded.isGloballyEnabled)
+        XCTAssertTrue(reloaded.isTemporarilyPaused)
         XCTAssertEqual(reloaded.selectedEngine, .appleIntelligence)
         XCTAssertEqual(reloaded.openAICompatibleBaseURL, "https://models.example.com/v1")
         XCTAssertEqual(reloaded.openAICompatibleModelName, "endpoint-model")
@@ -599,6 +601,7 @@ final class SuggestionSettingsModelTests: XCTestCase {
 
         XCTAssertEqual(snapshots.count, 1, "CombineLatest must emit the current state on subscribe")
         XCTAssertEqual(snapshots.last?.isGloballyEnabled, model.isGloballyEnabled)
+        XCTAssertEqual(snapshots.last?.isTemporarilyPaused, false)
 
         let countBeforeNoOp = snapshots.count
         model.setGloballyEnabled(model.isGloballyEnabled)
@@ -607,6 +610,13 @@ final class SuggestionSettingsModelTests: XCTestCase {
         model.setGloballyEnabled(!model.isGloballyEnabled)
         XCTAssertEqual(snapshots.count, countBeforeNoOp + 1)
         XCTAssertEqual(snapshots.last?.isGloballyEnabled, model.isGloballyEnabled)
+
+        model.pauseSuggestions(for: .indefinitely)
+        XCTAssertEqual(snapshots.last?.isTemporarilyPaused, true)
+
+        model.enableCotabby()
+        XCTAssertEqual(snapshots.last?.isTemporarilyPaused, false)
+        XCTAssertTrue(model.isGloballyEnabled)
 
         // A custom-range edit flows into the snapshot pre-clamped.
         model.setUsingCustomWordCountRange(true)

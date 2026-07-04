@@ -98,6 +98,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             .store(in: &cancellables)
 
+        // Focus may stay on the same field while a menu action pauses or resumes Cotabby. React to
+        // settings snapshots too so the field-edge indicator cannot remain visible during a pause.
+        suggestionSettings.snapshotPublisher
+            .dropFirst()
+            .sink { [weak self] settings in
+                guard let self else { return }
+                self.updateActivationIndicator(for: self.focusModel.snapshot, settings: settings)
+            }
+            .store(in: &cancellables)
+
         if let focusDebugOverlayController {
             focusModel.$latestPollEvent
                 .compactMap { $0 }
@@ -226,9 +236,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Shows or hides the field-edge Cotabby icon based on focus state, global enable, per-app
     /// disable rules, and the user's indicator toggle.
-    private func updateActivationIndicator(for snapshot: FocusSnapshot) {
-        guard suggestionSettings.isGloballyEnabled,
-              !suggestionSettings.isApplicationDisabled(bundleIdentifier: snapshot.bundleIdentifier),
+    private func updateActivationIndicator(
+        for snapshot: FocusSnapshot,
+        settings: SuggestionSettingsSnapshot? = nil
+    ) {
+        let settings = settings ?? suggestionSettings.snapshot
+        guard settings.isGloballyEnabled,
+              !settings.isTemporarilyPaused,
+              !settings.disabledAppBundleIdentifiers.contains(snapshot.bundleIdentifier ?? ""),
               case .supported = snapshot.capability,
               let context = snapshot.context
         else {

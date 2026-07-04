@@ -71,6 +71,35 @@ final class SuggestionCoordinatorAcceptanceTests: XCTestCase {
         }
     }
 
+    func test_acceptCurrentSuggestionPassesThroughWhileTemporarilyPaused() {
+        runOnMainActor {
+            let snapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello")
+            let context = FocusedInputContext(snapshot: snapshot, generation: 7)
+            let interactionState = SuggestionInteractionState()
+            let session = interactionState.startSession(
+                fullText: " world",
+                liveContext: context,
+                latency: 0.1
+            )
+            let inserter = StubSuggestionInserter()
+            let coordinator = makeCoordinator(
+                snapshot: snapshot,
+                overlayState: .visible(
+                    text: session.remainingText,
+                    geometry: CotabbyTestFixtures.overlayGeometry(caretRect: context.caretRect),
+                    mode: .inline
+                ),
+                inputMonitor: StubSuggestionInputMonitor(),
+                inserter: inserter,
+                interactionState: interactionState,
+                settingsSnapshot: CotabbyTestFixtures.settingsSnapshot(isTemporarilyPaused: true)
+            )
+
+            XCTAssertFalse(coordinator.acceptCurrentSuggestion())
+            XCTAssertTrue(inserter.insertedChunks.isEmpty)
+        }
+    }
+
     func test_acceptCurrentSuggestion_withAddSpaceAfterAccept_insertsTrailingSpaceOnNonFinalWord() {
         // Full coordinator path with the setting ON and a multi-word suggestion: accepting the first
         // word must insert the word plus the suggestion's own following space (so the toggle fires

@@ -998,6 +998,7 @@ extension SuggestionCoordinator {
     func currentDisabledReason(focusSnapshot: FocusSnapshot) -> String? {
         SuggestionAvailabilityEvaluator.disabledReason(
             globallyEnabled: settingsSnapshot.isGloballyEnabled,
+            temporarilyPaused: settingsSnapshot.isTemporarilyPaused,
             disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
             disabledDomains: PerDomainDisableSettings.disabledDomains(),
             suggestInIntegratedTerminals: settingsSnapshot.suggestInIntegratedTerminals,

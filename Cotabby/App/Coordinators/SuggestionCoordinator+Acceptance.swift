@@ -26,6 +26,21 @@ extension SuggestionCoordinator {
     ) -> Bool {
         let snapshot = focusModel.snapshot
 
+        if let disabledReason = currentDisabledReason(focusSnapshot: snapshot) {
+            return passTabThrough(reason: disabledReason)
+        }
+
+        return acceptEnabledSuggestion(fullText: fullText, keyName: keyName, snapshot: snapshot)
+    }
+
+    /// Continues acceptance after global, per-app, and temporary-pause gating succeeds. Keeping the
+    /// eligibility boundary separate prevents the state-machine-heavy acceptance path from gaining
+    /// another decision branch each time Cotabby adds a new top-level disable mechanism.
+    private func acceptEnabledSuggestion(
+        fullText: Bool,
+        keyName: String,
+        snapshot: FocusSnapshot
+    ) -> Bool {
         guard permissionManager.inputMonitoringGranted else {
             return passTabThrough(
                 reason: "Input Monitoring permission is required before Cotabby can accept suggestions."

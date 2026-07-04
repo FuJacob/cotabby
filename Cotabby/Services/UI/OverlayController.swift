@@ -622,7 +622,6 @@ private struct GhostKeycap: View {
 /// floating text label. We do not try to disguise the card as the host editor; Cotypist's product
 /// language ("preview") is the right framing here.
 private struct MirrorOverlayView: View {
-    @Environment(\.colorScheme) var colorScheme
     let layout: MirrorOverlayLayout
     let customColor: Color?
     let keycapLabel: String?
@@ -631,16 +630,15 @@ private struct MirrorOverlayView: View {
     /// inline ghost, and the next-accept-word highlight is suppressed (the correction is one unit).
     let isCorrection: Bool
 
+    /// The card is now a committed-dark HUD in every host appearance, so the suggestion text is
+    /// always the light-on-dark value rather than branching on the system scheme (which would bake
+    /// dark-gray text onto the dark card over a light host). The correction green likewise uses the
+    /// dark-appropriate tone.
     private var ghostColor: Color {
         if isCorrection {
-            return SuggestionCorrectionStyle.color(for: colorScheme).opacity(opacity)
+            return SuggestionCorrectionStyle.color(for: .dark).opacity(opacity)
         }
-        let baseColor = customColor
-            ?? (
-                colorScheme == .dark
-                    ? Color(red: 0.85, green: 0.85, blue: 0.85)
-                    : Color(red: 0.25, green: 0.25, blue: 0.25)
-            )
+        let baseColor = customColor ?? Color(red: 0.85, green: 0.85, blue: 0.85)
         return baseColor.opacity(opacity)
     }
 
@@ -676,16 +674,6 @@ private struct MirrorOverlayView: View {
         return attributed
     }
 
-    private var backdropColor: Color {
-        colorScheme == .dark
-            ? Color(white: 0.16).opacity(0.96)
-            : Color(white: 0.98).opacity(0.96)
-    }
-
-    private var borderColor: Color {
-        colorScheme == .dark ? Color(white: 0.28) : Color(white: 0.82)
-    }
-
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
             Text(styledSuggestion)
@@ -697,19 +685,13 @@ private struct MirrorOverlayView: View {
             }
         }
         .padding(.horizontal, 10)
-        .padding(.vertical, 6)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(backdropColor)
-                .shadow(color: .black.opacity(0.12), radius: 6, x: 0, y: 2)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(borderColor, lineWidth: 0.5)
-        )
-        // The panel itself is sized by MirrorOverlayLayout to the card dimensions, so we don't
-        // need fixedSize here — the view fills the panel exactly.
+        .padding(.vertical, 4)
+        // The panel itself is sized by MirrorOverlayLayout to the card dimensions, so the content
+        // fills the panel exactly and the shared chrome paints the committed-dark backdrop. The
+        // forced-dark scheme inside `popupHUDChrome` is what flips `styledSuggestion` and the keycap
+        // to their light variants, so the popup reads the same dark over a white host as a dark one.
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .popupHUDChrome()
         // Right-to-left hosts get the SwiftUI environment flip so the keycap lands on the leading
         // side of the suggestion text, mirroring how RTL languages read.
         .environment(\.layoutDirection, layout.isRightToLeft ? .rightToLeft : .leftToRight)

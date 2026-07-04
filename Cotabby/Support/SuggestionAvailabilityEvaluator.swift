@@ -9,6 +9,7 @@ import Foundation
 enum SuggestionAvailabilityEvaluator {
     static func disabledReason(
         globallyEnabled: Bool = true,
+        temporarilyPaused: Bool = false,
         disabledAppBundleIdentifiers: Set<String> = [],
         disabledDomains: Set<String> = [],
         suggestInIntegratedTerminals: Bool = false,
@@ -18,6 +19,10 @@ enum SuggestionAvailabilityEvaluator {
     ) -> String? {
         guard globallyEnabled else {
             return "Cotabby is turned off."
+        }
+
+        guard !temporarilyPaused else {
+            return "Cotabby is temporarily paused."
         }
 
         if let bundleIdentifier = focusSnapshot.bundleIdentifier,
@@ -65,6 +70,7 @@ enum SuggestionAvailabilityEvaluator {
 
     static func shouldSchedulePrediction(
         globallyEnabled: Bool = true,
+        temporarilyPaused: Bool = false,
         disabledAppBundleIdentifiers: Set<String> = [],
         disabledDomains: Set<String> = [],
         suggestInIntegratedTerminals: Bool = false,
@@ -73,6 +79,7 @@ enum SuggestionAvailabilityEvaluator {
     ) -> Bool {
         disabledReason(
             globallyEnabled: globallyEnabled,
+            temporarilyPaused: temporarilyPaused,
             disabledAppBundleIdentifiers: disabledAppBundleIdentifiers,
             disabledDomains: disabledDomains,
             suggestInIntegratedTerminals: suggestInIntegratedTerminals,
@@ -95,6 +102,7 @@ enum SuggestionAvailabilityEvaluator {
     ///   same text-only behavior as fast mode instead of disabling autocomplete.
     static func shouldCaptureVisualContext(
         globallyEnabled: Bool = true,
+        temporarilyPaused: Bool = false,
         disabledAppBundleIdentifiers: Set<String> = [],
         disabledDomains: Set<String> = [],
         suggestInIntegratedTerminals: Bool = false,
@@ -113,6 +121,7 @@ enum SuggestionAvailabilityEvaluator {
 
         return disabledReason(
             globallyEnabled: globallyEnabled,
+            temporarilyPaused: temporarilyPaused,
             disabledAppBundleIdentifiers: disabledAppBundleIdentifiers,
             disabledDomains: disabledDomains,
             suggestInIntegratedTerminals: suggestInIntegratedTerminals,
