@@ -131,6 +131,76 @@ final class CaretRunPlacementTests: XCTestCase {
         XCTAssertNil(placement(runs: [], parent: "aa", caret: 1))
     }
 
+    // MARK: - Proportional-frame safety
+
+    func test_proportionalPlacement_acceptsPlausibleSingleLineRun() {
+        XCTAssertTrue(
+            AXTextGeometryResolver.canUseProportionalCaretPlacement(
+                text: "A short line of text",
+                frame: CGRect(x: 0, y: 0, width: 240, height: 20)
+            )
+        )
+    }
+
+    func test_proportionalPlacement_acceptsLongWideSingleLineRun() {
+        // Gmail-style hosts expose each visual line separately. A long run is still trustworthy
+        // when its frame is wide enough for that text; tightening Claude detection must preserve
+        // this fast measured-geometry path.
+        XCTAssertTrue(
+            AXTextGeometryResolver.canUseProportionalCaretPlacement(
+                text: "i want to know if there is a way to get the points i lost today",
+                frame: CGRect(x: 0, y: 0, width: 600, height: 20)
+            )
+        )
+    }
+
+    func test_proportionalPlacement_rejectsClaudeWrappedUnionFrame() {
+        // Captured from Claude Desktop: one AXStaticText leaf contains the full two-line prompt,
+        // while its 562x43 frame is the union of both visual lines. Treating this as one line put
+        // the caret at the rectangle's right edge and wrapped the ghost over line two.
+        let text = "What should I be thinking about my next project or hobby."
+            + "I should consider something different"
+
+        XCTAssertFalse(
+            AXTextGeometryResolver.canUseProportionalCaretPlacement(
+                text: text,
+                frame: CGRect(x: 589, y: 455, width: 562, height: 43)
+            )
+        )
+    }
+
+    func test_proportionalPlacement_rejectsWiderClaudeWrappedUnionFrame() {
+        // A later live capture widened the same editor but still exposed one union frame. The
+        // classifier must not become permissive merely because the prompt box grew horizontally.
+        let text = "What is this doing It's a tool that helps you write code and plan upgrades. "
+            + "This should be aligning "
+
+        XCTAssertFalse(
+            AXTextGeometryResolver.canUseProportionalCaretPlacement(
+                text: text,
+                frame: CGRect(x: 589, y: 455, width: 635, height: 43)
+            )
+        )
+    }
+
+    func test_proportionalPlacement_rejectsExplicitMultilineRun() {
+        XCTAssertFalse(
+            AXTextGeometryResolver.canUseProportionalCaretPlacement(
+                text: "first\nsecond",
+                frame: CGRect(x: 0, y: 0, width: 240, height: 40)
+            )
+        )
+    }
+
+    func test_wrappedRunCharacterBoundsAnchorAtTheTrailingEdge() {
+        let characterFrame = CGRect(x: 610, y: 490, width: 7, height: 21)
+
+        XCTAssertEqual(
+            AXTextGeometryResolver.caretRect(afterCharacterFrame: characterFrame),
+            CGRect(x: 617, y: 490, width: 2, height: 21)
+        )
+    }
+
     // MARK: - Field regression (captured Gmail value, 2026-06-11)
 
     /// Verbatim shape captured from a real Gmail compose via the llm-io stream: the parent value

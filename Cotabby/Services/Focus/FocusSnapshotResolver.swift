@@ -179,7 +179,8 @@ struct FocusSnapshotResolver {
         let deepResult: CaretGeometryResult?
         if !CaretGeometrySelector.shouldSearchDeep(
             primaryRect: resolvedCandidate.caretRect,
-            primaryQuality: resolvedCandidate.caretQuality
+            primaryQuality: resolvedCandidate.caretQuality,
+            primaryAllowsDeepSearch: resolvedCandidate.caretAllowsDeepSearch
         ) {
             deepResult = nil
         } else {
@@ -871,6 +872,7 @@ struct FocusSnapshotResolver {
             observedCharWidth: caretResult?.observedCharWidth,
             observedContentEdges: caretResult?.observedContentEdges,
             caretSourceDetail: caretResult?.sourceDetail,
+            caretAllowsDeepSearch: caretResult?.allowsDeepSearch ?? true,
             inputFrameRect: inputFrameRect,
             isSecure: isSecure,
             vendsDOMAttributes: vendsDOMAttributes,
@@ -1014,6 +1016,7 @@ private struct AXFocusCandidate {
     let observedCharWidth: CGFloat?
     let observedContentEdges: ObservedContentEdges?
     let caretSourceDetail: String?
+    let caretAllowsDeepSearch: Bool
     let inputFrameRect: CGRect?
     let isSecure: Bool
     /// Whether the element advertises DOM-reflection attributes, marking it as web-engine
