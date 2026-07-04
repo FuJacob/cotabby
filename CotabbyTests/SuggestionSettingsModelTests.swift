@@ -309,9 +309,13 @@ final class SuggestionSettingsModelTests: XCTestCase {
         XCTAssertEqual(model.batteryProfile, .openAICompatible(modelName: "gemma4:12b-mlx"))
         XCTAssertEqual(try model.openAICompatibleAPIKey(), "secret")
 
+        try model.saveOpenAICompatibleAPIKey("replacement")
+        XCTAssertEqual(model.endpointCredentialRevision, 1)
+
         model.resetToDefaults()
 
         XCTAssertNil(try model.openAICompatibleAPIKey())
+        XCTAssertEqual(model.endpointCredentialRevision, 2)
     }
 
     func test_initializePowerProfiles_seedsOnlyPristineProfiles() {

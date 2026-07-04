@@ -436,9 +436,9 @@ final class CotabbyAppEnvironment {
         }
     }
 
-    /// Connect once when the endpoint engine becomes active (including an app launch that restores
-    /// that engine). Editing the URL does not trigger network traffic on every keystroke; Settings
-    /// owns explicit Connect/Return refreshes for configuration changes.
+    /// Connect once when the endpoint engine becomes active. Configuration edits only invalidate
+    /// discovery so status never describes a different URL, mode, credential, or active model;
+    /// Settings still owns explicit Connect/Return refreshes and avoids network traffic per keystroke.
     private func observeOpenAICompatibleSelection() {
         suggestionSettings.$selectedEngine
             .removeDuplicates()
@@ -457,6 +457,20 @@ final class CotabbyAppEnvironment {
                         self.openAICompatibleConnectionModel.invalidate()
                     }
                 }
+            }
+            .store(in: &cancellables)
+
+        let configurationChanges: [AnyPublisher<Void, Never>] = [
+            suggestionSettings.$openAICompatibleBaseURL.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            suggestionSettings.$openAICompatibleModelName.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            suggestionSettings.$openAICompatibleAPIMode.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            suggestionSettings.$endpointCredentialRevision.dropFirst().map { _ in () }.eraseToAnyPublisher()
+        ]
+
+        Publishers.MergeMany(configurationChanges)
+            .sink { [weak self] _ in
+                guard let self, self.suggestionSettings.selectedEngine == .openAICompatible else { return }
+                self.openAICompatibleConnectionModel.invalidate()
             }
             .store(in: &cancellables)
     }

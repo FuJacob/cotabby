@@ -55,6 +55,9 @@ final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var openAICompatibleBaseURL: String
     @Published private(set) var openAICompatibleModelName: String
     @Published private(set) var openAICompatibleAPIMode: OpenAICompatibleAPIMode
+    /// Non-secret change token that lets lifecycle observers react to Keychain updates without
+    /// publishing the credential itself.
+    @Published private(set) var endpointCredentialRevision: UInt64 = 0
     @Published private(set) var selectedWordCountPreset: SuggestionWordCountPreset
     /// When true, the active length budget reads `customWordCountLowWords...HighWords` and the
     /// curated `selectedWordCountPreset` is ignored for generation (but preserved as the value the
@@ -333,6 +336,7 @@ final class SuggestionSettingsModel: ObservableObject {
         pluggedInEndpointModelName = data.pluggedInEndpointModelName
         do {
             try endpointCredentialStore.deleteAPIKey()
+            endpointCredentialRevision &+= 1
         } catch {
             CotabbyLogger.app.error("Failed to clear endpoint API key during settings reset: \(error.localizedDescription)")
         }
@@ -422,6 +426,7 @@ final class SuggestionSettingsModel: ObservableObject {
 
     func saveOpenAICompatibleAPIKey(_ apiKey: String?) throws {
         try endpointCredentialStore.saveAPIKey(apiKey)
+        endpointCredentialRevision &+= 1
     }
 
     func setPowerBasedModelSwitchingEnabled(_ enabled: Bool) {
