@@ -60,10 +60,19 @@ final class AppUpdateManager {
 
         // Configure the interval before starting so Sparkle's first scheduling decision uses the
         // daily cadence together with its persisted last-check date.
-        updaterController.updater.updateCheckInterval = Self.automaticCheckInterval
+        let updater = updaterController.updater
+        updater.updateCheckInterval = Self.automaticCheckInterval
         updaterController.startUpdater()
         isStarted = true
         log("Sparkle updater started.")
+
+        // Catch up immediately when the app returns after the daily interval. Recent launches leave
+        // the check to Sparkle's scheduler, so reopening Cotabby cannot bypass the daily cadence.
+        let shouldCatchUp = updater.lastUpdateCheckDate
+            .map { Date().timeIntervalSince($0) >= Self.automaticCheckInterval } ?? true
+        if shouldCatchUp {
+            updater.checkForUpdatesInBackground()
+        }
 
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains(Self.debugCheckForUpdatesOnLaunchArgument) {
