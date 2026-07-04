@@ -18,6 +18,7 @@ final class SuggestionEngineRouterRoutingTests: XCTestCase {
         let settings: SuggestionSettingsModel
         let foundation: ScriptedEngine
         let llama: ScriptedEngine
+        let endpoint: ScriptedEngine
         let metrics: PerformanceMetricsStore
     }
 
@@ -62,16 +63,26 @@ final class SuggestionEngineRouterRoutingTests: XCTestCase {
         let metrics = PerformanceMetricsStore(userDefaults: defaults)
         let foundation = ScriptedEngine()
         let llama = ScriptedEngine()
+        let endpoint = ScriptedEngine()
         let router = SuggestionEngineRouter(
             suggestionSettings: settings,
             foundationModelEngine: foundation,
             llamaEngine: llama,
             performanceMetricsStore: metrics,
             qualityMetricsStore: SuggestionQualityMetricsStore(userDefaults: defaults),
-            llamaModelNameProvider: { llamaModelName }
+            llamaModelNameProvider: { llamaModelName },
+            openAICompatibleEngine: endpoint,
+            endpointModelNameProvider: { "endpoint-model" }
         )
         Self.retained.append(contentsOf: [router, settings, metrics] as [AnyObject])
-        return Rig(router: router, settings: settings, foundation: foundation, llama: llama, metrics: metrics)
+        return Rig(
+            router: router,
+            settings: settings,
+            foundation: foundation,
+            llama: llama,
+            endpoint: endpoint,
+            metrics: metrics
+        )
     }
 
     func test_appleIntelligenceSelection_routesToFoundationEngineAndRecordsMetric() async throws {
@@ -102,6 +113,17 @@ final class SuggestionEngineRouterRoutingTests: XCTestCase {
         _ = try await rig.router.generateSuggestion(for: CotabbyTestFixtures.suggestionRequest())
 
         XCTAssertEqual(rig.metrics.entries.first?.modelName, "Llama")
+    }
+
+    func test_endpointSelection_routesToEndpointAndRecordsModelName() async throws {
+        let rig = makeRig(engine: .openAICompatible)
+
+        _ = try await rig.router.generateSuggestion(for: CotabbyTestFixtures.suggestionRequest())
+
+        XCTAssertEqual(rig.endpoint.requests.count, 1)
+        XCTAssertTrue(rig.foundation.requests.isEmpty)
+        XCTAssertTrue(rig.llama.requests.isEmpty)
+        XCTAssertEqual(rig.metrics.entries.first?.modelName, "endpoint-model")
     }
 
     func test_performanceTrackingOff_recordsNothing() async throws {
@@ -172,15 +194,20 @@ final class SuggestionEngineRouterRoutingTests: XCTestCase {
         await llamaRig.router.prewarm(for: CotabbyTestFixtures.suggestionRequest())
         XCTAssertEqual(llamaRig.foundation.prewarmCount, 0)
         XCTAssertEqual(llamaRig.llama.prewarmCount, 1)
+
+        let endpointRig = makeRig(engine: .openAICompatible)
+        await endpointRig.router.prewarm(for: CotabbyTestFixtures.suggestionRequest())
+        XCTAssertEqual(endpointRig.endpoint.prewarmCount, 1)
     }
 
-    func test_resetCachedGenerationContext_fansOutToBothEngines() async {
+    func test_resetCachedGenerationContext_fansOutToAllEngines() async {
         let rig = makeRig(engine: .appleIntelligence)
 
         await rig.router.resetCachedGenerationContext()
 
         XCTAssertEqual(rig.foundation.resetCount, 1)
         XCTAssertEqual(rig.llama.resetCount, 1, "Switching engines must not leave stale state behind")
+        XCTAssertEqual(rig.endpoint.resetCount, 1)
     }
 
     func test_unavailableEngine_throwsItsConfiguredMessage() async {

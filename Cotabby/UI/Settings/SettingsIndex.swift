@@ -64,6 +64,11 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     case huggingFaceBrowser
     case modelsFolder
     case lmStudio
+    case endpointBaseURL
+    case endpointAPIMode
+    case endpointAPIKey
+    case endpointStatus
+    case endpointModel
     // Shortcuts
     case acceptanceMode
     case acceptWord
@@ -139,6 +144,11 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .huggingFaceBrowser: return "Hugging Face Model Browser"
         case .modelsFolder: return "Models Folder"
         case .lmStudio: return "LM Studio Models"
+        case .endpointBaseURL: return "Endpoint Base URL"
+        case .endpointAPIMode: return "Endpoint Request Mode"
+        case .endpointAPIKey: return "Endpoint API Key"
+        case .endpointStatus: return "Endpoint Status"
+        case .endpointModel: return "Endpoint Model"
         case .acceptanceMode: return "Acceptance Mode"
         case .acceptWord: return "Accept Word"
         case .acceptEntireSuggestion: return "Accept Entire Suggestion"
@@ -209,6 +219,11 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .huggingFaceBrowser: return "magnifyingglass"
         case .modelsFolder: return "folder"
         case .lmStudio: return "square.stack.3d.up"
+        case .endpointBaseURL: return "network"
+        case .endpointAPIMode: return "arrow.left.arrow.right"
+        case .endpointAPIKey: return "key"
+        case .endpointStatus: return "info.circle"
+        case .endpointModel: return "shippingbox"
         case .acceptanceMode: return "textformat.abc"
         case .acceptWord: return "arrow.right.to.line"
         case .acceptEntireSuggestion: return "text.insert"
@@ -249,7 +264,8 @@ enum SettingsItem: String, CaseIterable, Identifiable {
             return .context
         case .engine, .appleIntelligenceAvailability, .modelStatus, .selectedModel,
              .powerBasedModelSwitching, .batteryModel, .pluggedInModel,
-             .downloadModels, .huggingFaceBrowser, .modelsFolder, .lmStudio:
+             .downloadModels, .huggingFaceBrowser, .modelsFolder, .lmStudio,
+             .endpointBaseURL, .endpointAPIMode, .endpointAPIKey, .endpointStatus, .endpointModel:
             return .engineAndModel
         case .acceptanceMode, .acceptWord, .acceptEntireSuggestion, .toggleTabby:
             return .shortcuts
@@ -304,7 +320,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .automaticallyFixTypos: return "Replace a misspelled word right after you press Space."
         case .extendedContext: return "A glossary or notes sent with every suggestion."
         case .contextLivePreview: return "A real field that exercises the full pipeline."
-        case .engine: return "Apple Intelligence or an open-source local model."
+        case .engine: return "Apple Intelligence, bundled Open Source, or a local endpoint."
         case .appleIntelligenceAvailability: return "Whether this Mac can run Apple Intelligence."
         case .modelStatus: return "Whether the local model is loaded and ready."
         case .selectedModel: return "Which downloaded model generates suggestions."
@@ -315,6 +331,11 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .huggingFaceBrowser: return "Search Hugging Face for GGUF models."
         case .modelsFolder: return "Where downloaded model files live on this Mac."
         case .lmStudio: return "Also load models from your LM Studio library."
+        case .endpointBaseURL: return "Where the OpenAI-compatible server accepts /v1 requests."
+        case .endpointAPIMode: return "Choose Completions or Chat Completions for this model."
+        case .endpointAPIKey: return "Optional bearer token stored securely in Keychain."
+        case .endpointStatus: return "Whether Cotabby can reach the server and list its models."
+        case .endpointModel: return "The model identifier sent to the configured endpoint."
         case .acceptanceMode: return "Whether the accept key takes a word or a phrase."
         case .acceptWord: return "The key that inserts the next word."
         case .acceptEntireSuggestion: return "The key that inserts the whole suggestion."
@@ -452,7 +473,8 @@ enum SettingsItem: String, CaseIterable, Identifiable {
                     "demo", "try it", "test field"]
         case .engine:
             return ["engine", "apple intelligence", "open source", "llama", "backend",
-                    "provider", "runtime", "foundation models", "oss", "local",
+                    "provider", "runtime", "foundation models", "oss", "local", "endpoint",
+                    "ollama", "openai compatible", "lm studio", "vllm",
                     "on-device", "model engine"]
         case .appleIntelligenceAvailability:
             return ["apple intelligence", "availability", "available", "supported",
@@ -485,6 +507,16 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .lmStudio:
             return ["lm studio", "lmstudio", "import", "library", "external", "source",
                     "third party"]
+        case .endpointBaseURL:
+            return ["endpoint", "url", "server", "host", "ollama", "localhost", "openai", "v1"]
+        case .endpointAPIMode:
+            return ["completion", "chat completion", "api", "mode", "request", "openai"]
+        case .endpointAPIKey:
+            return ["api key", "token", "bearer", "credential", "keychain", "authentication"]
+        case .endpointStatus:
+            return ["connect", "connection", "server", "status", "refresh", "health", "models"]
+        case .endpointModel:
+            return ["model", "identifier", "ollama", "lm studio", "vllm", "endpoint"]
         case .acceptanceMode:
             return ["acceptance", "word", "phrase", "mode", "tap", "hold", "behavior",
                     "how to accept"]

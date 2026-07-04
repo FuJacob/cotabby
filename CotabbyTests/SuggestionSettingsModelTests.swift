@@ -42,6 +42,9 @@ final class SuggestionSettingsModelTests: XCTestCase {
         for _ in 0..<2 {
             model.setGloballyEnabled(false)
             model.selectEngine(.appleIntelligence)
+            model.setOpenAICompatibleBaseURL("https://models.example.com/v1")
+            model.setOpenAICompatibleModelName("endpoint-model")
+            model.setOpenAICompatibleAPIMode(.completions)
             model.selectWordCountPreset(.twelveToTwenty)
             model.setUsingCustomWordCountRange(true)
             model.setCustomWordCountRange(low: 3, high: 9)
@@ -74,13 +77,18 @@ final class SuggestionSettingsModelTests: XCTestCase {
             model.setPowerBasedModelSwitchingEnabled(true)
             model.setBatteryEngine(.appleIntelligence)
             model.setBatteryModelFilename("small.gguf")
+            model.setBatteryEndpointModelName("small-endpoint")
             model.setPluggedInEngine(.llamaOpenSource)
             model.setPluggedInModelFilename("big.gguf")
+            model.setPluggedInEndpointModelName("big-endpoint")
         }
 
         let reloaded = makeModel()
         XCTAssertFalse(reloaded.isGloballyEnabled)
         XCTAssertEqual(reloaded.selectedEngine, .appleIntelligence)
+        XCTAssertEqual(reloaded.openAICompatibleBaseURL, "https://models.example.com/v1")
+        XCTAssertEqual(reloaded.openAICompatibleModelName, "endpoint-model")
+        XCTAssertEqual(reloaded.openAICompatibleAPIMode, .completions)
         XCTAssertEqual(reloaded.selectedWordCountPreset, .twelveToTwenty)
         XCTAssertTrue(reloaded.isUsingCustomWordCountRange)
         XCTAssertEqual(reloaded.customWordCountLowWords, 3)
@@ -115,8 +123,10 @@ final class SuggestionSettingsModelTests: XCTestCase {
         XCTAssertTrue(reloaded.isPowerBasedModelSwitchingEnabled)
         XCTAssertEqual(reloaded.batteryEngine, .appleIntelligence)
         XCTAssertEqual(reloaded.batteryModelFilename, "small.gguf")
+        XCTAssertEqual(reloaded.batteryEndpointModelName, "small-endpoint")
         XCTAssertEqual(reloaded.pluggedInEngine, .llamaOpenSource)
         XCTAssertEqual(reloaded.pluggedInModelFilename, "big.gguf")
+        XCTAssertEqual(reloaded.pluggedInEndpointModelName, "big-endpoint")
     }
 
     // MARK: - Reset to defaults
@@ -143,6 +153,9 @@ final class SuggestionSettingsModelTests: XCTestCase {
         // Dirty every field reachable through a setter with a genuine non-default value.
         model.setGloballyEnabled(false)
         model.selectEngine(.appleIntelligence)
+        model.setOpenAICompatibleBaseURL("https://models.example.com/v1")
+        model.setOpenAICompatibleModelName("endpoint-model")
+        model.setOpenAICompatibleAPIMode(.completions)
         model.selectWordCountPreset(.fourToSeven)
         model.setUsingCustomWordCountRange(true)
         model.setCustomWordCountRange(low: 3, high: 9)
@@ -175,8 +188,10 @@ final class SuggestionSettingsModelTests: XCTestCase {
         model.setPowerBasedModelSwitchingEnabled(true)
         model.setBatteryEngine(.appleIntelligence)
         model.setBatteryModelFilename("small.gguf")
+        model.setBatteryEndpointModelName("small-endpoint")
         model.setPluggedInEngine(.appleIntelligence)
         model.setPluggedInModelFilename("big.gguf")
+        model.setPluggedInEndpointModelName("big-endpoint")
 
         model.resetToDefaults()
 
@@ -190,6 +205,9 @@ final class SuggestionSettingsModelTests: XCTestCase {
 
         XCTAssertEqual(model.isGloballyEnabled, pristine.isGloballyEnabled)
         XCTAssertEqual(model.selectedEngine, pristine.selectedEngine)
+        XCTAssertEqual(model.openAICompatibleBaseURL, pristine.openAICompatibleBaseURL)
+        XCTAssertEqual(model.openAICompatibleModelName, pristine.openAICompatibleModelName)
+        XCTAssertEqual(model.openAICompatibleAPIMode, pristine.openAICompatibleAPIMode)
         XCTAssertEqual(model.selectedWordCountPreset, pristine.selectedWordCountPreset)
         XCTAssertEqual(model.isUsingCustomWordCountRange, pristine.isUsingCustomWordCountRange)
         XCTAssertEqual(model.customWordCountLowWords, pristine.customWordCountLowWords)
@@ -223,8 +241,10 @@ final class SuggestionSettingsModelTests: XCTestCase {
         XCTAssertEqual(model.isPowerBasedModelSwitchingEnabled, pristine.isPowerBasedModelSwitchingEnabled)
         XCTAssertEqual(model.batteryEngine, pristine.batteryEngine)
         XCTAssertEqual(model.batteryModelFilename, pristine.batteryModelFilename)
+        XCTAssertEqual(model.batteryEndpointModelName, pristine.batteryEndpointModelName)
         XCTAssertEqual(model.pluggedInEngine, pristine.pluggedInEngine)
         XCTAssertEqual(model.pluggedInModelFilename, pristine.pluggedInModelFilename)
+        XCTAssertEqual(model.pluggedInEndpointModelName, pristine.pluggedInEndpointModelName)
         // Seeded (no-setter) fields:
         XCTAssertEqual(model.acceptanceKeyCode, pristine.acceptanceKeyCode)
         XCTAssertEqual(model.acceptanceKeyLabel, pristine.acceptanceKeyLabel)
@@ -273,6 +293,23 @@ final class SuggestionSettingsModelTests: XCTestCase {
         model.setPluggedInProfile(.appleIntelligence)
         XCTAssertEqual(model.pluggedInEngine, .appleIntelligence)
         XCTAssertEqual(model.pluggedInModelFilename, "large.gguf")
+    }
+
+    func test_endpointPowerProfileAndCredentialReset() throws {
+        let credentials = InMemoryOpenAICompatibleCredentialStore(apiKey: "secret")
+        let model = SuggestionSettingsModel(
+            configuration: .standard,
+            userDefaults: defaults,
+            endpointCredentialStore: credentials
+        )
+
+        model.setBatteryProfile(.openAICompatible(modelName: "gemma4:12b-mlx"))
+        XCTAssertEqual(model.batteryProfile, .openAICompatible(modelName: "gemma4:12b-mlx"))
+        XCTAssertEqual(try model.openAICompatibleAPIKey(), "secret")
+
+        model.resetToDefaults()
+
+        XCTAssertNil(try model.openAICompatibleAPIKey())
     }
 
     func test_initializePowerProfiles_seedsOnlyPristineProfiles() {

@@ -26,6 +26,9 @@ struct SuggestionSettingsData: Equatable {
     /// too large. See `SuggestionSettingsStore.clampedGhostTextSizeMultiplier` for the bounds.
     var ghostTextSizeMultiplier: Double
     var selectedEngine: SuggestionEngineKind
+    var openAICompatibleBaseURL: String
+    var openAICompatibleModelName: String
+    var openAICompatibleAPIMode: OpenAICompatibleAPIMode
     var selectedWordCountPreset: SuggestionWordCountPreset
     /// When true, generation uses `customWordCountLowWords...customWordCountHighWords` instead of
     /// the preset above. Stored alongside the preset (not replacing it) so toggling back from Custom
@@ -99,6 +102,8 @@ struct SuggestionSettingsData: Equatable {
     var isPowerBasedModelSwitchingEnabled: Bool
     var batteryEngine: SuggestionEngineKind
     var batteryModelFilename: String
+    var batteryEndpointModelName: String
     var pluggedInEngine: SuggestionEngineKind
     var pluggedInModelFilename: String
+    var pluggedInEndpointModelName: String
 }
