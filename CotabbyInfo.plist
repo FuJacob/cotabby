@@ -24,6 +24,11 @@
 	<true/>
 	<key>NSAccessibilityUsageDescription</key>
 	<string>Cotabby needs Accessibility access to read and insert text in other apps.</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 	<key>SUAllowsAutomaticUpdates</key>
 	<true/>
 	<key>SUAutomaticallyUpdate</key>

@@ -17,6 +17,7 @@ struct HomePaneView: View {
     @ObservedObject var permissionManager: PermissionManager
     @ObservedObject var foundationModelAvailabilityService: FoundationModelAvailabilityService
     @ObservedObject var runtimeModel: RuntimeBootstrapModel
+    @ObservedObject var openAICompatibleConnectionModel: OpenAICompatibleConnectionModel
     let attentionCategories: Set<SettingsCategory>
 
     @State private var query = ""
@@ -325,6 +326,13 @@ struct HomePaneView: View {
             let selected = runtimeModel.availableModels
                 .first { $0.filename == runtimeModel.selectedModelFilename }
             return selected?.displayName ?? "No model selected"
+        case .openAICompatible:
+            if openAICompatibleConnectionModel.state.failureDetail != nil {
+                return "Connection failed"
+            }
+            return suggestionSettings.openAICompatibleModelName.isEmpty
+                ? "No model selected"
+                : suggestionSettings.openAICompatibleModelName
         }
     }
 

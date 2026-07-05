@@ -156,6 +156,9 @@ enum SuggestionRequestFactory {
         case .llamaOpenSource:
             maxCharacters = configuration.maxPrefixCharacters
             maxWords = configuration.maxPrefixWords
+        case .openAICompatible:
+            maxCharacters = configuration.maxPrefixCharacters
+            maxWords = configuration.maxPrefixWords
         }
 
         let characterWindow = String(precedingText.suffix(maxCharacters))
@@ -252,6 +255,8 @@ enum SuggestionRequestFactory {
         case .appleIntelligence:
             return FoundationModelPromptRenderer.promptPreview(for: request)
         case .llamaOpenSource:
+            return request.prompt
+        case .openAICompatible:
             return request.prompt
         }
     }

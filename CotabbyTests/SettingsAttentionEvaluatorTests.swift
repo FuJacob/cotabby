@@ -10,14 +10,18 @@ final class SettingsAttentionEvaluatorTests: XCTestCase {
         selectedEngine: SuggestionEngineKind = .llamaOpenSource,
         foundationModelAvailable: Bool = true,
         foundationModelMessage: String = "Apple Intelligence is available.",
-        llamaRuntimeFailedReason: String? = nil
+        llamaRuntimeFailedReason: String? = nil,
+        endpointConfigurationError: String? = nil,
+        endpointConnectionFailedReason: String? = nil
     ) -> SettingsAttentionEvaluator.Inputs {
         SettingsAttentionEvaluator.Inputs(
             permissionsGranted: permissionsGranted,
             selectedEngine: selectedEngine,
             foundationModelAvailable: foundationModelAvailable,
             foundationModelMessage: foundationModelMessage,
-            llamaRuntimeFailedReason: llamaRuntimeFailedReason
+            llamaRuntimeFailedReason: llamaRuntimeFailedReason,
+            endpointConfigurationError: endpointConfigurationError,
+            endpointConnectionFailedReason: endpointConnectionFailedReason
         )
     }
 
@@ -65,6 +69,18 @@ final class SettingsAttentionEvaluatorTests: XCTestCase {
             )
         )
         XCTAssertEqual(categories, [.engineAndModel])
+    }
+
+    func test_endpointConfigurationFailure_flagsEngineAndModel() {
+        let inputs = makeInputs(
+            selectedEngine: .openAICompatible,
+            endpointConfigurationError: "Choose a model."
+        )
+        XCTAssertEqual(SettingsAttentionEvaluator.categoriesNeedingAttention(inputs), [.engineAndModel])
+        XCTAssertEqual(
+            SettingsAttentionEvaluator.calloutMessage(for: .engineAndModel, inputs: inputs),
+            "Choose a model."
+        )
     }
 
     func test_callout_permissions_returnsActionableMessage() {

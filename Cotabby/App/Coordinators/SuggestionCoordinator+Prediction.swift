@@ -27,8 +27,10 @@ extension SuggestionCoordinator {
         // fast, calmer when it is slow (fewer doomed generations to cancel). The configured value
         // is the fallback until a first latency exists.
         let debounceMilliseconds = DebouncePolicy.milliseconds(
-            lastGenerationLatencyMilliseconds: latestLatencyMilliseconds,
-            fallback: settingsSnapshot.debounceMilliseconds
+            lastGenerationLatencyMilliseconds:
+                lastLatencyByEngine[settingsSnapshot.selectedEngine],
+            fallback: settingsSnapshot.debounceMilliseconds,
+            engine: settingsSnapshot.selectedEngine
         )
         // The debounce clock starts at the keystroke, not here. The host-publish poll has already
         // consumed real wall time waiting for the host to publish the keystroke to AX, and that
@@ -640,6 +642,12 @@ extension SuggestionCoordinator {
 
             return
         }
+
+        // Record every completed result, including output later suppressed by normalization or seam
+        // checks. Those requests still consumed backend time and are exactly the evidence the next
+        // debounce needs to avoid another burst of doomed HTTP work.
+        lastLatencyByEngine[settingsSnapshot.selectedEngine] =
+            Int((result.latency * 1_000).rounded())
 
         // The free-running focus poll keeps capturing while the engine generates, so a fresh
         // capture often already exists here; only pay a synchronous AX walk when it does not.

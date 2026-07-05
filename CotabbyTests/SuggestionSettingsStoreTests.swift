@@ -357,12 +357,38 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         store.saveBatteryEngine(.appleIntelligence)
         store.savePluggedInEngine(.llamaOpenSource)
         store.savePluggedInModelFilename("big-model.gguf")
+        store.saveBatteryEndpointModelName("battery-endpoint")
+        store.savePluggedInEndpointModelName("plugged-endpoint")
 
         let data = store.load(configuration: .standard)
 
         XCTAssertEqual(data.batteryEngine, .appleIntelligence)
         XCTAssertEqual(data.pluggedInEngine, .llamaOpenSource)
         XCTAssertEqual(data.pluggedInModelFilename, "big-model.gguf")
+        XCTAssertEqual(data.batteryEndpointModelName, "battery-endpoint")
+        XCTAssertEqual(data.pluggedInEndpointModelName, "plugged-endpoint")
+    }
+
+    func test_endpointDefaultsAndSettingsRoundTrip() async {
+        let defaults = makeIsolatedDefaults()
+        let store = SuggestionSettingsStore(userDefaults: defaults)
+
+        let initial = store.load(configuration: .standard)
+        XCTAssertEqual(
+            initial.openAICompatibleBaseURL,
+            OpenAICompatibleEndpointConfiguration.defaultBaseURLString
+        )
+        XCTAssertEqual(initial.openAICompatibleModelName, "")
+        XCTAssertEqual(initial.openAICompatibleAPIMode, .chatCompletions)
+
+        store.saveOpenAICompatibleBaseURL("https://example.com/v1")
+        store.saveOpenAICompatibleModelName("custom")
+        store.saveOpenAICompatibleAPIMode(.completions)
+        let reloaded = store.load(configuration: .standard)
+
+        XCTAssertEqual(reloaded.openAICompatibleBaseURL, "https://example.com/v1")
+        XCTAssertEqual(reloaded.openAICompatibleModelName, "custom")
+        XCTAssertEqual(reloaded.openAICompatibleAPIMode, .completions)
     }
 
     func test_load_legacyModelOnlyProfilePreservedWithOpenSourceEngine() async {
@@ -529,6 +555,9 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         store.saveGhostTextOpacity(0.4)
         store.saveGhostTextSizeMultiplier(1.2)
         store.saveSelectedEngine(.appleIntelligence)
+        store.saveOpenAICompatibleBaseURL("https://example.com/v1")
+        store.saveOpenAICompatibleModelName("remote-model")
+        store.saveOpenAICompatibleAPIMode(.completions)
         store.saveSelectedWordCountPreset(.fourToSeven)
         store.saveUsingCustomWordCountRange(true)
         store.saveCustomWordCountRange(low: 3, high: 9)
@@ -563,8 +592,10 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         store.savePowerBasedModelSwitchingEnabled(true)
         store.saveBatteryEngine(.appleIntelligence)
         store.saveBatteryModelFilename("small.gguf")
+        store.saveBatteryEndpointModelName("small-endpoint")
         store.savePluggedInEngine(.appleIntelligence)
         store.savePluggedInModelFilename("big.gguf")
+        store.savePluggedInEndpointModelName("big-endpoint")
         defaults.set("Spanish", forKey: "cotabbyResponseLanguage")
 
         // Sanity: the dirty values really landed, so the assertions below aren't vacuous.

@@ -387,9 +387,15 @@ struct MenuBarView: View {
                     suggestionSettings.selectEngine(engine)
                     return
                 }
-                let profile: PowerProfile = engine == .appleIntelligence
-                    ? .appleIntelligence
-                    : .llama(filename: runtimeModel.selectedModelFilename ?? "")
+                let profile: PowerProfile
+                switch engine {
+                case .appleIntelligence:
+                    profile = .appleIntelligence
+                case .llamaOpenSource:
+                    profile = .llama(filename: runtimeModel.selectedModelFilename ?? "")
+                case .openAICompatible:
+                    profile = .openAICompatible(modelName: suggestionSettings.openAICompatibleModelName)
+                }
                 applyProfileForCurrentPowerSource(profile)
             }
         )

@@ -21,6 +21,7 @@ final class CotabbyAppEnvironment {
     let appUpdateManager: AppUpdateManager
     let permissionGuidanceController: PermissionGuidanceController
     let suggestionSettings: SuggestionSettingsModel
+    let openAICompatibleConnectionModel: OpenAICompatibleConnectionModel
     let foundationModelAvailabilityService: FoundationModelAvailabilityService
     let powerSourceMonitor: PowerSourceMonitor
     /// Detects when a composing input method (Japanese kana, Chinese pinyin, Korean hangul, ...) is
@@ -53,7 +54,15 @@ final class CotabbyAppEnvironment {
         let runtimeManager = LlamaRuntimeManager()
         let runtimeModel = RuntimeBootstrapModel(runtimeManager: runtimeManager)
         let modelDownloadManager = ModelDownloadManager()
-        let suggestionSettings = SuggestionSettingsModel(configuration: configuration)
+        let endpointCredentialStore = KeychainOpenAICompatibleCredentialStore()
+        let suggestionSettings = SuggestionSettingsModel(
+            configuration: configuration,
+            endpointCredentialStore: endpointCredentialStore
+        )
+        let openAICompatibleClient = OpenAICompatibleAPIClient()
+        let openAICompatibleConnectionModel = OpenAICompatibleConnectionModel(
+            client: openAICompatibleClient
+        )
         let foundationModelAvailabilityService = FoundationModelAvailabilityService()
         let powerSourceMonitor = PowerSourceMonitor()
         let keyboardInputSourceMonitor = KeyboardInputSourceMonitor()
@@ -179,6 +188,21 @@ final class CotabbyAppEnvironment {
             qualityMetricsStore: qualityMetricsStore,
             llamaModelNameProvider: { [weak runtimeManager] in
                 runtimeManager?.currentModelFilename
+            },
+            openAICompatibleEngine: OpenAICompatibleSuggestionEngine(
+                client: openAICompatibleClient,
+                configurationProvider: { [weak suggestionSettings] in
+                    guard let suggestionSettings else {
+                        throw OpenAICompatibleClientError.invalidResponse
+                    }
+                    return try suggestionSettings.openAICompatibleConfiguration
+                },
+                apiKeyProvider: { [weak suggestionSettings] in
+                    try suggestionSettings?.openAICompatibleAPIKey()
+                }
+            ),
+            endpointModelNameProvider: { [weak suggestionSettings] in
+                suggestionSettings?.openAICompatibleModelName.nonEmpty
             }
         )
 
@@ -191,6 +215,7 @@ final class CotabbyAppEnvironment {
             permissionManager: permissionManager,
             permissionGuidanceController: permissionGuidanceController,
             suggestionSettings: suggestionSettings,
+            openAICompatibleConnectionModel: openAICompatibleConnectionModel,
             foundationModelAvailabilityService: foundationModelAvailabilityService,
             runtimeModel: runtimeModel,
             modelDownloadManager: modelDownloadManager,
@@ -287,6 +312,7 @@ final class CotabbyAppEnvironment {
         self.appUpdateManager = appUpdateManager
         self.permissionGuidanceController = permissionGuidanceController
         self.suggestionSettings = suggestionSettings
+        self.openAICompatibleConnectionModel = openAICompatibleConnectionModel
         self.foundationModelAvailabilityService = foundationModelAvailabilityService
         self.powerSourceMonitor = powerSourceMonitor
         self.keyboardInputSourceMonitor = keyboardInputSourceMonitor
@@ -328,6 +354,7 @@ final class CotabbyAppEnvironment {
             .store(in: &cancellables)
 
         observePowerSourceProfileSwitching()
+        observeOpenAICompatibleSelection()
     }
 
     /// Applies the user's per-power-source profile (engine + model) whenever anything that could
@@ -342,8 +369,10 @@ final class CotabbyAppEnvironment {
             suggestionSettings.$isPowerBasedModelSwitchingEnabled.map { _ in () }.eraseToAnyPublisher(),
             suggestionSettings.$batteryEngine.map { _ in () }.eraseToAnyPublisher(),
             suggestionSettings.$batteryModelFilename.map { _ in () }.eraseToAnyPublisher(),
+            suggestionSettings.$batteryEndpointModelName.map { _ in () }.eraseToAnyPublisher(),
             suggestionSettings.$pluggedInEngine.map { _ in () }.eraseToAnyPublisher(),
             suggestionSettings.$pluggedInModelFilename.map { _ in () }.eraseToAnyPublisher(),
+            suggestionSettings.$pluggedInEndpointModelName.map { _ in () }.eraseToAnyPublisher(),
             runtimeModel.$availableModels.map { _ in () }.eraseToAnyPublisher()
         ]
 
@@ -400,6 +429,53 @@ final class CotabbyAppEnvironment {
             Task {
                 await runtimeModel.selectModel(filename)
             }
+        case .openAICompatible(let modelName):
+            guard !modelName.isEmpty else { return }
+            suggestionSettings.setOpenAICompatibleModelName(modelName)
+            suggestionSettings.selectEngine(.openAICompatible)
         }
     }
+
+    /// Connect once when the endpoint engine becomes active. Configuration edits only invalidate
+    /// discovery so status never describes a different URL, mode, credential, or active model;
+    /// Settings still owns explicit Connect/Return refreshes and avoids network traffic per keystroke.
+    private func observeOpenAICompatibleSelection() {
+        suggestionSettings.$selectedEngine
+            .removeDuplicates()
+            .sink { [weak self] engine in
+                guard engine == .openAICompatible, let self else { return }
+                Task { [weak self] in
+                    guard let self else { return }
+                    do {
+                        let configuration = try self.suggestionSettings.openAICompatibleConfiguration
+                        let apiKey = try self.suggestionSettings.openAICompatibleAPIKey()
+                        await self.openAICompatibleConnectionModel.refresh(
+                            configuration: configuration,
+                            apiKey: apiKey
+                        )
+                    } catch {
+                        self.openAICompatibleConnectionModel.invalidate()
+                    }
+                }
+            }
+            .store(in: &cancellables)
+
+        let configurationChanges: [AnyPublisher<Void, Never>] = [
+            suggestionSettings.$openAICompatibleBaseURL.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            suggestionSettings.$openAICompatibleModelName.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            suggestionSettings.$openAICompatibleAPIMode.dropFirst().map { _ in () }.eraseToAnyPublisher(),
+            suggestionSettings.$endpointCredentialRevision.dropFirst().map { _ in () }.eraseToAnyPublisher()
+        ]
+
+        Publishers.MergeMany(configurationChanges)
+            .sink { [weak self] _ in
+                guard let self, self.suggestionSettings.selectedEngine == .openAICompatible else { return }
+                self.openAICompatibleConnectionModel.invalidate()
+            }
+            .store(in: &cancellables)
+    }
+}
+
+private extension String {
+    var nonEmpty: String? { isEmpty ? nil : self }
 }

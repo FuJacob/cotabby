@@ -264,8 +264,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         switch suggestionSettings.selectedEngine {
         case .llamaOpenSource:
             runtimeModel.startIfNeeded()
-        case .appleIntelligence:
-            break
+        case .appleIntelligence, .openAICompatible:
+            // Switching away must release Metal buffers and the mapped GGUF. Otherwise an Ollama
+            // user still pays the duplicate memory cost the external endpoint is meant to avoid.
+            runtimeModel.stop()
         }
     }
 
