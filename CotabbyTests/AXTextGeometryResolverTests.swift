@@ -126,7 +126,7 @@ final class AXTextGeometryResolverTests: XCTestCase {
     func test_estimatedCaretRect_centersSingleLineInsideFieldChrome() {
         let field = CGRect(x: 100, y: 200, width: 500, height: 54)
 
-        let caret = resolver.estimatedCaretRect(in: field, x: 420, text: "hello world")
+        let caret = resolver.estimatedCaretRect(in: field, caretX: 420, text: "hello world")
 
         XCTAssertEqual(caret.midY, field.midY, accuracy: 0.001)
         XCTAssertLessThan(caret.height, field.height)
@@ -137,7 +137,7 @@ final class AXTextGeometryResolverTests: XCTestCase {
     func test_estimatedCaretRect_bottomAlignsExplicitMultilineValue() {
         let field = CGRect(x: 100, y: 200, width: 500, height: 120)
 
-        let caret = resolver.estimatedCaretRect(in: field, x: 420, text: "first\nsecond")
+        let caret = resolver.estimatedCaretRect(in: field, caretX: 420, text: "first\nsecond")
 
         XCTAssertEqual(caret.minY, field.minY, accuracy: 0.001)
         XCTAssertLessThan(caret.height, field.height)
