@@ -175,8 +175,11 @@ struct AXTextGeometryResolver {
                 )
                 let clampedX = min(estimatedX, cocoaRect.maxX)
                 return CaretGeometryResult(
-                    rect: CGRect(
-                        x: clampedX, y: cocoaRect.minY, width: 2, height: cocoaRect.height),
+                    rect: estimatedCaretRect(
+                        in: cocoaRect,
+                        x: clampedX,
+                        text: text
+                    ),
                     quality: .estimated
                 )
             }
@@ -218,6 +221,23 @@ struct AXTextGeometryResolver {
         )
 
         return cocoaRect.minX + estimatedWidth
+    }
+
+    /// Converts an AX field frame into a one-line caret rect without pretending that the field's
+    /// full chrome height is a text line. Single-line controls (such as browser omniboxes) center
+    /// their text inside a substantially taller AX frame; using that frame verbatim makes
+    /// caret-centered overlays land roughly one line too low. Explicit multiline values keep the
+    /// last line at the field's bottom because the AX-only fallback cannot infer scrolling or
+    /// paragraph layout safely.
+    func estimatedCaretRect(in fieldFrame: CGRect, x: CGFloat, text: String) -> CGRect {
+        let font = NSFont.systemFont(ofSize: 15)
+        let estimatedLineHeight = ceil(font.ascender - font.descender + font.leading)
+        let caretHeight = min(estimatedLineHeight, fieldFrame.height)
+        let caretY = text.contains(where: \.isNewline)
+            ? fieldFrame.minY
+            : fieldFrame.midY - (caretHeight / 2)
+
+        return CGRect(x: x, y: caretY, width: 2, height: caretHeight)
     }
 
     /// Walks AXStaticText children of a text container to find the one containing the caret,
