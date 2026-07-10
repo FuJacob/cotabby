@@ -50,7 +50,7 @@ final class InputMonitorTests: XCTestCase {
     func test_observerTapRoutesAcceptKeyToEmojiObserverWhileCapturingDespiteVisibleSuggestion() {
         runOnMainActor {
             let monitor = makeMonitor()
-            monitor.acceptanceKeyCodeProvider = { 48 }   // Tab is the word-accept key
+            monitor.acceptanceBindingProvider = { (48, []) }   // Tab is the word-accept key
             // Stage both conditions: a visible suggestion owns the accept key, AND an emoji capture is
             // open. (Set after the capture flag because `setCaptureInterceptionActive` recomputes
             // ownership; we stage it directly to avoid installing real CGEvent taps in the test host.)
@@ -76,7 +76,7 @@ final class InputMonitorTests: XCTestCase {
         runOnMainActor {
             let monitor = makeMonitor()
             monitor.isAcceptTapOwningAcceptKeys = true
-            monitor.fullAcceptanceKeyCodeProvider = { 50 }
+            monitor.fullAcceptanceBindingProvider = { (50, []) }
             var observedKinds: [CapturedInputEvent.Kind] = []
             monitor.onEvent = { event in
                 observedKinds.append(event.kind)
@@ -93,7 +93,7 @@ final class InputMonitorTests: XCTestCase {
     func test_observerTapTreatsBarePrintableAcceptKeyAsTypingWhenConsumingTapIsInactive() {
         runOnMainActor {
             let monitor = makeMonitor()
-            monitor.acceptanceKeyCodeProvider = { 0 }
+            monitor.acceptanceBindingProvider = { (0, []) }
             var observedKinds: [CapturedInputEvent.Kind] = []
             monitor.onEvent = { event in
                 observedKinds.append(event.kind)
@@ -161,7 +161,7 @@ final class InputMonitorTests: XCTestCase {
     func test_acceptTapConsumesBarePrintableBoundKeyWhenCoordinatorAccepts() {
         runOnMainActor {
             let monitor = makeMonitor()
-            monitor.acceptanceKeyCodeProvider = { 0 }
+            monitor.acceptanceBindingProvider = { (0, []) }
             var observedKinds: [CapturedInputEvent.Kind] = []
             monitor.shouldConsumeAcceptKeyProvider = { true }
             monitor.onEvent = { event in
@@ -179,7 +179,7 @@ final class InputMonitorTests: XCTestCase {
     func test_acceptTapPassesBarePrintableBoundKeyThroughWhenNoVisibleSuggestionExists() {
         runOnMainActor {
             let monitor = makeMonitor()
-            monitor.acceptanceKeyCodeProvider = { 0 }
+            monitor.acceptanceBindingProvider = { (0, []) }
             monitor.shouldConsumeAcceptKeyProvider = { false }
             monitor.onEvent = { _ in
                 XCTFail("Bare printable shortcuts should only route into acceptance for visible suggestions.")
@@ -258,9 +258,8 @@ final class InputMonitorTests: XCTestCase {
     func test_isWordAcceptKey_matchesOnlyTheConfiguredWordAcceptBinding() {
         runOnMainActor {
             let monitor = makeMonitor()
-            monitor.acceptanceKeyCodeProvider = { 48 }          // Tab is the word-accept key
-            monitor.acceptanceKeyModifiersProvider = { [] }
-            monitor.fullAcceptanceKeyCodeProvider = { 50 }      // backtick is full-accept
+            monitor.acceptanceBindingProvider = { (48, []) }          // Tab is the word-accept key
+            monitor.fullAcceptanceBindingProvider = { (50, []) }      // backtick is full-accept
 
             XCTAssertTrue(monitor.isWordAcceptKey(InputMonitorKeyEvent(keyCode: 48)))
             XCTAssertFalse(

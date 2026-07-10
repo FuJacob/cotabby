@@ -72,6 +72,7 @@ struct SuggestionSettingsStore {
     private static let isGloballyEnabledDefaultsKey = "cotabbyGloballyEnabled"
     private static let pauseStateDefaultsKey = "cotabbySuggestionPauseState"
     private static let disabledAppRulesDefaultsKey = "cotabbyDisabledAppRules"
+    private static let perAppShortcutOverridesDefaultsKey = "cotabbyPerAppShortcutOverrides"
     private static let suggestInIntegratedTerminalsDefaultsKey = "cotabbySuggestInIntegratedTerminals"
     private static let showCaretIndicatorDefaultsKey = "cotabbyShowCaretIndicator"
     private static let selectedIndicatorModeDefaultsKey = "cotabbySelectedIndicatorMode"
@@ -156,6 +157,7 @@ struct SuggestionSettingsStore {
         isGloballyEnabledDefaultsKey,
         pauseStateDefaultsKey,
         disabledAppRulesDefaultsKey,
+        perAppShortcutOverridesDefaultsKey,
         suggestInIntegratedTerminalsDefaultsKey,
         showCaretIndicatorDefaultsKey,
         selectedIndicatorModeDefaultsKey,
@@ -230,6 +232,7 @@ struct SuggestionSettingsStore {
             .flatMap { try? JSONDecoder().decode(SuggestionPauseState.self, from: $0) }
         let resolvedPauseState = persistedPauseState?.activeState()
         let resolvedDisabledAppRules = loadDisabledAppRules()
+        let resolvedPerAppShortcutOverrides = loadPerAppShortcutOverrides()
         let resolvedShowIndicator: Bool = if let modeString = userDefaults.string(
             forKey: Self.selectedIndicatorModeDefaultsKey
         ) {
@@ -529,6 +532,7 @@ struct SuggestionSettingsStore {
             globalToggleKeyCode: resolvedGlobalToggleKeyCode,
             globalToggleKeyModifiers: resolvedGlobalToggleKeyModifiers,
             globalToggleKeyLabel: resolvedGlobalToggleKeyLabel,
+            perAppShortcutOverrides: resolvedPerAppShortcutOverrides,
             acceptanceGranularity: resolvedAcceptanceGranularity,
             isPowerBasedModelSwitchingEnabled: resolvedPowerBasedModelSwitchingEnabled,
             batteryEngine: resolvedBatteryEngine,
@@ -599,6 +603,7 @@ struct SuggestionSettingsStore {
             modifiers: data.globalToggleKeyModifiers,
             label: data.globalToggleKeyLabel
         )
+        savePerAppShortcutOverrides(data.perAppShortcutOverrides)
         saveAcceptanceGranularity(data.acceptanceGranularity)
         savePowerBasedModelSwitchingEnabled(data.isPowerBasedModelSwitchingEnabled)
         saveBatteryEngine(data.batteryEngine)
@@ -659,6 +664,20 @@ struct SuggestionSettingsStore {
 
         if let data = try? JSONEncoder().encode(rules) {
             userDefaults.set(data, forKey: Self.disabledAppRulesDefaultsKey)
+        }
+    }
+
+    /// An empty list removes the key entirely (mirroring `saveDisabledAppRules`) so a fresh
+    /// install and a mutated-back-to-empty store are indistinguishable on disk, and the absent vs
+    /// present distinction in `load` only ever fires on the very first launch.
+    func savePerAppShortcutOverrides(_ overrides: [PerAppShortcutOverride]) {
+        guard !overrides.isEmpty else {
+            userDefaults.removeObject(forKey: Self.perAppShortcutOverridesDefaultsKey)
+            return
+        }
+
+        if let data = try? JSONEncoder().encode(overrides) {
+            userDefaults.set(data, forKey: Self.perAppShortcutOverridesDefaultsKey)
         }
     }
 
@@ -918,12 +937,73 @@ struct SuggestionSettingsStore {
         return sortedDisabledAppRules(Array(rulesByBundleIdentifier.values))
     }
 
+    // MARK: - Per-app shortcut override decoding
+
+    private func loadPerAppShortcutOverrides() -> [PerAppShortcutOverride] {
+        guard let data = userDefaults.data(forKey: Self.perAppShortcutOverridesDefaultsKey),
+              let decoded = try? JSONDecoder().decode([PerAppShortcutOverride].self, from: data)
+        else {
+            return []
+        }
+
+        return Self.sanitizedPerAppShortcutOverrides(decoded)
+    }
+
+    /// Trim, dedupe by bundle id, collapse partial bindings to "inherit global", drop empty (no
+    /// accept and no full-accept) entries, and normalize each row's display name. Mirrors
+    /// `sanitizedDisabledAppRules` so both stores have the same "absent vs empty UserDefault"
+    /// discipline and one decode-time hardening pass.
+    private static func sanitizedPerAppShortcutOverrides(
+        _ overrides: [PerAppShortcutOverride]
+    ) -> [PerAppShortcutOverride] {
+        var byBundle: [String: PerAppShortcutOverride] = [:]
+
+        for override in overrides {
+            guard let normalizedBundleIdentifier = normalizedBundleIdentifier(override.bundleIdentifier) else {
+                continue
+            }
+            // Collapse any partial binding (e.g. a key code with no label) to "inherit global" before
+            // the empty check, so a phantom row that survives load but never fires in `ShortcutResolver`
+            // can't linger in Settings.
+            let normalized = override.bindingsNormalized
+            guard !normalized.isEmpty else { continue }
+
+            byBundle[normalizedBundleIdentifier] = PerAppShortcutOverride(
+                bundleIdentifier: normalizedBundleIdentifier,
+                displayName: normalizedDisplayName(
+                    normalized.displayName,
+                    fallbackBundleIdentifier: normalizedBundleIdentifier
+                ),
+                acceptKeyCode: normalized.acceptKeyCode,
+                acceptKeyModifiers: normalized.acceptKeyModifiers,
+                acceptKeyLabel: normalized.acceptKeyLabel,
+                fullAcceptKeyCode: normalized.fullAcceptKeyCode,
+                fullAcceptKeyModifiers: normalized.fullAcceptKeyModifiers,
+                fullAcceptKeyLabel: normalized.fullAcceptKeyLabel
+            )
+        }
+
+        return sortedPerAppShortcutOverrides(Array(byBundle.values))
+    }
+
     // MARK: - Pure value normalizers (shared with the facade's setters)
 
     static func sortedDisabledAppRules(
         _ rules: [DisabledApplicationRule]
     ) -> [DisabledApplicationRule] {
         rules.sorted {
+            if $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedSame {
+                return $0.bundleIdentifier < $1.bundleIdentifier
+            }
+
+            return $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedAscending
+        }
+    }
+
+    static func sortedPerAppShortcutOverrides(
+        _ overrides: [PerAppShortcutOverride]
+    ) -> [PerAppShortcutOverride] {
+        overrides.sorted {
             if $0.displayName.localizedCaseInsensitiveCompare($1.displayName) == .orderedSame {
                 return $0.bundleIdentifier < $1.bundleIdentifier
             }
