@@ -209,15 +209,25 @@ final class SuggestionSettingsStoreTests: XCTestCase {
 
         let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
 
+        XCTAssertTrue(SuggestionSettingsStore.defaultFadeInSuggestions)
         XCTAssertTrue(data.fadeInSuggestions)
     }
 
-    func test_load_fadeInDurationDefaultsToShippedValue() async {
+    func test_load_fadeInDurationDefaultsToSecondFastestTick() async {
         let defaults = makeIsolatedDefaults()
 
         let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
 
-        // Absent key must seed the shipped 0.15s so the fade is unchanged for existing installs.
+        // The UI reflects duration across the slider range, so 0.10s maps to speed-axis 0.25:
+        // the second-fastest tick in the 0.05...0.30 band shown in Appearance settings.
+        XCTAssertEqual(SuggestionSettingsStore.defaultFadeInDuration, 0.10, accuracy: 0.0001)
+        XCTAssertEqual(
+            SuggestionSettingsStore.minimumFadeInDuration
+                + SuggestionSettingsStore.maximumFadeInDuration
+                - SuggestionSettingsStore.defaultFadeInDuration,
+            0.25,
+            accuracy: 0.0001
+        )
         XCTAssertEqual(
             data.fadeInDurationSeconds,
             SuggestionSettingsStore.defaultFadeInDuration,
