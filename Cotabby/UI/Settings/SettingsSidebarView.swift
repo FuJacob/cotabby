@@ -19,6 +19,7 @@ import SwiftUI
 struct SettingsSidebarView: View {
     @ObservedObject var navigation: SettingsNavigationModel
     let attentionCategories: Set<SettingsCategory>
+    let onQuit: () -> Void
 
     @State private var searchText = ""
 
@@ -32,6 +33,8 @@ struct SettingsSidebarView: View {
             } else {
                 searchResultsList
             }
+
+            appActionsFooter
         }
         // `.navigationSplitViewColumnWidth` is only a hint; AppKit's underlying split view ignores
         // it when the window is at or near its minimum, which truncated labels like "Engine &..."
@@ -101,6 +104,22 @@ struct SettingsSidebarView: View {
     /// Short marketing version (e.g. "v1.0"), or nil if the bundle has no version string.
     private var appVersionText: String? {
         Bundle.main.cotabbyDisplayVersion
+    }
+
+    /// Keeps process-level recovery actions available even when the menu bar icon is hidden. The
+    /// coordinator supplies the lifecycle behavior so this view remains presentation-focused.
+    private var appActionsFooter: some View {
+        VStack(spacing: 0) {
+            Divider()
+
+            Button(action: onQuit) {
+                Label("Quit Cotabby", systemImage: "power")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .keyboardShortcut("q")
+            .padding(12)
+        }
     }
 
     private var selectionBinding: Binding<SettingsCategory> {

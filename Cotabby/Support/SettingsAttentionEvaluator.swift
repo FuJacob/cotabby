@@ -21,6 +21,8 @@ enum SettingsAttentionEvaluator {
         let foundationModelAvailable: Bool
         let foundationModelMessage: String
         let llamaRuntimeFailedReason: String?
+        let endpointConfigurationError: String?
+        let endpointConnectionFailedReason: String?
     }
 
     /// Returns the set of categories that should render an attention dot in the sidebar.
@@ -38,6 +40,10 @@ enum SettingsAttentionEvaluator {
             }
         case .llamaOpenSource:
             if inputs.llamaRuntimeFailedReason != nil {
+                categories.insert(.engineAndModel)
+            }
+        case .openAICompatible:
+            if inputs.endpointConfigurationError != nil || inputs.endpointConnectionFailedReason != nil {
                 categories.insert(.engineAndModel)
             }
         }
@@ -65,6 +71,8 @@ enum SettingsAttentionEvaluator {
                 guard let reason = inputs.llamaRuntimeFailedReason,
                       !reason.isEmpty else { return nil }
                 return reason
+            case .openAICompatible:
+                return inputs.endpointConfigurationError ?? inputs.endpointConnectionFailedReason
             }
 
         case .home, .general, .appearance, .emoji, .writing, .context, .shortcuts, .apps, .performance, .about:

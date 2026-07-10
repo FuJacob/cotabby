@@ -15,6 +15,7 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
     private let permissionManager: PermissionManager
     private let permissionGuidanceController: PermissionGuidanceController
     private let suggestionSettings: SuggestionSettingsModel
+    private let openAICompatibleConnectionModel: OpenAICompatibleConnectionModel
     private let foundationModelAvailabilityService: FoundationModelAvailabilityService
     private let runtimeModel: RuntimeBootstrapModel
     private let modelDownloadManager: ModelDownloadManager
@@ -27,11 +28,19 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
 
     private var settingsWindowController: NSWindowController?
 
+    /// Whether this coordinator currently owns an open Settings window. This intentionally means
+    /// "created and not closed" rather than `isVisible`: AppKit reports miniaturized windows as
+    /// visible during reopen handling, and should be allowed to restore those normally.
+    var isSettingsWindowOpen: Bool {
+        settingsWindowController?.window != nil
+    }
+
     init(
         appUpdateManager: AppUpdateManager,
         permissionManager: PermissionManager,
         permissionGuidanceController: PermissionGuidanceController,
         suggestionSettings: SuggestionSettingsModel,
+        openAICompatibleConnectionModel: OpenAICompatibleConnectionModel,
         foundationModelAvailabilityService: FoundationModelAvailabilityService,
         runtimeModel: RuntimeBootstrapModel,
         modelDownloadManager: ModelDownloadManager,
@@ -46,6 +55,7 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
         self.permissionManager = permissionManager
         self.permissionGuidanceController = permissionGuidanceController
         self.suggestionSettings = suggestionSettings
+        self.openAICompatibleConnectionModel = openAICompatibleConnectionModel
         self.foundationModelAvailabilityService = foundationModelAvailabilityService
         self.runtimeModel = runtimeModel
         self.modelDownloadManager = modelDownloadManager
@@ -74,6 +84,7 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
                     permissionManager: permissionManager,
                     permissionGuidanceController: permissionGuidanceController,
                     suggestionSettings: suggestionSettings,
+                    openAICompatibleConnectionModel: openAICompatibleConnectionModel,
                     foundationModelAvailabilityService: foundationModelAvailabilityService,
                     runtimeModel: runtimeModel,
                     modelDownloadManager: modelDownloadManager,
@@ -82,7 +93,8 @@ final class SettingsCoordinator: NSObject, NSWindowDelegate {
                     qualityMetricsStore: qualityMetricsStore,
                     systemMetricsStore: systemMetricsStore,
                     onShowWelcome: onShowWelcome,
-                    clearEmojiHistory: clearEmojiHistory
+                    clearEmojiHistory: clearEmojiHistory,
+                    onQuit: { NSApplication.shared.terminate(nil) }
                 )
             )
         )

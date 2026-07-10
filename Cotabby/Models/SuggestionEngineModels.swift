@@ -10,6 +10,7 @@ import Foundation
 enum SuggestionEngineKind: String, CaseIterable, Equatable, Hashable, Sendable, Identifiable {
     case appleIntelligence
     case llamaOpenSource
+    case openAICompatible
 
     var id: String { rawValue }
 
@@ -19,6 +20,8 @@ enum SuggestionEngineKind: String, CaseIterable, Equatable, Hashable, Sendable, 
             return "Apple Intelligence"
         case .llamaOpenSource:
             return "Open Source"
+        case .openAICompatible:
+            return "Local Endpoint"
         }
     }
 
@@ -31,6 +34,8 @@ enum SuggestionEngineKind: String, CaseIterable, Equatable, Hashable, Sendable, 
             return "apple.logo"
         case .llamaOpenSource:
             return "cpu.fill"
+        case .openAICompatible:
+            return "network"
         }
     }
 
@@ -40,6 +45,8 @@ enum SuggestionEngineKind: String, CaseIterable, Equatable, Hashable, Sendable, 
             return false
         case .llamaOpenSource:
             return true
+        case .openAICompatible:
+            return false
         }
     }
 
@@ -52,6 +59,7 @@ enum SuggestionEngineKind: String, CaseIterable, Equatable, Hashable, Sendable, 
 enum PowerProfile: Equatable, Hashable {
     case appleIntelligence
     case llama(filename: String)
+    case openAICompatible(modelName: String)
 
     /// The engine this profile selects. Settings persists engine + filename separately, so this is
     /// the bridge from those two stored fields to a single picker selection (and back).
@@ -61,6 +69,8 @@ enum PowerProfile: Equatable, Hashable {
             return .appleIntelligence
         case .llama:
             return .llamaOpenSource
+        case .openAICompatible:
+            return .openAICompatible
         }
     }
 }
@@ -93,6 +103,8 @@ enum AcceptanceGranularity: String, CaseIterable, Codable, Sendable {
 /// time. Keeping this as a value type makes change detection simple and deterministic.
 struct SuggestionSettingsSnapshot: Equatable, Sendable {
     let isGloballyEnabled: Bool
+    /// Resolved live pause state. Timed pauses publish `false` when their expiration fires.
+    let isTemporarilyPaused: Bool
     let disabledAppBundleIdentifiers: Set<String>
     /// When false (the default), ghost text is suppressed in integrated terminals (VS Code / Cursor
     /// xterm.js surfaces). Power users can opt back in. Travels in the snapshot so the availability

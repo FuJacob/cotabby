@@ -137,6 +137,17 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
         XCTAssertEqual(reason, "Cotabby is turned off.")
     }
 
+    func test_disabledReason_whenTemporarilyPaused_returnsPauseCopy() {
+        let reason = SuggestionAvailabilityEvaluator.disabledReason(
+            globallyEnabled: true,
+            temporarilyPaused: true,
+            inputMonitoringGranted: true,
+            focusSnapshot: makeSnapshot(capability: .supported)
+        )
+
+        XCTAssertEqual(reason, "Cotabby is temporarily paused.")
+    }
+
     func test_disabledReason_whenFocusedDomainIsDisabled_returnsSiteReason() {
         let reason = SuggestionAvailabilityEvaluator.disabledReason(
             globallyEnabled: true,

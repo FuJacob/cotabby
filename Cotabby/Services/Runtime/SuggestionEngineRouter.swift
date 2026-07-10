@@ -10,12 +10,14 @@ final class SuggestionEngineRouter {
     private let suggestionSettings: SuggestionSettingsModel
     private let foundationModelEngine: any SuggestionGenerating
     private let llamaEngine: any SuggestionGenerating
+    private let openAICompatibleEngine: any SuggestionGenerating
     private let performanceMetricsStore: PerformanceMetricsStore
     private let qualityMetricsStore: SuggestionQualityMetricsStore
     /// Closure that returns the currently selected llama model filename (e.g. `Qwen3-0.6B-Q8_0.gguf`).
     /// A closure instead of a direct `LlamaRuntimeManager` reference keeps the router from depending
     /// on the concrete runtime type — useful for tests that want to fake the model label.
     private let llamaModelNameProvider: @MainActor () -> String?
+    private let endpointModelNameProvider: @MainActor () -> String?
 
     init(
         suggestionSettings: SuggestionSettingsModel,
@@ -23,14 +25,20 @@ final class SuggestionEngineRouter {
         llamaEngine: any SuggestionGenerating,
         performanceMetricsStore: PerformanceMetricsStore,
         qualityMetricsStore: SuggestionQualityMetricsStore,
-        llamaModelNameProvider: @escaping @MainActor () -> String?
+        llamaModelNameProvider: @escaping @MainActor () -> String?,
+        openAICompatibleEngine: (any SuggestionGenerating)? = nil,
+        endpointModelNameProvider: @escaping @MainActor () -> String? = { nil }
     ) {
         self.suggestionSettings = suggestionSettings
         self.foundationModelEngine = foundationModelEngine
         self.llamaEngine = llamaEngine
+        self.openAICompatibleEngine = openAICompatibleEngine ?? UnavailableSuggestionEngine(
+            message: "Configure a local OpenAI-compatible endpoint in Settings."
+        )
         self.performanceMetricsStore = performanceMetricsStore
         self.qualityMetricsStore = qualityMetricsStore
         self.llamaModelNameProvider = llamaModelNameProvider
+        self.endpointModelNameProvider = endpointModelNameProvider
     }
 
     func generateSuggestion(for request: SuggestionRequest) async throws -> SuggestionResult {
@@ -73,6 +81,12 @@ final class SuggestionEngineRouter {
             recordPerformanceMetric(modelName: llamaModelNameProvider() ?? "Llama", latency: result.latency)
             recordQualityOutcome(result)
             return result
+        case .openAICompatible:
+            CotabbyLogger.suggestion.debug("Routing to OpenAI-compatible endpoint", metadata: metadata)
+            let result = try await openAICompatibleEngine.generateSuggestion(for: request, onPartial: onPartial)
+            recordPerformanceMetric(modelName: endpointModelNameProvider() ?? "Local Endpoint", latency: result.latency)
+            recordQualityOutcome(result)
+            return result
         }
     }
 
@@ -104,6 +118,8 @@ final class SuggestionEngineRouter {
             return "apple_intelligence"
         case .llamaOpenSource:
             return "llama"
+        case .openAICompatible:
+            return "openai_compatible"
         }
     }
 
@@ -113,6 +129,7 @@ final class SuggestionEngineRouter {
     func resetCachedGenerationContext() async {
         await foundationModelEngine.resetCachedGenerationContext()
         await llamaEngine.resetCachedGenerationContext()
+        await openAICompatibleEngine.resetCachedGenerationContext()
     }
 
     /// Forwards the warmup hook only to the currently selected engine. The inactive backend has
@@ -124,6 +141,8 @@ final class SuggestionEngineRouter {
             await foundationModelEngine.prewarm(for: request)
         case .llamaOpenSource:
             await llamaEngine.prewarm(for: request)
+        case .openAICompatible:
+            await openAICompatibleEngine.prewarm(for: request)
         }
     }
 

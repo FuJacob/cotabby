@@ -12,6 +12,8 @@ import Foundation
 /// round-trip and so the store can compare resolved-versus-stored state.
 struct SuggestionSettingsData: Equatable {
     var isGloballyEnabled: Bool
+    /// Temporary suppression persists independently from the user's normal global preference.
+    var pauseState: SuggestionPauseState?
     var showIndicator: Bool
     var showAcceptanceHint: Bool
     var disabledAppRules: [DisabledApplicationRule]
@@ -26,6 +28,9 @@ struct SuggestionSettingsData: Equatable {
     /// too large. See `SuggestionSettingsStore.clampedGhostTextSizeMultiplier` for the bounds.
     var ghostTextSizeMultiplier: Double
     var selectedEngine: SuggestionEngineKind
+    var openAICompatibleBaseURL: String
+    var openAICompatibleModelName: String
+    var openAICompatibleAPIMode: OpenAICompatibleAPIMode
     var selectedWordCountPreset: SuggestionWordCountPreset
     /// When true, generation uses `customWordCountLowWords...customWordCountHighWords` instead of
     /// the preset above. Stored alongside the preset (not replacing it) so toggling back from Custom
@@ -52,6 +57,9 @@ struct SuggestionSettingsData: Equatable {
     /// green preview while typing, disable it, or use both behaviors together.
     var automaticallyFixTypos: Bool
     var isPerformanceTrackingEnabled: Bool
+    /// Controls whether SwiftUI inserts Cotabby's `MenuBarExtra` into the system menu bar. The app
+    /// keeps running when this is false; reopening Cotabby provides the recovery path to Settings.
+    var isMenuBarIconVisible: Bool
     var isMenuBarWordCountVisible: Bool
     var mirrorPreference: MirrorPreference
     var userName: String
@@ -99,6 +107,8 @@ struct SuggestionSettingsData: Equatable {
     var isPowerBasedModelSwitchingEnabled: Bool
     var batteryEngine: SuggestionEngineKind
     var batteryModelFilename: String
+    var batteryEndpointModelName: String
     var pluggedInEngine: SuggestionEngineKind
     var pluggedInModelFilename: String
+    var pluggedInEndpointModelName: String
 }

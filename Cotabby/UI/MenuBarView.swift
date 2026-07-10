@@ -126,12 +126,42 @@ struct MenuBarView: View {
 
             Divider()
 
-            // Activation lives in its own band: the global switch plus the per-app override for
-            // whatever app currently has focus.
+            // Activation lives in its own band. While active, the menu offers bounded and manual
+            // pauses. While paused or globally disabled, those choices are replaced by one recovery
+            // action so the user cannot accidentally stack contradictory disable states.
             Group {
-                Toggle("Enable Globally", isOn: globallyEnabledBinding)
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
+                if suggestionSettings.isTemporarilyPaused || !suggestionSettings.isGloballyEnabled {
+                    Button {
+                        suggestionSettings.enableCotabby()
+                    } label: {
+                        Label("Enable Cotabby", systemImage: "play.fill")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(.borderless)
+
+                    if let pauseStatus = suggestionSettings.pauseStatusText {
+                        Text(pauseStatus)
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    } else {
+                        Text("Cotabby is turned off")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                } else {
+                    Menu {
+                        ForEach(SuggestionPauseDuration.allCases) { duration in
+                            Button(duration.menuLabel) {
+                                suggestionSettings.pauseSuggestions(for: duration)
+                            }
+                        }
+                    } label: {
+                        Label("Pause Cotabby", systemImage: "pause.fill")
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .menuStyle(.borderlessButton)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
 
                 if let application = focusModel.latestExternalApplication,
                    !TerminalAppDetector.isTerminal(bundleIdentifier: application.bundleIdentifier) {
@@ -313,13 +343,6 @@ struct MenuBarView: View {
 
     // MARK: - Bindings
 
-    private var globallyEnabledBinding: Binding<Bool> {
-        Binding(
-            get: { suggestionSettings.isGloballyEnabled },
-            set: { suggestionSettings.setGloballyEnabled($0) }
-        )
-    }
-
     private var clipboardContextEnabledBinding: Binding<Bool> {
         Binding(
             get: { suggestionSettings.isClipboardContextEnabled },
@@ -364,9 +387,15 @@ struct MenuBarView: View {
                     suggestionSettings.selectEngine(engine)
                     return
                 }
-                let profile: PowerProfile = engine == .appleIntelligence
-                    ? .appleIntelligence
-                    : .llama(filename: runtimeModel.selectedModelFilename ?? "")
+                let profile: PowerProfile
+                switch engine {
+                case .appleIntelligence:
+                    profile = .appleIntelligence
+                case .llamaOpenSource:
+                    profile = .llama(filename: runtimeModel.selectedModelFilename ?? "")
+                case .openAICompatible:
+                    profile = .openAICompatible(modelName: suggestionSettings.openAICompatibleModelName)
+                }
                 applyProfileForCurrentPowerSource(profile)
             }
         )

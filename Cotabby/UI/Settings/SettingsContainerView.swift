@@ -17,6 +17,7 @@ struct SettingsContainerView: View {
     @ObservedObject var permissionManager: PermissionManager
     let permissionGuidanceController: PermissionGuidanceController
     @ObservedObject var suggestionSettings: SuggestionSettingsModel
+    @ObservedObject var openAICompatibleConnectionModel: OpenAICompatibleConnectionModel
     @ObservedObject var foundationModelAvailabilityService: FoundationModelAvailabilityService
     @ObservedObject var runtimeModel: RuntimeBootstrapModel
     @ObservedObject var modelDownloadManager: ModelDownloadManager
@@ -27,6 +28,7 @@ struct SettingsContainerView: View {
 
     let onShowWelcome: () -> Void
     let clearEmojiHistory: () -> Void
+    let onQuit: () -> Void
 
     @AppStorage("cotabbySettingsSelectedCategoryV2")
     private var storedCategoryRawValue: String = SettingsCategory.home.rawValue
@@ -40,7 +42,8 @@ struct SettingsContainerView: View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             SettingsSidebarView(
                 navigation: navigation,
-                attentionCategories: attentionCategories
+                attentionCategories: attentionCategories,
+                onQuit: onQuit
             )
             .toolbar(removing: .sidebarToggle)
         } detail: {
@@ -96,7 +99,9 @@ struct SettingsContainerView: View {
                 selectedEngine: suggestionSettings.selectedEngine,
                 foundationModelAvailable: foundationModelAvailabilityService.isAvailable,
                 foundationModelMessage: foundationModelAvailabilityService.userVisibleMessage,
-                llamaRuntimeFailedReason: runtimeModel.state.failureDetail
+                llamaRuntimeFailedReason: runtimeModel.state.failureDetail,
+                endpointConfigurationError: endpointConfigurationError,
+                endpointConnectionFailedReason: openAICompatibleConnectionModel.state.failureDetail
             )
         )
     }
@@ -111,6 +116,7 @@ struct SettingsContainerView: View {
                 permissionManager: permissionManager,
                 foundationModelAvailabilityService: foundationModelAvailabilityService,
                 runtimeModel: runtimeModel,
+                openAICompatibleConnectionModel: openAICompatibleConnectionModel,
                 attentionCategories: attentionCategories
             )
         case .general:
@@ -129,6 +135,7 @@ struct SettingsContainerView: View {
         case .engineAndModel:
             EngineAndModelPaneView(
                 suggestionSettings: suggestionSettings,
+                openAICompatibleConnectionModel: openAICompatibleConnectionModel,
                 foundationModelAvailabilityService: foundationModelAvailabilityService,
                 runtimeModel: runtimeModel,
                 modelDownloadManager: modelDownloadManager,
@@ -156,6 +163,17 @@ struct SettingsContainerView: View {
             )
         case .about:
             AboutPaneView(appUpdateManager: appUpdateManager)
+        }
+    }
+
+    private var endpointConfigurationError: String? {
+        do {
+            let configuration = try suggestionSettings.openAICompatibleConfiguration
+            return configuration.modelName.isEmpty
+                ? OpenAICompatibleEndpointError.emptyModelName.localizedDescription
+                : nil
+        } catch {
+            return error.localizedDescription
         }
     }
 

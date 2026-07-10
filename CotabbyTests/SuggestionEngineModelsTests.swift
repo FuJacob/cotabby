@@ -8,6 +8,7 @@ final class SuggestionEngineModelsTests: XCTestCase {
     func test_suggestionEngineKind_displayLabelsArePinnedProductCopy() {
         XCTAssertEqual(SuggestionEngineKind.appleIntelligence.displayLabel, "Apple Intelligence")
         XCTAssertEqual(SuggestionEngineKind.llamaOpenSource.displayLabel, "Open Source")
+        XCTAssertEqual(SuggestionEngineKind.openAICompatible.displayLabel, "Local Endpoint")
     }
 
     func test_suggestionEngineKind_systemImageNamesArePinnedSharedGlyphs() {
@@ -15,10 +16,11 @@ final class SuggestionEngineModelsTests: XCTestCase {
         // the engine looking like one object across every surface.
         XCTAssertEqual(SuggestionEngineKind.appleIntelligence.systemImageName, "apple.logo")
         XCTAssertEqual(SuggestionEngineKind.llamaOpenSource.systemImageName, "cpu.fill")
+        XCTAssertEqual(SuggestionEngineKind.openAICompatible.systemImageName, "network")
     }
 
     func test_suggestionEngineKind_idMatchesRawValueForEveryCase() {
-        XCTAssertEqual(SuggestionEngineKind.allCases.count, 2)
+        XCTAssertEqual(SuggestionEngineKind.allCases.count, 3)
         for kind in SuggestionEngineKind.allCases {
             XCTAssertEqual(kind.id, kind.rawValue)
         }
@@ -28,11 +30,13 @@ final class SuggestionEngineModelsTests: XCTestCase {
         // Apple Intelligence has no GGUF files to manage; the OS owns its model.
         XCTAssertFalse(SuggestionEngineKind.appleIntelligence.supportsLocalModelManagement)
         XCTAssertTrue(SuggestionEngineKind.llamaOpenSource.supportsLocalModelManagement)
+        XCTAssertFalse(SuggestionEngineKind.openAICompatible.supportsLocalModelManagement)
     }
 
     func test_powerProfile_engineBridgesEachProfileToItsEngineKind() {
         XCTAssertEqual(PowerProfile.appleIntelligence.engine, .appleIntelligence)
         XCTAssertEqual(PowerProfile.llama(filename: "tabby.gguf").engine, .llamaOpenSource)
+        XCTAssertEqual(PowerProfile.openAICompatible(modelName: "gemma4").engine, .openAICompatible)
     }
 
     func test_disabledApplicationRule_identityIsBundleIdentifierAndSurvivesCodableRoundTrip() throws {

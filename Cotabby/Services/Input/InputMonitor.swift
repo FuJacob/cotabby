@@ -3,9 +3,9 @@ import Foundation
 import Logging
 
 /// File overview:
-/// Owns the global keyboard event taps used to detect typing, navigation, dismissal keys,
-/// and `Tab` acceptance. This is the boundary between raw CGEvents and Cotabby's smaller
-/// input-event vocabulary.
+/// Owns the global input event taps used to detect typing, navigation, dismissal keys, `Tab`
+/// acceptance, and compatibility-relevant pointer presses. This is the boundary between raw
+/// CGEvents and Cotabby's smaller input-event vocabulary.
 ///
 /// `CapturedInputEvent` now lives in `Models/InputModels.swift` so the rest of the app can depend
 /// on the semantic event type without importing this event-tap implementation.
@@ -40,9 +40,9 @@ enum InputMonitorAcceptTapDecision: Equatable {
 
 /// Installs two taps:
 /// - A steady-state `.listenOnly` observer at the head of the chain. Listen-only taps do not gate
-///   event delivery on the callback's return, so a slow main actor cannot stall global keystrokes
-///   in unrelated apps (DaVinci Resolve's Spacebar play/pause is the canonical victim of an active
-///   tap here — see issue #328). It handles ordinary typing, navigation, and dismissal events.
+///   event delivery on the callback's return, so a slow main actor cannot stall input in unrelated
+///   apps (DaVinci Resolve's Spacebar play/pause is the canonical victim of an active tap here — see
+///   issue #328). It handles ordinary typing, navigation, dismissal, and pointer observation.
 /// - A narrow `.defaultTap` accept tap at the tail, installed only while a suggestion is visible.
 ///   This is the only path that consumes events, so it also owns acceptance side effects. Keeping
 ///   insertion and consumption in the same callback prevents the coordinator from hiding the overlay
@@ -51,6 +51,11 @@ enum InputMonitorAcceptTapDecision: Equatable {
 final class InputMonitor {
     var onEvent: ((CapturedInputEvent) -> Bool)?
     var onSuppressedSyntheticInput: (() -> Void)?
+
+    /// Reports physical pointer-down locations from the existing listen-only tap. The Calendar AX
+    /// compatibility guard uses this to pause focus-tree reads before Calendar handles its fragile
+    /// date/time disclosure click. No pointer event is consumed or modified.
+    var onPointerDown: (@MainActor (CGPoint) -> Void)?
 
     /// While an emoji capture session is active, the picker controller decides per key whether the
     /// active tap should swallow it (navigation, Return/Tab, Escape) or let it reach the field
@@ -241,6 +246,8 @@ final class InputMonitor {
         }
 
         let mask = (1 << CGEventType.keyDown.rawValue)
+            | (1 << CGEventType.leftMouseDown.rawValue)
+            | (1 << CGEventType.rightMouseDown.rawValue)
         let callback: CGEventTapCallBack = { _, type, event, userInfo in
             guard let userInfo else {
                 return Unmanaged.passUnretained(event)
@@ -501,9 +508,22 @@ final class InputMonitor {
             )
             return Unmanaged.passUnretained(event)
 
+        case .leftMouseDown, .rightMouseDown:
+            handleObserverPointerDown(at: event.location)
+            return Unmanaged.passUnretained(event)
+
         default:
             return Unmanaged.passUnretained(event)
         }
+    }
+
+    /// Testable pointer path for the listen-only observer tap.
+    ///
+    /// Production enters through `handleObserverTap`; accepting a value here lets tests verify that
+    /// pointer coordinates reach compatibility guards without allocating a CoreGraphics event in the
+    /// app-hosted test process.
+    func handleObserverPointerDown(at point: CGPoint) {
+        onPointerDown?(point)
     }
 
     /// Testable observer path for semantic key snapshots.

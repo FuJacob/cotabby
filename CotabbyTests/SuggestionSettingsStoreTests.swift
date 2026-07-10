@@ -148,6 +148,14 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         XCTAssertFalse(data.automaticallyFixTypos)
     }
 
+    func test_load_menuBarIconDefaultsVisible() async {
+        let defaults = makeIsolatedDefaults()
+
+        let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
+
+        XCTAssertTrue(data.isMenuBarIconVisible)
+    }
+
     func test_saveThenLoad_roundTripsScalarFields() async {
         let defaults = makeIsolatedDefaults()
         let store = SuggestionSettingsStore(userDefaults: defaults)
@@ -158,6 +166,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         store.saveGhostTextSizeMultiplier(0.8)
         store.saveFastModeEnabled(true)
         store.saveAutomaticallyFixTypos(true)
+        store.saveMenuBarIconVisible(false)
         store.saveMenuBarWordCountVisible(false)
         store.saveFadeInSuggestions(false)
         store.saveFadeInDurationSeconds(0.25)
@@ -170,9 +179,29 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         XCTAssertEqual(data.ghostTextSizeMultiplier, 0.8, accuracy: 0.0001)
         XCTAssertTrue(data.isFastModeEnabled)
         XCTAssertTrue(data.automaticallyFixTypos)
+        XCTAssertFalse(data.isMenuBarIconVisible)
         XCTAssertFalse(data.isMenuBarWordCountVisible)
         XCTAssertFalse(data.fadeInSuggestions)
         XCTAssertEqual(data.fadeInDurationSeconds, 0.25, accuracy: 0.0001)
+    }
+
+    func test_saveThenLoad_roundTripsIndefinitePause() async {
+        let defaults = makeIsolatedDefaults()
+        let store = SuggestionSettingsStore(userDefaults: defaults)
+
+        store.savePauseState(.indefinitely)
+
+        XCTAssertEqual(store.load(configuration: .standard).pauseState, .indefinitely)
+    }
+
+    func test_loadDropsExpiredTimedPause() async {
+        let defaults = makeIsolatedDefaults()
+        let store = SuggestionSettingsStore(userDefaults: defaults)
+
+        store.savePauseState(.until(Date().addingTimeInterval(-1)))
+
+        XCTAssertNil(store.load(configuration: .standard).pauseState)
+        XCTAssertNil(defaults.object(forKey: "cotabbySuggestionPauseState"))
     }
 
     func test_load_fadeInSuggestionsDefaultsOn() async {
@@ -328,12 +357,38 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         store.saveBatteryEngine(.appleIntelligence)
         store.savePluggedInEngine(.llamaOpenSource)
         store.savePluggedInModelFilename("big-model.gguf")
+        store.saveBatteryEndpointModelName("battery-endpoint")
+        store.savePluggedInEndpointModelName("plugged-endpoint")
 
         let data = store.load(configuration: .standard)
 
         XCTAssertEqual(data.batteryEngine, .appleIntelligence)
         XCTAssertEqual(data.pluggedInEngine, .llamaOpenSource)
         XCTAssertEqual(data.pluggedInModelFilename, "big-model.gguf")
+        XCTAssertEqual(data.batteryEndpointModelName, "battery-endpoint")
+        XCTAssertEqual(data.pluggedInEndpointModelName, "plugged-endpoint")
+    }
+
+    func test_endpointDefaultsAndSettingsRoundTrip() async {
+        let defaults = makeIsolatedDefaults()
+        let store = SuggestionSettingsStore(userDefaults: defaults)
+
+        let initial = store.load(configuration: .standard)
+        XCTAssertEqual(
+            initial.openAICompatibleBaseURL,
+            OpenAICompatibleEndpointConfiguration.defaultBaseURLString
+        )
+        XCTAssertEqual(initial.openAICompatibleModelName, "")
+        XCTAssertEqual(initial.openAICompatibleAPIMode, .chatCompletions)
+
+        store.saveOpenAICompatibleBaseURL("https://example.com/v1")
+        store.saveOpenAICompatibleModelName("custom")
+        store.saveOpenAICompatibleAPIMode(.completions)
+        let reloaded = store.load(configuration: .standard)
+
+        XCTAssertEqual(reloaded.openAICompatibleBaseURL, "https://example.com/v1")
+        XCTAssertEqual(reloaded.openAICompatibleModelName, "custom")
+        XCTAssertEqual(reloaded.openAICompatibleAPIMode, .completions)
     }
 
     func test_load_legacyModelOnlyProfilePreservedWithOpenSourceEngine() async {
@@ -489,6 +544,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         // methods the facade uses), plus the legacy single-language key. If `resetToDefaults` misses
         // any key, the reloaded data stays != pristine and the Equatable check below fails loudly.
         store.saveGloballyEnabled(false)
+        store.savePauseState(.indefinitely)
         store.saveDisabledAppRules(
             [DisabledApplicationRule(bundleIdentifier: "com.example.app", displayName: "Example")]
         )
@@ -499,6 +555,9 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         store.saveGhostTextOpacity(0.4)
         store.saveGhostTextSizeMultiplier(1.2)
         store.saveSelectedEngine(.appleIntelligence)
+        store.saveOpenAICompatibleBaseURL("https://example.com/v1")
+        store.saveOpenAICompatibleModelName("remote-model")
+        store.saveOpenAICompatibleAPIMode(.completions)
         store.saveSelectedWordCountPreset(.fourToSeven)
         store.saveUsingCustomWordCountRange(true)
         store.saveCustomWordCountRange(low: 3, high: 9)
@@ -533,8 +592,10 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         store.savePowerBasedModelSwitchingEnabled(true)
         store.saveBatteryEngine(.appleIntelligence)
         store.saveBatteryModelFilename("small.gguf")
+        store.saveBatteryEndpointModelName("small-endpoint")
         store.savePluggedInEngine(.appleIntelligence)
         store.savePluggedInModelFilename("big.gguf")
+        store.savePluggedInEndpointModelName("big-endpoint")
         defaults.set("Spanish", forKey: "cotabbyResponseLanguage")
 
         // Sanity: the dirty values really landed, so the assertions below aren't vacuous.

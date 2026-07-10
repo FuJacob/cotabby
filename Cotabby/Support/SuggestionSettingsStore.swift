@@ -70,6 +70,7 @@ struct SuggestionSettingsStore {
     // MARK: - UserDefaults keys
 
     private static let isGloballyEnabledDefaultsKey = "cotabbyGloballyEnabled"
+    private static let pauseStateDefaultsKey = "cotabbySuggestionPauseState"
     private static let disabledAppRulesDefaultsKey = "cotabbyDisabledAppRules"
     private static let perAppShortcutOverridesDefaultsKey = "cotabbyPerAppShortcutOverrides"
     private static let suggestInIntegratedTerminalsDefaultsKey = "cotabbySuggestInIntegratedTerminals"
@@ -80,6 +81,9 @@ struct SuggestionSettingsStore {
     private static let ghostTextOpacityDefaultsKey = "cotabbyGhostTextOpacity"
     private static let ghostTextSizeMultiplierDefaultsKey = "cotabbyGhostTextSizeMultiplier"
     private static let selectedEngineDefaultsKey = "cotabbySelectedEngine"
+    private static let openAICompatibleBaseURLDefaultsKey = "cotabbyOpenAICompatibleBaseURL"
+    private static let openAICompatibleModelNameDefaultsKey = "cotabbyOpenAICompatibleModelName"
+    private static let openAICompatibleAPIModeDefaultsKey = "cotabbyOpenAICompatibleAPIMode"
     private static let selectedWordCountPresetDefaultsKey = "cotabbySelectedWordCountPreset"
     private static let usingCustomWordCountRangeDefaultsKey = "cotabbyUsingCustomWordCountRange"
     private static let customWordCountLowWordsDefaultsKey = "cotabbyCustomWordCountLowWords"
@@ -100,6 +104,9 @@ struct SuggestionSettingsStore {
     private static let spellingDictionaryCodesDefaultsKey = "cotabbyEnabledSpellingDictionaryCodes"
     private static let automaticallyFixTyposDefaultsKey = "cotabbyAutomaticallyFixTypos"
     private static let performanceTrackingEnabledDefaultsKey = "cotabbyPerformanceTrackingEnabled"
+    /// Shared with `CotabbyApp` because SwiftUI's scene-level `@AppStorage` is what invalidates the
+    /// `MenuBarExtra` insertion binding when the settings model writes this preference.
+    static let menuBarIconVisibleDefaultsKey = "cotabbyMenuBarIconVisible"
     private static let menuBarWordCountVisibleDefaultsKey = "cotabbyMenuBarWordCountVisible"
     private static let mirrorPreferenceDefaultsKey = "cotabbyMirrorPreference"
     private static let userNameDefaultsKey = "cotabbyUserName"
@@ -134,8 +141,10 @@ struct SuggestionSettingsStore {
     private static let powerModelSwitchingEnabledDefaultsKey = "cotabbyPowerBasedModelSwitchingEnabled"
     private static let batteryEngineDefaultsKey = "cotabbyBatteryEngine"
     private static let batteryModelFilenameDefaultsKey = "cotabbyBatteryModelFilename"
+    private static let batteryEndpointModelNameDefaultsKey = "cotabbyBatteryEndpointModelName"
     private static let pluggedInEngineDefaultsKey = "cotabbyPluggedInEngine"
     private static let pluggedInModelFilenameDefaultsKey = "cotabbyPluggedInModelFilename"
+    private static let pluggedInEndpointModelNameDefaultsKey = "cotabbyPluggedInEndpointModelName"
 
     /// Every persisted-preference key this store owns, in one place so `resetToDefaults` clears the
     /// full set. App state that is deliberately *not* a preference lives under other keys and is
@@ -146,6 +155,7 @@ struct SuggestionSettingsStore {
     /// would otherwise resurrect.
     private static let allPreferenceDefaultsKeys: [String] = [
         isGloballyEnabledDefaultsKey,
+        pauseStateDefaultsKey,
         disabledAppRulesDefaultsKey,
         perAppShortcutOverridesDefaultsKey,
         suggestInIntegratedTerminalsDefaultsKey,
@@ -156,6 +166,9 @@ struct SuggestionSettingsStore {
         ghostTextOpacityDefaultsKey,
         ghostTextSizeMultiplierDefaultsKey,
         selectedEngineDefaultsKey,
+        openAICompatibleBaseURLDefaultsKey,
+        openAICompatibleModelNameDefaultsKey,
+        openAICompatibleAPIModeDefaultsKey,
         selectedWordCountPresetDefaultsKey,
         usingCustomWordCountRangeDefaultsKey,
         customWordCountLowWordsDefaultsKey,
@@ -198,8 +211,10 @@ struct SuggestionSettingsStore {
         powerModelSwitchingEnabledDefaultsKey,
         batteryEngineDefaultsKey,
         batteryModelFilenameDefaultsKey,
+        batteryEndpointModelNameDefaultsKey,
         pluggedInEngineDefaultsKey,
-        pluggedInModelFilenameDefaultsKey
+        pluggedInModelFilenameDefaultsKey,
+        pluggedInEndpointModelNameDefaultsKey
     ]
 
     // MARK: - Load
@@ -211,6 +226,11 @@ struct SuggestionSettingsStore {
     /// without a matching migration test; each one protects an existing user's settings.
     func load(configuration: SuggestionConfiguration) -> SuggestionSettingsData {
         let resolvedGloballyEnabled = userDefaults.object(forKey: Self.isGloballyEnabledDefaultsKey) as? Bool ?? true
+        // Expired pauses are discarded during launch so a Mac that was asleep or powered off past
+        // the deadline never comes back in a stale disabled state.
+        let persistedPauseState = userDefaults.data(forKey: Self.pauseStateDefaultsKey)
+            .flatMap { try? JSONDecoder().decode(SuggestionPauseState.self, from: $0) }
+        let resolvedPauseState = persistedPauseState?.activeState()
         let resolvedDisabledAppRules = loadDisabledAppRules()
         let resolvedPerAppShortcutOverrides = loadPerAppShortcutOverrides()
         let resolvedShowIndicator: Bool = if let modeString = userDefaults.string(
@@ -243,6 +263,16 @@ struct SuggestionSettingsStore {
             .string(forKey: Self.selectedEngineDefaultsKey)
             .flatMap(SuggestionEngineKind.init(rawValue:))
             ?? .llamaOpenSource
+        let resolvedOpenAICompatibleBaseURL = userDefaults
+            .string(forKey: Self.openAICompatibleBaseURLDefaultsKey)
+            ?? OpenAICompatibleEndpointConfiguration.defaultBaseURLString
+        let resolvedOpenAICompatibleModelName = userDefaults
+            .string(forKey: Self.openAICompatibleModelNameDefaultsKey)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let resolvedOpenAICompatibleAPIMode = userDefaults
+            .string(forKey: Self.openAICompatibleAPIModeDefaultsKey)
+            .flatMap(OpenAICompatibleAPIMode.init(rawValue:))
+            ?? .chatCompletions
         let resolvedWordCountPreset: SuggestionWordCountPreset = {
             let storedRaw = userDefaults.string(forKey: Self.selectedWordCountPresetDefaultsKey)
             // Migrate the retired "3-7" raw value to its replacement "4-7" so users who picked
@@ -294,6 +324,10 @@ struct SuggestionSettingsStore {
         // in from the Performance pane.
         let resolvedPerformanceTrackingEnabled =
             userDefaults.object(forKey: Self.performanceTrackingEnabledDefaultsKey) as? Bool ?? false
+        // Existing installs keep the status item unless the user explicitly hides it. Hiding the
+        // item must never terminate the accessory app because autocomplete continues in the background.
+        let resolvedMenuBarIconVisible =
+            userDefaults.object(forKey: Self.menuBarIconVisibleDefaultsKey) as? Bool ?? true
         // Default to visible so existing installs keep the running-word-count badge they're used
         // to seeing. The toggle lets users who find the badge noisy hide it from the menu bar.
         let resolvedMenuBarWordCountVisible =
@@ -436,12 +470,17 @@ struct SuggestionSettingsStore {
         let resolvedBatteryEngine = userDefaults.string(forKey: Self.batteryEngineDefaultsKey)
             .flatMap(SuggestionEngineKind.init(rawValue:)) ?? .llamaOpenSource
         let resolvedBatteryModelFilename = userDefaults.string(forKey: Self.batteryModelFilenameDefaultsKey) ?? ""
+        let resolvedBatteryEndpointModelName = userDefaults
+            .string(forKey: Self.batteryEndpointModelNameDefaultsKey) ?? ""
         let resolvedPluggedInEngine = userDefaults.string(forKey: Self.pluggedInEngineDefaultsKey)
             .flatMap(SuggestionEngineKind.init(rawValue:)) ?? .llamaOpenSource
         let resolvedPluggedInModelFilename = userDefaults.string(forKey: Self.pluggedInModelFilenameDefaultsKey) ?? ""
+        let resolvedPluggedInEndpointModelName = userDefaults
+            .string(forKey: Self.pluggedInEndpointModelNameDefaultsKey) ?? ""
 
         let data = SuggestionSettingsData(
             isGloballyEnabled: resolvedGloballyEnabled,
+            pauseState: resolvedPauseState,
             showIndicator: resolvedShowIndicator,
             showAcceptanceHint: resolvedShowAcceptanceHint,
             disabledAppRules: resolvedDisabledAppRules,
@@ -450,6 +489,9 @@ struct SuggestionSettingsStore {
             ghostTextOpacity: resolvedGhostTextOpacity,
             ghostTextSizeMultiplier: resolvedGhostTextSizeMultiplier,
             selectedEngine: resolvedEngine,
+            openAICompatibleBaseURL: resolvedOpenAICompatibleBaseURL,
+            openAICompatibleModelName: resolvedOpenAICompatibleModelName,
+            openAICompatibleAPIMode: resolvedOpenAICompatibleAPIMode,
             selectedWordCountPreset: resolvedWordCountPreset,
             isUsingCustomWordCountRange: resolvedUsingCustomWordCountRange,
             customWordCountLowWords: resolvedCustomRange.lowWords,
@@ -462,6 +504,7 @@ struct SuggestionSettingsStore {
             enabledSpellingDictionaryCodes: resolvedEnabledSpellingDictionaryCodes,
             automaticallyFixTypos: resolvedAutomaticallyFixTypos,
             isPerformanceTrackingEnabled: resolvedPerformanceTrackingEnabled,
+            isMenuBarIconVisible: resolvedMenuBarIconVisible,
             isMenuBarWordCountVisible: resolvedMenuBarWordCountVisible,
             mirrorPreference: resolvedMirrorPreference,
             userName: resolvedUserName,
@@ -494,13 +537,16 @@ struct SuggestionSettingsStore {
             isPowerBasedModelSwitchingEnabled: resolvedPowerBasedModelSwitchingEnabled,
             batteryEngine: resolvedBatteryEngine,
             batteryModelFilename: resolvedBatteryModelFilename,
+            batteryEndpointModelName: resolvedBatteryEndpointModelName,
             pluggedInEngine: resolvedPluggedInEngine,
-            pluggedInModelFilename: resolvedPluggedInModelFilename
+            pluggedInModelFilename: resolvedPluggedInModelFilename,
+            pluggedInEndpointModelName: resolvedPluggedInEndpointModelName
         )
 
         // Unconditional write-back so the resolved (possibly migrated or default-capped) values are
         // sticky on the next launch. Mirrors the resolution above field-for-field.
         saveGloballyEnabled(data.isGloballyEnabled)
+        savePauseState(data.pauseState)
         saveDisabledAppRules(data.disabledAppRules)
         saveSuggestInIntegratedTerminals(data.suggestInIntegratedTerminals)
         saveShowIndicator(data.showIndicator)
@@ -509,6 +555,9 @@ struct SuggestionSettingsStore {
         saveGhostTextOpacity(data.ghostTextOpacity)
         saveGhostTextSizeMultiplier(data.ghostTextSizeMultiplier)
         saveSelectedEngine(data.selectedEngine)
+        saveOpenAICompatibleBaseURL(data.openAICompatibleBaseURL)
+        saveOpenAICompatibleModelName(data.openAICompatibleModelName)
+        saveOpenAICompatibleAPIMode(data.openAICompatibleAPIMode)
         saveSelectedWordCountPreset(data.selectedWordCountPreset)
         saveUsingCustomWordCountRange(data.isUsingCustomWordCountRange)
         saveCustomWordCountRange(low: data.customWordCountLowWords, high: data.customWordCountHighWords)
@@ -520,6 +569,7 @@ struct SuggestionSettingsStore {
         saveEnabledSpellingDictionaryCodes(data.enabledSpellingDictionaryCodes)
         saveAutomaticallyFixTypos(data.automaticallyFixTypos)
         savePerformanceTrackingEnabled(data.isPerformanceTrackingEnabled)
+        saveMenuBarIconVisible(data.isMenuBarIconVisible)
         saveMenuBarWordCountVisible(data.isMenuBarWordCountVisible)
         saveMirrorPreference(data.mirrorPreference)
         saveUserName(data.userName)
@@ -558,8 +608,10 @@ struct SuggestionSettingsStore {
         savePowerBasedModelSwitchingEnabled(data.isPowerBasedModelSwitchingEnabled)
         saveBatteryEngine(data.batteryEngine)
         saveBatteryModelFilename(data.batteryModelFilename)
+        saveBatteryEndpointModelName(data.batteryEndpointModelName)
         savePluggedInEngine(data.pluggedInEngine)
         savePluggedInModelFilename(data.pluggedInModelFilename)
+        savePluggedInEndpointModelName(data.pluggedInEndpointModelName)
 
         // The custom indicator icon feature was removed; scrub any previously-persisted PNG so
         // users who picked one in an older build get the default cat icon back automatically.
@@ -587,6 +639,17 @@ struct SuggestionSettingsStore {
 
     func saveGloballyEnabled(_ enabled: Bool) {
         userDefaults.set(enabled, forKey: Self.isGloballyEnabledDefaultsKey)
+    }
+
+    func savePauseState(_ pauseState: SuggestionPauseState?) {
+        guard let pauseState else {
+            userDefaults.removeObject(forKey: Self.pauseStateDefaultsKey)
+            return
+        }
+
+        if let data = try? JSONEncoder().encode(pauseState) {
+            userDefaults.set(data, forKey: Self.pauseStateDefaultsKey)
+        }
     }
 
     func saveSuggestInIntegratedTerminals(_ enabled: Bool) {
@@ -648,6 +711,18 @@ struct SuggestionSettingsStore {
         userDefaults.set(engine.rawValue, forKey: Self.selectedEngineDefaultsKey)
     }
 
+    func saveOpenAICompatibleBaseURL(_ baseURL: String) {
+        userDefaults.set(baseURL, forKey: Self.openAICompatibleBaseURLDefaultsKey)
+    }
+
+    func saveOpenAICompatibleModelName(_ modelName: String) {
+        userDefaults.set(modelName, forKey: Self.openAICompatibleModelNameDefaultsKey)
+    }
+
+    func saveOpenAICompatibleAPIMode(_ mode: OpenAICompatibleAPIMode) {
+        userDefaults.set(mode.rawValue, forKey: Self.openAICompatibleAPIModeDefaultsKey)
+    }
+
     func savePowerBasedModelSwitchingEnabled(_ enabled: Bool) {
         userDefaults.set(enabled, forKey: Self.powerModelSwitchingEnabledDefaultsKey)
     }
@@ -660,12 +735,20 @@ struct SuggestionSettingsStore {
         userDefaults.set(filename, forKey: Self.batteryModelFilenameDefaultsKey)
     }
 
+    func saveBatteryEndpointModelName(_ modelName: String) {
+        userDefaults.set(modelName, forKey: Self.batteryEndpointModelNameDefaultsKey)
+    }
+
     func savePluggedInEngine(_ engine: SuggestionEngineKind) {
         userDefaults.set(engine.rawValue, forKey: Self.pluggedInEngineDefaultsKey)
     }
 
     func savePluggedInModelFilename(_ filename: String) {
         userDefaults.set(filename, forKey: Self.pluggedInModelFilenameDefaultsKey)
+    }
+
+    func savePluggedInEndpointModelName(_ modelName: String) {
+        userDefaults.set(modelName, forKey: Self.pluggedInEndpointModelNameDefaultsKey)
     }
 
     func saveSelectedWordCountPreset(_ preset: SuggestionWordCountPreset) {
@@ -715,6 +798,10 @@ struct SuggestionSettingsStore {
 
     func savePerformanceTrackingEnabled(_ enabled: Bool) {
         userDefaults.set(enabled, forKey: Self.performanceTrackingEnabledDefaultsKey)
+    }
+
+    func saveMenuBarIconVisible(_ visible: Bool) {
+        userDefaults.set(visible, forKey: Self.menuBarIconVisibleDefaultsKey)
     }
 
     func saveMenuBarWordCountVisible(_ visible: Bool) {

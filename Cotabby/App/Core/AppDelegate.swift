@@ -98,6 +98,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             .store(in: &cancellables)
 
+        // Focus may stay on the same field while a menu action pauses or resumes Cotabby. React to
+        // settings snapshots too so the field-edge indicator cannot remain visible during a pause.
+        suggestionSettings.snapshotPublisher
+            .dropFirst()
+            .sink { [weak self] settings in
+                guard let self else { return }
+                self.updateActivationIndicator(for: self.focusModel.snapshot, settings: settings)
+            }
+            .store(in: &cancellables)
+
         if let focusDebugOverlayController {
             focusModel.$latestPollEvent
                 .compactMap { $0 }
@@ -141,12 +151,45 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         didStartServices = true
         CotabbyLogger.app.info("All services started")
 
-        // Dev affordance in the spirit of `-cotabby-debug`: a menu-bar-only app has no scriptable
-        // path to its Settings window (the status item is unreachable from AppleScript), so UI
-        // work on Settings cannot be exercised by tooling without this. No-op unless passed.
-        if ProcessInfo.processInfo.arguments.contains("-cotabby-open-settings") {
+        // A manual cold launch must remain recoverable after the user hides the only status item.
+        // Login-item launches stay silent so hiding the icon does not make Settings appear after
+        // every sign-in. The development argument deliberately overrides both policies.
+        let wasSettingsExplicitlyRequested =
+            ProcessInfo.processInfo.arguments.contains("-cotabby-open-settings")
+        let shouldShowSettings = MenuBarRecoveryPolicy.shouldShowSettingsOnColdLaunch(
+            isMenuBarIconVisible: suggestionSettings.isMenuBarIconVisible,
+            wasLaunchedAtLogin: LaunchAtLogin.wasLaunchedAtLogin,
+            wasSettingsExplicitlyRequested: wasSettingsExplicitlyRequested
+        )
+        if shouldShowSettings {
+            if !suggestionSettings.isMenuBarIconVisible && !wasSettingsExplicitlyRequested {
+                CotabbyLogger.app.info(
+                    "Opening Settings because Cotabby launched with its menu bar icon hidden"
+                )
+            }
             settingsCoordinator.showSettings()
         }
+    }
+
+    /// Launch Services sends a reopen event when the user opens Cotabby while this accessory app is
+    /// already running. When the status item is hidden, Settings is the app's only visible recovery
+    /// surface, so reopening must reveal it instead of leaving the user with no apparent response.
+    func applicationShouldHandleReopen(
+        _ sender: NSApplication,
+        hasVisibleWindows flag: Bool
+    ) -> Bool {
+        if MenuBarRecoveryPolicy.shouldLetAppKitHandleReopen(
+            isMenuBarIconVisible: suggestionSettings.isMenuBarIconVisible,
+            hasVisibleWindows: flag,
+            isSettingsWindowOpen: settingsCoordinator.isSettingsWindowOpen
+        ) {
+            // Let AppKit activate the app and bring the existing Settings window forward.
+            return true
+        }
+
+        CotabbyLogger.app.info("Opening Settings because Cotabby was reopened with its menu bar icon hidden")
+        settingsCoordinator.showSettings()
+        return false
     }
 
     /// One-time default: enable Open at Login for every user (new and existing) the first time this
@@ -193,9 +236,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Shows or hides the field-edge Cotabby icon based on focus state, global enable, per-app
     /// disable rules, and the user's indicator toggle.
-    private func updateActivationIndicator(for snapshot: FocusSnapshot) {
-        guard suggestionSettings.isGloballyEnabled,
-              !suggestionSettings.isApplicationDisabled(bundleIdentifier: snapshot.bundleIdentifier),
+    private func updateActivationIndicator(
+        for snapshot: FocusSnapshot,
+        settings: SuggestionSettingsSnapshot? = nil
+    ) {
+        let settings = settings ?? suggestionSettings.snapshot
+        guard settings.isGloballyEnabled,
+              !settings.isTemporarilyPaused,
+              !settings.disabledAppBundleIdentifiers.contains(snapshot.bundleIdentifier ?? ""),
               case .supported = snapshot.capability,
               let context = snapshot.context
         else {
@@ -216,8 +264,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         switch suggestionSettings.selectedEngine {
         case .llamaOpenSource:
             runtimeModel.startIfNeeded()
-        case .appleIntelligence:
-            break
+        case .appleIntelligence, .openAICompatible:
+            // Switching away must release Metal buffers and the mapped GGUF. Otherwise an Ollama
+            // user still pays the duplicate memory cost the external endpoint is meant to avoid.
+            runtimeModel.stop()
         }
     }
 

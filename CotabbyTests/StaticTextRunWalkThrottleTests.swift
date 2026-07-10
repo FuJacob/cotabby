@@ -6,8 +6,20 @@ import XCTest
 /// field switch regardless of elapsed time.
 @MainActor
 final class StaticTextRunWalkThrottleTests: XCTestCase {
-    private let runA: [StaticTextRunWalkThrottle.TextRun] = [("alpha", CGRect(x: 0, y: 0, width: 50, height: 10))]
-    private let runB: [StaticTextRunWalkThrottle.TextRun] = [("beta", CGRect(x: 0, y: 10, width: 40, height: 10))]
+    private let runA = [
+        StaticTextRunWalkThrottle.TextRun(
+            text: "alpha",
+            frame: CGRect(x: 0, y: 0, width: 50, height: 10),
+            allowsProportionalCaretPlacement: true
+        )
+    ]
+    private let runB = [
+        StaticTextRunWalkThrottle.TextRun(
+            text: "beta",
+            frame: CGRect(x: 0, y: 10, width: 40, height: 10),
+            allowsProportionalCaretPlacement: true
+        )
+    ]
 
     func test_reusesRunsWithinWindowForSameField() {
         let throttle = StaticTextRunWalkThrottle()
@@ -123,5 +135,36 @@ final class StaticTextRunWalkThrottleTests: XCTestCase {
 
         XCTAssertEqual(walkCount, 2)
         XCTAssertEqual(afterInvalidation.map(\.text), ["beta"])
+    }
+
+    func test_reusesWrappedRunCharacterBoundsWithTheFrameSnapshot() {
+        // The exact previous-character bounds and the union frame come from the same AX walk.
+        // They must stay cached together; mixing a fresh frame with stale character geometry would
+        // reintroduce the overlay jump this throttle exists to prevent.
+        let throttle = StaticTextRunWalkThrottle()
+        let start = Date(timeIntervalSinceReferenceDate: 100)
+        let characterFrame = CGRect(x: 42, y: 20, width: 7, height: 21)
+        let wrappedRun = [
+            StaticTextRunWalkThrottle.TextRun(
+                text: "wrapped text",
+                frame: CGRect(x: 0, y: 0, width: 100, height: 42),
+                caretCharacterFrame: characterFrame,
+                allowsProportionalCaretPlacement: false
+            )
+        ]
+
+        _ = throttle.runs(focusChangeSequence: 1, interval: 0.1, now: start) {
+            wrappedRun
+        }
+        let cached = throttle.runs(
+            focusChangeSequence: 1,
+            interval: 0.1,
+            now: start.addingTimeInterval(0.05)
+        ) {
+            runA
+        }
+
+        XCTAssertEqual(cached.first?.caretCharacterFrame, characterFrame)
+        XCTAssertEqual(cached.first?.allowsProportionalCaretPlacement, false)
     }
 }

@@ -21,4 +21,39 @@ final class DebouncePolicyTests: XCTestCase {
         XCTAssertEqual(DebouncePolicy.milliseconds(lastGenerationLatencyMilliseconds: 141, fallback: 20), 55)
         XCTAssertEqual(DebouncePolicy.milliseconds(lastGenerationLatencyMilliseconds: 900, fallback: 20), 55)
     }
+
+    func testEndpointUsesTrailingDebounceToCollapseTypingBursts() {
+        XCTAssertEqual(
+            DebouncePolicy.milliseconds(
+                lastGenerationLatencyMilliseconds: nil,
+                fallback: 20,
+                engine: .openAICompatible
+            ),
+            180
+        )
+        XCTAssertEqual(
+            DebouncePolicy.milliseconds(
+                lastGenerationLatencyMilliseconds: 250,
+                fallback: 20,
+                engine: .openAICompatible
+            ),
+            100
+        )
+        XCTAssertEqual(
+            DebouncePolicy.milliseconds(
+                lastGenerationLatencyMilliseconds: 600,
+                fallback: 20,
+                engine: .openAICompatible
+            ),
+            150
+        )
+        XCTAssertEqual(
+            DebouncePolicy.milliseconds(
+                lastGenerationLatencyMilliseconds: 1_000,
+                fallback: 20,
+                engine: .openAICompatible
+            ),
+            220
+        )
+    }
 }

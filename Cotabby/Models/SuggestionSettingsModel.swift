@@ -1,6 +1,7 @@
 import ApplicationServices
 import Combine
 import Foundation
+import Logging
 
 /// Identifies one of the three user-configurable keyboard shortcuts so the recorder can ask which
 /// other action (if any) already owns a proposed key combination before committing it.
@@ -34,6 +35,8 @@ enum ShortcutAction: CaseIterable {
 @MainActor
 final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var isGloballyEnabled: Bool
+    /// The settings model owns pause lifetime so views and services observe one shared state.
+    @Published private(set) var pauseState: SuggestionPauseState?
     @Published private(set) var showIndicator: Bool
     /// Whether the keycap hint (the small pill that teaches the accept key) is drawn after ghost text.
     @Published private(set) var showAcceptanceHint: Bool
@@ -49,6 +52,12 @@ final class SuggestionSettingsModel: ObservableObject {
     /// of the generation-facing `SuggestionSettingsSnapshot` — it changes presentation, not requests.
     @Published private(set) var ghostTextSizeMultiplier: Double
     @Published private(set) var selectedEngine: SuggestionEngineKind
+    @Published private(set) var openAICompatibleBaseURL: String
+    @Published private(set) var openAICompatibleModelName: String
+    @Published private(set) var openAICompatibleAPIMode: OpenAICompatibleAPIMode
+    /// Non-secret change token that lets lifecycle observers react to Keychain updates without
+    /// publishing the credential itself.
+    @Published private(set) var endpointCredentialRevision: UInt64 = 0
     @Published private(set) var selectedWordCountPreset: SuggestionWordCountPreset
     /// When true, the active length budget reads `customWordCountLowWords...HighWords` and the
     /// curated `selectedWordCountPreset` is ignored for generation (but preserved as the value the
@@ -77,6 +86,9 @@ final class SuggestionSettingsModel: ObservableObject {
     /// default user never pays any extra storage or write cost — recording only kicks in once the
     /// user opts in from Settings.
     @Published private(set) var isPerformanceTrackingEnabled: Bool
+    /// Whether Cotabby's status item is inserted into the menu bar. The process and suggestion
+    /// pipeline remain active when hidden; launching the app again opens Settings as the recovery path.
+    @Published private(set) var isMenuBarIconVisible: Bool
     /// Whether the accepted-word counter is drawn next to the menu bar icon. Off hides the badge
     /// entirely; the count itself keeps accruing so toggling it back on restores the running total.
     @Published private(set) var isMenuBarWordCountVisible: Bool
@@ -130,16 +142,20 @@ final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var isPowerBasedModelSwitchingEnabled: Bool
     @Published private(set) var batteryEngine: SuggestionEngineKind
     @Published private(set) var batteryModelFilename: String
+    @Published private(set) var batteryEndpointModelName: String
     @Published private(set) var pluggedInEngine: SuggestionEngineKind
     @Published private(set) var pluggedInModelFilename: String
+    @Published private(set) var pluggedInEndpointModelName: String
 
     /// Owns the on-disk keys, defaults, migrations, and per-field writes. The facade holds one and
     /// routes every load and save through it.
     private let store: SuggestionSettingsStore
+    private let endpointCredentialStore: OpenAICompatibleCredentialStoring
 
     /// Retained so `resetToDefaults` can re-resolve the same first-launch values the app shipped with
     /// (a few defaults — word-count preset, profile name, debounce/poll cadence — come from here).
     private let configuration: SuggestionConfiguration
+    private var pauseExpirationTimer: Timer?
 
     // Public default constants re-exported from `SuggestionSettingsStore` (the single source of
     // truth) so the Settings UI can keep referencing them as `SuggestionSettingsModel.X`.
@@ -163,16 +179,30 @@ final class SuggestionSettingsModel: ObservableObject {
     static let fadeInDurationStep = SuggestionSettingsStore.fadeInDurationStep
     static let maximumExtendedContextCharacters = SuggestionSettingsStore.maximumExtendedContextCharacters
 
-    init(
+    convenience init(
         configuration: SuggestionConfiguration,
         userDefaults: UserDefaults = .standard
+    ) {
+        self.init(
+            configuration: configuration,
+            userDefaults: userDefaults,
+            endpointCredentialStore: InMemoryOpenAICompatibleCredentialStore()
+        )
+    }
+
+    init(
+        configuration: SuggestionConfiguration,
+        userDefaults: UserDefaults = .standard,
+        endpointCredentialStore: OpenAICompatibleCredentialStoring
     ) {
         let store = SuggestionSettingsStore(userDefaults: userDefaults)
         let data = store.load(configuration: configuration)
         self.store = store
+        self.endpointCredentialStore = endpointCredentialStore
         self.configuration = configuration
 
         isGloballyEnabled = data.isGloballyEnabled
+        pauseState = data.pauseState
         showIndicator = data.showIndicator
         showAcceptanceHint = data.showAcceptanceHint
         disabledAppRules = data.disabledAppRules
@@ -181,6 +211,9 @@ final class SuggestionSettingsModel: ObservableObject {
         ghostTextOpacity = data.ghostTextOpacity
         ghostTextSizeMultiplier = data.ghostTextSizeMultiplier
         selectedEngine = data.selectedEngine
+        openAICompatibleBaseURL = data.openAICompatibleBaseURL
+        openAICompatibleModelName = data.openAICompatibleModelName
+        openAICompatibleAPIMode = data.openAICompatibleAPIMode
         selectedWordCountPreset = data.selectedWordCountPreset
         isUsingCustomWordCountRange = data.isUsingCustomWordCountRange
         customWordCountLowWords = data.customWordCountLowWords
@@ -193,6 +226,7 @@ final class SuggestionSettingsModel: ObservableObject {
         enabledSpellingDictionaryCodes = data.enabledSpellingDictionaryCodes
         automaticallyFixTypos = data.automaticallyFixTypos
         isPerformanceTrackingEnabled = data.isPerformanceTrackingEnabled
+        isMenuBarIconVisible = data.isMenuBarIconVisible
         isMenuBarWordCountVisible = data.isMenuBarWordCountVisible
         mirrorPreference = data.mirrorPreference
         userName = data.userName
@@ -225,8 +259,11 @@ final class SuggestionSettingsModel: ObservableObject {
         isPowerBasedModelSwitchingEnabled = data.isPowerBasedModelSwitchingEnabled
         batteryEngine = data.batteryEngine
         batteryModelFilename = data.batteryModelFilename
+        batteryEndpointModelName = data.batteryEndpointModelName
         pluggedInEngine = data.pluggedInEngine
         pluggedInModelFilename = data.pluggedInModelFilename
+        pluggedInEndpointModelName = data.pluggedInEndpointModelName
+        schedulePauseExpirationIfNeeded()
     }
 
     /// Restores every preference this facade owns to its first-launch default and persists the reset.
@@ -241,6 +278,7 @@ final class SuggestionSettingsModel: ObservableObject {
         let data = store.resetToDefaults(configuration: configuration)
 
         isGloballyEnabled = data.isGloballyEnabled
+        pauseState = data.pauseState
         showIndicator = data.showIndicator
         showAcceptanceHint = data.showAcceptanceHint
         disabledAppRules = data.disabledAppRules
@@ -249,6 +287,9 @@ final class SuggestionSettingsModel: ObservableObject {
         ghostTextOpacity = data.ghostTextOpacity
         ghostTextSizeMultiplier = data.ghostTextSizeMultiplier
         selectedEngine = data.selectedEngine
+        openAICompatibleBaseURL = data.openAICompatibleBaseURL
+        openAICompatibleModelName = data.openAICompatibleModelName
+        openAICompatibleAPIMode = data.openAICompatibleAPIMode
         selectedWordCountPreset = data.selectedWordCountPreset
         isUsingCustomWordCountRange = data.isUsingCustomWordCountRange
         customWordCountLowWords = data.customWordCountLowWords
@@ -261,6 +302,7 @@ final class SuggestionSettingsModel: ObservableObject {
         enabledSpellingDictionaryCodes = data.enabledSpellingDictionaryCodes
         automaticallyFixTypos = data.automaticallyFixTypos
         isPerformanceTrackingEnabled = data.isPerformanceTrackingEnabled
+        isMenuBarIconVisible = data.isMenuBarIconVisible
         isMenuBarWordCountVisible = data.isMenuBarWordCountVisible
         mirrorPreference = data.mirrorPreference
         userName = data.userName
@@ -293,8 +335,17 @@ final class SuggestionSettingsModel: ObservableObject {
         isPowerBasedModelSwitchingEnabled = data.isPowerBasedModelSwitchingEnabled
         batteryEngine = data.batteryEngine
         batteryModelFilename = data.batteryModelFilename
+        batteryEndpointModelName = data.batteryEndpointModelName
         pluggedInEngine = data.pluggedInEngine
         pluggedInModelFilename = data.pluggedInModelFilename
+        pluggedInEndpointModelName = data.pluggedInEndpointModelName
+        do {
+            try endpointCredentialStore.deleteAPIKey()
+            endpointCredentialRevision &+= 1
+        } catch {
+            CotabbyLogger.app.error("Failed to clear endpoint API key during settings reset: \(error.localizedDescription)")
+        }
+        schedulePauseExpirationIfNeeded()
     }
 
     /// Legacy compatibility shim. Reads through to `showIndicator`.
@@ -305,6 +356,7 @@ final class SuggestionSettingsModel: ObservableObject {
     var snapshot: SuggestionSettingsSnapshot {
         SuggestionSettingsSnapshot(
             isGloballyEnabled: isGloballyEnabled,
+            isTemporarilyPaused: isTemporarilyPaused,
             disabledAppBundleIdentifiers: Set(disabledAppRules.map(\.bundleIdentifier)),
             suggestInIntegratedTerminals: suggestInIntegratedTerminals,
             selectedEngine: selectedEngine,
@@ -345,6 +397,43 @@ final class SuggestionSettingsModel: ObservableObject {
         store.saveSelectedEngine(engine)
     }
 
+    func setOpenAICompatibleBaseURL(_ baseURL: String) {
+        guard openAICompatibleBaseURL != baseURL else { return }
+        openAICompatibleBaseURL = baseURL
+        store.saveOpenAICompatibleBaseURL(baseURL)
+    }
+
+    func setOpenAICompatibleModelName(_ modelName: String) {
+        guard openAICompatibleModelName != modelName else { return }
+        openAICompatibleModelName = modelName
+        store.saveOpenAICompatibleModelName(modelName)
+    }
+
+    func setOpenAICompatibleAPIMode(_ mode: OpenAICompatibleAPIMode) {
+        guard openAICompatibleAPIMode != mode else { return }
+        openAICompatibleAPIMode = mode
+        store.saveOpenAICompatibleAPIMode(mode)
+    }
+
+    var openAICompatibleConfiguration: OpenAICompatibleEndpointConfiguration {
+        get throws {
+            try OpenAICompatibleEndpointConfiguration(
+                baseURLString: openAICompatibleBaseURL,
+                modelName: openAICompatibleModelName,
+                apiMode: openAICompatibleAPIMode
+            )
+        }
+    }
+
+    func openAICompatibleAPIKey() throws -> String? {
+        try endpointCredentialStore.readAPIKey()
+    }
+
+    func saveOpenAICompatibleAPIKey(_ apiKey: String?) throws {
+        try endpointCredentialStore.saveAPIKey(apiKey)
+        endpointCredentialRevision &+= 1
+    }
+
     func setPowerBasedModelSwitchingEnabled(_ enabled: Bool) {
         guard isPowerBasedModelSwitchingEnabled != enabled else {
             return
@@ -372,6 +461,12 @@ final class SuggestionSettingsModel: ObservableObject {
         store.saveBatteryModelFilename(filename)
     }
 
+    func setBatteryEndpointModelName(_ modelName: String) {
+        guard batteryEndpointModelName != modelName else { return }
+        batteryEndpointModelName = modelName
+        store.saveBatteryEndpointModelName(modelName)
+    }
+
     func setPluggedInEngine(_ engine: SuggestionEngineKind) {
         guard pluggedInEngine != engine else {
             return
@@ -390,20 +485,37 @@ final class SuggestionSettingsModel: ObservableObject {
         store.savePluggedInModelFilename(filename)
     }
 
+    func setPluggedInEndpointModelName(_ modelName: String) {
+        guard pluggedInEndpointModelName != modelName else { return }
+        pluggedInEndpointModelName = modelName
+        store.savePluggedInEndpointModelName(modelName)
+    }
+
     /// The profile applied while on battery, assembled from the stored engine + model filename.
     var batteryProfile: PowerProfile {
-        batteryEngine == .appleIntelligence ? .appleIntelligence : .llama(filename: batteryModelFilename)
+        switch batteryEngine {
+        case .appleIntelligence: return .appleIntelligence
+        case .llamaOpenSource: return .llama(filename: batteryModelFilename)
+        case .openAICompatible: return .openAICompatible(modelName: batteryEndpointModelName)
+        }
     }
 
     /// The profile applied while plugged in, assembled from the stored engine + model filename.
     var pluggedInProfile: PowerProfile {
-        pluggedInEngine == .appleIntelligence ? .appleIntelligence : .llama(filename: pluggedInModelFilename)
+        switch pluggedInEngine {
+        case .appleIntelligence: return .appleIntelligence
+        case .llamaOpenSource: return .llama(filename: pluggedInModelFilename)
+        case .openAICompatible: return .openAICompatible(modelName: pluggedInEndpointModelName)
+        }
     }
 
     func setBatteryProfile(_ profile: PowerProfile) {
         setBatteryEngine(profile.engine)
         if case .llama(let filename) = profile {
             setBatteryModelFilename(filename)
+        }
+        if case .openAICompatible(let modelName) = profile {
+            setBatteryEndpointModelName(modelName)
         }
     }
 
@@ -412,24 +524,35 @@ final class SuggestionSettingsModel: ObservableObject {
         if case .llama(let filename) = profile {
             setPluggedInModelFilename(filename)
         }
+        if case .openAICompatible(let modelName) = profile {
+            setPluggedInEndpointModelName(modelName)
+        }
     }
 
     /// Seeds each per-power-source profile from the active engine + model the first time the feature
     /// is configured, so the pickers default to something valid instead of an empty selection. Only
     /// seeds a profile still at its pristine default (Open Source with no model chosen), so an
     /// explicit Apple Intelligence or model choice is never overwritten on a later appearance.
-    func initializePowerProfiles(currentEngine: SuggestionEngineKind, currentModelFilename: String?) {
+    func initializePowerProfiles(
+        currentEngine: SuggestionEngineKind,
+        currentModelFilename: String?,
+        currentEndpointModelName: String? = nil
+    ) {
         if batteryEngine == .llamaOpenSource, batteryModelFilename.isEmpty {
             setBatteryEngine(currentEngine)
-            if let currentModelFilename {
+            if currentEngine == .llamaOpenSource, let currentModelFilename {
                 setBatteryModelFilename(currentModelFilename)
+            } else if currentEngine == .openAICompatible, let currentEndpointModelName {
+                setBatteryEndpointModelName(currentEndpointModelName)
             }
         }
 
         if pluggedInEngine == .llamaOpenSource, pluggedInModelFilename.isEmpty {
             setPluggedInEngine(currentEngine)
-            if let currentModelFilename {
+            if currentEngine == .llamaOpenSource, let currentModelFilename {
                 setPluggedInModelFilename(currentModelFilename)
+            } else if currentEngine == .openAICompatible, let currentEndpointModelName {
+                setPluggedInEndpointModelName(currentEndpointModelName)
             }
         }
     }
@@ -551,6 +674,15 @@ final class SuggestionSettingsModel: ObservableObject {
         store.savePerformanceTrackingEnabled(enabled)
     }
 
+    func setMenuBarIconVisible(_ visible: Bool) {
+        guard isMenuBarIconVisible != visible else {
+            return
+        }
+
+        isMenuBarIconVisible = visible
+        store.saveMenuBarIconVisible(visible)
+    }
+
     func setMenuBarWordCountVisible(_ visible: Bool) {
         guard isMenuBarWordCountVisible != visible else {
             return
@@ -669,6 +801,63 @@ final class SuggestionSettingsModel: ObservableObject {
 
         isGloballyEnabled = enabled
         store.saveGloballyEnabled(enabled)
+    }
+
+    /// Whether autocomplete is currently paused. Expired state is rejected synchronously too, so
+    /// callers stay correct if the system delayed the timer while the Mac was asleep.
+    var isTemporarilyPaused: Bool {
+        pauseState?.isActive() == true
+    }
+
+    var pauseStatusText: String? {
+        pauseState?.statusText()
+    }
+
+    func pauseSuggestions(for duration: SuggestionPauseDuration) {
+        let newState = duration.pauseState()
+        guard pauseState != newState else { return }
+
+        pauseState = newState
+        store.savePauseState(newState)
+        schedulePauseExpirationIfNeeded()
+    }
+
+    /// Clears both disable mechanisms used by the menu-bar recovery action. This makes the single
+    /// "Enable Cotabby" button reliable whether a pause or the older global switch disabled it.
+    func enableCotabby() {
+        clearPause()
+        setGloballyEnabled(true)
+    }
+
+    func clearPause() {
+        pauseExpirationTimer?.invalidate()
+        pauseExpirationTimer = nil
+        guard pauseState != nil else { return }
+
+        pauseState = nil
+        store.savePauseState(nil)
+    }
+
+    private func schedulePauseExpirationIfNeeded() {
+        pauseExpirationTimer?.invalidate()
+        pauseExpirationTimer = nil
+
+        guard let expiration = pauseState?.expirationDate else { return }
+        let interval = expiration.timeIntervalSinceNow
+        guard interval > 0 else {
+            clearPause()
+            return
+        }
+
+        // The timer only publishes the state transition. The coordinator's existing settings-change
+        // boundary owns cancellation while pausing and normal reconciliation when the pause ends.
+        let timer = Timer(fire: expiration, interval: 0, repeats: false) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.clearPause()
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        pauseExpirationTimer = timer
     }
 
     func setSuggestInIntegratedTerminals(_ enabled: Bool) {
@@ -1112,7 +1301,11 @@ final class SuggestionSettingsModel: ObservableObject {
     /// Convenience used by the hotkey callback. Wrapping the flip here keeps the InputMonitor
     /// closure trivial and gives the menu bar / tests a single entry point.
     func toggleGloballyEnabled() {
-        setGloballyEnabled(!isGloballyEnabled)
+        if isTemporarilyPaused || !isGloballyEnabled {
+            enableCotabby()
+        } else {
+            setGloballyEnabled(false)
+        }
     }
 
     /// Returns the user-facing name of the shortcut action already bound to `(keyCode, modifiers)`,
@@ -1208,7 +1401,7 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
         // via a second CombineLatest to avoid restructuring the existing groupings.
         let primary = Publishers.CombineLatest4(
             Publishers.CombineLatest4(
-                $isGloballyEnabled,
+                Publishers.CombineLatest($isGloballyEnabled, $pauseState),
                 $disabledAppRules,
                 $selectedEngine,
                 $selectedWordCountPreset
@@ -1267,7 +1460,8 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
         )
             .map { primaryTuple, granularity, extendedContextTuple, customRangeTuple in
                 let (combinedSettings, presentationToggles, profile, timing) = primaryTuple
-                let (globallyEnabled, disabledAppRules, engine, wordCountPreset) = combinedSettings
+                let (globalState, disabledAppRules, engine, wordCountPreset) = combinedSettings
+                let (globallyEnabled, pauseState) = globalState
                 let (clipboardContextEnabled, fastModeEnabled, mirrorPreference, typoToggles) = presentationToggles
                 let (suppressOnTypo, offerCorrections, automaticallyFixTypos) = typoToggles
                 let (userName, customRules, responseLanguages, enabledSpellingDictionaryCodes) = profile
@@ -1277,6 +1471,7 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                 let (extendedContext, suggestInIntegratedTerminals, surfaceContextEnabled) = extendedContextTuple
                 return SuggestionSettingsSnapshot(
                     isGloballyEnabled: globallyEnabled,
+                    isTemporarilyPaused: pauseState?.isActive() == true,
                     disabledAppBundleIdentifiers: Set(disabledAppRules.map(\.bundleIdentifier)),
                     suggestInIntegratedTerminals: suggestInIntegratedTerminals,
                     selectedEngine: engine,

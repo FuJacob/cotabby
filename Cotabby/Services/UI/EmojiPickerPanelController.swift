@@ -27,7 +27,7 @@ final class EmojiPickerPanelController: EmojiPickerPanelPresenting {
 
     private lazy var panel: EmojiPickerPanel = {
         let panel = EmojiPickerPanel(
-            contentRect: CGRect(x: 0, y: 0, width: EmojiPickerMetrics.width, height: EmojiPickerMetrics.rowHeight),
+            contentRect: CGRect(origin: .zero, size: EmojiPickerMetrics.contentSize(matchCount: 0)),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: true
