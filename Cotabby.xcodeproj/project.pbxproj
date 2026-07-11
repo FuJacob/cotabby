@@ -1943,15 +1943,15 @@
 				LastUpgradeCheck = 2600;
 				TargetAttributes = {
 					59F15B162977174E700D0CAA = {
-						DevelopmentTeam = "";
+						DevelopmentTeam = G946M8K23B;
 						ProvisioningStyle = Automatic;
 					};
 					622CFE93F0FE48C8243E060C = {
-						DevelopmentTeam = "";
+						DevelopmentTeam = G946M8K23B;
 						ProvisioningStyle = Automatic;
 					};
 					AB3DFA4CFA5EBC6161F02A30 = {
-						DevelopmentTeam = "";
+						DevelopmentTeam = G946M8K23B;
 						ProvisioningStyle = Automatic;
 					};
 				};
