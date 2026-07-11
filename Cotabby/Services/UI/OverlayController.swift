@@ -353,10 +353,11 @@ final class OverlayController: SuggestionOverlayControlling {
         return true
     }
 
-    /// Mirror-mode rendering. Draws the suggestion inside a Cotabby-owned card anchored to the
-    /// input field rectangle (not the caret rect) so unreliable caret geometry does not propagate
-    /// into the card position. The card is otherwise visually similar to inline ghost text plus a
-    /// backdrop that makes it read as a UI element rather than free-floating text.
+    /// Mirror-mode rendering. Draws the suggestion inside a Cotabby-owned card anchored beneath the
+    /// best available text line. Estimated geometry remains too weak for inline glyphs, but its
+    /// vertical line box keeps the popup beside the visible text instead of below the field chrome.
+    /// The card is otherwise visually similar to inline ghost text plus a backdrop that makes it
+    /// read as a UI element rather than free-floating text.
     private func showMirror(
         text: String,
         geometry: SuggestionOverlayGeometry,

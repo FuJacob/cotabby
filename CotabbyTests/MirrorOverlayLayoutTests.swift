@@ -114,13 +114,13 @@ final class MirrorOverlayLayoutTests: XCTestCase {
         )
     }
 
-    func test_make_estimatedReasonStillAnchorsToInputField() {
-        // Same geometry as the user-preference test above, but with .caretGeometryEstimated. The
-        // caret rect is exactly the kind of value that can't be trusted in this case, so the layout
-        // must keep the field-rect anchor it had before the fix.
+    func test_make_estimatedReasonAnchorsToCenteredCaretLine() {
+        // Browser omniboxes expose a tall field frame around a much shorter text line. The AXFrame
+        // fallback centers its estimated caret line inside that chrome; the popup must follow the
+        // line rather than adding the field's lower padding as an extra row of vertical offset.
         let geometry = CotabbyTestFixtures.overlayGeometry(
-            caretRect: CGRect(x: 720, y: 500, width: 2, height: 18),
-            inputFrameRect: CGRect(x: 400, y: 400, width: 640, height: 200)
+            caretRect: CGRect(x: 720, y: 418, width: 2, height: 18),
+            inputFrameRect: CGRect(x: 400, y: 400, width: 640, height: 54)
         )
 
         let layout = MirrorOverlayLayout.make(
@@ -131,11 +131,42 @@ final class MirrorOverlayLayoutTests: XCTestCase {
             reason: .caretGeometryEstimated
         )
 
-        // Card sits below the FIELD edge, well below the caret line.
-        XCTAssertLessThan(
+        XCTAssertEqual(
+            layout.panelFrame.maxY,
+            geometry.caretRect.minY - 8,
+            accuracy: 0.001,
+            "Estimated popup should sit directly below the centered text line"
+        )
+        XCTAssertGreaterThan(
             layout.panelFrame.maxY,
             geometry.inputFrameRect!.minY,
-            "Estimated-reason popup should still anchor below the input field rect"
+            "Field chrome padding should not push the popup down by another row"
+        )
+    }
+
+    func test_make_estimatedMultilineFallbackRetainsFieldBottomAnchor() {
+        // When AX only exposes a multiline field frame, the resolver deliberately bottom-aligns
+        // the estimated caret. The caret and field therefore share minY, preserving the old safe
+        // placement when the actual visible line cannot be inferred.
+        let frame = CGRect(x: 400, y: 400, width: 640, height: 200)
+        let geometry = CotabbyTestFixtures.overlayGeometry(
+            caretRect: CGRect(x: 720, y: frame.minY, width: 2, height: 18),
+            inputFrameRect: frame
+        )
+
+        let layout = MirrorOverlayLayout.make(
+            suggestion: "hello",
+            geometry: geometry,
+            visibleFrame: screen,
+            showsAcceptanceHint: true,
+            reason: .caretGeometryEstimated
+        )
+
+        XCTAssertEqual(
+            layout.panelFrame.maxY,
+            frame.minY - 8,
+            accuracy: 0.001,
+            "Multiline AXFrame fallback should remain below the field bottom"
         )
     }
 
