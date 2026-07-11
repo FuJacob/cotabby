@@ -144,8 +144,8 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .huggingFaceBrowser: return "Hugging Face Model Browser"
         case .modelsFolder: return "Models Folder"
         case .lmStudio: return "LM Studio Models"
-        case .endpointBaseURL: return "Endpoint Base URL"
-        case .endpointAPIMode: return "Endpoint Request Mode"
+        case .endpointBaseURL: return "Endpoint Server URL"
+        case .endpointAPIMode: return "Endpoint API Format"
         case .endpointAPIKey: return "Endpoint API Key"
         case .endpointStatus: return "Endpoint Status"
         case .endpointModel: return "Endpoint Model"
@@ -331,8 +331,8 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .huggingFaceBrowser: return "Search Hugging Face for GGUF models."
         case .modelsFolder: return "Where downloaded model files live on this Mac."
         case .lmStudio: return "Also load models from your LM Studio library."
-        case .endpointBaseURL: return "Where the OpenAI-compatible server accepts /v1 requests."
-        case .endpointAPIMode: return "Choose Completions or Chat Completions for this model."
+        case .endpointBaseURL: return "The OpenAI-compatible server address; /v1 is added when omitted."
+        case .endpointAPIMode: return "Choose Chat Completions or Text Completions for this model."
         case .endpointAPIKey: return "Optional bearer token stored securely in Keychain."
         case .endpointStatus: return "Whether Cotabby can reach the server and list its models."
         case .endpointModel: return "The model identifier sent to the configured endpoint."
@@ -510,7 +510,8 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .endpointBaseURL:
             return ["endpoint", "url", "server", "host", "ollama", "localhost", "openai", "v1"]
         case .endpointAPIMode:
-            return ["completion", "chat completion", "api", "mode", "request", "openai"]
+            return ["completion", "chat completion", "text completion", "api", "format",
+                    "mode", "request", "openai"]
         case .endpointAPIKey:
             return ["api key", "token", "bearer", "credential", "keychain", "authentication"]
         case .endpointStatus:

@@ -357,33 +357,21 @@ struct EngineAndModelPaneView: View {
         Section("Connection") {
             VStack(alignment: .leading, spacing: 10) {
                 SettingsRowLabel(
-                    title: "Base URL",
-                    description: "The OpenAI-compatible /v1 base URL. Ollama uses " +
-                        "http://127.0.0.1:11434/v1 by default.",
+                    title: "Server URL",
+                    description: "The OpenAI-compatible server address. Cotabby adds /v1 when the " +
+                        "address has no path; Ollama uses http://127.0.0.1:11434 by default.",
                     systemImage: "network"
                 )
 
-                TextField(
-                    OpenAICompatibleEndpointConfiguration.defaultBaseURLString,
-                    text: endpointBaseURLBinding
-                )
-                .textFieldStyle(.roundedBorder)
-                .onSubmit(refreshEndpointModels)
-
                 HStack(spacing: 8) {
-                    Text("Press Return or connect to check this endpoint.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    Spacer(minLength: 8)
-
-                    Button("Reset to Default", systemImage: "arrow.counterclockwise") {
-                        resetEndpointBaseURL()
-                    }
-                    .disabled(
-                        suggestionSettings.openAICompatibleBaseURL
-                            == OpenAICompatibleEndpointConfiguration.defaultBaseURLString
+                    TextField(
+                        "",
+                        text: endpointBaseURLBinding,
+                        prompt: Text(OpenAICompatibleEndpointConfiguration.defaultBaseURLString)
                     )
+                    .labelsHidden()
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit(refreshEndpointModels)
 
                     Button(
                         endpointConnectButtonTitle,
@@ -392,29 +380,29 @@ struct EngineAndModelPaneView: View {
                     .buttonStyle(.borderedProminent)
                     .disabled(openAICompatibleConnectionModel.state == .connecting)
                 }
+
+                HStack(spacing: 8) {
+                    endpointConnectionStatus
+
+                    Spacer(minLength: 8)
+
+                    Button("Use Ollama Default", systemImage: "arrow.counterclockwise") {
+                        resetEndpointBaseURL()
+                    }
+                    .disabled(
+                        suggestionSettings.openAICompatibleBaseURL
+                            == OpenAICompatibleEndpointConfiguration.defaultBaseURLString
+                    )
+                }
             }
             .settingsItem(.endpointBaseURL)
 
-            Picker(selection: endpointAPIModeBinding) {
-                ForEach(OpenAICompatibleAPIMode.allCases) { mode in
-                    Text(mode.displayLabel).tag(mode)
-                }
-            } label: {
-                SettingsRowLabel(
-                    title: "Request Mode",
-                    description: "Use Chat Completions for instruction-tuned models, or Completions " +
-                        "for base models that continue a raw prompt.",
-                    systemImage: "arrow.left.arrow.right"
-                )
-            }
-            .pickerStyle(.menu)
-            .settingsItem(.endpointAPIMode)
-
             LabeledContent {
                 HStack(spacing: 8) {
-                    SecureField("Optional", text: $endpointAPIKeyDraft)
+                    SecureField("", text: $endpointAPIKeyDraft, prompt: Text("Paste API key"))
+                        .labelsHidden()
                         .textFieldStyle(.roundedBorder)
-                        .frame(width: 240)
+                        .frame(minWidth: 200, idealWidth: 260, maxWidth: 300)
 
                     if !endpointAPIKeyDraft.isEmpty {
                         Button("Clear") {
@@ -437,9 +425,6 @@ struct EngineAndModelPaneView: View {
             }
             .settingsItem(.endpointAPIKey)
 
-            endpointConnectionSummary
-            .settingsItem(.endpointStatus)
-
             if let warning = endpointPrivacyWarning {
                 SettingsCalloutView(callout: SettingsPaneCallout(tone: .warning, message: warning))
             }
@@ -451,41 +436,52 @@ struct EngineAndModelPaneView: View {
         }
 
         Section("Model") {
-            if !openAICompatibleConnectionModel.models.isEmpty {
-                Picker(selection: endpointModelBinding) {
-                    ForEach(openAICompatibleConnectionModel.models) { model in
-                        Text(model.id).tag(model.id)
-                    }
-                    if !suggestionSettings.openAICompatibleModelName.isEmpty,
-                       !openAICompatibleConnectionModel.models.contains(where: {
-                           $0.id == suggestionSettings.openAICompatibleModelName
-                       }) {
-                        Text(suggestionSettings.openAICompatibleModelName)
-                            .tag(suggestionSettings.openAICompatibleModelName)
-                    }
-                } label: {
-                    SettingsRowLabel(
-                        title: "Available Models",
-                        description: "Models returned by the server's /v1/models endpoint.",
-                        systemImage: "shippingbox"
-                    )
-                }
-                .pickerStyle(.menu)
-            }
-
             LabeledContent {
-                TextField("Model identifier", text: endpointModelBinding)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 300)
+                HStack(spacing: 6) {
+                    TextField("", text: endpointModelBinding, prompt: Text("Enter model identifier"))
+                        .labelsHidden()
+                        .textFieldStyle(.roundedBorder)
+                        .frame(minWidth: 220, idealWidth: 280, maxWidth: 320)
+
+                    Menu {
+                        ForEach(openAICompatibleConnectionModel.models) { model in
+                            Button(model.id) {
+                                suggestionSettings.setOpenAICompatibleModelName(model.id)
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "chevron.up.chevron.down")
+                            .frame(width: 18, height: 18)
+                    }
+                    .menuStyle(.borderlessButton)
+                    .menuIndicator(.hidden)
+                    .fixedSize()
+                    .disabled(openAICompatibleConnectionModel.models.isEmpty)
+                    .help(endpointModelMenuHelp)
+                    .accessibilityLabel("Choose a discovered model")
+                }
             } label: {
                 SettingsRowLabel(
-                    title: "Model Name",
-                    description: "The exact model identifier sent with every request. You can enter " +
-                        "one manually when model discovery is unavailable.",
-                    systemImage: "text.cursor"
+                    title: "Model",
+                    description: "Choose a model returned by the server or enter its identifier manually.",
+                    systemImage: "shippingbox"
                 )
             }
             .settingsItem(.endpointModel)
+
+            Picker(selection: endpointAPIModeBinding) {
+                Text("Chat Completions").tag(OpenAICompatibleAPIMode.chatCompletions)
+                Text("Text Completions").tag(OpenAICompatibleAPIMode.completions)
+            } label: {
+                SettingsRowLabel(
+                    title: "API Format",
+                    description: "Chat uses /v1/chat/completions (recommended). Text uses " +
+                        "/v1/completions for base models that continue a raw prompt.",
+                    systemImage: "arrow.left.arrow.right"
+                )
+            }
+            .pickerStyle(.segmented)
+            .settingsItem(.endpointAPIMode)
         }
     }
 
@@ -602,11 +598,10 @@ struct EngineAndModelPaneView: View {
         (try? suggestionSettings.openAICompatibleConfiguration)?.privacyWarning
     }
 
-    /// The status card keeps the configured server identity visible without making the editable
-    /// text field carry two jobs. A user can now distinguish "this is what I typed" from "this is
-    /// the endpoint Cotabby most recently tried to reach" at a glance.
-    private var endpointConnectionSummary: some View {
-        HStack(spacing: 12) {
+    /// Compact feedback stays beside the connection action instead of repeating the URL in a second
+    /// card. This view has no independent lifetime; the endpoint connection model drives every state.
+    private var endpointConnectionStatus: some View {
+        HStack(spacing: 6) {
             Group {
                 if openAICompatibleConnectionModel.state == .connecting {
                     ProgressView()
@@ -616,37 +611,17 @@ struct EngineAndModelPaneView: View {
                         .foregroundStyle(endpointConnectionColor)
                 }
             }
-            .frame(width: 18)
+            .frame(width: 14)
 
-            VStack(alignment: .leading, spacing: 3) {
-                Text(openAICompatibleConnectionModel.state.summary)
-                    .font(.callout.weight(.medium))
-                    .foregroundStyle(endpointConnectionColor)
-
-                Text(endpointDisplayURL)
-                    .font(.caption.monospaced())
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .textSelection(.enabled)
-                    .help(endpointDisplayURL)
-            }
-
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color.secondary.opacity(0.08))
-        }
-        .overlay {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .stroke(Color.secondary.opacity(0.16), lineWidth: 1)
+            Text(openAICompatibleConnectionModel.state.summary)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(endpointConnectionColor)
+                .lineLimit(2)
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Server status")
         .accessibilityValue("\(openAICompatibleConnectionModel.state.summary), \(endpointDisplayURL)")
+        .settingsItem(.endpointStatus)
     }
 
     private var endpointConnectButtonTitle: String {
@@ -680,6 +655,13 @@ struct EngineAndModelPaneView: View {
         let enteredURL = suggestionSettings.openAICompatibleBaseURL
             .trimmingCharacters(in: .whitespacesAndNewlines)
         return enteredURL.isEmpty ? "No endpoint configured" : enteredURL
+    }
+
+    private var endpointModelMenuHelp: String {
+        if openAICompatibleConnectionModel.models.isEmpty {
+            return "Connect to load models, or enter an identifier manually."
+        }
+        return "Choose from \(openAICompatibleConnectionModel.models.count) discovered models."
     }
 
     private var pendingDeletionAlertBinding: Binding<Bool> {
@@ -733,10 +715,11 @@ struct EngineAndModelPaneView: View {
                     configuration: configuration,
                     apiKey: endpointAPIKeyDraft
                 )
-                if suggestionSettings.openAICompatibleModelName.isEmpty,
-                   openAICompatibleConnectionModel.models.count == 1,
-                   let onlyModel = openAICompatibleConnectionModel.models.first {
-                    suggestionSettings.setOpenAICompatibleModelName(onlyModel.id)
+                if let preferredModel = OpenAICompatibleModelSelectionResolver.preferredSelection(
+                    currentSelection: suggestionSettings.openAICompatibleModelName,
+                    discoveredModels: openAICompatibleConnectionModel.models
+                ), preferredModel != suggestionSettings.openAICompatibleModelName {
+                    suggestionSettings.setOpenAICompatibleModelName(preferredModel)
                 }
             } catch {
                 endpointCredentialError = error.localizedDescription
