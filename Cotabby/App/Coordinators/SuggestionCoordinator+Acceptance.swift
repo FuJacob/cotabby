@@ -66,8 +66,12 @@ extension SuggestionCoordinator {
         // the corrected one in one gesture. Partial acceptance would be incoherent because the
         // corrected word and the typo can disagree on prefix length, so route to a dedicated path
         // before the continuation preparation below.
-        if activeSession.kind.isCorrection {
-            return acceptCorrection(session: activeSession, keyName: keyName, rawContext: rawContext)
+        if let replacementResult = acceptReplacementSessionIfNeeded(
+            activeSession,
+            keyName: keyName,
+            rawContext: rawContext
+        ) {
+            return replacementResult
         }
 
         // `acceptEntireSuggestion` forces the full-acceptance path so the dedicated full-accept key
@@ -123,7 +127,9 @@ extension SuggestionCoordinator {
 
         // An empty chunk means the accepted span was entirely a boundary space the field already
         // supplies: advance the session without synthesizing a keystroke.
-        if !insertionText.isEmpty, !suggestionInserter.insert(insertionText) {
+        let insertionMode = insertionMode(for: rawContext)
+        if !insertionText.isEmpty,
+           !suggestionInserter.insert(insertionText, mode: insertionMode) {
             let message = suggestionInserter.lastErrorMessage ?? "Suggestion insertion failed."
             cancelPredictionWork()
             clearSuggestion(clearDiagnostics: true)
@@ -183,22 +189,13 @@ extension SuggestionCoordinator {
             // *after* the `hideOverlay` above, which routes through `onStateChange(.hidden)` and
             // turns interception off; arming re-asserts it. See `armPostExhaustionAcceptance`.
             armPostExhaustionAcceptance()
-            // Start the continuation against the text the host is about to publish instead of
-            // idling through the publish poll first; the poll below validates the bet (see
-            // dispatchSpeculativePostAcceptanceGeneration).
-            dispatchSpeculativePostAcceptanceGeneration(
+            return refreshAfterExhaustedAcceptance(
+                mode: insertionMode,
+                context: liveContext,
+                insertedText: insertionText,
                 rawContext: rawContext,
                 insertionChunk: insertionChunk
             )
-            // Wait for the host to actually publish the inserted text before regenerating. A bare
-            // `schedulePrediction()` here reads pre-insertion AX in Chromium editors (the publish lags
-            // the synthetic keystroke), so the model re-proposes the word just accepted and the next
-            // accept re-inserts it. That is the final-word accept/regenerate/accept loop reported as
-            // the suggestion "flickering" without committing. Polling until the insert surfaces (the
-            // same path typing uses) makes the regeneration read the settled text and return a genuine
-            // next suggestion, or nothing.
-            schedulePredictionAfterHostPublishDelay()
-            return true
 
         case let .advanced(advancedSession, _):
             latestGenerationNumber = liveContext.generation
@@ -211,7 +208,11 @@ extension SuggestionCoordinator {
                 insertionChunk: insertionChunk,
                 liveContext: liveContext
             )
-            schedulePostInsertionRefresh()
+            refreshAfterAdvancedAcceptance(
+                mode: insertionMode,
+                context: liveContext,
+                insertedText: insertionText
+            )
             let workID = currentWorkID
             deferAcceptanceBookkeeping { [weak self] in
                 self?.applySessionDiagnostics(
@@ -228,6 +229,69 @@ extension SuggestionCoordinator {
             }
             return true
         }
+    }
+
+    /// Publishes Cotabby's optimistic shell echo and tells the caller whether AX refresh must be
+    /// skipped. TUI input also returns true, but its OCR heartbeat supplies the eventual value.
+    private func publishTerminalInsertionIfNeeded(
+        mode: SuggestionInsertionMode,
+        context: FocusedInputContext,
+        insertedText: String
+    ) -> Bool {
+        guard mode == .terminalPaste else { return false }
+        if !insertedText.isEmpty {
+            onTerminalInsertion?(context, insertedText)
+        }
+        return true
+    }
+
+    private func insertionMode(for context: FocusedInputSnapshot) -> SuggestionInsertionMode {
+        context.terminalInputRole.map { _ in .terminalPaste } ?? .automatic
+    }
+
+    private func refreshAfterAdvancedAcceptance(
+        mode: SuggestionInsertionMode,
+        context: FocusedInputContext,
+        insertedText: String
+    ) {
+        if !publishTerminalInsertionIfNeeded(
+            mode: mode,
+            context: context,
+            insertedText: insertedText
+        ) {
+            schedulePostInsertionRefresh()
+        }
+    }
+
+    private func refreshAfterExhaustedAcceptance(
+        mode: SuggestionInsertionMode,
+        context: FocusedInputContext,
+        insertedText: String,
+        rawContext: FocusedInputSnapshot,
+        insertionChunk: String
+    ) -> Bool {
+        if publishTerminalInsertionIfNeeded(
+            mode: mode,
+            context: context,
+            insertedText: insertedText
+        ) {
+            // The authoritative terminal source is the host-publication signal. Never poll AX.
+            // When acceptance consumed only a boundary already present in the buffer, there is no
+            // paste for that source to publish, so explicitly refresh against the unchanged value.
+            if insertedText.isEmpty {
+                schedulePrediction()
+            }
+            return true
+        }
+
+        // Speculate against the imminent host value, then use the normal AX publication poll as
+        // the validator. This retains the existing Chromium accept/regenerate race protection.
+        dispatchSpeculativePostAcceptanceGeneration(
+            rawContext: rawContext,
+            insertionChunk: insertionChunk
+        )
+        schedulePredictionAfterHostPublishDelay()
+        return true
     }
 
     /// Applies the opt-in "add a space after accepting" setting to the chunk being accepted, by
@@ -423,6 +487,84 @@ extension SuggestionCoordinator {
         return true
     }
 
+    /// Routes both accept-as-a-unit session kinds away from continuation chunking. `nil` means the
+    /// session is a normal continuation; a non-nil Bool is the concrete acceptance outcome.
+    private func acceptReplacementSessionIfNeeded(
+        _ session: ActiveSuggestionSession,
+        keyName: String,
+        rawContext: FocusedInputSnapshot
+    ) -> Bool? {
+        switch session.kind {
+        case .continuation:
+            return nil
+        case .correction:
+            return acceptCorrection(session: session, keyName: keyName, rawContext: rawContext)
+        case .terminalCommandReplacement:
+            return acceptTerminalCommandReplacement(
+                session: session,
+                keyName: keyName,
+                rawContext: rawContext
+            )
+        }
+    }
+
+    /// Replaces a reviewed plain-English shell instruction with the complete generated command.
+    /// The command is pasted but Return is never synthesized, so destructive output remains visible
+    /// and inert until the user explicitly executes it. Exact live-buffer validation prevents a
+    /// delayed Tab from deleting text the user changed after generation.
+    private func acceptTerminalCommandReplacement(
+        session: ActiveSuggestionSession,
+        keyName: String,
+        rawContext: FocusedInputSnapshot
+    ) -> Bool {
+        guard case let .terminalCommandReplacement(originalText) = session.kind,
+              rawContext.terminalInputRole == .shell,
+              rawContext.precedingText == originalText,
+              rawContext.trailingText.isEmpty,
+              rawContext.elementIdentifier == session.baseContext.elementIdentifier else {
+            return passTabThrough(
+                reason: "Key passed through because the shell instruction changed before replacement."
+            )
+        }
+
+        guard suggestionInserter.replaceTerminalLine(
+            deletingCharacterCount: originalText.count,
+            with: session.fullText
+        ) else {
+            let message = suggestionInserter.lastErrorMessage ?? "Terminal command replacement failed."
+            cancelPredictionWork()
+            clearSuggestion(clearDiagnostics: true)
+            hideOverlay(reason: "Overlay hidden because terminal command replacement failed.")
+            state = .idle
+            logStage(
+                "terminal-command-replace-failed",
+                workID: currentWorkID,
+                generation: session.baseContext.generation,
+                message: message,
+                normalizedOutput: session.fullText
+            )
+            return false
+        }
+
+        onTerminalReplacement?(session.baseContext, session.fullText)
+        lastAcceptanceAt = Date()
+        focusModel.invalidateTransientCaretCaches()
+        cancelPredictionWork()
+        latestGenerationNumber = session.baseContext.generation
+        clearSuggestion(clearDiagnostics: false)
+        hideOverlay(reason: "Overlay hidden because \(keyName) replaced the shell instruction.")
+        state = .idle
+        latestAcceptanceAction = "Replaced shell instruction with a command using \(keyName)."
+        logStage(
+            "\(keyName)-accepted-terminal-command-replacement",
+            workID: currentWorkID,
+            generation: session.baseContext.generation,
+            message: "Replaced the reviewed plain-English shell instruction without executing it.",
+            normalizedOutput: session.fullText
+        )
+        return true
+    }
+
     /// Returns control of the accept key to the host app and clears stale suggestion UI.
     ///
     /// `InputMonitor` calls this from the consuming tap before returning a callback result. A `false`
@@ -584,7 +726,7 @@ extension SuggestionCoordinator {
         CotabbyLogger.suggestion.debug("Invalidating active suggestion: \(reason)")
         // The dying session is exactly what a backspace-rollback wants restored a moment later;
         // remember it (string-only) before the state is torn down.
-        if let session = interactionState.activeSession, !session.kind.isCorrection {
+        if let session = interactionState.activeSession, !session.kind.isReplacement {
             suggestionAnchorCache.record(
                 identityKey: session.baseContext.focusedInputIdentityKey,
                 precedingText: session.baseContext.precedingText,

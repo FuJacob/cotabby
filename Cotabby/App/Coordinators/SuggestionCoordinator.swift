@@ -71,6 +71,22 @@ final class SuggestionCoordinator: ObservableObject {
     /// consumption happens through `InputMonitor.emojiCaptureKeyDecider`.
     var emojiInputObserver: ((CapturedInputEvent) -> Bool)?
 
+    /// Side-effect observer for Claude Code's OCR source. It receives the listen-only keystroke
+    /// stream and decides whether a debounced capture is warranted; normal apps pay only a no-op.
+    var tuiInputObserver: ((CapturedInputEvent) -> Void)?
+
+    /// Reports a successful terminal paste after the interaction state has committed the accepted
+    /// chunk. The shell service uses it for an optimistic local echo because bracketed paste is not
+    /// visible to shell editor hooks until the next physical keystroke.
+    var onTerminalInsertion: ((FocusedInputContext, String) -> Void)?
+
+    /// Reports a successful whole-line command translation so the shell source can replace its
+    /// optimistic buffer instead of appending the command to the original English instruction.
+    var onTerminalReplacement: ((FocusedInputContext, String) -> Void)?
+
+    /// Supplies the live authoritative-source gate used by every availability decision.
+    var terminalIntegrationActiveProvider: () -> Bool = { false }
+
     static let totalTabAcceptedWordCountDefaultsKey = "cotabbyTotalAcceptedWordCount"
 
     // Combine subscriptions are the coordinator's remaining direct mutable bookkeeping.
@@ -122,6 +138,9 @@ final class SuggestionCoordinator: ObservableObject {
     /// synchronous `refreshNow()` calls on the main actor. Bumping the token makes older chains
     /// no-op before they can perform another expensive AX read.
     var hostPublishPollGeneration: UInt64 = 0
+    /// Last terminal element+content revision scheduled from an authoritative source. Shell prompt
+    /// heartbeats and OCR refreshes may repeat identical snapshots; this prevents useless reruns.
+    var lastScheduledTerminalSignature: String?
     /// Suppresses single-poll `Supported → Blocked → Supported` flicker on the same focused element
     /// so the overlay does not tear down and rebuild on every transient AX redraw. See
     /// `FocusCapabilityFlickerGate` for the rationale and the reproduction (Apple Calendar event

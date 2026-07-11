@@ -73,7 +73,9 @@ extension SuggestionCoordinator {
         // key event, because the user may have switched apps or fields during the debounce window.
         // The host-publish poll usually captured one milliseconds ago, though, so a fresh-enough
         // capture is reused instead of paying another synchronous AX walk back to back.
-        focusModel.refreshIfStale(maxAgeMilliseconds: Self.freshSnapshotReuseWindowMilliseconds)
+        if focusModel.snapshot.context?.terminalInputRole == nil {
+            focusModel.refreshIfStale(maxAgeMilliseconds: Self.freshSnapshotReuseWindowMilliseconds)
+        }
         let snapshot = focusModel.snapshot
 
         if let disabledReason = currentDisabledReason(focusSnapshot: snapshot) {
@@ -98,7 +100,8 @@ extension SuggestionCoordinator {
         // pile onto a broken word), presents a green correction, or automatically fixes a completed
         // word after Space. Native correction is instant and needs no model generation, so it is
         // handled synchronously and returns before any request runs.
-        if handleTypoGate(rawContext: rawContext, workID: workID) {
+        if rawContext.terminalInputRole == nil,
+           handleTypoGate(rawContext: rawContext, workID: workID) {
             return
         }
 
@@ -278,7 +281,11 @@ extension SuggestionCoordinator {
         // engine skips its per-token main-actor hops entirely and the suggestion appears once, fully
         // formed, through `apply` below; when on, each partial renders as an acceptable session the
         // user can Tab into early.
+        // Replacement output is accept-as-one-unit. Streaming it would briefly create ordinary
+        // continuation sessions whose partial command could be accepted before the full command
+        // (including closing quotes or paths) arrives.
         let shouldStreamPartials = settingsSnapshot.streamSuggestionsWhileGenerating
+            && !request.mode.isTerminalCommandReplacement
         workController.replaceGenerationWork(for: workID) { [weak self] in
             guard let self else {
                 return
@@ -729,6 +736,17 @@ extension SuggestionCoordinator {
             return
         }
 
+        guard let sessionKind = resolvedSessionKind(
+            for: result.mode,
+            liveContext: liveContext
+        ) else {
+            clearSuggestion(clearDiagnostics: true)
+            hideOverlay(reason: "Overlay hidden because the shell instruction changed before translation finished.")
+            state = .idle
+            qualityMetricsStore.recordSuppressed(reason: "discardedStaleTerminalReplacement")
+            return
+        }
+
         // A regeneration that only re-proposes the just-accepted tail while the field still shows the
         // pre-acceptance text means our insert has not published yet. Drop it so the next accept can't
         // re-insert the same word and spin the final-word loop.
@@ -760,7 +778,12 @@ extension SuggestionCoordinator {
         let seamVerdict = CompletionSeamGuard.verdict(
             precedingText: liveContext.precedingText,
             completion: result.text,
-            isKnownWord: { !spellChecker.isTypo($0) }
+            isKnownWord: {
+                // Shell commands, flags, package names, and paths are routinely absent from the
+                // spelling dictionary (`kubectl`, `rg`, `--no-verify`). Keep the punctuation-junk
+                // half of the seam guard, but do not apply prose spelling policy to terminal roles.
+                liveContext.terminalInputRole != nil || !spellChecker.isTypo($0)
+            }
         )
         if seamVerdict != .allow {
             clearSuggestion()
@@ -783,15 +806,16 @@ extension SuggestionCoordinator {
         // One shown event per suggestion: this is the only place a fresh generation becomes
         // visible (re-presentations after partial accepts reuse the same session).
         qualityMetricsStore.recordShown()
-        suggestionAnchorCache.record(
-            identityKey: liveContext.focusedInputIdentityKey,
-            precedingText: liveContext.precedingText,
-            fullText: result.text
+        recordSuggestionAnchorIfNeeded(
+            kind: sessionKind,
+            context: liveContext,
+            text: result.text
         )
         let session = interactionState.startSession(
             fullText: result.text,
             liveContext: liveContext,
-            latency: result.latency
+            latency: result.latency,
+            kind: sessionKind
         )
         applySessionDiagnostics(session, acceptanceAction: "Generated new suggestion.")
         state = .ready(text: session.remainingText, latency: session.latency)
@@ -800,7 +824,8 @@ extension SuggestionCoordinator {
             text: session.remainingText,
             at: liveContext.caretRect,
             context: liveContext,
-            isRightToLeft: TextDirectionDetector.isRightToLeft(liveContext.precedingText)
+            isRightToLeft: TextDirectionDetector.isRightToLeft(liveContext.precedingText),
+            isCorrection: sessionKind.isReplacement
         )
         logStage(
             "ready",
@@ -815,6 +840,36 @@ extension SuggestionCoordinator {
         // word now so rapid Tabbing keeps inserting words across the exhaustion boundary instead of
         // stalling once the previous suggestion ran out. No-op when nothing was queued.
         flushQueuedPostExhaustionAcceptIfNeeded()
+    }
+
+    /// Converts the request/result mode into durable session behavior while validating the exact
+    /// shell buffer a whole-line translation is allowed to replace.
+    private func resolvedSessionKind(
+        for mode: SuggestionRequestMode,
+        liveContext: FocusedInputContext
+    ) -> SuggestionKind? {
+        switch mode {
+        case .continuation:
+            return .continuation
+        case let .terminalCommandReplacement(originalText):
+            guard liveContext.terminalInputRole == .shell,
+                  liveContext.precedingText == originalText,
+                  liveContext.trailingText.isEmpty else { return nil }
+            return .terminalCommandReplacement(originalText: originalText)
+        }
+    }
+
+    private func recordSuggestionAnchorIfNeeded(
+        kind: SuggestionKind,
+        context: FocusedInputContext,
+        text: String
+    ) {
+        guard !kind.isReplacement else { return }
+        suggestionAnchorCache.record(
+            identityKey: context.focusedInputIdentityKey,
+            precedingText: context.precedingText,
+            fullText: text
+        )
     }
 
     /// Converts a runtime or engine failure into visible coordinator state and clears stale UI.
@@ -861,6 +916,10 @@ extension SuggestionCoordinator {
         // the field is unchanged; any edit drops it and the next prediction re-evaluates the new word.
         if activeSession.kind.isCorrection {
             reconcileCorrectionSession(activeSession, with: snapshot)
+            return
+        }
+        if case .terminalCommandReplacement = activeSession.kind {
+            reconcileTerminalCommandReplacementSession(activeSession, with: snapshot)
             return
         }
 
@@ -991,6 +1050,27 @@ extension SuggestionCoordinator {
         )
     }
 
+    /// A command translation is valid only for the exact shell line that produced it. Unlike a
+    /// continuation there is no meaningful partial advancement: any edit, cursor move, source
+    /// switch, or trailing text invalidates the proposed whole-line replacement.
+    private func reconcileTerminalCommandReplacementSession(
+        _ session: ActiveSuggestionSession,
+        with snapshot: FocusSnapshot
+    ) {
+        guard case let .terminalCommandReplacement(originalText) = session.kind,
+              case .supported = snapshot.capability,
+              let live = snapshot.context,
+              live.terminalInputRole == .shell,
+              live.elementIdentifier == session.baseContext.elementIdentifier,
+              live.precedingText == originalText,
+              live.trailingText.isEmpty else {
+            invalidateActiveSuggestion(
+                reason: "Overlay hidden because the shell instruction changed after translation."
+            )
+            return
+        }
+    }
+
     /// The single marshalling point for `SuggestionAvailabilityEvaluator.disabledReason`: every gate
     /// in the input and prediction paths shares the same settings, permission, and per-domain inputs,
     /// and varies only by which focus snapshot it is checking. Returns the user-facing disable reason,
@@ -1002,6 +1082,7 @@ extension SuggestionCoordinator {
             disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
             disabledDomains: PerDomainDisableSettings.disabledDomains(),
             suggestInIntegratedTerminals: settingsSnapshot.suggestInIntegratedTerminals,
+            terminalIntegrationActive: terminalIntegrationActiveProvider(),
             inputMonitoringGranted: permissionManager.inputMonitoringGranted,
             focusSnapshot: focusSnapshot
         )
@@ -1018,6 +1099,7 @@ extension SuggestionCoordinator {
         }
 
         CotabbyLogger.suggestion.debug("Predictions disabled: \(reason)")
+        lastScheduledTerminalSignature = nil
         cancelPredictionWork()
         resetCachedGenerationContext()
         visualContextCoordinator.cancel(resetState: true)
@@ -1039,6 +1121,7 @@ extension SuggestionCoordinator {
             return
         }
 
+        lastScheduledTerminalSignature = nil
         cancelPredictionWork()
         resetCachedGenerationContext()
         interactionState.resetAll()

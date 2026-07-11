@@ -61,6 +61,11 @@ enum SuggestionSessionReconciler {
             return .invalid("Overlay hidden because the focused field changed.")
         }
 
+        if liveContext.terminalInputRole != nil || session.baseContext.terminalInputRole != nil,
+           liveContext.elementIdentifier != session.baseContext.elementIdentifier {
+            return .invalid("Overlay hidden because the terminal input source changed.")
+        }
+
         guard liveContext.selection.length == 0 else {
             return .invalid("Overlay hidden because text is selected.")
         }

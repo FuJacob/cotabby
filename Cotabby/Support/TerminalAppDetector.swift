@@ -19,9 +19,31 @@ nonisolated enum TerminalAppDetector {
         "io.rio.terminal"
     ]
 
+    /// Apps that can host a shell pane while also exposing ordinary AX text fields in the same
+    /// process. They receive terminal treatment only while an authoritative hook/TUI source is
+    /// active; the editor and command palette continue through normal AX capture.
+    private static let embeddedTerminalHostBundleIdentifiers: Set<String> = [
+        "com.microsoft.VSCode",
+        "com.microsoft.VSCodeInsiders",
+        "com.todesktop.230313mzl4w4u92", // Cursor
+        "com.exafunction.windsurf",
+        "dev.zed.Zed",
+        "com.jetbrains.intellij"
+    ]
+
     static func isTerminal(bundleIdentifier: String?) -> Bool {
         guard let bundleIdentifier else { return false }
         return terminalBundleIdentifiers.contains(bundleIdentifier)
+    }
+
+    static func hostsEmbeddedTerminal(bundleIdentifier: String?) -> Bool {
+        guard let bundleIdentifier else { return false }
+        return embeddedTerminalHostBundleIdentifiers.contains(bundleIdentifier)
+    }
+
+    static func isTerminalHost(bundleIdentifier: String?) -> Bool {
+        isTerminal(bundleIdentifier: bundleIdentifier)
+            || hostsEmbeddedTerminal(bundleIdentifier: bundleIdentifier)
     }
 
     /// DOM class prefix xterm.js stamps on every node of its terminal subtree — most importantly the

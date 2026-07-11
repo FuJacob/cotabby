@@ -46,4 +46,35 @@ final class SyntheticReplacePlannerTests: XCTestCase {
 
         XCTAssertEqual(plan.insertUTF16, Array("ab".utf16))
     }
+
+    func test_terminalLinePlanDeletesEntireInstructionBeforePastingCommand() throws {
+        let original = "go to documents folder"
+        let plan = try XCTUnwrap(TerminalLineReplacementPlanner.plan(
+            deletingCharacterCount: original.count,
+            text: "cd ~/Documents"
+        ))
+
+        XCTAssertEqual(plan.backspaceCount, original.count)
+        XCTAssertEqual(plan.replacementText, "cd ~/Documents")
+        XCTAssertEqual(
+            plan.operations,
+            Array(repeating: .backspace, count: original.count) + [.paste],
+            "Paste must be the final operation so deletes cannot erase the translated command"
+        )
+    }
+
+    func test_terminalLinePlanNeverAddsACommandSubmissionOperation() throws {
+        let plan = try XCTUnwrap(TerminalLineReplacementPlanner.plan(
+            deletingCharacterCount: 4,
+            text: "pwd"
+        ))
+
+        XCTAssertEqual(plan.operations.filter { $0 == .paste }.count, 1)
+        XCTAssertEqual(plan.operations.last, .paste)
+    }
+
+    func test_terminalLinePlanRejectsInvalidInputs() {
+        XCTAssertNil(TerminalLineReplacementPlanner.plan(deletingCharacterCount: -1, text: "pwd"))
+        XCTAssertNil(TerminalLineReplacementPlanner.plan(deletingCharacterCount: 3, text: ""))
+    }
 }

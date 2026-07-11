@@ -107,6 +107,9 @@ enum SuggestionTextNormalizer {
         // template so instructions never read as content in the first place.
         normalized = stripLeadingScaffoldingLabels(normalized)
         normalized = normalized.trimmingCharacters(in: .newlines)
+        if request.mode.isTerminalCommandReplacement {
+            normalized = stripTerminalCommandScaffolding(normalized)
+        }
 
         if request.isMultiLineEnabled {
             // Multi-line mode: keep content up to the first blank-line boundary (double newline)
@@ -208,6 +211,29 @@ enum SuggestionTextNormalizer {
             result.replaceSubrange(dangling, with: "")
         }
         return result
+    }
+
+    /// Removes wrappers that chat-shaped endpoints sometimes add around a requested shell command.
+    /// This runs only for explicit terminal replacement requests, so ordinary prose containing a
+    /// `Command:` label or fenced code remains untouched by autocomplete normalization.
+    private static func stripTerminalCommandScaffolding(_ text: String) -> String {
+        var working = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if working.hasPrefix("```") {
+            var lines = working.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+            if !lines.isEmpty { lines.removeFirst() }
+            if lines.last?.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("```") == true {
+                lines.removeLast()
+            }
+            working = lines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        if working.range(of: "Command:", options: [.caseInsensitive, .anchored]) != nil {
+            working = String(working.dropFirst("Command:".count))
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        if working.hasPrefix("$ ") {
+            working.removeFirst(2)
+        }
+        return working
     }
 
     /// Finds the longest suffix of `precedingText` (at any word offset) that matches a prefix

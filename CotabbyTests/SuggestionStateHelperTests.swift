@@ -69,6 +69,30 @@ final class ContextBufferTests: XCTestCase {
         }
     }
 
+    func test_materialize_terminalSessionIdentityParticipatesInGeneration() {
+        runOnMainActor {
+            let buffer = makeBuffer()
+            let first = buffer.materialize(
+                from: CotabbyTestFixtures.focusedInputSnapshot(
+                    processIdentifier: 123,
+                    elementIdentifier: "terminal-shell-100-a",
+                    role: TerminalInputRole.shell.rawValue,
+                    precedingText: "git st"
+                )
+            )
+            let second = buffer.materialize(
+                from: CotabbyTestFixtures.focusedInputSnapshot(
+                    processIdentifier: 123,
+                    elementIdentifier: "terminal-shell-101-b",
+                    role: TerminalInputRole.shell.rawValue,
+                    precedingText: "git st"
+                )
+            )
+
+            XCTAssertEqual(second.generation, first.generation + 1)
+        }
+    }
+
     func test_clearDropsCurrentContextAndAdvancesFutureGeneration() {
         runOnMainActor {
             let buffer = makeBuffer()

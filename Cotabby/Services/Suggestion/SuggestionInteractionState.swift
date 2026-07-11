@@ -71,7 +71,13 @@ final class SuggestionInteractionState {
             return false
         }
 
-        return currentContext.processIdentifier != focusedContext.processIdentifier
+        guard currentContext.processIdentifier == focusedContext.processIdentifier else {
+            return true
+        }
+        if currentContext.terminalInputRole != nil || focusedContext.terminalInputRole != nil {
+            return currentContext.elementIdentifier != focusedContext.elementIdentifier
+        }
+        return false
     }
 
     /// Reconciles the currently active session against the latest AX snapshot and stores the
@@ -205,6 +211,13 @@ final class SuggestionInteractionState {
         } else {
             guard liveContext.processIdentifier == activeSession.baseContext.processIdentifier else {
                 return SessionValidation(session: nil, failureReason: "Key passed through because the focused field changed.")
+            }
+            if liveContext.terminalInputRole != nil || activeSession.baseContext.terminalInputRole != nil,
+               liveContext.elementIdentifier != activeSession.baseContext.elementIdentifier {
+                return SessionValidation(
+                    session: nil,
+                    failureReason: "Key passed through because the terminal input source changed."
+                )
             }
 
             sessionForAcceptance = activeSession

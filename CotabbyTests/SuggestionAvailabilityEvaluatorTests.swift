@@ -80,6 +80,24 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
         )
     }
 
+    private func makeAuthoritativeTerminalSnapshot() -> FocusSnapshot {
+        let context = CotabbyTestFixtures.focusedInputSnapshot(
+            applicationName: "Code",
+            bundleIdentifier: "com.microsoft.VSCode",
+            elementIdentifier: "terminal-shell-123-session",
+            role: TerminalInputRole.shell.rawValue,
+            subrole: ShellType.zsh.rawValue,
+            isIntegratedTerminal: true
+        )
+        return FocusSnapshot(
+            applicationName: "Code",
+            bundleIdentifier: "com.microsoft.VSCode",
+            capability: .supported,
+            context: context,
+            inspection: nil
+        )
+    }
+
     // MARK: - Integrated terminal gating
 
     func test_disabledReason_integratedTerminal_suppressedByDefault() {
@@ -89,10 +107,10 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
             focusSnapshot: makeIntegratedTerminalSnapshot()
         )
 
-        XCTAssertEqual(reason, "Cotabby is not available in the integrated terminal.")
+        XCTAssertEqual(reason, "Terminal autocomplete is turned off.")
     }
 
-    func test_disabledReason_integratedTerminal_allowedWhenOptedIn() {
+    func test_disabledReason_optInAloneDoesNotAuthorizeRawTerminalAX() {
         let reason = SuggestionAvailabilityEvaluator.disabledReason(
             globallyEnabled: true,
             suggestInIntegratedTerminals: true,
@@ -100,10 +118,13 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
             focusSnapshot: makeIntegratedTerminalSnapshot()
         )
 
-        XCTAssertNil(reason, "Opting in should let the integrated terminal suggest like any field")
+        XCTAssertEqual(
+            reason,
+            "Terminal autocomplete is waiting for a live shell or Claude Code source."
+        )
     }
 
-    func test_shouldSchedulePrediction_integratedTerminal_falseByDefault_trueWhenOptedIn() {
+    func test_shouldSchedulePrediction_requiresOptInAndAuthoritativeTerminalSource() {
         let snapshot = makeIntegratedTerminalSnapshot()
 
         XCTAssertFalse(
@@ -113,12 +134,34 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
                 focusSnapshot: snapshot
             )
         )
+        XCTAssertFalse(
+            SuggestionAvailabilityEvaluator.shouldSchedulePrediction(
+                globallyEnabled: true,
+                suggestInIntegratedTerminals: true,
+                terminalIntegrationActive: true,
+                inputMonitoringGranted: true,
+                focusSnapshot: snapshot
+            )
+        )
         XCTAssertTrue(
             SuggestionAvailabilityEvaluator.shouldSchedulePrediction(
                 globallyEnabled: true,
                 suggestInIntegratedTerminals: true,
+                terminalIntegrationActive: true,
                 inputMonitoringGranted: true,
-                focusSnapshot: snapshot
+                focusSnapshot: makeAuthoritativeTerminalSnapshot()
+            )
+        )
+    }
+
+    func test_terminalSourceDoesNotEnterGenericVisualContextPipeline() {
+        XCTAssertFalse(
+            SuggestionAvailabilityEvaluator.shouldCaptureVisualContext(
+                suggestInIntegratedTerminals: true,
+                terminalIntegrationActive: true,
+                inputMonitoringGranted: true,
+                screenRecordingGranted: true,
+                focusSnapshot: makeAuthoritativeTerminalSnapshot()
             )
         )
     }

@@ -100,6 +100,97 @@ final class SuggestionCoordinatorAcceptanceTests: XCTestCase {
         }
     }
 
+    func test_terminalAcceptanceUsesPasteAndPublishesOptimisticEcho() {
+        runOnMainActor {
+            let snapshot = CotabbyTestFixtures.focusedInputSnapshot(
+                applicationName: "Terminal",
+                bundleIdentifier: "com.apple.Terminal",
+                elementIdentifier: "terminal-shell-42-session",
+                role: TerminalInputRole.shell.rawValue,
+                subrole: ShellType.zsh.rawValue,
+                precedingText: "git st"
+            )
+            let context = FocusedInputContext(snapshot: snapshot, generation: 7)
+            let interactionState = SuggestionInteractionState()
+            let session = interactionState.startSession(
+                fullText: "atus --short",
+                liveContext: context,
+                latency: 0.1
+            )
+            let inserter = StubSuggestionInserter()
+            let coordinator = makeCoordinator(
+                snapshot: snapshot,
+                overlayState: .visible(
+                    text: session.remainingText,
+                    geometry: CotabbyTestFixtures.overlayGeometry(caretRect: context.caretRect),
+                    mode: .inline
+                ),
+                inputMonitor: StubSuggestionInputMonitor(),
+                inserter: inserter,
+                interactionState: interactionState,
+                settingsSnapshot: CotabbyTestFixtures.settingsSnapshot(
+                    suggestInIntegratedTerminals: true
+                )
+            )
+            coordinator.terminalIntegrationActiveProvider = { true }
+            var echoedText: String?
+            coordinator.onTerminalInsertion = { _, text in echoedText = text }
+
+            XCTAssertTrue(coordinator.acceptCurrentSuggestion())
+            XCTAssertEqual(inserter.insertedChunks, ["atus"])
+            XCTAssertEqual(inserter.insertionModes, [.terminalPaste])
+            XCTAssertEqual(echoedText, "atus")
+        }
+    }
+
+    func test_terminalCommandReplacementReplacesWholeLineWithoutSubmitting() {
+        runOnMainActor {
+            let original = "delete folder named dork"
+            let snapshot = CotabbyTestFixtures.focusedInputSnapshot(
+                applicationName: "Terminal",
+                bundleIdentifier: "com.apple.Terminal",
+                elementIdentifier: "terminal-shell-42-session",
+                role: TerminalInputRole.shell.rawValue,
+                subrole: ShellType.zsh.rawValue,
+                precedingText: original
+            )
+            let context = FocusedInputContext(snapshot: snapshot, generation: 7)
+            let interactionState = SuggestionInteractionState()
+            let session = interactionState.startSession(
+                fullText: "rm -rf -- dork",
+                liveContext: context,
+                latency: 0.1,
+                kind: .terminalCommandReplacement(originalText: original)
+            )
+            let inserter = StubSuggestionInserter()
+            let coordinator = makeCoordinator(
+                snapshot: snapshot,
+                overlayState: .visible(
+                    text: session.remainingText,
+                    geometry: CotabbyTestFixtures.overlayGeometry(caretRect: context.caretRect),
+                    mode: .inline
+                ),
+                inputMonitor: StubSuggestionInputMonitor(),
+                inserter: inserter,
+                interactionState: interactionState,
+                settingsSnapshot: CotabbyTestFixtures.settingsSnapshot(
+                    suggestInIntegratedTerminals: true
+                )
+            )
+            coordinator.terminalIntegrationActiveProvider = { true }
+            var optimisticReplacement: String?
+            coordinator.onTerminalReplacement = { _, text in optimisticReplacement = text }
+
+            XCTAssertTrue(coordinator.acceptCurrentSuggestion())
+            XCTAssertEqual(
+                inserter.terminalLineReplacements,
+                [.init(deleteCount: original.count, text: "rm -rf -- dork")]
+            )
+            XCTAssertEqual(optimisticReplacement, "rm -rf -- dork")
+            XCTAssertTrue(inserter.insertedChunks.isEmpty, "Acceptance must not synthesize Return.")
+        }
+    }
+
     func test_acceptCurrentSuggestion_withAddSpaceAfterAccept_insertsTrailingSpaceOnNonFinalWord() {
         // Full coordinator path with the setting ON and a multi-word suggestion: accepting the first
         // word must insert the word plus the suggestion's own following space (so the toggle fires
@@ -598,18 +689,35 @@ private final class StubSuggestionOverlayController: SuggestionOverlayControllin
 
 @MainActor
 private final class StubSuggestionInserter: SuggestionInserting {
+    struct TerminalLineReplacement: Equatable {
+        let deleteCount: Int
+        let text: String
+    }
+
     var lastErrorMessage: String?
     var insertedChunks: [String] = []
+    var insertionModes: [SuggestionInsertionMode] = []
     var replacements: [(deleteCount: Int, text: String)] = []
+    var terminalLineReplacements: [TerminalLineReplacement] = []
     var shouldInsert = true
 
     func insert(_ suggestion: String) -> Bool {
+        insert(suggestion, mode: .automatic)
+    }
+
+    func insert(_ suggestion: String, mode: SuggestionInsertionMode) -> Bool {
         insertedChunks.append(suggestion)
+        insertionModes.append(mode)
         return shouldInsert
     }
 
     func replace(deletingUTF16Count: Int, with text: String) -> Bool {
         replacements.append((deletingUTF16Count, text))
+        return shouldInsert
+    }
+
+    func replaceTerminalLine(deletingCharacterCount: Int, with text: String) -> Bool {
+        terminalLineReplacements.append(.init(deleteCount: deletingCharacterCount, text: text))
         return shouldInsert
     }
 }

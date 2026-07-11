@@ -45,7 +45,8 @@ final class OpenAICompatibleSuggestionEngine: SuggestionGenerating {
                         generation: request.generation,
                         rawText: cumulativeRaw,
                         text: normalized,
-                        latency: Date().timeIntervalSince(startTime)
+                        latency: Date().timeIntervalSince(startTime),
+                        mode: request.mode
                     ))
                 }
             } else {
@@ -105,7 +106,8 @@ final class OpenAICompatibleSuggestionEngine: SuggestionGenerating {
                 rawText: raw,
                 text: normalization.text,
                 latency: latency,
-                suppressionReason: normalization.suppression?.rawValue
+                suppressionReason: normalization.suppression?.rawValue,
+                mode: request.mode
             )
         } catch is CancellationError {
             CotabbyLogger.suggestion.debug("Endpoint generation cancelled", metadata: metadata)

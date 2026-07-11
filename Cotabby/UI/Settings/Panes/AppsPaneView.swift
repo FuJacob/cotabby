@@ -39,17 +39,21 @@ struct AppsPaneView: View {
                 }
             }
 
-            Section("Integrated Terminals") {
+            Section("Terminal Autocomplete") {
                 Toggle(isOn: suggestInIntegratedTerminalsBinding) {
                     SettingsRowLabel(
-                        title: "Suggest in Integrated Terminals",
-                        description: "Show ghost text in VS Code and Cursor integrated terminals. "
-                            + "Off by default so suggestions stay out of shell prompts; the editor "
-                            + "and chat in the same window keep suggesting either way.",
+                        title: "Terminal Autocomplete (Beta)",
+                        description: "Show source-verified ghost text in dedicated and integrated "
+                            + "terminals. Shell prompts use a local hook; Claude Code uses on-device "
+                            + "screen OCR. Off by default.",
                         systemImage: "terminal"
                     )
                 }
                 .settingsItem(.suggestInIntegratedTerminals)
+
+                if suggestionSettings.suggestInIntegratedTerminals {
+                    terminalSetupInstructions
+                }
             }
 
             if !filteredRunningAppSuggestions.isEmpty {
@@ -76,6 +80,70 @@ struct AppsPaneView: View {
             get: { suggestionSettings.suggestInIntegratedTerminals },
             set: { suggestionSettings.setSuggestInIntegratedTerminals($0) }
         )
+    }
+
+    /// The app installs signed hook copies under Application Support when the beta starts. Settings
+    /// only presents explicit source commands—it never mutates a shell startup file behind the
+    /// user's back, because ordering and existing plugin managers are shell-specific decisions.
+    @ViewBuilder
+    private var terminalSetupInstructions: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Add the command for your shell to its startup file, then open a new terminal. "
+                + "Screen Recording permission is used only to locate the visible prompt and read "
+                + "Claude Code's input box; command text and OCR stay on this Mac.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            terminalCommandRow(shell: .zsh, startupFile: "~/.zshrc")
+            terminalCommandRow(shell: .bash, startupFile: "~/.bashrc (Bash 4+)")
+            terminalCommandRow(shell: .fish, startupFile: "~/.config/fish/conf.d/cotabby.fish")
+
+            Text("The Bash and fish hooks wrap printable-key bindings and may conflict with custom "
+                + "line-editor bindings. zsh uses its non-invasive redraw hook and is recommended.")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.leading, 28)
+    }
+
+    @ViewBuilder
+    private func terminalCommandRow(shell: ShellType, startupFile: String) -> some View {
+        let command = setupCommand(for: shell)
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text("\(shell.rawValue) · \(startupFile)")
+                    .font(.caption.weight(.medium))
+                Spacer()
+                Button("Copy") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(command, forType: .string)
+                }
+                .buttonStyle(.borderless)
+                .accessibilityLabel("Copy \(shell.rawValue) terminal setup command")
+            }
+            Text(command)
+                .font(.system(.caption2, design: .monospaced))
+                .textSelection(.enabled)
+                .lineLimit(3)
+        }
+        .padding(8)
+        .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 7))
+    }
+
+    private func setupCommand(for shell: ShellType) -> String {
+        let paths = TerminalIntegrationPaths.current()
+        let socket = shellQuoted(paths.socketURL.path)
+        let hook = shellQuoted(paths.hookURL(for: shell).path)
+        switch shell {
+        case .zsh, .bash:
+            return "export COTABBY_SOCKET_PATH=\(socket)\nsource \(hook)"
+        case .fish:
+            return "set -gx COTABBY_SOCKET_PATH \(socket)\nsource \(hook)"
+        }
+    }
+
+    private func shellQuoted(_ value: String) -> String {
+        "'" + value.replacingOccurrences(of: "'", with: "'\\''") + "'"
     }
 
     /// Hide suggestions that are already in the disabled list so the row never shows a

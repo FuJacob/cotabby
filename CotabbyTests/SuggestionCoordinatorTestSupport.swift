@@ -99,11 +99,17 @@ final class RigOverlayController: SuggestionOverlayControlling {
 final class RigInserter: SuggestionInserting {
     var lastErrorMessage: String?
     var insertedChunks: [String] = []
+    var insertionModes: [SuggestionInsertionMode] = []
     var replacements: [(deleteCount: Int, text: String)] = []
     var shouldInsert = true
 
     func insert(_ suggestion: String) -> Bool {
+        insert(suggestion, mode: .automatic)
+    }
+
+    func insert(_ suggestion: String, mode: SuggestionInsertionMode) -> Bool {
         insertedChunks.append(suggestion)
+        insertionModes.append(mode)
         return shouldInsert
     }
 

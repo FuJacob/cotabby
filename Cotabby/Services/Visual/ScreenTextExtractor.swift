@@ -11,6 +11,15 @@ import Logging
 /// it is bounded semantic extraction for autocomplete context. This pass favors useful text
 /// recovery over minimum latency because the output is captured once per focused field.
 
+/// One OCR line with the normalized Vision box needed by terminal prompt anchoring.
+/// Confidence remains in `OCRTextHygiene.OCRLine`; the extractor publishes both parallel views so
+/// adding geometry does not regress the existing cleanup pipeline.
+nonisolated struct RecognizedTextLine: Equatable, Sendable {
+    let text: String
+    let confidence: Float
+    let boundingBox: CGRect
+}
+
 struct ExtractedScreenText: Sendable {
     let text: String
     let lineCount: Int
@@ -19,11 +28,19 @@ struct ExtractedScreenText: Sendable {
     /// real values instead of a synthesized constant. Defaults to empty for callers (and tests) that
     /// only supply joined text.
     let lines: [OCRTextHygiene.OCRLine]
+    /// Same recognized lines with Vision-normalized bottom-left-origin geometry.
+    let positionedLines: [RecognizedTextLine]
 
-    init(text: String, lineCount: Int, lines: [OCRTextHygiene.OCRLine] = []) {
+    init(
+        text: String,
+        lineCount: Int,
+        lines: [OCRTextHygiene.OCRLine] = [],
+        positionedLines: [RecognizedTextLine] = []
+    ) {
         self.text = text
         self.lineCount = lineCount
         self.lines = lines
+        self.positionedLines = positionedLines
     }
 }
 
@@ -127,7 +144,7 @@ struct ScreenTextExtractor: ScreenTextExtracting {
                     // Keep each line's confidence (from its top candidate) so the hygiene pass can drop
                     // the recognizer's weakest guesses; the joined `text` below is for logging and the
                     // window-title fallback only.
-                    let recognizedLines: [OCRTextHygiene.OCRLine] = observations
+                    let recognized: [(hygiene: OCRTextHygiene.OCRLine, positioned: RecognizedTextLine)] = observations
                         .sorted {
                             if Swift.abs($0.boundingBox.minY - $1.boundingBox.minY) > 0.02 {
                                 return $0.boundingBox.minY > $1.boundingBox.minY
@@ -135,12 +152,24 @@ struct ScreenTextExtractor: ScreenTextExtracting {
 
                             return $0.boundingBox.minX < $1.boundingBox.minX
                         }
-                        .compactMap { observation -> OCRTextHygiene.OCRLine? in
+                        .compactMap { observation -> (
+                            hygiene: OCRTextHygiene.OCRLine,
+                            positioned: RecognizedTextLine
+                        )? in
                             guard let candidate = observation.topCandidates(1).first else { return nil }
                             let trimmed = candidate.string.trimmingCharacters(in: .whitespacesAndNewlines)
                             guard !trimmed.isEmpty else { return nil }
-                            return OCRTextHygiene.OCRLine(text: trimmed, confidence: candidate.confidence)
+                            return (
+                                OCRTextHygiene.OCRLine(text: trimmed, confidence: candidate.confidence),
+                                RecognizedTextLine(
+                                    text: trimmed,
+                                    confidence: candidate.confidence,
+                                    boundingBox: observation.boundingBox
+                                )
+                            )
                         }
+                    let recognizedLines = recognized.map(\.hygiene)
+                    let positionedLines = recognized.map(\.positioned)
 
                     let joinedText = recognizedLines.map(\.text).joined(separator: "\n")
                     let cappedText = String(joinedText.prefix(maxRecognizedCharacters))
@@ -165,7 +194,8 @@ struct ScreenTextExtractor: ScreenTextExtracting {
                             returning: ExtractedScreenText(
                                 text: cappedText,
                                 lineCount: recognizedLines.count,
-                                lines: recognizedLines
+                                lines: recognizedLines,
+                                positionedLines: positionedLines
                             )
                         )
                     }

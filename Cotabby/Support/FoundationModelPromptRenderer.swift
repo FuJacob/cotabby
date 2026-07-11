@@ -22,6 +22,34 @@ enum FoundationModelPromptRenderer {
     /// short, positive, and concrete; the two few-shot examples below carry the rest of the
     /// anti-drift signal.
     static func sessionInstructions(for request: SuggestionRequest) -> String {
+        if let terminalRole = request.context.terminalInputRole {
+            switch terminalRole {
+            case .shell:
+                if request.mode.isTerminalCommandReplacement {
+                    return """
+                    You translate a plain-English request into one literal macOS shell command.
+                    Output only the complete replacement command: no markdown, prompt symbol, quotes
+                    around the whole command, explanation, repeated request, or newline.
+                    Preserve user-provided names and paths, quoting them safely when needed.
+                    The output is inserted for review and must never include a trailing Return.
+                    """
+                }
+                return """
+                You complete a partially typed macOS shell command.
+                Output only the literal command characters after the caret: no markdown, quotes, explanation, or repeated prefix.
+                Preserve shell quoting, escaping, casing, options, paths, pipes, and spacing.
+                Keep the completion to one line.
+                """
+            case .claudeCodeTUI:
+                return """
+                You complete the developer's partially typed request to an AI coding assistant.
+                Output only the next short continuation after the caret: no greeting, label, quotes,
+                markdown wrapper, explanation, or repeated prefix.
+                Match the existing language and tone.
+                """
+            }
+        }
+
         var lines = [
             "You complete partially-typed text. The user is the author; you produce the next "
                 + "few words they would type, in their voice.",
@@ -105,6 +133,10 @@ enum FoundationModelPromptRenderer {
             return "Continue the text at the caret using a short inline completion."
         }
 
+        if let terminalRole = request.context.terminalInputRole {
+            return terminalPrompt(role: terminalRole, request: request)
+        }
+
         var sections = [
             "Screen context:",
             "User is on \(request.context.applicationName)."
@@ -177,6 +209,41 @@ enum FoundationModelPromptRenderer {
         ])
 
         return sections.joined(separator: "\n")
+    }
+
+    private static func terminalPrompt(
+        role: TerminalInputRole,
+        request: SuggestionRequest
+    ) -> String {
+        switch role {
+        case .shell:
+            let directory = request.context.terminalWorkingDirectory.map {
+                "Working directory: \($0)\n"
+            } ?? ""
+            if request.mode.isTerminalCommandReplacement {
+                return """
+                \(directory)Shell: \(request.context.subrole ?? "shell")
+                Plain-English request:
+                \(request.prefixText)
+
+                Return the complete shell command that should replace that request.
+                """
+            }
+            return """
+            \(directory)Shell: \(request.context.subrole ?? "shell")
+            Exact command before the caret:
+            \(request.prefixText)
+
+            Return only the command continuation.
+            """
+        case .claudeCodeTUI:
+            return """
+            Exact request text before the caret:
+            \(request.prefixText)
+
+            Return only the next continuation fragment.
+            """
+        }
     }
 
     /// Maps the focused app's surface class to a one-line tone cue or nil if no rule matches.

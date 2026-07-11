@@ -41,9 +41,9 @@ final class SuggestionSettingsModel: ObservableObject {
     /// Whether the keycap hint (the small pill that teaches the accept key) is drawn after ghost text.
     @Published private(set) var showAcceptanceHint: Bool
     @Published private(set) var disabledAppRules: [DisabledApplicationRule]
-    /// Whether Cotabby should suggest inside integrated terminals (VS Code / Cursor xterm.js
-    /// surfaces). Off by default: a terminal's own completion/history conflicts with ghost text and
-    /// overlaps command output. Power users who want it can opt back in from the Apps settings pane.
+    /// Master opt-in for source-verified shell and Claude Code terminal autocomplete. Off by
+    /// default; the runtime still requires an active hook/TUI source before making a terminal field
+    /// eligible, so this preference can never authorize opaque AX output by itself.
     @Published private(set) var suggestInIntegratedTerminals: Bool
     @Published private(set) var customSuggestionTextColorHex: String?
     @Published private(set) var ghostTextOpacity: Double
