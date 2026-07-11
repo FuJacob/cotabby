@@ -50,6 +50,29 @@ final class OpenAICompatibleAPIClient {
         return payload.data.sorted { $0.id.localizedCaseInsensitiveCompare($1.id) == .orderedAscending }
     }
 
+    /// Loads the selected model through Ollama's native API without tying that cold start to a
+    /// cancellable autocomplete request. Returning `false` means the configured endpoint is not
+    /// Cotabby's known local Ollama default, so callers can treat warmup as an intentional no-op.
+    func preloadDefaultOllamaModel(
+        configuration: OpenAICompatibleEndpointConfiguration,
+        apiKey: String?
+    ) async throws -> Bool {
+        guard !configuration.modelName.isEmpty else {
+            throw OpenAICompatibleEndpointError.emptyModelName
+        }
+        guard let url = configuration.defaultOllamaGenerateURL else { return false }
+
+        var request = URLRequest(url: url, timeoutInterval: 120)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        applyHeaders(to: &request, apiKey: apiKey)
+        request.httpBody = try encoder.encode(OllamaPreloadRequest(model: configuration.modelName))
+
+        let (_, response) = try await session.data(for: request)
+        try Self.validate(response)
+        return true
+    }
+
     func generate(
         configuration: OpenAICompatibleEndpointConfiguration,
         apiKey: String?,
@@ -240,6 +263,20 @@ nonisolated enum OpenAICompatibleSSEDecoder {
 
 private nonisolated struct ModelListResponse: Decodable {
     let data: [OpenAICompatibleModelOption]
+}
+
+/// Ollama treats an empty, non-streaming generate request as a model load. `keep_alive = -1`
+/// keeps the weights resident until Ollama is stopped or explicitly asked to unload them.
+private nonisolated struct OllamaPreloadRequest: Encodable {
+    let model: String
+    let prompt = ""
+    let stream = false
+    let keepAlive = -1
+
+    private enum CodingKeys: String, CodingKey {
+        case model, prompt, stream
+        case keepAlive = "keep_alive"
+    }
 }
 
 private nonisolated struct CompletionRequest: Encodable {

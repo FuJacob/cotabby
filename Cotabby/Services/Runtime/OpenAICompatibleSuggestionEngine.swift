@@ -125,4 +125,28 @@ final class OpenAICompatibleSuggestionEngine: SuggestionGenerating {
     }
 
     func resetCachedGenerationContext() async {}
+
+    /// Best-effort Ollama cold-start work runs through a request that is independent from the
+    /// coordinator's cancellable prediction task. Typing again can therefore discard stale
+    /// autocomplete work without aborting the model load that future requests need.
+    func prewarm(for _: SuggestionRequest) async {
+        do {
+            let configuration = try configurationProvider()
+            let didPreload = try await client.preloadDefaultOllamaModel(
+                configuration: configuration,
+                apiKey: try apiKeyProvider()
+            )
+            guard didPreload else { return }
+            CotabbyLogger.runtime.info(
+                "Preloaded default Ollama model",
+                metadata: ["model": .string(configuration.modelName)]
+            )
+        } catch is CancellationError {
+            // App shutdown may cancel this opportunistic work; warmup never becomes user-facing.
+        } catch {
+            CotabbyLogger.runtime.warning(
+                "Default Ollama model preload failed: \(error.localizedDescription)"
+            )
+        }
+    }
 }

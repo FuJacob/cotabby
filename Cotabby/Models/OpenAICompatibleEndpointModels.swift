@@ -126,6 +126,17 @@ nonisolated struct OpenAICompatibleEndpointConfiguration: Equatable, Sendable {
         baseURL.appendingPathComponent(path, isDirectory: false)
     }
 
+    /// Cotabby's default endpoint is specifically the local Ollama server. Ollama's preload API
+    /// lives outside its OpenAI-compatible `/v1` namespace, so this narrowly scoped URL avoids
+    /// sending Ollama-only requests to arbitrary LM Studio, vLLM, or hosted endpoints.
+    var defaultOllamaGenerateURL: URL? {
+        guard baseURL.absoluteString == Self.defaultBaseURLString,
+              var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)
+        else { return nil }
+        components.path = "/api/generate"
+        return components.url
+    }
+
     var privacyWarning: String? {
         switch hostScope {
         case .loopback:

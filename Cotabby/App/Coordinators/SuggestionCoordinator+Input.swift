@@ -118,8 +118,9 @@ extension SuggestionCoordinator {
             state = .idle
             // The user is now on a new editable surface and is likely to type soon. Prime the
             // selected engine in the background so weight loading and instruction tokenization
-            // happen before the first real `respond` instead of inside its critical path. Llama's
-            // default `prewarm` is a no-op, so this call is FM-only by design.
+            // happen before the first real `respond` instead of inside its critical path. The
+            // external endpoint also uses this hook to cold-load default local Ollama separately
+            // from the aggressively cancellable autocomplete request.
             prewarmEngineForCurrentField(rawContext: focusedContext)
         }
 
