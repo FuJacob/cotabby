@@ -6,6 +6,60 @@ import XCTest
 /// parsing are pure; URLProtocol stubs exercise the real URLSession request paths and headers.
 @MainActor
 final class OpenAICompatibleAPIClientTests: XCTestCase {
+    func test_modelSelectionResolver_choosesFirstDiscoveredModelForEmptySelection() {
+        let models = [
+            OpenAICompatibleModelOption(id: "alpha", ownedBy: nil),
+            OpenAICompatibleModelOption(id: "beta", ownedBy: nil)
+        ]
+
+        XCTAssertEqual(
+            OpenAICompatibleModelSelectionResolver.preferredSelection(
+                currentSelection: "",
+                discoveredModels: models
+            ),
+            "alpha"
+        )
+    }
+
+    func test_modelSelectionResolver_preservesAvailableSelection() {
+        let models = [
+            OpenAICompatibleModelOption(id: "alpha", ownedBy: nil),
+            OpenAICompatibleModelOption(id: "beta", ownedBy: nil)
+        ]
+
+        XCTAssertEqual(
+            OpenAICompatibleModelSelectionResolver.preferredSelection(
+                currentSelection: "beta",
+                discoveredModels: models
+            ),
+            "beta"
+        )
+    }
+
+    func test_modelSelectionResolver_replacesStaleSelectionWithFirstDiscoveredModel() {
+        let models = [
+            OpenAICompatibleModelOption(id: "alpha", ownedBy: nil),
+            OpenAICompatibleModelOption(id: "beta", ownedBy: nil)
+        ]
+
+        XCTAssertEqual(
+            OpenAICompatibleModelSelectionResolver.preferredSelection(
+                currentSelection: "removed-model",
+                discoveredModels: models
+            ),
+            "alpha"
+        )
+    }
+
+    func test_modelSelectionResolver_preservesManualSelectionForEmptyCatalog() {
+        XCTAssertNil(
+            OpenAICompatibleModelSelectionResolver.preferredSelection(
+                currentSelection: "manual-model",
+                discoveredModels: []
+            )
+        )
+    }
+
     override func tearDown() {
         EndpointStubURLProtocol.handler = nil
         EndpointStubURLProtocol.holdRequests = false

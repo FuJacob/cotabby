@@ -38,6 +38,31 @@ nonisolated struct OpenAICompatibleModelOption: Decodable, Equatable, Identifiab
     }
 }
 
+/// Chooses the durable model identifier after endpoint discovery finishes.
+///
+/// The connection model owns the fetched catalog, while `SuggestionSettingsModel` owns the user's
+/// saved selection. Keeping the reconciliation rule in this pure type avoids teaching the SwiftUI
+/// pane how to compare those two sources of truth and makes first-connection behavior testable.
+/// The resolver lives for only the duration of the static call; no object owns it.
+nonisolated enum OpenAICompatibleModelSelectionResolver {
+    /// Preserve a still-available choice; otherwise use the endpoint's first model. The API client
+    /// sorts its catalog before publishing it, so this fallback is stable rather than random.
+    /// An empty catalog returns nil so manual identifiers survive endpoints that cannot list models.
+    static func preferredSelection(
+        currentSelection: String,
+        discoveredModels: [OpenAICompatibleModelOption]
+    ) -> String? {
+        guard let firstModel = discoveredModels.first else { return nil }
+
+        let current = currentSelection.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let matchingModel = discoveredModels.first(where: { $0.id == current }) {
+            return matchingModel.id
+        }
+
+        return firstModel.id
+    }
+}
+
 /// Privacy classification for the configured server host.
 nonisolated enum OpenAICompatibleHostScope: Equatable, Sendable {
     case loopback
