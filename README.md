@@ -1,13 +1,9 @@
 
 <p align="center">
   <a href="https://cotabby.app" target="_blank">
-    <img height="150" alt="Cotabby logo" src=".github/assets/readme/logo.png" />
+    <img width="1600" alt="Cotabby beta — open-source, on-device AI autocomplete for macOS" src=".github/assets/readme/cotabby-banner.png" />
   </a>
 </p>
-
-<h1 align="center">Cotabby [beta]</h1>
-
-<p align="center"><em>Open-source, on-device AI autocomplete for macOS.</em></p>
 
 <p align="center">
   <a href="https://cotabby.app">
