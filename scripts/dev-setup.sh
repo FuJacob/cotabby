@@ -2,10 +2,10 @@
 #
 # dev-setup.sh - generate Config/Signing.local.xcconfig so you can build and run Cotabby locally.
 #
-# Cotabby's project.yml does not hardcode an Apple team, so any contributor can build the repo.
-# To launch the signed app from Xcode you supply your own team id once. This script detects it
-# from your Apple Development signing certificate and writes the gitignored
-# Config/Signing.local.xcconfig.
+# Cotabby's shared xcconfig defaults to the maintainer team so its members can build immediately.
+# Contributors on another team supply their own team id once. This script detects it from an Apple
+# Development signing certificate and writes the gitignored Config/Signing.local.xcconfig, whose
+# value overrides the shared default without dirtying the generated Xcode project.
 #
 # Usage:
 #   scripts/dev-setup.sh                              # auto-detect your team id

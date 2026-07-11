@@ -31,7 +31,8 @@ You need:
 - Xcode with Command Line Tools installed.
 - An Apple ID added to Xcode (Settings > Accounts) if you want to launch the app from the IDE. A
   free account is enough; the paid Apple Developer Program is not required for local development.
-  Run `scripts/dev-setup.sh` once to configure signing (see Local Setup).
+  Contributors outside Cotabby's default development team run `scripts/dev-setup.sh` once to
+  configure a local override (see Local Setup).
 - SwiftLint for local lint checks. CI installs it with Homebrew when needed.
 - XcodeGen if you need to change the project structure (targets, build settings, dependencies,
   or scheme). Install it with `brew install xcodegen`. CI installs it the same way.
@@ -40,7 +41,8 @@ Apple Silicon is strongly recommended for local model-runtime work.
 
 ## Local Setup
 
-Clone the repo, configure local signing, and open the project:
+Clone the repo and open the project. If your Apple ID is not on Cotabby's development team, run the
+one-time signing setup first:
 
 ```sh
 git clone https://github.com/FuJacob/Cotabby.git
@@ -49,11 +51,12 @@ scripts/dev-setup.sh
 open Cotabby.xcodeproj
 ```
 
-`scripts/dev-setup.sh` writes a gitignored `Config/Signing.local.xcconfig` with your Apple
-Development team id, so local builds sign as you. The team is deliberately not hardcoded in
-`project.yml`, so the repo builds for any contributor without being on the maintainer's team. If
-you have not added an Apple ID to Xcode yet, do that first under Settings > Accounts (a free
-account is enough), then re-run the script. To set the team by hand instead, copy
+The committed `Config/Signing.xcconfig` defaults to Cotabby's development team, which lets team
+members build immediately without Xcode modifying the generated project. `scripts/dev-setup.sh`
+writes a gitignored `Config/Signing.local.xcconfig` with a contributor's own Apple Development team
+id; that local value overrides the shared default and persists across pulls and project
+regeneration. If you have not added an Apple ID to Xcode yet, do that first under Settings >
+Accounts (a free account is enough), then re-run the script. To set the team by hand instead, copy
 `Config/Signing.local.xcconfig.example` to `Config/Signing.local.xcconfig`, or pass it explicitly:
 `DEVELOPMENT_TEAM=XXXXXXXXXX scripts/dev-setup.sh`.
 
@@ -119,8 +122,8 @@ xcodebuild \
 ```
 
 `CODE_SIGNING_ALLOWED=NO` keeps the build command usable on machines that do not have the project
-owner's signing certificate. Use Xcode with your own team selected when you need to launch the app
-locally.
+owner's signing certificate. Use the shared team or your gitignored local override when you need to
+launch the app locally.
 
 ## Run
 

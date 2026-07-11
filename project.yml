@@ -84,13 +84,13 @@ settings:
       ENABLE_NS_ASSERTIONS: NO
       MTL_ENABLE_DEBUG_INFO: NO
       SWIFT_COMPILATION_MODE: wholemodule
-# Per-developer signing lives in an xcconfig, not here, so any contributor can build the repo
-# without being on the maintainer's Apple team. `Config/Signing.xcconfig` (committed) leaves
-# DEVELOPMENT_TEAM empty and optionally includes the gitignored `Config/Signing.local.xcconfig`
-# that `scripts/dev-setup.sh` writes. It sits in a subdirectory on purpose: a root-level config
-# file makes XcodeGen name a group after the checkout directory, which drifts between clones and
-# CI. DEVELOPMENT_TEAM must also stay out of the build settings above: project-level settings
-# outrank an xcconfig, so a value there would override the local file.
+# Signing lives in xcconfig files, not the generated project. `Config/Signing.xcconfig` (committed)
+# supplies Cotabby's team as the maintainer-friendly default and optionally includes the gitignored
+# `Config/Signing.local.xcconfig` that `scripts/dev-setup.sh` writes for contributors on another
+# team. It sits in a subdirectory on purpose: a root-level config file makes XcodeGen name a group
+# after the checkout directory, which drifts between clones and CI. DEVELOPMENT_TEAM must also stay
+# out of the build settings above: project/target settings outrank an xcconfig and would prevent the
+# local override from winning.
 configFiles:
   Debug: Config/Signing.xcconfig
   Release: Config/Signing.xcconfig
