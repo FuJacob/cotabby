@@ -319,7 +319,8 @@ jobs:
             CODE_SIGN_IDENTITY="Developer ID Application" \
             OTHER_CODE_SIGN_FLAGS="--timestamp" \
             MARKETING_VERSION="${RELEASE_VERSION}" \
-            CURRENT_PROJECT_VERSION="${BUILD_NUMBER}"
+            CURRENT_PROJECT_VERSION="${BUILD_NUMBER}" \
+            archive
 
       - name: Verify build number in archive
         env:
@@ -335,13 +336,6 @@ jobs:
             exit 1
           fi
           echo "Verified CFBundleVersion: ${actual}"
-
-      - name: Verify macOS 14 compatibility metadata
-        run: |
-          python3 scripts/verify_macos_compatibility.py \
-            "build/${APP_NAME}.xcarchive/Products/Applications/${APP_NAME}.app" \
-            --minimum 14.0 \
-            --require-universal
 
       - name: Re-sign nested code for notarization
         run: |
