@@ -107,8 +107,8 @@ struct SuggestionSettingsStore {
     private static let spellingDictionaryCodesDefaultsKey = "cotabbyEnabledSpellingDictionaryCodes"
     private static let automaticallyFixTyposDefaultsKey = "cotabbyAutomaticallyFixTypos"
     private static let performanceTrackingEnabledDefaultsKey = "cotabbyPerformanceTrackingEnabled"
-    /// Shared with `CotabbyApp` because SwiftUI's scene-level `@AppStorage` is what invalidates the
-    /// `MenuBarExtra` insertion binding when the settings model writes this preference.
+    /// Observed by `MenuBarController`, which inserts or removes the AppKit status item when the
+    /// settings model writes this preference.
     static let menuBarIconVisibleDefaultsKey = "cotabbyMenuBarIconVisible"
     private static let menuBarWordCountVisibleDefaultsKey = "cotabbyMenuBarWordCountVisible"
     private static let mirrorPreferenceDefaultsKey = "cotabbyMirrorPreference"

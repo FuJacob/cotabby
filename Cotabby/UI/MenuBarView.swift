@@ -23,12 +23,9 @@ struct MenuBarView: View {
     @ObservedObject var foundationModelAvailabilityService: FoundationModelAvailabilityService
     @ObservedObject var powerSourceMonitor: PowerSourceMonitor
     let appUpdateManager: AppUpdateManager
+    let onDismiss: () -> Void
     let onOpenSettings: () -> Void
     let onReportFeedback: () -> Void
-
-    /// Captures the popover's host window so `Button` actions that open another window can dismiss
-    /// the popover behind them. SwiftUI's `\.dismiss` does not work for `MenuBarExtra(.window)`.
-    @StateObject private var popoverDismisser = MenuBarPopoverDismisser()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -47,12 +44,7 @@ struct MenuBarView: View {
                 runtimeModel.refreshAvailableModels()
             }
         )
-        .background(
-            MenuBarPopoverDismisserBinder(
-                dismisser: popoverDismisser,
-                onWindowBind: configureMenuBarWindowIfNeeded
-            )
-        )
+        .background(MenuBarWindowBinder(onWindowBind: configureMenuBarWindowIfNeeded))
         .onAppear {
             permissionManager.refresh()
             runtimeModel.refreshAvailableModels()
@@ -320,7 +312,7 @@ struct MenuBarView: View {
             Button("Settings") {
                 // Dismiss the popover before opening the Settings window so the popover doesn't
                 // remain on top of (and obscure) the Settings pane. See issue #455.
-                popoverDismisser.dismiss()
+                onDismiss()
                 onOpenSettings()
             }
             .buttonStyle(.borderless)
@@ -505,9 +497,9 @@ struct MenuBarView: View {
 
 /// Applies the menu panel's fill at the native window-container level when the OS supports it.
 ///
-/// `MenuBarView` owns the menu contents, but SwiftUI owns the actual `NSWindow` created by
-/// `MenuBarExtra`. Keeping this as a dedicated modifier gives the UI a narrow boundary for one
-/// platform-specific presentation rule without mixing availability checks into the main view body.
+/// `MenuBarView` owns the menu contents, while `MenuBarController` owns its `NSPopover` window.
+/// Keeping this as a dedicated modifier gives the UI a narrow boundary for one platform-specific
+/// presentation rule without mixing availability checks into the main view body.
 private struct MenuBarWindowBackgroundModifier: ViewModifier {
     private static let macOS26PopoverCornerRadius: CGFloat = 16
 
@@ -537,9 +529,9 @@ private struct MenuBarWindowBackgroundModifier: ViewModifier {
                         .stroke(Color(nsColor: .separatorColor).opacity(0.7), lineWidth: 1)
                 }
         } else if #available(macOS 15.0, *) {
-            // MenuBarExtra's `.window` style already gives us native rounded window chrome. Place
-            // the fill at the hosting window instead of this view's local bounds so it reaches the
-            // native rounded frame as one surface (avoids the double-border look fixed in #403).
+            // NSPopover gives us native rounded window chrome. Place the fill at the hosting window
+            // instead of this view's local bounds so it reaches the native rounded frame as one
+            // surface (avoids the double-border look fixed in #403).
             // The `.windowBackground` material renders correctly on macOS 15 through pre-26, so
             // keep it there to preserve the vibrant appearance and only patch the 26 regression.
             content.containerBackground(.windowBackground, for: .window)
@@ -549,7 +541,7 @@ private struct MenuBarWindowBackgroundModifier: ViewModifier {
     }
 }
 
-/// Configures the AppKit window behind `MenuBarExtra(.window)` on macOS 26.
+/// Configures the AppKit window behind the menu-bar `NSPopover` on macOS 26.
 ///
 /// SwiftUI owns the menu contents, but the double-outline regression lives one layer above SwiftUI:
 /// macOS 26 gives the menu popover a larger non-opaque host window than the SwiftUI root view. A
