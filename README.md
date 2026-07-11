@@ -176,7 +176,16 @@ Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, bui
 
 ## Created by
 
-Originally created by <a href="https://github.com/FuJacob">@FuJacob</a>, now developed and maintained by <a href="https://github.com/FuJacob">@FuJacob</a>, <a href="https://github.com/jam-cai">@jam-cai</a>. and <a href="https://github.com/akramj13">@akramj13</a>
+Originally created by <a href="https://github.com/FuJacob">@FuJacob</a>
+
+## Currently Maintained by
+
+- <a href="https://github.com/FuJacob">@FuJacob</a>
+- <a href="https://github.com/akramj13">@akramj13</a>
+
+## Previous Maintainers
+
+- <a href="https://github.com/jam-cai">@jam-cai</a>
 
 ## License
 
