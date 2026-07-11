@@ -213,19 +213,19 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         XCTAssertTrue(data.fadeInSuggestions)
     }
 
-    func test_load_fadeInDurationDefaultsToSecondFastestTick() async {
+    func test_load_fadeInDurationDefaultsToFastestTick() async {
         let defaults = makeIsolatedDefaults()
 
         let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
 
-        // The UI reflects duration across the slider range, so 0.10s maps to speed-axis 0.25:
-        // the second-fastest tick in the 0.05...0.30 band shown in Appearance settings.
-        XCTAssertEqual(SuggestionSettingsStore.defaultFadeInDuration, 0.10, accuracy: 0.0001)
+        // The UI reflects duration across the slider range, so the shortest 0.05s duration maps
+        // to speed-axis 0.30: the rightmost, fastest tick in Appearance settings.
+        XCTAssertEqual(SuggestionSettingsStore.defaultFadeInDuration, 0.05, accuracy: 0.0001)
         XCTAssertEqual(
             SuggestionSettingsStore.minimumFadeInDuration
                 + SuggestionSettingsStore.maximumFadeInDuration
                 - SuggestionSettingsStore.defaultFadeInDuration,
-            0.25,
+            0.30,
             accuracy: 0.0001
         )
         XCTAssertEqual(

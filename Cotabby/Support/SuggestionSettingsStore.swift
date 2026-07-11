@@ -54,11 +54,11 @@ struct SuggestionSettingsStore {
     /// Duration in seconds of the suggestion fade-in ramp, surfaced as a Slow-to-Fast speed slider.
     /// The band is narrow on purpose: below the floor the ramp is imperceptible (reads as an instant
     /// snap), and above the ceiling the ghost text feels like it lags the caret rather than settling
-    /// in at it. 0.10s maps to the second-fastest slider tick: quick enough to feel responsive while
-    /// leaving one faster step for users who want a nearly instant appearance. Lower is a faster fade.
+    /// in at it. 0.05s is the fastest slider tick, so new installs get the most responsive fade
+    /// while users can still choose a slower transition. Lower is a faster fade.
     static let minimumFadeInDuration: Double = 0.05
     static let maximumFadeInDuration: Double = 0.30
-    static let defaultFadeInDuration: Double = 0.10
+    static let defaultFadeInDuration: Double = 0.05
     static let fadeInDurationStep: Double = 0.05
 
     /// Hard upper bound on the persisted Extended Context blob, in characters. Sized to match what the
