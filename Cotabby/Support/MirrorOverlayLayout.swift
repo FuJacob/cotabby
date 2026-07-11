@@ -4,10 +4,11 @@ import Foundation
 
 /// Pure layout math for the mirror-overlay rendering mode.
 ///
-/// Mirror mode is reached when the host's caret geometry is unreliable, so this helper does not
-/// anchor to the caret rect for positioning — it anchors to the input field's frame and falls back
-/// to the caret rect only when the field frame is missing. That ordering is the opposite of the
-/// inline ghost layout, which trusts the caret rect first.
+/// Mirror mode is reached when the host's caret geometry is not precise enough for inline text.
+/// The card can still use the caret's vertical line box: estimated single-line fallbacks deliberately
+/// center that box inside the field chrome, while multiline/full-frame fallbacks keep its bottom edge
+/// aligned with the field. This lets the popup follow the visible text without claiming enough
+/// precision to draw glyphs inline.
 ///
 /// Layout decisions live here as a pure value type so `OverlayController` can stay focused on
 /// AppKit window plumbing and the rules below stay easy to test without spinning up SwiftUI.
@@ -73,9 +74,9 @@ struct MirrorOverlayLayout: Equatable {
 
     /// Computes the layout for one presentation.
     ///
-    /// `geometry.inputFrameRect` is the preferred anchor. When it is nil the card falls back to a
-    /// fixed offset below the caret rect — worse, but at least directionally correct. `visibleFrame`
-    /// is the target screen's visible region and is used to clamp the card on-screen.
+    /// The caret line is the preferred vertical anchor. AXFrame-only multiline and degenerate
+    /// fallbacks share the field's bottom edge, so they naturally retain the conservative field
+    /// anchor. `visibleFrame` is the target screen's visible region and keeps the card on-screen.
     static func make(
         suggestion: String,
         geometry: SuggestionOverlayGeometry,
@@ -153,9 +154,9 @@ struct MirrorOverlayLayout: Equatable {
     ///
     /// The anchor choice depends on *why* mirror mode is active:
     ///
-    /// - `.caretGeometryEstimated` means the host did not expose any of the trusted caret paths, so
-    ///   the caret rect itself is unreliable. We anchor to the input field rect when available
-    ///   because the field rect stays stable even when the caret estimate drifts.
+    /// - `.caretGeometryEstimated` means the host did not expose a caret precise enough for inline
+    ///   glyphs. Its vertical line box is still useful: AXFrame-only single-line estimates center it
+    ///   inside the field, while multiline/full-frame estimates share the field's bottom edge.
     /// - `.userPreference`, `.perAppOverride`, and `.caretMidLine` all mean the caret geometry is
     ///   trustworthy (`.exact` or `.derived`); the card is up because the user pinned popup mode or
     ///   the caret is mid-line. Anchoring to the field rect would waste the precise caret signal and
@@ -167,6 +168,14 @@ struct MirrorOverlayLayout: Equatable {
     ) -> CGFloat {
         switch reason {
         case .caretGeometryEstimated:
+            // `AXTextGeometryResolver.estimatedCaretRect` gives single-line fields a centered line
+            // box instead of the full control height. Anchoring to that rect removes the extra
+            // chrome padding that previously dropped omnibox popups by roughly one text row. For
+            // multiline or unrefined AXFrame fallbacks, caret.minY equals inputFrame.minY, so this
+            // preserves the old conservative field-bottom placement.
+            if !geometry.caretRect.isEmpty {
+                return geometry.caretRect.minY - Metrics.anchorGap
+            }
             if let inputFrame = geometry.inputFrameRect?.standardized, !inputFrame.isEmpty {
                 return inputFrame.minY - Metrics.anchorGap
             }

@@ -112,13 +112,12 @@ struct CompletionRenderModePolicy: Equatable, Sendable {
             // text confidently; promoting them would over-fire the card for hosts that work fine
             // today (Gmail, Outlook, Discord text-marker path).
             //
-            // Both estimate qualities go to the card, but with different anchors. `.estimated` has no
-            // usable caret at all, so the card anchors to the field rect (`.caretGeometryEstimated`).
-            // `.layoutEstimated` means the hidden-TextKit repair produced a confident caret estimate:
-            // we still prefer the card over inline ghost text (the estimate is good enough to place a
-            // popup, not to paint glyphs the eye will scrutinize against the host's own text), but we
-            // anchor that popup to the estimated caret (`.caretLayoutEstimated`) so it tracks the
-            // cursor TextKit located instead of floating below the whole field.
+            // Both estimate qualities go to the card. `.estimated` is not precise enough to paint
+            // inline glyphs, but its vertical line box is useful for popup placement: the AXFrame
+            // fallback centers single-line text and bottom-aligns multiline text. `.layoutEstimated`
+            // means the hidden-TextKit repair produced a more confident caret estimate. It still uses
+            // a card because that estimate is good enough to place a popup, not to paint glyphs the
+            // eye will scrutinize against the host's own text.
             switch geometry.caretQuality {
             case .estimated:
                 return .mirror(reason: .caretGeometryEstimated)
