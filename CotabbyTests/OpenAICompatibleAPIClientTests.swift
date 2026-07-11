@@ -72,11 +72,13 @@ final class OpenAICompatibleAPIClientTests: XCTestCase {
         let loopback = try configuration(baseURL: " http://127.0.0.1:11434/ ")
         XCTAssertEqual(loopback.baseURL.absoluteString, "http://127.0.0.1:11434/v1")
         XCTAssertEqual(loopback.apiURL(path: "models").absoluteString, "http://127.0.0.1:11434/v1/models")
+        XCTAssertEqual(loopback.defaultOllamaGenerateURL?.absoluteString, "http://127.0.0.1:11434/api/generate")
         XCTAssertEqual(loopback.hostScope, .loopback)
         XCTAssertNil(loopback.privacyWarning)
 
         let lan = try configuration(baseURL: "http://192.168.1.50:8000/v1/")
         XCTAssertEqual(lan.baseURL.absoluteString, "http://192.168.1.50:8000/v1")
+        XCTAssertNil(lan.defaultOllamaGenerateURL)
         XCTAssertEqual(lan.hostScope, .localNetwork)
         XCTAssertNotNil(lan.privacyWarning)
 
@@ -184,6 +186,43 @@ final class OpenAICompatibleAPIClientTests: XCTestCase {
 
         XCTAssertEqual(output, " hello")
         XCTAssertEqual(partials, [" hel", " hello"])
+    }
+
+    func test_defaultOllamaPreload_usesNativeRouteLongTimeoutAndKeepsModelResident() async throws {
+        let client = makeClient()
+        EndpointStubURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "http://127.0.0.1:11434/api/generate")
+            XCTAssertEqual(request.timeoutInterval, 120)
+            XCTAssertEqual(request.httpMethod, "POST")
+            let json = try Self.jsonBody(request)
+            XCTAssertEqual(json["model"] as? String, "gemma4:12b-mlx")
+            XCTAssertEqual(json["prompt"] as? String, "")
+            XCTAssertEqual(json["stream"] as? Bool, false)
+            XCTAssertEqual(json["keep_alive"] as? Int, -1)
+            return Self.response(request: request, body: #"{"done":true}"#)
+        }
+
+        let didPreload = try await client.preloadDefaultOllamaModel(
+            configuration: configuration(),
+            apiKey: nil
+        )
+
+        XCTAssertTrue(didPreload)
+    }
+
+    func test_nonDefaultEndpoint_doesNotReceiveOllamaPreloadRequest() async throws {
+        let client = makeClient()
+        EndpointStubURLProtocol.handler = { _ in
+            XCTFail("A generic endpoint must not receive Ollama's native preload request")
+            throw URLError(.badServerResponse)
+        }
+
+        let didPreload = try await client.preloadDefaultOllamaModel(
+            configuration: configuration(baseURL: "https://models.example.com/v1"),
+            apiKey: nil
+        )
+
+        XCTAssertFalse(didPreload)
     }
 
     func test_chatGeneration_postsSingleUserMessageAndReadsDeltaContent() async throws {
