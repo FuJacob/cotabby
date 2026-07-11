@@ -32,28 +32,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private let activationIndicatorController: ActivationIndicatorController
     private let focusDebugOverlayController: FocusDebugOverlayController?
-    /// AppKit owns the menu-bar lifecycle so launch never depends on SwiftUI scene construction.
-    /// Lazy creation lets callbacks capture this delegate only after `super.init()` has completed.
-    private lazy var menuBarController = MenuBarController(
-        permissionManager: permissionManager,
-        runtimeModel: runtimeModel,
-        modelDownloadManager: modelDownloadManager,
-        focusModel: focusModel,
-        permissionGuidanceController: permissionGuidanceController,
-        suggestionSettings: suggestionSettings,
-        foundationModelAvailabilityService: foundationModelAvailabilityService,
-        powerSourceMonitor: powerSourceMonitor,
-        suggestionCoordinator: suggestionCoordinator,
-        appUpdateManager: appUpdateManager,
-        onOpenSettings: { [weak self] in
-            self?.settingsCoordinator.showSettings()
-        },
-        onReportFeedback: {
-            guard let baseURL = URL(string: "https://www.cotabby.app/feedback") else { return }
-            let url = DeviceInfo.snapshot().appending(to: baseURL)
-            NSWorkspace.shared.open(url)
-        }
-    )
     /// Retained for the app's lifetime because the environment owns its own `cancellables` (the only
     /// subscriptions wiring the focus-poll-interval setting and the global-toggle hotkey rebind to the
     /// runtime). If the environment deallocated when `init` returned, those subscriptions would be
@@ -153,23 +131,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Starts runtime and polling services once AppKit reports that app launch finished.
     func applicationDidFinishLaunching(_ notification: Notification) {
-        if Self.isRunningCompatibilitySmokeTest {
-            menuBarController.prepareForCompatibilitySmokeTest()
-            CotabbyLogger.app.info("macOS compatibility launch smoke test passed")
-            // Leave the launch callback before terminating so AppKit finishes its notification
-            // bookkeeping; this produces a normal zero exit status instead of an artificial kill.
-            DispatchQueue.main.async {
-                NSApplication.shared.terminate(nil)
-            }
-            return
-        }
-
         guard !Self.isRunningUnderXCTest else {
             CotabbyLogger.app.info("Unit test host detected; skipping production service startup")
             return
         }
 
-        menuBarController.start()
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
         CotabbyLogger.app.info("Cotabby \(version) (build \(build)) launching on macOS \(ProcessInfo.processInfo.operatingSystemVersionString)")
@@ -262,7 +228,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         focusDebugOverlayController?.hide()
         suggestionCoordinator.stop()
         inlineCommandCoordinator.stop()
-        menuBarController.stop()
         inputMonitor.stop()
         focusModel.stop()
 
@@ -319,11 +284,5 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// crash before a test assertion runs. The environment variable is supplied by XCTest only.
     private static var isRunningUnderXCTest: Bool {
         ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
-    }
-
-    /// CI launches the built application itself on older macOS runners. This argument exercises
-    /// AppKit startup plus the complete hosted menu graph without touching global input or TCC.
-    private static var isRunningCompatibilitySmokeTest: Bool {
-        ProcessInfo.processInfo.arguments.contains("-cotabby-compatibility-smoke-test")
     }
 }
