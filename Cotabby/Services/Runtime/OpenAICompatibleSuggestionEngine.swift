@@ -9,6 +9,8 @@ final class OpenAICompatibleSuggestionEngine: SuggestionGenerating {
     private let client: OpenAICompatibleAPIClient
     private let configurationProvider: @MainActor () throws -> OpenAICompatibleEndpointConfiguration
     private let apiKeyProvider: @MainActor () throws -> String?
+    /// Owned for the engine's lifetime so focus-scoped warmup calls share one in-flight model load.
+    private let preloadWorkController = OllamaPreloadWorkController()
 
     init(
         client: OpenAICompatibleAPIClient,
@@ -132,21 +134,68 @@ final class OpenAICompatibleSuggestionEngine: SuggestionGenerating {
     func prewarm(for _: SuggestionRequest) async {
         do {
             let configuration = try configurationProvider()
-            let didPreload = try await client.preloadDefaultOllamaModel(
-                configuration: configuration,
-                apiKey: try apiKeyProvider()
-            )
-            guard didPreload else { return }
-            CotabbyLogger.runtime.info(
-                "Preloaded default Ollama model",
-                metadata: ["model": .string(configuration.modelName)]
-            )
-        } catch is CancellationError {
-            // App shutdown may cancel this opportunistic work; warmup never becomes user-facing.
+            guard configuration.defaultOllamaGenerateURL != nil else { return }
+            let apiKey = try apiKeyProvider()
+            await preloadWorkController.run(modelName: configuration.modelName) { [client] in
+                do {
+                    _ = try await client.preloadDefaultOllamaModel(
+                        configuration: configuration,
+                        apiKey: apiKey
+                    )
+                    CotabbyLogger.runtime.info(
+                        "Preloaded default Ollama model",
+                        metadata: ["model": .string(configuration.modelName)]
+                    )
+                } catch is CancellationError {
+                    // App shutdown may cancel opportunistic work; warmup never becomes user-facing.
+                } catch {
+                    CotabbyLogger.runtime.warning(
+                        "Default Ollama model preload failed: \(error.localizedDescription)"
+                    )
+                }
+            }
         } catch {
             CotabbyLogger.runtime.warning(
-                "Default Ollama model preload failed: \(error.localizedDescription)"
+                "Default Ollama preload configuration failed: \(error.localizedDescription)"
             )
         }
+    }
+}
+
+/// Coalesces focus-driven Ollama warmups without coupling them to prediction cancellation.
+///
+/// `OpenAICompatibleSuggestionEngine` owns one controller for its full lifetime. The first caller
+/// for a model creates the load task; later focus changes await that task instead of queuing more
+/// `/api/generate` requests. Completed work is removed so a later focus can retry after Ollama has
+/// restarted. The flight ID prevents an older waiter from deleting a newer retry for the same model.
+@MainActor
+final class OllamaPreloadWorkController {
+    private struct Flight {
+        let id: UUID
+        let task: Task<Void, Never>
+    }
+
+    private var flightsByModel: [String: Flight] = [:]
+
+    func run(
+        modelName: String,
+        operation: @escaping @MainActor () async -> Void
+    ) async {
+        if let existing = flightsByModel[modelName] {
+            await existing.task.value
+            return
+        }
+
+        let id = UUID()
+        // This unstructured task deliberately outlives cancellation of any one focus caller. Model
+        // loading is shared infrastructure; tying it to a stale field would recreate the 499 abort.
+        let task = Task { @MainActor in
+            await operation()
+        }
+        flightsByModel[modelName] = Flight(id: id, task: task)
+        await task.value
+
+        guard flightsByModel[modelName]?.id == id else { return }
+        flightsByModel[modelName] = nil
     }
 }
