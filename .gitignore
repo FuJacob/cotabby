@@ -39,3 +39,6 @@ posts.txt
 *.gguf
 *.bin
 .rocketride/
+
+.agents
+.internal
