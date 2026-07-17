@@ -284,7 +284,7 @@ final class SuggestionCoordinatorAcceptanceTests: XCTestCase {
             // First Tab accepts the only remaining chunk, exhausts the session, and arms the window.
             XCTAssertTrue(coordinator.acceptCurrentSuggestion())
             XCTAssertEqual(inserter.insertedChunks, [" today"])
-            XCTAssertTrue(coordinator.isPostExhaustionAcceptanceArmed)
+            XCTAssertTrue(coordinator.postExhaustionAcceptanceState.isArmed)
             XCTAssertFalse(coordinator.overlayState.isVisible)
             // Ownership of Tab was re-asserted even though the overlay is now hidden.
             XCTAssertEqual(inputMonitor.acceptInterceptionRequests.last, true)
@@ -304,7 +304,7 @@ final class SuggestionCoordinatorAcceptanceTests: XCTestCase {
                 [" today"],
                 "The second Tab has nothing to insert yet; it is queued, not inserted."
             )
-            XCTAssertTrue(coordinator.hasQueuedPostExhaustionAccept)
+            XCTAssertTrue(coordinator.postExhaustionAcceptanceState.hasQueuedAccept)
         }
     }
 
@@ -334,14 +334,14 @@ final class SuggestionCoordinatorAcceptanceTests: XCTestCase {
             )
 
             XCTAssertTrue(coordinator.acceptCurrentSuggestion())
-            XCTAssertTrue(coordinator.isPostExhaustionAcceptanceArmed)
+            XCTAssertTrue(coordinator.postExhaustionAcceptanceState.isArmed)
 
             // Any teardown that hides the overlay (focus change, typing, dismissal, an empty
             // regeneration) must end the window so the user can Tab out of the field normally again.
             coordinator.invalidateActiveSuggestion(reason: "Focus moved to another field.")
 
-            XCTAssertFalse(coordinator.isPostExhaustionAcceptanceArmed)
-            XCTAssertFalse(coordinator.hasQueuedPostExhaustionAccept)
+            XCTAssertFalse(coordinator.postExhaustionAcceptanceState.isArmed)
+            XCTAssertFalse(coordinator.postExhaustionAcceptanceState.hasQueuedAccept)
             XCTAssertFalse(
                 inputMonitor.shouldConsumeAcceptKeyProvider(),
                 "Once the window is released the accept tap should stop owning Tab."
@@ -379,8 +379,8 @@ final class SuggestionCoordinatorAcceptanceTests: XCTestCase {
             )
             // Simulate a Tab that was swallowed and queued while this continuation was still loading;
             // `apply` calls `flushQueuedPostExhaustionAcceptIfNeeded` once the suggestion is on screen.
-            coordinator.isPostExhaustionAcceptanceArmed = true
-            coordinator.hasQueuedPostExhaustionAccept = true
+            coordinator.postExhaustionAcceptanceState.arm()
+            coordinator.postExhaustionAcceptanceState.queueAcceptIfArmed()
 
             coordinator.flushQueuedPostExhaustionAcceptIfNeeded()
 
@@ -389,8 +389,8 @@ final class SuggestionCoordinatorAcceptanceTests: XCTestCase {
                 [" world"],
                 "The queued Tab should accept the continuation's first word."
             )
-            XCTAssertFalse(coordinator.isPostExhaustionAcceptanceArmed)
-            XCTAssertFalse(coordinator.hasQueuedPostExhaustionAccept)
+            XCTAssertFalse(coordinator.postExhaustionAcceptanceState.isArmed)
+            XCTAssertFalse(coordinator.postExhaustionAcceptanceState.hasQueuedAccept)
         }
     }
 
