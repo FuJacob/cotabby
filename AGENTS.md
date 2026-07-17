@@ -1,266 +1,156 @@
-# Cotabby Codex Instructions
+# Cotabby Coding-Agent Instructions
 
-## Project Identity
+## Source of Truth
 
-Cotabby is a macOS menu bar app for on-device inline autocomplete. The core loop is:
+- Code and tests are the final authority for shipping behavior.
+- Read `ARCHITECTURE.md` before changing lifecycle, Accessibility, input, generation, context,
+  insertion, or presentation. It is the tracked ten-minute system map.
+- `.internal/` may contain private, gitignored study notes in a local checkout. Use them for deeper
+  navigation when present, but verify every claim against code and never make tracked documentation
+  depend on them.
+- When a tracked document conflicts with code, follow the code and update the stale document in the
+  same change.
 
-1. Track the currently focused editable field through Accessibility.
-2. Monitor global keyboard input without stealing focus.
-3. Decide whether the field, permissions, settings, and runtime are eligible.
-4. Build an autocomplete request from the focused text context and optional visual context.
-5. Generate locally through Apple Intelligence or llama.cpp.
-6. Normalize the model output into a short continuation.
-7. Render ghost text near the caret.
-8. Insert accepted chunks when the user presses `Tab` while keeping the remaining tail alive.
+## Product Contract
 
-Privacy and local-first behavior matter. Do not introduce hosted API dependencies unless the user
-explicitly asks for that direction.
+Cotabby is a macOS menu bar agent for inline autocomplete in other applications. The core loop is:
+
+1. Resolve a supported focused field through Accessibility.
+2. Observe global keyboard input without taking focus.
+3. Gate work using permissions, field capability, settings, and runtime state.
+4. Build a bounded immutable request from caret text and optional context.
+5. Generate through Apple Intelligence, in-process llama.cpp, or a configured OpenAI-compatible
+   endpoint.
+6. Normalize the result into a safe short continuation.
+7. Render inline ghost text or a mirror card near the caret.
+8. Reconcile typing and insert accepted chunks through configurable shortcuts.
+
+Cotabby is local-first, not unconditionally offline. Apple Intelligence and llama.cpp run on the
+Mac. The endpoint backend may send the bounded request to loopback, LAN, or public HTTPS when the
+user explicitly selects it. Do not add or broaden hosted transmission without explicit user scope,
+clear disclosure, and the existing privacy boundaries.
+
+Secure and unsupported fields fail closed for generation, presentation, acceptance, and inline
+commands. Do not claim they are never acquired: bounded AX context and optional visual work can
+currently occur before the secure capability block. Treat that as documented privacy debt until the
+acquisition boundary itself changes.
 
 ## Learning-First Collaboration
 
-- Explain both the "what" and the "why" for architecture and code changes.
-- Assume the user is actively learning Swift, AppKit, Accessibility APIs, llama.cpp integration,
-  async/await, actor isolation, and macOS app architecture.
-- Teach at the file, type, and subsystem level, not just the line level.
-- Call out tradeoffs when there are multiple valid approaches.
-- Prefer clean boundaries over quick coupling, especially across `App`, `UI`, `Services`, `Models`,
-  and `Support`.
+- Explain both what changed and why, including ownership, lifetime, collaborators, and data flow.
+- Assume the user is learning Swift, AppKit, Accessibility, async/await, actor isolation, llama.cpp,
+  and macOS app architecture.
+- Teach at the file, type, and subsystem level. Call out tradeoffs when several designs are valid.
+- Prefer clean boundaries over quick coupling across `App`, `UI`, `Services`, `Models`, and
+  `Support`.
+- Comments should explain an invariant, ownership rule, macOS quirk, or failure mode. Do not add
+  comments that merely narrate the next line.
 
-When creating or editing a file, explain:
+## Repository and Ownership Map
 
-- what the file is responsible for
-- why the file exists as its own boundary
-- which objects own it or collaborate with it
-- how data flows into and out of it
+- `Cotabby/App/`: composition root, lifecycle wiring, and coordinators.
+- `Cotabby/UI/`: SwiftUI views for menus, settings, onboarding, overlays, and inline features.
+- `Cotabby/Services/`: side effects and OS/runtime boundaries for focus, input, insertion, visual
+  capture, inference, model management, permissions, power, presentation, spelling, and updates.
+- `Cotabby/Models/`: domain values, settings, states, and protocol contracts.
+- `Cotabby/Support/`: deterministic policy, prompting, normalization, reconciliation, geometry,
+  sanitization, logging, and low-level bridging helpers.
+- `CotabbyTests/`: unit and microbench tests. Prefer testing pure Models and Support behavior.
+- `CotabbyInference`: external SwiftPM llama.cpp wrapper pinned to its `main` branch.
+- `project.yml`: XcodeGen source of truth. `Cotabby.xcodeproj` is generated and committed.
 
-When adding a `struct`, `class`, `enum`, actor, or protocol, explain:
-
-- what responsibility it owns
-- what other objects it collaborates with
-- why it should exist as its own type instead of being folded into another file
-- how long it lives and who owns it
-
-## Repository Map
-
-- `Cotabby/App/`: app entrypoint, composition root, lifecycle wiring, and coordinators.
-- `Cotabby/UI/`: SwiftUI/AppKit presentation: settings, onboarding, menu views, overlays, and
-  visual affordances.
-- `Cotabby/Services/`: side-effectful boundaries: Accessibility, input monitoring, text insertion,
-  screenshots/OCR, visual context, llama runtime, permissions, downloads, updates, and launch
-  services.
-- `Cotabby/Models/`: shared value types, settings snapshots, states, domain models, and protocol
-  contracts.
-- `Cotabby/Support/`: pure helper logic, prompt rendering, availability rules, normalization,
-  reconciliation, geometry helpers, and low-level bridging utilities.
-- `CotabbyTests/`: unit and microbench tests. Prefer testing pure `Support/` and `Models/` logic
-  when possible.
-- `CotabbyInference`: the llama.cpp wrapper, consumed as a SwiftPM package
-  (`github.com/FuJacob/cotabbyinference`, pinned to `main`) rather than vendored in-tree.
-
-## App Ownership
-
-Start here when you need to understand lifecycle:
+For app ownership, read in order:
 
 1. `Cotabby/App/Core/CotabbyApp.swift`
 2. `Cotabby/App/Core/AppDelegate.swift`
 3. `Cotabby/App/Core/CotabbyAppEnvironment.swift`
 
-`CotabbyAppEnvironment` builds the long-lived dependency graph once. `AppDelegate` starts, stops,
-and wires cross-subsystem subscriptions. SwiftUI views should observe objects from that graph
-rather than creating services directly.
+`CotabbyAppEnvironment` constructs and retains one app-lifetime dependency graph. `AppDelegate`
+starts and stops side effects and owns process-lifecycle subscriptions. Views observe shared objects;
+they do not create process-wide services. Construction does not imply startup, production services
+do not start in the XCTest host, and shutdown stops new work before native teardown.
 
-This ownership rule prevents duplicate Accessibility observers, duplicate input monitors, runtime
-reload races, and mismatched settings state.
+For the suggestion state machine, read:
 
-## Suggestion Pipeline
+1. `SuggestionCoordinator.swift`
+2. `SuggestionCoordinator+Lifecycle.swift`
+3. `SuggestionCoordinator+Input.swift`
+4. `SuggestionCoordinator+Prediction.swift`
+5. `SuggestionCoordinator+Acceptance.swift`
 
-Read the coordinator in this order:
+Keep orchestration in the coordinator and pure rules in focused owners such as
+`SuggestionAvailabilityEvaluator`, `SuggestionRequestFactory`, `SuggestionSessionReconciler`, and
+`SuggestionTextNormalizer`. `SuggestionWorkController` owns work identity and cancellation;
+`SuggestionInteractionState` owns the active suggestion session.
 
-1. `Cotabby/App/Coordinators/SuggestionCoordinator.swift`
-2. `Cotabby/App/Coordinators/SuggestionCoordinator+Lifecycle.swift`
-3. `Cotabby/App/Coordinators/SuggestionCoordinator+Input.swift`
-4. `Cotabby/App/Coordinators/SuggestionCoordinator+Prediction.swift`
-5. `Cotabby/App/Coordinators/SuggestionCoordinator+Acceptance.swift`
+## Reliability and Concurrency Rules
 
-The coordinator owns orchestration and user-facing state. It should not absorb every rule. Prefer:
-
-- `SuggestionRequestFactory` for pure request construction
-- `SuggestionAvailabilityEvaluator` for pure gating decisions
-- `SuggestionSessionReconciler` for acceptance and active-tail reconciliation
-- `SuggestionTextNormalizer` for backend-independent output cleanup
-- `SuggestionWorkController` for generation task identity/cancellation
-- `SuggestionInteractionState` for active suggestion session storage
-
-This split matters because autocomplete is a state machine. Pure rules are easier to test and reason
-about than coordinator mutations.
-
-## Focus And Accessibility
-
-Focus and geometry live in:
-
-- `FocusTracker`: observes focus/value/selection changes and publishes snapshots.
-- `FocusSnapshotResolver`: reduces raw AX elements into Cotabby-supported focus snapshots.
-- `AXTextGeometryResolver`: resolves caret and input geometry.
-- `AXHelper`: low-level Accessibility/Core Foundation helper calls.
-- `FocusModels`: pure focus values, identities, capabilities, and debug inspection data.
-
-Accessibility data is eventually consistent and app-specific. Browser editors, Electron apps,
-native AppKit fields, and secure fields expose different AX shapes. Preserve stale-result guards,
-`focusChangeSequence`, and capability checks unless the change explicitly replaces them.
-
-## Visual Context And OCR
-
-Visual context currently flows through:
-
-- `VisualContextCoordinator`: field-scoped visual-context session lifecycle.
-- `ScreenshotContextGenerator`: screenshot -> OCR -> `OCRTextHygiene` cleanup -> bounded excerpt.
-- `WindowScreenshotService`: captures the relevant window or region.
-- `ScreenTextExtractor`: Vision OCR extraction, carrying per-line recognition confidence.
-- `OCRTextHygiene`: pure cleanup of raw OCR (drops low-confidence lines and chrome noise). There is
-  no model summarization step; a base model conditions fine on cleaned raw context.
-- `VisualContextModels`: configuration, status, and excerpt values.
-
-Do not put raw screenshots, unbounded OCR dumps, or noisy AX tree text directly into prompts.
-Normalize, bound, and mark unavailable states explicitly. Screen Recording permission is separate
-from Accessibility and Input Monitoring.
-
-## Runtime And Prompting
-
-Runtime generation is split by responsibility:
-
-- `SuggestionEngineRouter`: selects Apple Intelligence vs Open Source.
-- `FoundationModelSuggestionEngine`: Apple on-device generation path.
-- `LlamaSuggestionEngine`: request-to-prompt, llama result handling, and cache reset handoff.
-- `LlamaRuntimeManager`: UI-facing runtime state, model selection, warmup, and lifecycle control.
-- `LlamaRuntimeCore`: serialized actor around mutable llama.cpp pointers, prompt tokenization,
-  KV-cache reuse, sampling, an optional deterministic constrained decoder
-  (`runConstrainedDecode`, gated behind the default-off `cotabbyConstrainedDecoderEnabled`), and
-  shutdown.
-- `BaseCompletionPromptRenderer`: prompt construction for the Open Source path. The llama models are
-  now *base* (non-instruct) GGUFs, so this renders a pure text continuation: no instruction preamble,
-  custom rules and context fold into a short conditioning preface (a base model conditions on
-  description, it does not obey commands), sections are character-budgeted via `PromptSectionBudget`,
-  and the caret prefix comes last. `FoundationModelPromptRenderer` stays instruct-shaped because
-  Apple's Foundation Models path gives us a first-class instructions channel.
-
-Keep llama.cpp pointer work serialized inside `LlamaRuntimeCore`. The manager should publish state;
-the core should own native correctness.
-
-## UI And Overlays
-
-- `OverlayController` owns the ghost-text panel lifecycle and positioning.
-- `SuggestionOverlayPresenter` decides whether a suggestion should be shown or hidden.
-- `ActivationIndicatorController` owns the optional caret/field-edge indicator.
-- `FocusDebugOverlayController` is for developer visibility and should stay gated behind debug
-  options, not normal user settings.
-- Settings panes (under `Cotabby/UI/Settings/Panes/`) and onboarding views should remain
-  presentation-focused. Push behavior into services, models, or support helpers.
-
-## Swift And Concurrency Rules
-
-- Use `@MainActor` for UI, AppKit, SwiftUI state, most Accessibility access, and published models.
-- Use actors or explicit serialization for mutable native/runtime state.
-- Do not block the main actor with OCR, screenshots, model loading, or generation.
-- Make cancellation and stale-result checks explicit around async work. The user can keep typing,
-  switch apps, focus another field, or accept a partial suggestion while work is still running.
-- Prefer narrow protocols from `SuggestionSubsystemContracts.swift` when the coordinator only needs
-  behavior, not a concrete service.
-- Treat Core Foundation and AX bridging as unsafe boundaries. Add comments that explain ownership,
-  casting, and failure handling.
-
-## Teaching Comment Standard
-
-- Add real teaching comments, not labels.
-- Prefer file-level and type-level `///` comments that explain purpose, ownership, and design.
-- Add targeted inline comments for tricky lifecycle behavior, concurrency, cancellation, AX timing,
-  Core Foundation bridging, native pointer state, and macOS quirks.
-- Comments should explain why the code is written this way, which invariant it protects, or which
-  pitfall it avoids.
-- Avoid useless comments that merely restate the code.
-- If Swift syntax is likely to be unfamiliar, annotate it briefly the first time it appears in a new
-  concept-heavy area. Examples: `@Published`, `@ObservedObject`, `@StateObject`, `@MainActor`,
-  `Task`, async/await, actor isolation, closures, convenience initializers, `AXUIElement`,
-  `CFTypeRef`, and `unsafeBitCast`.
+- Treat AX state as eventually consistent and application-specific. Polling is authoritative.
+- Revalidate work ID, focus/content signatures, settings continuity, and session state after every
+  await that can outlive them. AX element identity alone is not a stale-result guard.
+- A generation request is immutable once asynchronous work starts. Engines never reach back into
+  live editor state.
+- Steady input observation is listen-only. Consume a key only after the owning feature succeeds;
+  stale or rejected interception must fail open to the host application.
+- Keep overlay text equal to the active session tail before acceptance. Host publication after
+  insertion is reconciled, never assumed.
+- Use Unicode key events for short ordinary insertion, the IME-safe paste path during active
+  composition, and preserve clipboard contents unless newer user clipboard activity wins.
+- Bound and sanitize every context source before request assembly. Never put raw screenshots,
+  unbounded OCR, or noisy AX dumps into prompts.
+- Use `@MainActor` for UI, AppKit, published state, and most AX access. OCR, capture, downloads,
+  model loading, endpoint calls, and generation must not block it.
+- Use actors or explicit serialization for mutable non-UI state. `LlamaRuntimeCore` is not a Swift
+  actor: its native pointers, cache/decode state, and shutdown lifecycle are protected by explicit
+  locks and a condition. Do not weaken that serialization.
+- Context reset must prevent cache data from crossing interaction boundaries. Switching away from
+  the Open Source engine must release native runtime resources.
+- Endpoint credentials belong in Keychain. Preserve rejection of insecure public HTTP.
+- Cancellation is expected lifecycle behavior, not automatically a backend failure.
 
 ## Change Strategy
 
-Prefer this order when changing behavior:
+Prefer this dependency direction when changing behavior:
 
-1. Pure rules in `Support/`
-2. Domain models and contracts in `Models/`
-3. Service boundary behavior in `Services/`
-4. Coordinator orchestration in `App/`
-5. SwiftUI/AppKit presentation in `UI/`
+1. Pure policy in `Support/`
+2. Domain values and contracts in `Models/`
+3. Side-effectful boundaries in `Services/`
+4. Orchestration in `App/`
+5. Presentation in `UI/`
 
-This order reduces regression risk because deterministic code changes before stateful orchestration.
-It also creates better tests.
+This is not a requirement to touch every layer. It prevents deterministic rules from being buried in
+stateful coordinators or views. Prefer narrow protocols from `SuggestionSubsystemContracts.swift`
+when a coordinator needs behavior rather than a concrete service.
 
-## Debugging & Logs
+Treat Core Foundation, AX bridging, and native pointers as unsafe boundaries. Explain ownership,
+casting, lifetime, cancellation, and failure handling where they are not obvious.
 
-Cotabby has a structured logging system built for AI-assisted debugging. During development the app
-is launched with `-cotabby-debug`, which enables on-disk JSONL sinks in addition to the always-on
-Console.app stream.
+## Debugging and Logs
 
-**Log file locations** (only populated when `-cotabby-debug` is set):
+When a bug is reported, inspect existing diagnostics before asking the user to reproduce or
+re-explain it. `-cotabby-debug` enables privacy-sensitive JSONL and capture artifacts; the default
+log floor is `.info`, while debug mode raises it to `.trace`. `COTABBY_LOG_LEVEL` overrides the floor.
 
-- `~/Library/Logs/Cotabby/cotabby.jsonl` — main event stream. One JSON object per line, with all
-  metadata flattened as top-level fields so it can be filtered with `jq`.
-- `~/Library/Logs/Cotabby/llm-io.jsonl` — full LLM prompts and completions, one record per
-  generation. Shares `request_id` with the main log so a single suggestion can be joined across
-  files.
-- `~/Desktop/cotabby-ax-dump.txt` — most recent Chrome AX tree snapshot. Overwritten on each
-  Chrome focus change (debounced by focused-element identity).
-- Rotated previous logs: `*.jsonl.1` (one-step rotation when a file exceeds 10 MB).
+- Production: `~/Library/Logs/Cotabby/cotabby.jsonl` and `llm-io.jsonl`
+- Dev identity: `~/Library/Logs/Cotabby Dev/cotabby.jsonl` and `llm-io.jsonl`
+- Chrome AX snapshot: `~/Desktop/cotabby-ax-dump.txt`
+- Visual debug captures: `~/Desktop/cotabby-debug-screenshots/`
 
-**Correlation IDs.** Every prediction gets a `request_id` like `req_a3f9k2lq`, stamped on every log
-line touching that request (coordinator state transitions, router selection, engine generation, LLM
-I/O capture). Pull a complete history of one suggestion:
-
-```bash
-jq 'select(.request_id == "req_a3f9k2lq")' ~/Library/Logs/Cotabby/cotabby.jsonl
-jq 'select(.request_id == "req_a3f9k2lq")' ~/Library/Logs/Cotabby/llm-io.jsonl
-```
-
-**Useful `jq` recipes:**
-
-```bash
-# Recent errors across the app
-jq 'select(.level == "error")' ~/Library/Logs/Cotabby/cotabby.jsonl
-
-# Llama generations slower than 500 ms
-jq 'select(.engine == "llama" and .latency_ms > 500)' ~/Library/Logs/Cotabby/llm-io.jsonl
-
-# Coordinator state transitions
-jq 'select(.category == "suggestion" and .stage != null)' ~/Library/Logs/Cotabby/cotabby.jsonl
-
-# Runtime model load/decode events
-jq 'select(.category == "runtime")' ~/Library/Logs/Cotabby/cotabby.jsonl
-```
-
-**Symptom → category map:**
-
-- Ghost text didn't appear → `suggestion` + `focus`
-- Wrong text inserted → look up the request in `llm-io.jsonl`, then walk `suggestion` for
-  acceptance
-- Model won't load / decode fails → `runtime` + `models`
-- Permission dialog loop → `app` (permission state transitions)
-- Chrome-specific weirdness → start with `~/Desktop/cotabby-ax-dump.txt`, then `focus`
-- Wrong backend chosen → `suggestion` router selection log (`engine`, `fallback_engine`)
-
-**Console.app fallback** (when `-cotabby-debug` wasn't set):
+Use `request_id` to join suggestion and LLM-I/O events. Start with `focus` for field/geometry issues,
+`suggestion` for state/acceptance, `runtime` and `models` for backend failures, and `app` for
+permissions/lifecycle. If JSONL files do not exist, use unified logging:
 
 ```bash
 log show --predicate 'subsystem == "com.cotabby.app"' --last 10m
 log stream --predicate 'subsystem == "com.cotabby.app"' --level debug
 ```
 
-**Rule of thumb.** When a user reports a bug, first `tail` / `jq` the relevant file with the
-symptom → category map. Do not ask the user to re-explain symptoms before checking the logs.
+The `log` display level cannot recover `.debug` or `.trace` events that Cotabby's emission floor
+already skipped.
 
 ## Validation
 
-Use the narrowest meaningful validation first, then broaden if the change touches shared behavior.
-Common commands:
+Use the narrowest meaningful test first, then broaden for shared behavior:
 
 ```bash
 xcodebuild -project Cotabby.xcodeproj -scheme Cotabby -destination 'platform=macOS' build \
@@ -269,20 +159,28 @@ xcodebuild -project Cotabby.xcodeproj -scheme Cotabby -destination 'platform=mac
   -derivedDataPath build/DerivedData
 ```
 
-Always pass `-derivedDataPath build/DerivedData` so the output lands in the repo-scoped `build/`
-directory (already gitignored) instead of accumulating under
-`~/Library/Developer/Xcode/DerivedData/Cotabby-*`, where every build leaves a fresh multi-GB module
-cache and SwiftPM checkout that nothing trims. When a task is done and the artifacts are no longer
-needed, `rm -rf build/DerivedData` before reporting completion.
+- Run focused tests for changed pure logic and `swiftlint lint --quiet` for Swift changes.
+- If app-hosted tests fail because of signing or Team ID mismatch, report the exact failure and the
+  successful build/build-for-testing result.
+- Remove `build/DerivedData` after the artifacts are no longer needed.
+- Sources are recursively discovered. Edit `project.yml` and run `xcodegen generate` only for
+  structural target, build-setting, package, or scheme changes. CI regenerates the project and fails
+  on drift.
 
-Run targeted tests for changed pure logic when available. If `xcodebuild test` fails locally because
-of app-hosted test bundle signing or Team ID mismatch, report the exact failure and still provide the
-successful build/build-for-testing result.
+## Documentation Maintenance
 
-## Git And Worktree Safety
+- Update `ARCHITECTURE.md` when the ten-minute mental model, ownership, data flow, privacy boundary,
+  backend set, or reliability invariant changes.
+- Keep links resolvable and name concrete owners. Do not document planned behavior as shipping.
+- Update setup, release, permission, and contributor docs when their contracts change.
+- If private `.internal/` guides exist, update the affected guide for local study, but remember those
+  files are gitignored and cannot carry a public PR's explanation.
 
-- The worktree may already contain user edits. Never revert unrelated changes.
-- Before editing, inspect `git status -sb` and the relevant files.
-- Keep commits scoped. Do not silently include unrelated dirty files.
-- Avoid destructive commands such as `git reset --hard` or `git checkout --` unless the user
-  explicitly asks for that operation.
+## Git and GitHub Safety
+
+- Inspect `git status -sb` and relevant diffs before editing. Preserve unrelated worktree changes.
+- Stage only intended paths and keep commits scoped. Never use destructive reset/checkout commands
+  unless the user explicitly requests them.
+- Do not add `Co-Authored-By` trailers.
+- Pull requests must use `.github/PULL_REQUEST_TEMPLATE.md` and report actual validation.
+- Issues must use the matching template under `.github/ISSUE_TEMPLATE/`.
