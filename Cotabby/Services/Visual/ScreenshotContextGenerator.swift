@@ -6,10 +6,10 @@ import UniformTypeIdentifiers
 
 /// File overview:
 /// Converts a newly focused input's surrounding screenshot into OCR text for prompt injection.
-/// The pipeline is: focused snapshot -> screenshot crop -> Apple OCR -> optional local summary ->
-/// bounded visible-context excerpt.
+/// The pipeline is: focused snapshot -> screenshot crop -> Apple OCR -> cleanup -> bounded
+/// visible-context excerpt.
 ///
-/// Keeping capture/OCR/summarization at this boundary gives the suggestion coordinator a small
+/// Keeping capture and OCR cleanup at this boundary gives the suggestion coordinator a small
 /// plain-text value instead of exposing raw screenshots or OCR implementation details.
 
 enum ScreenshotContextGenerationError: LocalizedError {
@@ -211,7 +211,7 @@ final class ScreenshotContextGenerator {
     }
 
     /// OCR is noisy by nature. We normalize line whitespace, strip short-token noise from UI
-    /// chrome, and keep only a bounded excerpt so the summarizer receives meaningful text.
+    /// chrome, and keep only a bounded excerpt so the prompt receives meaningful text.
     private func normalizeRecognizedText(_ rawText: String) -> String {
         PromptContextSanitizer.sanitizeOCR(
             rawText,
@@ -219,10 +219,10 @@ final class ScreenshotContextGenerator {
         )
     }
 
-    /// Applies the final prompt-injection budget after optional summarization.
+    /// Applies the final prompt-injection budget after OCR cleanup.
     ///
-    /// `maxRecognizedCharacters` protects the OCR and summarizer input. This separate cap protects
-    /// the autocomplete prompt from a verbose model summary or from the raw-OCR fallback path.
+    /// `maxRecognizedCharacters` bounds OCR cleanup input. This separate cap protects the
+    /// autocomplete prompt from a verbose recognized-text result.
     private func boundedSummaryText(_ text: String) -> String {
         PromptContextSanitizer.sanitize(
             text,

@@ -1,6 +1,6 @@
 # Cotabby FAQ
 
-Frequently asked questions about Cotabby, the free, open-source, on-device AI
+Frequently asked questions about Cotabby, the free, open-source, local-first AI
 autocomplete for macOS.
 
 ## 1. What is Cotabby and how does it work?
@@ -12,7 +12,7 @@ typing to ignore it.
 
 Under the hood, Cotabby notices which text field you are focused on, reads what
 you have typed (and optionally the surrounding on-screen context), generates a
-short continuation with a local AI model, and inserts the text you accept right
+short continuation with your selected engine, and inserts the text you accept right
 where your cursor is.
 
 Beyond sentence completion, Cotabby also includes:
@@ -33,25 +33,24 @@ terms of that license. The code lives at
 [github.com/FuJacob/cotabby](https://github.com/FuJacob/cotabby).
 
 The downloadable AI models are free too, and Apple Intelligence is built into
-macOS, so there are no usage costs of any kind.
+macOS. If you configure a third-party OpenAI-compatible endpoint, that provider may charge for use.
 
 ## 3. Is my data private? Does Cotabby send what I type to the cloud?
 
-Privacy is the core design principle. Everything that produces a suggestion runs
+Privacy is the core design principle. Cotabby's default engines produce suggestions
 on your Mac:
 
-- All AI text generation happens on-device, using either Apple Intelligence
-  (built into macOS) or a local model running directly on your machine. There is
-  no hosted API and no cloud round-trip.
+- Apple Intelligence and the Open Source engine run on-device.
+- The optional OpenAI-compatible engine sends the bounded request to the endpoint
+  you configure. That endpoint can be loopback, on your LAN, or a public HTTPS service.
 - When screen context is used, the screenshot is captured and read entirely
   on-device with Apple's built-in text recognition. No images or recognized text
   are ever uploaded.
 - Cotabby contains no analytics, no telemetry, and no crash reporting.
 
-The only times Cotabby uses the network are to download an AI model when you
-choose to, to let you search for models in the optional in-app model browser, and
-to check for app updates. None of these carry the text you type, your
-suggestions, or anything from your screen.
+Apart from a configured endpoint, Cotabby uses the network to download or search
+for models and to check for app updates. Those operations do not carry the text
+you type, your suggestions, or anything from your screen.
 
 For the technically curious: a normal install never writes your typed text to
 disk. Only special developer debug builds write local diagnostic logs, and even
@@ -66,7 +65,7 @@ those stay on your Mac and are never transmitted.
   5 GB each, depending on the model you pick).
 - To use the Apple Intelligence engine specifically, you need macOS 26 or later
   on a Mac that supports Apple Intelligence, with Apple Intelligence turned on in
-  System Settings. On older Macs, use the built-in Open Source engine instead.
+  System Settings. On older Macs, use the Open Source engine or a configured endpoint instead.
 
 ## 5. How do I install Cotabby?
 
@@ -90,20 +89,19 @@ setup. It checks for and installs updates automatically when new versions ship.
 
 ## 6. Why does Cotabby need Accessibility, Input Monitoring, and Screen Recording permissions?
 
-Cotabby works inside other apps, so macOS requires you to grant three
-permissions. Each one maps to a specific feature:
+Cotabby works inside other apps, so macOS asks for permissions that map to specific features:
 
 - **Accessibility:** to read the text and cursor position in the field you are
   typing in, and to insert the text you accept.
 - **Input Monitoring:** to notice your typing so it knows when to suggest, and to
   recognize the accept key (`Tab`).
-- **Screen Recording:** to capture the area around your cursor for visual
-  context, which makes suggestions more relevant.
+- **Screen Recording (optional):** to capture the area around your cursor for visual
+  context. Text-only autocomplete still works without it.
 
 Cotabby guides you through granting each one during setup and shows a reminder if
 a permission is later turned off. You can change them anytime in System Settings
-under Privacy & Security. Cotabby never operates in password or other secure
-fields.
+under Privacy & Security. Cotabby blocks generation, presentation, and insertion in password and
+other secure fields.
 
 ## 7. How do I use Cotabby, and how do I accept or dismiss a suggestion?
 
@@ -136,7 +134,7 @@ field does not expose what Cotabby needs, it simply stays quiet there.
 
 ## 9. Which AI model does Cotabby use, and does it work offline?
 
-Cotabby gives you two engines, and you choose which one to use:
+Cotabby gives you three engines, and you choose which one to use:
 
 - **Apple Intelligence:** Apple's on-device model built into macOS (requires
   macOS 26 or later on a supported Mac). Nothing to download.
@@ -145,10 +143,11 @@ Cotabby gives you two engines, and you choose which one to use:
   higher-quality one (around 5 GB). Larger models write better but run slower.
   You can also import your own GGUF model or browse Hugging Face from inside the
   app.
+- **OpenAI-compatible:** a completion or chat endpoint you configure, including
+  local Ollama, another LAN host, or a public HTTPS service.
 
-Both engines run entirely on your Mac. Once a model is downloaded (or Apple
-Intelligence is set up), suggestions work fully offline, with no internet
-required.
+Apple Intelligence and Open Source run entirely on your Mac and work offline once configured.
+The endpoint engine's network requirements depend on the server you choose.
 
 ## 10. How do I customize Cotabby or turn it off?
 

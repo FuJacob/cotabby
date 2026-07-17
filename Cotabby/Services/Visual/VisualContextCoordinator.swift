@@ -75,7 +75,7 @@ final class VisualContextCoordinator {
             break
         }
 
-        // Debounce the expensive screenshot -> OCR -> summarize pipeline. Chromium/Electron apps
+        // Debounce the expensive screenshot -> OCR -> cleanup pipeline. Chromium/Electron apps
         // flap the focused AX element (lose and re-acquire it), calling this repeatedly with a
         // churning focusChangeSequence. Coalescing (above) plus a short settle window runs the
         // pipeline once focus is stable instead of once per flap — the retrigger storm in #280.

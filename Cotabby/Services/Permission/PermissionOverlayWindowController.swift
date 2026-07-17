@@ -7,7 +7,7 @@ import QuartzCore
 /// Settings.
 ///
 /// Keeping this as a dedicated window controller follows the same pattern Cotabby already uses for
-/// floating AppKit UI in `Services/UI`. The rest of the app can ask for "present / update / hide"
+/// floating AppKit UI in `Services/Presentation`. The rest of the app can ask for "present / update / hide"
 /// behavior without learning anything about `NSPanel` configuration or animation timing.
 final class PermissionOverlayWindowController: NSWindowController {
     private let windowSize = NSSize(width: 540, height: 112)
