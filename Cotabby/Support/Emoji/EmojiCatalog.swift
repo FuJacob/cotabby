@@ -12,8 +12,8 @@ import Logging
 /// rather than crashing if the resource is missing.
 ///
 /// `Resources/Emoji/emoji.json` is generated from GitHub's gemoji dataset (MIT licensed). To refresh
-/// it, transform the upstream `db/emoji.json` into this file's `{glyph,name,aliases,keywords,group,
-/// unicodeVersion}` shape.
+/// it, transform the upstream `db/emoji.json` into this file's
+/// `{glyph,name,aliases,keywords}` shape.
 nonisolated struct EmojiCatalog {
     /// An entry paired with its lowercased searchable tokens, computed once at load time.
     struct IndexedEntry: Equatable {
@@ -28,9 +28,6 @@ nonisolated struct EmojiCatalog {
     /// Lowercased alias -> first catalog index, so a stored alias (recents, popularity prior) resolves
     /// back to its entry in O(1). First occurrence wins on the rare alias collision.
     let aliasIndex: [String: Int]
-
-    var isEmpty: Bool { indexed.isEmpty }
-    var count: Int { indexed.count }
 
     init(entries: [EmojiEntry]) {
         let indexed = entries.map { entry in

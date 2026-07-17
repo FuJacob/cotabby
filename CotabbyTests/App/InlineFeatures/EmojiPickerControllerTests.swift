@@ -153,9 +153,7 @@ final class EmojiPickerControllerTests: XCTestCase {
                     glyph: "😄",
                     name: "smiling face",
                     aliases: ["smile"],
-                    keywords: [],
-                    group: "Smileys & Emotion",
-                    unicodeVersion: "6.0"
+                    keywords: []
                 )
             ])
             focus = FakeFocus(precedingText: precedingText, focusChangeSequence: 1)
@@ -170,8 +168,9 @@ final class EmojiPickerControllerTests: XCTestCase {
                 inputMonitor: monitor,
                 inserter: inserter,
                 isEnabled: { true },
-                emojiPreferences: { .default },
-                acceptKeyLabel: { "⇥" },
+                emojiPreferences: {
+                    EmojiVariantPreferences(skinTone: .neutral, gender: .neutral)
+                },
                 emojiUsage: { usageRecorder.snapshot },
                 recordEmojiUsage: { usageRecorder.recorded.append($0) }
             )
@@ -231,8 +230,7 @@ private final class FakeFocus: SuggestionFocusProviding {
             applicationName: "TestApp",
             bundleIdentifier: "com.test.app",
             capability: .supported,
-            context: context,
-            inspection: nil
+            context: context
         )
     }
 }
@@ -279,7 +277,7 @@ private final class FakePanel: EmojiPickerPanelPresenting {
     var onClickOutside: (() -> Void)?
     private(set) var isHidden = false
 
-    func show(query: String, matches: [EmojiMatch], selectedIndex: Int, caretRect: CGRect, acceptKeyLabel: String?) {
+    func show(query: String, matches: [EmojiMatch], selectedIndex: Int, caretRect: CGRect) {
         isHidden = false
     }
 

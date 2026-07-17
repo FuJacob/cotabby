@@ -12,37 +12,6 @@ enum SuggestionDebugState: Equatable {
     case ready(text: String, latency: TimeInterval)
     case failed(String)
 
-    var shortLabel: String {
-        switch self {
-        case .idle:
-            return "Idle"
-        case .disabled:
-            return "Disabled"
-        case .debouncing:
-            return "Debouncing"
-        case .generating:
-            return "Generating"
-        case .ready:
-            return "Ready"
-        case .failed:
-            return "Failed"
-        }
-    }
-
-    var detail: String? {
-        switch self {
-        case .idle:
-            return "No active suggestion is currently available."
-        case let .disabled(reason), let .failed(reason):
-            return reason
-        case .debouncing:
-            return "Waiting for typing to settle."
-        case .generating:
-            return "Requesting a completion from the active suggestion backend."
-        case .ready:
-            return "Ready means Cotabby has buffered a non-empty normalized completion for this field and can render it as ghost text."
-        }
-    }
 }
 
 /// Geometry needed to render ghost text in the same visual line box as the host editor.
@@ -135,40 +104,12 @@ enum OverlayState: Equatable {
     case hidden(reason: String)
     case visible(text: String, geometry: SuggestionOverlayGeometry, mode: CompletionRenderMode)
 
-    var shortLabel: String {
-        switch self {
-        case .hidden:
-            return "Hidden"
-        case .visible:
-            return "Visible"
-        }
-    }
-
-    var detail: String {
-        switch self {
-        case let .hidden(reason):
-            return reason
-        case let .visible(text, geometry, mode):
-            return "Showing \(text.count) characters near " +
-                "(\(Int(geometry.caretRect.minX)), \(Int(geometry.caretRect.minY))) " +
-                "using \(geometry.caretQuality.label) caret geometry (\(mode.label))."
-        }
-    }
-
     var isVisible: Bool {
         if case .visible = self {
             return true
         }
 
         return false
-    }
-
-    var visibleText: String? {
-        guard case let .visible(text, _, _) = self else {
-            return nil
-        }
-
-        return text
     }
 
     var visibleMode: CompletionRenderMode? {

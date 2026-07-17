@@ -162,7 +162,6 @@ extension SuggestionCoordinator {
             latestGenerationNumber = liveContext.generation
             clearSuggestion(clearDiagnostics: false)
             hideOverlay(reason: "Overlay hidden because \(keyName) accepted the final suggestion chunk.")
-            latestAcceptanceAction = "Accepted final chunk with \(keyName)."
             state = .idle
             // Remember what we just committed and the text it followed. `apply` consumes this to drop
             // a regeneration that only re-proposes the same tail before the host publishes the insert
@@ -214,10 +213,6 @@ extension SuggestionCoordinator {
             schedulePostInsertionRefresh()
             let workID = currentWorkID
             deferAcceptanceBookkeeping { [weak self] in
-                self?.applySessionDiagnostics(
-                    advancedSession,
-                    acceptanceAction: "Accepted next chunk with \(keyName)."
-                )
                 self?.logStage(
                     "\(keyName)-accepted-chunk",
                     workID: workID,
@@ -407,7 +402,6 @@ extension SuggestionCoordinator {
         let workID = currentWorkID
         deferAcceptanceBookkeeping { [weak self] in
             self?.recordAcceptedWords(from: replacement.replacementText)
-            self?.latestAcceptanceAction = "Accepted typo correction with \(keyName)."
             self?.logStage(
                 "\(keyName)-accepted-correction",
                 workID: workID,
@@ -536,7 +530,6 @@ extension SuggestionCoordinator {
         }
 
         cancelPredictionWork()
-        applySessionDiagnostics(advancedSession, acceptanceAction: "User typed the next expected characters.")
 
         if advancedSession.isExhausted {
             completeActiveSuggestion(
@@ -544,8 +537,7 @@ extension SuggestionCoordinator {
                 scheduleNextPrediction: true,
                 awaitHostPublish: true,
                 stage: "typed-match-exhausted",
-                message: "The user typed the remaining suggestion characters exactly.",
-                acceptanceAction: "User typed through the rest of the suggestion."
+                message: "The user typed the remaining suggestion characters exactly."
             )
             return true
         }
@@ -595,12 +587,10 @@ extension SuggestionCoordinator {
         scheduleNextPrediction: Bool,
         awaitHostPublish: Bool = false,
         stage: String,
-        message: String,
-        acceptanceAction: String
+        message: String
     ) {
         let generation = latestGenerationNumber
         clearSuggestion(clearDiagnostics: false)
-        latestAcceptanceAction = acceptanceAction
         hideOverlay(reason: reason)
         state = .idle
         logStage(stage, workID: currentWorkID, generation: generation, message: message)
@@ -616,17 +606,6 @@ extension SuggestionCoordinator {
             } else {
                 schedulePrediction()
             }
-        }
-    }
-
-    func applySessionDiagnostics(_ session: ActiveSuggestionSession, acceptanceAction: String?) {
-        latestSuggestionPreview = session.remainingText
-        latestFullSuggestionPreview = session.fullText
-        latestRemainingSuggestionPreview = session.remainingText
-        latestAcceptedCharacterCount = session.acceptedCount
-        latestRemainingCharacterCount = session.remainingCount
-        if let acceptanceAction {
-            latestAcceptanceAction = acceptanceAction
         }
     }
 
@@ -767,13 +746,11 @@ extension SuggestionCoordinator {
             isCorrection: isCorrection,
             resolvedFieldStyle: context.resolvedFieldStyle
         )
-        if let message = overlayPresenter.present(
+        _ = overlayPresenter.present(
             text: text,
             geometry: geometry,
             previousState: overlayState
-        ) {
-            latestOverlayMessage = message
-        }
+        )
     }
 
     /// Repairs untrustworthy caret anchors with a hidden-text-layout estimate before presentation.
@@ -913,8 +890,7 @@ extension SuggestionCoordinator {
     /// joined to the exact gate decision via `request_id`. The metadata deliberately carries the
     /// estimate-vs-AX vertical delta and which host measurements calibrated the layout, because
     /// field reports of "ghost is N lines off" are only diagnosable from those numbers.
-    /// Deliberately not routed through `logStage`: that helper also mutates the UI-facing
-    /// `latestStageMessage`, and a per-present geometry detail should not overwrite the
+    /// Deliberately not routed through `logStage`: this is a geometry-specific event rather than a
     /// user-visible pipeline stage.
     private func logCaretLayoutRepair(
         anchor: LayoutRepairedAnchor,
@@ -982,7 +958,7 @@ extension SuggestionCoordinator {
     }
 
     func hideOverlay(reason: String) {
-        latestOverlayMessage = overlayPresenter.hide(reason: reason)
+        _ = overlayPresenter.hide(reason: reason)
     }
 
     func logStage(
@@ -994,11 +970,6 @@ extension SuggestionCoordinator {
         rawOutput: String? = nil,
         normalizedOutput: String? = nil
     ) {
-        // Repeated keystrokes produce identical stage messages; republishing the same string
-        // would still fire `objectWillChange` and re-render every coordinator observer.
-        if latestStageMessage != message {
-            latestStageMessage = message
-        }
         logger.logStage(
             stage,
             workID: workID,

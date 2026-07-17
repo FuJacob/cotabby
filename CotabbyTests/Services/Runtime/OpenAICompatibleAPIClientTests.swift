@@ -8,8 +8,8 @@ import XCTest
 final class OpenAICompatibleAPIClientTests: XCTestCase {
     func test_modelSelectionResolver_choosesFirstDiscoveredModelForEmptySelection() {
         let models = [
-            OpenAICompatibleModelOption(id: "alpha", ownedBy: nil),
-            OpenAICompatibleModelOption(id: "beta", ownedBy: nil)
+            OpenAICompatibleModelOption(id: "alpha"),
+            OpenAICompatibleModelOption(id: "beta")
         ]
 
         XCTAssertEqual(
@@ -23,8 +23,8 @@ final class OpenAICompatibleAPIClientTests: XCTestCase {
 
     func test_modelSelectionResolver_preservesAvailableSelection() {
         let models = [
-            OpenAICompatibleModelOption(id: "alpha", ownedBy: nil),
-            OpenAICompatibleModelOption(id: "beta", ownedBy: nil)
+            OpenAICompatibleModelOption(id: "alpha"),
+            OpenAICompatibleModelOption(id: "beta")
         ]
 
         XCTAssertEqual(
@@ -38,8 +38,8 @@ final class OpenAICompatibleAPIClientTests: XCTestCase {
 
     func test_modelSelectionResolver_replacesStaleSelectionWithFirstDiscoveredModel() {
         let models = [
-            OpenAICompatibleModelOption(id: "alpha", ownedBy: nil),
-            OpenAICompatibleModelOption(id: "beta", ownedBy: nil)
+            OpenAICompatibleModelOption(id: "alpha"),
+            OpenAICompatibleModelOption(id: "beta")
         ]
 
         XCTAssertEqual(
@@ -152,7 +152,6 @@ final class OpenAICompatibleAPIClientTests: XCTestCase {
         )
 
         XCTAssertEqual(models.map(\.id), ["alpha", "zeta"])
-        XCTAssertEqual(models.first?.ownedBy, "library")
     }
 
     func test_completionGeneration_postsStandardPayloadAndAccumulatesSSE() async throws {

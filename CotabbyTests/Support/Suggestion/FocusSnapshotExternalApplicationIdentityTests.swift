@@ -12,8 +12,7 @@ final class FocusSnapshotExternalApplicationIdentityTests: XCTestCase {
             applicationName: "Google Chrome",
             bundleIdentifier: "com.google.Chrome",
             capability: .supported,
-            context: nil,
-            inspection: nil
+            context: nil
         )
 
         XCTAssertEqual(
@@ -30,8 +29,7 @@ final class FocusSnapshotExternalApplicationIdentityTests: XCTestCase {
             applicationName: "Cotabby",
             bundleIdentifier: "com.jacobfu.tabby",
             capability: .blocked("Cotabby is focused."),
-            context: nil,
-            inspection: nil
+            context: nil
         )
 
         XCTAssertNil(
@@ -44,8 +42,7 @@ final class FocusSnapshotExternalApplicationIdentityTests: XCTestCase {
             applicationName: "Unknown",
             bundleIdentifier: nil,
             capability: .unsupported("No active application."),
-            context: nil,
-            inspection: nil
+            context: nil
         )
 
         XCTAssertNil(

@@ -11,7 +11,6 @@ final class EmojiPickerModelsTests: XCTestCase {
         XCTAssertEqual(match.displayGlyph, "\u{1F44B}")
         XCTAssertEqual(match.glyph, "\u{1F44B}")
         XCTAssertEqual(match.id, "\u{1F44B}")
-        XCTAssertEqual(match.primaryAlias, "wave")
     }
 
     func test_emojiMatch_variantOverrideChangesIdentityButKeepsSourceEntry() {
@@ -23,12 +22,6 @@ final class EmojiPickerModelsTests: XCTestCase {
         XCTAssertEqual(toned.id, "\u{1F44B}\u{1F3FD}")
         XCTAssertEqual(toned.glyph, "\u{1F44B}\u{1F3FD}")
         XCTAssertEqual(toned.entry, base)
-        XCTAssertEqual(toned.primaryAlias, "wave")
-    }
-
-    func test_emojiMatch_primaryAliasFallsBackToNameWhenEntryHasNoAliases() {
-        let match = EmojiMatch(entry: makeEntry(aliases: []))
-        XCTAssertEqual(match.primaryAlias, "waving hand")
     }
 
     func test_emojiSkinTone_displayNamesArePinnedSettingsCopy() {
@@ -67,9 +60,7 @@ final class EmojiPickerModelsTests: XCTestCase {
             glyph: "\u{1F44B}",
             name: "waving hand",
             aliases: aliases,
-            keywords: ["hello"],
-            group: "People & Body",
-            unicodeVersion: "6.0"
+            keywords: ["hello"]
         )
     }
 }

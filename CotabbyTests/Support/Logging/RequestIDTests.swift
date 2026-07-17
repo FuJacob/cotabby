@@ -38,13 +38,4 @@ final class RequestIDTests: XCTestCase {
         XCTAssertEqual(ids.count, 1_000)
     }
 
-    func test_metadataRequestID_buildsTheSingleStampedField() {
-        // OSLogHandler's metadata property gives us a typed `Logger.Metadata` context without the
-        // test target needing its own swift-log dependency.
-        var handler = OSLogHandler(label: "com.cotabby.test-request-id")
-        handler.metadata = .requestID("req_a3f9k2lq")
-
-        XCTAssertEqual(handler.metadata.count, 1)
-        XCTAssertEqual(handler.metadata["request_id"], .string("req_a3f9k2lq"))
-    }
 }

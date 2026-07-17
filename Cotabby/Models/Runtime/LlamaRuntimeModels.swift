@@ -216,9 +216,6 @@ struct LlamaGenerationOutput: Equatable, Sendable {
     /// True when the completion was withheld because `averageLogprob` fell below the floor.
     let suppressedByLowConfidence: Bool
 
-    static func text(_ text: String) -> LlamaGenerationOutput {
-        LlamaGenerationOutput(text: text, averageLogprob: nil, suppressedByLowConfidence: false)
-    }
 }
 
 /// The concrete runtime assets selected during bootstrap after checking available model files.

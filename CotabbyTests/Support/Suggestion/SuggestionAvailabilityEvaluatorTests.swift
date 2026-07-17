@@ -9,9 +9,8 @@ import XCTest
 /// that contract in.
 final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
 
-    // Build a FocusSnapshot with only the capability varied — none of the gate
-    // logic we're testing here touches `context` or `inspection`, so leaving
-    // them nil keeps each test focused on the single axis under test.
+    // Build a FocusSnapshot with only the capability varied. Leaving context nil keeps each test
+    // focused on the single gate axis under test.
     private func makeSnapshot(
         applicationName: String = "TestApp",
         bundleIdentifier: String? = "app.test",
@@ -21,8 +20,7 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
             applicationName: applicationName,
             bundleIdentifier: bundleIdentifier,
             capability: capability,
-            context: nil,
-            inspection: nil
+            context: nil
         )
     }
 
@@ -56,8 +54,7 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
             applicationName: "TestApp",
             bundleIdentifier: "app.test",
             capability: .supported,
-            context: context,
-            inspection: nil
+            context: context
         )
     }
 
@@ -75,8 +72,7 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
             applicationName: "Code",
             bundleIdentifier: "com.microsoft.VSCode",
             capability: .supported,
-            context: context,
-            inspection: nil
+            context: context
         )
     }
 

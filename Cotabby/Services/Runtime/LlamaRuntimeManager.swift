@@ -212,16 +212,6 @@ final class LlamaRuntimeManager: ObservableObject {
         }
     }
 
-    /// Cancels runtime work and waits until native llama resources are released.
-    /// Destructive flows such as uninstall need this stronger guarantee before deleting model files
-    /// that may have been memory-mapped by the runtime.
-    func stopAndWait() async {
-        prepareForStop()
-        await Task.detached { [core] in
-            core.shutdown()
-        }.value
-    }
-
     /// Synchronously releases the llama runtime on the current thread, bounded by `timeoutSeconds`.
     /// This is the termination-time path: C++ static destructors during `exit()` tear down the Metal
     /// device, so llama contexts must be released first to avoid `ggml_metal_rsets_free`. Returning

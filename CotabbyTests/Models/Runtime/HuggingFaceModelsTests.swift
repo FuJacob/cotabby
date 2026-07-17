@@ -19,10 +19,8 @@ final class HuggingFaceModelsTests: XCTestCase {
         let result = try JSONDecoder().decode(HFModelSearchResult.self, from: json)
 
         XCTAssertEqual(result.id, "org/model-GGUF")
-        XCTAssertEqual(result.modelId, "org/model-GGUF")
         XCTAssertEqual(result.downloads, 1200)
         XCTAssertEqual(result.likes, 7)
-        XCTAssertEqual(result.tags, ["gguf", "text-generation"])
     }
 
     func test_hfRepoFile_idIsThePathWithinTheRepo() {
@@ -68,6 +66,6 @@ final class HuggingFaceModelsTests: XCTestCase {
     }
 
     private func makeFile(path: String = "model.gguf", size: Int64 = 1_073_741_824) -> HFRepoFile {
-        HFRepoFile(path: path, size: size, type: "file")
+        HFRepoFile(path: path, size: size)
     }
 }

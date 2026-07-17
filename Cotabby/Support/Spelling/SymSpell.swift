@@ -60,7 +60,6 @@ nonisolated final class SymSpell {
         self.prefixLength = prefixLength
     }
 
-    var isEmpty: Bool { wordsList.isEmpty }
     var wordCount: Int { wordsList.count }
 
     // MARK: - Dictionary loading

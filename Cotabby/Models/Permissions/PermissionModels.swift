@@ -70,15 +70,6 @@ enum CotabbyPermissionKind: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    var guidanceHint: String {
-        switch guidanceStyle {
-        case .guidedOverlay:
-            "Cotabby will open System Settings and show a drag helper anchored to the correct list."
-        case .settingsOnly:
-            "Opens the matching System Settings pane so you can grant it manually."
-        }
-    }
-
     var guidanceStyle: PermissionGuidanceStyle {
         switch self {
         case .accessibility, .inputMonitoring, .screenRecording:

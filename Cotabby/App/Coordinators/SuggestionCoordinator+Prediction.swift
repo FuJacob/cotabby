@@ -122,8 +122,6 @@ extension SuggestionCoordinator {
             visualContextSummary: visualContextSummary
         )
         latestGenerationNumber = context.generation
-        latestPromptPreview = requestBuildResult.promptPreview
-        latestRawModelOutput = nil
         let request = requestBuildResult.request
         latestRequestID = request.requestID
 
@@ -169,13 +167,11 @@ extension SuggestionCoordinator {
 
         lastAcceptedTail = nil
         latestGenerationNumber = context.generation
-        latestLatencyMilliseconds = 0
         let session = interactionState.startSession(
             fullText: remainder,
             liveContext: context,
             latency: 0
         )
-        applySessionDiagnostics(session, acceptanceAction: "Restored a cached suggestion.")
         state = .ready(text: session.remainingText, latency: session.latency)
         presentOverlay(
             text: session.remainingText,
@@ -242,8 +238,6 @@ extension SuggestionCoordinator {
             visualContextSummary: visualContextSummary
         )
         latestGenerationNumber = context.generation
-        latestPromptPreview = requestBuildResult.promptPreview
-        latestRawModelOutput = nil
         let request = requestBuildResult.request
         latestRequestID = request.requestID
 
@@ -544,7 +538,6 @@ extension SuggestionCoordinator {
         cancelPredictionWork()
         clearSuggestion(clearDiagnostics: false)
         hideOverlay(reason: "Overlay hidden because Cotabby automatically fixed a typo.")
-        latestAcceptanceAction = "Automatically corrected \"\(typoWord)\" to \"\(correctedWord)\"."
         state = .idle
         logStage(
             "typo-auto-corrected",
@@ -570,14 +563,12 @@ extension SuggestionCoordinator {
     ) {
         let liveContext = interactionState.materializeContext(from: rawContext)
         latestGenerationNumber = liveContext.generation
-        latestLatencyMilliseconds = 0
         let session = interactionState.startSession(
             fullText: correctedWord,
             liveContext: liveContext,
             latency: 0,
             kind: .correction(typoWord: typoWord)
         )
-        applySessionDiagnostics(session, acceptanceAction: "Offered a correction for \"\(typoWord)\".")
         state = .ready(text: session.remainingText, latency: 0)
         presentOverlay(
             text: session.remainingText,
@@ -677,7 +668,6 @@ extension SuggestionCoordinator {
 
         guard isPaidOffSpeculation || liveContext.generation == result.generation else {
 
-            latestRawModelOutput = SuggestionDebugLogger.debugPreview(result.rawText)
             // Lifecycle discards are counted under their own reasons so `generated` always equals
             // `shown` plus the suppression histogram; without this, every drop here silently
             // inflated the generated count against the others.
@@ -693,8 +683,6 @@ extension SuggestionCoordinator {
             hideOverlay(reason: "Overlay hidden because a stale result was dropped.")
             return
         }
-
-        latestRawModelOutput = SuggestionDebugLogger.debugPreview(result.rawText)
 
         guard !result.text.isEmpty else {
             discardEmptyResult(result, workID: workID)
@@ -766,7 +754,6 @@ extension SuggestionCoordinator {
             return
         }
 
-        latestLatencyMilliseconds = Int(result.latency * 1000)
         latestGenerationNumber = liveContext.generation
         // One shown event per suggestion: this is the only place a fresh generation becomes
         // visible (re-presentations after partial accepts reuse the same session).
@@ -781,7 +768,6 @@ extension SuggestionCoordinator {
             liveContext: liveContext,
             latency: result.latency
         )
-        applySessionDiagnostics(session, acceptanceAction: "Generated new suggestion.")
         state = .ready(text: session.remainingText, latency: session.latency)
 
         presentOverlay(
@@ -890,15 +876,13 @@ extension SuggestionCoordinator {
         advancement: SuggestionSessionAdvancement?
     ) {
         latestGenerationNumber = liveContext.generation
-        applySessionDiagnostics(reconciledSession, acceptanceAction: advancement?.actionSummary ?? latestAcceptanceAction)
 
         if reconciledSession.isExhausted {
             completeActiveSuggestion(
                 reason: "Overlay hidden because the active suggestion was fully consumed.",
                 scheduleNextPrediction: true,
                 stage: advancement?.exhaustionStage ?? "session-exhausted",
-                message: advancement?.exhaustionMessage ?? "The active suggestion was fully consumed.",
-                acceptanceAction: advancement?.actionSummary ?? "Suggestion tail was fully consumed."
+                message: advancement?.exhaustionMessage ?? "The active suggestion was fully consumed."
             )
             return
         }
@@ -1013,7 +997,6 @@ extension SuggestionCoordinator {
         clearSuggestion(clearDiagnostics: true)
         hideOverlay(reason: reason)
         state = .disabled(reason)
-        latestStageMessage = "Disabled: \(reason)"
     }
 
     /// Disables predictions without tearing down the visual context session.
@@ -1033,7 +1016,6 @@ extension SuggestionCoordinator {
         clearSuggestion(clearDiagnostics: true)
         hideOverlay(reason: reason)
         state = .disabled(reason)
-        latestStageMessage = "Disabled: \(reason)"
     }
 
     /// True when a previous teardown already disabled the pipeline for this exact reason and
@@ -1049,13 +1031,10 @@ extension SuggestionCoordinator {
     }
 
     /// True when the no-session clear path still has anything to tear down. With no active
-    /// session, most keystrokes arrive with the overlay already hidden and the published
-    /// suggestion state already nil; assigning nil to an already-nil `@Published` property still
-    /// fires `objectWillChange`, so skipping the redundant clear avoids re-rendering every
-    /// coordinator observer on every key. `.disabled` counts as nothing-to-clear because entering
-    /// it already ran the full teardown.
+    /// session, most keystrokes arrive with the overlay already hidden and the state already idle.
+    /// `.disabled` counts as nothing-to-clear because entering it already ran the full teardown.
     var hasSuggestionArtifactsToClear: Bool {
-        if overlayState.isVisible || latestSuggestionPreview != nil || latestPromptPreview != nil {
+        if overlayState.isVisible || interactionState.activeSession != nil {
             return true
         }
 
@@ -1074,18 +1053,9 @@ extension SuggestionCoordinator {
         lastAcceptedTail = nil
         // Stream bookkeeping follows the session it was rendering for.
         suggestionStreamingState.clearSession()
-        latestSuggestionPreview = nil
-        latestFullSuggestionPreview = nil
-        latestRemainingSuggestionPreview = nil
-        latestAcceptedCharacterCount = nil
-        latestRemainingCharacterCount = nil
-        latestAcceptanceAction = nil
-        latestLatencyMilliseconds = nil
         interactionState.clearSuggestion()
 
         if clearDiagnostics {
-            latestPromptPreview = nil
-            latestRawModelOutput = nil
             latestGenerationNumber = nil
             // Clear so the next session's terminal logStage doesn't carry the previous
             // request_id forward. `+Acceptance.logStage` falls back to "req_none" on nil,

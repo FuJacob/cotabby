@@ -5,8 +5,8 @@ import Foundation
 /// and free of AppKit/Accessibility/CGEvent dependencies so the catalog, matcher, and trigger
 /// state machine stay pure and easy to unit test. UI and runtime wiring live elsewhere.
 ///
-/// The decoded dataset row mirrors the bundled `Resources/Emoji/emoji.json` schema exactly, so the
-/// default `Decodable` synthesis can read it without custom `CodingKeys`.
+/// The decoded dataset row keeps only the fields Cotabby uses. `Decodable` ignores extra dataset
+/// keys, so metadata that does not affect matching or presentation stays out of the runtime model.
 
 /// One emoji record decoded from the bundled dataset.
 ///
@@ -17,8 +17,6 @@ nonisolated struct EmojiEntry: Equatable, Decodable {
     let name: String
     let aliases: [String]
     let keywords: [String]
-    let group: String
-    let unicodeVersion: String
 }
 
 /// A single ranked search result surfaced in the picker panel.
@@ -43,9 +41,6 @@ nonisolated struct EmojiMatch: Equatable, Identifiable {
     var id: String { displayGlyph }
     var glyph: String { displayGlyph }
 
-    /// Label shown next to the glyph. Falls back to the human description when an entry somehow has
-    /// no aliases, so a row is never blank.
-    var primaryAlias: String { entry.aliases.first ?? entry.name }
 }
 
 /// User-selectable skin tone applied to emoji that support Fitzpatrick modifiers.
@@ -110,8 +105,6 @@ enum EmojiGender: String, CaseIterable, Equatable, Sendable {
 struct EmojiVariantPreferences: Equatable, Sendable {
     let skinTone: EmojiSkinTone
     let gender: EmojiGender
-
-    static let `default` = EmojiVariantPreferences(skinTone: .neutral, gender: .neutral)
 }
 
 // MARK: - Trigger state machine vocabulary

@@ -2,8 +2,8 @@ import XCTest
 @testable import Cotabby
 
 /// The probe is the seam between real host hardware and the pure
-/// `OnboardingTemplateRecommender`, so these tests pin its two outputs to the
-/// authoritative sources they must mirror.
+/// `OnboardingTemplateRecommender`, so these tests pin its memory output to the authoritative
+/// source it must mirror.
 final class HardwareCapabilityProbeTests: XCTestCase {
     func test_current_reportsHostPhysicalMemoryExactly() {
         let capability = HardwareCapabilityProbe.current()
@@ -25,15 +25,4 @@ final class HardwareCapabilityProbeTests: XCTestCase {
         )
     }
 
-    func test_current_reportsCompileTimeArchitecture() {
-        let capability = HardwareCapabilityProbe.current()
-
-        // The probe intentionally answers from compile-time architecture; the test target builds
-        // for the same architecture, so the same condition is the ground truth here.
-        #if arch(arm64)
-        XCTAssertTrue(capability.isAppleSilicon)
-        #else
-        XCTAssertFalse(capability.isAppleSilicon)
-        #endif
-    }
 }

@@ -401,15 +401,6 @@ struct MenuBarView: View {
         )
     }
 
-    private var selectedWordCountPresetBinding: Binding<SuggestionWordCountPreset> {
-        Binding(
-            get: { suggestionSettings.selectedWordCountPreset },
-            set: { preset in
-                suggestionSettings.selectWordCountPreset(preset)
-            }
-        )
-    }
-
     /// One of the curated presets or the user's custom range. Backed by two pieces of state
     /// (`selectedWordCountPreset` + `isUsingCustomWordCountRange`) so the menu can render and
     /// mutate both with a single picker.

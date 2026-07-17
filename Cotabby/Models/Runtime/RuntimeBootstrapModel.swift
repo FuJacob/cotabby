@@ -138,15 +138,6 @@ final class RuntimeBootstrapModel: ObservableObject {
         runtimeManager.stop()
     }
 
-    /// Cancels pending startup work and waits for the runtime manager to release native resources.
-    /// Normal UI shutdown can be fire-and-forget, but uninstall deletes the model directory and must
-    /// not race llama.cpp cleanup.
-    func stopAndWait() async {
-        runtimeTask?.cancel()
-        runtimeTask = nil
-        await runtimeManager.stopAndWait()
-    }
-
     /// Synchronously releases the runtime on the calling thread, bounded by `timeoutSeconds`.
     /// Used by `applicationWillTerminate` so llama Metal resources are torn down before `exit()`
     /// runs C++ static destructors. See `LlamaRuntimeManager.shutdownSync` for rationale.

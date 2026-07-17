@@ -24,7 +24,6 @@ struct SuggestionWordRange: Equatable, Hashable, Sendable {
         return SuggestionWordRange(lowWords: clampedLow, highWords: clampedHigh)
     }
 
-    var displayLabel: String { "\(lowWords)-\(highWords) words" }
     var compactLabel: String { "\(lowWords)-\(highWords) w" }
     var promptInstruction: String { "Return only the next \(lowWords) to \(highWords) words." }
 }
@@ -43,25 +42,6 @@ enum SuggestionWordCountPreset: String, CaseIterable, Equatable, Hashable, Senda
         "\(rawValue) words"
     }
 
-    /// Compact labels are useful in tight menu-bar controls where the full descriptive copy
-    /// would dominate the layout.
-    var compactLabel: String {
-        "\(rawValue) w"
-    }
-
-    var promptInstruction: String {
-        switch self {
-        case .twoToFour:
-            return "Return only the next 2 to 4 words."
-        case .fourToSeven:
-            return "Return only the next 4 to 7 words."
-        case .sevenToTwelve:
-            return "Return only the next 7 to 12 words."
-        case .twelveToTwenty:
-            return "Return only the next 12 to 20 words."
-        }
-    }
-
     /// The shared `SuggestionWordRange` shape so the prompt builder and token-budget math can
     /// consume presets and custom ranges identically.
     var range: SuggestionWordRange {
@@ -77,19 +57,6 @@ enum SuggestionWordCountPreset: String, CaseIterable, Equatable, Hashable, Senda
         }
     }
 
-    /// Token budget is the sole governor of completion length on the local model (the in-prompt
-    /// word-range cue was removed), so it must track the upper word bound closely. Now derived from
-    /// the language-aware factor in `LanguageCatalog`; this convenience returns the English-default
-    /// number for callers/tests that don't have a language context handy. History: a ~1.5x sizing
-    /// (6/11/18/30) still overran because real prose uses fewer tokens per word than that assumed,
-    /// and an earlier 50% bump overran further, e.g. ~12 words on the shortest preset (#271). When
-    /// unsure, bias shorter; a clipped suggestion is cheaper than one that blows past the setting.
-    var suggestedPredictionTokenBudget: Int {
-        SuggestionWordRange.predictionTokenBudget(
-            highWords: range.highWords,
-            tokensPerWord: LanguageCatalog.fallbackTokensPerWord
-        )
-    }
 }
 
 extension SuggestionWordRange {

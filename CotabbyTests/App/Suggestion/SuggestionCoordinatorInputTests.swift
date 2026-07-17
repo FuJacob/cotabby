@@ -119,8 +119,7 @@ final class SuggestionCoordinatorInputTests: XCTestCase {
             applicationName: typedSnapshot.applicationName,
             bundleIdentifier: typedSnapshot.bundleIdentifier,
             capability: .supported,
-            context: typedSnapshot,
-            inspection: nil
+            context: typedSnapshot
         )
         await waitUntil("Divergent typing never rescheduled generation") {
             rig.coordinator.state == .debouncing || rig.engine.requests.count == 1
@@ -185,8 +184,7 @@ final class SuggestionCoordinatorInputTests: XCTestCase {
             applicationName: typedSnapshot.applicationName,
             bundleIdentifier: typedSnapshot.bundleIdentifier,
             capability: .supported,
-            context: typedSnapshot,
-            inspection: nil
+            context: typedSnapshot
         )
         await waitUntil("Keystroke never rescheduled generation") {
             rig.coordinator.state == .debouncing || !rig.engine.requests.isEmpty
@@ -257,8 +255,7 @@ final class SuggestionCoordinatorInputTests: XCTestCase {
             applicationName: otherApp.applicationName,
             bundleIdentifier: otherApp.bundleIdentifier,
             capability: .supported,
-            context: otherApp,
-            inspection: nil
+            context: otherApp
         )
         rig.coordinator.handleSupportedSnapshot(otherFocus)
 
@@ -279,8 +276,7 @@ final class SuggestionCoordinatorInputTests: XCTestCase {
             applicationName: "TestApp",
             bundleIdentifier: "com.example.TestApp",
             capability: .unsupported("No focused text input"),
-            context: nil,
-            inspection: nil
+            context: nil
         )
 
         rig.coordinator.handleSupportedSnapshot(bareSnapshot)

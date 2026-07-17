@@ -39,17 +39,6 @@ struct SuggestionNormalizationResult: Equatable, Sendable {
 }
 
 enum SuggestionTextNormalizer {
-    /// Convenience wrapper returning only the ghost text. Callers that want to know *why* an empty
-    /// result came back (for diagnostics / on-device decode evaluation) should call
-    /// `normalizeDetailed` instead, which is the single source of truth this delegates to.
-    static func normalize(
-        _ rawSuggestion: String,
-        for request: SuggestionRequest,
-        promptEchoCandidates: [String] = []
-    ) -> String {
-        normalizeDetailed(rawSuggestion, for: request, promptEchoCandidates: promptEchoCandidates).text
-    }
-
     /// Normalizes one raw completion and, when the result is empty, attributes the suppression to a
     /// specific cause. This is the distinction the logs need to tell "the model produced nothing
     /// usable" apart from "a safety/echo filter dropped a real completion" — without it, every empty

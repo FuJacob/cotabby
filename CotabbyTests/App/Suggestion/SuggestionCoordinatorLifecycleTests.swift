@@ -60,7 +60,6 @@ final class SuggestionCoordinatorLifecycleTests: XCTestCase {
         XCTAssertFalse(rig.coordinator.overlayState.isVisible)
         XCTAssertEqual(rig.coordinator.state, .idle)
         XCTAssertEqual(rig.visualContext.cancelCalls, [true])
-        XCTAssertTrue(rig.coordinator.latestStageMessage.contains("model switching"))
     }
 
     func test_settingsChange_identicalSnapshotIsANoOp() {
@@ -87,41 +86,6 @@ final class SuggestionCoordinatorLifecycleTests: XCTestCase {
         // A supported focus environment restarts both visual context and prediction.
         XCTAssertFalse(rig.visualContext.startedSessions.isEmpty)
         XCTAssertEqual(rig.coordinator.state, .debouncing)
-    }
-
-    func test_settingsChange_stageMessagesNameTheEngineOrLengthChange() {
-        // Use a focus environment that cannot schedule a prediction, so the settings-change
-        // message is not immediately overwritten by the "debouncing" stage log.
-        let rig = retained(makeCoordinatorRig(capability: .unsupported("No focused text input")))
-
-        rig.coordinator.handleSuggestionSettingsChange(
-            CotabbyTestFixtures.settingsSnapshot(selectedEngine: .appleIntelligence, debounceMilliseconds: 1)
-        )
-        XCTAssertTrue(
-            rig.coordinator.latestStageMessage.contains(SuggestionEngineKind.appleIntelligence.displayLabel)
-        )
-
-        rig.coordinator.handleSuggestionSettingsChange(
-            CotabbyTestFixtures.settingsSnapshot(
-                selectedEngine: .appleIntelligence,
-                selectedWordCountPreset: .twelveToTwenty,
-                debounceMilliseconds: 1
-            )
-        )
-        XCTAssertTrue(
-            rig.coordinator.latestStageMessage.contains(SuggestionWordCountPreset.twelveToTwenty.displayLabel)
-        )
-
-        // Any other field change gets the generic message.
-        rig.coordinator.handleSuggestionSettingsChange(
-            CotabbyTestFixtures.settingsSnapshot(
-                selectedEngine: .appleIntelligence,
-                selectedWordCountPreset: .twelveToTwenty,
-                isClipboardContextEnabled: false,
-                debounceMilliseconds: 1
-            )
-        )
-        XCTAssertEqual(rig.coordinator.latestStageMessage, "Updated autocomplete settings.")
     }
 
     func test_settingsChange_disablingGloballyDoesNotRestartThePipeline() {

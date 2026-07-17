@@ -83,8 +83,7 @@ final class FocusCapabilityFlickerGateTests: XCTestCase {
             applicationName: "Calendar",
             bundleIdentifier: "com.apple.iCal",
             capability: .supported,
-            context: nil,
-            inspection: nil
+            context: nil
         )
         XCTAssertEqual(gate.evaluate(supportedWithoutContext), .apply)
         XCTAssertEqual(gate.evaluate(blockedSnapshot(elementID: "field-A")), .apply)
@@ -100,8 +99,7 @@ final class FocusCapabilityFlickerGateTests: XCTestCase {
             applicationName: "Calendar",
             bundleIdentifier: "com.apple.iCal",
             capability: .blocked("Text is currently selected."),
-            context: nil,
-            inspection: nil
+            context: nil
         )
         XCTAssertEqual(gate.evaluate(blockedWithoutContext), .apply)
     }
@@ -113,8 +111,7 @@ final class FocusCapabilityFlickerGateTests: XCTestCase {
             applicationName: "Calendar",
             bundleIdentifier: "com.apple.iCal",
             capability: .supported,
-            context: CotabbyTestFixtures.focusedInputSnapshot(elementIdentifier: elementID),
-            inspection: nil
+            context: CotabbyTestFixtures.focusedInputSnapshot(elementIdentifier: elementID)
         )
     }
 
@@ -123,8 +120,7 @@ final class FocusCapabilityFlickerGateTests: XCTestCase {
             applicationName: "Calendar",
             bundleIdentifier: "com.apple.iCal",
             capability: .blocked("Text is currently selected."),
-            context: CotabbyTestFixtures.focusedInputSnapshot(elementIdentifier: elementID),
-            inspection: nil
+            context: CotabbyTestFixtures.focusedInputSnapshot(elementIdentifier: elementID)
         )
     }
 
@@ -133,8 +129,7 @@ final class FocusCapabilityFlickerGateTests: XCTestCase {
             applicationName: "Finder",
             bundleIdentifier: "com.apple.finder",
             capability: .unsupported("No focused text input"),
-            context: nil,
-            inspection: nil
+            context: nil
         )
     }
 }

@@ -21,16 +21,6 @@ enum WelcomeStep: Int, CaseIterable, Comparable, Sendable {
         lhs.rawValue < rhs.rawValue
     }
 
-    /// The flow is strictly linear, so navigation is derived from case order instead of hand-wired
-    /// per step. `nil` past either end keeps the terminal steps terminal.
-    var next: WelcomeStep? {
-        WelcomeStep(rawValue: rawValue + 1)
-    }
-
-    var previous: WelcomeStep? {
-        WelcomeStep(rawValue: rawValue - 1)
-    }
-
     /// Number of steps shown in the progress indicator (the middle, non-terminal steps).
     static let totalProgressSteps = 4
 

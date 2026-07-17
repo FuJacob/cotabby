@@ -145,7 +145,7 @@ final class FocusSnapshotResolverLiveTests: XCTestCase {
         XCTAssertEqual(snapshot.context?.isSecure, true)
     }
 
-    func test_resolveSnapshot_nonEditableElementIsUnsupportedWithInspection() throws {
+    func test_resolveSnapshot_nonEditableElementHasDeterministicCapability() throws {
         _ = try requireElements()
 
         let appElement = AXUIElementCreateApplication(ProcessInfo.processInfo.processIdentifier)
@@ -170,7 +170,7 @@ final class FocusSnapshotResolverLiveTests: XCTestCase {
         case .supported:
             XCTAssertNotNil(snapshot.context)
         case .blocked, .unsupported:
-            XCTAssertNotNil(snapshot.inspection)
+            XCTAssertNil(snapshot.context)
         }
     }
 

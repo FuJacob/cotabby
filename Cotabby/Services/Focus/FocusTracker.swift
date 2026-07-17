@@ -455,8 +455,7 @@ final class FocusTracker {
                 applicationName: applicationName,
                 bundleIdentifier: bundleIdentifier,
                 capability: capability,
-                context: nil,
-                inspection: nil
+                context: nil
             ),
             didChangeFocusedInput: clearFocusedInputSignatureIfNeeded()
         )

@@ -6,17 +6,14 @@ import Foundation
 /// One result from `GET /api/models?filter=gguf&search=...&sort=downloads`.
 nonisolated struct HFModelSearchResult: Codable, Identifiable, Equatable {
     let id: String
-    let modelId: String
     let downloads: Int
     let likes: Int
-    let tags: [String]
 }
 
 /// One file entry from `GET /api/models/<repoId>/tree/main`.
 struct HFRepoFile: Codable, Equatable, Identifiable {
     let path: String
     let size: Int64
-    let type: String
 
     var id: String { path }
 

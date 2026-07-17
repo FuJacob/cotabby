@@ -275,7 +275,6 @@ final class CotabbyAppEnvironment {
             inserter: suggestionInserter,
             isEnabled: { suggestionSettings.isEmojiPickerEnabled },
             emojiPreferences: { suggestionSettings.emojiVariantPreferences },
-            acceptKeyLabel: { suggestionSettings.emojiPickerAcceptKeyLabel },
             emojiUsage: { emojiUsageStore.snapshot() },
             recordEmojiUsage: { emojiUsageStore.record(alias: $0) }
         )

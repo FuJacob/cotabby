@@ -11,8 +11,6 @@ import SwiftUI
 /// headless and testable.
 @MainActor
 final class FocusDebugOverlayController {
-    static let launchArgument = CotabbyDebugOptions.launchArgument
-
     static var isEnabled: Bool {
         CotabbyDebugOptions.isEnabled
     }

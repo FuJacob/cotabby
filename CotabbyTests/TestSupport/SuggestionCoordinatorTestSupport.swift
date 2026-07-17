@@ -228,8 +228,7 @@ func makeCoordinatorRig(
         applicationName: snapshot.applicationName,
         bundleIdentifier: snapshot.bundleIdentifier,
         capability: capability,
-        context: snapshot,
-        inspection: nil
+        context: snapshot
     )
     let permissionProvider = RigPermissionProvider()
     let focusProvider = RigFocusProvider(snapshot: focusSnapshot)

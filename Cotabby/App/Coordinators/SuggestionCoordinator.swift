@@ -12,22 +12,11 @@ import Foundation
 /// mutate them.
 @MainActor
 final class SuggestionCoordinator: ObservableObject {
-    /// The first group is user-facing and debug-facing state surfaced in the menu UI.
-    /// Keep treating these as coordinator-owned even though they are not `private(set)`.
-    @Published var state: SuggestionDebugState = .idle
-    @Published var overlayState: OverlayState = .hidden(reason: "Overlay idle.")
-    @Published var latestSuggestionPreview: String?
-    @Published var latestFullSuggestionPreview: String?
-    @Published var latestRemainingSuggestionPreview: String?
-    @Published var latestAcceptedCharacterCount: Int?
-    @Published var latestRemainingCharacterCount: Int?
-    @Published var latestAcceptanceAction: String?
-    @Published var latestLatencyMilliseconds: Int?
-    @Published var latestStageMessage = "Idle"
-    @Published var latestOverlayMessage = "Overlay idle."
-    @Published var latestPromptPreview: String?
-    @Published var latestRawModelOutput: String?
-    @Published var latestGenerationNumber: UInt64?
+    /// Coordinator-owned state machine values. Tests inspect these directly, but no UI subscribes
+    /// to them, so keeping them as plain properties avoids unrelated menu re-renders.
+    var state: SuggestionDebugState = .idle
+    var overlayState: OverlayState = .hidden(reason: "Overlay idle.")
+    var latestGenerationNumber: UInt64?
     @Published var visualContextStatus: VisualContextStatus = .idle
     @Published var latestVisualContextText: String?
     @Published var totalTabAcceptedWordCount: Int = 0
@@ -77,10 +66,9 @@ final class SuggestionCoordinator: ObservableObject {
     // Async work and active-session storage now live in dedicated collaborators below.
     var cancellables = Set<AnyCancellable>()
     var settingsSnapshot: SuggestionSettingsSnapshot
-    /// Last completed round trip per backend, retained across keystrokes. `latestLatencyMilliseconds`
-    /// belongs to the currently displayed suggestion and is cleared as soon as the user types, so it
-    /// cannot drive adaptive scheduling. Keeping this separate lets a slow HTTP backend retain an
-    /// appropriate debounce without leaking that latency into the in-process engines.
+    /// Last completed round trip per backend, retained across keystrokes. Keeping this separate lets
+    /// a slow HTTP backend retain an appropriate debounce without leaking that latency into the
+    /// in-process engines.
     var lastLatencyByEngine: [SuggestionEngineKind: Int] = [:]
     // Synchronous input/focus callbacks cannot directly `await`, so resets are represented as a
     // barrier task that the next generation must cross before it can ask the runtime for output.
@@ -200,7 +188,6 @@ final class SuggestionCoordinator: ObservableObject {
         latestVisualContextText = visualContextCoordinator.latestExcerpt
 
         overlayState = overlayController.state
-        latestOverlayMessage = overlayController.state.detail
 
         focusModel.snapshotPublisher
             .sink { [weak self] snapshot in

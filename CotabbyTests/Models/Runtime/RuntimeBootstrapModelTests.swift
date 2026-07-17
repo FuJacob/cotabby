@@ -322,24 +322,6 @@ final class RuntimeBootstrapModelTests: XCTestCase {
         }
     }
 
-    func test_stopAndWait_completesWhenNothingWasLoaded() throws {
-        let directory = try makeModelDirectory(filenames: ["alpha.gguf"])
-        let userDefaults = makeUserDefaults()
-        let model = runOnMainActor { makeModel(modelDirectory: directory, userDefaults: userDefaults) }
-
-        let done = expectation(description: "stopAndWait returned")
-        Task { @MainActor in
-            await model.stopAndWait()
-            done.fulfill()
-        }
-        wait(for: [done], timeout: 10)
-
-        runOnMainActor {
-            XCTAssertEqual(model.state, .idle)
-            XCTAssertEqual(model.diagnostics.lastLoadStatus, "Stopped")
-        }
-    }
-
     func test_shutdownSync_returnsPromptlyWhenRuntimeNeverLoaded() throws {
         let directory = try makeModelDirectory(filenames: ["alpha.gguf"])
         let userDefaults = makeUserDefaults()

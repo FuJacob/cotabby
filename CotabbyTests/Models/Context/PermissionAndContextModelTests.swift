@@ -67,15 +67,6 @@ final class CotabbyPermissionKindTests: XCTestCase {
         XCTAssertFalse(CotabbyPermissionKind.inputMonitoring.isOptionalEnhancement)
     }
 
-    func test_guidanceHint_isNonEmptyForAllCases() {
-        for kind in CotabbyPermissionKind.allCases {
-            XCTAssertFalse(
-                kind.guidanceHint.isEmpty,
-                "\(kind) should have a non-empty guidanceHint"
-            )
-        }
-    }
-
     func test_id_isTheCaseItself() {
         for kind in CotabbyPermissionKind.allCases {
             XCTAssertEqual(kind.id, kind)
@@ -92,25 +83,6 @@ final class CotabbyPermissionKindTests: XCTestCase {
 }
 
 final class VisualContextModelTests: XCTestCase {
-
-    func test_status_detail_returnsNonEmptyStringForEachCase() {
-        let cases: [VisualContextStatus] = [
-            .idle, .capturing, .extractingText, .ready,
-            .unavailable("no permission"), .failed("timeout")
-        ]
-        let details = cases.map(\.detail)
-        for detail in details {
-            XCTAssertFalse(detail.isEmpty)
-        }
-        // All distinct
-        XCTAssertEqual(Set(details).count, details.count, "Each status case should have a unique detail")
-    }
-
-    func test_status_unavailableAndFailed_includeAssociatedReasonInDetail() {
-        let reason = "Screen recording denied"
-        XCTAssertEqual(VisualContextStatus.unavailable(reason).detail, reason)
-        XCTAssertEqual(VisualContextStatus.failed(reason).detail, reason)
-    }
 
     func test_defaultConfiguration_hasExpectedValues() {
         let config = VisualContextConfiguration.default

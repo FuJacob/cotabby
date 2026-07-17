@@ -10,7 +10,6 @@ import Foundation
 struct SuggestionSessionAdvancement: Equatable, Sendable {
     let stage: String
     let message: String
-    let actionSummary: String
     let exhaustionStage: String
     let exhaustionMessage: String
 }
@@ -127,7 +126,6 @@ enum SuggestionSessionReconciler {
             message: reconciledSession.isExhausted
                 ? "The live field state caught up with the fully consumed suggestion."
                 : "The live field state consumed \(advancedBy) additional suggestion characters.",
-            actionSummary: "Suggestion tail advanced from live editor state.",
             exhaustionStage: "session-exhausted",
             exhaustionMessage: "The live field state fully consumed the active suggestion."
         )

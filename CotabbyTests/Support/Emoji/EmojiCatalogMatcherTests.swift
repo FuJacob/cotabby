@@ -19,9 +19,7 @@ final class EmojiCatalogMatcherTests: XCTestCase {
             glyph: glyph,
             name: name,
             aliases: aliases,
-            keywords: keywords,
-            group: "Test",
-            unicodeVersion: "1.0"
+            keywords: keywords
         )
     }
 
@@ -171,7 +169,7 @@ final class EmojiCatalogMatcherTests: XCTestCase {
     func test_bundledCatalogLoadsAndDecodes() {
         let catalog = EmojiCatalog.bundled()
 
-        XCTAssertFalse(catalog.isEmpty, "Bundled emoji.json should be packaged and decode")
+        XCTAssertFalse(catalog.indexed.isEmpty, "Bundled emoji.json should be packaged and decode")
         let matcher = EmojiMatcher(catalog: catalog)
         XCTAssertEqual(matcher.matches(for: "grinning").first?.glyph, "😀")
     }

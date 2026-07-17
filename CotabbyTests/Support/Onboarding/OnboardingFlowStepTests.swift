@@ -1,8 +1,8 @@
 import XCTest
 @testable import Cotabby
 
-/// Tests for the pure onboarding flow model: step ordering, linear navigation, progress indices,
-/// and window sizing. `WelcomeCoordinator` persists raw values as the wizard's resume point, so
+/// Tests for the pure onboarding flow model: step ordering, progress indices, and window sizing.
+/// `WelcomeCoordinator` persists raw values as the wizard's resume point, so
 /// several of these pin the numbering scheme itself; if one fails because steps were reordered or
 /// inserted, the coordinator's progress key must move to a fresh name at the same time.
 final class OnboardingFlowStepTests: XCTestCase {
@@ -21,20 +21,6 @@ final class OnboardingFlowStepTests: XCTestCase {
         XCTAssertLessThan(WelcomeStep.welcome, .permissions)
         XCTAssertLessThan(WelcomeStep.keybind, .done)
         XCTAssertFalse(WelcomeStep.done < .welcome)
-    }
-
-    func test_navigation_isLinearAndTerminalAtBothEnds() {
-        // Every step's next is the following case; every step's previous is the prior one.
-        for (index, step) in WelcomeStep.allCases.enumerated() {
-            if index + 1 < WelcomeStep.allCases.count {
-                XCTAssertEqual(step.next, WelcomeStep.allCases[index + 1])
-            }
-            if index > 0 {
-                XCTAssertEqual(step.previous, WelcomeStep.allCases[index - 1])
-            }
-        }
-        XCTAssertNil(WelcomeStep.welcome.previous)
-        XCTAssertNil(WelcomeStep.done.next)
     }
 
     func test_progressIndices_coverOneThroughTotalExactlyOnce() {

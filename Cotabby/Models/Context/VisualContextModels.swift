@@ -45,20 +45,6 @@ nonisolated enum VisualContextStatus: Equatable, Sendable {
     case unavailable(String)
     case failed(String)
 
-    var detail: String {
-        switch self {
-        case .idle:
-            return "Waiting for a supported text input."
-        case .capturing:
-            return "Capturing nearby screen content."
-        case .extractingText:
-            return "Extracting visible text from the screenshot."
-        case .ready:
-            return "Nearby visible text is ready."
-        case let .unavailable(reason), let .failed(reason):
-            return reason
-        }
-    }
 }
 
 /// The final visual-context excerpt eventually injected into the completion prompt.

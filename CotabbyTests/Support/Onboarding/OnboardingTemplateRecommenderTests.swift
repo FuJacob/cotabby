@@ -7,10 +7,9 @@ import XCTest
 /// Apple Intelligence downloads nothing, Open Source maps each tier to its local GGUF. Each case
 /// pins one product decision so a future tweak has to update an obvious assertion.
 final class OnboardingTemplateRecommenderTests: XCTestCase {
-    private func hardware(gigabytes: Double, appleSilicon: Bool = true) -> HardwareCapability {
+    private func hardware(gigabytes: Double) -> HardwareCapability {
         HardwareCapability(
-            physicalMemoryBytes: UInt64(gigabytes * 1_073_741_824),
-            isAppleSilicon: appleSilicon
+            physicalMemoryBytes: UInt64(gigabytes * 1_073_741_824)
         )
     }
 
