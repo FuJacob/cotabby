@@ -206,10 +206,36 @@ protocol SuggestionInserting: AnyObject {
 
     func insert(_ suggestion: String) -> Bool
 
+    /// Selects the transport for one validated acceptance. Terminal/TUI inputs require paste so
+    /// bracketed-paste-aware editors receive literal text; the mode is passed per call so it cannot
+    /// leak into a later acceptance in a normal app after focus changes.
+    func insert(_ suggestion: String, mode: SuggestionInsertionMode) -> Bool
+
     /// Deletes `deletingUTF16Count` already-typed units and types `text` in one suppressed synthetic
     /// burst. The correction-acceptance path uses this to swap a typo'd word for the corrected word.
     /// `SuggestionInserter` already implements it (the emoji picker shares the same primitive).
     func replace(deletingUTF16Count: Int, with text: String) -> Bool
+
+    /// Deletes a complete shell line by character count, then inserts the reviewed replacement via
+    /// terminal paste. Kept separate from ordinary typo replacement because terminal protocols do
+    /// not reliably accept a synthetic Unicode insertion event.
+    func replaceTerminalLine(deletingCharacterCount: Int, with text: String) -> Bool
+}
+
+extension SuggestionInserting {
+    /// Test and alternate inserters can reuse their normal replace primitive. Production overrides
+    /// this with a terminal-paste implementation.
+    func replaceTerminalLine(deletingCharacterCount: Int, with text: String) -> Bool {
+        replace(deletingUTF16Count: deletingCharacterCount, with: text)
+    }
+}
+
+/// Destination-specific insertion transport chosen after acceptance validates the live context.
+nonisolated enum SuggestionInsertionMode: Equatable, Sendable {
+    /// Preserve Cotabby's normal IME-aware and opt-in long-text strategy selection.
+    case automatic
+    /// Commit through the clipboard paste path used by shell prompts and terminal TUIs.
+    case terminalPaste
 }
 
 /// The emoji picker's slice of the inserter: replace a run of already-typed characters (the literal

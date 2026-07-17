@@ -242,6 +242,9 @@ struct FocusedInputContext: Equatable, Sendable {
     let fieldPlaceholder: String?
     let focusedURLString: String?
     let isIntegratedTerminal: Bool
+    let terminalWorkingDirectory: String?
+    let terminalTTY: String?
+    let sourceRevision: UInt64?
     /// Carries the immutable focus-observation identity across debounce/generation boundaries.
     /// Without this, later visual-context lookups could fall back to `elementIdentifier` alone and
     /// reintroduce the CFHash collision class this sequence is meant to avoid.
@@ -271,6 +274,9 @@ struct FocusedInputContext: Equatable, Sendable {
         fieldPlaceholder = snapshot.fieldPlaceholder
         focusedURLString = snapshot.focusedURLString
         isIntegratedTerminal = snapshot.isIntegratedTerminal
+        terminalWorkingDirectory = snapshot.terminalWorkingDirectory
+        terminalTTY = snapshot.terminalTTY
+        sourceRevision = snapshot.sourceRevision
         focusChangeSequence = snapshot.focusChangeSequence
         self.generation = generation
     }
@@ -280,6 +286,10 @@ struct FocusedInputContext: Equatable, Sendable {
             elementIdentifier: elementIdentifier,
             focusChangeSequence: focusChangeSequence
         )
+    }
+
+    var terminalInputRole: TerminalInputRole? {
+        TerminalInputRole(accessibilityRole: role)
     }
 
     /// True when the caret is at the end of its line (only whitespace, if anything, before the next
@@ -312,7 +322,8 @@ struct FocusedInputContext: Equatable, Sendable {
             String(selection.length),
             precedingText,
             trailingText,
-            isSecure ? "secure" : "plain"
+            isSecure ? "secure" : "plain",
+            sourceRevision.map(String.init) ?? "no-source-revision"
         ].joined(separator: "::")
     }
 }
@@ -327,11 +338,34 @@ struct FocusedInputContext: Equatable, Sendable {
 enum SuggestionKind: Equatable, Sendable {
     case continuation
     case correction(typoWord: String)
+    /// Replaces an unchanged plain-English shell buffer with one generated command. The original
+    /// line travels with the session so acceptance can fail closed if the user edits before Tab.
+    case terminalCommandReplacement(originalText: String)
 
     var isCorrection: Bool {
         if case .correction = self {
             return true
         }
+        return false
+    }
+
+    var isReplacement: Bool {
+        switch self {
+        case .correction, .terminalCommandReplacement:
+            return true
+        case .continuation:
+            return false
+        }
+    }
+}
+
+/// Tells prompt renderers and the result pipeline whether output extends or replaces the prefix.
+enum SuggestionRequestMode: Equatable, Sendable {
+    case continuation
+    case terminalCommandReplacement(originalText: String)
+
+    var isTerminalCommandReplacement: Bool {
+        if case .terminalCommandReplacement = self { return true }
         return false
     }
 }
@@ -393,6 +427,7 @@ struct SuggestionRequest: Equatable, Sendable {
     /// `RequestID.generate()` in `SuggestionRequestFactory`. Defaulted in the init so test fixtures
     /// that build requests directly do not need to change.
     let requestID: String
+    let mode: SuggestionRequestMode
 
     init(
         context: FocusedInputContext,
@@ -416,7 +451,8 @@ struct SuggestionRequest: Equatable, Sendable {
         visualContextSummary: String?,
         surfaceContext: SurfaceContext? = nil,
         isMultiLineEnabled: Bool,
-        requestID: String = "req_unknown"
+        requestID: String = "req_unknown",
+        mode: SuggestionRequestMode = .continuation
     ) {
         self.context = context
         self.prefixText = prefixText
@@ -440,6 +476,7 @@ struct SuggestionRequest: Equatable, Sendable {
         self.surfaceContext = surfaceContext
         self.isMultiLineEnabled = isMultiLineEnabled
         self.requestID = requestID
+        self.mode = mode
     }
 }
 
@@ -454,19 +491,24 @@ struct SuggestionResult: Equatable, Sendable {
     /// type, and so engine-specific reasons can ride along without enum churn. The explicit
     /// initializer default keeps existing call sites compiling unchanged.
     let suppressionReason: String?
+    /// Copied from the request so the coordinator can choose replacement acceptance after the
+    /// asynchronous engine boundary without re-classifying a potentially changed live buffer.
+    let mode: SuggestionRequestMode
 
     init(
         generation: UInt64,
         rawText: String,
         text: String,
         latency: TimeInterval,
-        suppressionReason: String? = nil
+        suppressionReason: String? = nil,
+        mode: SuggestionRequestMode = .continuation
     ) {
         self.generation = generation
         self.rawText = rawText
         self.text = text
         self.latency = latency
         self.suppressionReason = suppressionReason
+        self.mode = mode
     }
 }
 

@@ -154,7 +154,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .acceptEntireSuggestion: return "Accept Entire Suggestion"
         case .toggleTabby: return "Toggle Cotabby"
         case .disabledApps: return "Disabled Apps"
-        case .suggestInIntegratedTerminals: return "Suggest in Integrated Terminals"
+        case .suggestInIntegratedTerminals: return "Terminal Autocomplete (Beta)"
         case .accessibility: return "Accessibility"
         case .inputMonitoring: return "Input Monitoring"
         case .screenRecording: return "Screen Recording"
@@ -341,7 +341,8 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .acceptEntireSuggestion: return "The key that inserts the whole suggestion."
         case .toggleTabby: return "A global hotkey that turns Cotabby on or off."
         case .disabledApps: return "Apps where Cotabby never autocompletes."
-        case .suggestInIntegratedTerminals: return "Ghost text in VS Code and Cursor terminals."
+        case .suggestInIntegratedTerminals:
+            return "Source-verified shell and Claude Code ghost text in terminal apps."
         case .accessibility: return "Required to read the focused field and caret."
         case .inputMonitoring: return "Required to see keystrokes and the accept key."
         case .screenRecording: return "Optional visual context from the focused window."
@@ -535,8 +536,8 @@ enum SettingsItem: String, CaseIterable, Identifiable {
                     "deny list", "exception", "app exclusion", "skip", "off in"]
         case .suggestInIntegratedTerminals:
             return ["terminal", "terminals", "integrated terminal", "vscode", "vs code",
-                    "cursor", "shell", "xterm", "command line", "cli", "console",
-                    "ghost text in terminal"]
+                    "cursor", "shell", "zsh", "bash", "fish", "claude", "claude code",
+                    "xterm", "command line", "cli", "console", "ghost text in terminal"]
         case .accessibility:
             return ["accessibility", "ax", "permission", "access", "system settings",
                     "privacy", "grant", "allow"]

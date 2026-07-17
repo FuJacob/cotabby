@@ -98,7 +98,7 @@ final class TerminalAppDetectorTests: XCTestCase {
             focusSnapshot: snapshot
         )
 
-        XCTAssertEqual(reason, "Cotabby is not available in terminal apps.")
+        XCTAssertEqual(reason, "Terminal autocomplete is turned off.")
     }
 
     func test_evaluator_doesNotBlockNonTerminalApp() {

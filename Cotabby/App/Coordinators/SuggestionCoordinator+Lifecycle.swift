@@ -25,6 +25,7 @@ extension SuggestionCoordinator {
         overlayController.onStateChange = nil
         visualContextCoordinator.onStateChange = nil
         visualContextCoordinator.onInjectedContextReady = nil
+        lastScheduledTerminalSignature = nil
     }
 
     /// Clears any active suggestion work before the runtime swaps to a different model.
@@ -38,6 +39,7 @@ extension SuggestionCoordinator {
         clearSuggestion(clearDiagnostics: true)
         hideOverlay(reason: "Overlay hidden because the runtime model is switching.")
         state = .idle
+        lastScheduledTerminalSignature = nil
         latestStageMessage = "Idle: runtime model switching reset active suggestion state."
     }
 
@@ -76,6 +78,7 @@ extension SuggestionCoordinator {
                disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
                disabledDomains: PerDomainDisableSettings.disabledDomains(),
                suggestInIntegratedTerminals: settingsSnapshot.suggestInIntegratedTerminals,
+               terminalIntegrationActive: terminalIntegrationActiveProvider(),
                inputMonitoringGranted: permissionManager.inputMonitoringGranted,
                screenRecordingGranted: permissionManager.screenRecordingGranted,
                focusSnapshot: focusModel.snapshot,
@@ -90,6 +93,7 @@ extension SuggestionCoordinator {
             disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
             disabledDomains: PerDomainDisableSettings.disabledDomains(),
             suggestInIntegratedTerminals: settingsSnapshot.suggestInIntegratedTerminals,
+            terminalIntegrationActive: terminalIntegrationActiveProvider(),
             inputMonitoringGranted: permissionManager.inputMonitoringGranted,
             focusSnapshot: focusModel.snapshot
         ) {

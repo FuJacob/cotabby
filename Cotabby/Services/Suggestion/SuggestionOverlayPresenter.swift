@@ -33,6 +33,12 @@ struct SuggestionOverlayPresenter {
             return hide(reason: "Overlay hidden because the suggestion text was empty.")
         }
 
+        // Non-AX sources publish exact text before OCR has necessarily resolved a trustworthy
+        // screen anchor. A zero caret is an explicit unavailable state, never permission to guess.
+        guard !geometry.caretRect.isEmpty, geometry.caretRect != .zero else {
+            return hide(reason: "Overlay hidden until terminal caret geometry is available.")
+        }
+
         // Compare against the previous visible content while ignoring `mode`, which the controller
         // resolves from geometry each call. If the controller swaps modes for the same text+geometry
         // it does the resulting state transition; we still need to invoke `showSuggestion` so the

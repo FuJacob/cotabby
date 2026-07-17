@@ -219,6 +219,13 @@ nonisolated struct FocusedInputSnapshot: Equatable {
     /// compiling unchanged.
     let fieldPlaceholder: String?
 
+    /// Shell-only metadata supplied by the cooperative hook. Nil for normal AX and TUI inputs.
+    let terminalWorkingDirectory: String?
+    let terminalTTY: String?
+    /// Monotonic revision from the authoritative terminal source. Content signatures still catch
+    /// text changes; this also distinguishes source updates whose visible text happens to match.
+    let sourceRevision: UInt64?
+
     /// Explicit initializer keeps `focusChangeSequence` immutable while preserving the old
     /// memberwise-call ergonomics for tests that do not care about focus identity.
     ///
@@ -248,7 +255,10 @@ nonisolated struct FocusedInputSnapshot: Equatable {
         focusedURLString: String? = nil,
         resolvedFieldStyle: ResolvedFieldStyle? = nil,
         windowTitle: String? = nil,
-        fieldPlaceholder: String? = nil
+        fieldPlaceholder: String? = nil,
+        terminalWorkingDirectory: String? = nil,
+        terminalTTY: String? = nil,
+        sourceRevision: UInt64? = nil
     ) {
         self.applicationName = applicationName
         self.bundleIdentifier = bundleIdentifier
@@ -273,12 +283,53 @@ nonisolated struct FocusedInputSnapshot: Equatable {
         self.resolvedFieldStyle = resolvedFieldStyle
         self.windowTitle = windowTitle
         self.fieldPlaceholder = fieldPlaceholder
+        self.terminalWorkingDirectory = terminalWorkingDirectory
+        self.terminalTTY = terminalTTY
+        self.sourceRevision = sourceRevision
     }
 
     var identity: FocusedInputIdentity {
         FocusedInputIdentity(
             elementIdentifier: elementIdentifier,
             focusChangeSequence: focusChangeSequence
+        )
+    }
+
+    var terminalInputRole: TerminalInputRole? {
+        TerminalInputRole(accessibilityRole: role)
+    }
+
+    /// Returns the same immutable observation tagged with a different focus-session sequence.
+    /// Terminal source arbitration uses this to keep external identities disjoint from AX polling
+    /// without making either adapter hand-copy every field.
+    func withFocusChangeSequence(_ sequence: UInt64) -> FocusedInputSnapshot {
+        FocusedInputSnapshot(
+            applicationName: applicationName,
+            bundleIdentifier: bundleIdentifier,
+            processIdentifier: processIdentifier,
+            elementIdentifier: elementIdentifier,
+            role: role,
+            subrole: subrole,
+            caretRect: caretRect,
+            inputFrameRect: inputFrameRect,
+            caretSource: caretSource,
+            caretQuality: caretQuality,
+            observedCharWidth: observedCharWidth,
+            observedContentEdges: observedContentEdges,
+            precedingText: precedingText,
+            trailingText: trailingText,
+            selection: selection,
+            isSecure: isSecure,
+            isIntegratedTerminal: isIntegratedTerminal,
+            isWebContentField: isWebContentField,
+            focusChangeSequence: sequence,
+            focusedURLString: focusedURLString,
+            resolvedFieldStyle: resolvedFieldStyle,
+            windowTitle: windowTitle,
+            fieldPlaceholder: fieldPlaceholder,
+            terminalWorkingDirectory: terminalWorkingDirectory,
+            terminalTTY: terminalTTY,
+            sourceRevision: sourceRevision
         )
     }
 
@@ -293,7 +344,8 @@ nonisolated struct FocusedInputSnapshot: Equatable {
             String(selection.length),
             precedingText,
             trailingText,
-            isSecure ? "secure" : "plain"
+            isSecure ? "secure" : "plain",
+            sourceRevision.map(String.init) ?? "no-source-revision"
         ].joined(separator: "::")
     }
 }

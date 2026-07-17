@@ -65,6 +65,7 @@ Everything runs on your Mac. No account, no cloud, no telemetry.
 - **Emoji autocomplete** — type `:rocket:` and accept it without leaving the field
 - **Inline macros** — type `/` for quick math, unit and currency conversion, dates, and random values
 - **One-key autocorrect** — fix a likely typo with a single keystroke
+- **Terminal autocomplete (beta)** — opt-in ghost text for zsh/bash/fish prompts and Claude Code
 
 ## Privacy
 
@@ -139,6 +140,10 @@ Start typing in almost any text field. When a gray suggestion appears:
 - **`Esc`**, or just keep typing — dismiss it.
 
 Every shortcut is rebindable under Settings → Shortcuts.
+
+Terminal autocomplete is opt-in under Settings → Apps. Cotabby shows the exact shell setup command
+for the running production or development build; see [TERMINAL_AUTOCOMPLETE.md](TERMINAL_AUTOCOMPLETE.md)
+for supported shells, privacy boundaries, and limitations.
 
 ## Permissions
 

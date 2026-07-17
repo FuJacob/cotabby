@@ -138,7 +138,8 @@ final class LlamaSuggestionEngine {
                                 generation: request.generation,
                                 rawText: raw,
                                 text: normalized,
-                                latency: Date().timeIntervalSince(startTime)
+                                latency: Date().timeIntervalSince(startTime),
+                                mode: request.mode
                             ))
                         }
                     }
@@ -202,7 +203,8 @@ final class LlamaSuggestionEngine {
                 rawText: rawSuggestion,
                 text: normalizedSuggestion,
                 latency: latency,
-                suppressionReason: normalization.suppression?.rawValue
+                suppressionReason: normalization.suppression?.rawValue,
+                mode: request.mode
             )
         } catch is CancellationError {
             CotabbyLogger.suggestion.debug("Llama generation cancelled", metadata: baseMetadata)

@@ -36,36 +36,56 @@ enum SuggestionRequestFactory {
         clipboardContext: String? = nil,
         visualContextSummary: String? = nil
     ) -> SuggestionRequestBuildResult {
-        let prefixText = truncatedPromptPrefix(
-            from: context.precedingText,
-            configuration: configuration,
-            engine: settings.selectedEngine
-        )
+        let terminalRole = context.terminalInputRole
+        let requestMode: SuggestionRequestMode = if terminalRole == .shell,
+                                                    context.trailingText.isEmpty,
+                                                    TerminalCommandIntentPolicy.isReplacementIntent(
+                                                        context.precedingText
+                                                    ) {
+            .terminalCommandReplacement(originalText: context.precedingText)
+        } else {
+            .continuation
+        }
+        let prefixText = if terminalRole == nil {
+            truncatedPromptPrefix(
+                from: context.precedingText,
+                configuration: configuration,
+                engine: settings.selectedEngine
+            )
+        } else {
+            // Shell spacing, quoting, and path separators are semantic. Preserve the exact tail
+            // instead of the prose truncator's word split/join normalization.
+            String(context.precedingText.suffix(configuration.maxPrefixCharacters))
+        }
         let completionLengthInstruction = settings.effectiveWordRange.promptInstruction
-        let userName = activeUserName(settings: settings)
+        let userName = terminalRole == nil ? activeUserName(settings: settings) : nil
         // Custom rules are hidden from users (CustomRulesCatalog.isUserFacingEnabled == false): the
         // base-model OSS path cannot obey free-text instructions and the rule text leaks into output,
         // so injection is suppressed on every engine. Stored rules survive untouched, so flipping the
         // flag restores this. When enabled, the value is already normalized (trimmed/deduped/capped)
         // by SuggestionSettingsModel.setRules.
-        let customRules = CustomRulesCatalog.isUserFacingEnabled ? settings.customRules : []
+        let customRules = terminalRole == nil && CustomRulesCatalog.isUserFacingEnabled
+            ? settings.customRules
+            : []
         // The settings model length-caps but does NOT trim whitespace (trimming on every keystroke
         // would prevent the user from typing a space at the end of a word in the editor). Do the
         // trim here, once per request, and collapse a whitespace-only body back to nil so renderers
         // skip the section heading entirely.
         let trimmedExtendedContext = settings.extendedContext
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        let activeExtendedContext = trimmedExtendedContext.isEmpty ? nil : trimmedExtendedContext
+        let activeExtendedContext = terminalRole == nil && !trimmedExtendedContext.isEmpty
+            ? trimmedExtendedContext
+            : nil
         // nil when the user declared no languages — the renderers then just match the surrounding text.
-        let languageInstruction = LanguageCatalog.promptInstruction(for: settings.responseLanguages)
-        let boundedClipboardContext = activeClipboardContext(
-            rawContext: clipboardContext,
-            settings: settings,
-            prefixText: prefixText
-        )
-        let boundedVisualContextSummary = activeVisualContextSummary(
-            rawSummary: visualContextSummary
-        )
+        let languageInstruction = terminalRole == nil
+            ? LanguageCatalog.promptInstruction(for: settings.responseLanguages)
+            : nil
+        let boundedClipboardContext = terminalRole == nil
+            ? activeClipboardContext(rawContext: clipboardContext, settings: settings, prefixText: prefixText)
+            : nil
+        let boundedVisualContextSummary = terminalRole == nil
+            ? activeVisualContextSummary(rawSummary: visualContextSummary)
+            : nil
         // The composed surface description; nil when the user disabled it or the surface class
         // suppresses it (code editors, terminals, anonymous generic apps). The composer sanitizes
         // titles/placeholders and reduces the URL to a bare domain before anything reaches a prompt.
@@ -86,30 +106,46 @@ enum SuggestionRequestFactory {
         // Custom instructions and persona condition the output rather than being obeyed. The
         // Foundation Models path builds its own messages from these same request fields, so this
         // prompt string is only consumed by the llama engine.
-        let prompt = BaseCompletionPromptRenderer.prompt(
-            prefixText: prefixText,
-            applicationName: context.applicationName,
-            userName: userName,
-            customRules: customRules,
-            extendedContext: activeExtendedContext,
-            languageInstruction: languageInstruction,
-            clipboardContext: boundedClipboardContext,
-            visualContextSummary: boundedVisualContextSummary,
-            surfaceContext: surfaceContext,
-            tokenBudget: configuration.llamaPromptTokenBudget
-        )
+        let prompt = if let terminalRole {
+            TerminalCompletionPromptRenderer.prompt(
+                prefixText: prefixText,
+                role: terminalRole,
+                shellName: context.subrole,
+                workingDirectory: context.terminalWorkingDirectory,
+                mode: requestMode
+            )
+        } else {
+            BaseCompletionPromptRenderer.prompt(
+                prefixText: prefixText,
+                applicationName: context.applicationName,
+                userName: userName,
+                customRules: customRules,
+                extendedContext: activeExtendedContext,
+                languageInstruction: languageInstruction,
+                clipboardContext: boundedClipboardContext,
+                visualContextSummary: boundedVisualContextSummary,
+                surfaceContext: surfaceContext,
+                tokenBudget: configuration.llamaPromptTokenBudget
+            )
+        }
 
         let request = SuggestionRequest(
             context: context,
             prefixText: prefixText,
             prompt: prompt,
             generation: context.generation,
-            maxPredictionTokens: activeMaxPredictionTokens(
-                configuration: configuration,
-                wordRange: settings.effectiveWordRange,
-                responseLanguages: settings.responseLanguages,
-                isMultiLineEnabled: settings.isMultiLineEnabled
-            ),
+            maxPredictionTokens: {
+                let normalBudget = activeMaxPredictionTokens(
+                    configuration: configuration,
+                    wordRange: settings.effectiveWordRange,
+                    responseLanguages: settings.responseLanguages,
+                    isMultiLineEnabled: terminalRole == .shell ? false : settings.isMultiLineEnabled
+                )
+                // A translated command may need flags, quoting, and a path even when the user's
+                // normal prose setting is only 2-4 words. The one-line normalizer remains the hard
+                // output boundary; this floor prevents truncating a command mid-token.
+                return requestMode.isTerminalCommandReplacement ? max(normalBudget, 32) : normalBudget
+            }(),
             temperature: configuration.temperature,
             topK: configuration.topK,
             topP: configuration.topP,
@@ -125,8 +161,9 @@ enum SuggestionRequestFactory {
             clipboardContext: boundedClipboardContext,
             visualContextSummary: boundedVisualContextSummary,
             surfaceContext: surfaceContext,
-            isMultiLineEnabled: settings.isMultiLineEnabled,
-            requestID: RequestID.generate()
+            isMultiLineEnabled: terminalRole == .shell ? false : settings.isMultiLineEnabled,
+            requestID: RequestID.generate(),
+            mode: requestMode
         )
 
         return SuggestionRequestBuildResult(

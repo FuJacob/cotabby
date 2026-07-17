@@ -30,6 +30,14 @@ final class SuggestionInserter {
     private var pendingPasteboardRestore: DispatchWorkItem?
     private var savedClipboardForRestore: [[NSPasteboard.PasteboardType: Data]]?
 
+    /// The clipboard state captured while preparing a paste. Keeping the snapshot and its change
+    /// count together lets both normal paste insertion and terminal whole-line replacement share
+    /// the same restore guarantees without sharing how they trigger the actual paste command.
+    private struct PreparedPasteboard {
+        let savedClipboard: [[NSPasteboard.PasteboardType: Data]]
+        let expectedChangeCount: Int
+    }
+
     /// Paste menu items located by `AXHelper.pasteMenuItem(forApplicationPID:)`, cached per app so
     /// repeat accepts skip the menu-bar walk. A cached item is validated by its `AXPress` result;
     /// a failure (menu rebuilt, app quit) evicts and re-walks once.
@@ -62,11 +70,32 @@ final class SuggestionInserter {
 
     /// Posts a Unicode keydown/keyup pair for the accepted suggestion and reports any insertion failure.
     func insert(_ suggestion: String) -> Bool {
+        insert(suggestion, mode: .automatic)
+    }
+
+    /// Inserts using a transport selected for the validated focused-input source.
+    ///
+    /// Terminal editors are intentionally paste-only: a single synthetic Unicode event is not
+    /// interpreted reliably by terminal keyboard protocols, while Cmd-V enters the terminal's
+    /// bracketed-paste path. Keeping this choice on the call prevents terminal state from becoming
+    /// mutable process-global mode that could survive an app switch.
+    func insert(_ suggestion: String, mode: SuggestionInsertionMode) -> Bool {
         let normalized = suggestion.replacingOccurrences(of: "\r", with: "")
         guard !normalized.isEmpty else {
             lastErrorMessage = "Suggestion was empty."
             CotabbyLogger.suggestion.warning("Insertion skipped: suggestion was empty after normalization")
             return false
+        }
+
+        if mode == .terminalPaste {
+            guard insertViaPaste(normalized) else {
+                lastErrorMessage = "Unable to paste the suggestion into the terminal."
+                CotabbyLogger.suggestion.error("Terminal insertion failed: clipboard paste could not be committed")
+                return false
+            }
+            lastErrorMessage = nil
+            CotabbyLogger.suggestion.debug("Inserted \(normalized.count) characters via terminal clipboard paste")
+            return true
         }
 
         // A composing IME (Japanese kana, Chinese pinyin, Korean hangul, ...) is active. A synthetic
@@ -186,16 +215,84 @@ final class SuggestionInserter {
         return true
     }
 
-    /// Commits `text` by placing it on the pasteboard and synthesizing Cmd-V, then restoring the
-    /// user's clipboard shortly after. Returns false (having already restored the clipboard) if any
-    /// synthetic event could not be created, so the caller falls back to keystroke insertion. The
-    /// Cmd-V is tagged synthetic the same way `insert(_:)` tags its keydown so the consuming tap
-    /// ignores it.
-    private func insertViaPaste(_ text: String) -> Bool {
+    /// Replaces the current terminal line without submitting it. Backspaces are the portable
+    /// line-editor operation at an end-of-line caret, and Cmd-V enters the terminal's bracketed-paste
+    /// path without pressing Return. The caller validates that the caret is at the end and that the
+    /// exact original buffer is still live before invoking this.
+    ///
+    /// Deletion and paste must be posted through one event source and one event-tap location. A
+    /// previous implementation queued HID backspaces and then synchronously pressed Edit > Paste;
+    /// the menu action won that race, so the queued backspaces erased the new command and continued
+    /// into the original English instruction. Building the whole burst first gives CoreGraphics one
+    /// strict order: every backspace, then Cmd-V.
+    func replaceTerminalLine(deletingCharacterCount: Int, with text: String) -> Bool {
+        guard let plan = TerminalLineReplacementPlanner.plan(
+            deletingCharacterCount: deletingCharacterCount,
+            text: text
+        ) else {
+            lastErrorMessage = "Terminal command replacement was empty or had an invalid delete count."
+            return false
+        }
+
+        guard let preparedPasteboard = preparePasteboard(with: plan.replacementText) else {
+            lastErrorMessage = "Unable to prepare the translated command for terminal paste."
+            return false
+        }
+
+        // A session event source preserves the explicit Command modifier on V. Posting every event
+        // at the annotated-session location also keeps this ordered burst downstream of Cotabby's
+        // event taps; each event is still tagged so future tap-placement changes remain fail-closed.
+        let source = CGEventSource(stateID: .combinedSessionState)
+        source?.setLocalEventsFilterDuringSuppressionState(
+            [.permitLocalMouseEvents, .permitSystemDefinedEvents],
+            state: .eventSuppressionStateSuppressionInterval
+        )
+
+        var events: [CGEvent] = []
+        events.reserveCapacity(plan.operations.count * 2)
+        for operation in plan.operations {
+            let keyCode: CGKeyCode
+            let flags: CGEventFlags
+            switch operation {
+            case .backspace:
+                keyCode = Self.backspaceKeyCode
+                flags = []
+            case .paste:
+                keyCode = Self.vKeyCode
+                flags = .maskCommand
+            }
+
+            guard let keyDown = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true),
+                  let keyUp = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: false) else {
+                abortPreparedPasteboard(preparedPasteboard)
+                lastErrorMessage = "Unable to create the ordered terminal replacement events."
+                CotabbyLogger.suggestion.error("Terminal command replacement failed: could not create key events")
+                return false
+            }
+            keyDown.flags = flags
+            keyUp.flags = flags
+            suppressionController.markSynthetic(keyDown)
+            suppressionController.markSynthetic(keyUp)
+            events.append(keyDown)
+            events.append(keyUp)
+        }
+
+        for event in events {
+            event.post(tap: .cgAnnotatedSessionEventTap)
+        }
+        schedulePasteboardRestore(preparedPasteboard)
+        lastErrorMessage = nil
+        CotabbyLogger.suggestion.debug(
+            "Replaced terminal line using \(plan.backspaceCount) ordered backspace(s), then one paste"
+        )
+        return true
+    }
+
+    /// Places text on the clipboard and returns the state needed to restore the user's prior
+    /// clipboard. This intentionally does not trigger Paste: callers choose either the normal menu
+    /// path or the terminal-only ordered event burst.
+    private func preparePasteboard(with text: String) -> PreparedPasteboard? {
         let pasteboard = NSPasteboard.general
-        // Snapshot the user's clipboard only when no restore is already pending. If one is (an
-        // overlapping paste), the pasteboard currently holds our previous completion, so re-snapshotting
-        // would save that and leak it back to the user; reuse the already-saved real clipboard.
         if pendingPasteboardRestore == nil {
             savedClipboardForRestore = Self.snapshotPasteboard(pasteboard)
         }
@@ -206,9 +303,44 @@ final class SuggestionInserter {
             pendingPasteboardRestore?.cancel()
             Self.restorePasteboard(saved, to: pasteboard)
             clearPendingPasteboardRestore()
+            return nil
+        }
+        return PreparedPasteboard(
+            savedClipboard: saved,
+            expectedChangeCount: pasteboard.changeCount
+        )
+    }
+
+    /// Restores immediately when event construction fails before a paste can be posted.
+    private func abortPreparedPasteboard(_ prepared: PreparedPasteboard) {
+        pendingPasteboardRestore?.cancel()
+        Self.restorePasteboard(prepared.savedClipboard, to: NSPasteboard.general)
+        clearPendingPasteboardRestore()
+    }
+
+    /// Gives the host time to consume the pasteboard, then restores it only if the user has not put
+    /// something newer on the clipboard during that window.
+    private func schedulePasteboardRestore(_ prepared: PreparedPasteboard) {
+        pendingPasteboardRestore?.cancel()
+        let restore = DispatchWorkItem { [weak self] in
+            if NSPasteboard.general.changeCount == prepared.expectedChangeCount {
+                Self.restorePasteboard(prepared.savedClipboard, to: NSPasteboard.general)
+            }
+            self?.clearPendingPasteboardRestore()
+        }
+        pendingPasteboardRestore = restore
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.pasteboardRestoreDelay, execute: restore)
+    }
+
+    /// Commits `text` by placing it on the pasteboard and synthesizing Cmd-V, then restoring the
+    /// user's clipboard shortly after. Returns false (having already restored the clipboard) if any
+    /// synthetic event could not be created, so the caller falls back to keystroke insertion. The
+    /// Cmd-V is tagged synthetic the same way `insert(_:)` tags its keydown so the consuming tap
+    /// ignores it.
+    private func insertViaPaste(_ text: String) -> Bool {
+        guard let preparedPasteboard = preparePasteboard(with: text) else {
             return false
         }
-        let expectedChangeCount = pasteboard.changeCount
 
         // Preferred trigger: press the host's real Edit > Paste menu item via Accessibility. No key
         // event exists, so neither an active IME nor the HID modifier state machine can interfere.
@@ -230,9 +362,7 @@ final class SuggestionInserter {
             )
             guard let keyDown = CGEvent(keyboardEventSource: source, virtualKey: Self.vKeyCode, keyDown: true),
                   let keyUp = CGEvent(keyboardEventSource: source, virtualKey: Self.vKeyCode, keyDown: false) else {
-                pendingPasteboardRestore?.cancel()
-                Self.restorePasteboard(saved, to: pasteboard)
-                clearPendingPasteboardRestore()
+                abortPreparedPasteboard(preparedPasteboard)
                 return false
             }
             keyDown.flags = .maskCommand
@@ -245,19 +375,7 @@ final class SuggestionInserter {
             CotabbyLogger.suggestion.debug("Paste committed via synthetic Cmd-V (no Paste menu item found)")
         }
 
-        // Give the host time to service Cmd-V, then hand the clipboard back, but only if our completion
-        // is still the thing on it. If the user copied something during the window, `changeCount`
-        // advanced and we leave their new clipboard alone. An overlapping paste cancels this restore
-        // and reschedules one for the same saved clipboard.
-        pendingPasteboardRestore?.cancel()
-        let restore = DispatchWorkItem { [weak self] in
-            if NSPasteboard.general.changeCount == expectedChangeCount {
-                Self.restorePasteboard(saved, to: NSPasteboard.general)
-            }
-            self?.clearPendingPasteboardRestore()
-        }
-        pendingPasteboardRestore = restore
-        DispatchQueue.main.asyncAfter(deadline: .now() + Self.pasteboardRestoreDelay, execute: restore)
+        schedulePasteboardRestore(preparedPasteboard)
         return true
     }
 
@@ -346,6 +464,34 @@ enum SyntheticReplacePlanner {
         return SyntheticReplacePlan(
             backspaceCount: max(deletingUTF16Count, 0),
             insertUTF16: Array(normalized.utf16)
+        )
+    }
+}
+
+/// One keydown in a terminal whole-line replacement. The operation list is intentionally modeled
+/// as data so tests can prove Paste is last; this ordering is a correctness invariant, not merely
+/// an implementation detail of `SuggestionInserter`.
+enum TerminalLineReplacementOperation: Equatable {
+    case backspace
+    case paste
+}
+
+struct TerminalLineReplacementPlan: Equatable {
+    let backspaceCount: Int
+    let replacementText: String
+    let operations: [TerminalLineReplacementOperation]
+}
+
+enum TerminalLineReplacementPlanner {
+    static func plan(deletingCharacterCount: Int, text: String) -> TerminalLineReplacementPlan? {
+        let normalized = text.replacingOccurrences(of: "\r", with: "")
+        guard deletingCharacterCount >= 0, !normalized.isEmpty else {
+            return nil
+        }
+        return TerminalLineReplacementPlan(
+            backspaceCount: deletingCharacterCount,
+            replacementText: normalized,
+            operations: Array(repeating: .backspace, count: deletingCharacterCount) + [.paste]
         )
     }
 }

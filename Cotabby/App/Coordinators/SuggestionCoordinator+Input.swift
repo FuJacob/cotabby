@@ -26,6 +26,7 @@ extension SuggestionCoordinator {
             disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
             disabledDomains: PerDomainDisableSettings.disabledDomains(),
             suggestInIntegratedTerminals: settingsSnapshot.suggestInIntegratedTerminals,
+            terminalIntegrationActive: terminalIntegrationActiveProvider(),
             inputMonitoringGranted: permissionManager.inputMonitoringGranted,
             focusSnapshot: focusModel.snapshot
         ) {
@@ -63,6 +64,7 @@ extension SuggestionCoordinator {
                disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
                disabledDomains: PerDomainDisableSettings.disabledDomains(),
                suggestInIntegratedTerminals: settingsSnapshot.suggestInIntegratedTerminals,
+               terminalIntegrationActive: terminalIntegrationActiveProvider(),
                inputMonitoringGranted: permissionManager.inputMonitoringGranted,
                screenRecordingGranted: permissionManager.screenRecordingGranted,
                focusSnapshot: snapshot,
@@ -93,6 +95,7 @@ extension SuggestionCoordinator {
             disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
             disabledDomains: PerDomainDisableSettings.disabledDomains(),
             suggestInIntegratedTerminals: settingsSnapshot.suggestInIntegratedTerminals,
+            terminalIntegrationActive: terminalIntegrationActiveProvider(),
             inputMonitoringGranted: permissionManager.inputMonitoringGranted,
             screenRecordingGranted: permissionManager.screenRecordingGranted,
             focusSnapshot: snapshot,
@@ -127,6 +130,20 @@ extension SuggestionCoordinator {
         if overlayState.isVisible {
             hideOverlay(reason: "Overlay hidden because no ready suggestion remains.")
         }
+
+        // AX fields are scheduled from the key event after their host publishes the edit. Terminal
+        // sources are the opposite: the socket/OCR snapshot itself is the authoritative publish,
+        // so schedule once per source signature and never poll the opaque AX terminal surface.
+        if focusedContext.terminalInputRole != nil {
+            let signature = focusedContext.contentSignature
+            if signature != lastScheduledTerminalSignature,
+               SuggestionRequestFactory.shouldGenerateSuggestion(for: focusedContext.precedingText) {
+                lastScheduledTerminalSignature = signature
+                schedulePrediction()
+            }
+        } else {
+            lastScheduledTerminalSignature = nil
+        }
     }
 
     /// Fire-and-forget warmup that builds a minimal request shape for the current focus and asks
@@ -156,11 +173,16 @@ extension SuggestionCoordinator {
     }
 
     func handleInputEvent(_ event: CapturedInputEvent) -> Bool {
+        // TUI OCR must see keystrokes even before it owns effective focus; dedicated terminals are
+        // disabled in the normal evaluator until that verified OCR snapshot arrives.
+        tuiInputObserver?(event)
+
         // Give the emoji picker first look at every keystroke so it can drive its trigger state
         // machine. When a capture is involved, the picker owns the interaction: the suggestion
         // pipeline stands down and any lingering ghost text is cleared so it does not show behind the
         // panel. Consumption still happens through the active tap's `emojiCaptureKeyDecider`.
-        if emojiInputObserver?(event) == true {
+        if focusModel.snapshot.context?.terminalInputRole == nil,
+           emojiInputObserver?(event) == true {
             if overlayState.isVisible || interactionState.activeSession != nil {
                 cancelPredictionWork()
                 clearSuggestion(clearDiagnostics: true)
@@ -200,15 +222,20 @@ extension SuggestionCoordinator {
         }
 
         if event.shouldSchedulePrediction {
-            // Same Chromium AX-publish race as the with-session paths below: the CGEvent tap runs
-            // *before* the host app processes the keystroke, so a synchronous `refreshNow()` here
-            // reads pre-keystroke text and feeds it into generation. The result is a suggestion
-            // that looks like the typed character was ignored — see
-            // `schedulePredictionAfterHostPublishDelay` for the full rationale.
-            schedulePredictionAfterHostPublishDelay()
+            schedulePredictionAfterInputEvent()
         }
 
         return false
+    }
+
+    private func schedulePredictionAfterInputEvent() {
+        guard focusModel.snapshot.context?.terminalInputRole == nil else {
+            // The terminal source will schedule when its post-keystroke value arrives.
+            return
+        }
+        // The event tap runs before the host processes the key. Poll normal AX fields until they
+        // publish; terminal sources use their own authoritative publication path above.
+        schedulePredictionAfterHostPublishDelay()
     }
 
     /// Maximum wall time we'll wait for the host app to publish post-keystroke AX before giving
@@ -242,6 +269,11 @@ extension SuggestionCoordinator {
     /// still collapse cleanly. The `hostPublishPollGeneration` token adds the missing outer
     /// coalescing layer: only the newest keystroke's polling chain may keep reading AX.
     func schedulePredictionAfterHostPublishDelay() {
+        guard focusModel.snapshot.context?.terminalInputRole == nil else {
+            // Shell hooks and TUI OCR are their own post-edit publication channels. Refreshing AX
+            // here would only read terminal output and could never validate the authoritative text.
+            return
+        }
         hostPublishPollGeneration &+= 1
         let pollGeneration = hostPublishPollGeneration
         let baseline = focusModel.snapshot.context

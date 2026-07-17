@@ -32,6 +32,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private let activationIndicatorController: ActivationIndicatorController
     private let focusDebugOverlayController: FocusDebugOverlayController?
+    private let terminalAwareFocusModel: TerminalAwareFocusModel
+    private let terminalIntegrationService: TerminalIntegrationService
+    private let shellPromptGeometryCoordinator: ShellPromptGeometryCoordinator
+    private let tuiContextCoordinator: TuiContextCoordinator
     /// Retained for the app's lifetime because the environment owns its own `cancellables` (the only
     /// subscriptions wiring the focus-poll-interval setting and the global-toggle hotkey rebind to the
     /// runtime). If the environment deallocated when `init` returned, those subscriptions would be
@@ -51,6 +55,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         runtimeModel = environment.runtimeModel
         modelDownloadManager = environment.modelDownloadManager
         focusModel = environment.focusModel
+        terminalAwareFocusModel = environment.terminalAwareFocusModel
+        terminalIntegrationService = environment.terminalIntegrationService
+        shellPromptGeometryCoordinator = environment.shellPromptGeometryCoordinator
+        tuiContextCoordinator = environment.tuiContextCoordinator
         inputMonitor = environment.inputMonitor
         appUpdateManager = environment.appUpdateManager
         permissionGuidanceController = environment.permissionGuidanceController
@@ -80,6 +88,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         permissionManager.$inputMonitoringGranted
             .sink { [weak self] _ in
                 self?.inputMonitor.refresh()
+            }
+            .store(in: &cancellables)
+
+        permissionManager.$screenRecordingGranted
+            .dropFirst()
+            .sink { [weak self] granted in
+                self?.handleTerminalScreenRecordingChange(granted: granted)
+            }
+            .store(in: &cancellables)
+
+        suggestionSettings.$suggestInIntegratedTerminals
+            .dropFirst()
+            .removeDuplicates()
+            .sink { [weak self] enabled in
+                self?.updateTerminalIntegration(enabled: enabled)
             }
             .store(in: &cancellables)
 
@@ -146,6 +169,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         appUpdateManager.start()
         suggestionCoordinator.start()
         inlineCommandCoordinator.start()
+        if suggestionSettings.suggestInIntegratedTerminals {
+            _ = terminalIntegrationService.start()
+        }
+        tuiContextCoordinator.start()
         welcomeCoordinator.presentIfNeeded()
         welcomeCoordinator.presentPermissionReminderIfNeeded()
         didStartServices = true
@@ -228,6 +255,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         focusDebugOverlayController?.hide()
         suggestionCoordinator.stop()
         inlineCommandCoordinator.stop()
+        tuiContextCoordinator.stop()
+        terminalIntegrationService.stop()
+        shellPromptGeometryCoordinator.invalidateAll()
+        terminalAwareFocusModel.clearTerminalContext()
         inputMonitor.stop()
         focusModel.stop()
 
@@ -276,6 +307,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func handleModelDirectoryChange() {
         runtimeModel.refreshAvailableModels()
         startRuntimeIfPreferredEngineRequiresIt()
+    }
+
+    /// Starts/stops the IPC endpoint with the opt-in. Disabling also clears every derived terminal
+    /// artifact immediately so a previously verified prompt cannot stay active behind the toggle.
+    private func updateTerminalIntegration(enabled: Bool) {
+        guard didStartServices else { return }
+        if enabled {
+            _ = terminalIntegrationService.start()
+            tuiContextCoordinator.settingsOrPermissionChanged()
+        } else {
+            tuiContextCoordinator.settingsOrPermissionChanged()
+            terminalIntegrationService.stop()
+            shellPromptGeometryCoordinator.invalidateAll()
+            terminalAwareFocusModel.clearTerminalContext()
+        }
+    }
+
+    private func handleTerminalScreenRecordingChange(granted: Bool) {
+        guard didStartServices else { return }
+        tuiContextCoordinator.settingsOrPermissionChanged()
+        guard !granted else { return }
+        shellPromptGeometryCoordinator.invalidateAll()
+        terminalAwareFocusModel.clearTerminalContext()
     }
 
     /// Xcode's app-hosted unit tests launch the real menu-bar app binary before loading the test

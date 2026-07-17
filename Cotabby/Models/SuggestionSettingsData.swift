@@ -17,9 +17,8 @@ struct SuggestionSettingsData: Equatable {
     var showIndicator: Bool
     var showAcceptanceHint: Bool
     var disabledAppRules: [DisabledApplicationRule]
-    /// When false (the default), ghost text is suppressed in integrated terminals (VS Code / Cursor
-    /// xterm.js surfaces); a terminal's own completion/history conflicts with autocomplete and ghost
-    /// text overlaps command output. Power users can opt back in.
+    /// Master opt-in for source-verified terminal autocomplete. Enabling alone does not allow raw
+    /// terminal AX text; a live shell hook or verified Claude Code OCR snapshot is also required.
     var suggestInIntegratedTerminals: Bool
     var customSuggestionTextColorHex: String?
     var ghostTextOpacity: Double

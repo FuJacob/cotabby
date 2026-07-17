@@ -11,6 +11,8 @@ final class ContextBuffer {
 
     private var lastSignature: String?
     private var lastProcessIdentifier: Int32?
+    private var lastElementIdentifier: String?
+    private var lastRole: String?
     private var nextGeneration: UInt64 = 0
 
     /// Converts the latest focus snapshot into a stable context and bumps the generation when
@@ -22,12 +24,20 @@ final class ContextBuffer {
         // `processIdentifier` instead of `elementIdentifier` here because Chrome recycles
         // AX node tokens between polls, making CFHash-based identity unstable. Intra-process
         // field switches are detected by the content signature changing.
-        if snapshot.processIdentifier != lastProcessIdentifier || signature != lastSignature {
+        let terminalIdentityChanged = (
+            snapshot.terminalInputRole != nil
+                || lastRole.map(TerminalInputRole.isTerminalRole) == true
+        ) && snapshot.elementIdentifier != lastElementIdentifier
+        if snapshot.processIdentifier != lastProcessIdentifier
+            || terminalIdentityChanged
+            || signature != lastSignature {
             nextGeneration &+= 1
         }
 
         lastProcessIdentifier = snapshot.processIdentifier
         lastSignature = signature
+        lastElementIdentifier = snapshot.elementIdentifier
+        lastRole = snapshot.role
 
         let context = FocusedInputContext(snapshot: snapshot, generation: nextGeneration)
         currentContext = context
@@ -38,6 +48,8 @@ final class ContextBuffer {
     func clear() {
         lastSignature = nil
         lastProcessIdentifier = nil
+        lastElementIdentifier = nil
+        lastRole = nil
         currentContext = nil
         nextGeneration &+= 1
     }
