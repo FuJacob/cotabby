@@ -480,67 +480,89 @@ struct SuggestionSettingsStore {
             .string(forKey: Self.pluggedInEndpointModelNameDefaultsKey) ?? ""
 
         let data = SuggestionSettingsData(
-            isGloballyEnabled: resolvedGloballyEnabled,
-            pauseState: resolvedPauseState,
-            showIndicator: resolvedShowIndicator,
-            showAcceptanceHint: resolvedShowAcceptanceHint,
-            disabledAppRules: resolvedDisabledAppRules,
-            suggestInIntegratedTerminals: resolvedSuggestInIntegratedTerminals,
-            customSuggestionTextColorHex: resolvedCustomSuggestionTextColorHex,
-            ghostTextOpacity: resolvedGhostTextOpacity,
-            ghostTextSizeMultiplier: resolvedGhostTextSizeMultiplier,
-            selectedEngine: resolvedEngine,
-            openAICompatibleBaseURL: resolvedOpenAICompatibleBaseURL,
-            openAICompatibleModelName: resolvedOpenAICompatibleModelName,
-            openAICompatibleAPIMode: resolvedOpenAICompatibleAPIMode,
-            selectedWordCountPreset: resolvedWordCountPreset,
-            isUsingCustomWordCountRange: resolvedUsingCustomWordCountRange,
-            customWordCountLowWords: resolvedCustomRange.lowWords,
-            customWordCountHighWords: resolvedCustomRange.highWords,
-            isClipboardContextEnabled: resolvedClipboardContextEnabled,
-            isSurfaceContextEnabled: resolvedSurfaceContextEnabled,
-            isFastModeEnabled: resolvedFastModeEnabled,
-            suppressCompletionsOnTypo: resolvedSuppressCompletionsOnTypo,
-            offerTypoCorrections: resolvedOfferTypoCorrections,
-            enabledSpellingDictionaryCodes: resolvedEnabledSpellingDictionaryCodes,
-            automaticallyFixTypos: resolvedAutomaticallyFixTypos,
-            isPerformanceTrackingEnabled: resolvedPerformanceTrackingEnabled,
-            isMenuBarIconVisible: resolvedMenuBarIconVisible,
-            isMenuBarWordCountVisible: resolvedMenuBarWordCountVisible,
-            mirrorPreference: resolvedMirrorPreference,
-            userName: resolvedUserName,
-            customRules: resolvedCustomRules,
-            responseLanguages: resolvedResponseLanguages,
-            extendedContext: resolvedExtendedContext,
-            debounceMilliseconds: resolvedDebounceMilliseconds,
-            focusPollIntervalMilliseconds: resolvedFocusPollIntervalMilliseconds,
-            isMultiLineEnabled: resolvedMultiLineEnabled,
-            isEmojiPickerEnabled: resolvedEmojiPickerEnabled,
-            isMacroExpansionEnabled: resolvedMacroExpansionEnabled,
-            preferredEmojiSkinTone: resolvedPreferredEmojiSkinTone,
-            preferredEmojiGender: resolvedPreferredEmojiGender,
-            autoAcceptTrailingPunctuation: resolvedAutoAcceptTrailingPunctuation,
-            addSpaceAfterAccept: resolvedAddSpaceAfterAccept,
-            streamSuggestionsWhileGenerating: resolvedStreamSuggestionsWhileGenerating,
-            fadeInSuggestions: resolvedFadeInSuggestions,
-            fadeInDurationSeconds: resolvedFadeInDurationSeconds,
-            acceptanceKeyCode: resolvedAcceptanceKeyCode,
-            acceptanceKeyModifiers: resolvedAcceptanceKeyModifiers,
-            acceptanceKeyLabel: resolvedAcceptanceKeyLabel,
-            fullAcceptanceKeyCode: resolvedFullAcceptanceKeyCode,
-            fullAcceptanceKeyModifiers: resolvedFullAcceptanceKeyModifiers,
-            fullAcceptanceKeyLabel: resolvedFullAcceptanceKeyLabel,
-            globalToggleKeyCode: resolvedGlobalToggleKeyCode,
-            globalToggleKeyModifiers: resolvedGlobalToggleKeyModifiers,
-            globalToggleKeyLabel: resolvedGlobalToggleKeyLabel,
-            acceptanceGranularity: resolvedAcceptanceGranularity,
-            isPowerBasedModelSwitchingEnabled: resolvedPowerBasedModelSwitchingEnabled,
-            batteryEngine: resolvedBatteryEngine,
-            batteryModelFilename: resolvedBatteryModelFilename,
-            batteryEndpointModelName: resolvedBatteryEndpointModelName,
-            pluggedInEngine: resolvedPluggedInEngine,
-            pluggedInModelFilename: resolvedPluggedInModelFilename,
-            pluggedInEndpointModelName: resolvedPluggedInEndpointModelName
+            general: SuggestionGeneralSettings(
+                isGloballyEnabled: resolvedGloballyEnabled,
+                pauseState: resolvedPauseState,
+                disabledAppRules: resolvedDisabledAppRules,
+                suggestInIntegratedTerminals: resolvedSuggestInIntegratedTerminals,
+                isPerformanceTrackingEnabled: resolvedPerformanceTrackingEnabled
+            ),
+            engine: SuggestionEngineSettings(
+                selectedEngine: resolvedEngine,
+                openAICompatibleBaseURL: resolvedOpenAICompatibleBaseURL,
+                openAICompatibleModelName: resolvedOpenAICompatibleModelName,
+                openAICompatibleAPIMode: resolvedOpenAICompatibleAPIMode,
+                isPowerBasedModelSwitchingEnabled: resolvedPowerBasedModelSwitchingEnabled,
+                batteryEngine: resolvedBatteryEngine,
+                batteryModelFilename: resolvedBatteryModelFilename,
+                batteryEndpointModelName: resolvedBatteryEndpointModelName,
+                pluggedInEngine: resolvedPluggedInEngine,
+                pluggedInModelFilename: resolvedPluggedInModelFilename,
+                pluggedInEndpointModelName: resolvedPluggedInEndpointModelName
+            ),
+            completion: SuggestionCompletionSettings(
+                selectedWordCountPreset: resolvedWordCountPreset,
+                isUsingCustomWordCountRange: resolvedUsingCustomWordCountRange,
+                customWordCountLowWords: resolvedCustomRange.lowWords,
+                customWordCountHighWords: resolvedCustomRange.highWords,
+                debounceMilliseconds: resolvedDebounceMilliseconds,
+                focusPollIntervalMilliseconds: resolvedFocusPollIntervalMilliseconds,
+                isMultiLineEnabled: resolvedMultiLineEnabled,
+                autoAcceptTrailingPunctuation: resolvedAutoAcceptTrailingPunctuation,
+                addSpaceAfterAccept: resolvedAddSpaceAfterAccept,
+                streamSuggestionsWhileGenerating: resolvedStreamSuggestionsWhileGenerating,
+                acceptanceGranularity: resolvedAcceptanceGranularity
+            ),
+            context: SuggestionContextSettings(
+                isClipboardContextEnabled: resolvedClipboardContextEnabled,
+                isSurfaceContextEnabled: resolvedSurfaceContextEnabled,
+                isFastModeEnabled: resolvedFastModeEnabled,
+                userName: resolvedUserName,
+                customRules: resolvedCustomRules,
+                responseLanguages: resolvedResponseLanguages,
+                extendedContext: resolvedExtendedContext
+            ),
+            correction: SuggestionCorrectionSettings(
+                suppressCompletionsOnTypo: resolvedSuppressCompletionsOnTypo,
+                offerTypoCorrections: resolvedOfferTypoCorrections,
+                enabledSpellingDictionaryCodes: resolvedEnabledSpellingDictionaryCodes,
+                automaticallyFixTypos: resolvedAutomaticallyFixTypos
+            ),
+            presentation: SuggestionPresentationSettings(
+                showIndicator: resolvedShowIndicator,
+                showAcceptanceHint: resolvedShowAcceptanceHint,
+                customSuggestionTextColorHex: resolvedCustomSuggestionTextColorHex,
+                ghostTextOpacity: resolvedGhostTextOpacity,
+                ghostTextSizeMultiplier: resolvedGhostTextSizeMultiplier,
+                isMenuBarIconVisible: resolvedMenuBarIconVisible,
+                isMenuBarWordCountVisible: resolvedMenuBarWordCountVisible,
+                mirrorPreference: resolvedMirrorPreference,
+                fadeInSuggestions: resolvedFadeInSuggestions,
+                fadeInDurationSeconds: resolvedFadeInDurationSeconds
+            ),
+            inlineFeatures: SuggestionInlineFeatureSettings(
+                isEmojiPickerEnabled: resolvedEmojiPickerEnabled,
+                isMacroExpansionEnabled: resolvedMacroExpansionEnabled,
+                preferredEmojiSkinTone: resolvedPreferredEmojiSkinTone,
+                preferredEmojiGender: resolvedPreferredEmojiGender
+            ),
+            shortcuts: SuggestionShortcutSettings(
+                acceptance: SuggestionShortcutBindingSettings(
+                    keyCode: resolvedAcceptanceKeyCode,
+                    modifiers: resolvedAcceptanceKeyModifiers,
+                    label: resolvedAcceptanceKeyLabel
+                ),
+                fullAcceptance: SuggestionShortcutBindingSettings(
+                    keyCode: resolvedFullAcceptanceKeyCode,
+                    modifiers: resolvedFullAcceptanceKeyModifiers,
+                    label: resolvedFullAcceptanceKeyLabel
+                ),
+                globalToggle: SuggestionShortcutBindingSettings(
+                    keyCode: resolvedGlobalToggleKeyCode,
+                    modifiers: resolvedGlobalToggleKeyModifiers,
+                    label: resolvedGlobalToggleKeyLabel
+                )
+            )
         )
 
         // Unconditional write-back so the resolved (possibly migrated or default-capped) values are
