@@ -335,8 +335,7 @@ extension SuggestionCoordinator {
         // A final-chunk accept tears the session down and regenerates the continuation
         // asynchronously (see the `.exhausted` branch). While that regen is in flight we keep owning
         // Tab instead of leaking it into the host app as a real Tab.
-        if isPostExhaustionAcceptanceArmed {
-            hasQueuedPostExhaustionAccept = true
+        if postExhaustionAcceptanceState.queueAcceptIfArmed() {
             logStage(
                 "\(keyName)-held-for-regen",
                 workID: currentWorkID,
@@ -467,20 +466,18 @@ extension SuggestionCoordinator {
     /// guard, so the accept tap forwarded the original Tab to the host and focus jumped out of the
     /// field. Re-asserting interception here keeps the tail tap installed and owning Tab across the
     /// regen window (its mach port otherwise lingers only ~50ms), and `shouldConsumeAcceptKeyProvider`
-    /// also consults `isPostExhaustionAcceptanceArmed` so the key is still routed in while the overlay
-    /// is hidden. A token-keyed backstop guarantees the window can never trap Tab.
+    /// also consults the extracted state so the key is still routed in while the overlay is hidden.
+    /// A token-keyed backstop guarantees the window can never trap Tab.
     func armPostExhaustionAcceptance() {
-        isPostExhaustionAcceptanceArmed = true
-        hasQueuedPostExhaustionAccept = false
+        let generation = postExhaustionAcceptanceState.arm()
         inputMonitor.setAcceptInterceptionActive(true)
-        postExhaustionAcceptanceGeneration &+= 1
-        let generation = postExhaustionAcceptanceGeneration
         DispatchQueue.main.asyncAfter(
             deadline: .now() + Self.postExhaustionAcceptanceWindowSeconds
         ) { [weak self] in
             // Only the generation that scheduled this timer may act on it; a newer accept (or an
             // already-released window) bumped the token, so this fires as a no-op.
-            guard let self, self.postExhaustionAcceptanceGeneration == generation else { return }
+            guard let self,
+                  self.postExhaustionAcceptanceState.ownsBackstop(generation: generation) else { return }
             self.releasePostExhaustionAcceptanceWindow()
         }
     }
@@ -490,10 +487,7 @@ extension SuggestionCoordinator {
     /// to the caller: whether Tab ownership should drop depends on why the window ended (a fresh
     /// suggestion keeps owning it; a teardown or the backstop drops it).
     func clearPostExhaustionAcceptanceWindow() {
-        isPostExhaustionAcceptanceArmed = false
-        hasQueuedPostExhaustionAccept = false
-        // Cancel any pending backstop, which is keyed to the generation captured at arm time.
-        postExhaustionAcceptanceGeneration &+= 1
+        postExhaustionAcceptanceState.clear()
     }
 
     /// Ends the post-exhaustion window and returns the accept key to the host unless a suggestion is
@@ -501,7 +495,7 @@ extension SuggestionCoordinator {
     /// backstop release; the common, prompt release is `onStateChange(.hidden)` ending the window as
     /// soon as any teardown hides the overlay.
     func releasePostExhaustionAcceptanceWindow() {
-        guard isPostExhaustionAcceptanceArmed || hasQueuedPostExhaustionAccept else { return }
+        guard postExhaustionAcceptanceState.needsRelease else { return }
         if !overlayState.isVisible {
             inputMonitor.setAcceptInterceptionActive(false)
         }
@@ -513,10 +507,9 @@ extension SuggestionCoordinator {
     /// instead of stalling. Bounded to one queued accept so mashing Tab cannot run away. Called at the
     /// end of `apply`'s success path, after the new session and overlay exist.
     func flushQueuedPostExhaustionAcceptIfNeeded() {
-        let shouldAccept = isPostExhaustionAcceptanceArmed && hasQueuedPostExhaustionAccept
-        // Normal acceptance has resumed now that a fresh suggestion is visible, so end the window
-        // regardless of whether a press was queued (this also cancels the now-redundant backstop).
-        clearPostExhaustionAcceptanceWindow()
+        // Consuming also ends the window when no press was queued, invalidating the backstop now that
+        // normal acceptance has resumed with a fresh visible suggestion.
+        let shouldAccept = postExhaustionAcceptanceState.consumeQueuedAccept()
         guard shouldAccept else { return }
         // A queued accept can still legitimately fail (the new continuation no longer reconciles with
         // live AX, or insertion fails). `acceptSuggestion` cleans up its own state on failure, so log

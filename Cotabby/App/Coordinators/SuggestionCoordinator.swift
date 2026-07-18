@@ -101,19 +101,9 @@ final class SuggestionCoordinator: ObservableObject {
     }
 
     var clipboardPrefaceMemo: ClipboardPrefaceMemo?
-    /// Streamed-render bookkeeping. Partial results hop in from the engine while a decode is
-    /// still running; they are coalesced (latest wins, drained once per runloop turn) so
-    /// token-rate deliveries cannot stack session and overlay layout work on the main actor, and
-    /// `streamRenderedText` carries the monotonic-extension state for `StreamedGhostTextPolicy`.
-    /// All of it is scoped to the current work id and reset when a new generation dispatches.
-    struct PendingStreamPartial {
-        let result: SuggestionResult
-        let workID: UInt64
-    }
-
-    var pendingStreamPartial: PendingStreamPartial?
-    var isStreamDrainScheduled = false
-    var streamRenderedText: String?
+    /// Coalescing and monotonic-render state for engine partials. The coordinator owns scheduling
+    /// and presentation; the value owns the stream's pure state transitions.
+    var suggestionStreamingState = SuggestionStreamingState()
 
     /// Monotonic cancellation token for the "wait until the host publishes typed text to AX" loop.
     ///
@@ -155,21 +145,9 @@ final class SuggestionCoordinator: ObservableObject {
     /// stands down instead of scheduling a duplicate regeneration.
     var pendingSpeculativeSignature: String?
 
-    /// Monotonic token for the post-exhaustion "keep owning Tab" window. Bumped on every arm so a
-    /// stale backstop timer (or a window superseded by a newer accept) no-ops instead of releasing a
-    /// window it no longer owns. See `armPostExhaustionAcceptance`.
-    var postExhaustionAcceptanceGeneration: UInt64 = 0
-    /// True while Cotabby keeps the accept tap owning Tab in the gap between a final-chunk accept and
-    /// the regenerated continuation appearing. Accepting the last buffered word hides the overlay and
-    /// reschedules generation asynchronously; without this the fail-open accept-tap preflight (which
-    /// keys on overlay visibility) would forward a fast follow-up Tab to the host as a real Tab and
-    /// focus would jump out of the field. The window self-releases when the next suggestion shows,
-    /// when any teardown hides the overlay, or via a backstop timer. See `armPostExhaustionAcceptance`.
-    var isPostExhaustionAcceptanceArmed = false
-    /// Set when a Tab is swallowed during that window. The next continuation that lands accepts its
-    /// first word, so rapid Tabbing keeps inserting words across the exhaustion boundary instead of
-    /// stalling. Bounded to a single queued accept so mashing Tab cannot run away.
-    var hasQueuedPostExhaustionAccept = false
+    /// Pure state for the bounded "keep owning Tab" window after a final-chunk acceptance. The
+    /// coordinator continues to own the timer and input-monitor effects around these transitions.
+    var postExhaustionAcceptanceState = PostExhaustionAcceptanceState()
 
     init(
         permissionManager: any SuggestionPermissionProviding,
@@ -263,7 +241,7 @@ final class SuggestionCoordinator: ObservableObject {
             // even though the overlay is hidden then. Otherwise a fast follow-up Tab in that gap
             // falls through to the host app as a real Tab and focus jumps out of the field — the
             // "rapid Tab breaks, slow Tab is fine" report. See `armPostExhaustionAcceptance`.
-            guard self.overlayState.isVisible || self.isPostExhaustionAcceptanceArmed else { return false }
+            guard self.overlayState.isVisible || self.postExhaustionAcceptanceState.isArmed else { return false }
             return true
         }
 

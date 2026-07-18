@@ -265,14 +265,9 @@ extension SuggestionCoordinator {
     /// result (or failure) only while it is still the current work. Extracted from
     /// `generateFromCurrentFocus` so that function stays within the project's complexity budget.
     private func dispatchGeneration(request: SuggestionRequest, workID: UInt64) {
-        // A new generation starts a new stream; the previous request's rendered-partial state
-        // must not gate the new partials' monotonic checks. `isStreamDrainScheduled` is left
-        // alone on purpose: an already-enqueued drain block cannot be unscheduled, and it
-        // self-heals either way — it finds nil and clears the flag, or it finds a partial the
-        // new generation queued in the meantime and renders it under the same work-id guards.
-        // Resetting the flag here would instead double-schedule a drain for one partial.
-        streamRenderedText = nil
-        pendingStreamPartial = nil
+        // A new generation starts a new stream. The state value deliberately preserves an already
+        // scheduled drain callback while dropping the old request's partial and rendered text.
+        suggestionStreamingState.beginGeneration()
         // Streaming the ghost text token-by-token is opt-in. Read the flag here on the main actor so
         // the work closure captures a plain Bool. When off, the closure passes no `onPartial`, so the
         // engine skips its per-token main-actor hops entirely and the suggestion appears once, fully
@@ -361,22 +356,18 @@ extension SuggestionCoordinator {
         guard workController.isCurrent(workID) else {
             return
         }
-        pendingStreamPartial = PendingStreamPartial(result: partial, workID: workID)
-        guard !isStreamDrainScheduled else {
+        guard suggestionStreamingState.enqueue(partial, workID: workID) else {
             return
         }
-        isStreamDrainScheduled = true
         DispatchQueue.main.async { [weak self] in
             self?.drainStreamedPartial()
         }
     }
 
     private func drainStreamedPartial() {
-        isStreamDrainScheduled = false
-        guard let pending = pendingStreamPartial else {
+        guard let pending = suggestionStreamingState.drain() else {
             return
         }
-        pendingStreamPartial = nil
         applyStreamedPartial(pending.result, workID: pending.workID)
     }
 
@@ -393,10 +384,7 @@ extension SuggestionCoordinator {
         guard workController.isCurrent(workID) else {
             return
         }
-        guard StreamedGhostTextPolicy.isRenderableExtension(
-            candidate: partial.text,
-            currentlyRendered: streamRenderedText
-        ) else {
+        guard suggestionStreamingState.canRender(partial.text) else {
             return
         }
         guard let rawContext = focusModel.snapshot.context else {
@@ -423,7 +411,7 @@ extension SuggestionCoordinator {
             liveContext: liveContext,
             latency: partial.latency
         )
-        streamRenderedText = partial.text
+        suggestionStreamingState.recordRendered(partial.text)
         presentOverlay(
             text: partial.text,
             at: liveContext.caretRect,
@@ -1085,8 +1073,7 @@ extension SuggestionCoordinator {
         // typed, focus changed, predictions disabled). The final-chunk accept re-sets it afterward.
         lastAcceptedTail = nil
         // Stream bookkeeping follows the session it was rendering for.
-        streamRenderedText = nil
-        pendingStreamPartial = nil
+        suggestionStreamingState.clearSession()
         latestSuggestionPreview = nil
         latestFullSuggestionPreview = nil
         latestRemainingSuggestionPreview = nil
