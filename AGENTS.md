@@ -2,19 +2,21 @@
 
 ## Project Identity
 
-Cotabby is a macOS menu bar app for on-device inline autocomplete. The core loop is:
+Cotabby is a macOS menu bar app for local-first inline autocomplete. The core loop is:
 
 1. Track the currently focused editable field through Accessibility.
 2. Monitor global keyboard input without stealing focus.
 3. Decide whether the field, permissions, settings, and runtime are eligible.
 4. Build an autocomplete request from the focused text context and optional visual context.
-5. Generate locally through Apple Intelligence or llama.cpp.
+5. Generate through Apple Intelligence, in-process llama.cpp, or a configured OpenAI-compatible
+   endpoint.
 6. Normalize the model output into a short continuation.
 7. Render ghost text near the caret.
 8. Insert accepted chunks when the user presses `Tab` while keeping the remaining tail alive.
 
-Privacy and local-first behavior matter. Do not introduce hosted API dependencies unless the user
-explicitly asks for that direction.
+Apple Intelligence and llama.cpp run on the Mac. The endpoint backend may send the same bounded
+request to loopback, LAN, or public HTTPS when the user explicitly selects it. Do not add or broaden
+hosted transmission without explicit user scope and clear disclosure.
 
 ## Learning-First Collaboration
 
@@ -43,17 +45,17 @@ When adding a `struct`, `class`, `enum`, actor, or protocol, explain:
 ## Repository Map
 
 - `Cotabby/App/`: app entrypoint, composition root, lifecycle wiring, and coordinators.
-- `Cotabby/UI/`: SwiftUI/AppKit presentation: settings, onboarding, menu views, overlays, and
-  visual affordances.
-- `Cotabby/Services/`: side-effectful boundaries: Accessibility, input monitoring, text insertion,
-  screenshots/OCR, visual context, llama runtime, permissions, downloads, updates, and launch
-  services.
-- `Cotabby/Models/`: shared value types, settings snapshots, states, domain models, and protocol
-  contracts.
-- `Cotabby/Support/`: pure helper logic, prompt rendering, availability rules, normalization,
-  reconciliation, geometry helpers, and low-level bridging utilities.
-- `CotabbyTests/`: unit and microbench tests. Prefer testing pure `Support/` and `Models/` logic
-  when possible.
+- `Cotabby/UI/`: SwiftUI presentation grouped into menus, settings, onboarding, overlays, inline
+  features, and reusable components.
+- `Cotabby/Services/`: side effects and OS/runtime boundaries. AppKit panel controllers live under
+  `Presentation`; other folders own focus, input, context, insertion, visual capture, inference,
+  model management, permissions, power, spelling, and updates.
+- `Cotabby/Models/`: shared values, settings snapshots, states, domain models, and contracts grouped
+  by subsystem.
+- `Cotabby/Support/`: deterministic policy, prompting, normalization, reconciliation, geometry,
+  sanitization, logging, and low-level bridging helpers grouped by subsystem.
+- `CotabbyTests/`: unit and microbench tests that mirror the production subsystem map. Prefer
+  testing pure `Support/` and `Models/` logic when possible.
 - `CotabbyInference`: the llama.cpp wrapper, consumed as a SwiftPM package
   (`github.com/FuJacob/cotabbyinference`, pinned to `main`) rather than vendored in-tree.
 
@@ -132,8 +134,8 @@ Runtime generation is split by responsibility:
 - `FoundationModelSuggestionEngine`: Apple on-device generation path.
 - `LlamaSuggestionEngine`: request-to-prompt, llama result handling, and cache reset handoff.
 - `LlamaRuntimeManager`: UI-facing runtime state, model selection, warmup, and lifecycle control.
-- `LlamaRuntimeCore`: serialized actor around mutable llama.cpp pointers, prompt tokenization,
-  KV-cache reuse, sampling, an optional deterministic constrained decoder
+- `LlamaRuntimeCore`: explicitly serialized native boundary around mutable llama.cpp pointers,
+  prompt tokenization, KV-cache reuse, sampling, an optional deterministic constrained decoder
   (`runConstrainedDecode`, gated behind the default-off `cotabbyConstrainedDecoderEnabled`), and
   shutdown.
 - `BaseCompletionPromptRenderer`: prompt construction for the Open Source path. The llama models are
@@ -143,8 +145,9 @@ Runtime generation is split by responsibility:
   and the caret prefix comes last. `FoundationModelPromptRenderer` stays instruct-shaped because
   Apple's Foundation Models path gives us a first-class instructions channel.
 
-Keep llama.cpp pointer work serialized inside `LlamaRuntimeCore`. The manager should publish state;
-the core should own native correctness.
+`LlamaRuntimeCore` is not a Swift actor. Its locks and lifecycle condition keep native pointer,
+cache/decode, and shutdown work serialized while heavy generation runs away from MainActor. The
+manager should publish state; the core should own native correctness.
 
 ## UI And Overlays
 

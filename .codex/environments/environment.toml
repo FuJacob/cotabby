@@ -8,4 +8,4 @@ script = ""
 [[actions]]
 name = "Run"
 icon = "run"
-command = "./script/build_and_run.sh"
+command = "./scripts/build_and_run.sh"

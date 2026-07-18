@@ -8,11 +8,9 @@ import CotabbyInference
 /// sequences, tokenizes prompts, samples continuations, and frees native resources on shutdown.
 ///
 /// The engine handles thread safety internally via per-sequence mutexes. This class is
-/// `@unchecked Sendable` rather than an `actor` so that `generate()` (autocomplete) and
-/// `summarize()` (visual context) can run on separate sequences concurrently.
-/// `autocompleteLock` serializes autocomplete-specific KV cache state; summary uses
-/// ephemeral sequences with no shared state. A separate `lifecycleCondition` prevents
-/// `shutdown()` from unloading the model while any operation is still in flight.
+/// `@unchecked Sendable` rather than an `actor` so native work can execute away from MainActor.
+/// `autocompleteLock` serializes autocomplete-specific KV-cache state. A separate
+/// `lifecycleCondition` prevents `shutdown()` from unloading the model while generation is in flight.
 
 /// Immutable runtime metadata captured after a model has been successfully prepared.
 struct PreparedLlamaRuntime: Sendable {
@@ -52,8 +50,8 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
     /// decode of the same prompt. Guarded by `autocompleteLock`; reset on model load.
     private var modelRejectsPartialTrims = false
 
-    /// Coordinates model lifecycle with in-flight operations. `generate()` and `summarize()`
-    /// increment the active count on entry and decrement on exit. `shutdown()` sets the
+    /// Coordinates model lifecycle with in-flight generation. `generate()` increments the active
+    /// count on entry and decrements on exit. `shutdown()` sets the
     /// shutting-down flag and blocks until all active operations finish before unloading.
     private let lifecycleCondition = NSCondition()
     private var activeOperationCount = 0
@@ -503,7 +501,7 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         autocompleteSamplingFingerprint = nil
     }
 
-    /// Waits for all in-flight `generate()` and `summarize()` calls to finish, then frees all
+    /// Waits for all in-flight `generate()` calls to finish, then frees all
     /// sequences and the loaded model. Blocking is intentional: callers should dispatch this off
     /// the main thread via `Task.detached` when UI responsiveness matters.
     ///

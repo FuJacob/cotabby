@@ -105,7 +105,7 @@ final class SuggestionEngineRouter {
     /// Persists one (timestamp, model, latency) triple into the rolling ring buffer when the
     /// Performance pane toggle is on. The router is the right home for this seam because it is
     /// the single point that sees a finished `SuggestionResult` and knows which engine produced
-    /// it — both engines below would otherwise need to take a dependency on the metrics store.
+    /// it — every backend would otherwise need to take a dependency on the metrics store.
     private func recordPerformanceMetric(modelName: String, latency: TimeInterval) {
         guard suggestionSettings.isPerformanceTrackingEnabled else { return }
         let latencyMs = Int((latency * 1000).rounded())

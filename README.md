@@ -7,7 +7,7 @@
 
 <h1 align="center">Cotabby [beta]</h1>
 
-<p align="center"><em>Open-source, on-device AI autocomplete for macOS.</em></p>
+<p align="center"><em>Open-source, local-first AI autocomplete for macOS.</em></p>
 
 <p align="center">
   <a href="https://cotabby.app">
@@ -42,7 +42,8 @@
 
 Cotabby adds AI autocomplete to almost any text field on your Mac. As you type, a gray suggestion appears inline next to your cursor. Press `Tab` to accept it a word at a time, or keep typing to ignore it.
 
-Everything runs on your Mac. No account, no cloud, no telemetry.
+The default Apple Intelligence and Open Source engines run on your Mac. No account or telemetry is
+required. An optional OpenAI-compatible engine can connect to a server you configure.
 
 ## Demo
 
@@ -68,19 +69,24 @@ Everything runs on your Mac. No account, no cloud, no telemetry.
 
 ## Privacy
 
-Privacy is the whole point — everything that produces a suggestion happens on your Mac:
+Privacy is the whole point, so Cotabby's default engines keep generation on your Mac:
 
-- All AI runs on-device. There's no hosted API and no cloud round-trip.
+- Apple Intelligence and Open Source generation run on-device.
+- The optional OpenAI-compatible engine sends a bounded request only to the endpoint you configure;
+  that endpoint can be loopback, on your local network, or a public HTTPS service.
 - No analytics, no telemetry, no crash reporting.
 - A normal install never writes what you type to disk.
-- The network is used only to download a model you pick and to check for updates — never to send your text, your screen, or your suggestions anywhere.
+- Apart from a configured endpoint, the network is used for model downloads and update checks, not
+  suggestion generation.
 
 ## Engines
 
-Cotabby generates suggestions one of two ways. You choose which in Settings → Engine:
+Cotabby generates suggestions in three ways. You choose which in Settings → Engine:
 
 - **Apple Intelligence** — Apple's model, built into macOS 26 or later on supported Macs. Nothing to download.
 - **Open Source** — a small AI model you download that runs entirely on your Mac. Works on any supported Mac (macOS 14+), with or without Apple Intelligence.
+- **OpenAI-compatible** — a completion or chat endpoint you configure, including local Ollama,
+  another LAN host, or a public HTTPS service. Endpoint credentials are stored in Keychain.
 
 If your Mac supports Apple Intelligence, that's the easiest place to start. Otherwise, use the Open Source engine and pick one of the built-in models:
 
@@ -148,7 +154,7 @@ Cotabby works inside other apps, so macOS asks for a few permissions. Each one m
 - **Input Monitoring** — notice your typing so it knows when to suggest, and detect the accept keys.
 - **Screen Recording** *(optional)* — capture the area around your cursor for visual context. Leave it off and everything else still works.
 
-Cotabby never reads password or other secure fields.
+Cotabby blocks generation, presentation, and insertion in password and other secure fields.
 
 ## Local Development
 

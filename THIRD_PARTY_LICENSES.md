@@ -13,7 +13,7 @@ upstream license text.
 
 The inline autocorrect feature uses a Swift port of SymSpell (Wolf Garbe's
 Symmetric Delete spelling-correction algorithm). The port lives in
-`Cotabby/Support/SymSpell.swift`. SymSpell is distributed under the MIT License:
+`Cotabby/Support/Spelling/SymSpell.swift`. SymSpell is distributed under the MIT License:
 
 ```
 MIT License
