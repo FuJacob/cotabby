@@ -160,6 +160,10 @@ Runtime generation is split by responsibility:
 cache/decode, and shutdown work serialized while heavy generation runs away from MainActor. The
 manager should publish state; the core should own native correctness.
 
+Cotabby owns one autocomplete sequence. CotabbyInference therefore exposes one live native sequence
+backed by llama.cpp slot zero; a changing external sequence ID rejects stale handles after reset.
+The Swift generation loop owns the maximum output-token budget.
+
 ## UI And Overlays
 
 - `OverlayController` owns the ghost-text panel lifecycle and positioning.

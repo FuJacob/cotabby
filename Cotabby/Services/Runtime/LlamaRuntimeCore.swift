@@ -4,13 +4,14 @@ import CotabbyInference
 
 /// File overview:
 /// Owns the C++ inference engine and manages the autocomplete KV cache lifecycle. This is the
-/// lowest-level runtime boundary in the app: it loads the GGUF model, manages concurrent
-/// sequences, tokenizes prompts, samples continuations, and frees native resources on shutdown.
+/// lowest-level runtime boundary in the app: it loads the GGUF model, owns Cotabby's single
+/// autocomplete sequence, tokenizes prompts, samples continuations, and frees native resources on
+/// shutdown.
 ///
-/// The engine handles thread safety internally via per-sequence mutexes. This class is
-/// `@unchecked Sendable` rather than an `actor` so native work can execute away from MainActor.
-/// `autocompleteLock` serializes autocomplete-specific KV-cache state. A separate
-/// `lifecycleCondition` prevents `shutdown()` from unloading the model while generation is in flight.
+/// The engine serializes its one mutable llama context internally. This class is `@unchecked
+/// Sendable` rather than an `actor` so native work can execute away from MainActor.
+/// `autocompleteLock` serializes autocomplete-specific KV-cache state, while a separate
+/// `lifecycleCondition` prevents `shutdown()` from unloading the model during generation.
 
 /// Immutable runtime metadata captured after a model has been successfully prepared.
 struct PreparedLlamaRuntime: Sendable {
@@ -717,16 +718,18 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
     private static let defaultSamplerSeed: UInt32 = 0x00C0_FFEE
 
     private static func samplingConfig(from options: LlamaGenerationOptions) -> SamplingConfig {
-        SamplingConfig(
-            max_prediction_tokens: Int32(options.maxPredictionTokens),
-            temperature: Float(options.temperature),
-            top_k: Int32(options.topK),
-            top_p: Float(options.topP),
-            min_p: Float(options.minP),
-            repetition_penalty: Float(options.repetitionPenalty),
-            seed: options.seed ?? Self.defaultSamplerSeed,
-            single_line: options.singleLine
-        )
+        // Assign the fields after default construction so the app remains source-compatible while
+        // CotabbyInference removes native configuration fields that Swift never consumed. C++
+        // aggregate memberwise initializers otherwise require every imported field at the call site.
+        var config = SamplingConfig()
+        config.temperature = Float(options.temperature)
+        config.top_k = Int32(options.topK)
+        config.top_p = Float(options.topP)
+        config.min_p = Float(options.minP)
+        config.repetition_penalty = Float(options.repetitionPenalty)
+        config.seed = options.seed ?? Self.defaultSamplerSeed
+        config.single_line = options.singleLine
+        return config
     }
 
     private static func reusableTokenCount(commonTokenPrefix: Int, newPromptTokenCount: Int) -> Int {
