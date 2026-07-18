@@ -239,6 +239,10 @@ LlamaRuntimeCore is a nonisolated lock/condition-protected native boundary, not 
 autocomplete lock serializes cache/decode state, and its lifecycle condition prevents shutdown from
 racing active native work. Heavy work runs away from MainActor.
 
+The app and CotabbyInference intentionally expose one live autocomplete sequence. The package uses
+one llama.cpp sequence slot and a changing external ID to reject stale work after a reset; the Swift
+generation loop remains the single owner of the output-token budget.
+
 [BaseCompletionPromptRenderer.swift](Cotabby/Support/Prompting/BaseCompletionPromptRenderer.swift) renders a
 base-model text continuation with optional budgeted context and the caret prefix last. It does not
 wrap a base GGUF in an instruction conversation. [FoundationModelPromptRenderer.swift](Cotabby/Support/Prompting/FoundationModelPromptRenderer.swift)
