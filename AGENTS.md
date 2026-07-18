@@ -71,6 +71,12 @@ Start here when you need to understand lifecycle:
 and wires cross-subsystem subscriptions. SwiftUI views should observe objects from that graph
 rather than creating services directly.
 
+`SuggestionSettingsModel` remains the individually `@Published` UI-facing compatibility surface.
+Its `domainSettings` projection groups the same durable values into general, engine, completion,
+context, correction, presentation, inline-feature, and shortcut domains. `SuggestionSettingsStore`
+keeps the existing flat UserDefaults keys stable, and `SuggestionSettingsSnapshot` is the immutable
+behavior boundary consumed by the suggestion pipeline.
+
 This ownership rule prevents duplicate Accessibility observers, duplicate input monitors, runtime
 reload races, and mismatched settings state.
 
@@ -84,7 +90,8 @@ Read the coordinator in this order:
 4. `Cotabby/App/Coordinators/SuggestionCoordinator+Prediction.swift`
 5. `Cotabby/App/Coordinators/SuggestionCoordinator+Acceptance.swift`
 
-The coordinator owns orchestration and user-facing state. It should not absorb every rule. Prefer:
+The coordinator owns orchestration plus active suggestion and presentation state. It should not
+absorb every rule or state transition. Prefer:
 
 - `SuggestionRequestFactory` for pure request construction
 - `SuggestionAvailabilityEvaluator` for pure gating decisions
@@ -92,6 +99,8 @@ The coordinator owns orchestration and user-facing state. It should not absorb e
 - `SuggestionTextNormalizer` for backend-independent output cleanup
 - `SuggestionWorkController` for generation task identity/cancellation
 - `SuggestionInteractionState` for active suggestion session storage
+- `SuggestionStreamingState` for latest-wins partial coalescing and monotonic rendering state
+- `PostExhaustionAcceptanceState` for the bounded rapid-accept window after a tail is exhausted
 
 This split matters because autocomplete is a state machine. Pure rules are easier to test and reason
 about than coordinator mutations.
@@ -104,7 +113,8 @@ Focus and geometry live in:
 - `FocusSnapshotResolver`: reduces raw AX elements into Cotabby-supported focus snapshots.
 - `AXTextGeometryResolver`: resolves caret and input geometry.
 - `AXHelper`: low-level Accessibility/Core Foundation helper calls.
-- `FocusModels`: pure focus values, identities, capabilities, and debug inspection data.
+- `FocusModels`: pure focus values, identities, capabilities, stale-result signatures, and the
+  lightweight `FocusPollingEvent` used by the developer overlay.
 
 Accessibility data is eventually consistent and app-specific. Browser editors, Electron apps,
 native AppKit fields, and secure fields expose different AX shapes. Preserve stale-result guards,
@@ -130,14 +140,15 @@ from Accessibility and Input Monitoring.
 
 Runtime generation is split by responsibility:
 
-- `SuggestionEngineRouter`: selects Apple Intelligence vs Open Source.
+- `SuggestionEngineRouter`: selects Apple Intelligence, Open Source, or the configured
+  OpenAI-compatible endpoint and owns the narrow Apple-to-llama language fallback.
 - `FoundationModelSuggestionEngine`: Apple on-device generation path.
 - `LlamaSuggestionEngine`: request-to-prompt, llama result handling, and cache reset handoff.
+- `OpenAICompatibleSuggestionEngine`: completion/chat transport, SSE streaming, and Ollama preload
+  behavior for the configured endpoint.
 - `LlamaRuntimeManager`: UI-facing runtime state, model selection, warmup, and lifecycle control.
 - `LlamaRuntimeCore`: explicitly serialized native boundary around mutable llama.cpp pointers,
-  prompt tokenization, KV-cache reuse, sampling, an optional deterministic constrained decoder
-  (`runConstrainedDecode`, gated behind the default-off `cotabbyConstrainedDecoderEnabled`), and
-  shutdown.
+  prompt tokenization, KV-cache reuse, built-in sampler delegation, cancellation, and shutdown.
 - `BaseCompletionPromptRenderer`: prompt construction for the Open Source path. The llama models are
   now *base* (non-instruct) GGUFs, so this renders a pure text continuation: no instruction preamble,
   custom rules and context fold into a short conditioning preface (a base model conditions on
