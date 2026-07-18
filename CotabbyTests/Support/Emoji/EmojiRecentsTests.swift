@@ -5,7 +5,7 @@ import XCTest
 /// resolved against the catalog.
 final class EmojiRecentsTests: XCTestCase {
     private func entry(_ glyph: String, _ alias: String) -> EmojiEntry {
-        EmojiEntry(glyph: glyph, name: alias, aliases: [alias], keywords: [], group: "Test", unicodeVersion: "1.0")
+        EmojiEntry(glyph: glyph, name: alias, aliases: [alias], keywords: [])
     }
 
     private func sampleCatalog() -> EmojiCatalog {

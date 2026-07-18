@@ -1,15 +1,14 @@
 import XCTest
 @testable import Cotabby
 
-/// Tests for the pure attention-decision rule that drives sidebar dots and per-pane callouts in
-/// the redesigned Settings window. Each test pins one real-world condition so a future change to
+/// Tests for the pure attention-decision rule that drives sidebar dots in the redesigned Settings
+/// window. Each test pins one real-world condition so a future change to
 /// the rule has to update an obvious assertion rather than slip through.
 final class SettingsAttentionEvaluatorTests: XCTestCase {
     private func makeInputs(
         permissionsGranted: Bool = true,
         selectedEngine: SuggestionEngineKind = .llamaOpenSource,
         foundationModelAvailable: Bool = true,
-        foundationModelMessage: String = "Apple Intelligence is available.",
         llamaRuntimeFailedReason: String? = nil,
         endpointConfigurationError: String? = nil,
         endpointConnectionFailedReason: String? = nil
@@ -18,7 +17,6 @@ final class SettingsAttentionEvaluatorTests: XCTestCase {
             permissionsGranted: permissionsGranted,
             selectedEngine: selectedEngine,
             foundationModelAvailable: foundationModelAvailable,
-            foundationModelMessage: foundationModelMessage,
             llamaRuntimeFailedReason: llamaRuntimeFailedReason,
             endpointConfigurationError: endpointConfigurationError,
             endpointConnectionFailedReason: endpointConnectionFailedReason
@@ -43,8 +41,7 @@ final class SettingsAttentionEvaluatorTests: XCTestCase {
         let categories = SettingsAttentionEvaluator.categoriesNeedingAttention(
             makeInputs(
                 selectedEngine: .appleIntelligence,
-                foundationModelAvailable: false,
-                foundationModelMessage: "Apple Intelligence is turned off in System Settings."
+                foundationModelAvailable: false
             )
         )
         XCTAssertEqual(categories, [.engineAndModel])
@@ -77,57 +74,5 @@ final class SettingsAttentionEvaluatorTests: XCTestCase {
             endpointConfigurationError: "Choose a model."
         )
         XCTAssertEqual(SettingsAttentionEvaluator.categoriesNeedingAttention(inputs), [.engineAndModel])
-        XCTAssertEqual(
-            SettingsAttentionEvaluator.calloutMessage(for: .engineAndModel, inputs: inputs),
-            "Choose a model."
-        )
-    }
-
-    func test_callout_permissions_returnsActionableMessage() {
-        let message = SettingsAttentionEvaluator.calloutMessage(
-            for: .permissions,
-            inputs: makeInputs(permissionsGranted: false)
-        )
-        XCTAssertNotNil(message)
-        XCTAssertTrue(message?.contains("more access") ?? false)
-    }
-
-    func test_callout_engineAndModel_appleIntelligence_echoesAvailabilityMessage() {
-        let inputs = makeInputs(
-            selectedEngine: .appleIntelligence,
-            foundationModelAvailable: false,
-            foundationModelMessage: "This Mac is not eligible for Apple Intelligence."
-        )
-        let message = SettingsAttentionEvaluator.calloutMessage(for: .engineAndModel, inputs: inputs)
-        XCTAssertEqual(message, "This Mac is not eligible for Apple Intelligence.")
-    }
-
-    func test_callout_engineAndModel_openSource_echoesRuntimeFailureReason() {
-        let inputs = makeInputs(
-            selectedEngine: .llamaOpenSource,
-            llamaRuntimeFailedReason: "Couldn't open the GGUF file."
-        )
-        let message = SettingsAttentionEvaluator.calloutMessage(for: .engineAndModel, inputs: inputs)
-        XCTAssertEqual(message, "Couldn't open the GGUF file.")
-    }
-
-    func test_callout_engineAndModel_healthyEngine_isNil() {
-        let inputs = makeInputs(
-            selectedEngine: .appleIntelligence,
-            foundationModelAvailable: true
-        )
-        XCTAssertNil(
-            SettingsAttentionEvaluator.calloutMessage(for: .engineAndModel, inputs: inputs)
-        )
-    }
-
-    func test_callout_paneWithoutAttention_isNil() {
-        let inputs = makeInputs()
-        for category in [SettingsCategory.general, .writing, .shortcuts, .apps, .about] {
-            XCTAssertNil(
-                SettingsAttentionEvaluator.calloutMessage(for: category, inputs: inputs),
-                "\(category) should never carry a callout"
-            )
-        }
     }
 }

@@ -98,7 +98,6 @@ struct SettingsContainerView: View {
                 permissionsGranted: permissionManager.requiredPermissionsGranted,
                 selectedEngine: suggestionSettings.selectedEngine,
                 foundationModelAvailable: foundationModelAvailabilityService.isAvailable,
-                foundationModelMessage: foundationModelAvailabilityService.userVisibleMessage,
                 llamaRuntimeFailedReason: runtimeModel.state.failureDetail,
                 endpointConfigurationError: endpointConfigurationError,
                 endpointConnectionFailedReason: openAICompatibleConnectionModel.state.failureDetail

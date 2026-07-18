@@ -115,7 +115,6 @@ final class SuggestionSettingsModelTests: XCTestCase {
         XCTAssertEqual(reloaded.acceptanceGranularity, .phrase)
         XCTAssertTrue(reloaded.suggestInIntegratedTerminals)
         XCTAssertFalse(reloaded.showIndicator)
-        XCTAssertFalse(reloaded.showCaretIndicator)
         XCTAssertFalse(reloaded.showAcceptanceHint)
         XCTAssertEqual(reloaded.userName, "Ada")
         XCTAssertEqual(reloaded.extendedContext, "Glossary: cotabby means tea whisk")

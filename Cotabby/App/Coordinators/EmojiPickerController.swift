@@ -38,8 +38,6 @@ final class EmojiPickerController {
     private let isEnabled: () -> Bool
     /// Live emoji-customization preferences (skin tone / gender / neutral variant), read at match time.
     private let emojiPreferences: () -> EmojiVariantPreferences
-    /// The accept-word key label shown as a keycap on the highlighted row; `nil` hides the hint.
-    private let acceptKeyLabel: () -> String?
     /// Live personal usage snapshot, read at match time to rank favorites and seed the bare-`:` panel.
     /// `@MainActor`: it reads main-actor `EmojiUsageStore` state, matching where the picker runs.
     private let emojiUsage: @MainActor () -> EmojiUsageSnapshot
@@ -85,7 +83,6 @@ final class EmojiPickerController {
         inserter: any EmojiTextInserting,
         isEnabled: @escaping () -> Bool,
         emojiPreferences: @escaping () -> EmojiVariantPreferences,
-        acceptKeyLabel: @escaping () -> String?,
         emojiUsage: @MainActor @escaping () -> EmojiUsageSnapshot,
         recordEmojiUsage: @MainActor @escaping (String) -> Void
     ) {
@@ -96,7 +93,6 @@ final class EmojiPickerController {
         self.inserter = inserter
         self.isEnabled = isEnabled
         self.emojiPreferences = emojiPreferences
-        self.acceptKeyLabel = acceptKeyLabel
         self.emojiUsage = emojiUsage
         self.recordEmojiUsage = recordEmojiUsage
     }
@@ -354,8 +350,7 @@ final class EmojiPickerController {
             query: currentQuery,
             matches: matches,
             selectedIndex: selectedIndex,
-            caretRect: caretRect,
-            acceptKeyLabel: acceptKeyLabel()
+            caretRect: caretRect
         )
     }
 
@@ -426,8 +421,7 @@ final class EmojiPickerController {
             query: currentQuery,
             matches: matches,
             selectedIndex: selectedIndex,
-            caretRect: context.caretRect,
-            acceptKeyLabel: acceptKeyLabel()
+            caretRect: context.caretRect
         )
     }
 

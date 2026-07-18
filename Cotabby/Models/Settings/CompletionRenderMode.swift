@@ -19,8 +19,8 @@ nonisolated enum CompletionRenderMode: Equatable, Sendable {
     /// only; the rendering pipeline does not branch on it.
     case mirror(reason: MirrorReason)
 
-    /// Why mirror mode was chosen for this presentation. Surfaced in the focus debug overlay and
-    /// in `OverlayState.detail` so operators can confirm the policy is firing as expected.
+    /// Why mirror mode was chosen for this presentation. Surfaced in the focus debug overlay so
+    /// operators can confirm the policy is firing as expected.
     nonisolated enum MirrorReason: String, Equatable, Sendable {
         /// Caret quality came back `.estimated`, meaning the host did not expose `AXBoundsForRange`
         /// or any of the derived geometry paths. Inline rendering would land at a guessed X that

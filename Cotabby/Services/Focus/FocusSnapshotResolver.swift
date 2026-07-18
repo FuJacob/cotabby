@@ -105,17 +105,6 @@ struct FocusSnapshotResolver {
             focusChangeSequence: focusChangeSequence
         )
         let resolution = candidateResolution.resolution
-        let diagnosticCandidate = candidateResolution.diagnosticCandidate
-        let inspection = FocusInspectionSnapshot(
-            focusedElementIdentifier: focusedElementIdentifier,
-            focusedRole: focusedRole,
-            focusedSubrole: focusedSubrole,
-            resolvedElementIdentifier: diagnosticCandidate?.elementIdentifier,
-            resolvedRole: diagnosticCandidate?.role,
-            resolvedSubrole: diagnosticCandidate?.subrole,
-            missingCapabilities: resolution.resolvedCandidate == nil
-                ? resolution.missingCapabilities : []
-        )
 
         guard let resolvedCandidate = candidateResolution.resolvedCandidate else {
             CotabbyLogger.focus.trace("Focus unsupported in \(applicationName): \(resolution.unsupportedReason)")
@@ -123,8 +112,7 @@ struct FocusSnapshotResolver {
                 applicationName: applicationName,
                 bundleIdentifier: bundleIdentifier,
                 capability: .unsupported(resolution.unsupportedReason),
-                context: nil,
-                inspection: inspection
+                context: nil
             )
         }
 
@@ -133,8 +121,7 @@ struct FocusSnapshotResolver {
                 applicationName: applicationName,
                 bundleIdentifier: bundleIdentifier,
                 capability: .unsupported("Selection range is unavailable."),
-                context: nil,
-                inspection: inspection
+                context: nil
             )
         }
 
@@ -143,8 +130,7 @@ struct FocusSnapshotResolver {
                 applicationName: applicationName,
                 bundleIdentifier: bundleIdentifier,
                 capability: .unsupported("Selection range is invalid."),
-                context: nil,
-                inspection: inspection
+                context: nil
             )
         }
 
@@ -156,8 +142,7 @@ struct FocusSnapshotResolver {
                 applicationName: applicationName,
                 bundleIdentifier: bundleIdentifier,
                 capability: .unsupported("Selection range exceeds the current field value."),
-                context: nil,
-                inspection: inspection
+                context: nil
             )
         }
 
@@ -208,8 +193,7 @@ struct FocusSnapshotResolver {
                 applicationName: applicationName,
                 bundleIdentifier: bundleIdentifier,
                 capability: .unsupported("Caret bounds are unavailable."),
-                context: nil,
-                inspection: inspection
+                context: nil
             )
         }
         let caretRect = caret.rect
@@ -321,8 +305,7 @@ struct FocusSnapshotResolver {
                 applicationName: applicationName,
                 bundleIdentifier: bundleIdentifier,
                 capability: .blocked("Secure text input is active."),
-                context: context,
-                inspection: inspection
+                context: context
             )
         }
 
@@ -331,8 +314,7 @@ struct FocusSnapshotResolver {
                 applicationName: applicationName,
                 bundleIdentifier: bundleIdentifier,
                 capability: .blocked("Text is currently selected."),
-                context: context,
-                inspection: inspection
+                context: context
             )
         }
 
@@ -340,8 +322,7 @@ struct FocusSnapshotResolver {
             applicationName: applicationName,
             bundleIdentifier: bundleIdentifier,
             capability: .supported,
-            context: context,
-            inspection: inspection
+            context: context
         )
     }
 
@@ -366,12 +347,10 @@ struct FocusSnapshotResolver {
         deepDescendants: Bool,
         focusChangeSequence: UInt64
     ) -> FocusCandidateResolution {
-        var bestPartial: (candidate: AXFocusCandidate, evaluation: FocusCapabilityCandidateEvaluation)?
-        var inspectedCount = 0
+        var bestPartial: FocusCapabilityCandidateEvaluation?
 
         func winner(in elements: [AXUIElement]) -> FocusCandidateResolution? {
             for element in elements {
-                inspectedCount += 1
                 let candidate = candidateSnapshot(
                     for: element,
                     bundleIdentifier: bundleIdentifier,
@@ -383,16 +362,14 @@ struct FocusSnapshotResolver {
                 if evaluation.hasFullCapabilities {
                     return FocusCandidateResolution(
                         resolvedCandidate: candidate,
-                        diagnosticCandidate: candidate,
                         resolution: FocusCapabilityResolution(
-                            selectedEvaluation: evaluation,
-                            inspectedCandidateCount: inspectedCount
+                            selectedEvaluation: evaluation
                         )
                     )
                 }
 
-                if bestPartial == nil || evaluation.score > bestPartial!.evaluation.score {
-                    bestPartial = (candidate, evaluation)
+                if bestPartial == nil || evaluation.score > bestPartial!.score {
+                    bestPartial = evaluation
                 }
             }
 
@@ -423,10 +400,8 @@ struct FocusSnapshotResolver {
 
         return FocusCandidateResolution(
             resolvedCandidate: nil,
-            diagnosticCandidate: bestPartial?.candidate,
             resolution: FocusCapabilityResolution(
-                selectedEvaluation: bestPartial?.evaluation,
-                inspectedCandidateCount: inspectedCount
+                selectedEvaluation: bestPartial
             )
         )
     }
@@ -985,7 +960,6 @@ struct FocusSnapshotResolver {
 
 private struct FocusCandidateResolution {
     let resolvedCandidate: AXFocusCandidate?
-    let diagnosticCandidate: AXFocusCandidate?
     let resolution: FocusCapabilityResolution
 }
 

@@ -29,27 +29,9 @@ struct FocusCapabilityCandidateEvaluation: Equatable {
     }
 }
 
-/// This is the resolver output, including the best partial candidate for diagnostics.
-/// The resolver's final answer about which candidate to trust and why.
+/// The resolver's final explanation when no nearby candidate exposes every required capability.
 struct FocusCapabilityResolution: Equatable {
     let selectedEvaluation: FocusCapabilityCandidateEvaluation?
-    let inspectedCandidateCount: Int
-
-    var resolvedCandidate: FocusCapabilityCandidate? {
-        guard let selectedEvaluation, selectedEvaluation.hasFullCapabilities else {
-            return nil
-        }
-
-        return selectedEvaluation.candidate
-    }
-
-    var bestDiagnosticCandidate: FocusCapabilityCandidate? {
-        selectedEvaluation?.candidate
-    }
-
-    var missingCapabilities: [FocusCapabilityRequirement] {
-        selectedEvaluation?.missingCapabilities ?? FocusCapabilityRequirement.allCases
-    }
 
     var unsupportedReason: String {
         selectedEvaluation?.missingCapabilities.first?.unsupportedReason
@@ -60,31 +42,6 @@ struct FocusCapabilityResolution: Equatable {
 /// We rank candidates by capability first and role hints second.
 /// This is more robust than assuming the focused node will always be a text field.
 enum FocusCapabilityResolver {
-    /// Chooses the strongest editable candidate from the nearby AX elements discovered by `FocusTracker`.
-    static func resolve(candidates: [FocusCapabilityCandidate]) -> FocusCapabilityResolution {
-        var bestPartial: FocusCapabilityCandidateEvaluation?
-
-        for (index, candidate) in candidates.enumerated() {
-            let evaluation = evaluate(candidate)
-
-            if evaluation.hasFullCapabilities {
-                return FocusCapabilityResolution(
-                    selectedEvaluation: evaluation,
-                    inspectedCandidateCount: index + 1
-                )
-            }
-
-            if shouldReplace(bestPartial, with: evaluation) {
-                bestPartial = evaluation
-            }
-        }
-
-        return FocusCapabilityResolution(
-            selectedEvaluation: bestPartial,
-            inspectedCandidateCount: candidates.count
-        )
-    }
-
     /// Computes the capability gaps and heuristic score for a single candidate element.
     static func evaluate(_ candidate: FocusCapabilityCandidate) -> FocusCapabilityCandidateEvaluation {
         let missingCapabilities = FocusCapabilityRequirement.allCases.filter { requirement in
@@ -108,17 +65,5 @@ enum FocusCapabilityResolver {
             missingCapabilities: missingCapabilities,
             score: score
         )
-    }
-
-    /// Breaks ties between two scored candidates using editability strength and support completeness.
-    private static func shouldReplace(
-        _ currentBest: FocusCapabilityCandidateEvaluation?,
-        with candidate: FocusCapabilityCandidateEvaluation
-    ) -> Bool {
-        guard let currentBest else {
-            return true
-        }
-
-        return candidate.score > currentBest.score
     }
 }

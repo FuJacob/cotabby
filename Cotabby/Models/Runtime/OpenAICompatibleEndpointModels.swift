@@ -12,13 +12,6 @@ nonisolated enum OpenAICompatibleAPIMode: String, CaseIterable, Codable, Identif
 
     var id: String { rawValue }
 
-    var displayLabel: String {
-        switch self {
-        case .completions: return "Completions"
-        case .chatCompletions: return "Chat Completions"
-        }
-    }
-
     var route: String {
         switch self {
         case .completions: return "completions"
@@ -30,12 +23,6 @@ nonisolated enum OpenAICompatibleAPIMode: String, CaseIterable, Codable, Identif
 /// One model identifier returned by `GET /v1/models`.
 nonisolated struct OpenAICompatibleModelOption: Decodable, Equatable, Identifiable, Sendable {
     let id: String
-    let ownedBy: String?
-
-    private enum CodingKeys: String, CodingKey {
-        case id
-        case ownedBy = "owned_by"
-    }
 }
 
 /// Chooses the durable model identifier after endpoint discovery finishes.

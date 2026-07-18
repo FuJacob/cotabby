@@ -1,5 +1,4 @@
 import Foundation
-import Logging
 
 /// File overview:
 /// Short, human-readable correlation IDs for inline-completion requests.
@@ -43,13 +42,5 @@ enum RequestID {
             output.append(alphabet[index])
         }
         return output
-    }
-}
-
-extension Logger.Metadata {
-    /// Convenience for the common "stamp a `request_id` field on one log line" pattern.
-    /// Returns a fresh metadata dict so callers can pass `Logger.Metadata.requestID(id)` inline.
-    static func requestID(_ id: String) -> Logger.Metadata {
-        ["request_id": .string(id)]
     }
 }

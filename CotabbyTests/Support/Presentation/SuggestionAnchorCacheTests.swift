@@ -86,10 +86,4 @@ final class SuggestionAnchorCacheTests: XCTestCase {
         XCTAssertEqual(cache.remainder(identityKey: 1, precedingText: longPrefix + " and"), " more")
     }
 
-    func testRemoveAllEmptiesTheCache() {
-        var cache = makeCache()
-        cache.record(identityKey: 1, precedingText: "Hello", fullText: " world")
-        cache.removeAll()
-        XCTAssertNil(cache.remainder(identityKey: 1, precedingText: "Hello"))
-    }
 }

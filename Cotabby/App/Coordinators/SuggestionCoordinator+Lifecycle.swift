@@ -38,7 +38,6 @@ extension SuggestionCoordinator {
         clearSuggestion(clearDiagnostics: true)
         hideOverlay(reason: "Overlay hidden because the runtime model is switching.")
         state = .idle
-        latestStageMessage = "Idle: runtime model switching reset active suggestion state."
     }
 
     // MARK: - Settings
@@ -51,21 +50,12 @@ extension SuggestionCoordinator {
         }
 
         CotabbyLogger.suggestion.info("Settings changed, resetting suggestion state")
-        let previousSnapshot = settingsSnapshot
         settingsSnapshot = snapshot
         cancelPredictionWork()
         resetCachedGenerationContext()
         clearSuggestion(clearDiagnostics: true)
         hideOverlay(reason: "Overlay hidden because autocomplete settings changed.")
         state = .idle
-
-        if previousSnapshot.selectedEngine != snapshot.selectedEngine {
-            latestStageMessage = "Updated autocomplete engine to \(snapshot.selectedEngine.displayLabel)."
-        } else if previousSnapshot.selectedWordCountPreset != snapshot.selectedWordCountPreset {
-            latestStageMessage = "Updated suggestion length to \(snapshot.selectedWordCountPreset.displayLabel)."
-        } else {
-            latestStageMessage = "Updated autocomplete settings."
-        }
 
         // Cancel any obsolete context, then restart only when the subsystem is not disabled.
         visualContextCoordinator.cancel(resetState: true)

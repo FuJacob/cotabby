@@ -42,18 +42,6 @@ nonisolated enum DecodeStopPolicy {
         return SentenceBoundaryClassifier.endsSentence(accumulated) ? .sentenceBoundary : nil
     }
 
-    static func shouldStop(
-        accumulated: String,
-        tokensGenerated: Int,
-        minimumTokens: Int = 2
-    ) -> Bool {
-        verdict(
-            accumulated: accumulated,
-            tokensGenerated: tokensGenerated,
-            minimumTokens: minimumTokens
-        ) != nil
-    }
-
     private static func containsScaffoldingStopMarker(_ text: String) -> Bool {
         // Cheap pre-filter: every stop marker starts with "<", so most prose never reaches the
         // per-marker scan.

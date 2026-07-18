@@ -233,7 +233,6 @@ final class SuggestionCoordinatorPredictionTests: XCTestCase {
 
         XCTAssertEqual(rig.inserter.replacements.count, 1)
         XCTAssertEqual(rig.coordinator.state, .idle)
-        XCTAssertEqual(rig.coordinator.latestAcceptanceAction?.hasPrefix("Automatically corrected") ?? false, true)
         XCTAssertTrue(rig.engine.requests.isEmpty)
     }
 
@@ -293,8 +292,7 @@ final class SuggestionCoordinatorPredictionTests: XCTestCase {
             applicationName: typedSnapshot.applicationName,
             bundleIdentifier: typedSnapshot.bundleIdentifier,
             capability: .supported,
-            context: typedSnapshot,
-            inspection: nil
+            context: typedSnapshot
         )
         rig.coordinator.reconcileActiveSession(with: rig.focusProvider.snapshot)
 
@@ -328,8 +326,7 @@ final class SuggestionCoordinatorPredictionTests: XCTestCase {
             applicationName: editedSnapshot.applicationName,
             bundleIdentifier: editedSnapshot.bundleIdentifier,
             capability: .supported,
-            context: editedSnapshot,
-            inspection: nil
+            context: editedSnapshot
         )
         rig.coordinator.reconcileActiveSession(with: editedFocus)
         XCTAssertNil(rig.interactionState.activeSession)
@@ -428,8 +425,7 @@ final class SuggestionCoordinatorPredictionTests: XCTestCase {
             applicationName: publishedSnapshot.applicationName,
             bundleIdentifier: publishedSnapshot.bundleIdentifier,
             capability: .supported,
-            context: publishedSnapshot,
-            inspection: nil
+            context: publishedSnapshot
         )
         rig.coordinator.reconcileActiveSession(with: rig.focusProvider.snapshot)
 

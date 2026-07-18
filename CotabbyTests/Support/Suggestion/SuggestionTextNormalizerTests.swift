@@ -380,3 +380,20 @@ final class SuggestionTextNormalizerTests: XCTestCase {
         XCTAssertEqual(result.suppression, .normalizedToEmpty)
     }
 }
+
+/// Most normalization tests care about the public insertion text rather than suppression
+/// attribution. Keep that convenience in the test target instead of shipping a second production
+/// entry point that no runtime caller uses.
+private extension SuggestionTextNormalizer {
+    static func normalize(
+        _ rawSuggestion: String,
+        for request: SuggestionRequest,
+        promptEchoCandidates: [String] = []
+    ) -> String {
+        normalizeDetailed(
+            rawSuggestion,
+            for: request,
+            promptEchoCandidates: promptEchoCandidates
+        ).text
+    }
+}

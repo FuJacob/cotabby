@@ -170,13 +170,6 @@ struct WritingPaneView: View {
         }
     }
 
-    private var selectedWordCountPresetBinding: Binding<SuggestionWordCountPreset> {
-        Binding(
-            get: { suggestionSettings.selectedWordCountPreset },
-            set: { suggestionSettings.selectWordCountPreset($0) }
-        )
-    }
-
     private var autoAcceptTrailingPunctuationBinding: Binding<Bool> {
         Binding(
             get: { suggestionSettings.autoAcceptTrailingPunctuation },

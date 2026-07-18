@@ -38,20 +38,16 @@ final class SuggestionTextColorCodecTests: XCTestCase {
 }
 
 final class SuggestionModelValueTests: XCTestCase {
-    func test_wordCountPresetsExposeMatchingPromptInstructionsAndTokenBudgets() {
-        // Budgets are now derived from upper word count * fallback (English) tokens-per-word, rounded
-        // up. Per-language scaling lives in SuggestionRequestFactory and is exercised separately.
-        XCTAssertEqual(SuggestionWordCountPreset.twoToFour.promptInstruction, "Return only the next 2 to 4 words.")
-        XCTAssertEqual(SuggestionWordCountPreset.twoToFour.suggestedPredictionTokenBudget, 6)
-
-        XCTAssertEqual(SuggestionWordCountPreset.fourToSeven.promptInstruction, "Return only the next 4 to 7 words.")
-        XCTAssertEqual(SuggestionWordCountPreset.fourToSeven.suggestedPredictionTokenBudget, 10)
-
-        XCTAssertEqual(SuggestionWordCountPreset.sevenToTwelve.promptInstruction, "Return only the next 7 to 12 words.")
-        XCTAssertEqual(SuggestionWordCountPreset.sevenToTwelve.suggestedPredictionTokenBudget, 16)
-
-        XCTAssertEqual(SuggestionWordCountPreset.twelveToTwenty.promptInstruction, "Return only the next 12 to 20 words.")
-        XCTAssertEqual(SuggestionWordCountPreset.twelveToTwenty.suggestedPredictionTokenBudget, 26)
+    func test_wordCountPresetsExposeMatchingRanges() {
+        XCTAssertEqual(
+            SuggestionWordCountPreset.allCases.map(\.range),
+            [
+                SuggestionWordRange(lowWords: 2, highWords: 4),
+                SuggestionWordRange(lowWords: 4, highWords: 7),
+                SuggestionWordRange(lowWords: 7, highWords: 12),
+                SuggestionWordRange(lowWords: 12, highWords: 20)
+            ]
+        )
     }
 
     func test_languageCatalog_effectiveTokensPerWord_fallsBackToEnglishForMultiOrUnknown() {
@@ -95,7 +91,7 @@ final class SuggestionModelValueTests: XCTestCase {
         XCTAssertTrue(session.isExhausted)
     }
 
-    func test_overlayStateDetailIncludesTextCountCaretPositionAndQuality() {
+    func test_overlayStateVisibleExposesRenderMode() {
         let state = OverlayState.visible(
             text: "hello",
             geometry: CotabbyTestFixtures.overlayGeometry(
@@ -105,12 +101,7 @@ final class SuggestionModelValueTests: XCTestCase {
             mode: .inline
         )
 
-        XCTAssertEqual(state.shortLabel, "Visible")
-        XCTAssertEqual(
-            state.detail,
-            "Showing 5 characters near (12, 40) using derived caret geometry (inline)."
-        )
-        XCTAssertEqual(state.visibleText, "hello")
+        XCTAssertTrue(state.isVisible)
         XCTAssertEqual(state.visibleMode, .inline)
     }
 
@@ -152,40 +143,16 @@ final class SuggestionModelValueTests: XCTestCase {
         XCTAssertLessThan(layout.topLineCenterOffsetFromCaret, 0)
     }
 
-    func test_suggestionDebugStateLabelsAndDetailsAreStable() {
-        XCTAssertEqual(SuggestionDebugState.idle.shortLabel, "Idle")
-        XCTAssertEqual(SuggestionDebugState.disabled("No permission").shortLabel, "Disabled")
-        XCTAssertEqual(SuggestionDebugState.failed("Runtime failed").detail, "Runtime failed")
-        XCTAssertEqual(SuggestionDebugState.ready(text: "hello", latency: 0.2).shortLabel, "Ready")
-    }
-
-    func test_suggestionWordRange_labelsRenderLowAndHighBounds() {
+    func test_suggestionWordRange_compactLabelRendersLowAndHighBounds() {
         let range = SuggestionWordRange(lowWords: 5, highWords: 15)
 
-        XCTAssertEqual(range.displayLabel, "5-15 words")
         XCTAssertEqual(range.compactLabel, "5-15 w")
     }
 
-    func test_wordCountPreset_idsAndCompactLabelsStayInSyncWithRawValues() {
+    func test_wordCountPreset_idsStayInSyncWithRawValues() {
         XCTAssertEqual(
             SuggestionWordCountPreset.allCases.map(\.id),
             ["2-4", "4-7", "7-12", "12-20"]
-        )
-        XCTAssertEqual(
-            SuggestionWordCountPreset.allCases.map(\.compactLabel),
-            ["2-4 w", "4-7 w", "7-12 w", "12-20 w"]
-        )
-    }
-
-    func test_focusedInputContext_identityPairsElementWithFocusSequence() {
-        let context = CotabbyTestFixtures.focusedInputContext(
-            elementIdentifier: "field-a",
-            focusChangeSequence: 7
-        )
-
-        XCTAssertEqual(
-            context.identity,
-            FocusedInputIdentity(elementIdentifier: "field-a", focusChangeSequence: 7)
         )
     }
 
@@ -244,13 +211,10 @@ final class SuggestionModelValueTests: XCTestCase {
         XCTAssertEqual(advanced.resolvedFieldStyle, style)
     }
 
-    func test_overlayState_hiddenExposesNoVisibleTextOrMode() {
+    func test_overlayState_hiddenExposesNoVisibleMode() {
         let hidden = OverlayState.hidden(reason: "No suggestion buffered")
 
-        XCTAssertEqual(hidden.shortLabel, "Hidden")
-        XCTAssertEqual(hidden.detail, "No suggestion buffered")
         XCTAssertFalse(hidden.isVisible)
-        XCTAssertNil(hidden.visibleText)
         XCTAssertNil(hidden.visibleMode)
     }
 
@@ -460,7 +424,7 @@ final class GhostTextOpacitySettingsTests: XCTestCase {
 
     func test_defaultOpacityIsFullyOpaqueOnFreshInstall() {
         runOnMainActor {
-            XCTAssertEqual(makeModel().ghostTextOpacity, SuggestionSettingsModel.defaultGhostTextOpacity)
+            XCTAssertEqual(makeModel().ghostTextOpacity, SuggestionSettingsStore.defaultGhostTextOpacity)
         }
     }
 
@@ -539,7 +503,7 @@ final class GhostTextSizeSettingsTests: XCTestCase {
         runOnMainActor {
             XCTAssertEqual(
                 makeModel().ghostTextSizeMultiplier,
-                SuggestionSettingsModel.defaultGhostTextSizeMultiplier
+                SuggestionSettingsStore.defaultGhostTextSizeMultiplier
             )
         }
     }

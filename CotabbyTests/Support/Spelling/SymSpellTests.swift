@@ -55,7 +55,7 @@ final class SymSpellTests: XCTestCase {
 
     func test_emptyDictionaryReturnsNil() {
         let symSpell = SymSpell()
-        XCTAssertTrue(symSpell.isEmpty)
+        XCTAssertEqual(symSpell.wordCount, 0)
         XCTAssertNil(symSpell.bestSuggestion(for: "teh"))
     }
 

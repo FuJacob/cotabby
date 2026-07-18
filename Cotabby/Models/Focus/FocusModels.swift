@@ -104,17 +104,6 @@ enum FocusCapability: Equatable {
     }
 }
 
-/// Operator-facing debug information for how the resolver interpreted the AX tree.
-struct FocusInspectionSnapshot: Equatable {
-    let focusedElementIdentifier: String
-    let focusedRole: String
-    let focusedSubrole: String?
-    let resolvedElementIdentifier: String?
-    let resolvedRole: String?
-    let resolvedSubrole: String?
-    let missingCapabilities: [FocusCapabilityRequirement]
-}
-
 /// Visual style of the focused field's own text, resolved from Accessibility so ghost text can be
 /// rendered to match it instead of always using the system font and a fixed gray.
 ///
@@ -304,19 +293,13 @@ struct FocusSnapshot: Equatable {
     let bundleIdentifier: String?
     let capability: FocusCapability
     let context: FocusedInputSnapshot?
-    let inspection: FocusInspectionSnapshot?
 
     static let inactive = FocusSnapshot(
         applicationName: "No active application",
         bundleIdentifier: nil,
         capability: .unsupported("No focused text input"),
-        context: nil,
-        inspection: nil
+        context: nil
     )
-
-    var capabilitySummary: String {
-        capability.summary
-    }
 
     /// Returns the app identity that user-facing controls should target.
     ///

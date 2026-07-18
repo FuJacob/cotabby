@@ -226,7 +226,7 @@ protocol EmojiPickerPanelPresenting: AnyObject {
     var onSelectIndex: ((Int) -> Void)? { get set }
     var onClickOutside: (() -> Void)? { get set }
 
-    func show(query: String, matches: [EmojiMatch], selectedIndex: Int, caretRect: CGRect, acceptKeyLabel: String?)
+    func show(query: String, matches: [EmojiMatch], selectedIndex: Int, caretRect: CGRect)
     func setSelectedIndex(_ index: Int)
     func hide()
 }

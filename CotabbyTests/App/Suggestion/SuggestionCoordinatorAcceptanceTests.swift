@@ -19,7 +19,7 @@ final class SuggestionCoordinatorAcceptanceTests: XCTestCase {
     }
 
     func test_acceptCurrentSuggestionAllowsVisibleSessionWhileDebugStateIsDebouncing() {
-        let coordinator: SuggestionCoordinator = runOnMainActor {
+        runOnMainActor {
             let snapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello")
             let context = FocusedInputContext(snapshot: snapshot, generation: 7)
             let interactionState = SuggestionInteractionState()
@@ -56,18 +56,6 @@ final class SuggestionCoordinatorAcceptanceTests: XCTestCase {
             } else {
                 XCTFail("Partial acceptance should leave the remaining suggestion ready.")
             }
-            return coordinator
-        }
-
-        // Acceptance bookkeeping (diagnostics publishes, counters, stage logs) lands one runloop
-        // hop after the gating tap callback returns (`deferAcceptanceBookkeeping`); drain that hop
-        // before asserting on it. The session math and overlay state above are still synchronous.
-        let bookkeepingDrained = expectation(description: "acceptance bookkeeping hop")
-        DispatchQueue.main.async { bookkeepingDrained.fulfill() }
-        wait(for: [bookkeepingDrained], timeout: 1.0)
-
-        runOnMainActor {
-            XCTAssertEqual(coordinator.latestAcceptanceAction, "Accepted next chunk with Tab.")
         }
     }
 
@@ -499,8 +487,7 @@ final class SuggestionCoordinatorAcceptanceTests: XCTestCase {
             applicationName: snapshot.applicationName,
             bundleIdentifier: snapshot.bundleIdentifier,
             capability: .supported,
-            context: snapshot,
-            inspection: nil
+            context: snapshot
         )
         let settingsProvider = StubSuggestionSettingsProvider()
         settingsProvider.snapshot = settingsSnapshot

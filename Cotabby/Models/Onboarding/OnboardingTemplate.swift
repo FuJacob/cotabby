@@ -160,7 +160,6 @@ struct OnboardingTemplateAvailability: Equatable, Sendable {
 /// A snapshot of the host's capability relevant to model selection.
 struct HardwareCapability: Equatable, Sendable {
     let physicalMemoryBytes: UInt64
-    let isAppleSilicon: Bool
 
     /// Binary gigabytes (GiB), matching how macOS reports installed memory.
     var physicalMemoryGigabytes: Double {

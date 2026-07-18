@@ -88,8 +88,7 @@ final class TerminalAppDetectorTests: XCTestCase {
             applicationName: "Terminal",
             bundleIdentifier: "com.apple.Terminal",
             capability: .supported,
-            context: nil,
-            inspection: nil
+            context: nil
         )
 
         let reason = SuggestionAvailabilityEvaluator.disabledReason(
@@ -106,8 +105,7 @@ final class TerminalAppDetectorTests: XCTestCase {
             applicationName: "Safari",
             bundleIdentifier: "com.apple.Safari",
             capability: .supported,
-            context: nil,
-            inspection: nil
+            context: nil
         )
 
         let reason = SuggestionAvailabilityEvaluator.disabledReason(
@@ -124,8 +122,7 @@ final class TerminalAppDetectorTests: XCTestCase {
             applicationName: "iTerm2",
             bundleIdentifier: "com.googlecode.iterm2",
             capability: .supported,
-            context: nil,
-            inspection: nil
+            context: nil
         )
 
         XCTAssertFalse(
@@ -142,8 +139,7 @@ final class TerminalAppDetectorTests: XCTestCase {
             applicationName: "Terminal",
             bundleIdentifier: "com.apple.Terminal",
             capability: .supported,
-            context: nil,
-            inspection: nil
+            context: nil
         )
 
         let reason = SuggestionAvailabilityEvaluator.disabledReason(

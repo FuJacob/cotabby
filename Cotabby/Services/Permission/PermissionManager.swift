@@ -177,20 +177,6 @@ final class PermissionManager: ObservableObject {
         NSWorkspace.shared.open(permission.settingsURL)
     }
 
-    /// Opens System Settings directly to the Accessibility pane so the user can grant access.
-    func openAccessibilitySettings() {
-        openSettings(for: .accessibility)
-    }
-
-    /// Opens System Settings directly to the Input Monitoring pane so the user can grant access.
-    func openInputMonitoringSettings() {
-        openSettings(for: .inputMonitoring)
-    }
-
-    /// Opens System Settings directly to the Screen Recording pane for visual context capture.
-    func openScreenRecordingSettings() {
-        openSettings(for: .screenRecording)
-    }
 }
 
 extension PermissionManager: SuggestionPermissionProviding {

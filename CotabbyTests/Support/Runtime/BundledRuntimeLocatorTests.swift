@@ -21,7 +21,7 @@ final class BundledRuntimeLocatorTests: XCTestCase {
         let config = makeConfig(runtimePath: dir.path, preferred: ["beta.gguf"])
         let locator = BundledRuntimeLocator()
 
-        let resolved = try locator.resolve(configuration: config)
+        let resolved = try locator.resolve(configuration: config, selectedModelFilename: nil)
         XCTAssertEqual(resolved.modelFileURL.lastPathComponent, "beta.gguf")
     }
 
@@ -32,7 +32,7 @@ final class BundledRuntimeLocatorTests: XCTestCase {
         let config = makeConfig(runtimePath: dir.path, preferred: ["nonexistent.gguf"])
         let locator = BundledRuntimeLocator()
 
-        let resolved = try locator.resolve(configuration: config)
+        let resolved = try locator.resolve(configuration: config, selectedModelFilename: nil)
         XCTAssertEqual(resolved.modelFileURL.lastPathComponent, "alpha.gguf")
     }
 
@@ -72,7 +72,7 @@ final class BundledRuntimeLocatorTests: XCTestCase {
         )
         let locator = BundledRuntimeLocator()
 
-        XCTAssertThrowsError(try locator.resolve(configuration: config)) { error in
+        XCTAssertThrowsError(try locator.resolve(configuration: config, selectedModelFilename: nil)) { error in
             guard case BundledRuntimeLocatorError.runtimeDirectoryMissing = error else {
                 XCTFail("Expected runtimeDirectoryMissing, got \(error)")
                 return
@@ -85,7 +85,7 @@ final class BundledRuntimeLocatorTests: XCTestCase {
         let config = makeConfig(runtimePath: dir.path, preferred: [])
         let locator = BundledRuntimeLocator()
 
-        XCTAssertThrowsError(try locator.resolve(configuration: config)) { error in
+        XCTAssertThrowsError(try locator.resolve(configuration: config, selectedModelFilename: nil)) { error in
             guard case BundledRuntimeLocatorError.modelMissing = error else {
                 XCTFail("Expected modelMissing, got \(error)")
                 return
@@ -154,7 +154,7 @@ final class BundledRuntimeLocatorTests: XCTestCase {
         let config = makeConfig(runtimePath: dir.path, preferred: [])
         let locator = BundledRuntimeLocator()
 
-        let resolved = try locator.resolve(configuration: config)
+        let resolved = try locator.resolve(configuration: config, selectedModelFilename: nil)
         XCTAssertTrue(
             resolved.runtimeDirectoryURL.path.hasPrefix(dir.path),
             "Should resolve from the explicit runtime directory"
@@ -255,10 +255,10 @@ final class BundledRuntimeLocatorTests: XCTestCase {
         let original = UserDefaults.standard.object(forKey: key)
         defer { UserDefaults.standard.set(original, forKey: key) }
 
-        BundledRuntimeLocator.setLMStudioSourceEnabled(true)
+        UserDefaults.standard.set(true, forKey: key)
         XCTAssertTrue(BundledRuntimeLocator.isLMStudioSourceEnabled())
 
-        BundledRuntimeLocator.setLMStudioSourceEnabled(false)
+        UserDefaults.standard.set(false, forKey: key)
         XCTAssertFalse(BundledRuntimeLocator.isLMStudioSourceEnabled())
         // Disabled means no LM Studio directory is ever returned, even if it exists on disk.
         XCTAssertNil(BundledRuntimeLocator.enabledLMStudioModelsDirectory())

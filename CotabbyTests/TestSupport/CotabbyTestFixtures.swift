@@ -295,3 +295,19 @@ enum CotabbyTestFixtures {
         )
     }
 }
+
+/// Acceptance-focused tests inspect the consumed prefix frequently. Keeping this projection in
+/// the test module avoids expanding the production session API for assertion convenience alone.
+extension ActiveSuggestionSession {
+    var acceptedText: String {
+        String(fullText.prefix(max(consumedCharacterCount, 0)))
+    }
+}
+
+/// Runtime fakes use the common successful-output shape across several test files. Defining the
+/// shorthand in the test module keeps production callers on the explicit initializer.
+extension LlamaGenerationOutput {
+    static func text(_ text: String) -> LlamaGenerationOutput {
+        LlamaGenerationOutput(text: text, averageLogprob: nil, suppressedByLowConfidence: false)
+    }
+}

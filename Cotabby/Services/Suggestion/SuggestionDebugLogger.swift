@@ -114,21 +114,6 @@ final class SuggestionDebugLogger {
         }
     }
 
-    /// Produces an escaped single-line preview suitable for compact logs and menu summaries.
-    static func debugPreview(_ text: String) -> String {
-        if text.isEmpty {
-            return "<empty>"
-        }
-
-        let escaped = text.debugDescription
-        if escaped.count <= 160 {
-            return escaped
-        }
-
-        let index = escaped.index(escaped.startIndex, offsetBy: 160)
-        return "\(escaped[..<index])..."
-    }
-
     private func logLine(_ line: String, color: String? = nil) {
         guard line != lastLoggedMessage else {
             return

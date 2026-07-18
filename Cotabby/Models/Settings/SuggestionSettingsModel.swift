@@ -164,15 +164,12 @@ final class SuggestionSettingsModel: ObservableObject {
     static let defaultFullAcceptanceKeyLabel = SuggestionSettingsStore.defaultFullAcceptanceKeyLabel
     static let minimumGhostTextOpacity = SuggestionSettingsStore.minimumGhostTextOpacity
     static let maximumGhostTextOpacity = SuggestionSettingsStore.maximumGhostTextOpacity
-    static let defaultGhostTextOpacity = SuggestionSettingsStore.defaultGhostTextOpacity
     static let ghostTextOpacityStep = SuggestionSettingsStore.ghostTextOpacityStep
     static let minimumGhostTextSizeMultiplier = SuggestionSettingsStore.minimumGhostTextSizeMultiplier
     static let maximumGhostTextSizeMultiplier = SuggestionSettingsStore.maximumGhostTextSizeMultiplier
-    static let defaultGhostTextSizeMultiplier = SuggestionSettingsStore.defaultGhostTextSizeMultiplier
     static let ghostTextSizeMultiplierStep = SuggestionSettingsStore.ghostTextSizeMultiplierStep
     static let minimumFadeInDuration = SuggestionSettingsStore.minimumFadeInDuration
     static let maximumFadeInDuration = SuggestionSettingsStore.maximumFadeInDuration
-    static let defaultFadeInDuration = SuggestionSettingsStore.defaultFadeInDuration
     static let fadeInDurationStep = SuggestionSettingsStore.fadeInDurationStep
     static let maximumExtendedContextCharacters = SuggestionSettingsStore.maximumExtendedContextCharacters
 
@@ -341,11 +338,6 @@ final class SuggestionSettingsModel: ObservableObject {
             CotabbyLogger.app.error("Failed to clear endpoint API key during settings reset: \(error.localizedDescription)")
         }
         schedulePauseExpirationIfNeeded()
-    }
-
-    /// Legacy compatibility shim. Reads through to `showIndicator`.
-    var showCaretIndicator: Bool {
-        showIndicator
     }
 
     /// Cohesive read model for non-UI consumers and persistence-oriented tests.

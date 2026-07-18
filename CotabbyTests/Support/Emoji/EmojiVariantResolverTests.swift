@@ -10,9 +10,7 @@ final class EmojiVariantResolverTests: XCTestCase {
                 glyph: glyph,
                 name: name,
                 aliases: aliases,
-                keywords: [],
-                group: "People & Body",
-                unicodeVersion: "1.0"
+                keywords: []
             )
         )
     }
@@ -40,7 +38,10 @@ final class EmojiVariantResolverTests: XCTestCase {
 
     func test_skinTone_neutralLeavesGlyphsUnchanged() {
         let wave = match(glyph: "\u{1F44B}", name: "waving hand", aliases: ["wave"])
-        let resolved = EmojiVariantResolver.resolve([wave], preferences: .default)
+        let resolved = EmojiVariantResolver.resolve(
+            [wave],
+            preferences: EmojiVariantPreferences(skinTone: .neutral, gender: .neutral)
+        )
         XCTAssertEqual(resolved.map(\.glyph), ["\u{1F44B}"])
     }
 
@@ -71,7 +72,10 @@ final class EmojiVariantResolverTests: XCTestCase {
             ["\u{1F468}\u{200D}\u{1F692}"]
         )
         XCTAssertEqual(
-            EmojiVariantResolver.resolve(family, preferences: .default).map(\.glyph),
+            EmojiVariantResolver.resolve(
+                family,
+                preferences: EmojiVariantPreferences(skinTone: .neutral, gender: .neutral)
+            ).map(\.glyph),
             ["\u{1F9D1}\u{200D}\u{1F692}"]
         )
     }

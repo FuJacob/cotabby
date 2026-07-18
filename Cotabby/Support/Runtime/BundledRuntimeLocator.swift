@@ -64,11 +64,6 @@ struct BundledRuntimeLocator {
         UserDefaults.standard.bool(forKey: lmStudioSourceEnabledKey)
     }
 
-    /// Persists the LM Studio additive-source toggle.
-    static func setLMStudioSourceEnabled(_ enabled: Bool) {
-        UserDefaults.standard.set(enabled, forKey: lmStudioSourceEnabledKey)
-    }
-
     /// The LM Studio models directory only when the user enabled the source *and* it exists on disk.
     /// A stale toggle (enabled, but LM Studio later uninstalled) resolves to nil so callers never
     /// scan a missing directory.
@@ -133,11 +128,6 @@ struct BundledRuntimeLocator {
             results.append(url)
         }
         return results
-    }
-
-    /// Finds the first preferred local model that exists and returns the fully resolved runtime asset paths.
-    func resolve(configuration: LlamaRuntimeConfiguration) throws -> ResolvedLlamaRuntime {
-        try resolve(configuration: configuration, selectedModelFilename: nil)
     }
 
     /// Resolves a specific model when selected explicitly, or the default preferred model order otherwise.

@@ -30,8 +30,8 @@ final class EmojiCatalogTests: XCTestCase {
 
         let catalog = EmojiCatalog.bundled(in: bundle)
 
-        XCTAssertEqual(catalog.count, 2)
-        XCTAssertFalse(catalog.isEmpty)
+        XCTAssertEqual(catalog.indexed.count, 2)
+        XCTAssertFalse(catalog.indexed.isEmpty)
         // The loaded catalog must resolve stored aliases case-insensitively, as recents/popularity
         // lookups rely on.
         XCTAssertEqual(catalog.entry(forAlias: "Grinning")?.glyph, "😀")
@@ -43,8 +43,7 @@ final class EmojiCatalogTests: XCTestCase {
 
         let catalog = EmojiCatalog.bundled(in: bundle)
 
-        XCTAssertTrue(catalog.isEmpty, "A missing resource must disable the picker, not crash")
-        XCTAssertEqual(catalog.count, 0)
+        XCTAssertTrue(catalog.indexed.isEmpty, "A missing resource must disable the picker, not crash")
     }
 
     func test_bundled_returnsEmptyCatalogWhenJSONIsMalformed() throws {
@@ -52,23 +51,21 @@ final class EmojiCatalogTests: XCTestCase {
 
         let catalog = EmojiCatalog.bundled(in: bundle)
 
-        XCTAssertTrue(catalog.isEmpty, "An undecodable resource must disable the picker, not crash")
+        XCTAssertTrue(catalog.indexed.isEmpty, "An undecodable resource must disable the picker, not crash")
     }
 
-    func test_count_reportsNumberOfIndexedEntries() {
+    func test_indexedEntriesReflectTheInputCatalog() {
         let entries = [
             EmojiEntry(
                 glyph: "🐱",
                 name: "cat face",
                 aliases: ["cat"],
-                keywords: ["pet"],
-                group: "Animals & Nature",
-                unicodeVersion: "6.0"
+                keywords: ["pet"]
             )
         ]
 
-        XCTAssertEqual(EmojiCatalog(entries: entries).count, 1)
-        XCTAssertEqual(EmojiCatalog(entries: []).count, 0)
+        XCTAssertEqual(EmojiCatalog(entries: entries).indexed.count, 1)
+        XCTAssertEqual(EmojiCatalog(entries: []).indexed.count, 0)
     }
 
     /// Builds a flat directory bundle. Foundation treats a plain directory as an unbundled layout

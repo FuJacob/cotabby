@@ -100,10 +100,6 @@ nonisolated struct SuggestionAnchorCache {
         return best?.remainder
     }
 
-    mutating func removeAll() {
-        entries.removeAll()
-    }
-
     /// `k` such that liveTail == anchorTail + fullText.prefix(k) (tail-bounded comparison), with
     /// `0 <= k < fullText.count`; nil when the live text is not on the anchor's path.
     ///

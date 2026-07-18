@@ -55,11 +55,10 @@ final class EmojiPickerPanelController: EmojiPickerPanelPresenting {
 
     /// Shows or repositions the panel for the current query and matches. Recomputes the panel frame
     /// because the match count (and therefore the height) can change between calls.
-    func show(query: String, matches: [EmojiMatch], selectedIndex: Int, caretRect: CGRect, acceptKeyLabel: String?) {
+    func show(query: String, matches: [EmojiMatch], selectedIndex: Int, caretRect: CGRect) {
         model.query = query
         model.matches = matches
         model.selectedIndex = selectedIndex
-        model.acceptKeyLabel = acceptKeyLabel
 
         let contentSize = EmojiPickerMetrics.contentSize(matchCount: matches.count)
         let visibleFrame = targetVisibleFrame(for: caretRect)

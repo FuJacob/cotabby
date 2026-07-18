@@ -32,10 +32,6 @@ struct ActiveSuggestionSession: Equatable, Sendable {
         self.kind = kind
     }
 
-    var acceptedText: String {
-        fullText.leadingCharacters(consumedCharacterCount)
-    }
-
     var remainingText: String {
         fullText.droppingLeadingCharacters(consumedCharacterCount)
     }
