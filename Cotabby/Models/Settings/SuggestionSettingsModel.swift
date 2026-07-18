@@ -348,38 +348,132 @@ final class SuggestionSettingsModel: ObservableObject {
         showIndicator
     }
 
-    var snapshot: SuggestionSettingsSnapshot {
-        SuggestionSettingsSnapshot(
-            isGloballyEnabled: isGloballyEnabled,
-            isTemporarilyPaused: isTemporarilyPaused,
-            disabledAppBundleIdentifiers: Set(disabledAppRules.map(\.bundleIdentifier)),
-            suggestInIntegratedTerminals: suggestInIntegratedTerminals,
-            selectedEngine: selectedEngine,
-            selectedWordCountPreset: selectedWordCountPreset,
-            isUsingCustomWordCountRange: isUsingCustomWordCountRange,
-            customWordCountRange: SuggestionWordRange.clamped(
-                low: customWordCountLowWords,
-                high: customWordCountHighWords
+    /// Cohesive read model for non-UI consumers and persistence-oriented tests.
+    ///
+    /// SwiftUI-facing properties remain individually `@Published` for source compatibility. This
+    /// projection gives new code subsystem-owned settings without duplicating durable state or
+    /// changing when `objectWillChange` fires.
+    var domainSettings: SuggestionSettingsData {
+        SuggestionSettingsData(
+            general: SuggestionGeneralSettings(
+                isGloballyEnabled: isGloballyEnabled,
+                pauseState: pauseState,
+                disabledAppRules: disabledAppRules,
+                suggestInIntegratedTerminals: suggestInIntegratedTerminals,
+                isPerformanceTrackingEnabled: isPerformanceTrackingEnabled
             ),
-            isClipboardContextEnabled: isClipboardContextEnabled,
-            isSurfaceContextEnabled: isSurfaceContextEnabled,
-            userName: userName,
-            customRules: customRules,
-            extendedContext: extendedContext,
-            responseLanguages: responseLanguages,
-            debounceMilliseconds: debounceMilliseconds,
-            focusPollIntervalMilliseconds: focusPollIntervalMilliseconds,
-            isMultiLineEnabled: isMultiLineEnabled,
-            autoAcceptTrailingPunctuation: autoAcceptTrailingPunctuation,
-            addSpaceAfterAccept: addSpaceAfterAccept,
-            streamSuggestionsWhileGenerating: streamSuggestionsWhileGenerating,
-            isFastModeEnabled: isFastModeEnabled,
-            mirrorPreference: mirrorPreference,
-            acceptanceGranularity: acceptanceGranularity,
-            suppressCompletionsOnTypo: suppressCompletionsOnTypo,
-            offerTypoCorrections: offerTypoCorrections,
-            enabledSpellingDictionaryCodes: enabledSpellingDictionaryCodes,
-            automaticallyFixTypos: automaticallyFixTypos
+            engine: SuggestionEngineSettings(
+                selectedEngine: selectedEngine,
+                openAICompatibleBaseURL: openAICompatibleBaseURL,
+                openAICompatibleModelName: openAICompatibleModelName,
+                openAICompatibleAPIMode: openAICompatibleAPIMode,
+                isPowerBasedModelSwitchingEnabled: isPowerBasedModelSwitchingEnabled,
+                batteryEngine: batteryEngine,
+                batteryModelFilename: batteryModelFilename,
+                batteryEndpointModelName: batteryEndpointModelName,
+                pluggedInEngine: pluggedInEngine,
+                pluggedInModelFilename: pluggedInModelFilename,
+                pluggedInEndpointModelName: pluggedInEndpointModelName
+            ),
+            completion: SuggestionCompletionSettings(
+                selectedWordCountPreset: selectedWordCountPreset,
+                isUsingCustomWordCountRange: isUsingCustomWordCountRange,
+                customWordCountLowWords: customWordCountLowWords,
+                customWordCountHighWords: customWordCountHighWords,
+                debounceMilliseconds: debounceMilliseconds,
+                focusPollIntervalMilliseconds: focusPollIntervalMilliseconds,
+                isMultiLineEnabled: isMultiLineEnabled,
+                autoAcceptTrailingPunctuation: autoAcceptTrailingPunctuation,
+                addSpaceAfterAccept: addSpaceAfterAccept,
+                streamSuggestionsWhileGenerating: streamSuggestionsWhileGenerating,
+                acceptanceGranularity: acceptanceGranularity
+            ),
+            context: SuggestionContextSettings(
+                isClipboardContextEnabled: isClipboardContextEnabled,
+                isSurfaceContextEnabled: isSurfaceContextEnabled,
+                isFastModeEnabled: isFastModeEnabled,
+                userName: userName,
+                customRules: customRules,
+                responseLanguages: responseLanguages,
+                extendedContext: extendedContext
+            ),
+            correction: SuggestionCorrectionSettings(
+                suppressCompletionsOnTypo: suppressCompletionsOnTypo,
+                offerTypoCorrections: offerTypoCorrections,
+                enabledSpellingDictionaryCodes: enabledSpellingDictionaryCodes,
+                automaticallyFixTypos: automaticallyFixTypos
+            ),
+            presentation: SuggestionPresentationSettings(
+                showIndicator: showIndicator,
+                showAcceptanceHint: showAcceptanceHint,
+                customSuggestionTextColorHex: customSuggestionTextColorHex,
+                ghostTextOpacity: ghostTextOpacity,
+                ghostTextSizeMultiplier: ghostTextSizeMultiplier,
+                isMenuBarIconVisible: isMenuBarIconVisible,
+                isMenuBarWordCountVisible: isMenuBarWordCountVisible,
+                mirrorPreference: mirrorPreference,
+                fadeInSuggestions: fadeInSuggestions,
+                fadeInDurationSeconds: fadeInDurationSeconds
+            ),
+            inlineFeatures: SuggestionInlineFeatureSettings(
+                isEmojiPickerEnabled: isEmojiPickerEnabled,
+                isMacroExpansionEnabled: isMacroExpansionEnabled,
+                preferredEmojiSkinTone: preferredEmojiSkinTone,
+                preferredEmojiGender: preferredEmojiGender
+            ),
+            shortcuts: SuggestionShortcutSettings(
+                acceptance: SuggestionShortcutBindingSettings(
+                    keyCode: acceptanceKeyCode,
+                    modifiers: acceptanceKeyModifiers,
+                    label: acceptanceKeyLabel
+                ),
+                fullAcceptance: SuggestionShortcutBindingSettings(
+                    keyCode: fullAcceptanceKeyCode,
+                    modifiers: fullAcceptanceKeyModifiers,
+                    label: fullAcceptanceKeyLabel
+                ),
+                globalToggle: SuggestionShortcutBindingSettings(
+                    keyCode: globalToggleKeyCode,
+                    modifiers: globalToggleKeyModifiers,
+                    label: globalToggleKeyLabel
+                )
+            )
+        )
+    }
+
+    var snapshot: SuggestionSettingsSnapshot {
+        let settings = domainSettings
+        return SuggestionSettingsSnapshot(
+            isGloballyEnabled: settings.general.isGloballyEnabled,
+            isTemporarilyPaused: settings.general.pauseState?.isActive() == true,
+            disabledAppBundleIdentifiers: Set(settings.general.disabledAppRules.map(\.bundleIdentifier)),
+            suggestInIntegratedTerminals: settings.general.suggestInIntegratedTerminals,
+            selectedEngine: settings.engine.selectedEngine,
+            selectedWordCountPreset: settings.completion.selectedWordCountPreset,
+            isUsingCustomWordCountRange: settings.completion.isUsingCustomWordCountRange,
+            customWordCountRange: SuggestionWordRange.clamped(
+                low: settings.completion.customWordCountLowWords,
+                high: settings.completion.customWordCountHighWords
+            ),
+            isClipboardContextEnabled: settings.context.isClipboardContextEnabled,
+            isSurfaceContextEnabled: settings.context.isSurfaceContextEnabled,
+            userName: settings.context.userName,
+            customRules: settings.context.customRules,
+            extendedContext: settings.context.extendedContext,
+            responseLanguages: settings.context.responseLanguages,
+            debounceMilliseconds: settings.completion.debounceMilliseconds,
+            focusPollIntervalMilliseconds: settings.completion.focusPollIntervalMilliseconds,
+            isMultiLineEnabled: settings.completion.isMultiLineEnabled,
+            autoAcceptTrailingPunctuation: settings.completion.autoAcceptTrailingPunctuation,
+            addSpaceAfterAccept: settings.completion.addSpaceAfterAccept,
+            streamSuggestionsWhileGenerating: settings.completion.streamSuggestionsWhileGenerating,
+            isFastModeEnabled: settings.context.isFastModeEnabled,
+            mirrorPreference: settings.presentation.mirrorPreference,
+            acceptanceGranularity: settings.completion.acceptanceGranularity,
+            suppressCompletionsOnTypo: settings.correction.suppressCompletionsOnTypo,
+            offerTypoCorrections: settings.correction.offerTypoCorrections,
+            enabledSpellingDictionaryCodes: settings.correction.enabledSpellingDictionaryCodes,
+            automaticallyFixTypos: settings.correction.automaticallyFixTypos
         )
     }
 
