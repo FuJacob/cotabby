@@ -112,9 +112,12 @@ power-profile application, engine/model selection, and endpoint connection inval
 owns permission reactions, engine runtime start/stop, overlays, model-directory refresh, and
 process-lifecycle behavior. Both retain subscriptions because both own different relationships.
 
-[SuggestionSettingsModel.swift](Cotabby/Models/Settings/SuggestionSettingsModel.swift) is the published source
-of app behavior. [SuggestionSettingsStore.swift](Cotabby/Support/Settings/SuggestionSettingsStore.swift)
-persists non-secret preferences in UserDefaults. Endpoint credentials live in Keychain.
+[SuggestionSettingsModel.swift](Cotabby/Models/Settings/SuggestionSettingsModel.swift) is the
+individually published UI-facing source of app behavior. Its
+[SuggestionSettingsData.swift](Cotabby/Models/Settings/SuggestionSettingsData.swift) projection groups
+the same values by product domain without replacing the existing API. The immutable snapshot used by
+the pipeline is derived from those domains. [SuggestionSettingsStore.swift](Cotabby/Support/Settings/SuggestionSettingsStore.swift)
+keeps the established flat UserDefaults keys stable; endpoint credentials live in Keychain.
 
 ## Suggestion State Machine
 
@@ -126,17 +129,21 @@ Read the coordinator in this order:
 4. [SuggestionCoordinator+Prediction.swift](Cotabby/App/Coordinators/SuggestionCoordinator+Prediction.swift)
 5. [SuggestionCoordinator+Acceptance.swift](Cotabby/App/Coordinators/SuggestionCoordinator+Acceptance.swift)
 
-The coordinator owns orchestration and user-facing suggestion state. It delegates rules and mutable
-sub-state to smaller boundaries:
+The coordinator owns orchestration plus active suggestion and presentation state. It delegates rules
+and cohesive mutable sub-state to smaller boundaries:
 
 - [SuggestionAvailabilityEvaluator.swift](Cotabby/Support/Suggestion/SuggestionAvailabilityEvaluator.swift):
   pure permission, settings, focus, and runtime gates.
 - [SuggestionRequestFactory.swift](Cotabby/Support/Suggestion/SuggestionRequestFactory.swift): pure bounded
-  request construction and prompt preview.
+  request construction and the selected backend's developer-debug prompt payload.
 - [SuggestionWorkController.swift](Cotabby/Services/Suggestion/SuggestionWorkController.swift):
   debounce/generation tasks and monotonically increasing work IDs.
 - [SuggestionInteractionState.swift](Cotabby/Services/Suggestion/SuggestionInteractionState.swift):
   active session, materialized context, consumed prefix, and known post-insertion AX lag.
+- [SuggestionStreamingState.swift](Cotabby/Support/Suggestion/SuggestionStreamingState.swift): latest-wins
+  partial coalescing, one scheduled drain, and monotonic rendered-text state.
+- [PostExhaustionAcceptanceState.swift](Cotabby/Support/Suggestion/PostExhaustionAcceptanceState.swift):
+  pure state for the bounded Tab-ownership window while an exhausted tail regenerates.
 - [SuggestionSessionReconciler.swift](Cotabby/Support/Suggestion/SuggestionSessionReconciler.swift): type-through,
   acceptance, and live-host reconciliation.
 - [SuggestionTextNormalizer.swift](Cotabby/Support/Suggestion/SuggestionTextNormalizer.swift): backend-independent
@@ -146,13 +153,17 @@ A native correction path runs before model generation. NSSpellChecker and bundle
 can suppress completion while a likely typo is forming, offer a green atomic replacement, or apply
 an opt-in automatic fix after Space.
 
-Engines can stream cumulative partials. The coordinator coalesces UI work, accepts only monotonic
-extensions, and allows a displayed partial to become an active accept-ready session. The final result
+Engines can stream cumulative partials. SuggestionStreamingState coalesces token-rate callbacks into
+latest-wins UI work, accepts only monotonic extensions, and lets a displayed partial become an active
+accept-ready session. The coordinator still owns scheduling and presentation. The final result
 remains authoritative and can replace or suppress provisional text.
 
 Normal sessions support exact type-through, word or phrase acceptance, full-tail acceptance, CJK-aware
 segmentation, punctuation handling, optional trailing space, and speculative generation after final
-acceptance. Corrections commit atomically rather than exposing partial acceptance.
+acceptance. When rapid Tab presses cross the exhausted-tail regeneration gap,
+PostExhaustionAcceptanceState can queue at most one unseen accept and has a generation-keyed backstop
+that returns Tab ownership to the host. Corrections commit atomically rather than exposing partial
+acceptance.
 
 ## Focus and Accessibility
 
@@ -381,6 +392,7 @@ policies, prompt utilities, normalization, and layout logic should receive focus
 | Backend selection or memory issue | SuggestionEngineRouter, AppDelegate, LlamaRuntimeManager |
 | Native decode/cache/shutdown issue | LlamaRuntimeCore, CotabbyInference boundary |
 | Partial/final output mismatch | streaming policy, SuggestionTextNormalizer, seam guards |
+| Rapid Tab leaks to the host after exhausting a tail | PostExhaustionAcceptanceState, acceptance coordinator |
 | Acceptance key passes through or is stolen | InputMonitor, acceptance validation |
 | Wrong or repeated inserted text | SuggestionInserter, InputSuppressionController, reconciler |
 | Clipboard context is irrelevant | ClipboardRelevanceFilter, ClipboardContentDistiller |
@@ -388,6 +400,7 @@ policies, prompt utilities, normalization, and layout logic should receive focus
 | Emoji or macro conflicts with suggestions | InlineCommandCoordinator, feature trigger machine |
 | Permission loop or lost grant | PermissionManager, PermissionGuidanceController, app identity |
 | Settings/onboarding window issue | SettingsCoordinator, WelcomeCoordinator |
+| Settings persistence or domain mismatch | SuggestionSettingsModel, SuggestionSettingsData, SuggestionSettingsStore |
 
 When a change crosses several rows, keep ownership at these boundaries rather than teaching one
 coordinator to perform every step itself.
