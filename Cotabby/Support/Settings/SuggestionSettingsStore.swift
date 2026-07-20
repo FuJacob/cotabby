@@ -54,12 +54,18 @@ struct SuggestionSettingsStore {
     /// Duration in seconds of the suggestion fade-in ramp, surfaced as a Slow-to-Fast speed slider.
     /// The band is narrow on purpose: below the floor the ramp is imperceptible (reads as an instant
     /// snap), and above the ceiling the ghost text feels like it lags the caret rather than settling
-    /// in at it. 0.05s is the fastest slider tick, so new installs get the most responsive fade
-    /// while users can still choose a slower transition. Lower is a faster fade.
+    /// in at it. 0.10s maps to the second-fastest slider tick: quick enough to feel responsive while
+    /// leaving one faster step for users who want a nearly instant appearance. Lower is a faster fade.
     static let minimumFadeInDuration: Double = 0.05
     static let maximumFadeInDuration: Double = 0.30
-    static let defaultFadeInDuration: Double = 0.05
+    static let defaultFadeInDuration: Double = 0.10
     static let fadeInDurationStep: Double = 0.05
+
+    /// `v0.6.1-beta` shipped the speed control with 0.05s as its default. Keep that value explicit:
+    /// the one-time migration below must distinguish the old default from a genuinely customized
+    /// duration without conflating the new default with the slider's minimum.
+    private static let previousDefaultFadeInDuration: Double = 0.05
+    private static let currentFadeInDurationDefaultRevision = 1
 
     /// Hard upper bound on the persisted Extended Context blob, in characters. Sized to match what the
     /// engines actually consume rather than what they can store: the OSS base path renders this as a
@@ -130,6 +136,7 @@ struct SuggestionSettingsStore {
     private static let streamWhileGeneratingDefaultsKey = "cotabbyStreamSuggestionsWhileGenerating"
     private static let fadeInSuggestionsDefaultsKey = "cotabbyFadeInSuggestions"
     private static let fadeInDurationSecondsDefaultsKey = "cotabbyFadeInDurationSeconds"
+    private static let fadeInDurationDefaultRevisionDefaultsKey = "cotabbyFadeInDurationDefaultRevision"
     private static let acceptanceKeyCodeDefaultsKey = "cotabbyAcceptanceKeyCode"
     private static let acceptanceKeyModifiersDefaultsKey = "cotabbyAcceptanceKeyModifiers"
     private static let acceptanceKeyLabelDefaultsKey = "cotabbyAcceptanceKeyLabel"
@@ -200,6 +207,9 @@ struct SuggestionSettingsStore {
         autoAcceptTrailingPunctuationDefaultsKey,
         addSpaceAfterAcceptDefaultsKey,
         streamWhileGeneratingDefaultsKey,
+        fadeInSuggestionsDefaultsKey,
+        fadeInDurationSecondsDefaultsKey,
+        fadeInDurationDefaultRevisionDefaultsKey,
         acceptanceKeyCodeDefaultsKey,
         acceptanceKeyModifiersDefaultsKey,
         acceptanceKeyLabelDefaultsKey,
@@ -416,14 +426,23 @@ struct SuggestionSettingsStore {
         let resolvedFadeInSuggestions =
             userDefaults.object(forKey: Self.fadeInSuggestionsDefaultsKey) as? Bool
                 ?? Self.defaultFadeInSuggestions
-        // Absent key means the user has never touched the speed slider, so use the product default.
-        // A present value is clamped to the band in case a hand-edited default lands outside it.
-        let resolvedFadeInDurationSeconds: Double =
+        let persistedFadeInDurationSeconds: Double? =
             if userDefaults.object(forKey: Self.fadeInDurationSecondsDefaultsKey) == nil {
-                Self.defaultFadeInDuration
+                nil
             } else {
                 Self.clampedFadeInDuration(userDefaults.double(forKey: Self.fadeInDurationSecondsDefaultsKey))
             }
+        let fadeInDurationDefaultRevision =
+            userDefaults.object(forKey: Self.fadeInDurationDefaultRevisionDefaultsKey) as? Int ?? 0
+        // `load` writes defaults back, so key presence alone cannot tell us whether someone changed
+        // the slider in v0.6.1-beta. That was the only public build with this setting, and it seeded
+        // 0.05s. On the first launch after this revision, move only that old-default value (or a truly
+        // absent value) to 0.10s. A non-default duration is a real selection and survives unchanged.
+        // The revision marker makes this one-shot, so choosing the fastest 0.05s tick afterward sticks.
+        let resolvedFadeInDurationSeconds = Self.resolvedFadeInDuration(
+            persisted: persistedFadeInDurationSeconds,
+            appliedDefaultRevision: fadeInDurationDefaultRevision
+        )
 
         let resolvedAcceptanceKeyCode = CGKeyCode(
             userDefaults.object(forKey: Self.acceptanceKeyCodeDefaultsKey) as? Int
@@ -885,6 +904,14 @@ struct SuggestionSettingsStore {
 
     func saveFadeInDurationSeconds(_ seconds: Double) {
         userDefaults.set(seconds, forKey: Self.fadeInDurationSecondsDefaultsKey)
+        let persistedRevision =
+            userDefaults.object(forKey: Self.fadeInDurationDefaultRevisionDefaultsKey) as? Int ?? 0
+        if persistedRevision < Self.currentFadeInDurationDefaultRevision {
+            userDefaults.set(
+                Self.currentFadeInDurationDefaultRevision,
+                forKey: Self.fadeInDurationDefaultRevisionDefaultsKey
+            )
+        }
     }
 
     func saveAcceptanceKey(keyCode: CGKeyCode, modifiers: ShortcutModifierMask, label: String) {
@@ -997,6 +1024,18 @@ struct SuggestionSettingsStore {
         }
 
         return min(maximumFadeInDuration, max(minimumFadeInDuration, value))
+    }
+
+    /// Applies a product-default change once while keeping a person's non-default selection stable.
+    /// After the revision is recorded, even the old 0.05s value is treated as an intentional choice.
+    private static func resolvedFadeInDuration(persisted: Double?, appliedDefaultRevision: Int) -> Double {
+        guard appliedDefaultRevision < currentFadeInDurationDefaultRevision else {
+            return persisted ?? defaultFadeInDuration
+        }
+        guard let persisted else {
+            return defaultFadeInDuration
+        }
+        return persisted == previousDefaultFadeInDuration ? defaultFadeInDuration : persisted
     }
 
     static func normalizedHexString(_ hex: String?) -> String? {
