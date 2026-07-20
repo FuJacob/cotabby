@@ -213,19 +213,19 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         XCTAssertTrue(data.fadeInSuggestions)
     }
 
-    func test_load_fadeInDurationDefaultsToFastestTick() async {
+    func test_load_fadeInDurationDefaultsToSecondFastestTick() async {
         let defaults = makeIsolatedDefaults()
 
         let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
 
-        // The UI reflects duration across the slider range, so the shortest 0.05s duration maps
-        // to speed-axis 0.30: the rightmost, fastest tick in Appearance settings.
-        XCTAssertEqual(SuggestionSettingsStore.defaultFadeInDuration, 0.05, accuracy: 0.0001)
+        // The UI reflects duration across the slider range, so 0.10s maps to speed-axis 0.25:
+        // the second-fastest tick in the 0.05...0.30 band shown in Appearance settings.
+        XCTAssertEqual(SuggestionSettingsStore.defaultFadeInDuration, 0.10, accuracy: 0.0001)
         XCTAssertEqual(
             SuggestionSettingsStore.minimumFadeInDuration
                 + SuggestionSettingsStore.maximumFadeInDuration
                 - SuggestionSettingsStore.defaultFadeInDuration,
-            0.30,
+            0.25,
             accuracy: 0.0001
         )
         XCTAssertEqual(
@@ -233,6 +233,44 @@ final class SuggestionSettingsStoreTests: XCTestCase {
             SuggestionSettingsStore.defaultFadeInDuration,
             accuracy: 0.0001
         )
+    }
+
+    func test_load_migratesShippedFastestDefaultWithoutReenablingFade() async {
+        let defaults = makeIsolatedDefaults()
+        // v0.6.1-beta wrote its 0.05s default during every load, even when the slider was untouched.
+        defaults.set(0.05, forKey: "cotabbyFadeInDurationSeconds")
+        defaults.set(false, forKey: "cotabbyFadeInSuggestions")
+
+        let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
+
+        XCTAssertEqual(data.fadeInDurationSeconds, 0.10, accuracy: 0.0001)
+        XCTAssertFalse(data.fadeInSuggestions, "speed migration must not re-enable a disabled fade")
+        XCTAssertEqual(defaults.integer(forKey: "cotabbyFadeInDurationDefaultRevision"), 1)
+    }
+
+    func test_load_preservesCustomizedFadeInDurationDuringDefaultMigration() async {
+        let defaults = makeIsolatedDefaults()
+        defaults.set(0.25, forKey: "cotabbyFadeInDurationSeconds")
+
+        let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
+
+        XCTAssertEqual(data.fadeInDurationSeconds, 0.25, accuracy: 0.0001)
+        XCTAssertEqual(defaults.integer(forKey: "cotabbyFadeInDurationDefaultRevision"), 1)
+    }
+
+    func test_load_preservesFastestTickChosenAfterDefaultMigration() async {
+        let defaults = makeIsolatedDefaults()
+        let store = SuggestionSettingsStore(userDefaults: defaults)
+        // First launch upgrades the shipped default and records the one-time revision.
+        defaults.set(0.05, forKey: "cotabbyFadeInDurationSeconds")
+        XCTAssertEqual(store.load(configuration: .standard).fadeInDurationSeconds, 0.10, accuracy: 0.0001)
+
+        // The same numeric value now comes from an explicit slider selection and must remain fastest.
+        store.saveFadeInDurationSeconds(0.05)
+
+        let data = store.load(configuration: .standard)
+
+        XCTAssertEqual(data.fadeInDurationSeconds, 0.05, accuracy: 0.0001)
     }
 
     func test_load_clampsOutOfRangeFadeInDuration() async {
@@ -595,6 +633,8 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         store.saveAutoAcceptTrailingPunctuation(false)
         store.saveAddSpaceAfterAccept(true)
         store.saveStreamSuggestionsWhileGenerating(true)
+        store.saveFadeInSuggestions(false)
+        store.saveFadeInDurationSeconds(0.25)
         store.saveAcceptanceKey(keyCode: 36, modifiers: [], label: "Return")
         store.saveFullAcceptanceKey(keyCode: 49, modifiers: [], label: "Space")
         store.saveGlobalToggleKey(keyCode: 47, modifiers: [], label: ".")
