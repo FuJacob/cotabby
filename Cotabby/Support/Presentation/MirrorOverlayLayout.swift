@@ -44,9 +44,10 @@ struct MirrorOverlayLayout: Equatable {
         /// distance, not to match the host editor (mirror is explicitly a preview, not a forgery).
         static let fontSize: CGFloat = 13
 
-        /// Vertical gap between the bottom of the input field (or caret rect) and the top of the
-        /// card. Large enough that the card does not look like it is part of the field.
-        static let anchorGap: CGFloat = 8
+        /// Tight visual gap between the bottom of the input field (or caret rect) and the top of
+        /// the card. The card already has a distinct backdrop, so it does not need a full text-row
+        /// buffer to read as separate UI.
+        static let anchorGap: CGFloat = 1
 
         /// Internal padding inside the card around the text + keycap row. Must stay in lockstep with
         /// the `.padding` on `MirrorOverlayView`, since the card fills this computed panel frame.
@@ -66,10 +67,6 @@ struct MirrorOverlayLayout: Equatable {
         /// dock. The visibleFrame already excludes those, but a small inset still looks more
         /// intentional than touching the edge.
         static let screenMargin: CGFloat = 12
-
-        /// Vertical offset used when only the caret rect is available (no input frame). Spans about
-        /// one line height so the card sits just below the caret line rather than on top of it.
-        static let caretFallbackVerticalOffset: CGFloat = 22
     }
 
     /// Computes the layout for one presentation.
@@ -108,9 +105,7 @@ struct MirrorOverlayLayout: Equatable {
         let cardHeight = ceil(scaledFontSize * 1.6) + (Metrics.verticalPadding * 2)
 
         let anchorTopY = computeAnchorTopY(geometry: geometry, reason: reason)
-        let anchorCenterX = computeAnchorCenterX(geometry: geometry)
-
-        var originX = anchorCenterX - (cardWidth / 2)
+        var originX = computeAnchorOriginX(geometry: geometry, cardWidth: cardWidth)
         // Card sits BELOW the field/caret. AppKit screen coordinates are bottom-up, so subtracting
         // the card height from the anchor's bottom edge places the card just under the anchor line.
         var originY = anchorTopY - cardHeight
@@ -179,24 +174,21 @@ struct MirrorOverlayLayout: Equatable {
             if let inputFrame = geometry.inputFrameRect?.standardized, !inputFrame.isEmpty {
                 return inputFrame.minY - Metrics.anchorGap
             }
-            // Caret-rect fallback uses the larger offset because in `.estimated` we treat the caret
-            // height as unreliable; the extra slack keeps the card from overlapping the typed line.
-            return geometry.caretRect.minY - Metrics.caretFallbackVerticalOffset
+            return geometry.caretRect.minY - Metrics.anchorGap
 
         case .caretLayoutEstimated:
             // The hidden-TextKit repair located the caret, so anchor to that estimated caret rect
             // rather than the whole field — the popup should track the cursor, not float below the
-            // document. The one-line offset (not the tight `anchorGap`) drops the card a full line
-            // beneath the estimated caret so it never overlaps the line being typed, which matters
-            // most here because the estimate's exact baseline is less certain than a real AX caret.
-            // Fall back to the field rect, then the tight caret offset, only if the estimate is empty.
+            // document. Keep the same tight visual gap used for trusted caret geometry: the caret
+            // rect already describes the full line box, so another line-height offset would create
+            // an unnecessary blank row between the typed line and the card.
             if !geometry.caretRect.isEmpty {
-                return geometry.caretRect.minY - Metrics.caretFallbackVerticalOffset
+                return geometry.caretRect.minY - Metrics.anchorGap
             }
             if let inputFrame = geometry.inputFrameRect?.standardized, !inputFrame.isEmpty {
                 return inputFrame.minY - Metrics.anchorGap
             }
-            return geometry.caretRect.minY - Metrics.caretFallbackVerticalOffset
+            return geometry.caretRect.minY - Metrics.anchorGap
 
         case .userPreference, .perAppOverride, .caretMidLine:
             // Caret geometry is trustworthy in these cases. Sit just under the caret line so the
@@ -208,20 +200,28 @@ struct MirrorOverlayLayout: Equatable {
             if let inputFrame = geometry.inputFrameRect?.standardized, !inputFrame.isEmpty {
                 return inputFrame.minY - Metrics.anchorGap
             }
-            return geometry.caretRect.minY - Metrics.caretFallbackVerticalOffset
+            return geometry.caretRect.minY - Metrics.anchorGap
         }
     }
 
-    /// Horizontal center the card aligns to. Prefer the caret's X because the user's eye is already
-    /// near the caret; only fall back to the field center if the caret rect looks degenerate.
-    private static func computeAnchorCenterX(geometry: SuggestionOverlayGeometry) -> CGFloat {
+    /// Aligns the card's leading edge with the caret: the left edge starts at the caret's trailing
+    /// edge for LTR text, while the right edge starts at the caret's trailing edge for RTL text.
+    /// A degenerate caret falls back to centering the card beneath the field.
+    private static func computeAnchorOriginX(
+        geometry: SuggestionOverlayGeometry,
+        cardWidth: CGFloat
+    ) -> CGFloat {
         if geometry.caretRect.width > 0 || geometry.caretRect.minX > 0 {
-            return geometry.caretRect.midX
+            return geometry.isRightToLeft
+                ? geometry.caretRect.minX - cardWidth
+                : geometry.caretRect.maxX
         }
         if let inputFrame = geometry.inputFrameRect?.standardized, !inputFrame.isEmpty {
-            return inputFrame.midX
+            return inputFrame.midX - (cardWidth / 2)
         }
-        return geometry.caretRect.midX
+        return geometry.isRightToLeft
+            ? geometry.caretRect.minX - cardWidth
+            : geometry.caretRect.maxX
     }
 
     /// The leading run of `suggestionText` the accept-word key will insert next, reused from the real
