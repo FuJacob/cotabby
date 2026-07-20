@@ -9,11 +9,11 @@ final class MirrorOverlayLayoutTests: XCTestCase {
 
     private let screen = CGRect(x: 0, y: 0, width: 1440, height: 900)
 
-    // MARK: - Anchoring to the input field
+    // MARK: - Anchoring below the caret line
 
-    func test_make_anchorsBelowInputFrameWhenAvailable() {
-        // Field sits in the middle of the screen with its bottom edge at y=400. The card should
-        // appear below it (lower y in AppKit's bottom-up coordinate system).
+    func test_make_anchorsTightlyBelowCaretWhenInputFrameIsAvailable() {
+        // The caret line sits inside the field chrome. The card follows the visible text line with
+        // a tight gap instead of adding the field's bottom padding to its vertical offset.
         let geometry = CotabbyTestFixtures.overlayGeometry(
             caretRect: CGRect(x: 720, y: 405, width: 2, height: 18),
             inputFrameRect: CGRect(x: 400, y: 400, width: 640, height: 30)
@@ -27,16 +27,17 @@ final class MirrorOverlayLayoutTests: XCTestCase {
             reason: .caretGeometryEstimated
         )
 
-        XCTAssertLessThan(
+        XCTAssertEqual(
             layout.panelFrame.maxY,
-            geometry.inputFrameRect!.minY,
-            "Card should sit below the input field"
+            geometry.caretRect.minY - 1,
+            accuracy: 0.001,
+            "Card should sit tightly below the visible caret line"
         )
         XCTAssertEqual(layout.suggestionText, "tomorrow afternoon")
         XCTAssertEqual(layout.reason, .caretGeometryEstimated)
     }
 
-    func test_make_centersCardOnCaretX() {
+    func test_make_alignsLeftCardEdgeToLTRCaret() {
         let caretX: CGFloat = 720
         let geometry = CotabbyTestFixtures.overlayGeometry(
             caretRect: CGRect(x: caretX, y: 500, width: 2, height: 18),
@@ -51,11 +52,34 @@ final class MirrorOverlayLayoutTests: XCTestCase {
             reason: .userPreference
         )
 
-        // Card center should be within 1pt of caret center after .integral rounding.
-        XCTAssertLessThanOrEqual(
-            abs(layout.panelFrame.midX - (caretX + 1)),
-            1.5,
-            "Card center should align horizontally to caret X"
+        XCTAssertEqual(
+            layout.panelFrame.minX,
+            geometry.caretRect.maxX,
+            accuracy: 0.001,
+            "LTR card should begin at the caret's trailing edge"
+        )
+    }
+
+    func test_make_alignsRightCardEdgeToRTLCaret() {
+        let geometry = CotabbyTestFixtures.overlayGeometry(
+            caretRect: CGRect(x: 720, y: 500, width: 2, height: 18),
+            inputFrameRect: CGRect(x: 400, y: 480, width: 640, height: 30),
+            isRightToLeft: true
+        )
+
+        let layout = MirrorOverlayLayout.make(
+            suggestion: "hello",
+            geometry: geometry,
+            visibleFrame: screen,
+            showsAcceptanceHint: false,
+            reason: .userPreference
+        )
+
+        XCTAssertEqual(
+            layout.panelFrame.maxX,
+            geometry.caretRect.minX,
+            accuracy: 0.001,
+            "RTL card should end at the caret's trailing edge"
         )
     }
 
@@ -79,12 +103,11 @@ final class MirrorOverlayLayoutTests: XCTestCase {
             reason: .userPreference
         )
 
-        // Card must sit close to the caret line (within one card-height worth of slack), not at the
-        // field's bottom edge.
-        XCTAssertLessThan(
+        XCTAssertEqual(
             userPreferenceLayout.panelFrame.maxY,
-            geometry.caretRect.minY,
-            "User-forced popup should sit below the caret line"
+            geometry.caretRect.minY - 1,
+            accuracy: 0.001,
+            "User-forced popup should sit tightly below the caret line"
         )
         XCTAssertGreaterThan(
             userPreferenceLayout.panelFrame.maxY,
@@ -107,10 +130,33 @@ final class MirrorOverlayLayoutTests: XCTestCase {
             reason: .perAppOverride
         )
 
-        XCTAssertLessThan(
+        XCTAssertEqual(
             layout.panelFrame.maxY,
-            geometry.caretRect.minY,
-            "Per-app forced popup should also sit below the caret line, not the field"
+            geometry.caretRect.minY - 1,
+            accuracy: 0.001,
+            "Per-app forced popup should also sit tightly below the caret line"
+        )
+    }
+
+    func test_make_midLinePopupUsesTightCaretGap() {
+        let geometry = CotabbyTestFixtures.overlayGeometry(
+            caretRect: CGRect(x: 720, y: 500, width: 2, height: 18),
+            inputFrameRect: CGRect(x: 400, y: 400, width: 640, height: 200)
+        )
+
+        let layout = MirrorOverlayLayout.make(
+            suggestion: "hello",
+            geometry: geometry,
+            visibleFrame: screen,
+            showsAcceptanceHint: true,
+            reason: .caretMidLine
+        )
+
+        XCTAssertEqual(
+            layout.panelFrame.maxY,
+            geometry.caretRect.minY - 1,
+            accuracy: 0.001,
+            "Mid-line popup should sit tightly below the trustworthy caret line"
         )
     }
 
@@ -133,7 +179,7 @@ final class MirrorOverlayLayoutTests: XCTestCase {
 
         XCTAssertEqual(
             layout.panelFrame.maxY,
-            geometry.caretRect.minY - 8,
+            geometry.caretRect.minY - 1,
             accuracy: 0.001,
             "Estimated popup should sit directly below the centered text line"
         )
@@ -164,7 +210,7 @@ final class MirrorOverlayLayoutTests: XCTestCase {
 
         XCTAssertEqual(
             layout.panelFrame.maxY,
-            frame.minY - 8,
+            frame.minY - 1,
             accuracy: 0.001,
             "Multiline AXFrame fallback should remain below the field bottom"
         )
@@ -187,11 +233,13 @@ final class MirrorOverlayLayoutTests: XCTestCase {
             reason: .caretLayoutEstimated
         )
 
-        // Card sits one line below the estimated caret line, not at the field's bottom edge.
-        XCTAssertLessThan(
+        // The estimated caret already represents the complete line box, so the card should use a
+        // tight visual gap rather than inserting another blank text row.
+        XCTAssertEqual(
             layout.panelFrame.maxY,
-            geometry.caretRect.minY,
-            "Layout-estimated popup should sit below the estimated caret line"
+            geometry.caretRect.minY - 1,
+            accuracy: 0.001,
+            "Layout-estimated popup should sit tightly below the estimated caret line"
         )
         XCTAssertGreaterThan(
             layout.panelFrame.maxY,
@@ -216,10 +264,8 @@ final class MirrorOverlayLayoutTests: XCTestCase {
             reason: .caretGeometryEstimated
         )
 
-        // The card should still land below the caret rect since no field rect is available. The
-        // fallback uses a fixed vertical offset, so the card's maxY is strictly less than the caret
-        // rect's minY (with some tolerance for the gap).
-        XCTAssertLessThan(layout.panelFrame.maxY, geometry.caretRect.minY)
+        // The card should still use the shared tight gap below the caret when no field is available.
+        XCTAssertEqual(layout.panelFrame.maxY, geometry.caretRect.minY - 1, accuracy: 0.001)
     }
 
     // MARK: - Screen-edge clamping
@@ -382,7 +428,7 @@ final class MirrorOverlayLayoutTests: XCTestCase {
         XCTAssertLessThan(layout.panelFrame.width, 176)
         XCTAssertEqual(layout.panelFrame.height, 29)
         XCTAssertEqual(layout.panelFrame.midX, geometry.inputFrameRect!.midX)
-        XCTAssertEqual(layout.panelFrame.minY, 63)
+        XCTAssertEqual(layout.panelFrame.minY, 70)
     }
 
     func test_make_emptyCaretRectAndMissingInputFrame_clampsToScreenMargin() {
