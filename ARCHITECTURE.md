@@ -55,6 +55,10 @@ These rules explain most of the structure:
 - CotabbyInference: the llama.cpp Swift wrapper consumed from an external SwiftPM package pinned to
   its main branch; native code is not vendored here.
 
+[SOURCE_LAYOUT.md](SOURCE_LAYOUT.md) expands this map into the canonical nested source and test
+layout. Child folders name stable responsibilities inside a subsystem; they do not create Swift
+namespaces or additional build targets.
+
 Folder names describe the dominant responsibility, not the UI framework. Cotabby/UI contains
 SwiftUI views, while AppKit panel/window controllers live mostly under Cotabby/Services/Presentation or app
 coordinators because they own process-level presentation behavior.
@@ -123,30 +127,30 @@ keeps the established flat UserDefaults keys stable; endpoint credentials live i
 
 Read the coordinator in this order:
 
-1. [SuggestionCoordinator.swift](Cotabby/App/Coordinators/SuggestionCoordinator.swift)
-2. [SuggestionCoordinator+Lifecycle.swift](Cotabby/App/Coordinators/SuggestionCoordinator+Lifecycle.swift)
-3. [SuggestionCoordinator+Input.swift](Cotabby/App/Coordinators/SuggestionCoordinator+Input.swift)
-4. [SuggestionCoordinator+Prediction.swift](Cotabby/App/Coordinators/SuggestionCoordinator+Prediction.swift)
-5. [SuggestionCoordinator+Acceptance.swift](Cotabby/App/Coordinators/SuggestionCoordinator+Acceptance.swift)
+1. [SuggestionCoordinator.swift](Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator.swift)
+2. [SuggestionCoordinator+Lifecycle.swift](Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator+Lifecycle.swift)
+3. [SuggestionCoordinator+Input.swift](Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator+Input.swift)
+4. [SuggestionCoordinator+Prediction.swift](Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator+Prediction.swift)
+5. [SuggestionCoordinator+Acceptance.swift](Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator+Acceptance.swift)
 
 The coordinator owns orchestration plus active suggestion and presentation state. It delegates rules
 and cohesive mutable sub-state to smaller boundaries:
 
-- [SuggestionAvailabilityEvaluator.swift](Cotabby/Support/Suggestion/SuggestionAvailabilityEvaluator.swift):
+- [SuggestionAvailabilityEvaluator.swift](Cotabby/Support/Suggestion/Request/SuggestionAvailabilityEvaluator.swift):
   pure permission, settings, focus, and runtime gates.
-- [SuggestionRequestFactory.swift](Cotabby/Support/Suggestion/SuggestionRequestFactory.swift): pure bounded
+- [SuggestionRequestFactory.swift](Cotabby/Support/Suggestion/Request/SuggestionRequestFactory.swift): pure bounded
   request construction and the selected backend's developer-debug prompt payload.
-- [SuggestionWorkController.swift](Cotabby/Services/Suggestion/SuggestionWorkController.swift):
+- [SuggestionWorkController.swift](Cotabby/Services/Suggestion/State/SuggestionWorkController.swift):
   debounce/generation tasks and monotonically increasing work IDs.
-- [SuggestionInteractionState.swift](Cotabby/Services/Suggestion/SuggestionInteractionState.swift):
+- [SuggestionInteractionState.swift](Cotabby/Services/Suggestion/State/SuggestionInteractionState.swift):
   active session, materialized context, consumed prefix, and known post-insertion AX lag.
-- [SuggestionStreamingState.swift](Cotabby/Support/Suggestion/SuggestionStreamingState.swift): latest-wins
+- [SuggestionStreamingState.swift](Cotabby/Support/Suggestion/Streaming/SuggestionStreamingState.swift): latest-wins
   partial coalescing, one scheduled drain, and monotonic rendered-text state.
-- [PostExhaustionAcceptanceState.swift](Cotabby/Support/Suggestion/PostExhaustionAcceptanceState.swift):
+- [PostExhaustionAcceptanceState.swift](Cotabby/Support/Suggestion/Session/PostExhaustionAcceptanceState.swift):
   pure state for the bounded Tab-ownership window while an exhausted tail regenerates.
-- [SuggestionSessionReconciler.swift](Cotabby/Support/Suggestion/SuggestionSessionReconciler.swift): type-through,
+- [SuggestionSessionReconciler.swift](Cotabby/Support/Suggestion/Session/SuggestionSessionReconciler.swift): type-through,
   acceptance, and live-host reconciliation.
-- [SuggestionTextNormalizer.swift](Cotabby/Support/Suggestion/SuggestionTextNormalizer.swift): backend-independent
+- [SuggestionTextNormalizer.swift](Cotabby/Support/Suggestion/Output/SuggestionTextNormalizer.swift): backend-independent
   cleanup, echo removal, whitespace policy, trailing-text deduplication, and unsafe-output rejection.
 
 A native correction path runs before model generation. NSSpellChecker and bundled SymSpell indexes
@@ -170,9 +174,9 @@ acceptance.
 Read:
 
 1. [FocusTracker.swift](Cotabby/Services/Focus/FocusTracker.swift)
-2. [FocusSnapshotResolver.swift](Cotabby/Services/Focus/FocusSnapshotResolver.swift)
+2. [FocusSnapshotResolver.swift](Cotabby/Services/Focus/Resolution/FocusSnapshotResolver.swift)
 3. [FocusModels.swift](Cotabby/Models/Focus/FocusModels.swift)
-4. [AXTextGeometryResolver.swift](Cotabby/Services/Focus/AXTextGeometryResolver.swift)
+4. [AXTextGeometryResolver.swift](Cotabby/Services/Focus/Resolution/AXTextGeometryResolver.swift)
 5. [AXHelper.swift](Cotabby/Support/Accessibility/AXHelper.swift)
 
 FocusTracker uses timer polling as the authoritative source because AX notifications are inconsistent
@@ -223,14 +227,14 @@ text. Posting events is not treated as proof of success; the later AX snapshot i
 
 [SuggestionEngineRouter.swift](Cotabby/Services/Runtime/SuggestionEngineRouter.swift) selects one of:
 
-- [FoundationModelSuggestionEngine.swift](Cotabby/Services/Runtime/FoundationModelSuggestionEngine.swift)
+- [FoundationModelSuggestionEngine.swift](Cotabby/Services/Runtime/AppleIntelligence/FoundationModelSuggestionEngine.swift)
   for Apple Intelligence. It uses the framework's instructions channel, streams cumulative partials,
   and keeps a one-use compatible prewarmed session. Unsupported language/locale can fall back to llama.
-- [LlamaSuggestionEngine.swift](Cotabby/Services/Runtime/LlamaSuggestionEngine.swift) for an in-process
-  GGUF base model through CotabbyInference. [LlamaRuntimeManager.swift](Cotabby/Services/Runtime/LlamaRuntimeManager.swift)
-  publishes state; [LlamaRuntimeCore.swift](Cotabby/Services/Runtime/LlamaRuntimeCore.swift) owns native
+- [LlamaSuggestionEngine.swift](Cotabby/Services/Runtime/Llama/LlamaSuggestionEngine.swift) for an in-process
+  GGUF base model through CotabbyInference. [LlamaRuntimeManager.swift](Cotabby/Services/Runtime/Llama/LlamaRuntimeManager.swift)
+  publishes state; [LlamaRuntimeCore.swift](Cotabby/Services/Runtime/Llama/LlamaRuntimeCore.swift) owns native
   pointers, tokenization, KV-cache reuse, prefill, sampling, abort, and shutdown.
-- [OpenAICompatibleSuggestionEngine.swift](Cotabby/Services/Runtime/OpenAICompatibleSuggestionEngine.swift)
+- [OpenAICompatibleSuggestionEngine.swift](Cotabby/Services/Runtime/OpenAICompatible/OpenAICompatibleSuggestionEngine.swift)
   for completion/chat APIs and SSE streams. The default is loopback Ollama at
   http://127.0.0.1:11434/v1; LAN and public HTTPS endpoints are supported, while insecure public HTTP
   is rejected.
@@ -310,12 +314,12 @@ show an acceptance hint, and advance a partial tail without waiting for noisy AX
 the optional field/caret indicator. [FocusDebugOverlayController.swift](Cotabby/Services/Presentation/FocusDebugOverlayController.swift)
 is developer-only and gated by -cotabby-debug.
 
-[InlineCommandCoordinator.swift](Cotabby/App/Coordinators/InlineCommandCoordinator.swift) arbitrates
+[InlineCommandCoordinator.swift](Cotabby/App/Coordinators/InlineFeatures/InlineCommandCoordinator.swift) arbitrates
 the single input-capture slot between:
 
-- [EmojiPickerController.swift](Cotabby/App/Coordinators/EmojiPickerController.swift): colon query,
+- [EmojiPickerController.swift](Cotabby/App/Coordinators/InlineFeatures/EmojiPickerController.swift): colon query,
   lazy catalog/matcher, non-activating picker, recency/frequency ranking, and literal-run replacement.
-- [MacroController.swift](Cotabby/App/Coordinators/MacroController.swift): slash query and deterministic
+- [MacroController.swift](Cotabby/App/Coordinators/InlineFeatures/MacroController.swift): slash query and deterministic
   date, random, unit, currency, and arithmetic evaluation through MacroEngine.
 
 Both use pure trigger state machines, stay pinned to one supported focus sequence, and cancel on

@@ -98,6 +98,12 @@ Start with these boundaries:
 - `Cotabby/Models/`: shared value types, state snapshots, and protocol contracts
 - `Cotabby/Support/`: pure rules, prompt helpers, normalization, and low-level utilities
 
+Read [SOURCE_LAYOUT.md](SOURCE_LAYOUT.md) for the complete responsibility map. Swift folders do not
+create namespaces, so nested folders exist for human navigation: keep a small cohesive subsystem
+flat, and introduce a child folder only when at least two files form a stable, predictably named
+responsibility. Put a direct unit test under the matching `CotabbyTests/` responsibility whenever
+possible.
+
 If you are changing behavior, prefer this order:
 
 1. Pure logic in `Support/`

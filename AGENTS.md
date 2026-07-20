@@ -59,6 +59,13 @@ When adding a `struct`, `class`, `enum`, actor, or protocol, explain:
 - `CotabbyInference`: the llama.cpp wrapper, consumed as a SwiftPM package
   (`github.com/FuJacob/cotabbyinference`, pinned to `main`) rather than vendored in-tree.
 
+Within a subsystem, child folders describe stable responsibilities rather than Swift namespaces.
+Examples include `Services/Runtime/{AppleIntelligence,Llama,OpenAICompatible}` and
+`Support/Suggestion/{Request,Output,Acceptance,Session,Streaming}`. Keep a cohesive small subsystem
+flat; add a child folder only when at least two files share a responsibility that a maintainer can
+predict from its name. `SOURCE_LAYOUT.md` is the canonical placement map, and tests should mirror
+the production responsibility wherever a direct correspondence exists.
+
 ## App Ownership
 
 Start here when you need to understand lifecycle:
@@ -84,11 +91,11 @@ reload races, and mismatched settings state.
 
 Read the coordinator in this order:
 
-1. `Cotabby/App/Coordinators/SuggestionCoordinator.swift`
-2. `Cotabby/App/Coordinators/SuggestionCoordinator+Lifecycle.swift`
-3. `Cotabby/App/Coordinators/SuggestionCoordinator+Input.swift`
-4. `Cotabby/App/Coordinators/SuggestionCoordinator+Prediction.swift`
-5. `Cotabby/App/Coordinators/SuggestionCoordinator+Acceptance.swift`
+1. `Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator.swift`
+2. `Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator+Lifecycle.swift`
+3. `Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator+Input.swift`
+4. `Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator+Prediction.swift`
+5. `Cotabby/App/Coordinators/Suggestion/SuggestionCoordinator+Acceptance.swift`
 
 The coordinator owns orchestration plus active suggestion and presentation state. It should not
 absorb every rule or state transition. Prefer:
