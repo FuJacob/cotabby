@@ -247,6 +247,13 @@ struct AXTextGeometryResolver {
             fromAccessibilityRect: rect,
             anchorFrame: anchorFrame
         )
+        // `validatedCocoaTextRect` returns `.zero` for a non-finite AX rect, and with no anchor frame
+        // to check against that would publish an edge at the screen origin — anchoring ghost text to
+        // the corner of the display. Reject the degenerate rect before the anchor test, so the guard
+        // does not depend on an anchor frame being present.
+        guard AXHelper.rectHasFiniteComponents(cocoaRect), !cocoaRect.isEmpty else {
+            return nil
+        }
         // A line rect that escapes the field is a mis-reported range, not a margin; ignore it rather
         // than anchoring ghost text somewhere the host is not drawing.
         if let anchorFrame, !anchorFrame.isEmpty, !anchorFrame.insetBy(dx: -1, dy: -1).intersects(cocoaRect) {

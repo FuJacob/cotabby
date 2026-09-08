@@ -746,4 +746,16 @@ final class SuggestionSettingsModelTests: XCTestCase {
         XCTAssertEqual(snapshot.disabledAppBundleIdentifiers, ["com.example.app"])
         XCTAssertEqual(snapshot.extendedContext, "context body")
     }
+
+    func test_invertedGhostFontBoundsOnDiskAreRepairedOnLoad() {
+        // The two bounds are separate UserDefaults keys written one at a time, so a crash between
+        // the writes can persist floor > ceiling. Loading that pair unrepaired would hand
+        // GhostFontMetrics an inverted range where the ceiling silently wins.
+        defaults.set(40.0, forKey: "cotabbyGhostFontSizeFloor")
+        defaults.set(16.0, forKey: "cotabbyGhostFontSizeCeiling")
+
+        let model = makeModel()
+
+        XCTAssertLessThanOrEqual(model.ghostFontSizeFloor, model.ghostFontSizeCeiling)
+    }
 }

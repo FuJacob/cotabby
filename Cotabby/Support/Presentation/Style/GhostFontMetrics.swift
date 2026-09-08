@@ -88,8 +88,15 @@ enum GhostFontMetrics {
             ceiling = maximum
         }
 
-        let autoSize = min(max(minimum, base), ceiling)
-        return max(absoluteMinimumPointSize, autoSize * sizeMultiplier)
+        // Scale first, then clamp. `minimum` and `maximum` are the user's "Smallest/Largest Ghost
+        // Text" settings, so they have to be absolute: clamping before the multiplier let a 1.3x
+        // knob render above the stated ceiling and a 0.7x knob below the stated floor, which makes
+        // both controls lie. An earlier revision deliberately scaled last so the knob still moved
+        // text in fields pinned to a rail; that reasoning predates the rails being user-settable,
+        // and someone who wants smaller text can now lower the floor itself.
+        let scaled = base * sizeMultiplier
+        let clamped = min(max(minimum, scaled), ceiling)
+        return max(absoluteMinimumPointSize, clamped)
     }
 
     /// `pointSize / (ascender - descender)` for the field font, or nil when the metrics are unusable.

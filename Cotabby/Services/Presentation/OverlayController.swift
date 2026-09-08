@@ -85,7 +85,8 @@ final class OverlayController: SuggestionOverlayControlling {
     private var lastLoggedFontSignature: String?
 
     /// Same idea for the placement line: inline ghost text re-renders on every keystroke, and the
-    /// caret X changes each time, so the signature deliberately excludes it — what is worth one line
+    /// caret X changes each time, so the signature excludes every value that tracks the caret —
+    /// including the panel's own origin, which follows it in the inline path. What is worth one line
     /// per change is the *shape* of the placement, not the fact that the caret moved.
     private var lastLoggedPlacementSignature: String?
 
@@ -606,8 +607,7 @@ final class OverlayController: SuggestionOverlayControlling {
             String(format: "%.0f", caretRect.height),
             String(format: "%.0f", contentSize.height),
             String(layout.lines.count),
-            String(usedContentEdge),
-            String(format: "%.0f", panelFrame.minX)
+            String(usedContentEdge)
         ].joined(separator: "|")
         guard signature != lastLoggedPlacementSignature else { return }
         lastLoggedPlacementSignature = signature

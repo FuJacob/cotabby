@@ -823,9 +823,26 @@ struct FocusSnapshotResolver {
         // caret comes from `AXBoundsForRange` never walk those runs, so fall back to asking the host
         // directly for its line geometry — that is the only way to learn a document's text margin as
         // distinct from its page edge.
-        let observedContentEdges = caretResult?.observedContentEdges ?? selectionForGeometry.flatMap { selection in
-            lineContentEdgesCache.value(
-                forKey: "lineEdges:\(AXHelper.elementIdentity(for: element))",
+        // Only ask for line geometry when the offset means what the host thinks it means. A
+        // marker-synthesized selection is window-relative (see Branch 1's gate above), so handing it
+        // to `AXLineForIndex` resolves some other visual line and yields a margin from the wrong
+        // place entirely.
+        let lineQueryOffsetIsDocumentRelative = markerSelection == nil
+        let observedContentEdges = caretResult?.observedContentEdges
+            ?? (lineQueryOffsetIsDocumentRelative ? selectionForGeometry : nil).flatMap { selection in
+            // Keyed by paragraph as well as focus session. The measured edge belongs to one visual
+            // line, and moving between paragraphs inside the same field — an indented block, a list
+            // item, a table cell — changes the margin without changing `focusChangeSequence`, which
+            // only turns over when the field's frame does. Counting newlines before the caret is a
+            // local string scan, so the extra precision costs no AX round trip.
+            let paragraphSource = (textValue ?? "") as NSString
+            let paragraphIndex = paragraphSource
+                .substring(to: min(max(selection.location, 0), paragraphSource.length))
+                .reduce(into: 0) { count, character in
+                    if character.isNewline { count += 1 }
+                }
+            return lineContentEdgesCache.value(
+                forKey: "lineEdges:\(AXHelper.elementIdentity(for: element)):p\(paragraphIndex)",
                 focusChangeSequence: focusChangeSequence
             ) {
                 geometryResolver.resolveLineContentEdges(

@@ -316,6 +316,13 @@ struct SuggestionSettingsStore {
             } else {
                 Self.clampedGhostFontSizeCeiling(userDefaults.double(forKey: Self.ghostFontSizeCeilingDefaultsKey))
             }
+        // The two bounds are separate keys written one at a time, so a crash between the writes can
+        // leave floor > ceiling on disk. `GhostFontMetrics` would then clamp with an inverted range
+        // and the ceiling would silently win every time, so repair the pair here rather than trust
+        // that the setters always completed.
+        let normalizedGhostFontSizeCeiling = max(resolvedGhostFontSizeCeiling, resolvedGhostFontSizeFloor)
+        let normalizedGhostFontSizeFloor = min(resolvedGhostFontSizeFloor, normalizedGhostFontSizeCeiling)
+
         let resolvedEngine = userDefaults
             .string(forKey: Self.selectedEngineDefaultsKey)
             .flatMap(SuggestionEngineKind.init(rawValue:))
@@ -603,8 +610,8 @@ struct SuggestionSettingsStore {
                 customSuggestionTextColorHex: resolvedCustomSuggestionTextColorHex,
                 ghostTextOpacity: resolvedGhostTextOpacity,
                 ghostTextSizeMultiplier: resolvedGhostTextSizeMultiplier,
-                ghostFontSizeFloor: resolvedGhostFontSizeFloor,
-                ghostFontSizeCeiling: resolvedGhostFontSizeCeiling,
+                ghostFontSizeFloor: normalizedGhostFontSizeFloor,
+                ghostFontSizeCeiling: normalizedGhostFontSizeCeiling,
                 isMenuBarIconVisible: resolvedMenuBarIconVisible,
                 isMenuBarWordCountVisible: resolvedMenuBarWordCountVisible,
                 mirrorPreference: resolvedMirrorPreference,

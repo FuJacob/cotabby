@@ -345,4 +345,46 @@ final class GhostFontMetricsTests: XCTestCase {
         XCTAssertEqual(small, 12, accuracy: 0.01)
         XCTAssertEqual(large, 24, accuracy: 0.01)
     }
+
+    // MARK: - The user's bounds are absolute
+
+    /// "Smallest Ghost Text" and "Largest Ghost Text" are user-facing settings, so a size multiplier
+    /// must not carry the result past them. Clamping before the multiplier let 1.3x render above the
+    /// stated ceiling and 0.7x below the stated floor.
+    func testSizeMultiplierCannotExceedTheCeiling() {
+        let size = GhostFontMetrics.pointSize(
+            caretHeight: 60,
+            fieldMetrics: nil,
+            fallbackRatio: fallbackRatio,
+            minimum: 11,
+            maximum: 48,
+            sizeMultiplier: 1.3
+        )
+        XCTAssertEqual(size, 48, accuracy: 0.0001)
+    }
+
+    func testSizeMultiplierCannotFallBelowTheFloor() {
+        let size = GhostFontMetrics.pointSize(
+            caretHeight: 14,
+            fieldMetrics: nil,
+            fallbackRatio: fallbackRatio,
+            minimum: 11,
+            maximum: 48,
+            sizeMultiplier: 0.7
+        )
+        XCTAssertEqual(size, 11, accuracy: 0.0001)
+    }
+
+    func testSizeMultiplierStillScalesBetweenTheBounds() {
+        // Away from the rails the knob must still do its job: 20 * 0.78 * 1.2.
+        let size = GhostFontMetrics.pointSize(
+            caretHeight: 20,
+            fieldMetrics: nil,
+            fallbackRatio: fallbackRatio,
+            minimum: 11,
+            maximum: 48,
+            sizeMultiplier: 1.2
+        )
+        XCTAssertEqual(size, 20 * fallbackRatio * 1.2, accuracy: 0.0001)
+    }
 }
