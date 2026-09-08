@@ -395,7 +395,7 @@ struct AXTextGeometryResolver {
         let contentEdges: ObservedContentEdges?
         if let leftX = cocoaRunFrames.map(\.minX).min(),
             let topY = cocoaRunFrames.map(\.maxY).max() {
-            contentEdges = ObservedContentEdges(leftX: leftX, topY: topY)
+            contentEdges = ObservedContentEdges(leftX: leftX, topY: topY, isRunMeasured: true)
         } else {
             contentEdges = nil
         }
@@ -446,7 +446,8 @@ struct AXTextGeometryResolver {
                     quality: .derived,
                     observedContentEdges: ObservedContentEdges(
                         leftX: unionFrame.minX,
-                        topY: unionFrame.maxY
+                        topY: unionFrame.maxY,
+                        isRunMeasured: true
                     ),
                     sourceDetail: "wrapped-run-character-bounds"
                 )

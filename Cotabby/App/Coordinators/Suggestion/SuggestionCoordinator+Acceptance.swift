@@ -813,8 +813,11 @@ extension SuggestionCoordinator {
                 )
             }
             // Run-measured derived rects are kept unconditionally: run frames carry the host's
-            // real line positions, including blank lines some hosts omit from the AX text.
-            if context.observedContentEdges != nil {
+            // real line positions, including blank lines some hosts omit from the AX text. The
+            // provenance check matters because content edges can now also come from the host's
+            // line-query attributes, which describe a left margin but carry no line information —
+            // letting those skip the repair would leave a wrong-line web caret uncorrected.
+            if context.observedContentEdges?.isRunMeasured == true {
                 return LayoutRepairedAnchor(
                     rect: fallbackRect, quality: .derived, outcome: nil, skipReason: .runMeasuredGeometry
                 )
