@@ -108,6 +108,12 @@ extension SuggestionCoordinator {
             return
         }
 
+        // The host is showing its own inline prediction or composing text: keep any live session,
+        // but neither reconcile against, generate from, nor paint over the host-owned span.
+        if updateHostMarkedTextHold(for: snapshot) {
+            return
+        }
+
         // Start capturing visual context for newly focused input. Gated like the focus-change path
         // (and skipped in fast mode) so this entry point never kicks off screenshot/OCR work that the
         // earlier `shouldCaptureVisualContext` check already declined.

@@ -30,6 +30,74 @@ final class SuggestionCoordinatorInputTests: XCTestCase {
         )
     }
 
+    // MARK: - Host marked text (system inline prediction / IME composition)
+
+    private func snapshot(markedLength: Int, precedingText: String = "Hello") -> FocusSnapshot {
+        let marked = markedLength > 0
+            ? NSRange(location: (precedingText as NSString).length, length: markedLength)
+            : nil
+        let context = CotabbyTestFixtures.focusedInputSnapshot(
+            precedingText: precedingText,
+            hostMarkedTextRange: marked
+        )
+        return FocusSnapshot(
+            applicationName: context.applicationName,
+            bundleIdentifier: context.bundleIdentifier,
+            capability: .supported,
+            context: context
+        )
+    }
+
+    func test_hostMarkedText_hidesTheGhostButKeepsTheSessionThenRestoresIt() {
+        let rig = retained(makeCoordinatorRig())
+        startSession(in: rig)
+        let shownBefore = rig.overlayController.shownTexts.count
+
+        rig.coordinator.handleSupportedSnapshot(snapshot(markedLength: 3))
+
+        XCTAssertTrue(rig.coordinator.isHoldingForHostMarkedText)
+        XCTAssertNotNil(rig.interactionState.activeSession, "The host's own prediction must not kill the session")
+        XCTAssertEqual(rig.overlayController.hideReasons.last, SuggestionCoordinator.hostMarkedTextHoldReason)
+        XCTAssertFalse(rig.overlayController.state.isVisible)
+
+        rig.coordinator.handleSupportedSnapshot(snapshot(markedLength: 0))
+
+        XCTAssertFalse(rig.coordinator.isHoldingForHostMarkedText)
+        XCTAssertNotNil(rig.interactionState.activeSession)
+        XCTAssertEqual(rig.overlayController.shownTexts.count, shownBefore + 1, "The same tail re-presents once the host span clears")
+        XCTAssertEqual(rig.overlayController.shownTexts.last, " world")
+    }
+
+    func test_hostMarkedText_typedMatchAdvancesTheSessionWithoutPaintingOverTheHostPrediction() {
+        let rig = retained(makeCoordinatorRig())
+        startSession(in: rig)
+        rig.coordinator.handleSupportedSnapshot(snapshot(markedLength: 3))
+        let shownBefore = rig.overlayController.shownTexts.count
+
+        _ = rig.coordinator.handleInputEvent(
+            CotabbyTestFixtures.inputEvent(kind: .textMutation, characters: " ")
+        )
+
+        XCTAssertEqual(rig.interactionState.activeSession?.remainingText, "world")
+        XCTAssertEqual(rig.overlayController.shownTexts.count, shownBefore, "Nothing may be painted while the hold is on")
+        XCTAssertTrue(rig.overlayController.advanceInlineCalls.isEmpty)
+        XCTAssertFalse(rig.overlayController.state.isVisible)
+
+        rig.coordinator.handleSupportedSnapshot(snapshot(markedLength: 0, precedingText: "Hello "))
+
+        XCTAssertEqual(rig.overlayController.shownTexts.last, "world")
+    }
+
+    func test_hostMarkedText_withoutASessionJustHolds() {
+        let rig = retained(makeCoordinatorRig())
+
+        rig.coordinator.handleSupportedSnapshot(snapshot(markedLength: 2))
+
+        XCTAssertTrue(rig.coordinator.isHoldingForHostMarkedText)
+        XCTAssertEqual(rig.coordinator.state, .idle)
+        XCTAssertNil(rig.interactionState.activeSession)
+    }
+
     // MARK: - Key routing
 
     func test_acceptanceEventRoutesIntoAcceptance() {

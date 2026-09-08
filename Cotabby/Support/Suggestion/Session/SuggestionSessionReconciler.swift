@@ -169,7 +169,9 @@ enum SuggestionSessionReconciler {
             )
         }
 
-        return .invalid("Overlay hidden because text after the caret changed.")
+        let before = (session.baseContext.trailingText as NSString).length
+        let after = (liveContext.trailingText as NSString).length
+        return .invalid("Overlay hidden because text after the caret changed (\(before) -> \(after) chars).")
     }
 
     private static func reconcilePrefixAnchor(

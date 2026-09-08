@@ -17,6 +17,9 @@ final class SuggestionCoordinator: ObservableObject {
     var state: SuggestionDebugState = .idle
     var overlayState: OverlayState = .hidden(reason: "Overlay idle.")
     var latestGenerationNumber: UInt64?
+    /// True while the latest focus snapshot carried host-owned marked text (system inline
+    /// prediction or IME composition); see `SuggestionCoordinator+HostMarkedText.swift`.
+    var isHoldingForHostMarkedText = false
     @Published var visualContextStatus: VisualContextStatus = .idle
     @Published var latestVisualContextText: String?
     @Published var totalTabAcceptedWordCount: Int = 0

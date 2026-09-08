@@ -79,6 +79,21 @@ final class SuggestionCoordinatorPredictionTests: XCTestCase {
         })
     }
 
+    func test_generate_holdsWithoutCallingTheEngineWhileTheHostShowsItsOwnInlineText() async {
+        let rig = retained(makeCoordinatorRig(
+            snapshot: CotabbyTestFixtures.focusedInputSnapshot(
+                precedingText: "The quick brown fox ju",
+                hostMarkedTextRange: NSRange(location: 22, length: 3)
+            )
+        ))
+
+        rig.coordinator.schedulePrediction()
+        await waitUntil("Pipeline never settled") { rig.coordinator.isHoldingForHostMarkedText }
+
+        XCTAssertTrue(rig.engine.requests.isEmpty, "No generation while the host owns the spot after the caret")
+        XCTAssertEqual(rig.coordinator.state, .idle)
+    }
+
     // MARK: - Freshness gates in apply
 
     func test_apply_emptyNormalizedResultEndsIdle() async {

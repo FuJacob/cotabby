@@ -80,7 +80,7 @@ final class SuggestionSessionReconciliationTests: XCTestCase {
 
         assertInvalid(
             reconciliation,
-            reason: "Overlay hidden because text after the caret changed."
+            reason: "Overlay hidden because text after the caret changed (5 -> 8 chars)."
         )
     }
 
