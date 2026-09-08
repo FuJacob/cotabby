@@ -660,10 +660,37 @@ final class OverlayController: SuggestionOverlayControlling {
         // re-enter, but the Task allocation and actor hop are not free on the hot path.
         let requestKey = "\(bundleIdentifier)|\(name)"
         guard requestedHostFonts.insert(requestKey).inserted else { return nil }
-        Task {
-            await HostFontRegistry.shared.ensureFontAvailable(named: name, bundleIdentifier: bundleIdentifier)
+        Task { [weak self] in
+            let registered = await HostFontRegistry.shared.ensureFontAvailable(
+                named: name,
+                bundleIdentifier: bundleIdentifier
+            )
+            guard registered else { return }
+            self?.redrawInlineAfterFontRegistration(fontName: name)
         }
         return nil
+    }
+
+    /// Re-renders a visible inline suggestion once a host font finishes registering.
+    ///
+    /// Without this, "the next render picks it up" is only true while something else is still
+    /// causing renders. A suggestion that arrived complete — no streaming, no further keystrokes —
+    /// is drawn once, in the fallback font, and stays that way until an unrelated later suggestion
+    /// happens to redraw it. Re-showing here is cheap and idempotent: `showInline` recomputes from
+    /// the same text and geometry, and the fade is owned by `showSuggestion`, so nothing re-animates.
+    ///
+    /// Guarded on the font actually being resolvable now, so a registration that reported success
+    /// but left the name unusable cannot cause a pointless redraw loop.
+    private func redrawInlineAfterFontRegistration(fontName: String) {
+        guard case .visible(let text, let geometry, let mode) = state,
+              mode == .inline,
+              geometry.resolvedFieldStyle?.fontName == fontName,
+              NSFont(name: fontName, size: Layout.metricProbeFontSize) != nil
+        else {
+            return
+        }
+
+        showInline(text: text, geometry: geometry)
     }
 
     /// Maps the host field's foreground color to a ghost color, or nil to fall back to the default
