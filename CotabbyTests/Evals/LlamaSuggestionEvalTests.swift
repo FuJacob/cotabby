@@ -77,14 +77,37 @@ final class LlamaSuggestionEvalTests: XCTestCase {
         engine: LlamaSuggestionEngine,
         spellChecker: CurrentWordSpellChecker
     ) async throws -> LlamaEvalCaseResult {
-        // Mirrors the coordinator's pre-generation gate.
-        guard SuggestionRequestFactory.shouldGenerateSuggestion(for: evalCase.precedingText) else {
+        // Mirrors the coordinator's pre-generation gate, caret position included.
+        guard SuggestionRequestFactory.shouldGenerateSuggestion(
+            for: evalCase.precedingText, trailingText: evalCase.trailingText
+        ) else {
             return LlamaEvalCaseResult(
                 evalCase: evalCase,
                 shownText: nil,
                 rawText: "",
                 outcome: LlamaEvalScorer.outcome(shownText: nil, for: evalCase),
                 suppressionStage: "pre-generation-gate",
+                latencySeconds: 0
+            )
+        }
+
+        // Mirrors the coordinator's typo gate with the shipping defaults (suppress on typo, offer
+        // corrections, no automatic fixing): a misspelled current word shows no continuation, and a
+        // correction offer is not a continuation either.
+        let typoDecision = TypoGate.resolve(
+            precedingText: evalCase.precedingText,
+            settings: TypoGate.Settings(suppressCompletionsOnTypo: true, offerTypoCorrections: true, automaticallyFixTypos: false),
+            isTypo: { spellChecker.isTypo($0) },
+            bestCorrection: { spellChecker.bestCorrection(for: $0) },
+            isWordInProgress: { spellChecker.hasCompletions(forPartialWord: $0) }
+        )
+        if typoDecision != .proceed {
+            return LlamaEvalCaseResult(
+                evalCase: evalCase,
+                shownText: nil,
+                rawText: "",
+                outcome: LlamaEvalScorer.outcome(shownText: nil, for: evalCase),
+                suppressionStage: "typo-gate",
                 latencySeconds: 0
             )
         }

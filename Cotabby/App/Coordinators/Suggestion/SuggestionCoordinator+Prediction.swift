@@ -92,9 +92,11 @@ extension SuggestionCoordinator {
             return
         }
 
-        guard SuggestionRequestFactory.shouldGenerateSuggestion(for: rawContext.precedingText) else {
+        guard SuggestionRequestFactory.shouldGenerateSuggestion(
+            for: rawContext.precedingText, trailingText: rawContext.trailingText
+        ) else {
             clearSuggestion()
-            hideOverlay(reason: "Overlay hidden because the field has no typed text yet.")
+            hideOverlay(reason: "Overlay hidden because the field has no typed text yet or the caret is inside a word.")
             state = .idle
             return
         }
@@ -219,7 +221,9 @@ extension SuggestionCoordinator {
         // speculative request must not spend a decode on text the normal path would refuse (too
         // little text) or suppress (typo gate). The post-publish regeneration still runs the full
         // gate with its correction semantics; declining here only skips the speculation.
-        guard SuggestionRequestFactory.shouldGenerateSuggestion(for: optimistic.precedingText) else {
+        guard SuggestionRequestFactory.shouldGenerateSuggestion(
+            for: optimistic.precedingText, trailingText: optimistic.trailingText
+        ) else {
             return
         }
         if settingsSnapshot.suppressCompletionsOnTypo,
@@ -475,7 +479,8 @@ extension SuggestionCoordinator {
                     for: $0,
                     precedingText: rawContext.precedingText
                 )
-            }
+            },
+            isWordInProgress: { spellChecker.hasCompletions(forPartialWord: $0) }
         ) {
         case .proceed:
             return false

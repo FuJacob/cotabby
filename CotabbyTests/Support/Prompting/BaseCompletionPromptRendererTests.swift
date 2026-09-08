@@ -108,7 +108,7 @@ final class BaseCompletionPromptRendererTests: XCTestCase {
             userName: "Jacob",
             surfaceContext: surface
         )
-        XCTAssertTrue(prompt.hasPrefix("An email being written in Mail. The window is titled \"Re: Q3 budget review\"."))
+        XCTAssertTrue(prompt.hasPrefix("Email draft. Window title: \"Re: Q3 budget review\"."))
         XCTAssertTrue(prompt.contains("Written by Jacob"))
         XCTAssertTrue(prompt.hasSuffix("Thanks again for"))
     }

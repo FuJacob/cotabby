@@ -88,8 +88,10 @@ final class SuggestionRequestFactoryTests: XCTestCase {
             configuration: configuration
         )
 
-        XCTAssertEqual(result.request.prefixText, "zeta eta theta")
-        XCTAssertTrue(result.promptPreview.contains("zeta eta theta"))
+        // The final word is the word-boundary anchor: it leaves the prompt and is matched back on output.
+        XCTAssertEqual(result.request.prefixText, "zeta eta ")
+        XCTAssertEqual(result.request.wordBoundaryAnchor, "theta")
+        XCTAssertTrue(result.promptPreview.contains("zeta eta"))
         XCTAssertFalse(result.promptPreview.contains("alpha beta"))
     }
 
@@ -131,10 +133,10 @@ final class SuggestionRequestFactoryTests: XCTestCase {
             configuration: configuration
         )
 
-        XCTAssertEqual(llamaResult.request.prefixText, "zeta eta theta")
+        XCTAssertEqual(llamaResult.request.prefixText, "zeta eta ")
         XCTAssertEqual(
             foundationModelResult.request.prefixText,
-            "gamma delta epsilon zeta eta theta"
+            "gamma delta epsilon zeta eta "
         )
     }
 
@@ -215,7 +217,8 @@ final class SuggestionRequestFactoryTests: XCTestCase {
     }
 
     func test_buildRequest_usesApplePromptPreviewWhenAppleEngineSelected() {
-        let context = CotabbyTestFixtures.focusedInputContext(precedingText: "Hello")
+        // A word boundary keeps the typed text in the prompt (a lone partial word is anchored out).
+        let context = CotabbyTestFixtures.focusedInputContext(precedingText: "Hello ")
 
         let result = SuggestionRequestFactory.buildRequest(
             context: context,
@@ -311,12 +314,41 @@ final class SuggestionRequestFactoryTests: XCTestCase {
         )
 
         XCTAssertEqual(result.request.surfaceContext?.surfaceClass, .email)
-        XCTAssertTrue(result.request.prompt.contains("An email being written in Mail."))
+        XCTAssertTrue(result.request.prompt.contains("Email draft."))
         XCTAssertTrue(
-            result.request.prompt.contains("The window is titled \"Re: Q3 budget\"."),
+            result.request.prompt.contains("Window title: \"Re: Q3 budget\"."),
             "the app-name suffix is stripped from the title before it reaches the prompt"
         )
-        XCTAssertTrue(result.request.prompt.hasSuffix("Thanks again for"))
+        XCTAssertTrue(result.request.prompt.hasSuffix("Thanks again"), "the partial final word is the anchor")
+    }
+
+    func test_shouldGenerateSuggestion_declinesACaretInsideAToken() {
+        XCTAssertFalse(SuggestionRequestFactory.shouldGenerateSuggestion(for: "head", trailingText: "phones"))
+        XCTAssertFalse(SuggestionRequestFactory.shouldGenerateSuggestion(for: "jane", trailingText: "@example.com"))
+        XCTAssertTrue(SuggestionRequestFactory.shouldGenerateSuggestion(for: "Thanks", trailingText: ". Bye"))
+        XCTAssertTrue(SuggestionRequestFactory.shouldGenerateSuggestion(for: "Thanks for", trailingText: ""))
+    }
+
+    func test_buildRequest_anchorsAMidWordRequestAtTheWordBoundary() {
+        let context = CotabbyTestFixtures.focusedInputContext(precedingText: "Thanks so much, I really apprec")
+        let result = SuggestionRequestFactory.buildRequest(
+            context: context,
+            settings: CotabbyTestFixtures.settingsSnapshot(),
+            configuration: .standard
+        )
+        XCTAssertEqual(result.request.wordBoundaryAnchor, "apprec")
+        XCTAssertTrue(result.request.prefixText.hasSuffix("I really "), result.request.prefixText)
+        XCTAssertFalse(result.request.prompt.hasSuffix("apprec"), "the partial word leaves the prompt")
+    }
+
+    func test_buildRequest_atAWordBoundaryHasNoAnchor() {
+        let context = CotabbyTestFixtures.focusedInputContext(precedingText: "Thanks so much, I really ")
+        let result = SuggestionRequestFactory.buildRequest(
+            context: context,
+            settings: CotabbyTestFixtures.settingsSnapshot(),
+            configuration: .standard
+        )
+        XCTAssertNil(result.request.wordBoundaryAnchor)
     }
 
     func test_buildRequest_omitsSurfaceContextWhenDisabled() {
@@ -334,7 +366,7 @@ final class SuggestionRequestFactoryTests: XCTestCase {
         )
 
         XCTAssertNil(result.request.surfaceContext)
-        XCTAssertFalse(result.request.prompt.contains("An email being written"))
+        XCTAssertFalse(result.request.prompt.contains("Email draft"))
         XCTAssertFalse(result.request.prompt.contains("Re: Q3 budget"))
     }
 

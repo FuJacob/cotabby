@@ -47,14 +47,17 @@ final class DebugForcedSuggestionEngine: SuggestionGenerating {
         guard let forcedText else {
             return try await wrapped.generateSuggestion(for: request, onPartial: onPartial)
         }
-        let normalization = SuggestionTextNormalizer.normalizeDetailed(forcedText, for: request)
+        // A request anchored at a word boundary expects the model to re-emit the partial word before
+        // continuing (see `WordBoundaryAnchorPolicy`); the forced text plays that model faithfully.
+        let rawText = request.wordBoundaryAnchor.map { $0 + forcedText } ?? forcedText
+        let normalization = SuggestionTextNormalizer.normalizeDetailed(rawText, for: request)
         CotabbyLogger.suggestion.debug(
             "Forced debug suggestion",
             metadata: ["request_id": .string(request.requestID), "engine": .string("debug_forced")]
         )
         return SuggestionResult(
             generation: request.generation,
-            rawText: forcedText,
+            rawText: rawText,
             text: normalization.text,
             latency: 0.001,
             suppressionReason: normalization.suppression?.rawValue

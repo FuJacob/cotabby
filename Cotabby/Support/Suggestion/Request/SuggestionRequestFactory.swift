@@ -28,6 +28,13 @@ enum SuggestionRequestFactory {
         return !trimmed.isEmpty
     }
 
+    /// The full pre-generation gate: some typed text, and a caret that is not parked inside a token
+    /// (see `CaretTokenPosition`), where any completion would duplicate or splice what follows.
+    static func shouldGenerateSuggestion(for precedingText: String, trailingText: String) -> Bool {
+        guard shouldGenerateSuggestion(for: precedingText) else { return false }
+        return !CaretTokenPosition.isInsideToken(precedingText: precedingText, trailingText: trailingText)
+    }
+
     /// Builds the generation request plus the exact prompt preview used by Cotabby's diagnostics UI.
     static func buildRequest(
         context: FocusedInputContext,
@@ -36,11 +43,21 @@ enum SuggestionRequestFactory {
         clipboardContext: String? = nil,
         visualContextSummary: String? = nil
     ) -> SuggestionRequestBuildResult {
-        let prefixText = truncatedPromptPrefix(
+        // Mid-word requests are anchored at the word boundary: the partial word leaves the prompt so
+        // the model completes a whole word, and the normalizer takes the typed part back off.
+        let fullPrefixText = truncatedPromptPrefix(
             from: context.precedingText,
             configuration: configuration,
             engine: settings.selectedEngine
         )
+        // A lone partial word is anchored too: the unconditioned prompt then yields a word the
+        // anchor check rejects, and showing nothing beats the "azioni!" the plain prompt produced.
+        let wordBoundaryAnchor = WordBoundaryAnchorPolicy.anchor(
+            precedingText: context.precedingText,
+            trailingText: context.trailingText
+        )
+        let prefixText = wordBoundaryAnchor.map { WordBoundaryAnchorPolicy.promptPrefix(fullPrefixText, removing: $0) }
+            ?? fullPrefixText
         let completionLengthInstruction = settings.effectiveWordRange.promptInstruction
         let userName = activeUserName(settings: settings)
         // Custom rules are hidden from users (CustomRulesCatalog.isUserFacingEnabled == false): the
@@ -126,7 +143,8 @@ enum SuggestionRequestFactory {
             visualContextSummary: boundedVisualContextSummary,
             surfaceContext: surfaceContext,
             isMultiLineEnabled: settings.isMultiLineEnabled,
-            requestID: RequestID.generate()
+            requestID: RequestID.generate(),
+            wordBoundaryAnchor: wordBoundaryAnchor
         )
 
         return SuggestionRequestBuildResult(

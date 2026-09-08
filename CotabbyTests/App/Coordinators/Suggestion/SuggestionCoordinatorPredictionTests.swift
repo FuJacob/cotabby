@@ -23,7 +23,11 @@ final class SuggestionCoordinatorPredictionTests: XCTestCase {
     // MARK: - Happy path
 
     func test_schedulePrediction_generatesAndPresentsTheSuggestion() async {
-        let rig = retained(makeCoordinatorRig())
+        // A word boundary, so the whole typed text stays in the prompt (a trailing partial word
+        // would be anchored out of it; see `WordBoundaryAnchorPolicy`).
+        let rig = retained(makeCoordinatorRig(
+            snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello ")
+        ))
 
         rig.coordinator.schedulePrediction()
         XCTAssertEqual(rig.coordinator.state, .debouncing)

@@ -139,7 +139,11 @@ and cohesive mutable sub-state to smaller boundaries:
 - [SuggestionAvailabilityEvaluator.swift](Cotabby/Support/Suggestion/Request/SuggestionAvailabilityEvaluator.swift):
   pure permission, settings, focus, and runtime gates.
 - [SuggestionRequestFactory.swift](Cotabby/Support/Suggestion/Request/SuggestionRequestFactory.swift): pure bounded
-  request construction and the selected backend's developer-debug prompt payload.
+  request construction and the selected backend's developer-debug prompt payload. Nothing is generated
+  with the caret inside a token ([CaretTokenPosition.swift](Cotabby/Support/Suggestion/Request/CaretTokenPosition.swift)),
+  and a request made mid-word is anchored at the word boundary
+  ([WordBoundaryAnchorPolicy.swift](Cotabby/Support/Suggestion/Request/WordBoundaryAnchorPolicy.swift)): the partial
+  word leaves the prompt so the model completes a whole word, and the normalizer shows only the untyped remainder.
 - [SuggestionWorkController.swift](Cotabby/Services/Suggestion/State/SuggestionWorkController.swift):
   debounce/generation tasks and monotonically increasing work IDs.
 - [SuggestionInteractionState.swift](Cotabby/Services/Suggestion/State/SuggestionInteractionState.swift):
@@ -151,11 +155,15 @@ and cohesive mutable sub-state to smaller boundaries:
 - [SuggestionSessionReconciler.swift](Cotabby/Support/Suggestion/Session/SuggestionSessionReconciler.swift): type-through,
   acceptance, and live-host reconciliation.
 - [SuggestionTextNormalizer.swift](Cotabby/Support/Suggestion/Output/SuggestionTextNormalizer.swift): backend-independent
-  cleanup, echo removal, whitespace policy, trailing-text deduplication, and unsafe-output rejection.
+  cleanup, echo removal, whitespace policy, trailing-text deduplication, word-boundary reconciliation, and
+  unsafe-output rejection. [CompletionContentPolicy.swift](Cotabby/Support/Suggestion/Output/CompletionContentPolicy.swift)
+  then drops punctuation-only output, closing punctuation after a typed space, and forum/chat scaffolding or
+  meta-responses about the prompt.
 
 A native correction path runs before model generation. NSSpellChecker and bundled SymSpell indexes
 can suppress completion while a likely typo is forming, offer a green atomic replacement, or apply
-an opt-in automatic fix after Space.
+an opt-in automatic fix after Space. A word the checker can still complete ("apprec") is treated as
+in progress rather than misspelled, so the continuation finishes it.
 
 Engines can stream cumulative partials. SuggestionStreamingState coalesces token-rate callbacks into
 latest-wins UI work, accepts only monotonic extensions, and lets a displayed partial become an active
