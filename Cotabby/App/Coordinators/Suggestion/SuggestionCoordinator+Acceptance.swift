@@ -543,9 +543,16 @@ extension SuggestionCoordinator {
         }
 
         state = .ready(text: advancedSession.remainingText, latency: advancedSession.latency)
-        // Same slide as Tab acceptance; the user typed the next characters, so the caret traveled
-        // by exactly them. Fall back to the (session-start) caret anchor only if the slide can't apply.
-        if !overlayController.advanceInline(to: advancedSession.remainingText, insertedText: typedCharacters) {
+        if isHoldingForHostMarkedText {
+            // The host's own prediction still occupies the ghost's spot; the advanced tail stays
+            // hidden until a snapshot without marked text reconciles and re-presents it.
+            if overlayState.isVisible {
+                hideOverlay(reason: Self.hostMarkedTextHoldReason)
+            }
+        } else if !overlayController.advanceInline(to: advancedSession.remainingText, insertedText: typedCharacters) {
+            // Same slide as Tab acceptance; the user typed the next characters, so the caret
+            // traveled by exactly them. Fall back to the (session-start) caret anchor only if the
+            // slide can't apply.
             presentOverlay(
                 text: advancedSession.remainingText,
                 at: session.baseContext.caretRect,
@@ -745,7 +752,11 @@ extension SuggestionCoordinator {
             focusChangeSequence: context.focusChangeSequence,
             focusedInputIdentityKey: context.focusedInputIdentityKey,
             isCorrection: isCorrection,
-            resolvedFieldStyle: context.resolvedFieldStyle
+            resolvedFieldStyle: context.resolvedFieldStyle,
+            hostTextMetrics: context.hostTextMetrics,
+            isWebContentField: context.isWebContentField,
+            hasTrailingContent: context.hasTrailingContent,
+            elementFrameRect: context.elementFrameRect
         )
         _ = overlayPresenter.present(
             text: text,

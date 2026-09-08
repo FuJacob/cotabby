@@ -187,6 +187,37 @@ enum AXHelper {
         return rect
     }
 
+    /// Reads a parameterized attribute that takes an integer (a line index or character offset) and
+    /// returns an integer, such as `AXLineForIndex`. Nil when the host declines or answers with a
+    /// non-numeric value.
+    static func parameterizedIntValue(
+        for attribute: CFString,
+        parameter: Int,
+        on element: AXUIElement
+    ) -> Int? {
+        var value: CFTypeRef?
+        let result = AXUIElementCopyParameterizedAttributeValue(element, attribute, NSNumber(value: parameter), &value)
+        guard result == .success, let number = value as? NSNumber else { return nil }
+        return number.intValue
+    }
+
+    /// Reads a parameterized attribute that takes an integer and returns a range, such as
+    /// `AXRangeForLine`.
+    static func parameterizedRangeValue(
+        for attribute: CFString,
+        parameter: Int,
+        on element: AXUIElement
+    ) -> NSRange? {
+        var value: CFTypeRef?
+        let result = AXUIElementCopyParameterizedAttributeValue(element, attribute, NSNumber(value: parameter), &value)
+        guard result == .success, let axValue = axValue(from: value), AXValueGetType(axValue) == .cfRange else {
+            return nil
+        }
+        var range = CFRange()
+        guard AXValueGetValue(axValue, .cfRange, &range) else { return nil }
+        return NSRange(location: range.location, length: range.length)
+    }
+
     /// Reads a parameterized string range without asking the host app to serialize the whole field.
     ///
     /// Large browser editors can expose many thousands of characters through `AXValue`. Pulling the
@@ -283,12 +314,17 @@ enum AXHelper {
     /// `.font`/`.foregroundColor` shapes and the AX-specific font dictionary / `CGColor` shapes.
     private static func fieldStyle(from attributes: [NSAttributedString.Key: Any]) -> ResolvedFieldStyle? {
         var fontName: String?
+        var fontFamily: String?
         var fontPointSize: CGFloat?
         if let font = attributes[.font] as? NSFont {
             fontName = font.fontName
+            fontFamily = font.familyName
             fontPointSize = font.pointSize
         } else if let fontInfo = attributes[NSAttributedString.Key("AXFont")] as? [String: Any] {
+            // AppKit hosts vend name, family, and size. Chromium vends only the size (its inline
+            // text boxes carry no face), which is still the single most useful fact for matching.
             fontName = fontInfo["AXFontName"] as? String
+            fontFamily = fontInfo["AXFontFamily"] as? String
             if let size = fontInfo["AXFontSize"] as? NSNumber {
                 fontPointSize = CGFloat(size.doubleValue)
             }
@@ -310,7 +346,12 @@ enum AXHelper {
             }
         }
 
-        let style = ResolvedFieldStyle(fontName: fontName, fontPointSize: fontPointSize, colorHex: colorHex)
+        let style = ResolvedFieldStyle(
+            fontName: fontName,
+            fontFamily: fontFamily,
+            fontPointSize: fontPointSize,
+            colorHex: colorHex
+        )
         return style.isEmpty ? nil : style
     }
 
@@ -535,6 +576,23 @@ enum AXHelper {
         AXUIElementSetMessagingTimeout(appElement, pollMessagingTimeout)
         let value: CFBoolean = enabled ? kCFBooleanTrue : kCFBooleanFalse
         return AXUIElementSetAttributeValue(appElement, "AXManualAccessibility" as CFString, value)
+    }
+
+    /// Sets `AXEnhancedUserInterface` on an application's process element: the flag VoiceOver sets,
+    /// which Chromium treats as "a screen reader is present" and answers by building its complete
+    /// accessibility tree, inline text boxes included. Returns true when the flag reads back as set,
+    /// because Chrome reports an error code for the write even as it honors it.
+    static func setEnhancedUserInterface(_ enabled: Bool, forApplicationPID pid: pid_t) -> Bool {
+        guard pid > 0 else { return false }
+        let appElement = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(appElement, pollMessagingTimeout)
+        let value: CFBoolean = enabled ? kCFBooleanTrue : kCFBooleanFalse
+        let attribute = "AXEnhancedUserInterface" as CFString
+        let result = AXUIElementSetAttributeValue(appElement, attribute, value)
+        if result == .success {
+            return true
+        }
+        return boolValue(for: attribute, on: appElement) == enabled
     }
 
     /// Hit-tests the Accessibility tree at a Cocoa screen point (bottom-left origin) by converting

@@ -44,7 +44,10 @@ nonisolated enum SpeculativeAcceptanceContext {
             focusedURLString: snapshot.focusedURLString,
             resolvedFieldStyle: snapshot.resolvedFieldStyle,
             windowTitle: snapshot.windowTitle,
-            fieldPlaceholder: snapshot.fieldPlaceholder
+            fieldPlaceholder: snapshot.fieldPlaceholder,
+            hostTextMetrics: snapshot.hostTextMetrics,
+            elementFrameRect: snapshot.elementFrameRect,
+            hostMarkedTextRange: snapshot.hostMarkedTextRange
         )
     }
 }

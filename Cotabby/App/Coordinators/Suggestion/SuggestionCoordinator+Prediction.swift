@@ -86,6 +86,12 @@ extension SuggestionCoordinator {
             return
         }
 
+        // No generation while the host shows its own inline prediction or composes text.
+        if rawContext.hasHostMarkedText {
+            holdForHostMarkedText()
+            return
+        }
+
         guard SuggestionRequestFactory.shouldGenerateSuggestion(for: rawContext.precedingText) else {
             clearSuggestion()
             hideOverlay(reason: "Overlay hidden because the field has no typed text yet.")
@@ -126,6 +132,9 @@ extension SuggestionCoordinator {
         latestRequestID = request.requestID
 
         state = .generating
+        // The model needs tens to hundreds of milliseconds; the overlay uses that time to measure
+        // the host's baseline so the ghost lands right the first time.
+        overlayController.prepareInlinePresentation(for: context)
         logStage(
             "generating",
             workID: workID,
@@ -826,12 +835,18 @@ extension SuggestionCoordinator {
         )
         state = .ready(text: session.remainingText, latency: session.latency)
 
-        presentOverlay(
-            text: session.remainingText,
-            at: liveContext.caretRect,
-            context: liveContext,
-            isRightToLeft: TextDirectionDetector.isRightToLeft(liveContext.precedingText)
-        )
+        // A host prediction that appeared while the model was thinking owns the spot right now;
+        // the session is kept and shows itself once the host span clears.
+        if liveContext.hasHostMarkedText {
+            holdForHostMarkedText()
+        } else {
+            presentOverlay(
+                text: session.remainingText,
+                at: liveContext.caretRect,
+                context: liveContext,
+                isRightToLeft: TextDirectionDetector.isRightToLeft(liveContext.precedingText)
+            )
+        }
         logStage(
             "ready",
             workID: workID,

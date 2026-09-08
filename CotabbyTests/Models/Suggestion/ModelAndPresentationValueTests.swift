@@ -105,44 +105,6 @@ final class SuggestionModelValueTests: XCTestCase {
         XCTAssertEqual(state.visibleMode, .inline)
     }
 
-    func test_ghostSuggestionLayoutWrapsOverflowToInputLeftEdge() {
-        let geometry = CotabbyTestFixtures.overlayGeometry(
-            caretRect: CGRect(x: 190, y: 80, width: 2, height: 18),
-            inputFrameRect: CGRect(x: 100, y: 70, width: 140, height: 30),
-            observedCharWidth: 7
-        )
-
-        let layout = GhostSuggestionLayout.make(
-            text: " alpha beta gamma delta",
-            geometry: geometry,
-            fontSize: 14,
-            visibleFrame: CGRect(x: 0, y: 0, width: 500, height: 300)
-        )
-
-        XCTAssertGreaterThan(layout.lines.count, 1)
-        XCTAssertEqual(layout.panelOriginX, 108)
-        XCTAssertEqual(layout.lines.last?.leadingIndent, 0)
-        XCTAssertEqual(layout.lines.last?.showsKeycap, true)
-    }
-
-    func test_ghostSuggestionLayoutUsesNextLineWhenCaretHasNoUsefulSpace() {
-        let geometry = CotabbyTestFixtures.overlayGeometry(
-            caretRect: CGRect(x: 232, y: 80, width: 2, height: 18),
-            inputFrameRect: CGRect(x: 100, y: 70, width: 140, height: 30),
-            observedCharWidth: 7
-        )
-
-        let layout = GhostSuggestionLayout.make(
-            text: " next words",
-            geometry: geometry,
-            fontSize: 14,
-            visibleFrame: CGRect(x: 0, y: 0, width: 500, height: 300)
-        )
-
-        XCTAssertEqual(layout.lines.first?.leadingIndent, 0)
-        XCTAssertLessThan(layout.topLineCenterOffsetFromCaret, 0)
-    }
-
     func test_suggestionWordRange_compactLabelRendersLowAndHighBounds() {
         let range = SuggestionWordRange(lowWords: 5, highWords: 15)
 

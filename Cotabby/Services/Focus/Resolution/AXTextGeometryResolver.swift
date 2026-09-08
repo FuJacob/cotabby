@@ -81,67 +81,90 @@ struct AXTextGeometryResolver {
         textValue: String? = nil,
         textSelection: NSRange? = nil,
         staticRunThrottle: StaticTextRunWalkThrottle? = nil,
-        focusChangeSequence: UInt64 = 0
+        focusChangeSequence: UInt64 = 0,
+        supportsLineQueries: Bool = false
     ) -> CaretGeometryResult? {
         let selectionInTextValue = textSelection ?? selection
 
-        // Branch 1: Zero-length BoundsForRange at the caret position — ideal case.
-        // Gated on `supportsBoundsForRange` because the API is a synchronous cross-process
-        // call into the focused app's AX implementation. In Chrome that's a round-trip into
-        // the renderer, and the deep-tree walker can touch many leaves per focus poll; calling
-        // BoundsForRange on nodes that don't advertise support stalled the main thread badly
-        // enough to freeze typing. The `rectIsNearAnchor` validator stays as a correctness
-        // guard for supporters that return rects belonging to an unrelated range.
+        // Branch 1 (previous-character trailing edge). Ask the host for the bounds of the character
+        // before the caret and take its trailing edge: for left-to-right text that IS the insertion
+        // point, and its box is the real rendered line. Measured against TextEdit and Chrome, this
+        // answer coincides with the zero-length caret query on x while the zero-length query is the
+        // less trustworthy one: TextKit reports the end-of-document caret one line too high, and
+        // Chrome reports a caret after a trailing newline at the end of the previous line. A previous
+        // character that is itself a line break describes the previous line, so that case defers to
+        // the zero-length query below.
+        // Gated on `supportsBoundsForRange` because the API is a synchronous cross-process call into
+        // the focused app's AX implementation; the `rectIsNearAnchor` validator stays as a
+        // correctness guard for supporters that return rects belonging to an unrelated range.
+        let previousCharacter = Self.character(before: selectionInTextValue.location, in: textValue)
         if supportsBoundsForRange,
+            selection.location > 0,
+            let previousCharacter, !previousCharacter.isNewline,
             let rect = AXHelper.parameterizedRectValue(
                 for: kAXBoundsForRangeParameterizedAttribute as CFString,
-                range: NSRange(location: selection.location, length: 0),
+                range: NSRange(location: selection.location - 1, length: 1),
                 on: element
-            ), !rect.isEmpty {
+            ), rect.width > 0, rect.height > 0, AXHelper.rectHasFiniteComponents(rect) {
             let cocoaRect = AXHelper.validatedCocoaTextRect(
                 fromAccessibilityRect: rect,
                 anchorFrame: cocoaAnchorFrame
             )
             if rectIsNearAnchor(cocoaRect, anchor: cocoaAnchorFrame) {
+                let isRightToLeft = textValue.map(TextDirectionDetector.isRightToLeft) ?? false
                 return CaretGeometryResult(
-                    rect: normalizedCaretRect(fromZeroLengthRangeRect: cocoaRect),
-                    quality: .exact
+                    rect: Self.caretRect(afterCharacterFrame: cocoaRect, rightToLeft: isRightToLeft),
+                    quality: .exact,
+                    sourceDetail: "previous-character"
+                )
+            }
+        }
+
+        // Branch 1.2: zero-length BoundsForRange at the caret. Reached at the start of a field or
+        // right after a line break. Hosts answer this with a zero-WIDTH rect, so the check is on
+        // height, not `isEmpty` (which is true for any zero-width rect and used to discard every
+        // legitimate caret box here).
+        if supportsBoundsForRange,
+            let rect = AXHelper.parameterizedRectValue(
+                for: kAXBoundsForRangeParameterizedAttribute as CFString,
+                range: NSRange(location: selection.location, length: 0),
+                on: element
+            ), rect.height > 0, AXHelper.rectHasFiniteComponents(rect) {
+            let cocoaRect = AXHelper.validatedCocoaTextRect(
+                fromAccessibilityRect: rect,
+                anchorFrame: cocoaAnchorFrame
+            )
+            if rectIsNearAnchor(cocoaRect, anchor: cocoaAnchorFrame) {
+                let normalized = normalizedCaretRect(fromZeroLengthRangeRect: cocoaRect)
+                return zeroLengthCaretResult(
+                    normalized,
+                    context: ZeroLengthCaretContext(
+                        element: element,
+                        caretLocation: selection.location,
+                        supportsLineQueries: supportsLineQueries,
+                        anchorFrame: cocoaAnchorFrame,
+                        isAtTextEndAfterNewline: previousCharacter?.isNewline == true
+                            && selectionInTextValue.location >= ((textValue ?? "") as NSString).length
+                    )
                 )
             }
         }
 
         // Branch 1.5: Chromium / WebKit AXTextMarker fallback.
         // Apps like Discord/Chrome fail NSRange queries but return a correct bounding box
-        // when we ask for the caret via their internal AXTextMarkerRange objects.
-        if let markerRect = AXHelper.textMarkerCaretRect(on: element), !markerRect.isEmpty {
+        // when we ask for the caret via their internal AXTextMarkerRange objects. The caret box is
+        // zero-width, so only its height is checked.
+        if let markerRect = AXHelper.textMarkerCaretRect(on: element),
+            markerRect.height > 0, AXHelper.rectHasFiniteComponents(markerRect) {
             let cocoaRect = AXHelper.validatedCocoaTextRect(
                 fromAccessibilityRect: markerRect,
                 anchorFrame: cocoaAnchorFrame
             )
-            return CaretGeometryResult(
-                rect: normalizedCaretRect(fromZeroLengthRangeRect: cocoaRect),
-                quality: .exact
-            )
-        }
-
-        // Branch 2: BoundsForRange on the character before the caret, then shift to its trailing edge.
-        // Same gate and anchor validation as Branch 1.
-        if supportsBoundsForRange,
-            selection.location > 0,
-            let rect = AXHelper.parameterizedRectValue(
-                for: kAXBoundsForRangeParameterizedAttribute as CFString,
-                range: NSRange(location: selection.location - 1, length: 1),
-                on: element
-            ), !rect.isEmpty {
-            let cocoaRect = AXHelper.validatedCocoaTextRect(
-                fromAccessibilityRect: rect,
-                anchorFrame: cocoaAnchorFrame
-            )
             if rectIsNearAnchor(cocoaRect, anchor: cocoaAnchorFrame) {
                 return CaretGeometryResult(
-                    rect: CGRect(
-                        x: cocoaRect.maxX, y: cocoaRect.minY, width: 2, height: cocoaRect.height),
-                    quality: .derived
+                    rect: normalizedCaretRect(fromZeroLengthRangeRect: cocoaRect),
+                    quality: .exact,
+                    sourceDetail: "text-marker"
                 )
             }
         }
@@ -457,9 +480,91 @@ struct AXTextGeometryResolver {
     }
 
     /// Converts the measured character immediately before the selection into Cotabby's normalized
-    /// caret shape. The trailing edge—not the character origin—is the insertion point.
-    static func caretRect(afterCharacterFrame frame: CGRect) -> CGRect {
-        CGRect(x: frame.maxX, y: frame.minY, width: 2, height: frame.height)
+    /// caret shape. The trailing edge—not the character origin—is the insertion point: the right
+    /// edge for left-to-right text, the left edge for right-to-left text.
+    static func caretRect(afterCharacterFrame frame: CGRect, rightToLeft: Bool = false) -> CGRect {
+        CGRect(x: rightToLeft ? frame.minX : frame.maxX, y: frame.minY, width: 2, height: frame.height)
+    }
+
+    /// The character immediately before `caretLocation` (a UTF-16 offset into `text`), or nil.
+    static func character(before caretLocation: Int, in text: String?) -> Character? {
+        guard let text, caretLocation > 0 else { return nil }
+        let nsText = text as NSString
+        guard caretLocation <= nsText.length else { return nil }
+        let clusterRange = nsText.rangeOfComposedCharacterSequence(at: caretLocation - 1)
+        return nsText.substring(with: clusterRange).first
+    }
+
+    /// Finishes a zero-length caret answer. Its x is trustworthy in every measured host, but its
+    /// line differs: TextKit reports the caret one line too high at every position (measured in
+    /// TextEdit at line starts, mid-line, and at the end of the document), while Chromium reports a
+    /// caret that follows a trailing line break at the end of the previous line.
+    ///
+    /// TextKit hosts expose `AXLineForIndex`/`AXRangeForLine`, so the caret's real line box is read
+    /// from them: the line containing the caret, or the (still empty) line below it when the caret
+    /// sits past that line's trailing break. Hosts without line queries keep the rect as answered,
+    /// except the trailing-break-at-end case, which is demoted to `.estimated` so the card shows
+    /// rather than an inline ghost on the wrong line.
+    /// What the zero-length caret answer needs to be finished (see `zeroLengthCaretResult`).
+    private struct ZeroLengthCaretContext {
+        let element: AXUIElement
+        let caretLocation: Int
+        let supportsLineQueries: Bool
+        let anchorFrame: CGRect?
+        let isAtTextEndAfterNewline: Bool
+    }
+
+    private func zeroLengthCaretResult(_ rect: CGRect, context: ZeroLengthCaretContext) -> CaretGeometryResult {
+        if context.supportsLineQueries,
+           let lineBox = lineBoxForCaret(
+               element: context.element,
+               caretLocation: context.caretLocation,
+               cocoaAnchorFrame: context.anchorFrame
+           ) {
+            return CaretGeometryResult(
+                rect: CGRect(x: rect.minX, y: lineBox.minY, width: rect.width, height: lineBox.height),
+                quality: .exact,
+                sourceDetail: "zero-length+line"
+            )
+        }
+        if context.isAtTextEndAfterNewline {
+            return CaretGeometryResult(rect: rect, quality: .estimated, sourceDetail: "zero-length-after-break")
+        }
+        return CaretGeometryResult(rect: rect, quality: .exact, sourceDetail: "zero-length")
+    }
+
+    /// The Cocoa box of the visual line the caret is on, from the host's own line queries. When the
+    /// caret sits after the trailing break of the reported line, the caret is on the next (empty)
+    /// line, which the host does not enumerate; that box is the reported one moved down by its
+    /// own height.
+    private func lineBoxForCaret(element: AXUIElement, caretLocation: Int, cocoaAnchorFrame: CGRect?) -> CGRect? {
+        guard let lineIndex = AXHelper.parameterizedIntValue(
+            for: kAXLineForIndexParameterizedAttribute as CFString,
+            parameter: caretLocation,
+            on: element
+        ), lineIndex >= 0, lineIndex < 100_000,
+        let lineRange = AXHelper.parameterizedRangeValue(
+            for: kAXRangeForLineParameterizedAttribute as CFString,
+            parameter: lineIndex,
+            on: element
+        ), lineRange.length > 0,
+        let raw = AXHelper.parameterizedRectValue(
+            for: kAXBoundsForRangeParameterizedAttribute as CFString,
+            range: lineRange,
+            on: element
+        ), raw.height > 0, AXHelper.rectHasFiniteComponents(raw) else {
+            return nil
+        }
+        let lineBox = AXHelper.validatedCocoaTextRect(fromAccessibilityRect: raw, anchorFrame: cocoaAnchorFrame)
+        guard rectIsNearAnchor(lineBox, anchor: cocoaAnchorFrame) else { return nil }
+        let lineText = AXHelper.parameterizedStringValue(
+            for: kAXStringForRangeParameterizedAttribute as CFString,
+            range: lineRange,
+            on: element
+        ) ?? ""
+        let caretPastTrailingBreak = caretLocation >= lineRange.location + lineRange.length
+            && (lineText.last?.isNewline ?? false)
+        return caretPastTrailingBreak ? lineBox.offsetBy(dx: 0, dy: -lineBox.height) : lineBox
     }
 
     struct CaretRunPlacement: Equatable {

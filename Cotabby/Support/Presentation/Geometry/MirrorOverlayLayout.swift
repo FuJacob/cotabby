@@ -43,6 +43,8 @@ struct MirrorOverlayLayout: Equatable {
         /// Fixed font size for the suggestion in the card. Sized for legibility at typical viewing
         /// distance, not to match the host editor (mirror is explicitly a preview, not a forgery).
         static let fontSize: CGFloat = 13
+        /// Hard legibility floor after the user's size multiplier.
+        static let absoluteMinimumFontSize: CGFloat = 9
 
         /// Tight visual gap between the bottom of the input field (or caret rect) and the top of
         /// the card. The card already has a distinct backdrop, so it does not need a full text-row
@@ -92,7 +94,7 @@ struct MirrorOverlayLayout: Equatable {
         // "Ghost Text Size" knob still scales it so suggestions stay one consistent size across both
         // display modes. The shared legibility floor guards a low multiplier; the keycap pill keeps
         // its own fixed size, so its width reservation below is intentionally left unscaled.
-        let scaledFontSize = max(GhostFontMetrics.absoluteMinimumPointSize, Metrics.fontSize * sizeMultiplier)
+        let scaledFontSize = max(Metrics.absoluteMinimumFontSize, Metrics.fontSize * sizeMultiplier)
         let measuredTextWidth = measuredWidth(of: normalizedSuggestion, fontSize: scaledFontSize)
         let keycapReservation = showsAcceptanceHint ? Metrics.keycapReservation : 0
 
@@ -190,7 +192,7 @@ struct MirrorOverlayLayout: Equatable {
             }
             return geometry.caretRect.minY - Metrics.anchorGap
 
-        case .userPreference, .perAppOverride, .caretMidLine:
+        case .userPreference, .perAppOverride, .caretMidLine, .inlineLayoutUnavailable:
             // Caret geometry is trustworthy in these cases. Sit just under the caret line so the
             // popup tracks the cursor like the inline ghost does, instead of floating below the
             // entire field.

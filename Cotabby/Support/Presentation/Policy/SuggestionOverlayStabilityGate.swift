@@ -131,12 +131,12 @@ enum SuggestionOverlayStabilityGate {
             return true
         }
         // `observedCharWidth` is intentionally NOT compared here. Drift in that value also affects
-        // `GhostSuggestionLayout.singleLineFits` (and therefore the panel-origin branch), so during
+        // the ghost's wrap decision (and therefore the panel origin), so during
         // a sustained window drag where `inputFrameRect` also moves, the first re-anchor past the
         // tolerance can render with a drifted char-width for one frame. Including char-width in the
         // gate would re-introduce the post-accept jitter this file exists to suppress, so we accept
         // the drag-time tradeoff. If a future host shows the wrong-layout frame in practice, the fix
-        // belongs in `GhostSuggestionLayout` (smoothing char-width) rather than this gate.
+        // belongs in `GhostTextLayout` (smoothing the wrap band) rather than this gate.
         switch (currentGeometry.inputFrameRect, newInputFrameRect) {
         case (nil, nil):
             return false

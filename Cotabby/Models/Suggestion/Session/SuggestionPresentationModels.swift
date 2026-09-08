@@ -54,6 +54,20 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
     /// The host field's own text font/color, so the overlay can render ghost text that matches the
     /// field instead of always using the system font and a fixed gray. Nil falls back to defaults.
     let resolvedFieldStyle: ResolvedFieldStyle?
+    /// Measured host text geometry (see `HostTextMetrics`): width sample for typeface matching,
+    /// line box for the content left edge, and line pitch for exact multi-row placement.
+    let hostTextMetrics: HostTextMetrics?
+    /// True when the field's text is rendered by a web engine. The baseline rule differs between
+    /// TextKit (baseline at the layout manager's default offset) and web engines (rounded ascent
+    /// centered in the line box), so the renderer must know which one produced the caret box.
+    let isWebContentField: Bool
+    /// True when non-whitespace text follows the caret. A ghost may then occupy only one row: a
+    /// second row would paint over the host's own following lines.
+    let hasTrailingContent: Bool
+    /// The focused element's own frame, unwidened (see `FocusedInputSnapshot.elementFrameRect`).
+    /// Wrapped ghost rows must stay inside it; `inputFrameRect` is grown for card placement and
+    /// would let a row run past the host's real right edge.
+    let elementFrameRect: CGRect?
 
     init(
         caretRect: CGRect,
@@ -66,7 +80,11 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
         focusChangeSequence: UInt64 = 0,
         focusedInputIdentityKey: UInt64 = 0,
         isCorrection: Bool = false,
-        resolvedFieldStyle: ResolvedFieldStyle? = nil
+        resolvedFieldStyle: ResolvedFieldStyle? = nil,
+        hostTextMetrics: HostTextMetrics? = nil,
+        isWebContentField: Bool = false,
+        hasTrailingContent: Bool = false,
+        elementFrameRect: CGRect? = nil
     ) {
         self.caretRect = caretRect
         self.inputFrameRect = inputFrameRect
@@ -79,6 +97,10 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
         self.focusedInputIdentityKey = focusedInputIdentityKey
         self.isCorrection = isCorrection
         self.resolvedFieldStyle = resolvedFieldStyle
+        self.hostTextMetrics = hostTextMetrics
+        self.isWebContentField = isWebContentField
+        self.hasTrailingContent = hasTrailingContent
+        self.elementFrameRect = elementFrameRect
     }
 
     /// Returns a copy with only `caretRect` replaced. Used to advance the ghost by an exact measured
@@ -94,7 +116,12 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
             isRightToLeft: isRightToLeft,
             focusChangeSequence: focusChangeSequence,
             focusedInputIdentityKey: focusedInputIdentityKey,
-            resolvedFieldStyle: resolvedFieldStyle
+            isCorrection: isCorrection,
+            resolvedFieldStyle: resolvedFieldStyle,
+            hostTextMetrics: hostTextMetrics,
+            isWebContentField: isWebContentField,
+            hasTrailingContent: hasTrailingContent,
+            elementFrameRect: elementFrameRect
         )
     }
 }

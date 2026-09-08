@@ -41,6 +41,11 @@ nonisolated enum CompletionRenderMode: Equatable, Sendable {
         /// completions render in, since a FIM result has no inline home.
         case caretMidLine
 
+        /// The policy chose inline, but no honest inline layout existed: the text needed a second
+        /// row and the host exposed no line pitch to place it on, or a second row would have painted
+        /// over the host's text below the caret. The card shows the whole suggestion instead.
+        case inlineLayoutUnavailable
+
         /// User set their global preference to always use mirror mode. Phase 2 wiring.
         case userPreference
 
