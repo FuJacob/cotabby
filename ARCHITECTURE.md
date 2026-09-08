@@ -310,6 +310,28 @@ estimated/layout-estimated geometry, mid-line editing, or explicit user preferen
 match host font/color, render corrections distinctly, respect right-to-left and multiline layout,
 show an acceptance hint, and advance a partial tail without waiting for noisy AX geometry.
 
+Inline ghost text is built to occupy the pixels the accepted text will occupy:
+
+- [GhostFontResolver.swift](Cotabby/Support/Presentation/Style/GhostFontResolver.swift) picks the
+  host's face and size from the field's reported style, from a measured width sample
+  ([HostTextMetricsProbe.swift](Cotabby/Services/Focus/Resolution/HostTextMetricsProbe.swift)), or
+  from the host's own pixels ([TypefaceMatcher.swift](Cotabby/Support/Presentation/Style/TypefaceMatcher.swift))
+  when a web field names no family.
+- [GhostBaselinePolicy.swift](Cotabby/Support/Presentation/Geometry/GhostBaselinePolicy.swift) places
+  the baseline the way TextKit or Blink/WebKit would inside the caret box;
+  [HostBaselineCalibrator.swift](Cotabby/Services/Presentation/HostBaselineCalibrator.swift) measures a
+  web host's painted baseline from a small screen capture (Screen Recording permitting) to recover
+  the sub-point line position Accessibility rounds away.
+- [GhostTextLayout.swift](Cotabby/Support/Presentation/Geometry/GhostTextLayout.swift) lays rows out
+  from the caret with CTTypesetter inside the band
+  [GhostWrapBandPolicy.swift](Cotabby/Support/Presentation/Geometry/GhostWrapBandPolicy.swift) derives
+  from the element's real frame; accepted or typed-through text only advances a consumed offset, so
+  remaining glyphs never move. [GhostTextPanelView.swift](Cotabby/Services/Presentation/GhostTextPanelView.swift)
+  draws the rows with CoreText on a whole-point panel origin.
+- While the host shows uncommitted text of its own (macOS inline predictive text, an IME
+  composition; [HostMarkedTextPolicy.swift](Cotabby/Support/Input/HostMarkedTextPolicy.swift)) the
+  coordinator holds: no generation, no ghost, session kept.
+
 [ActivationIndicatorController.swift](Cotabby/Services/Presentation/ActivationIndicatorController.swift) owns
 the optional field/caret indicator. [FocusDebugOverlayController.swift](Cotabby/Services/Presentation/FocusDebugOverlayController.swift)
 is developer-only and gated by -cotabby-debug.

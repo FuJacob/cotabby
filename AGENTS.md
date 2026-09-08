@@ -173,7 +173,10 @@ The Swift generation loop owns the maximum output-token budget.
 
 ## UI And Overlays
 
-- `OverlayController` owns the ghost-text panel lifecycle and positioning.
+- `OverlayController` owns the ghost-text panel lifecycle and positioning. Ghost glyphs are laid
+  out by `GhostTextLayout` in the font `GhostFontResolver` resolves, on the baseline
+  `GhostBaselinePolicy` (or a `HostBaselineCalibrator` measurement) gives; change those pure helpers
+  and their tests rather than nudging offsets in the controller.
 - `SuggestionOverlayPresenter` decides whether a suggestion should be shown or hidden.
 - `ActivationIndicatorController` owns the optional caret/field-edge indicator.
 - `FocusDebugOverlayController` is for developer visibility and should stay gated behind debug
