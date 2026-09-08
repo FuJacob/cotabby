@@ -68,6 +68,9 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
     /// Wrapped ghost rows must stay inside it; `inputFrameRect` is grown for card placement and
     /// would let a row run past the host's real right edge.
     let elementFrameRect: CGRect?
+    /// The text just before the caret on its line (see `HostLineText`), which the pixel typeface
+    /// match renders in candidate faces to compare against the host's own glyphs.
+    let lineTextBeforeCaret: String?
 
     init(
         caretRect: CGRect,
@@ -84,7 +87,8 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
         hostTextMetrics: HostTextMetrics? = nil,
         isWebContentField: Bool = false,
         hasTrailingContent: Bool = false,
-        elementFrameRect: CGRect? = nil
+        elementFrameRect: CGRect? = nil,
+        lineTextBeforeCaret: String? = nil
     ) {
         self.caretRect = caretRect
         self.inputFrameRect = inputFrameRect
@@ -101,6 +105,7 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
         self.isWebContentField = isWebContentField
         self.hasTrailingContent = hasTrailingContent
         self.elementFrameRect = elementFrameRect
+        self.lineTextBeforeCaret = lineTextBeforeCaret
     }
 
     /// Returns a copy with only `caretRect` replaced. Used to advance the ghost by an exact measured
@@ -121,7 +126,8 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
             hostTextMetrics: hostTextMetrics,
             isWebContentField: isWebContentField,
             hasTrailingContent: hasTrailingContent,
-            elementFrameRect: elementFrameRect
+            elementFrameRect: elementFrameRect,
+            lineTextBeforeCaret: lineTextBeforeCaret
         )
     }
 }

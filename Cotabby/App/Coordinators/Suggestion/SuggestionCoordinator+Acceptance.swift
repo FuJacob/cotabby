@@ -756,7 +756,8 @@ extension SuggestionCoordinator {
             hostTextMetrics: context.hostTextMetrics,
             isWebContentField: context.isWebContentField,
             hasTrailingContent: context.hasTrailingContent,
-            elementFrameRect: context.elementFrameRect
+            elementFrameRect: context.elementFrameRect,
+            lineTextBeforeCaret: HostLineText.tail(of: context.precedingText)
         )
         _ = overlayPresenter.present(
             text: text,

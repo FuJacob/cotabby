@@ -38,6 +38,42 @@ final class HostBaselineCalibrator {
         let contentLeft: CGFloat?
         /// The policy baseline the measurement must stay close to.
         let policyOffset: CGFloat
+        /// Text before the caret on its line; with `matchTypeface`, the strip is also compared
+        /// against candidate faces rendering this text (see `TypefaceMatcher`).
+        let lineText: String?
+        let pointSize: CGFloat
+        let matchTypeface: Bool
+
+        init(
+            key: Key,
+            caretRect: CGRect,
+            contentLeft: CGFloat?,
+            policyOffset: CGFloat,
+            lineText: String? = nil,
+            pointSize: CGFloat = 0,
+            matchTypeface: Bool = false
+        ) {
+            self.key = key
+            self.caretRect = caretRect
+            self.contentLeft = contentLeft
+            self.policyOffset = policyOffset
+            self.lineText = lineText
+            self.pointSize = pointSize
+            self.matchTypeface = matchTypeface
+        }
+    }
+
+    /// Typeface knowledge is per field and size, not per line.
+    struct TypefaceKey: Hashable {
+        let focusedInputIdentityKey: UInt64
+        let fontPointSize: Int
+    }
+
+    struct Calibration: Equatable {
+        /// Measured baseline offset below the caret box top.
+        let baselineOffset: CGFloat
+        /// PostScript name of the face the host's pixels matched, when one was asked for and found.
+        let typefaceName: String?
     }
 
     /// Widest strip of host text measured left of the caret.
@@ -54,9 +90,10 @@ final class HostBaselineCalibrator {
 
     private var cache: [Key: CGFloat] = [:]
     private var cacheOrder: [Key] = []
+    private var typefaces: [TypefaceKey: String] = [:]
     /// Callers waiting on a measurement in flight, per key. A present that arrives while the
     /// generation-time prewarm is still capturing joins its measurement instead of being dropped.
-    private var waiters: [Key: [@MainActor (CGFloat) -> Void]] = [:]
+    private var waiters: [Key: [@MainActor (Calibration) -> Void]] = [:]
     private var shareableContent: SCShareableContent?
 
     private let permissionCheck: () -> Bool
@@ -70,12 +107,19 @@ final class HostBaselineCalibrator {
         cache[key]
     }
 
+    /// The face the host's pixels matched for this field and size, if already known.
+    func cachedTypeface(for key: TypefaceKey) -> String? {
+        typefaces[key]
+    }
+
     /// Starts a measurement for `request` unless one is cached, or joins the one already in flight
     /// for the same key. `completion` runs on the main actor only when a fresh, accepted measurement
     /// arrives.
-    func calibrate(_ request: Request, completion: @escaping @MainActor (CGFloat) -> Void) {
+    func calibrate(_ request: Request, completion: @escaping @MainActor (Calibration) -> Void) {
         let key = request.key
-        guard cache[key] == nil, permissionCheck() else { return }
+        let typefaceKey = TypefaceKey(focusedInputIdentityKey: key.focusedInputIdentityKey, fontPointSize: key.fontPointSize)
+        let needsTypeface = request.matchTypeface && typefaces[typefaceKey] == nil
+        guard cache[key] == nil || needsTypeface, permissionCheck() else { return }
         if waiters[key] != nil {
             waiters[key]?.append(completion)
             return
@@ -84,20 +128,31 @@ final class HostBaselineCalibrator {
         waiters[key] = [completion]
         Task { @MainActor [weak self] in
             guard let self else { return }
-            let pending = self.waiters.removeValue(forKey: key) ?? []
             do {
-                let measured = try await self.measureBaseline(in: strip)
-                let offset = Self.baselineOffset(fromCaretTop: request.caretRect.maxY, stripTop: strip.maxY, measured: measured)
-                // Anyone who asked while the capture ran is answered too.
-                let listeners = pending + (self.waiters.removeValue(forKey: key) ?? [])
-                guard Self.accepts(measured: offset, policy: request.policyOffset) else {
-                    Self.log("rejected", request: request, measured: offset)
-                    return
+                let captured = try await self.capture(strip)
+                let knownTypeface = self.typefaces[typefaceKey]
+                let started = Date()
+                // Pixel analysis (row/column profiles, candidate renderings) runs off the main actor
+                // so a focus poll never waits on it; only the bookkeeping below touches state.
+                let analysis = await Task.detached(priority: .userInitiated) {
+                    Self.analyze(captured, strip: strip, request: request, knownTypeface: knownTypeface)
+                }.value
+                let listeners = self.waiters.removeValue(forKey: key) ?? []
+                guard let analysis else { return }
+                if analysis.baselineAccepted {
+                    self.store(analysis.baselineOffset, for: key)
                 }
-                self.store(offset, for: key)
-                Self.log("measured", request: request, measured: offset)
+                if let match = analysis.typefaceMatch, self.typefaces[typefaceKey] == nil {
+                    self.typefaces[typefaceKey] = match.fontName
+                }
+                Self.log(analysis, request: request, elapsedMilliseconds: Int(Date().timeIntervalSince(started) * 1000))
+                guard analysis.baselineAccepted || analysis.typefaceName != nil else { return }
+                let calibration = Calibration(
+                    baselineOffset: analysis.baselineAccepted ? analysis.baselineOffset : (self.cache[key] ?? request.policyOffset),
+                    typefaceName: analysis.typefaceName
+                )
                 for listener in listeners {
-                    listener(offset)
+                    listener(calibration)
                 }
             } catch {
                 self.waiters.removeValue(forKey: key)
@@ -106,11 +161,64 @@ final class HostBaselineCalibrator {
         }
     }
 
+    private struct CapturedStrip: Sendable {
+        let bitmap: RGBABitmap
+        /// Device pixels per point in the capture.
+        let scale: CGFloat
+    }
+
+    private struct Analysis: Sendable {
+        let baselineOffset: CGFloat
+        let baselineAccepted: Bool
+        /// A face found in this capture (nil when known already or not asked for / not found).
+        let typefaceMatch: TypefaceMatcher.Match?
+        /// The face to report: freshly matched, or the one already known for the field.
+        let typefaceName: String?
+        let typefaceAttempted: Bool
+    }
+
+    /// Reads the baseline (and, when asked, the typeface) out of the captured strip. Pure; nil when
+    /// the strip held no usable text.
+    private nonisolated static func analyze(
+        _ captured: CapturedStrip,
+        strip: CGRect,
+        request: Request,
+        knownTypeface: String?
+    ) -> Analysis? {
+        guard let measurement = InkBaselineAnalyzer.measure(captured.bitmap) else { return nil }
+        let measuredPoints = CGFloat(measurement.baselineRow) / captured.scale
+        let offset = baselineOffset(fromCaretTop: request.caretRect.maxY, stripTop: strip.maxY, measured: measuredPoints)
+        let accepted = accepts(measured: offset, policy: request.policyOffset)
+        var match: TypefaceMatcher.Match?
+        var attempted = false
+        if request.matchTypeface, knownTypeface == nil, let lineText = request.lineText, request.pointSize > 0 {
+            attempted = true
+            match = TypefaceMatcher.match(
+                TypefaceMatcher.Input(
+                    strip: captured.bitmap,
+                    scale: captured.scale,
+                    caretColumn: (request.caretRect.minX - strip.minX) * captured.scale,
+                    baselineRow: CGFloat(measurement.baselineRow),
+                    text: lineText,
+                    pointSize: request.pointSize,
+                    candidates: TypefaceMatcher.defaultCandidates(pointSize: request.pointSize)
+                )
+            )
+        }
+        return Analysis(
+            baselineOffset: offset,
+            baselineAccepted: accepted,
+            typefaceMatch: match,
+            typefaceName: match?.fontName ?? (request.matchTypeface ? knownTypeface : nil),
+            typefaceAttempted: attempted
+        )
+    }
+
     // MARK: - Pure geometry
 
     /// The screen strip to measure, in Cocoa coordinates: host text left of the caret, the caret
     /// line's box plus a little vertical slack. Nil when there is no room for enough text.
-    static func captureStrip(caretRect: CGRect, contentLeft: CGFloat?) -> CGRect? {
+    nonisolated static func captureStrip(caretRect: CGRect, contentLeft: CGFloat?) -> CGRect? {
         let right = caretRect.minX - caretGap
         var left = right - maximumStripWidth
         if let contentLeft {
@@ -126,17 +234,17 @@ final class HostBaselineCalibrator {
     }
 
     /// Converts a measured baseline (points below the strip's top) into an offset below the caret top.
-    static func baselineOffset(fromCaretTop caretTop: CGFloat, stripTop: CGFloat, measured: CGFloat) -> CGFloat {
+    nonisolated static func baselineOffset(fromCaretTop caretTop: CGFloat, stripTop: CGFloat, measured: CGFloat) -> CGFloat {
         measured - (stripTop - caretTop)
     }
 
-    static func accepts(measured: CGFloat, policy: CGFloat) -> Bool {
+    nonisolated static func accepts(measured: CGFloat, policy: CGFloat) -> Bool {
         abs(measured - policy) <= maximumCorrection
     }
 
     // MARK: - Capture
 
-    private func measureBaseline(in strip: CGRect) async throws -> CGFloat {
+    private func capture(_ strip: CGRect) async throws -> CapturedStrip {
         let content = try await currentShareableContent()
         let desktop = NSScreen.screens.map(\.frame).reduce(into: CGRect.null) { $0 = $0.union($1) }
         let stripCG = CGRect(x: strip.minX, y: desktop.maxY - strip.maxY, width: strip.width, height: strip.height)
@@ -153,13 +261,9 @@ final class HostBaselineCalibrator {
         configuration.showsCursor = false
         configuration.captureResolution = .best
         let image = try await Self.captureImage(filter: filter, configuration: configuration)
-        guard let measurement = InkBaselineAnalyzer.measure(image) else {
-            throw CalibrationError.noText
-        }
-        // The image is `height` device pixels tall for `strip.height` points; the measured edge row
-        // converts back to points below the strip's top.
-        let pointsPerPixel = strip.height / CGFloat(image.height)
-        return CGFloat(measurement.baselineRow) * pointsPerPixel
+        guard let bitmap = RGBABitmap(image) else { throw CalibrationError.noImage }
+        // The image is `height` device pixels tall for `strip.height` points.
+        return CapturedStrip(bitmap: bitmap, scale: CGFloat(image.height) / strip.height)
     }
 
     private func currentShareableContent() async throws -> SCShareableContent {
@@ -205,17 +309,32 @@ final class HostBaselineCalibrator {
         cache[key] = offset
     }
 
-    private static func log(_ outcome: String, request: Request, measured: CGFloat) {
+    private static func log(_ analysis: Analysis, request: Request, elapsedMilliseconds: Int) {
         guard CotabbyLogger.suggestion.logLevel <= .debug else { return }
         CotabbyLogger.suggestion.debug(
             "Host baseline calibration",
             metadata: [
                 "stage": .string("baseline-calibration"),
-                "outcome": .string(outcome),
-                "measured": .stringConvertible(Double(measured)),
+                "outcome": .string(analysis.baselineAccepted ? "measured" : "rejected"),
+                "measured": .stringConvertible(Double(analysis.baselineOffset)),
                 "policy": .stringConvertible(Double(request.policyOffset)),
                 "caret_h": .stringConvertible(Double(request.caretRect.height)),
-                "line_top": .stringConvertible(request.key.lineTop)
+                "line_top": .stringConvertible(request.key.lineTop),
+                "analysis_ms": .stringConvertible(elapsedMilliseconds)
+            ]
+        )
+        guard analysis.typefaceAttempted else { return }
+        CotabbyLogger.suggestion.debug(
+            "Host typeface match",
+            metadata: [
+                "stage": .string("typeface-match"),
+                "outcome": .string(analysis.typefaceMatch == nil ? "none" : "matched"),
+                "font": .string(analysis.typefaceMatch?.fontName ?? ""),
+                "score": .stringConvertible(analysis.typefaceMatch?.score ?? 0),
+                "runner_up": .stringConvertible(analysis.typefaceMatch?.runnerUpScore ?? 0),
+                "size": .stringConvertible(Double(request.pointSize)),
+                "text_len": .stringConvertible(request.lineText?.count ?? 0),
+                "analysis_ms": .stringConvertible(elapsedMilliseconds)
             ]
         )
     }
@@ -223,6 +342,5 @@ final class HostBaselineCalibrator {
     enum CalibrationError: Error {
         case noDisplay
         case noImage
-        case noText
     }
 }

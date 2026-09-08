@@ -53,7 +53,7 @@ final class OverlayController: SuggestionOverlayControlling {
         /// The host's caret box when `consumedUTF16` was zero; all rows derive from it.
         let anchorCaretRect: CGRect
         let geometry: SuggestionOverlayGeometry
-        let fontResolution: GhostFontResolver.Resolution
+        var fontResolution: GhostFontResolver.Resolution
         var baselineOffsetFromTop: CGFloat
         /// "policy" (font metrics rule) or "calibrated" (measured from the host's pixels).
         var baselineSource: String
@@ -171,21 +171,13 @@ final class OverlayController: SuggestionOverlayControlling {
     /// when no honest inline layout exists for this text and geometry.
     private func showInline(text: String, geometry: SuggestionOverlayGeometry) -> Bool {
         let renderer: GhostBaselinePolicy.HostRenderer = geometry.isWebContentField ? .webEngine : .textKit
-        let fontResolution = GhostFontResolver.resolve(
-            GhostFontResolver.Input(
-                style: geometry.resolvedFieldStyle,
-                hostMetrics: geometry.hostTextMetrics,
-                caretBoxHeight: geometry.caretRect.height,
-                renderer: renderer,
-                sizeMultiplier: CGFloat(suggestionSettings.ghostTextSizeMultiplier)
-            )
-        )
+        let fontResolution = resolveFont(for: geometry, renderer: renderer)
         let policyOffset = GhostBaselinePolicy.baselineOffsetFromTop(
             font: fontResolution.font,
             boxHeight: geometry.caretRect.height,
             renderer: renderer
         )
-        let calibration = calibrationRequest(for: geometry, font: fontResolution.font, policyOffset: policyOffset)
+        let calibration = calibrationRequest(for: geometry, resolution: fontResolution, policyOffset: policyOffset)
         let cachedOffset = calibration.flatMap { baselineCalibrator?.cachedOffset(for: $0.key) }
         var session = InlineSession(
             fullText: text,
@@ -211,51 +203,91 @@ final class OverlayController: SuggestionOverlayControlling {
         session.layout = layout
         inlineSession = session
         renderInline(session)
-        if cachedOffset == nil, let calibration {
+        if cachedOffset == nil || calibration?.matchTypeface == true, let calibration {
             startCalibration(calibration, for: geometry)
         }
         return true
     }
 
-    /// Starts measuring the host's baseline for the line the caret is on, while the model is still
-    /// generating, so the first ghost on that line already sits on the measured baseline.
-    func prepareInlinePresentation(for context: FocusedInputContext) {
-        guard let baselineCalibrator, context.isWebContentField else { return }
-        let fontResolution = GhostFontResolver.resolve(
+    /// The host's face by report or measurement; for a web field the host never named, a face the
+    /// host's own pixels matched earlier in this field replaces the system stand-in.
+    private func resolveFont(
+        for geometry: SuggestionOverlayGeometry,
+        renderer: GhostBaselinePolicy.HostRenderer
+    ) -> GhostFontResolver.Resolution {
+        let resolution = GhostFontResolver.resolve(
             GhostFontResolver.Input(
-                style: context.resolvedFieldStyle,
-                hostMetrics: context.hostTextMetrics,
-                caretBoxHeight: context.caretRect.height,
-                renderer: .webEngine,
+                style: geometry.resolvedFieldStyle,
+                hostMetrics: geometry.hostTextMetrics,
+                caretBoxHeight: geometry.caretRect.height,
+                renderer: renderer,
                 sizeMultiplier: CGFloat(suggestionSettings.ghostTextSizeMultiplier)
             )
         )
+        return Self.applyingMatchedTypeface(
+            resolution,
+            name: baselineCalibrator?.cachedTypeface(for: typefaceKey(for: geometry, font: resolution.font)),
+            isWebContentField: geometry.isWebContentField
+        )
+    }
+
+    private static func applyingMatchedTypeface(
+        _ resolution: GhostFontResolver.Resolution,
+        name: String?,
+        isWebContentField: Bool
+    ) -> GhostFontResolver.Resolution {
+        guard isWebContentField, resolution.provenance.isFallbackFace, let name,
+              let matched = GhostFontResolver.font(named: name, size: resolution.font.pointSize)
+        else {
+            return resolution
+        }
+        return GhostFontResolver.Resolution(font: matched, provenance: .pixelMatched, widthAgreement: 1)
+    }
+
+    private func typefaceKey(for geometry: SuggestionOverlayGeometry, font: NSFont) -> HostBaselineCalibrator.TypefaceKey {
+        HostBaselineCalibrator.TypefaceKey(
+            focusedInputIdentityKey: geometry.focusedInputIdentityKey,
+            fontPointSize: Int(font.pointSize.rounded())
+        )
+    }
+
+    /// Starts measuring the host's baseline for the line the caret is on, while the model is still
+    /// generating, so the first ghost on that line already sits on the measured baseline.
+    func prepareInlinePresentation(for context: FocusedInputContext) {
+        guard baselineCalibrator != nil, context.isWebContentField else { return }
+        let geometry = SuggestionOverlayGeometry(
+            caretRect: context.caretRect,
+            inputFrameRect: context.inputFrameRect,
+            caretQuality: context.caretQuality,
+            observedCharWidth: context.observedCharWidth,
+            isRightToLeft: false,
+            focusChangeSequence: context.focusChangeSequence,
+            focusedInputIdentityKey: context.focusedInputIdentityKey,
+            resolvedFieldStyle: context.resolvedFieldStyle,
+            hostTextMetrics: context.hostTextMetrics,
+            isWebContentField: true,
+            elementFrameRect: context.elementFrameRect,
+            lineTextBeforeCaret: HostLineText.tail(of: context.precedingText)
+        )
+        let fontResolution = resolveFont(for: geometry, renderer: .webEngine)
         let policyOffset = GhostBaselinePolicy.baselineOffsetFromTop(
             font: fontResolution.font,
             boxHeight: context.caretRect.height,
             renderer: .webEngine
         )
-        let request = HostBaselineCalibrator.Request(
-            key: HostBaselineCalibrator.Key(
-                focusedInputIdentityKey: context.focusedInputIdentityKey,
-                lineTop: Int(context.caretRect.maxY.rounded()),
-                caretHeight: Int(context.caretRect.height.rounded()),
-                fontPointSize: Int(fontResolution.font.pointSize.rounded())
-            ),
-            caretRect: context.caretRect,
-            contentLeft: context.hostTextMetrics?.lineRect?.minX ?? context.elementFrameRect?.minX,
-            policyOffset: policyOffset
-        )
-        guard baselineCalibrator.cachedOffset(for: request.key) == nil else { return }
-        baselineCalibrator.calibrate(request) { _ in }
+        guard let request = calibrationRequest(for: geometry, resolution: fontResolution, policyOffset: policyOffset) else {
+            return
+        }
+        baselineCalibrator?.calibrate(request) { _ in }
     }
 
     private func calibrationRequest(
         for geometry: SuggestionOverlayGeometry,
-        font: NSFont,
+        resolution: GhostFontResolver.Resolution,
         policyOffset: CGFloat
     ) -> HostBaselineCalibrator.Request? {
         guard baselineCalibrator != nil, geometry.isWebContentField else { return nil }
+        let font = resolution.font
         return HostBaselineCalibrator.Request(
             key: HostBaselineCalibrator.Key(
                 focusedInputIdentityKey: geometry.focusedInputIdentityKey,
@@ -265,7 +297,10 @@ final class OverlayController: SuggestionOverlayControlling {
             ),
             caretRect: geometry.caretRect,
             contentLeft: geometry.hostTextMetrics?.lineRect?.minX ?? geometry.elementFrameRect?.minX,
-            policyOffset: policyOffset
+            policyOffset: policyOffset,
+            lineText: geometry.lineTextBeforeCaret,
+            pointSize: font.pointSize,
+            matchTypeface: resolution.provenance.isFallbackFace
         )
     }
 
@@ -273,18 +308,28 @@ final class OverlayController: SuggestionOverlayControlling {
     /// value the visible rows move once, by at most one device pixel, onto the host's real baseline;
     /// every later present on this line starts there.
     private func startCalibration(_ request: HostBaselineCalibrator.Request, for geometry: SuggestionOverlayGeometry) {
-        baselineCalibrator?.calibrate(request) { [weak self] measured in
+        baselineCalibrator?.calibrate(request) { [weak self] calibration in
             guard let self, var session = self.inlineSession,
                   case .visible(_, _, let mode) = self.state, case .inline = mode,
                   session.geometry.focusedInputIdentityKey == geometry.focusedInputIdentityKey,
-                  session.anchorCaretRect.maxY == geometry.caretRect.maxY,
-                  abs(session.baselineOffsetFromTop - measured) > 0.01
+                  session.anchorCaretRect.maxY == geometry.caretRect.maxY
             else {
                 return
             }
-            session.baselineOffsetFromTop = measured
-            session.baselineSource = "calibrated"
-            guard let layout = self.makeLayout(for: session) else { return }
+            var changed = false
+            if abs(session.baselineOffsetFromTop - calibration.baselineOffset) > 0.01 {
+                session.baselineOffsetFromTop = calibration.baselineOffset
+                session.baselineSource = "calibrated"
+                changed = true
+            }
+            let rematched = Self.applyingMatchedTypeface(
+                session.fontResolution, name: calibration.typefaceName, isWebContentField: geometry.isWebContentField
+            )
+            if rematched.font != session.fontResolution.font {
+                session.fontResolution = rematched
+                changed = true
+            }
+            guard changed, let layout = self.makeLayout(for: session) else { return }
             session.layout = layout
             self.inlineSession = session
             self.renderInline(session)

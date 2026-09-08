@@ -32,6 +32,19 @@ enum GhostFontResolver {
         case hostSizeSystem = "host_size_system"
         case caretDerived = "caret_derived"
         case caretDerivedCalibrated = "caret_derived_calibrated"
+        /// The face was identified from the host's own pixels (`TypefaceMatcher`) because the host
+        /// named none and answered no width query.
+        case pixelMatched = "pixel_matched"
+
+        /// True when the face is a stand-in the host never named; a pixel match may replace it.
+        var isFallbackFace: Bool {
+            switch self {
+            case .hostSizeSystem, .hostSizeScaledSystem, .caretDerived, .caretDerivedCalibrated:
+                return true
+            case .hostFace, .hostFamily, .hostSizeMatchedFamily, .pixelMatched:
+                return false
+            }
+        }
     }
 
     struct Resolution: Equatable {
