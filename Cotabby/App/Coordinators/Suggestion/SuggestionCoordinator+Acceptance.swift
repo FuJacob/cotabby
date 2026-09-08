@@ -745,7 +745,8 @@ extension SuggestionCoordinator {
             focusChangeSequence: context.focusChangeSequence,
             focusedInputIdentityKey: context.focusedInputIdentityKey,
             isCorrection: isCorrection,
-            resolvedFieldStyle: context.resolvedFieldStyle
+            resolvedFieldStyle: context.resolvedFieldStyle,
+            observedContentEdges: context.observedContentEdges
         )
         _ = overlayPresenter.present(
             text: text,

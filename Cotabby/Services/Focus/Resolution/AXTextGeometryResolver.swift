@@ -189,6 +189,73 @@ struct AXTextGeometryResolver {
         return nil
     }
 
+    /// Resolves where the host actually starts drawing text on the caret's own visual line, using
+    /// the host's line-query attributes (`AXLineForIndex` -> `AXRangeForLine` -> `AXBoundsForRange`).
+    ///
+    /// This exists because a field's `AXFrame` is not its text area. Microsoft Word publishes the
+    /// whole page as one `AXTextArea`, so the frame's left edge is the edge of the *paper*, not the
+    /// document's text margin — roughly an inch further left. Ghost text that wrapped onto a second
+    /// line therefore started outside the margin, visibly out of alignment with the user's own text.
+    /// `ObservedContentEdges` already models exactly this ("the field's `AXFrame` includes padding
+    /// AX never reports directly"); it was simply only ever populated by the child-run walk, which
+    /// hosts like Word never reach because their caret resolves through `AXBoundsForRange` first.
+    ///
+    /// Three cross-process AX calls, so `supportsLineGeometry` must be true before any of them run.
+    /// That gate is not a nicety: a synchronous AX call into a host that does not implement the
+    /// attribute blocks the caller for the full messaging timeout, and issuing them from the focus
+    /// path is what froze typing in the `AXBoundsForRange` incident that Branch 1 above still
+    /// carries its own gate for. Chromium and WebKit fields resolve their caret through text
+    /// markers and reach this code without advertising any of these three, so they are exactly the
+    /// hosts that would pay the stall for a lookup that can only fail.
+    ///
+    /// The caller already has the element's parameterized-attribute set, so the check costs nothing
+    /// extra. Callers must also keep this off the per-keystroke path: it is cached per focus
+    /// session, and note that session key turns over whenever the field's frame changes — a
+    /// composer growing as text wraps re-runs this, which is another reason the gate matters.
+    ///
+    /// Returns nil unless every step succeeds, leaving callers on their existing frame-based guess.
+    func resolveLineContentEdges(
+        for element: AXUIElement,
+        caretLocation: Int,
+        anchorFrame: CGRect?,
+        supportsLineGeometry: Bool
+    ) -> ObservedContentEdges? {
+        guard supportsLineGeometry,
+              caretLocation >= 0,
+              let line = AXHelper.parameterizedIntValue(
+                for: "AXLineForIndex" as CFString,
+                index: caretLocation,
+                on: element
+              ),
+              let lineRange = AXHelper.parameterizedRangeValue(
+                for: "AXRangeForLine" as CFString,
+                index: line,
+                on: element
+              ),
+              lineRange.length > 0,
+              let rect = AXHelper.parameterizedRectValue(
+                for: kAXBoundsForRangeParameterizedAttribute as CFString,
+                range: lineRange,
+                on: element
+              ),
+              !rect.isEmpty
+        else {
+            return nil
+        }
+
+        let cocoaRect = AXHelper.validatedCocoaTextRect(
+            fromAccessibilityRect: rect,
+            anchorFrame: anchorFrame
+        )
+        // A line rect that escapes the field is a mis-reported range, not a margin; ignore it rather
+        // than anchoring ghost text somewhere the host is not drawing.
+        if let anchorFrame, !anchorFrame.isEmpty, !anchorFrame.insetBy(dx: -1, dy: -1).intersects(cocoaRect) {
+            return nil
+        }
+
+        return ObservedContentEdges(leftX: cocoaRect.minX, topY: cocoaRect.maxY)
+    }
+
     /// Best-effort caret estimate when AX exposes only the full field frame.
     ///
     /// This path is intentionally conservative. The previous `prefix.count * 8` heuristic drifted

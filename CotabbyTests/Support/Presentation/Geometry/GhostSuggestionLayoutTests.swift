@@ -564,4 +564,70 @@ final class GhostSuggestionLayoutTests: XCTestCase {
         let large = GhostSuggestionLayout.renderedWidth(of: "sample", font: NSFont.systemFont(ofSize: 24))
         XCTAssertGreaterThan(large, small)
     }
+
+    // MARK: - Wrapped lines follow the host's text margin
+
+    /// Word publishes the whole page as one `AXTextArea`, so its `AXFrame` left edge is the paper's
+    /// edge rather than the document's text margin. Overflow lines anchored to the frame started
+    /// roughly an inch left of where the host's own text wraps to.
+    func test_make_overflowLinesAlignToMeasuredContentEdgeWhenAvailable() {
+        let pageFrame = CGRect(x: 0, y: 0, width: 800, height: 900)
+        let textMarginX: CGFloat = 140
+
+        let geometry = CotabbyTestFixtures.overlayGeometry(
+            caretRect: CGRect(x: 700, y: 800, width: 2, height: 18),
+            inputFrameRect: pageFrame,
+            observedContentEdges: ObservedContentEdges(leftX: textMarginX, topY: 860)
+        )
+
+        let layout = GhostSuggestionLayout.make(
+            text: " wrapping text that is far too long to fit on the caret's own line",
+            geometry: geometry,
+            fontSize: 14,
+            visibleFrame: CGRect(x: 0, y: 0, width: 1000, height: 1000)
+        )
+
+        XCTAssertGreaterThan(layout.lines.count, 1, "expected the text to wrap")
+        XCTAssertEqual(layout.panelOriginX, textMarginX, accuracy: 0.001)
+    }
+
+    func test_make_overflowLinesFallBackToFramePaddingWithoutContentEdge() {
+        // Unchanged behavior for every host that exposes no measured content edge.
+        let pageFrame = CGRect(x: 0, y: 0, width: 800, height: 900)
+        let geometry = CotabbyTestFixtures.overlayGeometry(
+            caretRect: CGRect(x: 700, y: 800, width: 2, height: 18),
+            inputFrameRect: pageFrame,
+            observedContentEdges: nil
+        )
+
+        let layout = GhostSuggestionLayout.make(
+            text: " wrapping text that is far too long to fit on the caret's own line",
+            geometry: geometry,
+            fontSize: 14,
+            visibleFrame: CGRect(x: 0, y: 0, width: 1000, height: 1000)
+        )
+
+        XCTAssertGreaterThan(layout.lines.count, 1)
+        XCTAssertGreaterThan(layout.panelOriginX, pageFrame.minX)
+        XCTAssertLessThan(layout.panelOriginX, 140)
+    }
+
+    func test_make_contentEdgeOutsideTheFieldIsClampedBackIntoIt() {
+        // A stale or mis-reported edge must never push ghost text off the field entirely.
+        let pageFrame = CGRect(x: 100, y: 0, width: 800, height: 900)
+        let geometry = CotabbyTestFixtures.overlayGeometry(
+            caretRect: CGRect(x: 700, y: 800, width: 2, height: 18),
+            inputFrameRect: pageFrame,
+            observedContentEdges: ObservedContentEdges(leftX: -5000, topY: 860)
+        )
+
+        let layout = GhostSuggestionLayout.make(
+            text: " wrapping text that is far too long to fit on the caret's own line",
+            geometry: geometry,
+            fontSize: 14,
+            visibleFrame: CGRect(x: 0, y: 0, width: 1000, height: 1000)
+        )
+
+        XCTAssertGreaterThanOrEqual(layout.panelOriginX, pageFrame.minX)
+    }
 }

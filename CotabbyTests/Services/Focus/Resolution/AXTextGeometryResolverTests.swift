@@ -184,4 +184,42 @@ final class AXTextGeometryResolverTests: XCTestCase {
         XCTAssertEqual(AXHelper.validatedCocoaTextRect(fromAccessibilityRect: nan, anchorFrame: nil), .zero)
         XCTAssertEqual(AXHelper.cocoaRect(fromAccessibilityRect: nan), .zero)
     }
+
+    // MARK: - Line-geometry capability gate
+
+    /// `resolveLineContentEdges` issues three synchronous cross-process AX calls. Against a host
+    /// that does not implement them, each one blocks for the full messaging timeout, and doing that
+    /// from the focus path is what froze typing in the `AXBoundsForRange` incident. Chromium and
+    /// WebKit fields resolve their caret through text markers and reach this code advertising none
+    /// of the three, so the gate must short-circuit before any AX call is attempted.
+    ///
+    /// A system-wide element stands in for "an element that answers nothing useful": if the guard
+    /// were ever removed, this would issue real AX calls instead of returning immediately.
+    func test_resolveLineContentEdges_returnsNilWithoutIssuingCallsWhenUnsupported() {
+        let resolver = AXTextGeometryResolver()
+
+        XCTAssertNil(
+            resolver.resolveLineContentEdges(
+                for: AXHelper.systemWideElement(),
+                caretLocation: 5,
+                anchorFrame: CGRect(x: 0, y: 0, width: 400, height: 30),
+                supportsLineGeometry: false
+            )
+        )
+    }
+
+    /// A negative caret offset is rejected on its own, independently of the capability gate, so a
+    /// bad selection cannot reach the parameterized calls either.
+    func test_resolveLineContentEdges_rejectsNegativeCaretLocation() {
+        let resolver = AXTextGeometryResolver()
+
+        XCTAssertNil(
+            resolver.resolveLineContentEdges(
+                for: AXHelper.systemWideElement(),
+                caretLocation: -1,
+                anchorFrame: nil,
+                supportsLineGeometry: true
+            )
+        )
+    }
 }

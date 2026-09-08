@@ -51,6 +51,11 @@ final class SuggestionSettingsModel: ObservableObject {
     /// `OverlayController` at present time (like `ghostTextOpacity`), so it is intentionally not part
     /// of the generation-facing `SuggestionSettingsSnapshot` — it changes presentation, not requests.
     @Published private(set) var ghostTextSizeMultiplier: Double
+    /// Point-size floor and ceiling for the caret-approximated ghost size, applied before
+    /// `ghostTextSizeMultiplier`. Read live by `OverlayController` for the same reason the
+    /// multiplier is: they change presentation, not the generation request.
+    @Published private(set) var ghostFontSizeFloor: Double
+    @Published private(set) var ghostFontSizeCeiling: Double
     @Published private(set) var selectedEngine: SuggestionEngineKind
     @Published private(set) var openAICompatibleBaseURL: String
     @Published private(set) var openAICompatibleModelName: String
@@ -173,6 +178,13 @@ final class SuggestionSettingsModel: ObservableObject {
     static let minimumGhostTextSizeMultiplier = SuggestionSettingsStore.minimumGhostTextSizeMultiplier
     static let maximumGhostTextSizeMultiplier = SuggestionSettingsStore.maximumGhostTextSizeMultiplier
     static let ghostTextSizeMultiplierStep = SuggestionSettingsStore.ghostTextSizeMultiplierStep
+    static let defaultGhostFontSizeFloor = SuggestionSettingsStore.defaultGhostFontSizeFloor
+    static let minimumGhostFontSizeFloor = SuggestionSettingsStore.minimumGhostFontSizeFloor
+    static let maximumGhostFontSizeFloor = SuggestionSettingsStore.maximumGhostFontSizeFloor
+    static let defaultGhostFontSizeCeiling = SuggestionSettingsStore.defaultGhostFontSizeCeiling
+    static let minimumGhostFontSizeCeiling = SuggestionSettingsStore.minimumGhostFontSizeCeiling
+    static let maximumGhostFontSizeCeiling = SuggestionSettingsStore.maximumGhostFontSizeCeiling
+    static let ghostFontSizeStep = SuggestionSettingsStore.ghostFontSizeStep
     static let minimumFadeInDuration = SuggestionSettingsStore.minimumFadeInDuration
     static let maximumFadeInDuration = SuggestionSettingsStore.maximumFadeInDuration
     static let fadeInDurationStep = SuggestionSettingsStore.fadeInDurationStep
@@ -209,6 +221,8 @@ final class SuggestionSettingsModel: ObservableObject {
         customSuggestionTextColorHex = data.customSuggestionTextColorHex
         ghostTextOpacity = data.ghostTextOpacity
         ghostTextSizeMultiplier = data.ghostTextSizeMultiplier
+        ghostFontSizeFloor = data.ghostFontSizeFloor
+        ghostFontSizeCeiling = data.ghostFontSizeCeiling
         selectedEngine = data.selectedEngine
         openAICompatibleBaseURL = data.openAICompatibleBaseURL
         openAICompatibleModelName = data.openAICompatibleModelName
@@ -286,6 +300,8 @@ final class SuggestionSettingsModel: ObservableObject {
         customSuggestionTextColorHex = data.customSuggestionTextColorHex
         ghostTextOpacity = data.ghostTextOpacity
         ghostTextSizeMultiplier = data.ghostTextSizeMultiplier
+        ghostFontSizeFloor = data.ghostFontSizeFloor
+        ghostFontSizeCeiling = data.ghostFontSizeCeiling
         selectedEngine = data.selectedEngine
         openAICompatibleBaseURL = data.openAICompatibleBaseURL
         openAICompatibleModelName = data.openAICompatibleModelName
@@ -411,6 +427,8 @@ final class SuggestionSettingsModel: ObservableObject {
                 customSuggestionTextColorHex: customSuggestionTextColorHex,
                 ghostTextOpacity: ghostTextOpacity,
                 ghostTextSizeMultiplier: ghostTextSizeMultiplier,
+                ghostFontSizeFloor: ghostFontSizeFloor,
+                ghostFontSizeCeiling: ghostFontSizeCeiling,
                 isMenuBarIconVisible: isMenuBarIconVisible,
                 isMenuBarWordCountVisible: isMenuBarWordCountVisible,
                 mirrorPreference: mirrorPreference,
@@ -1126,6 +1144,38 @@ final class SuggestionSettingsModel: ObservableObject {
 
         ghostTextSizeMultiplier = clamped
         store.saveGhostTextSizeMultiplier(clamped)
+    }
+
+    /// Raising the floor past the ceiling (or lowering the ceiling past the floor) would describe an
+    /// empty range, which `GhostFontMetrics` would resolve by letting the ceiling win — silently
+    /// ignoring the control the user just moved. Pushing the other value along keeps both controls
+    /// honest and the range non-empty, and it matches how paired min/max controls behave elsewhere.
+    func setGhostFontSizeFloor(_ points: Double) {
+        let clamped = SuggestionSettingsStore.clampedGhostFontSizeFloor(points)
+        guard ghostFontSizeFloor != clamped else {
+            return
+        }
+
+        ghostFontSizeFloor = clamped
+        store.saveGhostFontSizeFloor(clamped)
+
+        if ghostFontSizeCeiling < clamped {
+            setGhostFontSizeCeiling(clamped)
+        }
+    }
+
+    func setGhostFontSizeCeiling(_ points: Double) {
+        let clamped = SuggestionSettingsStore.clampedGhostFontSizeCeiling(points)
+        guard ghostFontSizeCeiling != clamped else {
+            return
+        }
+
+        ghostFontSizeCeiling = clamped
+        store.saveGhostFontSizeCeiling(clamped)
+
+        if ghostFontSizeFloor > clamped {
+            setGhostFontSizeFloor(clamped)
+        }
     }
 
     func setUserName(_ name: String) {

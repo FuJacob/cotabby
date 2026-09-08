@@ -39,6 +39,18 @@ struct FocusSnapshotResolver {
     /// fields (see `FocusSessionScopedCache`).
     private let secureFieldVerdictCache = FocusSessionScopedCache<Bool>()
     private let terminalDetectionCache = FocusSessionScopedCache<Bool>()
+    /// Where the host actually starts drawing text on the caret's line, which a field's
+    /// `AXFrame` does not reveal (Word's frame is the page edge, not the text margin). Three AX
+    /// round trips, so it is resolved once per focus session; the margin cannot move without the
+    /// field's frame moving, which already bumps `focusChangeSequence`.
+    private let lineContentEdgesCache = FocusSessionScopedCache<ObservedContentEdges?>()
+    /// Every parameterized attribute `resolveLineContentEdges` needs. All three must be
+    /// advertised before it runs; see that method for why an ungated call is a stall risk.
+    private static let lineGeometryAttributes = [
+        "AXLineForIndex",
+        "AXRangeForLine",
+        kAXBoundsForRangeParameterizedAttribute as String
+    ]
 
     /// Caches the resolved field font/color per focused element so the attributed-string AX read
     /// happens once per field rather than on every poll. Reference type for the same reason as
@@ -807,6 +819,27 @@ struct FocusSnapshotResolver {
         }
         let caretRect = caretResult?.rect
         let caretQuality = caretResult?.quality
+        // Prefer content edges the caret resolver already measured from child text runs. Hosts whose
+        // caret comes from `AXBoundsForRange` never walk those runs, so fall back to asking the host
+        // directly for its line geometry — that is the only way to learn a document's text margin as
+        // distinct from its page edge.
+        let observedContentEdges = caretResult?.observedContentEdges ?? selectionForGeometry.flatMap { selection in
+            lineContentEdgesCache.value(
+                forKey: "lineEdges:\(AXHelper.elementIdentity(for: element))",
+                focusChangeSequence: focusChangeSequence
+            ) {
+                geometryResolver.resolveLineContentEdges(
+                    for: element,
+                    caretLocation: selection.location,
+                    anchorFrame: inputFrameRect,
+                    // Read from the attribute list already fetched for this element, so the gate
+                    // adds no round trip. Hosts that resolve their caret through text markers
+                    // advertise none of these and must not pay three blocking calls to learn that.
+                    supportsLineGeometry: Self.lineGeometryAttributes
+                        .allSatisfy(supportedParameterizedAttributes.contains)
+                )
+            }
+        }
         // Recorded from the already-fetched attribute list (no extra AX call) so snapshot
         // assembly can classify the field as web-rendered without touching the element again.
         let vendsDOMAttributes = WebContentFieldDetector.vendsDOMAttributes(supportedAttributes)
@@ -845,7 +878,7 @@ struct FocusSnapshotResolver {
             caretRect: caretRect,
             caretQuality: caretQuality,
             observedCharWidth: caretResult?.observedCharWidth,
-            observedContentEdges: caretResult?.observedContentEdges,
+            observedContentEdges: observedContentEdges,
             caretSourceDetail: caretResult?.sourceDetail,
             caretAllowsDeepSearch: caretResult?.allowsDeepSearch ?? true,
             inputFrameRect: inputFrameRect,

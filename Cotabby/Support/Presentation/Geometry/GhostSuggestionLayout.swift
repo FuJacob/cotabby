@@ -70,11 +70,19 @@ struct GhostSuggestionLayout: Equatable {
         // Direction-dependent anchor and budget.
         // LTR: anchor at the right edge of the caret, budget extends rightward.
         // RTL: anchor at the left edge of the caret, budget extends leftward.
+        //
+        // The anchor sits flush against the caret with no padding, because inline ghost text has to
+        // read as a continuation of the host's own line. `normalizedDisplayText` deliberately keeps
+        // the suggestion's leading space when it has one, so word spacing is already carried by the
+        // text itself; adding a gap on top rendered it as a space *plus* a gap. A gap is outright
+        // wrong for a mid-word continuation ("calc" -> "ulates"), where any padding visibly breaks
+        // the word. `Metrics.caretGap` still applies to the fallback usable-region bounds below,
+        // where it serves a different purpose — keeping the region off the caret.
         let firstLineAnchor: CGFloat
         let firstLineBudget: CGFloat
         if isRTL {
             firstLineAnchor = min(
-                max(geometry.caretRect.minX - Metrics.caretGap, usableFrame.minX),
+                max(geometry.caretRect.minX, usableFrame.minX),
                 usableFrame.maxX
             )
             firstLineBudget = max(
@@ -83,7 +91,7 @@ struct GhostSuggestionLayout: Equatable {
             )
         } else {
             firstLineAnchor = min(
-                max(geometry.caretRect.maxX + Metrics.caretGap, usableFrame.minX),
+                max(geometry.caretRect.maxX, usableFrame.minX),
                 usableFrame.maxX
             )
             firstLineBudget = max(
@@ -179,8 +187,17 @@ struct GhostSuggestionLayout: Equatable {
     }
 
     func panelFrame(for contentSize: CGSize, caretRect: CGRect) -> CGRect {
+        // Use the height the text actually rendered at, not the `fontSize * lineHeightMultiplier`
+        // estimate in `lineHeight`. The panel is sized by SwiftUI's `fittingSize`, and the two
+        // disagree by a couple of points in practice (a 17.94pt ghost in Word measured 21pt tall
+        // against an assumed 23pt), which offset the ghost vertically by exactly that difference.
+        // Every line in the stack is laid out identically, so dividing by the line count recovers
+        // the top line's real height — and that is the line the caret has to align with.
+        let renderedLineHeight = lines.isEmpty
+            ? lineHeight
+            : contentSize.height / CGFloat(lines.count)
         let topLineCenterY = caretRect.midY + topLineCenterOffsetFromCaret
-        let originY = topLineCenterY - contentSize.height + (lineHeight / 2)
+        let originY = topLineCenterY - contentSize.height + (renderedLineHeight / 2)
         let originX = isRightToLeft ? panelOriginX - contentSize.width : panelOriginX
 
         return CGRect(
@@ -195,8 +212,17 @@ struct GhostSuggestionLayout: Equatable {
     ) -> CGRect {
         if let inputFrame = geometry.inputFrameRect?.standardized,
            inputFrame.width > Metrics.minimumLineWidth {
+            // A measured content edge is the host's real text margin, so it needs no padding guess.
+            // Without it the frame's own edge stands in, plus a nominal inset. This matters most in
+            // document editors: Word's `AXFrame` is the page, roughly an inch wider than the text
+            // column on each side, so wrapped ghost text started outside the margin the user's own
+            // text wraps to. Clamped into the frame so a stale or mis-reported edge cannot push text
+            // off the field entirely.
+            let contentLeftX = geometry.observedContentEdges.map {
+                min(max($0.leftX, inputFrame.minX), inputFrame.maxX)
+            }
             let minX = max(
-                inputFrame.minX + Metrics.inputHorizontalPadding,
+                contentLeftX ?? (inputFrame.minX + Metrics.inputHorizontalPadding),
                 visibleFrame.minX + Metrics.fallbackScreenMargin
             )
             let maxX = min(

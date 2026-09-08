@@ -161,6 +161,49 @@ enum AXHelper {
         return rect
     }
 
+    /// Reads a parameterized attribute whose parameter is a plain integer and whose result is an
+    /// integer — `AXLineForIndex` (character offset -> visual line number) is the only current use.
+    ///
+    /// Kept separate from the range-parameterized readers because the parameter is a `CFNumber`
+    /// rather than an `AXValue`, which is a different bridging shape at this unsafe boundary.
+    static func parameterizedIntValue(
+        for attribute: CFString,
+        index: Int,
+        on element: AXUIElement
+    ) -> Int? {
+        let parameter = index as CFNumber
+        var value: CFTypeRef?
+        let result = AXUIElementCopyParameterizedAttributeValue(element, attribute, parameter, &value)
+        guard result == .success, let number = value as? NSNumber else {
+            return nil
+        }
+
+        return number.intValue
+    }
+
+    /// Reads a parameterized attribute whose parameter is a plain integer and whose result is a
+    /// range — `AXRangeForLine` (visual line number -> character range) is the current use.
+    static func parameterizedRangeValue(
+        for attribute: CFString,
+        index: Int,
+        on element: AXUIElement
+    ) -> NSRange? {
+        let parameter = index as CFNumber
+        var value: CFTypeRef?
+        let result = AXUIElementCopyParameterizedAttributeValue(element, attribute, parameter, &value)
+        guard result == .success, let axValue = axValue(from: value) else { return nil }
+        guard AXValueGetType(axValue) == .cfRange else {
+            return nil
+        }
+
+        var range = CFRange()
+        guard AXValueGetValue(axValue, .cfRange, &range) else {
+            return nil
+        }
+
+        return NSRange(location: range.location, length: range.length)
+    }
+
     /// Reads a parameterized rectangle attribute such as `AXBoundsForRange`.
     static func parameterizedRectValue(
         for attribute: CFString,
@@ -281,6 +324,52 @@ enum AXHelper {
 
     /// Extracts a `ResolvedFieldStyle` from one character's attributes, handling both the AppKit
     /// `.font`/`.foregroundColor` shapes and the AX-specific font dictionary / `CGColor` shapes.
+    /// Picks the font face name to render with out of an `AXFont` dictionary, preferring the
+    /// specific face but falling back to the family when the two contradict each other.
+    ///
+    /// The dictionary carries up to four keys, and hosts do not agree on which are trustworthy:
+    /// `AXFontName` (conventionally the PostScript name, so the most specific — it encodes weight
+    /// and slant), `AXFontFamily`, and `AXVisibleName` (the name shown in the host's own font
+    /// picker). Reading `AXFontName` alone is right for well-behaved hosts and wrong for Microsoft
+    /// Word, which publishes a fixed placeholder there while reporting the truth beside it:
+    ///
+    ///     AXFont = {AXFontFamily: Aptos, AXFontName: Helvetica, AXFontSize: 12, AXVisibleName: Aptos}
+    ///
+    /// The document above is Aptos; only `AXFontName` says Helvetica. Note the placeholder resolves
+    /// through `NSFont(name:)` perfectly well, so "does this name load?" cannot detect it — the
+    /// contradiction with the reported family is the only available signal.
+    ///
+    /// Resolution order:
+    /// 1. No family reported: nothing to cross-check, take `AXFontName` as before.
+    /// 2. The face's own family matches the reported family: the face is the more specific truth,
+    ///    so keep it (this is what preserves "Aptos-Bold" rather than flattening to "Aptos").
+    /// 3. The face name is a variant of the family by name (`Aptos-Bold` under `Aptos`): keep it.
+    ///    Checked separately because a font the system has not loaded yet cannot be instantiated —
+    ///    exactly the case for a host's privately bundled fonts before `HostFontRegistry` runs.
+    /// 4. Otherwise the face contradicts the family: trust the family.
+    ///
+    /// Internal (not private) so the selection rule is unit-testable without live AX elements,
+    /// matching `AXTextGeometryResolver`'s testable pure helpers.
+    static func faceName(fromAXFontDictionary fontInfo: [String: Any]) -> String? {
+        let faceName = (fontInfo["AXFontName"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+        let familyName = ["AXFontFamily", "AXVisibleName"]
+            .lazy
+            .compactMap { fontInfo[$0] as? String }
+            .first { !$0.isEmpty }
+
+        guard let familyName else { return faceName }
+        guard let faceName else { return familyName }
+
+        // Size is irrelevant here; the instance exists only to read the face's declared family.
+        if let font = NSFont(name: faceName, size: 12), font.familyName == familyName {
+            return faceName
+        }
+        if faceName == familyName || faceName.hasPrefix(familyName) {
+            return faceName
+        }
+        return familyName
+    }
+
     private static func fieldStyle(from attributes: [NSAttributedString.Key: Any]) -> ResolvedFieldStyle? {
         var fontName: String?
         var fontPointSize: CGFloat?
@@ -288,7 +377,7 @@ enum AXHelper {
             fontName = font.fontName
             fontPointSize = font.pointSize
         } else if let fontInfo = attributes[NSAttributedString.Key("AXFont")] as? [String: Any] {
-            fontName = fontInfo["AXFontName"] as? String
+            fontName = faceName(fromAXFontDictionary: fontInfo)
             if let size = fontInfo["AXFontSize"] as? NSNumber {
                 fontPointSize = CGFloat(size.doubleValue)
             }
