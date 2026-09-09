@@ -426,7 +426,8 @@ struct AXTextGeometryResolver {
         let unionFrame = AXHelper.cocoaRect(fromAccessibilityRect: selectedRun.frame)
         let wrappedRun = WrappedRunAnchor(
             frame: unionFrame,
-            paragraphTextBeforeCaret: Self.paragraphTextBeforeCaret(in: parentText, caretOffset: parentSelection.location)
+            paragraphTextBeforeCaret: Self.paragraphTextBeforeCaret(in: parentText, caretOffset: parentSelection.location),
+            paragraphText: Self.paragraphText(in: parentText, caretOffset: parentSelection.location)
         )
         return CaretGeometryResult(
             rect: CGRect(
@@ -778,6 +779,30 @@ struct AXTextGeometryResolver {
 
     /// The caret's paragraph (parent text between line breaks) up to the caret, in the live parent
     /// value's coordinates.
+    /// The caret's whole paragraph (parent text between the surrounding line breaks).
+    static func paragraphText(in parentText: String, caretOffset: Int) -> String {
+        let parent = parentText as NSString
+        let caret = min(max(caretOffset, 0), parent.length)
+        let before = parent.substring(to: caret)
+        let afterRange = NSRange(location: caret, length: parent.length - caret)
+        let after = parent.substring(with: afterRange)
+        let head: String
+        if let start = before.rangeOfCharacter(from: .newlines, options: .backwards),
+           let index = start.upperBound.samePosition(in: before) {
+            head = String(before[index...])
+        } else {
+            head = before
+        }
+        let tail: String
+        if let end = after.rangeOfCharacter(from: .newlines),
+           let index = end.lowerBound.samePosition(in: after) {
+            tail = String(after[..<index])
+        } else {
+            tail = after
+        }
+        return head + tail
+    }
+
     static func paragraphTextBeforeCaret(in parentText: String, caretOffset: Int) -> String {
         let parent = parentText as NSString
         let caret = min(max(caretOffset, 0), parent.length)
