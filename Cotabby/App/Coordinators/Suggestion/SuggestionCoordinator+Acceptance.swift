@@ -876,50 +876,6 @@ extension SuggestionCoordinator {
         }
     }
 
-    /// Recovers a line pitch from the run's own frame when there are no sibling line runs to
-    /// measure a gap between.
-    ///
-    /// Obsidian's CodeMirror publishes a single-paragraph note as ONE AXStaticText whose frame is
-    /// the union of its wrapped lines, with no per-line spacer siblings (measured live: a 139-char
-    /// paragraph came back as one run, 605x44, and nothing else). `lineGeometry` then has no two
-    /// line tops to subtract, so both the pitch and the box height are nil and the caret used to
-    /// fall back to a whole-field `.estimated` rect — which the render policy turns into the card,
-    /// in a mostly empty editor where inline ghost text would have been perfectly placeable.
-    ///
-    /// Everything needed is still measured: AX gives the union's height and width, and laying the
-    /// paragraph out at that width says how many visual lines the height is divided into. The end
-    /// of the paragraph lands on the last line, so its zero-based index plus one is that count.
-    static func pitchFromRunHeight(
-        wrapped: WrappedRunAnchor,
-        context: FocusedInputContext,
-        isRightToLeft: Bool
-    ) -> CGFloat? {
-        let frame = wrapped.frame
-        guard frame.height > 0, frame.width > 0, !wrapped.paragraphText.isEmpty else { return nil }
-        // Tall enough that the estimator never rejects the layout for overflowing its frame; only
-        // the width and the top edge matter for counting lines.
-        let layoutFrame = CGRect(
-            x: frame.minX, y: frame.maxY - frame.height * 40, width: frame.width, height: frame.height * 40
-        )
-        let input = TextLayoutCaretEstimator.Input(
-            precedingText: wrapped.paragraphText,
-            fieldFrame: layoutFrame,
-            fieldStyle: context.resolvedFieldStyle,
-            isRightToLeft: isRightToLeft,
-            prefixMayBeTruncated: false,
-            observedLineHeight: nil,
-            observedCharWidth: context.observedCharWidth,
-            observedContentEdges: ObservedContentEdges(leftX: frame.minX, topY: frame.maxY)
-        )
-        guard case .estimate(let estimate) = TextLayoutCaretEstimator.estimate(for: input) else { return nil }
-        let lineCount = estimate.lineIndex + 1
-        let pitch = frame.height / CGFloat(lineCount)
-        // A pitch outside plausible line-box bounds means the layout disagreed with the host badly
-        // enough that dividing the frame is meaningless; the caller keeps its existing fallback.
-        guard pitch >= 6, pitch <= 120 else { return nil }
-        return pitch
-    }
-
     /// Lays the wrapped paragraph out inside its run frame and returns the caret's line box there.
     /// The estimator judges a field's shape from its frame height and rejects content taller than
     /// the frame, but a union frame grows with its paragraph and the throttled run walk can report
@@ -934,32 +890,9 @@ extension SuggestionCoordinator {
         pendingInsertion: String,
         isRightToLeft: Bool
     ) -> LayoutRepairedAnchor {
-        guard let wrapped = edges.wrappedRun, wrapped.frame.width > 0,
-              let pitch = edges.linePitch ?? edges.lineBoxHeight
-                ?? Self.pitchFromRunHeight(wrapped: wrapped, context: context, isRightToLeft: isRightToLeft),
-              pitch > 0
+        guard let wrapped = edges.wrappedRun, let pitch = edges.linePitch ?? edges.lineBoxHeight, pitch > 0,
+              wrapped.frame.width > 0
         else {
-            // Returning here hands the presentation back an `.estimated` whole-field caret, which
-            // the render policy turns into the card. That is the one path to the card that used to
-            // leave no trace at all (the repair log bails when there is no outcome and no skip
-            // reason), so the numbers that decided it are recorded explicitly.
-            CotabbyLogger.suggestion.debug(
-                "Wrapped-run anchor unavailable; the card will be shown instead.",
-                metadata: [
-                    "stage": .string("wrapped-run-unavailable"),
-                    "has_wrapped_run": .stringConvertible(edges.wrappedRun != nil),
-                    "line_pitch": .stringConvertible(Double(edges.linePitch ?? -1)),
-                    "line_box_height": .stringConvertible(Double(edges.lineBoxHeight ?? -1)),
-                    "run_frame": .string(
-                        edges.wrappedRun.map {
-                            "\(Int($0.frame.width))x\(Int($0.frame.height))"
-                        } ?? "none"
-                    ),
-                    "paragraph_chars": .stringConvertible(
-                        edges.wrappedRun?.paragraphTextBeforeCaret.count ?? -1
-                    )
-                ]
-            )
             return LayoutRepairedAnchor(rect: fallbackRect, quality: .estimated, outcome: nil, skipReason: nil)
         }
         let frame = wrapped.frame
