@@ -34,6 +34,7 @@ final class LlamaSuggestionEvalTests: XCTestCase {
     func test_reportEvalSuite() async throws {
         #if RUN_LLAMA_EVAL
         let manager = LlamaRuntimeManager()
+        Self.applyModelOverrideIfPresent(to: manager)
         do {
             try await manager.prepare()
         } catch {
@@ -78,6 +79,7 @@ final class LlamaSuggestionEvalTests: XCTestCase {
     func test_reportRecallSuite() async throws {
         #if RUN_LLAMA_EVAL
         let manager = LlamaRuntimeManager()
+        Self.applyModelOverrideIfPresent(to: manager)
         do {
             try await manager.prepare()
         } catch {
@@ -223,9 +225,39 @@ final class LlamaSuggestionEvalTests: XCTestCase {
         return try LlamaEvalCase.loadDataset(from: url)
     }
 
+    /// Benchmarking hook: a GGUF filename written to `eval-model.txt` in the app's Application
+    /// Support directory selects that model for the run, instead of the locator's first preference.
+    ///
+    /// A file rather than an environment variable because xcodebuild does not forward the shell
+    /// environment into the macOS test host (the same reason the suite is gated behind a compile
+    /// flag). Absent or empty file means shipped behavior, so this is inert unless a head-to-head
+    /// comparison is actually being run.
+    private static func modelOverrideURL() -> URL {
+        BundledRuntimeLocator.userRuntimeDirectoryURL()
+            .deletingLastPathComponent()
+            .appendingPathComponent("eval-model.txt")
+    }
+
+    private static func modelOverrideFilename() -> String? {
+        guard let raw = try? String(contentsOf: modelOverrideURL(), encoding: .utf8) else {
+            return nil
+        }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private static func applyModelOverrideIfPresent(to manager: LlamaRuntimeManager) {
+        guard let filename = modelOverrideFilename() else { return }
+        manager.configureSelectedModel(filename: filename)
+        print("Eval model override: \(filename)")
+    }
+
     /// The model file the runtime locator would pick, for the report header. Mirrors the
     /// preferred-name-first resolution without reaching into the manager's internals.
     private static func modelLabel() -> String {
+        if let override = modelOverrideFilename() {
+            return override
+        }
         let directory = BundledRuntimeLocator.userRuntimeDirectoryURL()
         let discovered = BundledRuntimeLocator.discoverGGUFModelURLs(in: directory)
             .map(\.lastPathComponent)
