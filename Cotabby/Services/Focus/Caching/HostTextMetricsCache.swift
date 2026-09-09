@@ -52,8 +52,16 @@ final class HostTextMetricsCache {
             lastSampleCaret = caretLocation
             lastAttemptAt = now
             if let remeasured = measure(), remeasured.sampleText != nil {
-                self.metrics = remeasured
-                return remeasured
+                // WebKit answers no line for a caret at the very end of the text, so a re-measure
+                // taken there would drop the line box learned at focus time; keep what is known.
+                let merged = HostTextMetrics(
+                    sampleText: remeasured.sampleText,
+                    sampleWidth: remeasured.sampleWidth,
+                    lineRect: remeasured.lineRect ?? metrics.lineRect,
+                    linePitch: remeasured.linePitch ?? metrics.linePitch
+                )
+                self.metrics = merged
+                return merged
             }
             return metrics
         }

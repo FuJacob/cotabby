@@ -69,6 +69,17 @@ final class InkBaselineAnalyzerTests: XCTestCase {
         XCTAssertEqual(measurement?.baselineRow ?? -99, expectedRow, accuracy: 1)
     }
 
+    func testAGrayUnderlineBelowTheBaselineIsNotTheBaseline() {
+        // Safari's spell-check squiggle antialiases to a low-saturation gray band; it spans the whole
+        // word, so it out-inks any descender row, yet it must not move the measured baseline.
+        let (image, expectedRow) = render(
+            "juliet kilo lima mike november x", font: NSFont(name: "Georgia", size: 18)!,
+            baselineFromTop: 20.5, background: .white, ink: .black, underline: NSColor(white: 0.55, alpha: 1)
+        )
+        let measurement = InkBaselineAnalyzer.measure(image)
+        XCTAssertEqual(measurement?.baselineRow ?? -99, expectedRow, accuracy: 1)
+    }
+
     func testEmptyStripYieldsNothing() {
         let (image, _) = render("", font: NSFont.systemFont(ofSize: 15), baselineFromTop: 15, background: .white, ink: .black)
         XCTAssertNil(InkBaselineAnalyzer.measure(image))

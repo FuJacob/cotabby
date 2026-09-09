@@ -65,10 +65,17 @@ enum InkBaselineAnalyzer {
             total += count
         }
         guard total >= minimumInkPixels, let peak = rowInk.max(), peak > 0 else { return nil }
-        let bodyRows = rowInk.indices.filter { Double(rowInk[$0]) >= bodyThreshold * Double(peak) }
-        guard bodyRows.count >= minimumBodyRows, let first = bodyRows.first, let last = bodyRows.last else {
-            return nil
+        let threshold = bodyThreshold * Double(peak)
+        // The letter bodies are one contiguous block of busy rows. A spell-check or link underline a
+        // couple of pixels below the baseline is busy too (it spans the whole word), but a gap of
+        // descender-only rows separates it from the bodies; stopping at the first block keeps the
+        // baseline on the letters (measured live: Safari's squiggle under "juliet" read 3.5pt low).
+        guard let first = rowInk.indices.first(where: { Double(rowInk[$0]) >= threshold }) else { return nil }
+        var last = first
+        while last + 1 < height, Double(rowInk[last + 1]) >= threshold {
+            last += 1
         }
+        guard last - first + 1 >= minimumBodyRows else { return nil }
         return Measurement(baselineRow: last + 1, bodyTopRow: first, inkPixelCount: total)
     }
 

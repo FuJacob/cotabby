@@ -70,6 +70,20 @@ final class HostTextMetricsCacheTests: XCTestCase {
         XCTAssertEqual(measurements, 2)
     }
 
+    func testASampleReMeasureWithoutLineGeometryKeepsTheKnownLineBox() {
+        // Safari: the line box is known from focus time (caret 0); at the end of the text the host
+        // answers the width sample but no line, and the line box must survive the merge.
+        let cache = HostTextMetricsCache()
+        let start = Date()
+        let lineOnly = HostTextMetrics(lineRect: CGRect(x: 265, y: 534, width: 205, height: 18), linePitch: 22)
+        let sampleOnly = HostTextMetrics(sampleText: "Field two alpha bravo charlie", sampleWidth: 204)
+        _ = cache.metrics(forKey: "f", caretLocation: 0, now: start) { lineOnly }
+        let merged = cache.metrics(forKey: "f", caretLocation: 30, now: start.addingTimeInterval(1)) { sampleOnly }
+        XCTAssertEqual(merged?.sampleText, "Field two alpha bravo charlie")
+        XCTAssertEqual(merged?.lineRect, lineOnly.lineRect)
+        XCTAssertEqual(merged?.linePitch, 22)
+    }
+
     func testMissingSampleRetriesAreBoundedAndKeepTheLineGeometry() {
         let cache = HostTextMetricsCache()
         let start = Date()

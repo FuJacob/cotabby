@@ -100,6 +100,30 @@ struct GhostTextLayout: Equatable {
     }
 
     static func make(_ input: Input) -> GhostTextLayout? {
+        if let layout = makeRows(input) {
+            return layout
+        }
+        // The text fits but the accept-key pill after it does not (a narrow single-line field such as
+        // an editor's search box): the ghost matters more than its hint, so lay out without the pill.
+        guard input.keycapWidth > 0 else { return nil }
+        return makeRows(
+            Input(
+                fullText: input.fullText,
+                consumedUTF16: input.consumedUTF16,
+                font: input.font,
+                anchorTopLeft: input.anchorTopLeft,
+                boxHeight: input.boxHeight,
+                baselineOffsetFromTop: input.baselineOffsetFromTop,
+                linePitch: input.linePitch,
+                wrapBand: input.wrapBand,
+                isRightToLeft: input.isRightToLeft,
+                allowsMultipleRows: input.allowsMultipleRows,
+                keycapWidth: 0
+            )
+        )
+    }
+
+    private static func makeRows(_ input: Input) -> GhostTextLayout? {
         let total = (input.fullText as NSString).length
         guard input.consumedUTF16 >= 0, input.consumedUTF16 < total, input.boxHeight > 0 else {
             return nil

@@ -22,7 +22,9 @@ final class HostBaselineCalibratorTests: XCTestCase {
     func testOnlySmallCorrectionsAreAccepted() {
         XCTAssertTrue(HostBaselineCalibrator.accepts(measured: 11.5, policy: 12))
         XCTAssertTrue(HostBaselineCalibrator.accepts(measured: 14.5, policy: 14))
-        XCTAssertFalse(HostBaselineCalibrator.accepts(measured: 14, policy: 12), "An underline row two points down is not the baseline")
+        // Safari, Georgia 18px contenteditable at line-height 1.6: policy 20.5, painted baseline 24.
+        XCTAssertTrue(HostBaselineCalibrator.accepts(measured: 24, policy: 20.5))
+        XCTAssertFalse(HostBaselineCalibrator.accepts(measured: 26, policy: 20.5), "A neighbouring line is not this baseline")
     }
 
     func testWithoutScreenRecordingNothingIsCapturedOrCached() {

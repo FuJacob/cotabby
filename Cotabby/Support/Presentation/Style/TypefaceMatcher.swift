@@ -68,7 +68,7 @@ enum TypefaceMatcher {
     static func match(_ input: Input) -> Match? {
         guard input.text.count >= minimumTextLength, input.caretColumn > 8, !input.candidates.isEmpty else { return nil }
         let hostProfile = InkProfile.columns(of: input.strip)
-        let variants = textVariants(input.text)
+        let variants = textVariants(HostLineText.tail(of: input.text))
         var scored: [(font: NSFont, score: Double)] = []
         for candidate in input.candidates {
             var best = -1.0

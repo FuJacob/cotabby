@@ -68,8 +68,8 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
     /// Wrapped ghost rows must stay inside it; `inputFrameRect` is grown for card placement and
     /// would let a row run past the host's real right edge.
     let elementFrameRect: CGRect?
-    /// The text just before the caret on its line (see `HostLineText`), which the pixel typeface
-    /// match renders in candidate faces to compare against the host's own glyphs.
+    /// The text between the last hard line break and the caret. The pixel typeface match renders
+    /// its tail in candidate faces; `GhostCaretRefinement` measures its advance for the exact caret.
     let lineTextBeforeCaret: String?
 
     init(

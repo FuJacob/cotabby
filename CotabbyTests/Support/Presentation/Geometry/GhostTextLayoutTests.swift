@@ -114,4 +114,29 @@ final class GhostTextLayoutTests: XCTestCase {
         XCTAssertEqual(layout.rows.count, 1)
         XCTAssertEqual(layout.rows[0].penX + layout.rows[0].width, 300, accuracy: 0.01)
     }
+
+    /// VS Code's Search field: 199pt wide, the text fits after the caret but the Tab pill does not, and
+    /// a single-line field cannot wrap. The ghost is shown without its hint rather than declined.
+    func testNarrowSingleRowFieldDropsTheKeycapInsteadOfDeclining() {
+        let font = NSFont.systemFont(ofSize: 13)
+        let layout = GhostTextLayout.make(
+            GhostTextLayout.Input(
+                fullText: " jumps",
+                consumedUTF16: 0,
+                font: font,
+                anchorTopLeft: CGPoint(x: 198, y: 856),
+                boxHeight: 15,
+                baselineOffsetFromTop: 12,
+                linePitch: nil,
+                wrapBand: 73...264,
+                isRightToLeft: false,
+                allowsMultipleRows: true,
+                keycapWidth: 30
+            )
+        )
+        XCTAssertNotNil(layout)
+        XCTAssertNil(layout?.keycapFrame)
+        XCTAssertEqual(layout?.rows.count, 1)
+        XCTAssertEqual(layout?.remainingText, " jumps")
+    }
 }

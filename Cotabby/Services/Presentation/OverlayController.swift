@@ -179,10 +179,11 @@ final class OverlayController: SuggestionOverlayControlling {
         )
         let calibration = calibrationRequest(for: geometry, resolution: fontResolution, policyOffset: policyOffset)
         let cachedOffset = calibration.flatMap { baselineCalibrator?.cachedOffset(for: $0.key) }
+        let anchorCaretRect = Self.refinedCaretRect(for: geometry, font: fontResolution)
         var session = InlineSession(
             fullText: text,
             consumedUTF16: 0,
-            anchorCaretRect: geometry.caretRect,
+            anchorCaretRect: anchorCaretRect,
             geometry: geometry,
             fontResolution: fontResolution,
             baselineOffsetFromTop: cachedOffset ?? policyOffset,
@@ -207,6 +208,30 @@ final class OverlayController: SuggestionOverlayControlling {
             startCalibration(calibration, for: geometry)
         }
         return true
+    }
+
+    /// The caret box to anchor the ghost at. Web hosts round caret boxes to whole pixels; when the
+    /// host's exact face and the line's left edge are known, the caret x is recomputed from the
+    /// text's own advance (see `GhostCaretRefinement`). Native hosts report exact carets already.
+    private static func refinedCaretRect(for geometry: SuggestionOverlayGeometry, font: GhostFontResolver.Resolution) -> CGRect {
+        guard geometry.isWebContentField, !font.provenance.isFallbackFace,
+              let lineLeft = geometry.hostTextMetrics?.lineRect?.minX,
+              let paragraph = geometry.lineTextBeforeCaret,
+              let refinedX = GhostCaretRefinement.caretX(
+                  GhostCaretRefinement.Input(
+                      lineLeft: lineLeft,
+                      paragraphTextBeforeCaret: paragraph,
+                      font: font.font,
+                      reportedCaretX: geometry.caretRect.minX,
+                      isRightToLeft: geometry.isRightToLeft
+                  )
+              )
+        else {
+            return geometry.caretRect
+        }
+        var rect = geometry.caretRect
+        rect.origin.x = refinedX
+        return rect
     }
 
     /// The host's face by report or measurement; for a web field the host never named, a face the
@@ -267,7 +292,7 @@ final class OverlayController: SuggestionOverlayControlling {
             hostTextMetrics: context.hostTextMetrics,
             isWebContentField: true,
             elementFrameRect: context.elementFrameRect,
-            lineTextBeforeCaret: HostLineText.tail(of: context.precedingText)
+            lineTextBeforeCaret: GhostCaretRefinement.paragraphTextBeforeCaret(in: context.precedingText)
         )
         let fontResolution = resolveFont(for: geometry, renderer: .webEngine)
         let policyOffset = GhostBaselinePolicy.baselineOffsetFromTop(
@@ -599,6 +624,7 @@ final class OverlayController: SuggestionOverlayControlling {
             "baseline_offset": .stringConvertible(Double(session.baselineOffsetFromTop)),
             "baseline_source": .string(session.baselineSource),
             "caret_x": .stringConvertible(Double(session.anchorCaretRect.minX)),
+            "caret_x_reported": .stringConvertible(Double(session.geometry.caretRect.minX)),
             "caret_top": .stringConvertible(Double(session.anchorCaretRect.maxY)),
             "caret_h": .stringConvertible(Double(session.anchorCaretRect.height)),
             "caret_quality": .string(session.geometry.caretQuality.label),

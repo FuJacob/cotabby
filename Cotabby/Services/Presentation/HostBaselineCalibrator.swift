@@ -83,9 +83,12 @@ final class HostBaselineCalibrator {
     /// Gap kept between the strip and the caret so the caret bar never counts as ink.
     static let caretGap: CGFloat = 2
     static let verticalPadding: CGFloat = 2
-    /// A measurement further than this from the policy baseline is not the same text line (an
-    /// underline, a squiggle, or a neighbouring line leaked in) and is rejected.
-    static let maximumCorrection: CGFloat = 1.5
+    /// A measurement further than this from the policy baseline is not the same text line (a
+    /// neighbouring line leaked in) and is rejected. WebKit's caret box for a loose CSS line-height
+    /// is not the line box the policy assumes: Safari's Georgia contenteditable at line-height 1.6
+    /// painted its baseline 3.5pt below the policy value, so the tolerance must admit that much.
+    /// Underlines are excluded by the analyzer's contiguous-body rule, not by this bound.
+    static let maximumCorrection: CGFloat = 4
     private static let cacheLimit = 64
 
     private var cache: [Key: CGFloat] = [:]
