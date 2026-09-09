@@ -32,6 +32,10 @@ enum GhostFontResolver {
         case hostSizeSystem = "host_size_system"
         case caretDerived = "caret_derived"
         case caretDerivedCalibrated = "caret_derived_calibrated"
+        /// The host named its face, but its measured text runs wider or narrower than that face at
+        /// the reported size (Xcode's editor renders SF Mono 12 with 7.42pt advances); the face is
+        /// kept and its size scaled to the measurement.
+        case hostFaceScaled = "host_face_scaled"
         /// The face was identified from the host's own pixels (`TypefaceMatcher`) because the host
         /// named none and answered no width query.
         case pixelMatched = "pixel_matched"
@@ -41,7 +45,7 @@ enum GhostFontResolver {
             switch self {
             case .hostSizeSystem, .hostSizeScaledSystem, .caretDerived, .caretDerivedCalibrated:
                 return true
-            case .hostFace, .hostFamily, .hostSizeMatchedFamily, .pixelMatched:
+            case .hostFace, .hostFamily, .hostSizeMatchedFamily, .pixelMatched, .hostFaceScaled:
                 return false
             }
         }
@@ -119,15 +123,33 @@ enum GhostFontResolver {
         let reportedSize = plausibleReportedSize(input)
         if let reportedSize {
             if let name = input.style?.fontName, let font = font(named: name, size: reportedSize) {
-                return Resolution(font: font, provenance: .hostFace, widthAgreement: widthAgreement(of: font, input))
+                return fittedToSample(font, provenance: .hostFace, input)
             }
             if let family = input.style?.fontFamily, let font = font(family: family, size: reportedSize) {
-                return Resolution(font: font, provenance: .hostFamily, widthAgreement: widthAgreement(of: font, input))
+                return fittedToSample(font, provenance: .hostFamily, input)
             }
             return resolveBySize(reportedSize, input)
         }
         return resolveFromCaretBox(input)
     }
+
+    /// A named face is trusted as is unless the host's own measured text disagrees with it by more
+    /// than rounding allows, in which case the face is kept and its size follows the measurement.
+    private static func fittedToSample(_ font: NSFont, provenance: Provenance, _ input: Input) -> Resolution {
+        let agreement = widthAgreement(of: font, input)
+        guard abs(agreement - 1) > namedFaceScaleTolerance,
+              let sample = input.hostMetrics?.sampleText, let sampleWidth = input.hostMetrics?.sampleWidth,
+              sampleWidth > 0, !sample.isEmpty
+        else {
+            return Resolution(font: font, provenance: provenance, widthAgreement: agreement)
+        }
+        let scaled = scaledToSample(font, sample: sample, width: sampleWidth)
+        return Resolution(font: scaled, provenance: .hostFaceScaled, widthAgreement: widthAgreement(of: scaled, input))
+    }
+
+    /// Width disagreement a named face may show before its size is scaled: AX widths are rounded to
+    /// whole points, so a 32-character sample carries up to ~0.5% of rounding noise.
+    private static let namedFaceScaleTolerance: CGFloat = 0.015
 
     /// The reported size, or nil when the host reported none or its value cannot describe glyphs
     /// that fit the caret box (an AX implementation that vends a stale or default size).
@@ -203,7 +225,9 @@ enum GhostFontResolver {
     /// (CoreText refuses `.SFNS-Regular` by name and substitutes Times).
     static func font(named name: String, size: CGFloat) -> NSFont? {
         guard !name.isEmpty else { return nil }
-        if name.hasPrefix(".") {
+        // SF Mono (Xcode's editor face, "SFMono-Medium") is not registered under its PostScript
+        // name; like the dotted system faces it is only reachable through the system-font API.
+        if name.hasPrefix(".") || name.hasPrefix("SFMono") {
             if name.localizedCaseInsensitiveContains("mono") {
                 return NSFont.monospacedSystemFont(ofSize: size, weight: systemWeight(in: name))
             }
@@ -214,6 +238,9 @@ enum GhostFontResolver {
 
     static func font(family: String, size: CGFloat) -> NSFont? {
         guard !family.isEmpty else { return nil }
+        if family == "SF Mono" {
+            return NSFont.monospacedSystemFont(ofSize: size, weight: .regular)
+        }
         if family.hasPrefix(".") || family.localizedCaseInsensitiveContains("system") {
             return NSFont.systemFont(ofSize: size)
         }

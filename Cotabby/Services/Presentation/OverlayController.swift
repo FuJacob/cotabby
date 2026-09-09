@@ -279,7 +279,7 @@ final class OverlayController: SuggestionOverlayControlling {
     /// Starts measuring the host's baseline for the line the caret is on, while the model is still
     /// generating, so the first ghost on that line already sits on the measured baseline.
     func prepareInlinePresentation(for context: FocusedInputContext) {
-        guard baselineCalibrator != nil, context.isWebContentField else { return }
+        guard baselineCalibrator != nil else { return }
         let geometry = SuggestionOverlayGeometry(
             caretRect: context.caretRect,
             inputFrameRect: context.inputFrameRect,
@@ -290,15 +290,16 @@ final class OverlayController: SuggestionOverlayControlling {
             focusedInputIdentityKey: context.focusedInputIdentityKey,
             resolvedFieldStyle: context.resolvedFieldStyle,
             hostTextMetrics: context.hostTextMetrics,
-            isWebContentField: true,
+            isWebContentField: context.isWebContentField,
             elementFrameRect: context.elementFrameRect,
             lineTextBeforeCaret: GhostCaretRefinement.paragraphTextBeforeCaret(in: context.precedingText)
         )
-        let fontResolution = resolveFont(for: geometry, renderer: .webEngine)
+        let renderer: GhostBaselinePolicy.HostRenderer = context.isWebContentField ? .webEngine : .textKit
+        let fontResolution = resolveFont(for: geometry, renderer: renderer)
         let policyOffset = GhostBaselinePolicy.baselineOffsetFromTop(
             font: fontResolution.font,
             boxHeight: context.caretRect.height,
-            renderer: .webEngine
+            renderer: renderer
         )
         guard let request = calibrationRequest(for: geometry, resolution: fontResolution, policyOffset: policyOffset) else {
             return
@@ -311,7 +312,7 @@ final class OverlayController: SuggestionOverlayControlling {
         resolution: GhostFontResolver.Resolution,
         policyOffset: CGFloat
     ) -> HostBaselineCalibrator.Request? {
-        guard baselineCalibrator != nil, geometry.isWebContentField else { return nil }
+        guard baselineCalibrator != nil, Self.wantsBaselineCalibration(geometry, font: resolution.font) else { return nil }
         let font = resolution.font
         return HostBaselineCalibrator.Request(
             key: HostBaselineCalibrator.Key(
@@ -327,6 +328,17 @@ final class OverlayController: SuggestionOverlayControlling {
             pointSize: font.pointSize,
             matchTypeface: resolution.provenance.isFallbackFace
         )
+    }
+
+    /// Web hosts always: their boxes are rounded to pixels. Native hosts only when the caret box is
+    /// not the face's own TextKit line fragment, because then the policy has to guess where the
+    /// extra line spacing went (Xcode's source editor puts it below the text; TextKit puts it above).
+    private static func wantsBaselineCalibration(_ geometry: SuggestionOverlayGeometry, font: NSFont) -> Bool {
+        if geometry.isWebContentField {
+            return true
+        }
+        let defaultHeight = NSLayoutManager().defaultLineHeight(for: font)
+        return abs(geometry.caretRect.height - defaultHeight) > 1
     }
 
     /// Measures the baseline for a ghost already on screen. When the answer differs from the policy
@@ -443,11 +455,19 @@ final class OverlayController: SuggestionOverlayControlling {
     }
 
     /// The horizontal band ghost rows may occupy (see `GhostWrapBandPolicy`).
+    ///
+    /// Code editors built on a hidden textarea (VS Code's Monaco) report an element only as wide
+    /// as the current line's text, with the caret on its right edge, while the real text container
+    /// is the editor view around it; for those the container frame is used instead.
     private func wrapBand(for geometry: SuggestionOverlayGeometry) -> ClosedRange<CGFloat>? {
-        GhostWrapBandPolicy.band(
+        let isCodeEditor = AppSurfaceClassifier.classify(
+            bundleIdentifier: geometry.bundleIdentifier,
+            isIntegratedTerminal: false
+        ) == .codeEditor
+        return GhostWrapBandPolicy.band(
             GhostWrapBandPolicy.Input(
                 caretRect: geometry.caretRect,
-                elementFrame: geometry.elementFrameRect,
+                elementFrame: isCodeEditor ? nil : geometry.elementFrameRect,
                 inputFrame: geometry.inputFrameRect,
                 lineLeft: geometry.hostTextMetrics?.lineRect?.minX,
                 screenVisibleFrame: targetScreenVisibleFrame(for: geometry.caretRect)

@@ -127,4 +127,33 @@ final class GhostFontResolverTests: XCTestCase {
         XCTAssertEqual(scaled.font.pointSize, 21)
         XCTAssertEqual(scaled.font.fontName, "Menlo-Regular")
     }
+
+    /// Xcode reports its editor face as "SFMono-Medium" (family "SF Mono"), which `NSFont(name:)`
+    /// cannot load; it must come from the monospaced system font API, weight included.
+    func testSFMonoNamesResolveThroughTheMonospacedSystemFont() {
+        let medium = GhostFontResolver.font(named: "SFMono-Medium", size: 12)
+        XCTAssertNotNil(medium)
+        XCTAssertEqual(medium?.pointSize, 12)
+        XCTAssertTrue(medium?.isFixedPitch ?? false)
+        XCTAssertNotNil(GhostFontResolver.font(family: "SF Mono", size: 12))
+    }
+
+    /// Xcode's editor drew SF Mono 12 with 7.42pt advances (3% wider than the face at 12); the
+    /// named face is kept and its size follows the host's own measurement.
+    func testANamedFaceIsScaledWhenTheHostMeasuresItWider() {
+        let sample = "The quick brown fox"
+        let base = NSFont.monospacedSystemFont(ofSize: 12, weight: .medium)
+        let hostWidth = (sample as NSString).size(withAttributes: [.font: base]).width * 1.03
+        let resolution = GhostFontResolver.resolve(
+            GhostFontResolver.Input(
+                style: ResolvedFieldStyle(fontName: "SFMono-Medium", fontFamily: "SF Mono", fontPointSize: 12, colorHex: nil),
+                hostMetrics: HostTextMetrics(sampleText: sample, sampleWidth: hostWidth),
+                caretBoxHeight: 17,
+                renderer: .textKit
+            )
+        )
+        XCTAssertEqual(resolution.provenance, .hostFaceScaled)
+        XCTAssertEqual(resolution.widthAgreement, 1, accuracy: 0.01)
+        XCTAssertGreaterThan(resolution.font.pointSize, 12)
+    }
 }
