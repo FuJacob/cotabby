@@ -127,7 +127,11 @@ Focus and geometry live in:
 
 Accessibility data is eventually consistent and app-specific. Browser editors, Electron apps,
 native AppKit fields, and secure fields expose different AX shapes. Preserve stale-result guards,
-`focusChangeSequence`, and capability checks unless the change explicitly replaces them.
+`focusChangeSequence`, and capability checks unless the change explicitly replaces them. Known
+shapes worth keeping in mind: CodeMirror (Obsidian) exposes a wrapped paragraph as one static-text
+run plus a single-space spacer run per line (`WrappedRunAnchor` handles the caret there), and
+Chromium's address bar keeps its inline completion selected after the caret (stripped by the
+resolver, not treated as a user selection).
 
 ## Visual Context And OCR
 

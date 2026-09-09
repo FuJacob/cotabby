@@ -342,7 +342,8 @@ Inline ghost text is built to occupy the pixels the accepted text will occupy:
   [GhostWrapBandPolicy.swift](Cotabby/Support/Presentation/Geometry/GhostWrapBandPolicy.swift) derives
   from the element's real frame, one row per host line at the measured line pitch (the probe scans
   single-character bounds for the nearest other line when a host's line APIs give none, as Chromium's
-  do); a host that offers a single row shows the head that fits. Rows that would sit over the host's
+  do; sibling text runs give it for CodeMirror; the caret box height stands in until a field has a
+  second line). Rows that would sit over the host's
   own text get opaque bands in the field's background color, measured from its pixels by
   [HostBackgroundSampler.swift](Cotabby/Support/Presentation/Geometry/HostBackgroundSampler.swift)
   through the calibrator (the caret's line and the line below are sampled separately because code
@@ -352,7 +353,13 @@ Inline ghost text is built to occupy the pixels the accepted text will occupy:
   fills the bands and draws the rows with CoreText on a whole-point panel origin.
 - While the host shows uncommitted text of its own (macOS inline predictive text, an IME
   composition; [HostMarkedTextPolicy.swift](Cotabby/Support/Input/HostMarkedTextPolicy.swift)) the
-  coordinator holds: no generation, no ghost, session kept.
+  coordinator holds: no generation, no ghost, session kept. Chromium's address bar completes inline
+  and leaves the completion selected; the resolver strips that selection so the field stays usable.
+- Editors that expose a whole wrapped paragraph as one text run (CodeMirror in Obsidian) get their
+  caret from a layout of that paragraph inside the run's own frame at the sibling runs' pitch
+  (`WrappedRunAnchor`, laid out by
+  [TextLayoutCaretEstimator.swift](Cotabby/Support/Presentation/Geometry/TextLayoutCaretEstimator.swift)
+  in the coordinator's repair step); whitespace-only spacer runs never anchor the caret mapping.
 
 [ActivationIndicatorController.swift](Cotabby/Services/Presentation/ActivationIndicatorController.swift) owns
 the optional field/caret indicator. [FocusDebugOverlayController.swift](Cotabby/Services/Presentation/FocusDebugOverlayController.swift)
