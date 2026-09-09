@@ -20,6 +20,8 @@ final class SuggestionCoordinator: ObservableObject {
     /// True while the latest focus snapshot carried host-owned marked text (system inline
     /// prediction or IME composition); see `SuggestionCoordinator+HostMarkedText.swift`.
     var isHoldingForHostMarkedText = false
+    /// Work id of a generation re-issued from the word boundary after a seam misspelling, so the
+    /// retry's own result is judged once and never retried again.
     @Published var visualContextStatus: VisualContextStatus = .idle
     @Published var latestVisualContextText: String?
     @Published var totalTabAcceptedWordCount: Int = 0

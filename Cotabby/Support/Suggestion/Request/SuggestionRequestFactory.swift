@@ -43,19 +43,19 @@ enum SuggestionRequestFactory {
         clipboardContext: String? = nil,
         visualContextSummary: String? = nil
     ) -> SuggestionRequestBuildResult {
-        // Mid-word requests are anchored at the word boundary: the partial word leaves the prompt so
-        // the model completes a whole word, and the normalizer takes the typed part back off.
         let fullPrefixText = truncatedPromptPrefix(
             from: context.precedingText,
             configuration: configuration,
             engine: settings.selectedEngine
         )
-        // A lone partial word is anchored too: the unconditioned prompt then yields a word the
-        // anchor check rejects, and showing nothing beats the "azioni!" the plain prompt produced.
-        let wordBoundaryAnchor = WordBoundaryAnchorPolicy.anchor(
-            precedingText: context.precedingText,
-            trailingText: context.trailingText
-        )
+        // On the llama path a caret after letters anchors the request at the word boundary: the
+        // partial word leaves the prompt (so its last token is a whole word) and the engine is
+        // required to reproduce it, so the model finishes the word the user started and the
+        // normalizer takes the typed part back off (see `WordBoundaryAnchorPolicy`). The other
+        // engines cannot constrain their output and keep the prompt exactly where the user stopped.
+        let wordBoundaryAnchor = settings.selectedEngine == .llamaOpenSource
+            ? WordBoundaryAnchorPolicy.anchor(precedingText: context.precedingText, trailingText: context.trailingText)
+            : nil
         let prefixText = wordBoundaryAnchor.map { WordBoundaryAnchorPolicy.promptPrefix(fullPrefixText, removing: $0) }
             ?? fullPrefixText
         let completionLengthInstruction = settings.effectiveWordRange.promptInstruction
@@ -144,7 +144,8 @@ enum SuggestionRequestFactory {
             surfaceContext: surfaceContext,
             isMultiLineEnabled: settings.isMultiLineEnabled,
             requestID: RequestID.generate(),
-            wordBoundaryAnchor: wordBoundaryAnchor
+            wordBoundaryAnchor: wordBoundaryAnchor,
+            wordRange: settings.effectiveWordRange
         )
 
         return SuggestionRequestBuildResult(

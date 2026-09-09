@@ -651,6 +651,38 @@ extension SuggestionCoordinator {
 
     /// Empty-result bookkeeping for `apply`, extracted to keep that function inside the
     /// complexity budget as its guard chain grew.
+    /// Junk punctuation runs, mid-word splices, and newly started words the native checker can
+    /// correct read as glitches, so showing nothing beats showing them. The leading-word check is
+    /// intentionally fail-open for names and jargon with no correction candidate. Returns true when
+    /// the result must not be shown.
+    private func suppressForSeamVerdictIfNeeded(
+        result: SuggestionResult,
+        liveContext: FocusedInputContext,
+        workID: UInt64
+    ) -> Bool {
+        let seamVerdict = CompletionSeamGuard.verdict(
+            precedingText: liveContext.precedingText,
+            completion: result.text,
+            spellingAssessment: { self.completionSpellingAssessment(for: $0) }
+        )
+        guard seamVerdict != .allow else {
+            return false
+        }
+        clearSuggestion()
+        hideOverlay(reason: "Overlay hidden because the completion failed the seam guard.")
+        state = .idle
+        qualityMetricsStore.recordSuppressed(reason: Self.seamSuppressionReason(for: seamVerdict))
+        logStage(
+            "seam-suppressed",
+            workID: workID,
+            generation: result.generation,
+            message: "Suppressed completion at the caret seam: \(seamVerdict).",
+            rawOutput: result.rawText,
+            normalizedOutput: result.text
+        )
+        return true
+    }
+
     private func discardEmptyResult(_ result: SuggestionResult, workID: UInt64) {
         clearSuggestion()
         hideOverlay(reason: "Overlay hidden because the model returned an empty continuation.")
@@ -799,28 +831,8 @@ extension SuggestionCoordinator {
             return
         }
 
-        // Last line of defense before display: junk punctuation runs, mid-word splices, and newly
-        // started words that the native checker can actually correct read as glitches, so showing
-        // nothing beats showing them. The leading-word check is intentionally fail-open for names
-        // and jargon with no correction candidate.
-        let seamVerdict = CompletionSeamGuard.verdict(
-            precedingText: liveContext.precedingText,
-            completion: result.text,
-            spellingAssessment: { self.completionSpellingAssessment(for: $0) }
-        )
-        if seamVerdict != .allow {
-            clearSuggestion()
-            hideOverlay(reason: "Overlay hidden because the completion failed the seam guard.")
-            state = .idle
-            qualityMetricsStore.recordSuppressed(reason: Self.seamSuppressionReason(for: seamVerdict))
-            logStage(
-                "seam-suppressed",
-                workID: workID,
-                generation: result.generation,
-                message: "Suppressed completion at the caret seam: \(seamVerdict).",
-                rawOutput: result.rawText,
-                normalizedOutput: result.text
-            )
+        // Last line of defense before display (see `suppressForSeamVerdictIfNeeded`).
+        if suppressForSeamVerdictIfNeeded(result: result, liveContext: liveContext, workID: workID) {
             return
         }
 

@@ -56,8 +56,10 @@ When adding a `struct`, `class`, `enum`, actor, or protocol, explain:
   sanitization, logging, and low-level bridging helpers grouped by subsystem.
 - `CotabbyTests/`: unit and microbench tests that mirror the production subsystem map. Prefer
   testing pure `Support/` and `Models/` logic when possible.
-- `CotabbyInference`: the llama.cpp wrapper, consumed as a SwiftPM package
-  (`github.com/FuJacob/cotabbyinference`, pinned to `main`) rather than vendored in-tree.
+- `CotabbyInference`: the llama.cpp wrapper, consumed as a SwiftPM package rather than vendored
+  in-tree. Upstream is `github.com/FuJacob/cotabbyinference` (`main`); this branch resolves the
+  `feat/required-prefix` branch of the `Mason363/cotabbyinference` fork, which adds the
+  required-prefix sampling constraint that mid-word anchoring depends on, until it lands upstream.
 
 Within a subsystem, child folders describe stable responsibilities rather than Swift namespaces.
 Examples include `Services/Runtime/{AppleIntelligence,Llama,OpenAICompatible}` and
@@ -175,8 +177,10 @@ The Swift generation loop owns the maximum output-token budget.
 
 - `OverlayController` owns the ghost-text panel lifecycle and positioning. Ghost glyphs are laid
   out by `GhostTextLayout` in the font `GhostFontResolver` resolves, on the baseline
-  `GhostBaselinePolicy` (or a `HostBaselineCalibrator` measurement) gives; change those pure helpers
-  and their tests rather than nudging offsets in the controller.
+  `GhostBaselinePolicy` (or a `HostBaselineCalibrator` measurement) gives, wrapping onto the host's
+  next lines at the measured pitch over opaque bands in the field's measured background color
+  (`HostBackgroundSampler`); change those pure helpers and their tests rather than nudging offsets
+  in the controller.
 - `SuggestionOverlayPresenter` decides whether a suggestion should be shown or hidden.
 - `ActivationIndicatorController` owns the optional caret/field-edge indicator.
 - `FocusDebugOverlayController` is for developer visibility and should stay gated behind debug

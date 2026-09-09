@@ -8,7 +8,11 @@ import Foundation
 /// the ghost text. This renderer treats the model as a pure text continuer: persona, style, language,
 /// and supporting context are folded into a short conditioning preface (a base model conditions on
 /// description, it does not obey commands), and the caret prefix is the LAST thing in the prompt with
-/// trailing whitespace trimmed so generation begins at a clean word boundary.
+/// trailing whitespace trimmed so generation begins at a clean word boundary. The trim applies to
+/// prompts anchored at a word boundary (`WordBoundaryAnchorPolicy`) too, even though the model then
+/// sometimes continues the previous word ("…yesterday. I" → "I've") instead of starting the one the
+/// user began: a prompt that ends in a space is worse, measured live with the shipped model it
+/// answered "1234567890" and stray HTML tags to most requests.
 ///
 /// Sections are character-budgeted via `PromptSectionBudget` so a large glossary, clipboard, or
 /// screen capture can never crowd out the caret text: the prefix gets top priority and a guaranteed

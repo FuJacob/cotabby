@@ -3266,7 +3266,7 @@
 			mainGroup = DFE8419B341AF83B4D276BC0;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				537E79EE0EEF2030A5923ED9 /* XCRemoteSwiftPackageReference "cotabbyinference" */,
+				AFF907B24FF64D2A16458F33 /* XCRemoteSwiftPackageReference "cotabbyinference" */,
 				16E10845516A4DE793CC1BF6 /* XCRemoteSwiftPackageReference "LaunchAtLogin-Modern" */,
 				D8563066187C38DAA4206016 /* XCRemoteSwiftPackageReference "Sparkle" */,
 				413C306D13ADDD8B5C747551 /* XCRemoteSwiftPackageReference "swift-log" */,
@@ -4540,11 +4540,11 @@
 				minimumVersion = 1.12.1;
 			};
 		};
-		537E79EE0EEF2030A5923ED9 /* XCRemoteSwiftPackageReference "cotabbyinference" */ = {
+		AFF907B24FF64D2A16458F33 /* XCRemoteSwiftPackageReference "cotabbyinference" */ = {
 			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/FuJacob/cotabbyinference.git";
+			repositoryURL = "https://github.com/Mason363/cotabbyinference.git";
 			requirement = {
-				branch = main;
+				branch = "feat/required-prefix";
 				kind = branch;
 			};
 		};
@@ -4561,7 +4561,7 @@
 /* Begin XCSwiftPackageProductDependency section */
 		48A46AD6B613CF06072603E4 /* CotabbyInference */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 537E79EE0EEF2030A5923ED9 /* XCRemoteSwiftPackageReference "cotabbyinference" */;
+			package = AFF907B24FF64D2A16458F33 /* XCRemoteSwiftPackageReference "cotabbyinference" */;
 			productName = CotabbyInference;
 		};
 		5A60D1467BBFECB3DFEB39C2 /* Logging */ = {
@@ -4601,7 +4601,7 @@
 		};
 		D11AB0F962CCC5BD79B630CA /* CotabbyInference */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = 537E79EE0EEF2030A5923ED9 /* XCRemoteSwiftPackageReference "cotabbyinference" */;
+			package = AFF907B24FF64D2A16458F33 /* XCRemoteSwiftPackageReference "cotabbyinference" */;
 			productName = CotabbyInference;
 		};
 		E0AA9F90B83B823132880E6F /* LaunchAtLogin */ = {

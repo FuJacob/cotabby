@@ -185,6 +185,7 @@ final class LlamaSuggestionEngine {
                 "llama generation",
                 metadata: baseMetadata.merging([
                     "prompt": .string(request.prompt),
+                    "anchor": .string(request.wordBoundaryAnchor ?? ""),
                     "completion_raw": .string(rawSuggestion),
                     "completion_normalized": .string(normalizedSuggestion),
                     "prompt_bytes": .stringConvertible(request.prompt.utf8.count),
@@ -275,7 +276,11 @@ final class LlamaSuggestionEngine {
                 precedingText: request.context.precedingText,
                 trailingText: request.context.trailingText
             ),
+            requiredPrefix: request.wordBoundaryAnchor.map {
+                WordBoundaryAnchorPolicy.requiredCompletionPrefix(precedingText: request.context.precedingText, anchor: $0)
+            },
             confidenceFloor: resolvedConfidenceFloor(),
+            sentenceStopMinimumWords: request.wordRange?.lowWords ?? 0,
             stopAtArgmaxEOG: resolvedStopAtArgmaxEOG()
         )
     }

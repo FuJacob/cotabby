@@ -10,12 +10,24 @@ import Foundation
 ///   would produce "Best ," and the rest is guesswork.
 /// - Scaffolding: forum/chat UI residue ("[User 0001]", "12:03 PM · 1 min read · Reply"), stray
 ///   HTML in prose, and the model talking back about the prompt ("I'm not sure what you mean by…").
+/// - Repetition: a short word sequence looping back to back (". Hi S. Hi S. Hi S.") is the model
+///   stuck, not a continuation. Measured live on a small base model mid-word: it happens on short
+///   partial words with thin context.
+/// - Copying: most of the completion lifted verbatim from what the user just wrote (". Hi Sarah,
+///   thanks for s" right after "Hi Sarah, thanks for s"). The user gains nothing by accepting it.
 enum CompletionContentPolicy {
     enum Rejection: Equatable {
         case noWordContent
         case punctuationAfterSpace
         case scaffolding
+        case repetitiveContent
+        case copiesPrecedingText
     }
+
+    /// Words a copied run must span to count as copying; shorter overlaps are ordinary phrasing.
+    static let copiedRunWords = 4
+    /// Recent preceding text a copied run is looked for in (characters).
+    static let copySearchWindow = 400
 
     /// Punctuation that closes or continues the previous word and never starts a new one.
     private static let closingPunctuation: Set<Character> = [",", ".", ";", ":", "!", "?", "…"]
@@ -40,7 +52,57 @@ enum CompletionContentPolicy {
         if looksLikeScaffolding(completion, precedingText: precedingText) {
             return .scaffolding
         }
+        if isRepetitive(completion) {
+            return .repetitiveContent
+        }
+        if copiesPrecedingText(completion, precedingText: precedingText) {
+            return .copiesPrecedingText
+        }
         return nil
+    }
+
+    /// True when a sequence of one to three words repeats itself three or more times in a row.
+    static func isRepetitive(_ completion: String) -> Bool {
+        let words = completion.split(whereSeparator: \.isWhitespace).map { $0.lowercased() }
+        for period in 1...3 where words.count >= period * 3 {
+            var run = 0
+            for index in period..<words.count {
+                run = words[index] == words[index - period] ? run + 1 : 0
+                if run >= period * 2 {
+                    return true
+                }
+            }
+        }
+        return false
+    }
+
+    /// True when at least 60% of the completion's words sit inside runs of `copiedRunWords` words
+    /// that also occur in the last `copySearchWindow` characters before the caret. Punctuation and
+    /// case are ignored so "s." matches "s"; a four-word run is long enough that ordinary shared
+    /// phrasing ("thanks for the") never trips it.
+    static func copiesPrecedingText(_ completion: String, precedingText: String) -> Bool {
+        let words = contentWords(completion)
+        let recent = contentWords(String(precedingText.suffix(copySearchWindow)))
+        let run = copiedRunWords
+        guard words.count >= run, recent.count >= run else { return false }
+        var recentRuns = Set<String>()
+        for start in 0...(recent.count - run) {
+            recentRuns.insert(recent[start..<start + run].joined(separator: " "))
+        }
+        var covered = [Bool](repeating: false, count: words.count)
+        for start in 0...(words.count - run) where recentRuns.contains(words[start..<start + run].joined(separator: " ")) {
+            for index in start..<start + run {
+                covered[index] = true
+            }
+        }
+        let coveredCount = covered.filter { $0 }.count
+        return coveredCount * 10 >= words.count * 6
+    }
+
+    private static func contentWords(_ text: String) -> [String] {
+        text.lowercased()
+            .split(whereSeparator: { !$0.isLetter && !$0.isNumber && $0 != "'" })
+            .map(String.init)
     }
 
     static func hasWordContent(_ text: String) -> Bool {

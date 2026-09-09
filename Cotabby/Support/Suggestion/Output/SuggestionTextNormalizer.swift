@@ -38,6 +38,10 @@ enum CompletionSuppressionReason: String, Sendable, Equatable {
     case punctuationAfterSpace
     /// Forum/chat UI residue, stray markup, or the model talking back about the prompt.
     case scaffolding
+    /// A short word sequence looping back to back: the model was stuck.
+    case repetitiveContent
+    /// Most of the completion was lifted verbatim from the text just before the caret.
+    case copiesPrecedingText
 }
 
 /// Outcome of normalizing one raw completion: the ghost text, plus the attributable reason when that
@@ -155,6 +159,11 @@ enum SuggestionTextNormalizer {
             return SuggestionNormalizationResult(text: "", suppression: suppression(for: rejection))
         }
 
+        // Hold the suggestion to the user's word-count preset (see `SuggestionLengthPolicy`).
+        if let range = request.wordRange, !request.isMultiLineEnabled {
+            normalized = SuggestionLengthPolicy.trimmed(normalized, minimum: range.lowWords, maximum: range.highWords)
+        }
+
         return SuggestionNormalizationResult(text: normalized, suppression: nil)
     }
 
@@ -163,6 +172,8 @@ enum SuggestionTextNormalizer {
         case .noWordContent: return .noWordContent
         case .punctuationAfterSpace: return .punctuationAfterSpace
         case .scaffolding: return .scaffolding
+        case .repetitiveContent: return .repetitiveContent
+        case .copiesPrecedingText: return .copiesPrecedingText
         }
     }
 

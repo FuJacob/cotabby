@@ -88,7 +88,8 @@ final class SuggestionRequestFactoryTests: XCTestCase {
             configuration: configuration
         )
 
-        // The final word is the word-boundary anchor: it leaves the prompt and is matched back on output.
+        // The budget keeps the last three words; the partial "theta" then leaves the prompt as the
+        // anchor the engine reproduces (see `WordBoundaryAnchorPolicy`).
         XCTAssertEqual(result.request.prefixText, "zeta eta ")
         XCTAssertEqual(result.request.wordBoundaryAnchor, "theta")
         XCTAssertTrue(result.promptPreview.contains("zeta eta"))
@@ -133,11 +134,15 @@ final class SuggestionRequestFactoryTests: XCTestCase {
             configuration: configuration
         )
 
+        // The llama request is anchored at the word boundary (the partial "theta" becomes the
+        // anchor the engine reproduces); the Apple path cannot constrain its output and keeps it.
         XCTAssertEqual(llamaResult.request.prefixText, "zeta eta ")
+        XCTAssertEqual(llamaResult.request.wordBoundaryAnchor, "theta")
         XCTAssertEqual(
             foundationModelResult.request.prefixText,
-            "gamma delta epsilon zeta eta "
+            "gamma delta epsilon zeta eta theta"
         )
+        XCTAssertNil(foundationModelResult.request.wordBoundaryAnchor)
     }
 
     func test_buildRequest_usesWordCountPresetForInstructionAndTokenBudget() {
@@ -319,7 +324,8 @@ final class SuggestionRequestFactoryTests: XCTestCase {
             result.request.prompt.contains("Window title: \"Re: Q3 budget\"."),
             "the app-name suffix is stripped from the title before it reaches the prompt"
         )
-        XCTAssertTrue(result.request.prompt.hasSuffix("Thanks again"), "the partial final word is the anchor")
+        XCTAssertTrue(result.request.prompt.hasSuffix("Thanks again"), "\"for\" is the anchor the engine reproduces")
+        XCTAssertEqual(result.request.wordBoundaryAnchor, "for")
     }
 
     func test_shouldGenerateSuggestion_declinesACaretInsideAToken() {
@@ -329,19 +335,38 @@ final class SuggestionRequestFactoryTests: XCTestCase {
         XCTAssertTrue(SuggestionRequestFactory.shouldGenerateSuggestion(for: "Thanks for", trailingText: ""))
     }
 
-    func test_buildRequest_anchorsAMidWordRequestAtTheWordBoundary() {
-        let context = CotabbyTestFixtures.focusedInputContext(precedingText: "Thanks so much, I really apprec")
-        let result = SuggestionRequestFactory.buildRequest(
-            context: context,
+    /// A caret after letters is usually the end of a finished word, so by default the whole text
+    /// stays in the prompt; the retry path asks explicitly for the word-boundary prompt.
+    func test_buildRequest_anchorsEveryPartialWordAtItsBoundary() {
+        // The partial word leaves the prompt (so its last token is a whole word) and becomes the
+        // anchor the engine's required prefix reproduces; see `WordBoundaryAnchorPolicy`.
+        for partial in ["t", "th", "thr", "apprec"] {
+            let context = CotabbyTestFixtures.focusedInputContext(precedingText: "Yesterday I went \(partial)")
+            let built = SuggestionRequestFactory.buildRequest(
+                context: context,
+                settings: CotabbyTestFixtures.settingsSnapshot(selectedEngine: .llamaOpenSource),
+                configuration: .standard
+            )
+            XCTAssertEqual(built.request.wordBoundaryAnchor, partial)
+            XCTAssertTrue(built.request.prefixText.hasSuffix("I went "), built.request.prefixText)
+            XCTAssertTrue(built.request.prompt.hasSuffix("I went"), "the prompt ends at the boundary, trimmed like every prompt")
+        }
+        let boundary = SuggestionRequestFactory.buildRequest(
+            context: CotabbyTestFixtures.focusedInputContext(precedingText: "Yesterday I went "),
             settings: CotabbyTestFixtures.settingsSnapshot(),
             configuration: .standard
         )
-        XCTAssertEqual(result.request.wordBoundaryAnchor, "apprec")
-        XCTAssertTrue(result.request.prefixText.hasSuffix("I really "), result.request.prefixText)
-        XCTAssertFalse(result.request.prompt.hasSuffix("apprec"), "the partial word leaves the prompt")
+        XCTAssertNil(boundary.request.wordBoundaryAnchor, "a caret after a space has no partial word")
+        let apple = SuggestionRequestFactory.buildRequest(
+            context: CotabbyTestFixtures.focusedInputContext(precedingText: "Yesterday I went thr"),
+            settings: CotabbyTestFixtures.settingsSnapshot(selectedEngine: .appleIntelligence),
+            configuration: .standard
+        )
+        XCTAssertNil(apple.request.wordBoundaryAnchor, "only the llama engine can reproduce an anchor")
+        XCTAssertTrue(apple.request.prefixText.hasSuffix("thr"))
     }
 
-    func test_buildRequest_atAWordBoundaryHasNoAnchor() {
+    func test_buildRequest_carriesTheWordRange() {
         let context = CotabbyTestFixtures.focusedInputContext(precedingText: "Thanks so much, I really ")
         let result = SuggestionRequestFactory.buildRequest(
             context: context,
@@ -349,6 +374,7 @@ final class SuggestionRequestFactoryTests: XCTestCase {
             configuration: .standard
         )
         XCTAssertNil(result.request.wordBoundaryAnchor)
+        XCTAssertNotNil(result.request.wordRange)
     }
 
     func test_buildRequest_omitsSurfaceContextWhenDisabled() {

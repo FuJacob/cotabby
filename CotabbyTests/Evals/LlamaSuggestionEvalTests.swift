@@ -131,25 +131,24 @@ final class LlamaSuggestionEvalTests: XCTestCase {
         ).request
 
         let start = Date()
-        let result = try await engine.generateSuggestion(for: request)
-        let latency = Date().timeIntervalSince(start)
+        var result = try await engine.generateSuggestion(for: request)
+        var latency = Date().timeIntervalSince(start)
 
+        let assessment: (String) -> CompletionSeamGuard.SpellingAssessment = { word in
+            guard spellChecker.isTypo(word) else {
+                return .known
+            }
+            return spellChecker.bestCorrection(for: word) == nil
+                ? .uncorrectableTypo
+                : .correctableTypo
+        }
         var shownText: String? = result.text.isEmpty ? nil : result.text
         var suppressionStage: String? = result.text.isEmpty ? "normalizer" : nil
 
         // Mirrors the coordinator's display-time seam guard.
         if let candidate = shownText {
             let verdict = CompletionSeamGuard.verdict(
-                precedingText: evalCase.precedingText,
-                completion: candidate,
-                spellingAssessment: { word in
-                    guard spellChecker.isTypo(word) else {
-                        return .known
-                    }
-                    return spellChecker.bestCorrection(for: word) == nil
-                        ? .uncorrectableTypo
-                        : .correctableTypo
-                }
+                precedingText: evalCase.precedingText, completion: candidate, spellingAssessment: assessment
             )
             if verdict != .allow {
                 shownText = nil

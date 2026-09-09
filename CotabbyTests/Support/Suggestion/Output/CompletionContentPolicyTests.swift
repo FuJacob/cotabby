@@ -32,4 +32,37 @@ final class CompletionContentPolicyTests: XCTestCase {
         XCTAssertNil(CompletionContentPolicy.rejection(for: "<div>", precedingText: "<p>hello</p> "), "markup in a markup field is content")
         XCTAssertNil(CompletionContentPolicy.rejection(for: "thing that's like a sandwich", precedingText: "that new "))
     }
+
+    func testLoopingCompletionsAreRejected() {
+        // Live (Chrome, 90ms/key): "Hi S" -> ". Hi S. Hi S. Hi S."; ", t" -> "ttttt, 123456" passes (one word).
+        let policy = CompletionContentPolicy.self
+        XCTAssertEqual(policy.rejection(for: ". Hi S. Hi S. Hi S.", precedingText: "charlie. Hi S"), .repetitiveContent)
+        XCTAssertEqual(policy.rejection(for: "no no no no", precedingText: "oh "), .repetitiveContent)
+        XCTAssertEqual(policy.rejection(for: "over and over and over and over", precedingText: "again "), .repetitiveContent)
+        XCTAssertNil(CompletionContentPolicy.rejection(for: "very very good", precedingText: "it was "), "two copies are emphasis")
+        XCTAssertNil(CompletionContentPolicy.rejection(for: "day after day, week after week", precedingText: "it went on "))
+    }
+
+    func testCompletionsCopiedFromTheRecentTextAreRejected() {
+        // Live: "Hi Sarah, thanks for s" -> ". Hi Sarah, thanks for s."
+        XCTAssertEqual(
+            CompletionContentPolicy.rejection(for: ". Hi Sarah, thanks for s.", precedingText: "Field one. Hi Sarah, thanks for s"),
+            .copiesPrecedingText
+        )
+        XCTAssertEqual(
+            CompletionContentPolicy.rejection(for: " the first two sections", precedingText: "I went through the first two sections and "),
+            .copiesPrecedingText
+        )
+        XCTAssertNil(
+            CompletionContentPolicy.rejection(for: " for the invitation to the party.", precedingText: "thanks for the draft. Thanks"),
+            "three shared words are ordinary phrasing"
+        )
+        XCTAssertNil(
+            CompletionContentPolicy.rejection(
+                for: " sending over the draft of the proposal",
+                precedingText: "Thanks for sending over the draft. I also want the "
+            ),
+            "a four-word run inside a longer new thought stays under the copy threshold"
+        )
+    }
 }

@@ -52,8 +52,10 @@ These rules explain most of the structure:
   reconciliation, layout, and low-level bridging helpers.
 - [CotabbyTests](CotabbyTests): unit tests and microbenchmarks, with emphasis on pure Support and
   Models behavior.
-- CotabbyInference: the llama.cpp Swift wrapper consumed from an external SwiftPM package pinned to
-  its main branch; native code is not vendored here.
+- CotabbyInference: the llama.cpp Swift wrapper consumed from an external SwiftPM package; native
+  code is not vendored here. This branch resolves it from the `feat/required-prefix` branch of the
+  `Mason363/cotabbyinference` fork, which adds the required-prefix constraint the mid-word anchoring
+  needs, until that change lands upstream and the pin returns to `FuJacob/cotabbyinference` main.
 
 [SOURCE_LAYOUT.md](SOURCE_LAYOUT.md) expands this map into the canonical nested source and test
 layout. Child folders name stable responsibilities inside a subsystem; they do not create Swift
@@ -141,9 +143,13 @@ and cohesive mutable sub-state to smaller boundaries:
 - [SuggestionRequestFactory.swift](Cotabby/Support/Suggestion/Request/SuggestionRequestFactory.swift): pure bounded
   request construction and the selected backend's developer-debug prompt payload. Nothing is generated
   with the caret inside a token ([CaretTokenPosition.swift](Cotabby/Support/Suggestion/Request/CaretTokenPosition.swift)),
-  and a request made mid-word is anchored at the word boundary
+  and on the llama path a request made mid-word is anchored at the word boundary
   ([WordBoundaryAnchorPolicy.swift](Cotabby/Support/Suggestion/Request/WordBoundaryAnchorPolicy.swift)): the partial
-  word leaves the prompt so the model completes a whole word, and the normalizer shows only the untyped remainder.
+  word leaves the prompt (so its last token is a whole word) and the engine is handed the boundary whitespace plus the
+  typed letters as a required prefix it masks every inconsistent token against, so the model finishes the word the
+  user started; the normalizer shows only the untyped remainder. The word-count preset also bounds the result
+  ([SuggestionLengthPolicy.swift](Cotabby/Support/Suggestion/Output/SuggestionLengthPolicy.swift) trims to the
+  preset's upper bound at a clause boundary; the decoder's sentence stop waits for its lower bound).
 - [SuggestionWorkController.swift](Cotabby/Services/Suggestion/State/SuggestionWorkController.swift):
   debounce/generation tasks and monotonically increasing work IDs.
 - [SuggestionInteractionState.swift](Cotabby/Services/Suggestion/State/SuggestionInteractionState.swift):
@@ -157,8 +163,9 @@ and cohesive mutable sub-state to smaller boundaries:
 - [SuggestionTextNormalizer.swift](Cotabby/Support/Suggestion/Output/SuggestionTextNormalizer.swift): backend-independent
   cleanup, echo removal, whitespace policy, trailing-text deduplication, word-boundary reconciliation, and
   unsafe-output rejection. [CompletionContentPolicy.swift](Cotabby/Support/Suggestion/Output/CompletionContentPolicy.swift)
-  then drops punctuation-only output, closing punctuation after a typed space, and forum/chat scaffolding or
-  meta-responses about the prompt.
+  then drops punctuation-only output, closing punctuation after a typed space, forum/chat scaffolding or
+  meta-responses about the prompt, a word sequence looping back to back, and text lifted verbatim from what the
+  user just wrote.
 
 A native correction path runs before model generation. NSSpellChecker and bundled SymSpell indexes
 can suppress completion while a likely typo is forming, offer a green atomic replacement, or apply
@@ -333,9 +340,16 @@ Inline ghost text is built to occupy the pixels the accepted text will occupy:
 - [GhostTextLayout.swift](Cotabby/Support/Presentation/Geometry/GhostTextLayout.swift) lays rows out
   from the caret with CTTypesetter inside the band
   [GhostWrapBandPolicy.swift](Cotabby/Support/Presentation/Geometry/GhostWrapBandPolicy.swift) derives
-  from the element's real frame; accepted or typed-through text only advances a consumed offset, so
-  remaining glyphs never move. [GhostTextPanelView.swift](Cotabby/Services/Presentation/GhostTextPanelView.swift)
-  draws the rows with CoreText on a whole-point panel origin.
+  from the element's real frame, one row per host line at the measured line pitch (the probe scans
+  single-character bounds for the nearest other line when a host's line APIs give none, as Chromium's
+  do); a host that offers a single row shows the head that fits. Rows that would sit over the host's
+  own text get opaque bands in the field's background color, measured from its pixels by
+  [HostBackgroundSampler.swift](Cotabby/Support/Presentation/Geometry/HostBackgroundSampler.swift)
+  through the calibrator (the caret's line and the line below are sampled separately because code
+  editors tint the current line); without a measurement the ghost keeps to rows over blank space and
+  a mid-line caret falls back to the card. Accepted or typed-through text only advances a consumed
+  offset, so remaining glyphs never move. [GhostTextPanelView.swift](Cotabby/Services/Presentation/GhostTextPanelView.swift)
+  fills the bands and draws the rows with CoreText on a whole-point panel origin.
 - While the host shows uncommitted text of its own (macOS inline predictive text, an IME
   composition; [HostMarkedTextPolicy.swift](Cotabby/Support/Input/HostMarkedTextPolicy.swift)) the
   coordinator holds: no generation, no ghost, session kept.

@@ -13,8 +13,15 @@ final class WordBoundaryAnchorPolicyTests: XCTestCase {
         XCTAssertNil(WordBoundaryAnchorPolicy.anchor(precedingText: "Meeting at 3", trailingText: ""))
         XCTAssertNil(WordBoundaryAnchorPolicy.anchor(precedingText: "don'", trailingText: ""), "an apostrophe is not a word boundary")
         XCTAssertNil(WordBoundaryAnchorPolicy.anchor(precedingText: "e-mai", trailingText: ""), "a hyphenated run stays with the model")
-        XCTAssertNil(WordBoundaryAnchorPolicy.anchor(precedingText: "a", trailingText: ""), "one letter is not enough")
+        XCTAssertEqual(WordBoundaryAnchorPolicy.anchor(precedingText: "a", trailingText: ""), "a", "one letter is a partial word")
         XCTAssertNil(WordBoundaryAnchorPolicy.anchor(precedingText: "head", trailingText: "phones"), "inside a token nothing is generated")
+    }
+
+    func testRequiredCompletionPrefixRestoresTheBoundaryWhitespace() {
+        let policy = WordBoundaryAnchorPolicy.self
+        XCTAssertEqual(policy.requiredCompletionPrefix(precedingText: "over the draft yest", anchor: "yest"), " yest")
+        XCTAssertEqual(policy.requiredCompletionPrefix(precedingText: "Hi Sarah,\nTh", anchor: "Th"), "\nTh")
+        XCTAssertEqual(policy.requiredCompletionPrefix(precedingText: "Th", anchor: "Th"), "Th", "no boundary before the first word")
     }
 
     func testPromptPrefixDropsTheAnchor() {

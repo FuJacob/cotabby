@@ -9,14 +9,33 @@ import Foundation
 /// the seam guard then suppressed, so Cotabby showed nothing while a word was being typed, which is
 /// most of the time. Prompting from the word boundary instead ("…I really") lets the model produce
 /// a whole, correctly spelled word (" appreciate"); the normalizer then requires that word to start
-/// with what the user already typed and shows only the remainder ("iate"). A mismatch shows nothing.
+/// with what the user already typed and shows only the remainder ("iate").
+///
+/// The model's free choice of next word matches the user's letters only rarely (measured live at
+/// 90ms a key in a Chrome textarea with the shipped model: 8 of 67 anchored requests), so the
+/// anchor is not left to chance: the llama engine is handed the boundary whitespace plus the typed
+/// letters as a required prefix (`requiredCompletionPrefix`) and masks every token inconsistent with
+/// them until they are produced. The model then finishes the word the user started, with the
+/// prompt still ending in whole tokens. Every partial word is anchored this way; the plain
+/// continuation of a word cut at an arbitrary byte was junk most of the time ("yest" → "arday",
+/// "sen" → "-ding", "dra" → "fter", "th" → "x! Jacob.").
 enum WordBoundaryAnchorPolicy {
-    static let minimumAnchorLength = 2
+    static let minimumAnchorLength = 1
     static let maximumAnchorLength = 24
 
-    /// The partial word the caret sits at the end of, when re-anchoring applies: letters only, at
-    /// least two of them, preceded by whitespace or the start of text, with nothing word-like right
-    /// after the caret. Nil at word boundaries, after digits or punctuation, and inside tokens.
+    /// The bytes an anchored completion must begin with: the whitespace that separated the anchor
+    /// from the word before it (one space, or the newline the user typed), then the anchor itself.
+    /// The prompt has that whitespace trimmed away, so the completion must supply it.
+    static func requiredCompletionPrefix(precedingText: String, anchor: String) -> String {
+        guard precedingText.hasSuffix(anchor) else { return anchor }
+        let beforeAnchor = precedingText.dropLast(anchor.count)
+        guard let separator = beforeAnchor.last, separator.isWhitespace else { return anchor }
+        return String(separator) + anchor
+    }
+
+    /// The partial word the caret sits at the end of, when re-anchoring applies: letters only,
+    /// preceded by whitespace or the start of text, with nothing word-like right after the caret.
+    /// Nil at word boundaries, after digits or punctuation, and inside tokens.
     static func anchor(precedingText: String, trailingText: String) -> String? {
         guard !CaretTokenPosition.isInsideToken(precedingText: precedingText, trailingText: trailingText) else {
             return nil

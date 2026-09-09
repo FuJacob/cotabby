@@ -418,7 +418,8 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
             if let earlyStop = DecodeStopPolicy.verdict(
                 accumulated: generatedText,
                 tokensGenerated: tokensGenerated,
-                minimumTokens: options.sentenceStopMinimumTokens
+                minimumTokens: options.sentenceStopMinimumTokens,
+                minimumWords: options.sentenceStopMinimumWords
             ) {
                 stopReason = earlyStop.rawValue
                 break
@@ -579,6 +580,7 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
                                 autocompleteSequenceID,
                                 options.forceWordContinuation
                             )
+                            setRequiredPrefix(options.requiredPrefix, on: autocompleteSequenceID)
                             // Per-token log-probabilities cost two O(vocab) passes each in the
                             // engine; only compute them when the confidence gate would actually
                             // read them. Re-assert per request: the floor is not part of the
@@ -633,6 +635,16 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         return try buildFreshSequence(promptTokens: promptTokens, options: options)
     }
 
+    /// Hands the engine the bytes the next generation must start with (nil or empty clears them).
+    /// The prefix is re-asserted per request: it is not part of the sampling fingerprint, so a
+    /// reused sequence must never carry the previous request's letters.
+    private func setRequiredPrefix(_ prefix: String?, on sequenceID: Int32) {
+        let bytes = prefix ?? ""
+        bytes.withCString { pointer in
+            engine.setRequiredPrefix(sequenceID, pointer, Int32(bytes.utf8.count))
+        }
+    }
+
     private func buildFreshSequence(
         promptTokens: [Int32],
         options: LlamaGenerationOptions
@@ -644,8 +656,9 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         }
 
         // The engine samples the first (seed) token at the end of decodePrompt, so set the
-        // word-continuation constraint here, before decoding.
+        // word-continuation and required-prefix constraints here, before decoding.
         engine.setForceWordContinuation(seqID, options.forceWordContinuation)
+        setRequiredPrefix(options.requiredPrefix, on: seqID)
         // Skip the engine's per-token log-probability work (two O(vocab) passes per token)
         // whenever confidence suppression is disabled — the shipping default — since the value
         // would be summed and then discarded.
