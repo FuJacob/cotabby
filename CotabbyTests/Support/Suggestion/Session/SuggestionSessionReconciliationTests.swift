@@ -293,6 +293,58 @@ final class SuggestionSessionReconciliationTests: XCTestCase {
         XCTAssertNil(nextPending)
     }
 
+    func test_reconcile_treatsChromiumNonBreakingSpaceAsTheSuggestedSpace() {
+        // Chromium contenteditable fields store a trailing typed space as U+00A0 until the next
+        // character arrives. The user typed exactly the space the ghost suggested, so the session
+        // must advance instead of reading as "typed text diverged".
+        let session = CotabbyTestFixtures.activeSession(
+            fullText: " world again",
+            basePrecedingText: "Hello"
+        )
+        let liveContext = CotabbyTestFixtures.focusedInputContext(precedingText: "Hello\u{00A0}")
+
+        let reconciliation = SuggestionSessionReconciler.reconcile(
+            session: session,
+            with: liveContext,
+            pendingInsertionConsumedCount: nil
+        )
+
+        guard case let .valid(reconciledSession, advancement, _) = reconciliation else {
+            XCTFail("Expected the non-breaking space to count as the suggested space")
+            return
+        }
+        XCTAssertEqual(reconciledSession.acceptedText, " ")
+        XCTAssertEqual(reconciledSession.remainingText, "world again")
+        XCTAssertEqual(advancement?.stage, "session-reconciled")
+    }
+
+    func test_reconcile_keepsAnchorWhenChromiumRevertsNonBreakingSpaceMidWord() {
+        // Once the next letter lands, Chromium rewrites the U+00A0 back to a plain space. A
+        // session anchored while the field still held the non-breaking form must keep matching.
+        let session = CotabbyTestFixtures.activeSession(
+            fullText: "world again",
+            basePrecedingText: "Hello\u{00A0}",
+            baseTrailingText: "\u{00A0}tail"
+        )
+        let liveContext = CotabbyTestFixtures.focusedInputContext(
+            precedingText: "Hello wor",
+            trailingText: " tail"
+        )
+
+        let reconciliation = SuggestionSessionReconciler.reconcile(
+            session: session,
+            with: liveContext,
+            pendingInsertionConsumedCount: nil
+        )
+
+        guard case let .valid(reconciledSession, _, _) = reconciliation else {
+            XCTFail("Expected the reverted space to keep the anchor valid")
+            return
+        }
+        XCTAssertEqual(reconciledSession.acceptedText, "wor")
+        XCTAssertEqual(reconciledSession.remainingText, "ld again")
+    }
+
     private func assertInvalid(
         _ reconciliation: SuggestionSessionReconciliation,
         reason expectedReason: String,

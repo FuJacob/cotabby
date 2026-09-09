@@ -951,8 +951,43 @@ extension SuggestionCoordinator {
             )
 
         case let .invalid(reason):
+            logReconciliationMismatch(session: activeSession, rawContext: rawContext, reason: reason)
             invalidateActiveSuggestion(reason: reason)
         }
+    }
+
+    /// Debug-only evidence for a reconciliation that killed the session: the exact text on both
+    /// sides of the comparison, escaped so invisible differences (non-breaking spaces, line breaks,
+    /// zero-width characters) are readable in the log. Type-through bugs are invisible without it.
+    private func logReconciliationMismatch(
+        session: ActiveSuggestionSession,
+        rawContext: FocusedInputSnapshot,
+        reason: String
+    ) {
+        func escaped(_ text: Substring) -> String {
+            text.unicodeScalars.map { scalar in
+                scalar.isASCII && !CharacterSet.controlCharacters.contains(scalar)
+                    ? String(scalar)
+                    : "\\u{\(String(scalar.value, radix: 16))}"
+            }.joined()
+        }
+        CotabbyLogger.suggestion.debug(
+            "Reconciliation invalidated the session",
+            metadata: [
+                "stage": .string("reconcile-mismatch"),
+                "reason": .string(reason),
+                "base_preceding_tail": .string(escaped(session.baseContext.precedingText.suffix(24))),
+                "live_preceding_tail": .string(escaped(rawContext.precedingText.suffix(24))),
+                "base_trailing_head": .string(escaped(session.baseContext.trailingText.prefix(16))),
+                "live_trailing_head": .string(escaped(rawContext.trailingText.prefix(16))),
+                "base_preceding_count": .stringConvertible(session.baseContext.precedingText.count),
+                "live_preceding_count": .stringConvertible(rawContext.precedingText.count),
+                "full_text": .string(escaped(session.fullText.prefix(24))),
+                "consumed": .stringConvertible(session.consumedCharacterCount),
+                "selection": .string("\(rawContext.selection.location)+\(rawContext.selection.length)"),
+                "awaiting_insert_sync": .stringConvertible(interactionState.isAwaitingPostInsertionSync)
+            ]
+        )
     }
 
     /// Applies a `.valid` reconciliation result: completes an exhausted session, or re-renders the

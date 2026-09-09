@@ -413,6 +413,15 @@ extension SuggestionCoordinator {
                 return false
             }
 
+            CotabbyLogger.suggestion.debug(
+                "Typed text did not match the suggestion",
+                metadata: [
+                    "stage": .string("typed-mismatch"),
+                    "typed": .string(event.characters),
+                    "expected": .string(String(session.remainingText.prefix(24))),
+                    "consumed": .stringConvertible(session.consumedCharacterCount)
+                ]
+            )
             invalidateActiveSuggestion(
                 reason: SuggestionSessionReconciler.overlayHideReason(for: event),
                 clearDiagnostics: false

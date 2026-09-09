@@ -738,6 +738,7 @@ final class OverlayController: SuggestionOverlayControlling {
             "web_field": .stringConvertible(session.geometry.isWebContentField),
             "consumed_utf16": .stringConvertible(session.consumedUTF16),
             "rows": .stringConvertible(session.layout.rows.count),
+            "remaining_text": .string(String(session.layout.remainingText.prefix(40))),
             "bands": .stringConvertible(session.layout.rowBands.count),
             "band_rects": .string(
                 session.layout.rowBands

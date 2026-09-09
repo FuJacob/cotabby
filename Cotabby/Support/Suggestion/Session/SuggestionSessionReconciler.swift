@@ -83,7 +83,9 @@ enum SuggestionSessionReconciler {
         }
 
         var nextPendingInsertionConsumedCount = pendingInsertionConsumedCount
-        let consumedSuffix = String(liveContext.precedingText.dropFirst(session.baseContext.precedingText.count))
+        let consumedSuffix = String(
+            Self.spaceNormalized(liveContext.precedingText).dropFirst(session.baseContext.precedingText.count)
+        )
         if let consumedTextReconciliation = reconcileConsumedSuggestionText(
             session: session,
             consumedSuffix: consumedSuffix,
@@ -148,13 +150,23 @@ enum SuggestionSessionReconciler {
         )
     }
 
+    /// Text with every non-breaking space read as a plain space. Chromium's contenteditable stores
+    /// a space typed at the end of a line as U+00A0 and turns it back into U+0020 once the next
+    /// character arrives (measured live in Chrome: typing the space the ghost suggested read as
+    /// "typed text diverged", and the next letter as "text no longer matches the anchor"). Both
+    /// forms are the same keystroke to the user, so every comparison here treats them alike;
+    /// the two are one UTF-16 unit each, so offsets are unchanged.
+    static func spaceNormalized(_ text: String) -> String {
+        text.replacingOccurrences(of: "\u{00A0}", with: " ")
+    }
+
     private static func reconcileTrailingText(
         session: ActiveSuggestionSession,
         liveContext: FocusedInputContext,
         pendingInsertionConsumedCount: Int?,
         isAwaitingInsertedTextSync: Bool
     ) -> SuggestionSessionReconciliation? {
-        guard liveContext.trailingText != session.baseContext.trailingText else {
+        guard spaceNormalized(liveContext.trailingText) != spaceNormalized(session.baseContext.trailingText) else {
             return nil
         }
 
@@ -162,7 +174,7 @@ enum SuggestionSessionReconciler {
         // text snapshot catches up. Right after Tab insertion that makes the trailing-text slice
         // look changed even though the active suggestion tail is still valid.
         if isAwaitingInsertedTextSync,
-           liveContext.precedingText.hasPrefix(session.baseContext.precedingText) {
+           spaceNormalized(liveContext.precedingText).hasPrefix(spaceNormalized(session.baseContext.precedingText)) {
             return tolerateTransientPostInsertionLag(
                 session: session,
                 pendingInsertionConsumedCount: pendingInsertionConsumedCount
@@ -180,7 +192,7 @@ enum SuggestionSessionReconciler {
         pendingInsertionConsumedCount: Int?,
         isAwaitingInsertedTextSync: Bool
     ) -> SuggestionSessionReconciliation? {
-        guard !liveContext.precedingText.hasPrefix(session.baseContext.precedingText) else {
+        guard !spaceNormalized(liveContext.precedingText).hasPrefix(spaceNormalized(session.baseContext.precedingText)) else {
             return nil
         }
 
@@ -203,7 +215,7 @@ enum SuggestionSessionReconciler {
         pendingInsertionConsumedCount: Int?,
         isAwaitingInsertedTextSync: Bool
     ) -> SuggestionSessionReconciliation? {
-        guard !session.fullText.hasPrefix(consumedSuffix) else {
+        guard !spaceNormalized(session.fullText).hasPrefix(consumedSuffix) else {
             return nil
         }
 
