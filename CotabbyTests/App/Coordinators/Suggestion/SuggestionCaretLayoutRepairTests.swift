@@ -49,7 +49,7 @@ final class SuggestionCaretLayoutRepairTests: XCTestCase {
         let paragraph = String(repeating: "the quick brown fox jumps over the lazy dog ", count: 4)
         let edges = ObservedContentEdges(
             leftX: 612, topY: 715, linePitch: 24, lineBoxHeight: 20,
-            wrappedRun: WrappedRunAnchor(frame: union, paragraphTextBeforeCaret: paragraph, paragraphText: paragraph)
+            wrappedRun: WrappedRunAnchor(frame: union, paragraphTextBeforeCaret: paragraph)
         )
         let context = CotabbyTestFixtures.focusedInputContext(
             caretRect: CGRect(x: 700, y: 599, width: 2, height: 116),
@@ -328,50 +328,5 @@ final class SuggestionCaretLayoutRepairTests: XCTestCase {
         XCTAssertEqual(without.quality, .layoutEstimated)
         XCTAssertEqual(with.quality, .layoutEstimated)
         XCTAssertGreaterThan(with.rect.minX, without.rect.minX)
-    }
-
-    /// Obsidian's single-paragraph case: one union run, no sibling line runs, so AX supplies no
-    /// pitch at all. The anchor must still place the caret inline by dividing the run's own height
-    /// by the number of lines the paragraph occupies, instead of surrendering to the card.
-    func test_wrappedRunAnchor_derivesPitchFromRunHeightWhenNoSiblingLinesExist() {
-        let union = CGRect(x: 608, y: 219, width: 605, height: 44)
-        let paragraph = String(repeating: "the quick brown fox jumps over the lazy dog ", count: 3)
-        let context = CotabbyTestFixtures.focusedInputContext(
-            caretRect: CGRect(x: 344, y: 217, width: 2, height: 484),
-            inputFrameRect: CGRect(x: 344, y: 217, width: 1168, height: 484),
-            caretQuality: .estimated,
-            observedContentEdges: ObservedContentEdges(
-                leftX: union.minX,
-                topY: union.maxY,
-                linePitch: nil,
-                lineBoxHeight: nil,
-                wrappedRun: WrappedRunAnchor(
-                    frame: union, paragraphTextBeforeCaret: paragraph, paragraphText: paragraph
-                )
-            ),
-            precedingText: paragraph
-        )
-
-        let anchor = SuggestionCoordinator.layoutRepairedAnchor(
-            for: context,
-            fallbackRect: context.caretRect,
-            pendingInsertion: "",
-            isRightToLeft: false
-        )
-
-        XCTAssertEqual(anchor.quality, .derived, "a derivable pitch must keep the ghost inline")
-        XCTAssertLessThan(anchor.rect.height, union.height, "the caret must be a line box, not the whole run")
-        XCTAssertGreaterThanOrEqual(anchor.rect.height, 6)
-        XCTAssertTrue(union.insetBy(dx: -2, dy: -2).contains(CGPoint(x: anchor.rect.midX, y: anchor.rect.midY)))
-    }
-
-    func test_pitchFromRunHeight_isNilWithoutAParagraph() {
-        let context = CotabbyTestFixtures.focusedInputContext()
-        let empty = WrappedRunAnchor(
-            frame: CGRect(x: 0, y: 0, width: 400, height: 40), paragraphTextBeforeCaret: "", paragraphText: ""
-        )
-        XCTAssertNil(
-            SuggestionCoordinator.pitchFromRunHeight(wrapped: empty, context: context, isRightToLeft: false)
-        )
     }
 }
