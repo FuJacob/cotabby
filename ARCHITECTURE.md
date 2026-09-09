@@ -267,6 +267,14 @@ base-model text continuation with optional budgeted context and the caret prefix
 wrap a base GGUF in an instruction conversation. [FoundationModelPromptRenderer.swift](Cotabby/Support/Prompting/FoundationModelPromptRenderer.swift)
 keeps Apple's instruction-shaped prompt separate.
 
+The llama context window is 4096 tokens. `SuggestionConfiguration.derivedLlamaPromptTokenBudget`
+subtracts the output ceiling and a safety margin from it, so the prompt budget (3982 tokens) can never
+silently drift from the KV capacity the model actually has. The prefix caps (14000 characters / 2400
+words) are sized to bind at roughly the same point: raising one without the other does nothing,
+because whichever is smaller truncates the prefix to its tail and drops the early text that carries
+the setup. Both were doubled together after the recall eval showed facts stated more than ~1900
+tokens before the caret were invisible to the model.
+
 Prewarm is opportunistic and goes only to the selected backend. Context reset reaches every backend.
 The local runtime is loaded only for the Open Source engine and is released when switching to Apple
 or endpoint mode so mapped weights and Metal buffers do not stay resident unnecessarily.
@@ -283,6 +291,11 @@ Context sources are independently enabled and bounded: recent AX prefix/trailing
 metadata, user rules/extended context, relevant clipboard content, visual OCR, language, and settings.
 [PromptContextSanitizer.swift](Cotabby/Support/Context/PromptContextSanitizer.swift) sanitizes optional text,
 and prompt renderers apply per-section budgets.
+
+Whether any of that context survives into the completion is measured, not assumed:
+`CotabbyTests/Fixtures/llama-recall-cases.json` hides a fact in each context source (same-field text,
+screen OCR, clipboard) and requires the completion to reproduce it. It is reported separately from the
+continuation suite because averaging the two lets fluent prose hide a total failure to use context.
 
 [ClipboardContextProvider.swift](Cotabby/Services/Context/ClipboardContextProvider.swift) reads a
 fresh bounded value at request time rather than recording clipboard history. Relevance and distillation

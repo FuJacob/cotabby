@@ -311,6 +311,32 @@ directory (already gitignored) instead of accumulating under
 cache and SwiftPM checkout that nothing trims. When a task is done and the artifacts are no longer
 needed, `rm -rf build/DerivedData` before reporting completion.
 
+Two model-backed eval suites measure suggestion quality and are local-only (they need a downloaded
+GGUF and are gated behind the `RUN_LLAMA_EVAL` compile flag). `test_reportEvalSuite` scores ordinary
+continuations; `test_reportRecallSuite` scores whether context the user did not type (earlier field
+text, screen OCR, clipboard) actually reaches the completion. Run either with:
+
+```bash
+xcodebuild test -project Cotabby.xcodeproj -scheme Cotabby -destination 'platform=macOS' \
+  -only-testing:CotabbyTests/LlamaSuggestionEvalTests/test_reportRecallSuite \
+  SWIFT_ACTIVE_COMPILATION_CONDITIONS='$(inherited) RUN_LLAMA_EVAL' \
+  CODE_SIGNING_ALLOWED=NO -configuration Release ENABLE_TESTABILITY=YES \
+  -derivedDataPath build/DerivedData
+```
+
+Quote latency only from a Release build; Debug inflates per-token Swift work by an order of magnitude.
+Any change to prompt content, context budgets, sampling, or the model should be justified with a
+before/after on both suites over identical cases.
+
+The dev app is a SEPARATE target and scheme, `Cotabby Dev` (product `Cotabby Dev.app`). Building the
+`Cotabby` scheme leaves the dev bundle stale, so build the dev app explicitly and confirm the binary
+timestamp moved before testing against it:
+
+```bash
+xcodebuild -project Cotabby.xcodeproj -scheme "Cotabby Dev" -configuration Release \
+  -destination 'platform=macOS' build -derivedDataPath build/DerivedData
+```
+
 Run targeted tests for changed pure logic when available. If `xcodebuild test` fails locally because
 of app-hosted test bundle signing or Team ID mismatch, report the exact failure and still provide the
 successful build/build-for-testing result.
