@@ -86,7 +86,7 @@ final class HostBaselineCalibratorTests: XCTestCase {
 
     func testWithoutScreenRecordingNothingIsCapturedOrCached() {
         let calibrator = HostBaselineCalibrator(permissionCheck: { false })
-        let key = HostBaselineCalibrator.Key(focusedInputIdentityKey: 1, lineTop: 824, caretHeight: 15, fontPointSize: 13)
+        let key = HostBaselineCalibrator.Key(focusedInputIdentityKey: 1, caretHeight: 15, fontPointSize: 13)
         var completions = 0
         calibrator.calibrate(
             HostBaselineCalibrator.Request(
@@ -95,5 +95,36 @@ final class HostBaselineCalibratorTests: XCTestCase {
         ) { _ in completions += 1 }
         XCTAssertNil(calibrator.cachedOffset(for: key))
         XCTAssertEqual(completions, 0)
+    }
+
+    // MARK: - Sample median
+
+    func testMedianIsNilWithoutSamples() {
+        XCTAssertNil(HostBaselineCalibrator.median(of: []))
+    }
+
+    func testMedianOfOneSampleIsThatSample() {
+        XCTAssertEqual(HostBaselineCalibrator.median(of: [15]), 15)
+    }
+
+    /// The behaviour the per-field key depends on: a lone stray reading among agreeing ones must
+    /// not move the rendered baseline. Measured live in Obsidian, where most lines read 15.0 and an
+    /// occasional line read 11.0 or 14.5 and visibly lifted the ghost on that line alone.
+    func testMedianIgnoresASingleOutlier() {
+        XCTAssertEqual(HostBaselineCalibrator.median(of: [15, 11, 15]), 15)
+        XCTAssertEqual(HostBaselineCalibrator.median(of: [15, 15, 14.5, 15, 11]), 15)
+    }
+
+    /// An outlier that arrives first defines the field only until two honest samples outvote it,
+    /// which is the property that makes dropping the per-line key safe.
+    func testMedianRecoversWhenTheFirstSampleIsTheOutlier() {
+        XCTAssertEqual(HostBaselineCalibrator.median(of: [11]), 11)
+        XCTAssertEqual(HostBaselineCalibrator.median(of: [11, 15, 15]), 15)
+    }
+
+    /// Even counts resolve to the upper-middle element rather than an average, so the published
+    /// value is always one Cotabby actually measured instead of a synthetic midpoint.
+    func testMedianOfEvenCountPicksAMeasuredSample() {
+        XCTAssertEqual(HostBaselineCalibrator.median(of: [14, 15]), 15)
     }
 }

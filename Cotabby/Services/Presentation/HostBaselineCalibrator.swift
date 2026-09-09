@@ -23,10 +23,18 @@ import ScreenCaptureKit
 /// it this service does nothing and the policy baseline stands.
 @MainActor
 final class HostBaselineCalibrator {
+    /// Identifies the thing being measured: the distance from the caret box's top to the baseline
+    /// the host paints its text on.
+    ///
+    /// Deliberately NOT keyed by the caret's line. That offset is a property of the field's font
+    /// and line box, so it is the same on every line, and keying by line made Cotabby re-measure
+    /// each line independently from screen pixels. Those measurements disagree by a fraction of a
+    /// point (measured live in Obsidian: 15.0 on most lines, 14.5 and 11.0 on others), so the ghost
+    /// sat visibly higher on some lines than others, and each new line briefly rendered on the
+    /// policy guess before its own measurement replaced it. A field whose lines genuinely differ in
+    /// size still separates here, because `caretHeight` and `fontPointSize` are part of the key.
     struct Key: Hashable {
         let focusedInputIdentityKey: UInt64
-        /// Whole-point top of the caret line in Cocoa coordinates.
-        let lineTop: Int
         let caretHeight: Int
         let fontPointSize: Int
     }
@@ -110,8 +118,18 @@ final class HostBaselineCalibrator {
     /// Underlines are excluded by the analyzer's contiguous-body rule, not by this bound.
     static let maximumCorrection: CGFloat = 4
     private static let cacheLimit = 64
+    /// Measurements collected per key before the median is considered settled. Small because the
+    /// readings agree in the overwhelming majority of cases; the point is only to outvote an
+    /// occasional stray one, not to average noise away.
+    static let maximumSamples = 5
 
+    /// Median of `samples`, recomputed on every store: the value callers actually render with.
     private var cache: [Key: CGFloat] = [:]
+    /// Individual accepted measurements per key. A median over several lines is what makes one
+    /// stray reading harmless — the acceptance window is +/-4pt (wide enough for Safari's loose
+    /// CSS line heights), so a single bad strip can be accepted, and with one measurement per
+    /// field it would otherwise define that field's baseline for the whole session.
+    private var samples: [Key: [CGFloat]] = [:]
     private var cacheOrder: [Key] = []
     private var typefaces: [TypefaceKey: String] = [:]
     /// Callers waiting on a measurement in flight, per key. A present that arrives while the
@@ -189,7 +207,8 @@ final class HostBaselineCalibrator {
         let key = request.key
         let typefaceKey = TypefaceKey(focusedInputIdentityKey: key.focusedInputIdentityKey, fontPointSize: key.fontPointSize)
         let needsTypeface = request.matchTypeface && typefaces[typefaceKey] == nil
-        guard cache[key] == nil || needsTypeface, permissionCheck() else { return }
+        let sampleCount = samples[key]?.count ?? 0
+        guard sampleCount < Self.maximumSamples || needsTypeface, permissionCheck() else { return }
         if waiters[key] != nil {
             waiters[key]?.append(completion)
             return
@@ -401,14 +420,30 @@ final class HostBaselineCalibrator {
         }
     }
 
+    /// Records one accepted measurement and republishes the key's median.
+    ///
+    /// The median (rather than the latest reading) is what keeps the ghost still: later samples can
+    /// only move the rendered baseline when they genuinely outvote the earlier ones, so a lone
+    /// outlier never shifts the text, and an outlier that happens to arrive first is corrected by
+    /// the next two rather than defining the field.
     private func store(_ offset: CGFloat, for key: Key) {
-        if cache[key] == nil {
+        if samples[key] == nil {
             cacheOrder.append(key)
             if cacheOrder.count > Self.cacheLimit {
-                cache.removeValue(forKey: cacheOrder.removeFirst())
+                let evicted = cacheOrder.removeFirst()
+                cache.removeValue(forKey: evicted)
+                samples.removeValue(forKey: evicted)
             }
         }
-        cache[key] = offset
+        samples[key, default: []].append(offset)
+        cache[key] = Self.median(of: samples[key] ?? [offset])
+    }
+
+    /// Lower-middle element of the sorted samples, so the result is deterministic for an even count.
+    static func median(of values: [CGFloat]) -> CGFloat? {
+        guard !values.isEmpty else { return nil }
+        let sorted = values.sorted()
+        return sorted[sorted.count / 2]
     }
 
     private static func log(_ background: HostBackground, request: BackgroundRequest) {
@@ -437,7 +472,6 @@ final class HostBaselineCalibrator {
                 "measured": .stringConvertible(Double(analysis.baselineOffset)),
                 "policy": .stringConvertible(Double(request.policyOffset)),
                 "caret_h": .stringConvertible(Double(request.caretRect.height)),
-                "line_top": .stringConvertible(request.key.lineTop),
                 "analysis_ms": .stringConvertible(elapsedMilliseconds)
             ]
         )
