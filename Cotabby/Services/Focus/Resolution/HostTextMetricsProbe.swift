@@ -37,6 +37,8 @@ enum HostTextMetricsProbe {
     /// Longest sample measured before the caret. Long enough to average out per-glyph rounding,
     /// short enough to stay inside one line for typical fields.
     static let maximumSampleUTF16 = 32
+    /// Most single-character bounds queries a pitch scan may spend (see `scannedPitch`).
+    static let maximumPitchProbes = 24
 
     static func measure(_ input: Input) -> HostTextMetrics? {
         guard input.supportedParameterizedAttributes.contains(kAXBoundsForRangeParameterizedAttribute as String) else {
@@ -45,11 +47,12 @@ enum HostTextMetricsProbe {
         let line = lineGeometry(input)
         let sample = widthSample(input, lineStart: line?.range.location)
         let usable = sample.flatMap { $0.isUsable ? $0 : nil }
+        let scannedPitch = line?.pitch == nil ? scannedPitch(input) : nil
         let metrics = HostTextMetrics(
             sampleText: usable?.text,
             sampleWidth: usable?.width,
             lineRect: line?.rect,
-            linePitch: line?.pitch
+            linePitch: line?.pitch ?? scannedPitch
         )
         if CotabbyLogger.focus.logLevel <= .debug {
             CotabbyLogger.focus.debug(
@@ -62,7 +65,8 @@ enum HostTextMetricsProbe {
                     "sample_rejected": .string(sample?.rejection ?? ""),
                     "line_known": .stringConvertible(line != nil),
                     "line_rect": .string(line.map { Self.describe($0.rect) } ?? ""),
-                    "line_pitch": .stringConvertible(Double(line?.pitch ?? 0)),
+                    "line_pitch": .stringConvertible(Double(line?.pitch ?? scannedPitch ?? 0)),
+                    "pitch_source": .string(line?.pitch != nil ? "line-api" : (scannedPitch != nil ? "scan" : "")),
                     "anchor": .string(input.anchorFrame.map(Self.describe) ?? ""),
                     "caret": .stringConvertible(input.caretLocation),
                     "caret_h": .stringConvertible(Double(input.caretHeight))
@@ -128,6 +132,64 @@ enum HostTextMetricsProbe {
             }
         }
         return LineGeometry(range: lineRange, rect: lineRect, pitch: pitch)
+    }
+
+    /// The pitch found by asking the bounds of single characters at word starts before, then after,
+    /// the caret. Hosts whose line APIs give no usable line above need it: Chromium's line indices
+    /// are unreliable, and a caret on a field's first line has no line above at all (the lines below
+    /// serve then). The reference box is the character next to the caret rather than the line box,
+    /// so both sides of the comparison are the same kind of box. Word starts are probed because they
+    /// are spaced like the host's wrap points. Web engines snap each line's top to whole pixels, so
+    /// one line's delta carries up to a pixel of rounding (Chrome at line-height 16.25px answered 16
+    /// and 17 on consecutive lines); the scan keeps going within its budget and divides the farthest
+    /// delta by the number of lines it spans, which recovers the fractional pitch.
+    private static func scannedPitch(_ input: Input) -> CGFloat? {
+        let nsText = input.text as NSString
+        let caret = min(max(input.caretLocationInText, 0), nsText.length)
+        let documentOffset = input.caretLocation - input.caretLocationInText
+        let referenceIndex = caret > 0 ? caret - 1 : caret
+        guard referenceIndex < nsText.length,
+              let reference = cocoaBounds(for: NSRange(location: referenceIndex + documentOffset, length: 1), input)
+        else {
+            return nil
+        }
+        let tolerance = max(2, input.caretHeight * 0.4)
+        var probes = 0
+        /// Walks word starts from `from` in `step` direction, recording the delta of every box that
+        /// sits on a line further from the reference than the last one seen. Returns (farthest
+        /// delta, lines spanned), or nil when nothing answered from another line.
+        func walk(from: Int, step: Int, lineIsAbove: Bool) -> (CGFloat, Int)? {
+            var index = from
+            var farthest: CGFloat = 0
+            var lines = 0
+            while index > 0, index < nsText.length, probes < maximumPitchProbes {
+                defer { index += step }
+                guard isWordStart(nsText, index) else { continue }
+                probes += 1
+                guard let rect = cocoaBounds(for: NSRange(location: index + documentOffset, length: 1), input) else { continue }
+                let delta = lineIsAbove ? rect.minY - reference.minY : reference.minY - rect.minY
+                guard delta > farthest + tolerance else { continue }
+                // A box hundreds of points away is not the next text line: distrust the whole walk.
+                guard delta < 200 * CGFloat(lines + 1) else { return nil }
+                farthest = delta
+                lines += 1
+            }
+            return lines > 0 ? (farthest, lines) : nil
+        }
+        if let (delta, lines) = walk(from: referenceIndex - 1, step: -1, lineIsAbove: true) {
+            return delta / CGFloat(lines)
+        }
+        if let (delta, lines) = walk(from: caret + 1, step: 1, lineIsAbove: false) {
+            return delta / CGFloat(lines)
+        }
+        return nil
+    }
+
+    private static func isWordStart(_ text: NSString, _ index: Int) -> Bool {
+        func isSpace(_ position: Int) -> Bool {
+            CharacterSet.whitespacesAndNewlines.contains(UnicodeScalar(text.character(at: position)) ?? " ")
+        }
+        return !isSpace(index) && (index == 0 || isSpace(index - 1))
     }
 
     /// Rendered width of up to `maximumSampleUTF16` units immediately before the caret on the same

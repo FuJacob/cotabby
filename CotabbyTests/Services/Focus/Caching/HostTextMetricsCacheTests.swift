@@ -100,6 +100,49 @@ final class HostTextMetricsCacheTests: XCTestCase {
         XCTAssertEqual(measurements, 1 + HostTextMetricsCache.maximumSampleAttempts)
     }
 
+    func testMissingPitchIsRemeasuredOnceTheCaretHasTravelledALine() {
+        // Chrome textarea: the field is focused on its first line (no line above, nothing below),
+        // so the pitch is unknown; once the caret is 16+ units on, the text may have wrapped.
+        let cache = HostTextMetricsCache()
+        var measures = 0
+        let start = Date()
+        let first = cache.metrics(forKey: "f", caretLocation: 5, now: start, measure: {
+            measures += 1
+            return HostTextMetrics(
+                sampleText: "hello", sampleWidth: 40, lineRect: CGRect(x: 0, y: 0, width: 300, height: 15), linePitch: nil
+            )
+        })
+        XCTAssertNil(first?.linePitch)
+        _ = cache.metrics(forKey: "f", caretLocation: 12, now: start.addingTimeInterval(1), measure: { measures += 1; return nil })
+        XCTAssertEqual(measures, 1, "seven units of travel cannot have wrapped")
+        let second = cache.metrics(forKey: "f", caretLocation: 40, now: start.addingTimeInterval(2), measure: {
+            measures += 1
+            return HostTextMetrics(sampleText: nil, sampleWidth: nil, lineRect: nil, linePitch: 15.2)
+        })
+        XCTAssertEqual(measures, 2)
+        XCTAssertEqual(second?.linePitch, 15.2)
+        XCTAssertEqual(second?.sampleText, "hello", "a pitch-only answer keeps the known sample")
+        XCTAssertEqual(second?.lineRect?.width, 300, "and the known line box")
+        let third = cache.metrics(forKey: "f", caretLocation: 80, now: start.addingTimeInterval(3), measure: { measures += 1; return nil })
+        XCTAssertEqual(measures, 2, "a known pitch is not measured again")
+        XCTAssertEqual(third?.linePitch, 15.2)
+    }
+
+    func testMissingPitchRetriesAreBounded() {
+        let cache = HostTextMetricsCache()
+        var measures = 0
+        let start = Date()
+        _ = cache.metrics(forKey: "f", caretLocation: 0, now: start, measure: {
+            measures += 1
+            return HostTextMetrics(sampleText: "ab", sampleWidth: 10, lineRect: nil, linePitch: nil)
+        })
+        for step in 1...20 {
+            let later = start.addingTimeInterval(Double(step))
+            _ = cache.metrics(forKey: "f", caretLocation: step * 20, now: later, measure: { measures += 1; return nil })
+        }
+        XCTAssertEqual(measures, 1 + HostTextMetricsCache.maximumPitchAttempts)
+    }
+
     func testFieldStyleCacheRetriesEmptyStyleUntilTheHostAnswers() {
         let cache = FieldStyleCache()
         let start = Date()
