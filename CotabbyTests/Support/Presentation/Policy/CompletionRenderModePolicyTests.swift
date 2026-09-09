@@ -124,39 +124,32 @@ final class CompletionRenderModePolicyTests: XCTestCase {
         )
     }
 
-    // MARK: - Mid-line caret promotion
+    // MARK: - Mid-line caret
 
-    func test_auto_midLineCaret_promotesExactGeometryToMirror() {
-        // Exact geometry renders inline at end of line, but a caret with real characters after it has
-        // no inline home (the ghost would paint over the trailing text), so it promotes to the card.
+    func test_auto_midLineCaret_staysInlineForExactGeometry() {
+        // A caret with real characters after it still renders inline: the ghost hides the trailing
+        // text under a band in the host's background color. Whether that band can be painted is the
+        // overlay controller's call (it needs a measured color), not the policy's.
         let policy = CompletionRenderModePolicy(userPreference: .auto)
         let geometry = CotabbyTestFixtures.overlayGeometry(
             caretQuality: .exact,
             isCaretAtEndOfLine: false
         )
 
-        XCTAssertEqual(
-            policy.mode(for: geometry, bundleIdentifier: "com.apple.TextEdit"),
-            .mirror(reason: .caretMidLine)
-        )
+        XCTAssertEqual(policy.mode(for: geometry, bundleIdentifier: "com.apple.TextEdit"), .inline)
     }
 
-    func test_auto_midLineCaret_promotesDerivedGeometryToMirror() {
+    func test_auto_midLineCaret_staysInlineForDerivedGeometry() {
         let policy = CompletionRenderModePolicy(userPreference: .auto)
         let geometry = CotabbyTestFixtures.overlayGeometry(
             caretQuality: .derived,
             isCaretAtEndOfLine: false
         )
 
-        XCTAssertEqual(
-            policy.mode(for: geometry, bundleIdentifier: "com.google.Chrome"),
-            .mirror(reason: .caretMidLine)
-        )
+        XCTAssertEqual(policy.mode(for: geometry, bundleIdentifier: "com.google.Chrome"), .inline)
     }
 
-    func test_auto_midLineCaret_keepsEstimatedReasonRatherThanOverwriting() {
-        // Estimated geometry already routes to the card; the promotion only upgrades inline results,
-        // so the more specific geometry reason is retained instead of being relabeled mid-line.
+    func test_auto_midLineCaret_keepsEstimatedReason() {
         let policy = CompletionRenderModePolicy(userPreference: .auto)
         let geometry = CotabbyTestFixtures.overlayGeometry(
             caretQuality: .estimated,
@@ -169,19 +162,14 @@ final class CompletionRenderModePolicyTests: XCTestCase {
         )
     }
 
-    func test_alwaysInline_midLineCaret_isOverriddenToMirror() {
-        // Inline cannot render mid-line, so the mid-line rule overrides even an explicit inline pin.
-        // At the end of a line the pin is still honored (see the next test).
+    func test_alwaysInline_midLineCaret_staysInline() {
         let policy = CompletionRenderModePolicy(userPreference: .alwaysInline)
         let geometry = CotabbyTestFixtures.overlayGeometry(
             caretQuality: .exact,
             isCaretAtEndOfLine: false
         )
 
-        XCTAssertEqual(
-            policy.mode(for: geometry, bundleIdentifier: nil),
-            .mirror(reason: .caretMidLine)
-        )
+        XCTAssertEqual(policy.mode(for: geometry, bundleIdentifier: nil), .inline)
     }
 
     func test_alwaysInline_endOfLineCaret_staysInline() {
@@ -198,7 +186,6 @@ final class CompletionRenderModePolicyTests: XCTestCase {
     }
 
     func test_alwaysMirror_midLineCaret_keepsUserPreferenceReason() {
-        // Already a card; the promotion never runs, so the user-preference reason is preserved.
         let policy = CompletionRenderModePolicy(userPreference: .alwaysMirror)
         let geometry = CotabbyTestFixtures.overlayGeometry(
             caretQuality: .exact,
@@ -211,8 +198,7 @@ final class CompletionRenderModePolicyTests: XCTestCase {
         )
     }
 
-    func test_perAppInlineOverride_midLineCaret_isOverriddenToMirror() {
-        // A per-app inline override is still a request to render inline, which mid-line can't honor.
+    func test_perAppInlineOverride_midLineCaret_staysInline() {
         let policy = CompletionRenderModePolicy(
             userPreference: .auto,
             perAppOverrides: ["com.example.InlinePinned": .alwaysInline]
@@ -222,10 +208,7 @@ final class CompletionRenderModePolicyTests: XCTestCase {
             isCaretAtEndOfLine: false
         )
 
-        XCTAssertEqual(
-            policy.mode(for: geometry, bundleIdentifier: "com.example.InlinePinned"),
-            .mirror(reason: .caretMidLine)
-        )
+        XCTAssertEqual(policy.mode(for: geometry, bundleIdentifier: "com.example.InlinePinned"), .inline)
     }
 
     // MARK: - Layout-estimated geometry (caret layout repair)
@@ -243,9 +226,7 @@ final class CompletionRenderModePolicyTests: XCTestCase {
         )
     }
 
-    func test_auto_midLineCaret_keepsLayoutEstimatedReasonRatherThanOverwriting() {
-        // Layout-estimated geometry already routes to the card, so the mid-line promotion (which only
-        // upgrades inline results) never runs: the more specific caret-layout reason is retained.
+    func test_auto_midLineCaret_keepsLayoutEstimatedReason() {
         let policy = CompletionRenderModePolicy(userPreference: .auto)
         let geometry = CotabbyTestFixtures.overlayGeometry(
             caretQuality: .layoutEstimated,

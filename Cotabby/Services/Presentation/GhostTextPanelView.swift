@@ -21,6 +21,11 @@ final class GhostTextPanelView: NSView {
         /// Global Cocoa origin of the panel this view fills.
         let panelOrigin: CGPoint
         let isDarkAppearance: Bool
+        /// The host's background as measured on the caret's line and on the line below it (code
+        /// editors tint the caret's line). The layout's bands are filled with these before the
+        /// glyphs are drawn; a band whose color is unknown is skipped.
+        var caretRowBackground: NSColor?
+        var continuationBackground: NSColor?
     }
 
     var content: Content? {
@@ -60,6 +65,13 @@ final class GhostTextPanelView: NSView {
         // device pixel off the host's.
 
         let origin = content.panelOrigin
+        // Bands first: they are the host's own background color, so glyphs drawn over them look
+        // exactly like glyphs drawn over the field itself.
+        for band in content.layout.rowBands {
+            guard let color = band.isCaretRow ? content.caretRowBackground : content.continuationBackground else { continue }
+            color.setFill()
+            band.rect.offsetBy(dx: -origin.x, dy: -origin.y).fill()
+        }
         let attributes: [NSAttributedString.Key: Any] = [
             .font: content.layout.font,
             .foregroundColor: content.textColor

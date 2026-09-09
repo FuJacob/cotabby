@@ -124,7 +124,7 @@ struct RGBABitmap {
         self.bytes = bytes
     }
 
-    struct Pixel {
+    struct Pixel: Equatable, Sendable {
         let red: Double
         let green: Double
         let blue: Double

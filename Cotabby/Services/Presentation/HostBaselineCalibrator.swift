@@ -76,6 +76,26 @@ final class HostBaselineCalibrator {
         let typefaceName: String?
     }
 
+    /// The field's background as painted, in two places: on the caret's line and on the line below
+    /// it. They differ in editors that tint the current line (Xcode, VS Code); the ghost's caret-row
+    /// band takes the first color and its continuation rows the second.
+    struct HostBackground: Equatable, Sendable {
+        let caretLine: RGBABitmap.Pixel
+        let nextLine: RGBABitmap.Pixel
+    }
+
+    struct BackgroundRequest {
+        let focusedInputIdentityKey: UInt64
+        let caretRect: CGRect
+        /// Vertical distance to the next line (the caret height when unknown).
+        let linePitch: CGFloat?
+        /// The field's content edges when known; the sampled region stays inside them so a page
+        /// around a web field never counts as the field's background.
+        let contentLeft: CGFloat?
+        let contentRight: CGFloat?
+        let contentBottom: CGFloat?
+    }
+
     /// Widest strip of host text measured left of the caret.
     static let maximumStripWidth: CGFloat = 240
     /// Narrower strips hold too few glyphs for a trustworthy body-row profile.
@@ -97,6 +117,10 @@ final class HostBaselineCalibrator {
     /// Callers waiting on a measurement in flight, per key. A present that arrives while the
     /// generation-time prewarm is still capturing joins its measurement instead of being dropped.
     private var waiters: [Key: [@MainActor (Calibration) -> Void]] = [:]
+    /// Background colors per field identity: a field keeps one background however many lines the
+    /// caret visits, so this is measured once per field.
+    private var backgrounds: [UInt64: HostBackground] = [:]
+    private var backgroundWaiters: [UInt64: [@MainActor (HostBackground) -> Void]] = [:]
     private var shareableContent: SCShareableContent?
 
     private let permissionCheck: () -> Bool
@@ -113,6 +137,49 @@ final class HostBaselineCalibrator {
     /// The face the host's pixels matched for this field and size, if already known.
     func cachedTypeface(for key: TypefaceKey) -> String? {
         typefaces[key]
+    }
+
+    /// The field's measured background, if already known.
+    func cachedBackground(for focusedInputIdentityKey: UInt64) -> HostBackground? {
+        backgrounds[focusedInputIdentityKey]
+    }
+
+    /// Measures the field's background once, or joins the measurement in flight. `completion` runs
+    /// on the main actor only when a fresh measurement arrives.
+    func measureBackground(_ request: BackgroundRequest, completion: @escaping @MainActor (HostBackground) -> Void) {
+        let identity = request.focusedInputIdentityKey
+        guard backgrounds[identity] == nil, permissionCheck() else { return }
+        if backgroundWaiters[identity] != nil {
+            backgroundWaiters[identity]?.append(completion)
+            return
+        }
+        guard let region = Self.backgroundRegion(request) else { return }
+        backgroundWaiters[identity] = [completion]
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                let captured = try await self.capture(region)
+                // Bitmap row 0 is the region's top, which is the caret box top; the caret's line
+                // occupies the first `caretHeight` points of rows and the next line the rest.
+                let caretLineRows = Int((request.caretRect.height * captured.scale).rounded())
+                let background = await Task.detached(priority: .userInitiated) {
+                    Self.sampleBackground(captured.bitmap, caretLineRows: caretLineRows)
+                }.value
+                let listeners = self.backgroundWaiters.removeValue(forKey: identity) ?? []
+                guard let background else { return }
+                if self.backgrounds.count >= Self.cacheLimit {
+                    self.backgrounds.removeAll()
+                }
+                self.backgrounds[identity] = background
+                Self.log(background, request: request)
+                for listener in listeners {
+                    listener(background)
+                }
+            } catch {
+                self.backgroundWaiters.removeValue(forKey: identity)
+                CotabbyLogger.suggestion.debug("Host background measurement failed: \(error.localizedDescription)")
+            }
+        }
     }
 
     /// Starts a measurement for `request` unless one is cached, or joins the one already in flight
@@ -236,6 +303,38 @@ final class HostBaselineCalibrator {
         )
     }
 
+    /// The region whose pixels give the background: the caret's line box plus the line below it, a
+    /// neighbourhood of the caret bounded by the field's content edges. The line below is where a
+    /// continuation row will paint, and it is measured separately because the caret's own line may
+    /// carry a current-line tint. Nil when the field offers too little width.
+    nonisolated static func backgroundRegion(_ request: BackgroundRequest) -> CGRect? {
+        let caret = request.caretRect
+        var left = caret.minX - maximumStripWidth / 2
+        var right = caret.minX + maximumStripWidth / 2
+        if let contentLeft = request.contentLeft {
+            left = max(left, contentLeft)
+        }
+        if let contentRight = request.contentRight {
+            right = min(right, contentRight)
+        }
+        guard right - left >= minimumStripWidth, caret.height > 0 else { return nil }
+        let pitch = max(request.linePitch ?? caret.height, caret.height)
+        var bottom = caret.minY - pitch
+        if let contentBottom = request.contentBottom {
+            bottom = max(bottom, min(contentBottom, caret.minY))
+        }
+        return CGRect(x: left, y: bottom, width: right - left, height: caret.maxY - bottom)
+    }
+
+    /// Splits the captured region at the caret box bottom and takes the dominant color of each part.
+    /// A field whose bottom edge sits right under the caret line has no next-line pixels of its own;
+    /// the caret line's color stands in.
+    nonisolated static func sampleBackground(_ bitmap: RGBABitmap, caretLineRows: Int) -> HostBackground? {
+        guard let caretLine = HostBackgroundSampler.dominantColor(in: bitmap, rows: 0..<caretLineRows) else { return nil }
+        let nextLine = HostBackgroundSampler.dominantColor(in: bitmap, rows: caretLineRows..<bitmap.height) ?? caretLine
+        return HostBackground(caretLine: caretLine, nextLine: nextLine)
+    }
+
     /// Converts a measured baseline (points below the strip's top) into an offset below the caret top.
     nonisolated static func baselineOffset(fromCaretTop caretTop: CGFloat, stripTop: CGFloat, measured: CGFloat) -> CGFloat {
         measured - (stripTop - caretTop)
@@ -310,6 +409,22 @@ final class HostBaselineCalibrator {
             }
         }
         cache[key] = offset
+    }
+
+    private static func log(_ background: HostBackground, request: BackgroundRequest) {
+        guard CotabbyLogger.suggestion.logLevel <= .debug else { return }
+        func hex(_ pixel: RGBABitmap.Pixel) -> String {
+            String(format: "%02X%02X%02X", Int(pixel.red * 255), Int(pixel.green * 255), Int(pixel.blue * 255))
+        }
+        CotabbyLogger.suggestion.debug(
+            "Host background measured",
+            metadata: [
+                "stage": .string("background-measurement"),
+                "caret_line": .string(hex(background.caretLine)),
+                "next_line": .string(hex(background.nextLine)),
+                "identity": .stringConvertible(request.focusedInputIdentityKey)
+            ]
+        )
     }
 
     private static func log(_ analysis: Analysis, request: Request, elapsedMilliseconds: Int) {

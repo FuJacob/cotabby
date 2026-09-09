@@ -62,19 +62,11 @@ struct CompletionRenderModePolicy: Equatable, Sendable {
         for geometry: SuggestionOverlayGeometry,
         bundleIdentifier: String?
     ) -> CompletionRenderMode {
-        let baseMode = preferenceMode(for: geometry, bundleIdentifier: bundleIdentifier)
-
-        // A caret parked mid-line (real characters follow it before the next line break) has no
-        // inline home: ghost text would paint over those trailing characters. Promote any inline
-        // result to the card, which anchors to the caret rect (the geometry is trustworthy here). This
-        // deliberately overrides an explicit `.alwaysInline` pin too, because inline cannot render
-        // mid-line at all, and the card is the surface fill-in-middle completions will use. The
-        // promotion only upgrades inline results; a presentation already routed to the card keeps its
-        // original, more specific reason (e.g. `.caretGeometryEstimated`).
-        if case .inline = baseMode, !geometry.isCaretAtEndOfLine {
-            return .mirror(reason: .caretMidLine)
-        }
-        return baseMode
+        // A caret with text after it on its line used to promote every inline pick to the card here.
+        // The inline ghost now hides that text under an opaque band in the host's measured
+        // background color (`GhostTextLayout.rowBands`), which keeps the suggestion where the eye
+        // already is; `OverlayController` falls back to the card only when no band can be painted.
+        preferenceMode(for: geometry, bundleIdentifier: bundleIdentifier)
     }
 
     /// The render mode implied by the user (or per-app) preference and caret-geometry quality, before

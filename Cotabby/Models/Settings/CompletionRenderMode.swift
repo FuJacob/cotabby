@@ -34,11 +34,11 @@ nonisolated enum CompletionRenderMode: Equatable, Sendable {
         /// so the popup tracks the cursor the TextKit layout located.
         case caretLayoutEstimated
 
-        /// The caret sits mid-line: real characters follow it before the next line break. Inline
-        /// ghost text would draw on top of those trailing characters, so the suggestion is promoted
-        /// to the card, which anchors to the caret rect (the geometry is trustworthy here) and sits
-        /// just under the cursor like an inline ghost would. This is also the surface fill-in-middle
-        /// completions render in, since a FIM result has no inline home.
+        /// The caret sits mid-line (real characters follow it before the next line break) and the
+        /// inline ghost could not hide them: it needs an opaque band in the host's background color,
+        /// which requires Screen Recording and a measured band edge. The card anchors to the caret
+        /// rect (the geometry is trustworthy here) and sits just under the cursor like an inline
+        /// ghost would. This is also the surface fill-in-middle completions render in.
         case caretMidLine
 
         /// The policy chose inline, but no honest inline layout existed: the text needed a second
