@@ -282,7 +282,40 @@ enum SuggestionSessionReconciler {
             index = wordEnd
         }
 
+        // A token with no word in it (". I'll", ", and") is punctuation the model attached to the
+        // previous word; on its own it is not worth a keypress, so it binds to the word that
+        // follows and one Tab accepts ". I'll". With trailing punctuation set to accept separately
+        // the user has asked for punctuation as its own step, so the token stays alone.
+        if autoAcceptTrailingPunctuation, tokenStart < index,
+           let bound = wordBoundToLeadingPunctuation(in: remainingText, punctuation: tokenStart..<index) {
+            index = bound
+        }
+
         return String(remainingText[..<index])
+    }
+
+    /// The end of the whitespace-delimited word after a punctuation-only token, or nil when the
+    /// token holds a word character, belongs to a space-less script, or nothing word-like follows.
+    private static func wordBoundToLeadingPunctuation(
+        in text: String,
+        punctuation: Range<String.Index>
+    ) -> String.Index? {
+        let first = text[punctuation.lowerBound]
+        guard !text[punctuation].contains(where: \.isAcceptanceWordCharacter),
+              !first.beginsSpacelessScriptWord, !first.bindsToPrecedingSpacelessWord, !first.isCJKOpeningBracket
+        else { return nil }
+        var next = punctuation.upperBound
+        while next < text.endIndex, text[next].isWhitespace {
+            next = text.index(after: next)
+        }
+        let wordStart = next
+        while next < text.endIndex, !text[next].isWhitespace {
+            next = text.index(after: next)
+        }
+        guard wordStart < next, text[wordStart..<next].contains(where: \.isAcceptanceWordCharacter),
+              !text[wordStart].beginsSpacelessScriptWord
+        else { return nil }
+        return next
     }
 
     /// The index just past the first ICU word in `text[from..<limit]`, or nil when segmentation finds

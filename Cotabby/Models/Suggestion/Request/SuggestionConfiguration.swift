@@ -140,15 +140,17 @@ struct SuggestionConfiguration: Equatable, Sendable {
         minP: 0.08,
         repetitionPenalty: 1.05,
         randomSeed: nil,
-        maxPrefixWords: 150,
-        // The llama prefix window matches the Foundation Models one: the extra preceding sentences
-        // carry the topic and voice that multi-paragraph email/docs continuations need, and the
-        // token budget below keeps the total prompt bounded by what the model can hold. Latency
-        // honesty: where KV prefix reuse works (dense models), the larger window is prefilled once
-        // per field; the hybrid/SWA catalog models reject partial trims and re-prefill per request,
-        // so there the wider window costs prefill only when the field actually holds more than the
-        // old 1000-char cap, i.e. long-document sessions, which is exactly where it buys quality.
-        maxPrefixCharacters: 2500,
+        // The llama prefix window is bounded by the token budget below (what the model's context
+        // can hold after the preface), not by a word cap: a 150-word cap left most of a long
+        // document out of the prompt, and the model's sense of the topic with it. The caps here
+        // only stop pathological fields (a megabyte of log text) from being windowed each poll.
+        // Latency honesty: where KV prefix reuse works (dense models), the window is prefilled
+        // once per field and every keystroke after that decodes only the delta (measured: one
+        // token); the hybrid/SWA catalog models reject partial trims and re-prefill per request,
+        // so there the wider window costs prefill only in long-document sessions, which is
+        // exactly where it buys quality.
+        maxPrefixWords: 1200,
+        maxPrefixCharacters: 7000,
         // Apple's on-device model has a 4096-token shared context. Even with instructions plus
         // visual/clipboard context, there is room to send ~3x the llama window before crowding
         // the prompt, and the extra surrounding sentences materially help mid-thought completions.

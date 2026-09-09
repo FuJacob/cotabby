@@ -50,12 +50,19 @@ final class CompletionContentPolicyTests: XCTestCase {
             .copiesPrecedingText
         )
         XCTAssertEqual(
-            CompletionContentPolicy.rejection(for: " the first two sections", precedingText: "I went through the first two sections and "),
+            CompletionContentPolicy.rejection(for: " through the first two sections and", precedingText: "I went through the first two sections and"),
             .copiesPrecedingText
         )
         XCTAssertNil(
             CompletionContentPolicy.rejection(for: " for the invitation to the party.", precedingText: "thanks for the draft. Thanks"),
             "three shared words are ordinary phrasing"
+        )
+        XCTAssertNil(
+            CompletionContentPolicy.rejection(
+                for: " Hi Sarah, thanks for sending over the draft",
+                precedingText: "Hi Sarah, thanks for sending over the draft yesterday.\nThe main thing is the timeline.\nHi"
+            ),
+            "repeating a paragraph the document already holds is a prediction, not an echo"
         )
         XCTAssertNil(
             CompletionContentPolicy.rejection(

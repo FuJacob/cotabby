@@ -13,8 +13,10 @@ import Foundation
 /// - Repetition: a short word sequence looping back to back (". Hi S. Hi S. Hi S.") is the model
 ///   stuck, not a continuation. Measured live on a small base model mid-word: it happens on short
 ///   partial words with thin context.
-/// - Copying: most of the completion lifted verbatim from what the user just wrote (". Hi Sarah,
-///   thanks for s" right after "Hi Sarah, thanks for s"). The user gains nothing by accepting it.
+/// - Copying: the completion restarts the words the user just wrote (". Hi Sarah, thanks for s"
+///   right after "Hi Sarah, thanks for s"). Only the tail before the caret counts: a document that
+///   repeats a paragraph elsewhere makes reproducing it the right prediction (measured live in a
+///   note holding the same paragraph twice, a whole-window rule threw away 168 of 179 completions).
 enum CompletionContentPolicy {
     enum Rejection: Equatable {
         case noWordContent
@@ -24,10 +26,11 @@ enum CompletionContentPolicy {
         case copiesPrecedingText
     }
 
-    /// Words a copied run must span to count as copying; shorter overlaps are ordinary phrasing.
+    /// Words of the text before the caret a completion must repeat to count as copying; shorter
+    /// overlaps are ordinary phrasing.
     static let copiedRunWords = 4
-    /// Recent preceding text a copied run is looked for in (characters).
-    static let copySearchWindow = 400
+    /// Characters before the caret the copied run is taken from.
+    static let copySearchWindow = 120
 
     /// Punctuation that closes or continues the previous word and never starts a new one.
     private static let closingPunctuation: Set<Character> = [",", ".", ";", ":", "!", "?", "…"]
@@ -76,27 +79,20 @@ enum CompletionContentPolicy {
         return false
     }
 
-    /// True when at least 60% of the completion's words sit inside runs of `copiedRunWords` words
-    /// that also occur in the last `copySearchWindow` characters before the caret. Punctuation and
-    /// case are ignored so "s." matches "s"; a four-word run is long enough that ordinary shared
-    /// phrasing ("thanks for the") never trips it.
+    /// True when the completion contains the last `copiedRunWords` words before the caret in
+    /// order: the model went back and repeated what was just written instead of continuing it.
+    /// Punctuation and case are ignored so "s." matches "s"; four words are enough that ordinary
+    /// shared phrasing ("thanks for the") never trips it.
     static func copiesPrecedingText(_ completion: String, precedingText: String) -> Bool {
         let words = contentWords(completion)
         let recent = contentWords(String(precedingText.suffix(copySearchWindow)))
         let run = copiedRunWords
         guard words.count >= run, recent.count >= run else { return false }
-        var recentRuns = Set<String>()
-        for start in 0...(recent.count - run) {
-            recentRuns.insert(recent[start..<start + run].joined(separator: " "))
+        let tail = recent.suffix(run).joined(separator: " ")
+        for start in 0...(words.count - run) where words[start..<start + run].joined(separator: " ") == tail {
+            return true
         }
-        var covered = [Bool](repeating: false, count: words.count)
-        for start in 0...(words.count - run) where recentRuns.contains(words[start..<start + run].joined(separator: " ")) {
-            for index in start..<start + run {
-                covered[index] = true
-            }
-        }
-        let coveredCount = covered.filter { $0 }.count
-        return coveredCount * 10 >= words.count * 6
+        return false
     }
 
     private static func contentWords(_ text: String) -> [String] {

@@ -517,14 +517,17 @@ final class OverlayController: SuggestionOverlayControlling {
         )
     }
 
-    /// Vertical distance between the host's lines. Only a measured value is trusted for a second
-    /// row; a TextKit host without measured lines still has a reliable one: its caret box IS the
-    /// line fragment, so consecutive lines are exactly one box apart.
+    /// Vertical distance between the host's lines: measured when the host let us (line APIs, a
+    /// character-bounds scan, sibling text runs), else the caret box height. For a TextKit host the
+    /// caret box IS the line fragment, so that is exact; for a web engine it is the content box and
+    /// can be a pixel short of the line box (Chrome: 15 or 16 for a 16.25 pitch), which matters
+    /// only until the field has a second line to measure. A row placed a pixel off beats the card:
+    /// measured live, the card at the end of a first line was the single most disliked behavior.
     private func linePitch(for geometry: SuggestionOverlayGeometry) -> CGFloat? {
         if let measured = geometry.hostTextMetrics?.linePitch, measured > 0 {
             return measured
         }
-        guard !geometry.isWebContentField, geometry.caretQuality == .exact || geometry.caretQuality == .derived else {
+        guard geometry.caretRect.height > 0, geometry.caretQuality != .estimated else {
             return nil
         }
         return geometry.caretRect.height
