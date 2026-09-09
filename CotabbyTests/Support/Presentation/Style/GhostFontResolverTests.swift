@@ -156,4 +156,37 @@ final class GhostFontResolverTests: XCTestCase {
         XCTAssertEqual(resolution.widthAgreement, 1, accuracy: 0.01)
         XCTAssertGreaterThan(resolution.font.pointSize, 12)
     }
+
+    /// A sample too short to out-measure AX's whole-point width rounding must not pick a family.
+    /// Deciding on a few characters is what walked Gemini's ghost through four typefaces in one
+    /// sentence, because a different candidate won as the sample grew.
+    func testShortMeasuredSampleDoesNotDecideAFamily() {
+        let sample = "alpha"
+        XCTAssertLessThan(sample.count, GhostFontResolver.minimumFamilyMatchSample)
+        let hostWidth = GhostFontResolver.width(of: sample, font: NSFont(name: "Georgia", size: 18)!)
+        let resolution = resolve(
+            style: ResolvedFieldStyle(fontName: nil, fontPointSize: 18, colorHex: nil),
+            metrics: HostTextMetrics(sampleText: sample, sampleWidth: hostWidth),
+            caretBoxHeight: 21,
+            renderer: .webEngine
+        )
+        XCTAssertEqual(resolution.provenance, .hostSizeSystem)
+        XCTAssertEqual(resolution.font.pointSize, 18)
+    }
+
+    /// The same measurement at a trustworthy length still resolves the real family, so the guard
+    /// above suppresses noise rather than the feature.
+    func testLongEnoughMeasuredSampleStillDecidesTheFamily() {
+        let sample = "delta echo foxtrot golf hotel"
+        XCTAssertGreaterThanOrEqual(sample.count, GhostFontResolver.minimumFamilyMatchSample)
+        let hostWidth = GhostFontResolver.width(of: sample, font: NSFont(name: "Georgia", size: 18)!)
+        let resolution = resolve(
+            style: ResolvedFieldStyle(fontName: nil, fontPointSize: 18, colorHex: nil),
+            metrics: HostTextMetrics(sampleText: sample, sampleWidth: hostWidth),
+            caretBoxHeight: 21,
+            renderer: .webEngine
+        )
+        XCTAssertEqual(resolution.font.familyName, "Georgia")
+        XCTAssertEqual(resolution.provenance, .hostSizeMatchedFamily)
+    }
 }

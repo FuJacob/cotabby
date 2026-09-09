@@ -170,11 +170,21 @@ enum GhostFontResolver {
         return size
     }
 
+    /// Shortest measured sample that may decide a typeface.
+    ///
+    /// AX reports widths rounded to whole points, so a handful of characters carries several
+    /// percent of rounding noise — more than the width gap between the candidate families. Deciding
+    /// on such a sample picks a different winner almost every keystroke: measured live in Gemini's
+    /// prompt bar (a host that names no face), one sentence of typing walked the ghost through the
+    /// system font, Georgia, Helvetica and Trebuchet MS. Below this length the system font is used,
+    /// which is stable and the likeliest face anyway.
+    static let minimumFamilyMatchSample = 12
+
     /// Size known, face unknown: match the measured width against the candidate faces, else scale.
     private static func resolveBySize(_ size: CGFloat, _ input: Input) -> Resolution {
         let systemFont = NSFont.systemFont(ofSize: size)
         guard let sample = input.hostMetrics?.sampleText, let sampleWidth = input.hostMetrics?.sampleWidth,
-              sampleWidth > 0, !sample.isEmpty else {
+              sampleWidth > 0, sample.count >= minimumFamilyMatchSample else {
             return Resolution(font: systemFont, provenance: .hostSizeSystem, widthAgreement: 1)
         }
         var best: (font: NSFont, error: CGFloat) = (systemFont, relativeError(of: systemFont, sample: sample, width: sampleWidth))

@@ -63,6 +63,15 @@ final class OverlayController: SuggestionOverlayControlling {
     }
 
     private var inlineSession: InlineSession?
+    /// The typeface a width match settled on, per host app and point size.
+    ///
+    /// `GhostFontResolver` is pure: it re-decides the face from the current width sample on every
+    /// presentation, and in a host that names no face that decision flips as the sample grows.
+    /// Remembering the first confident answer is what stops the ghost changing typeface mid
+    /// sentence. Keyed by bundle and size rather than by focused-element identity on purpose:
+    /// Gemini's prompt bar republished a new identity 44 times while one sentence was typed, so an
+    /// identity-keyed memo would reset as fast as it was written.
+    private var widthMatchedFamilies: [String: String] = [:]
     /// Measures web hosts' painted baselines; nil where screen capture is unwanted (tests).
     private let baselineCalibrator: HostBaselineCalibrator?
 
@@ -278,10 +287,49 @@ final class OverlayController: SuggestionOverlayControlling {
                 sizeMultiplier: CGFloat(suggestionSettings.ghostTextSizeMultiplier)
             )
         )
+        let stabilized = stabilizingWidthMatchedFamily(resolution, for: geometry)
         return Self.applyingMatchedTypeface(
-            resolution,
-            name: baselineCalibrator?.cachedTypeface(for: typefaceKey(for: geometry, font: resolution.font)),
+            stabilized,
+            name: baselineCalibrator?.cachedTypeface(for: typefaceKey(for: stabilized, geometry: geometry)),
             isWebContentField: geometry.isWebContentField
+        )
+    }
+
+    /// Holds a width-derived typeface steady for the rest of the field's life.
+    ///
+    /// The first presentation whose sample is long enough to name a family records it; every later
+    /// presentation for the same app and size reuses that family, including ones whose own sample
+    /// is too short to decide (which would otherwise fall back to the system font and flip the
+    /// ghost back). A host that names its own face never reaches here, so this only ever pins a
+    /// guess, never overrides real host information.
+    private func stabilizingWidthMatchedFamily(
+        _ resolution: GhostFontResolver.Resolution,
+        for geometry: SuggestionOverlayGeometry
+    ) -> GhostFontResolver.Resolution {
+        guard resolution.provenance == .hostSizeMatchedFamily || resolution.provenance == .hostSizeSystem else {
+            return resolution
+        }
+        let key = "\(geometry.bundleIdentifier ?? "?")|\(Int(resolution.font.pointSize.rounded()))"
+        guard let remembered = widthMatchedFamilies[key] else {
+            if resolution.provenance == .hostSizeMatchedFamily, let family = resolution.font.familyName {
+                widthMatchedFamilies[key] = family
+            }
+            return resolution
+        }
+        guard remembered != resolution.font.familyName,
+              let pinned = NSFontManager.shared.font(
+                  withFamily: remembered,
+                  traits: [],
+                  weight: 5,
+                  size: resolution.font.pointSize
+              )
+        else {
+            return resolution
+        }
+        return GhostFontResolver.Resolution(
+            font: pinned,
+            provenance: .hostSizeMatchedFamily,
+            widthAgreement: resolution.widthAgreement
         )
     }
 
@@ -298,10 +346,13 @@ final class OverlayController: SuggestionOverlayControlling {
         return GhostFontResolver.Resolution(font: matched, provenance: .pixelMatched, widthAgreement: 1)
     }
 
-    private func typefaceKey(for geometry: SuggestionOverlayGeometry, font: NSFont) -> HostBaselineCalibrator.TypefaceKey {
+    private func typefaceKey(
+        for resolution: GhostFontResolver.Resolution,
+        geometry: SuggestionOverlayGeometry
+    ) -> HostBaselineCalibrator.TypefaceKey {
         HostBaselineCalibrator.TypefaceKey(
             focusedInputIdentityKey: geometry.focusedInputIdentityKey,
-            fontPointSize: Int(font.pointSize.rounded())
+            fontPointSize: Int(resolution.font.pointSize.rounded())
         )
     }
 
@@ -348,7 +399,6 @@ final class OverlayController: SuggestionOverlayControlling {
         return HostBaselineCalibrator.Request(
             key: HostBaselineCalibrator.Key(
                 focusedInputIdentityKey: geometry.focusedInputIdentityKey,
-                lineTop: Int(geometry.caretRect.maxY.rounded()),
                 caretHeight: Int(geometry.caretRect.height.rounded()),
                 fontPointSize: Int(font.pointSize.rounded())
             ),
