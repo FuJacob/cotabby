@@ -120,7 +120,7 @@ struct FocusSnapshotResolver {
             )
         }
 
-        guard let selection = resolvedCandidate.selection else {
+        guard let rawSelection = resolvedCandidate.selection else {
             return FocusSnapshot(
                 applicationName: applicationName,
                 bundleIdentifier: bundleIdentifier,
@@ -129,7 +129,7 @@ struct FocusSnapshotResolver {
             )
         }
 
-        guard selection.location >= 0, selection.length >= 0 else {
+        guard rawSelection.location >= 0, rawSelection.length >= 0 else {
             return FocusSnapshot(
                 applicationName: applicationName,
                 bundleIdentifier: bundleIdentifier,
@@ -138,7 +138,15 @@ struct FocusSnapshotResolver {
             )
         }
 
-        let value = resolvedCandidate.textValue ?? ""
+        // Chromium's address bar completes what the user types inline and keeps the completion
+        // selected after the caret; that selection is the browser's own provisional text, not a
+        // selection the user made, so it is stripped and the caret stays where the user stopped.
+        let (value, selection) = Self.strippingChromiumInlineAutocomplete(
+            value: resolvedCandidate.textValue ?? "",
+            selection: rawSelection,
+            role: resolvedCandidate.role,
+            bundleIdentifier: bundleIdentifier
+        )
         // `NSRange` coming from AX is expressed in UTF-16 code units, which is why the code below
         // uses `NSString` instead of slicing a native Swift `String` directly.
         guard selection.location <= value.utf16.count else {
@@ -317,6 +325,18 @@ struct FocusSnapshotResolver {
         }
 
         if selection.length > 0 {
+            if BrowserAppDetector.isChromiumBrowser(bundleIdentifier: bundleIdentifier) {
+                CotabbyLogger.focus.debug(
+                    "Chromium selection blocks the field",
+                    metadata: [
+                        "stage": .string("chromium-selection"),
+                        "role": .string(resolvedCandidate.role),
+                        "selection": .string("\(rawSelection.location),\(rawSelection.length)"),
+                        "value_length": .stringConvertible((resolvedCandidate.textValue ?? "").utf16.count),
+                        "element": .string(resolvedCandidate.elementIdentifier)
+                    ]
+                )
+            }
             return FocusSnapshot(
                 applicationName: applicationName,
                 bundleIdentifier: bundleIdentifier,
@@ -1064,6 +1084,31 @@ struct FocusSnapshotResolver {
                 length: (selectedText as NSString).length
             )
         )
+    }
+
+    /// The value and selection with Chromium's inline address-bar completion removed. The omnibox
+    /// (an `AXTextField` in a Chromium browser) autocompletes a typed prefix and leaves the added
+    /// text selected through to the end of the value; a selection shaped like that, after at least
+    /// one typed character, is the browser's suggestion rather than the user's selection (measured
+    /// live: every keystroke in the address bar arrived as "text is currently selected"). Any other
+    /// selection, and every other host, passes through untouched.
+    static func strippingChromiumInlineAutocomplete(
+        value: String,
+        selection: NSRange,
+        role: String,
+        bundleIdentifier: String
+    ) -> (String, NSRange) {
+        let length = (value as NSString).length
+        guard selection.length > 0,
+              selection.location > 0,
+              selection.location + selection.length == length,
+              role == kAXTextFieldRole as String,
+              BrowserAppDetector.isChromiumBrowser(bundleIdentifier: bundleIdentifier)
+        else {
+            return (value, selection)
+        }
+        let typed = (value as NSString).substring(to: selection.location)
+        return (typed, NSRange(location: selection.location, length: 0))
     }
 
     /// A host whose line APIs answered nothing (CodeMirror in Obsidian) still shows its line pitch
