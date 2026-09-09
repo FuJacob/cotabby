@@ -595,6 +595,7 @@
 		B65B49F24F59154A7611FD22 /* HomePaneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1123AB515110BD0CBA39490 /* HomePaneView.swift */; };
 		B6BA7DF77DCA55F9EF090AEE /* ScreenTextExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59E299BE2E9D42A33D5D2F5D /* ScreenTextExtractor.swift */; };
 		B6F12EFB0AA3CC6BA8773476 /* CaretLinePosition.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE5E9B2A196282738F8D4BAD /* CaretLinePosition.swift */; };
+		B71D51572125A69F279B3D79 /* llama-recall-cases.json in Resources */ = {isa = PBXBuildFile; fileRef = 78721FCF04E4D6F0C7C5DDCF /* llama-recall-cases.json */; };
 		B76A1739BB3A656D6417C5D3 /* InkBaselineAnalyzerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC7FA0146AC6B78725105BA4 /* InkBaselineAnalyzerTests.swift */; };
 		B803D0491F5CF19735F23B65 /* CurrencyEvaluator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67332497BB5448AEDA700BA7 /* CurrencyEvaluator.swift */; };
 		B81FF9FB9A794656F63DEC01 /* SettingsIndexTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 865F7C0490DAF7D77523BE84 /* SettingsIndexTests.swift */; };
@@ -1083,6 +1084,7 @@
 		77B0121E7BB173F8A2B0B108 /* WindowScreenshotService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowScreenshotService.swift; sourceTree = "<group>"; };
 		77DB52780A112A686C06D7E3 /* EmojiPopularity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiPopularity.swift; sourceTree = "<group>"; };
 		7814C85DA992C8124474FD81 /* SuggestionCoordinator+Lifecycle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "SuggestionCoordinator+Lifecycle.swift"; sourceTree = "<group>"; };
+		78721FCF04E4D6F0C7C5DDCF /* llama-recall-cases.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "llama-recall-cases.json"; sourceTree = "<group>"; };
 		79AA39C97E8A959E9A5B6F04 /* FocusCapabilityFlickerGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusCapabilityFlickerGate.swift; sourceTree = "<group>"; };
 		79AAAB1C46A0E5A9C6FC7D3D /* SettingsAttentionEvaluator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsAttentionEvaluator.swift; sourceTree = "<group>"; };
 		7AEBBBAB9588AA8EDBA41520 /* PermissionAndContextModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionAndContextModelTests.swift; sourceTree = "<group>"; };
@@ -2523,6 +2525,7 @@
 			isa = PBXGroup;
 			children = (
 				AB84C175EA5B59E118F58C49 /* llama-eval-cases.json */,
+				78721FCF04E4D6F0C7C5DDCF /* llama-recall-cases.json */,
 			);
 			path = Fixtures;
 			sourceTree = "<group>";
@@ -3319,6 +3322,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				8320BEF361D8EA55E5CC7D95 /* llama-eval-cases.json in Resources */,
+				B71D51572125A69F279B3D79 /* llama-recall-cases.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
