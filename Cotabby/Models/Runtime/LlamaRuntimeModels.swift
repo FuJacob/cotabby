@@ -166,7 +166,7 @@ struct LlamaRuntimeConfiguration: Equatable, Sendable {
             "Qwen3.5-0.8B-Base.i1-Q6_K.gguf",
             "gemma-4-E4B.i1-Q4_K_M.gguf"
         ],
-        contextWindowTokens: 2048,
+        contextWindowTokens: 4096,
         batchSize: 512,
         gpuLayerCount: -1
     )
