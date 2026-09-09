@@ -302,7 +302,7 @@ struct FocusSnapshotResolver {
             resolvedFieldStyle: resolvedFieldStyle,
             windowTitle: capturedSurface.windowTitle,
             fieldPlaceholder: capturedSurface.fieldPlaceholder,
-            hostTextMetrics: hostTextMetrics,
+            hostTextMetrics: Self.mergingRunLinePitch(hostTextMetrics, edges: observedContentEdges),
             elementFrameRect: resolvedCandidate.elementFrameRect,
             hostMarkedTextRange: resolvedCandidate.markedTextRange
         )
@@ -1063,6 +1063,18 @@ struct FocusSnapshotResolver {
                 location: (beforeText as NSString).length,
                 length: (selectedText as NSString).length
             )
+        )
+    }
+
+    /// A host whose line APIs answered nothing (CodeMirror in Obsidian) still shows its line pitch
+    /// through its sibling text runs; that pitch lets the ghost wrap onto the host's next line.
+    static func mergingRunLinePitch(_ metrics: HostTextMetrics?, edges: ObservedContentEdges?) -> HostTextMetrics? {
+        guard metrics?.linePitch == nil, let pitch = edges?.linePitch, pitch > 0 else { return metrics }
+        return HostTextMetrics(
+            sampleText: metrics?.sampleText,
+            sampleWidth: metrics?.sampleWidth,
+            lineRect: metrics?.lineRect,
+            linePitch: pitch
         )
     }
 

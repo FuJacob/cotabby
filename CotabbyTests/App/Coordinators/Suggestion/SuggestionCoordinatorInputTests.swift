@@ -336,6 +336,28 @@ final class SuggestionCoordinatorInputTests: XCTestCase {
             !rig.engine.prewarmedRequests.isEmpty
         }
         XCTAssertEqual(rig.engine.prewarmedRequests.first?.generation, 0)
+
+        // The new field is adopted at once: the next snapshot from the same process (the text
+        // grew by a keystroke) is not another field change, so it must not cancel pending work
+        // or hide again. Measured live: without this, every poll after an app switch read as a
+        // field change and no generation ever ran in the new app.
+        let hidesBefore = rig.overlayController.hideReasons.count
+        let nextKeystroke = CotabbyTestFixtures.focusedInputSnapshot(
+            processIdentifier: 456,
+            precedingText: "Hi t"
+        )
+        rig.coordinator.handleSupportedSnapshot(
+            FocusSnapshot(
+                applicationName: nextKeystroke.applicationName,
+                bundleIdentifier: nextKeystroke.bundleIdentifier,
+                capability: .supported,
+                context: nextKeystroke
+            )
+        )
+        XCTAssertFalse(rig.interactionState.hasFocusedElementChanged(comparedTo: nextKeystroke))
+        XCTAssertEqual(
+            rig.overlayController.hideReasons[hidesBefore...].filter { $0.contains("focused field changed") }.count, 0
+        )
     }
 
     func test_handleSupportedSnapshot_withoutContextDisablesOutright() {

@@ -40,6 +40,41 @@ final class SuggestionCaretLayoutRepairTests: XCTestCase {
         }
     }
 
+    func test_layoutRepair_wrappedRunLaysTheParagraphOutInsideItsOwnFrame() {
+        // Obsidian: the caret's paragraph is one run whose frame spans its wrapped lines (union
+        // 612,599 628x116 in Cocoa for a 24pt pitch, 20pt line boxes); the caret is far enough
+        // into the paragraph to sit on a later visual line. The anchor lands on that line's box,
+        // measured from the union's top and the sibling pitch, inside the frame's width.
+        let union = CGRect(x: 612, y: 599, width: 628, height: 116)
+        let paragraph = String(repeating: "the quick brown fox jumps over the lazy dog ", count: 4)
+        let edges = ObservedContentEdges(
+            leftX: 612, topY: 715, linePitch: 24, lineBoxHeight: 20,
+            wrappedRun: WrappedRunAnchor(frame: union, paragraphTextBeforeCaret: paragraph)
+        )
+        let context = CotabbyTestFixtures.focusedInputContext(
+            caretRect: CGRect(x: 700, y: 599, width: 2, height: 116),
+            inputFrameRect: CGRect(x: 344, y: 63, width: 1168, height: 652),
+            caretQuality: .estimated,
+            observedContentEdges: edges,
+            precedingText: "First line\nSecond line\n" + paragraph,
+            isWebContentField: true
+        )
+
+        let anchor = SuggestionCoordinator.layoutRepairedAnchor(
+            for: context, fallbackRect: context.caretRect, pendingInsertion: "", isRightToLeft: false
+        )
+
+        XCTAssertEqual(anchor.quality, .derived)
+        XCTAssertEqual(anchor.rect.height, 20)
+        guard case .estimate(let estimate) = anchor.outcome else {
+            return XCTFail("expected an estimate, got \(String(describing: anchor.outcome))")
+        }
+        XCTAssertGreaterThan(estimate.lineIndex, 0, "170 characters do not fit one 628pt line")
+        XCTAssertEqual(anchor.rect.maxY, 715 - CGFloat(estimate.lineIndex) * 24, accuracy: 0.001)
+        XCTAssertGreaterThan(anchor.rect.minX, 612)
+        XCTAssertLessThan(anchor.rect.minX, 612 + 628)
+    }
+
     func test_layoutRepair_leavesTrustedQualityUntouched() {
         // Exact and derived geometry must never be second-guessed by the repair; it exists solely
         // to rescue the AXFrame fallback.

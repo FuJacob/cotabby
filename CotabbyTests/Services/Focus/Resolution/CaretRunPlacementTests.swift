@@ -242,6 +242,46 @@ final class CaretRunPlacementTests: XCTestCase {
 
     // MARK: - Trailing-gap extrapolation (text published before run frames reflow)
 
+    func test_placement_whitespaceSpacerRunsNeverAnchor() {
+        // CodeMirror (Obsidian): every line starts with a single-space spacer run. Anchoring " "
+        // at the first space of the parent pushed every later run's search past its real
+        // location, and the caret ended up mapped against a spacer two lines away (measured
+        // live: the ghost flapped between the paragraph's first line and a line below it).
+        let runs = [" ", "First line stays above.", " ", "Second line too.", " ", "Third paragraph that is being typed"]
+        let parent = "First line stays above.\nSecond line too.\nThird paragraph that is being typed now"
+        let atEnd = placement(runs: runs, parent: parent, caret: (parent as NSString).length)
+        XCTAssertEqual(atEnd?.runIndex, 5)
+        XCTAssertEqual(atEnd?.fraction, 1)
+        XCTAssertEqual(atEnd?.trailingGapCharacters, 4)
+
+        let inside = placement(runs: runs, parent: parent, caret: 30)
+        XCTAssertEqual(inside?.runIndex, 3, "offset 30 is inside \"Second line too.\"")
+    }
+
+    func test_lineGeometryFromSingleLineRunsGivesThePitchAndBox() {
+        // Spacer and text runs at three line tops 24pt apart, 20pt tall (AX coordinates, y down).
+        func run(_ text: String, x: CGFloat, y: CGFloat, w: CGFloat) -> StaticTextRunWalkThrottle.TextRun {
+            StaticTextRunWalkThrottle.TextRun(
+                text: text, frame: CGRect(x: x, y: y, width: w, height: 20), allowsProportionalCaretPlacement: true
+            )
+        }
+        let union = StaticTextRunWalkThrottle.TextRun(
+            text: "a long wrapped paragraph", frame: CGRect(x: 612, y: 267, width: 628, height: 116),
+            allowsProportionalCaretPlacement: false
+        )
+        let runs = [run(" ", x: 608, y: 219, w: 5), run("the note", x: 612, y: 219, w: 60), run(" ", x: 608, y: 243, w: 5),
+                    run("Third line", x: 612, y: 243, w: 70), union, run(" ", x: 608, y: 387, w: 5), run("Fifth", x: 612, y: 387, w: 40)]
+        let geometry = AXTextGeometryResolver.lineGeometry(fromSingleLineRuns: runs)
+        XCTAssertEqual(geometry.pitch, 24)
+        XCTAssertEqual(geometry.boxHeight, 20)
+    }
+
+    func test_paragraphTextBeforeCaretStopsAtTheLineBreak() {
+        XCTAssertEqual(AXTextGeometryResolver.paragraphTextBeforeCaret(in: "one\ntwo three\nfour", caretOffset: 9), "two t")
+        XCTAssertEqual(AXTextGeometryResolver.paragraphTextBeforeCaret(in: "single", caretOffset: 3), "sin")
+        XCTAssertEqual(AXTextGeometryResolver.paragraphTextBeforeCaret(in: "one\n", caretOffset: 4), "")
+    }
+
     func test_placement_textGrownPastTheLastRunReportsTheTrailingGap() {
         // The accept-time staleness signature: the parent value already contains the inserted
         // " world" but the cached runs predate it. Parking the caret at the stale trailing edge

@@ -148,6 +148,12 @@ extension SuggestionCoordinator {
             clearSuggestion(clearDiagnostics: true)
             hideOverlay(reason: "Overlay hidden because the focused field changed.")
             state = .idle
+            // Adopt the new field now. The comparison above reads the context the last generation
+            // materialized, so without this every snapshot in the new process kept reading as a
+            // field change and the cancel above killed each pending generation before it could
+            // run (measured live: switching from Chrome to Obsidian left Cotabby silent until the
+            // next app switch).
+            _ = interactionState.materializeContext(from: focusedContext)
             // The user is now on a new editable surface and is likely to type soon. Prime the
             // selected engine in the background so weight loading and instruction tokenization
             // happen before the first real `respond` instead of inside its critical path. The

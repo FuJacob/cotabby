@@ -179,6 +179,30 @@ nonisolated struct ObservedContentEdges: Equatable, Sendable {
     let leftX: CGFloat
     /// Global Cocoa-coordinate top edge (maxY) of the topmost text run.
     let topY: CGFloat
+    /// Vertical distance between consecutive single-line runs, when at least two were seen: the
+    /// host's line pitch for editors whose line APIs give none (CodeMirror in Obsidian).
+    var linePitch: CGFloat?
+    /// Height of a single-line run's box (the rendered line box, which can be shorter than the
+    /// pitch when the host adds leading between lines).
+    var lineBoxHeight: CGFloat?
+    /// Set when the caret sits inside one run whose frame is the union of several wrapped lines;
+    /// the caret's line inside it is found by laying the paragraph out (see `WrappedRunAnchor`).
+    var wrappedRun: WrappedRunAnchor?
+}
+
+/// A caret inside a static-text run that spans several wrapped visual lines as one frame.
+/// CodeMirror (Obsidian) exposes each paragraph as one `AXStaticText` whose frame is the union of
+/// its wrapped lines, with no per-character bounds; proportional placement inside that union is
+/// meaningless, but laying the paragraph out in the union's width with the host's font recovers
+/// the caret's visual line, and the union's top plus the sibling runs' pitch gives that line's
+/// exact position. Measured live: the alternative (mapping the caret against neighbouring runs)
+/// put the ghost two lines away and flapped between lines while typing.
+nonisolated struct WrappedRunAnchor: Equatable, Sendable {
+    /// The run's frame in global Cocoa coordinates.
+    let frame: CGRect
+    /// The caret's paragraph (the parent text between line breaks) up to the caret, taken from
+    /// the live parent value rather than the run's text, which lags while typing.
+    let paragraphTextBeforeCaret: String
 }
 
 /// This snapshot is the future handoff point into suggestion generation.

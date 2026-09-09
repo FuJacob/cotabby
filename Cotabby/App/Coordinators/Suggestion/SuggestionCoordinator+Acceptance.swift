@@ -808,6 +808,17 @@ extension SuggestionCoordinator {
             return LayoutRepairedAnchor(rect: fallbackRect, quality: quality, outcome: nil, skipReason: nil)
         }
 
+        // A caret inside a wrapped paragraph run (CodeMirror in Obsidian, see `WrappedRunAnchor`):
+        // the paragraph is laid out in the run's own frame at the sibling runs' pitch, and the
+        // line the caret lands on is placed from the union's top. That geometry is measured (frame
+        // and pitch) except for the x inside the line, which is the host font's advance.
+        if let edges = context.observedContentEdges, edges.wrappedRun != nil {
+            return wrappedRunAnchor(
+                edges: edges, context: context, fallbackRect: fallbackRect,
+                pendingInsertion: pendingInsertion, isRightToLeft: isRightToLeft
+            )
+        }
+
         // Derived rects carry a real AX measurement, so whether the estimate may second-guess
         // them depends on who produced the measurement. Both bypasses skip the estimator
         // entirely rather than computing a diagnostic they can never act on: this path runs
@@ -863,6 +874,51 @@ extension SuggestionCoordinator {
         case .rejected:
             return LayoutRepairedAnchor(rect: fallbackRect, quality: quality, outcome: outcome, skipReason: nil)
         }
+    }
+
+    /// Lays the wrapped paragraph out inside its run frame and returns the caret's line box there.
+    /// The estimator judges a field's shape from its frame height and rejects content taller than
+    /// the frame, but a union frame grows with its paragraph and the throttled run walk can report
+    /// it a few lines short of the live text (measured: every estimate rejected for vertical
+    /// overflow while a paragraph was being typed), so the layout frame is opened far below the
+    /// run: only its top edge and width place the caret. The caret rect is the sibling runs' line
+    /// box at the laid-out line's top, which is where the host draws that line.
+    static func wrappedRunAnchor(
+        edges: ObservedContentEdges,
+        context: FocusedInputContext,
+        fallbackRect: CGRect,
+        pendingInsertion: String,
+        isRightToLeft: Bool
+    ) -> LayoutRepairedAnchor {
+        guard let wrapped = edges.wrappedRun, let pitch = edges.linePitch ?? edges.lineBoxHeight, pitch > 0,
+              wrapped.frame.width > 0
+        else {
+            return LayoutRepairedAnchor(rect: fallbackRect, quality: .estimated, outcome: nil, skipReason: nil)
+        }
+        let frame = wrapped.frame
+        guard frame.width > 0 else {
+            return LayoutRepairedAnchor(rect: fallbackRect, quality: .estimated, outcome: nil, skipReason: nil)
+        }
+        let layoutHeight = max(frame.height, pitch * 60)
+        let layoutFrame = CGRect(x: frame.minX, y: frame.maxY - layoutHeight, width: frame.width, height: layoutHeight)
+        let input = TextLayoutCaretEstimator.Input(
+            precedingText: wrapped.paragraphTextBeforeCaret + pendingInsertion,
+            fieldFrame: layoutFrame,
+            fieldStyle: context.resolvedFieldStyle,
+            isRightToLeft: isRightToLeft,
+            prefixMayBeTruncated: false,
+            observedLineHeight: pitch,
+            observedCharWidth: context.observedCharWidth,
+            observedContentEdges: ObservedContentEdges(leftX: frame.minX, topY: frame.maxY)
+        )
+        let outcome = TextLayoutCaretEstimator.estimate(for: input)
+        guard case .estimate(let estimate) = outcome else {
+            return LayoutRepairedAnchor(rect: fallbackRect, quality: .estimated, outcome: outcome, skipReason: nil)
+        }
+        let lineBox = edges.lineBoxHeight ?? pitch
+        let lineTop = frame.maxY - CGFloat(estimate.lineIndex) * pitch
+        let rect = CGRect(x: estimate.caretRect.minX, y: lineTop - lineBox, width: 2, height: lineBox)
+        return LayoutRepairedAnchor(rect: rect, quality: .derived, outcome: outcome, skipReason: nil)
     }
 
     /// Vertical agreement test between the AX-derived caret and the layout estimate. Tolerance is
