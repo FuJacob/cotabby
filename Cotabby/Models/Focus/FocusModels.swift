@@ -203,6 +203,17 @@ nonisolated struct WrappedRunAnchor: Equatable, Sendable {
     /// The caret's paragraph (the parent text between line breaks) up to the caret, taken from
     /// the live parent value rather than the run's text, which lags while typing.
     let paragraphTextBeforeCaret: String
+    /// The caret's whole paragraph, caret-following text included. Laying this out says how many
+    /// visual lines the run's frame is divided into, which is the only way to recover a line pitch
+    /// in hosts that expose the paragraph as ONE union run with no per-line siblings to measure a
+    /// gap between (Obsidian's CodeMirror does exactly this for a single-paragraph note).
+    let paragraphText: String
+
+    init(frame: CGRect, paragraphTextBeforeCaret: String, paragraphText: String? = nil) {
+        self.frame = frame
+        self.paragraphTextBeforeCaret = paragraphTextBeforeCaret
+        self.paragraphText = paragraphText ?? paragraphTextBeforeCaret
+    }
 }
 
 /// This snapshot is the future handoff point into suggestion generation.
