@@ -93,6 +93,69 @@ final class InkCaretAnalyzerTests: XCTestCase {
         XCTAssertNil(measurement.pitchRows)
     }
 
+    /// One line of light text on the dark ground, optionally followed by a caret bar drawn the way
+    /// CodeMirror draws it: in the text colour, `bar.width` pixels wide, over the whole line box,
+    /// `bar.gap` pixels after the line's advance. Returns the bitmap and the bar's columns.
+    private func renderLine(
+        _ text: String, bar: (gap: Int, width: Int)?, width: Int = 600, height: Int = 44, inset: Int = 12
+    ) -> (bitmap: RGBABitmap, bar: ClosedRange<Int>?)? {
+        let font = NSFont.systemFont(ofSize: 32)   // 16pt at 2x
+        guard let context = CGContext(
+            data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
+            space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue
+        ) else { return nil }
+        context.setFillColor(CGColor(red: 0.15, green: 0.15, blue: 0.16, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        let line = CTLineCreateWithAttributedString(NSAttributedString(
+            string: text, attributes: [.font: font, .foregroundColor: NSColor(white: 0.9, alpha: 1)]
+        ))
+        context.textPosition = CGPoint(x: CGFloat(inset), y: abs(font.descender) + 4)
+        CTLineDraw(line, context)
+        var columns: ClosedRange<Int>?
+        if let bar {
+            let x = inset + Int(CTLineGetTypographicBounds(line, nil, nil, nil).rounded(.up)) + bar.gap
+            context.setFillColor(CGColor(gray: 0.9, alpha: 1))
+            context.fill(CGRect(x: x, y: 1, width: bar.width, height: height - 2))
+            columns = x...(x + bar.width - 1)
+        }
+        guard let image = context.makeImage(), let bitmap = RGBABitmap(image) else { return nil }
+        return (bitmap, columns)
+    }
+
+    /// Measured in Obsidian (2026-09-10): the host's caret, a text-coloured bar over the whole line
+    /// box right after the last glyph, was read as that glyph's ink and put the caret a point right.
+    func testTheHostsCaretBarIsFoundAndKeptOutOfTheTextsEdge() throws {
+        let rendered = try XCTUnwrap(renderLine("A short second p", bar: (gap: 1, width: 2)))
+        let line = try XCTUnwrap(InkCaretAnalyzer.measure(rendered.bitmap)?.lines.first)
+        XCTAssertEqual(line.caretBarColumns, rendered.bar)
+        let barLeft = try XCTUnwrap(rendered.bar?.lowerBound)
+        XCTAssertLessThan(line.textRightColumn, barLeft)
+        XCTAssertGreaterThan(line.textRightColumn, barLeft - 6, "the text ends right before the caret")
+    }
+
+    /// After a trailing space the bar stands clear of the text by the space's advance.
+    func testACaretBarAfterATrailingSpaceIsStillTheCaret() throws {
+        let rendered = try XCTUnwrap(renderLine("A short second ", bar: (gap: 0, width: 2)))
+        let line = try XCTUnwrap(InkCaretAnalyzer.measure(rendered.bitmap)?.lines.first)
+        XCTAssertEqual(line.caretBarColumns, rendered.bar)
+        XCTAssertLessThan(line.textRightColumn, try XCTUnwrap(rendered.bar?.lowerBound) - 4)
+    }
+
+    /// A final tall letter fills a line without descenders just as a caret would, but it stops at
+    /// the baseline; with the caret off (its blink) nothing is taken for a bar.
+    func testATallLastLetterIsNotACaret() throws {
+        let rendered = try XCTUnwrap(renderLine("wool tall", bar: nil))
+        let line = try XCTUnwrap(InkCaretAnalyzer.measure(rendered.bitmap)?.lines.first)
+        XCTAssertNil(line.caretBarColumns)
+        XCTAssertEqual(line.textRightColumn, line.inkRightColumn)
+    }
+
+    func testABlockWiderThanAnyCaretIsNotACaret() throws {
+        let rendered = try XCTUnwrap(renderLine("A short second p", bar: (gap: 2, width: 6)))
+        let line = try XCTUnwrap(InkCaretAnalyzer.measure(rendered.bitmap)?.lines.first)
+        XCTAssertNil(line.caretBarColumns)
+    }
+
     func testBlankCaptureMeasuresNothing() throws {
         let rendered = try XCTUnwrap(render(
             lines: [], on: Canvas(font: NSFont.systemFont(ofSize: 30), pitch: 44, inset: 10, width: 300, height: 40)

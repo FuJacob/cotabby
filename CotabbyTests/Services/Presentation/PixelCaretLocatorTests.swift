@@ -94,6 +94,25 @@ final class PixelCaretLocatorTests: XCTestCase {
         XCTAssertNil(PixelCaretLocator.trailingInkGap(after: "", font: font))
     }
 
+    /// The host's own caret bar, when the capture caught it, is the caret: its centre, with no side
+    /// bearing and no trailing spaces added (they are behind it already), and the text's ink width
+    /// stops before it.
+    func testTheHostsCaretBarIsTheCaret() throws {
+        var caretLine = InkCaretAnalyzer.Line(topRow: 68, bottomRow: 98, inkLeftColumn: 26, inkRightColumn: 1030)
+        caretLine.caretBarColumns = 1029...1030
+        caretLine.glyphRightColumn = 1012
+        let analysis = InkCaretAnalyzer.Measurement(
+            lines: [.init(topRow: 20, bottomRow: 50, inkLeftColumn: 24, inkRightColumn: 1200), caretLine],
+            pitchRows: 48
+        )
+        let measured = try XCTUnwrap(PixelCaretLocator.measurement(
+            from: analysis, scale: 2, region: region, request: request(text: "the end of the paragraph ")
+        ))
+        // Columns 1029-1030 cover 1029px to 1031px; their centre is 1030px, 515pt into the region.
+        XCTAssertEqual(measured.caretRect.minX, region.minX + 515, accuracy: 0.01)
+        XCTAssertEqual(try XCTUnwrap(measured.lineInkWidth), CGFloat(1012 - 26 + 1) / 2, accuracy: 0.01)
+    }
+
     func testTrailingSpacesAdvanceTheCaretPastTheInk() throws {
         let analysis = InkCaretAnalyzer.Measurement(
             lines: [.init(topRow: 12, bottomRow: 42, inkLeftColumn: 24, inkRightColumn: 400)], pitchRows: nil
@@ -164,6 +183,17 @@ final class PixelCaretLocatorSingleLineTests: XCTestCase {
         XCTAssertEqual(measured.caretRect.midY, inkCentre, accuracy: 0.01)
         XCTAssertEqual(measured.lineRect.minX, frame.minX)
         XCTAssertEqual(measured.lineRect.width, frame.width)
+    }
+
+    func testASingleLinesCaretBarIsTheCaret() throws {
+        var line = InkCaretAnalyzer.Line(topRow: 14, bottomRow: 60, inkLeftColumn: 14, inkRightColumn: 488)
+        line.caretBarColumns = 487...488
+        line.glyphRightColumn = 470
+        let analysis = InkCaretAnalyzer.Measurement(lines: [line], pitchRows: nil)
+        let measured = try XCTUnwrap(PixelCaretLocator.measurement(
+            from: analysis, scale: 2, region: region, request: request(text: "hi sarah thanks for the ")
+        ))
+        XCTAssertEqual(measured.caretRect.minX, region.minX + 244, accuracy: 0.01)
     }
 
     func testTheBoxStaysInsideTheFrameAndTrailingSpacesCount() throws {

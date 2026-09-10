@@ -28,8 +28,15 @@ enum InkCaretAnalyzer {
         /// happens to hold an ascender, the baseline is where every line's letters sit, so it is
         /// what the pitch and the caret line's baseline are read from. 0 when unknown.
         var baselineRow: Int = 0
+        /// The host's own caret bar at the right end of the line, when the capture caught it (see
+        /// `trailingCaretBar`); `inkRightColumn` then includes it. Nil when there is none.
+        var caretBarColumns: ClosedRange<Int>? = nil
+        /// The last column of text ink left of a caret bar; nil when there is no bar.
+        var glyphRightColumn: Int? = nil
 
         var inkHeight: Int { bottomRow - topRow + 1 }
+        /// The right edge of the line's text, whatever the caret bar did.
+        var textRightColumn: Int { glyphRightColumn ?? inkRightColumn }
     }
 
     struct Measurement: Equatable {
@@ -53,6 +60,13 @@ enum InkCaretAnalyzer {
     static let maximumIntraLineGapRows = 3
     /// A block shorter than this is a stray mark (underline, rule), not a line of text.
     static let minimumLineHeightRows = 6
+    /// Widest caret bar a host draws, in device pixels: CodeMirror's 1.2px caret covers two or three
+    /// at 2x.
+    static let maximumCaretBarColumns = 4
+    /// Fraction of its line's rows a caret column is inked on. The bar spans the whole line box,
+    /// taller than any letter: measured 2026-09-10 in Obsidian, 38 of 38 rows for the bar against
+    /// 13 to 18 for the letters beside it.
+    static let caretBarFill = 0.9
 
     static func measure(_ bitmap: RGBABitmap) -> Measurement? {
         guard bitmap.width > 0, bitmap.height > 0 else { return nil }
@@ -145,9 +159,49 @@ enum InkCaretAnalyzer {
             }
             baseline = block.lowerBound + last + 1
         }
-        return Line(
+        var line = Line(
             topRow: block.lowerBound, bottomRow: block.upperBound, inkLeftColumn: left, inkRightColumn: right, baselineRow: baseline
         )
+        if let found = trailingCaretBar(block: block, left: left, right: right, baseline: baseline, mask: mask, width: width) {
+            line.caretBarColumns = found.bar
+            line.glyphRightColumn = found.textRight
+        }
+        return line
+    }
+
+    /// The host's caret bar at the right end of a line's ink, when the capture caught it: one to
+    /// `maximumCaretBarColumns` columns inked on nearly every row of the line and reaching below the
+    /// letters' baseline, with text to their left. A final "l" or "I" also fills a line that has no
+    /// descenders, but it stops at the baseline. The caret is drawn in the text colour (Obsidian),
+    /// so it passes the saturation rule, and read as the last glyph it put the caret a point right,
+    /// five after a trailing space (measured 2026-09-10). Returns the bar and the last text column.
+    static func trailingCaretBar(
+        block: ClosedRange<Int>, left: Int, right: Int, baseline: Int, mask: [Bool], width: Int
+    ) -> (bar: ClosedRange<Int>, textRight: Int)? {
+        let needed = Int((Double(block.count) * caretBarFill).rounded(.up))
+        let belowBaseline = max(2, block.count / 10)
+        func isBarColumn(_ column: Int) -> Bool {
+            var inked = 0
+            var lowest = -1
+            for row in block where mask[row * width + column] {
+                inked += 1
+                lowest = row
+            }
+            return inked >= needed && lowest >= baseline + belowBaseline
+        }
+        var barLeft = right + 1
+        while barLeft - 1 >= left, right - (barLeft - 1) < maximumCaretBarColumns, isBarColumn(barLeft - 1) {
+            barLeft -= 1
+        }
+        guard barLeft <= right else { return nil }
+        // Still bar-like past the widest caret: a block of ink, not a caret.
+        if barLeft - 1 >= left, isBarColumn(barLeft - 1) { return nil }
+        var textRight = barLeft - 1
+        while textRight >= left, !block.contains(where: { mask[$0 * width + textRight] }) {
+            textRight -= 1
+        }
+        guard textRight >= left else { return nil }
+        return (barLeft...right, textRight)
     }
 
     private static func median(_ values: [Double]) -> Double {

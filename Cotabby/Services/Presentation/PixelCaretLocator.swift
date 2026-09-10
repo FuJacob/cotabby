@@ -321,9 +321,7 @@ final class PixelCaretLocator {
             let inkTop = region.maxY - CGFloat(last.topRow) / scale
             let inkBottom = region.maxY - CGFloat(last.bottomRow + 1) / scale
             guard inkTop <= lineRect.maxY + 1, inkBottom >= lineRect.minY - 1 else { return nil }
-            let inkRight = region.minX + CGFloat(last.inkRightColumn + 1) / scale
-            let trailingSpaces = request.paragraphTextBeforeCaret.reversed().prefix { $0 == " " || $0 == "\u{00A0}" }.count
-            caretX = inkRight + request.trailingInkGap + CGFloat(trailingSpaces) * request.spaceAdvance
+            caretX = Self.caretX(on: last, region: region, scale: scale, request: request)
         }
         guard caretX >= frame.minX - 1, caretX <= frame.maxX + request.spaceAdvance * 2 + 1 else { return nil }
         let painted = paintedCount < lineCount ? nil : analysis.lines[paintedCount - 1]
@@ -337,8 +335,22 @@ final class PixelCaretLocator {
             lineIndex: lineIndex,
             lineCount: lineCount,
             baselineOffsetFromTop: baseline,
-            lineInkWidth: painted.map { CGFloat($0.inkRightColumn - $0.inkLeftColumn + 1) / scale }
+            lineInkWidth: painted.map { CGFloat($0.textRightColumn - $0.inkLeftColumn + 1) / scale }
         )
+    }
+
+    /// Where the caret sits on its painted line: the centre of the host's own caret bar when the
+    /// capture caught it (CodeMirror centres a 1.2px bar on the insertion point, in the text
+    /// colour), else the last glyph's ink edge plus its side bearing and any trailing spaces, which
+    /// the host paints nothing for. Read as the last glyph, the bar put the caret a point right,
+    /// and five after a trailing space (measured 2026-09-10 in Obsidian).
+    nonisolated static func caretX(on line: InkCaretAnalyzer.Line, region: CGRect, scale: CGFloat, request: Request) -> CGFloat {
+        if let bar = line.caretBarColumns {
+            return region.minX + CGFloat(bar.lowerBound + bar.upperBound + 1) / 2 / scale
+        }
+        let inkRight = region.minX + CGFloat(line.inkRightColumn + 1) / scale
+        let trailingSpaces = request.paragraphTextBeforeCaret.reversed().prefix { $0 == " " || $0 == "\u{00A0}" }.count
+        return inkRight + request.trailingInkGap + CGFloat(trailingSpaces) * request.spaceAdvance
     }
 
     /// The line's baseline as an offset below `lineTop`, when the analyzer read one and it lies
@@ -351,7 +363,7 @@ final class PixelCaretLocator {
     nonisolated static func baselineOffset(
         of line: InkCaretAnalyzer.Line, lineTop: CGFloat, lineBox: CGFloat, region: CGRect, scale: CGFloat
     ) -> CGFloat? {
-        guard line.baselineRow > 0, CGFloat(line.inkRightColumn - line.inkLeftColumn + 1) / scale >= minimumBaselineInkWidth else { return nil }
+        guard line.baselineRow > 0, CGFloat(line.textRightColumn - line.inkLeftColumn + 1) / scale >= minimumBaselineInkWidth else { return nil }
         let offset = lineTop - (region.maxY - CGFloat(line.baselineRow) / scale)
         guard offset > 0, offset <= lineBox + 2 else { return nil }
         return offset
@@ -379,8 +391,7 @@ final class PixelCaretLocator {
         // Ink running into the region's right edge goes on past it: the caret is further right
         // than anything this capture shows.
         guard inkRight < region.maxX - 1 else { return nil }
-        let trailingSpaces = request.paragraphTextBeforeCaret.reversed().prefix { $0 == " " || $0 == "\u{00A0}" }.count
-        let caretX = inkRight + request.trailingInkGap + CGFloat(trailingSpaces) * request.spaceAdvance
+        let caretX = Self.caretX(on: line, region: region, scale: scale, request: request)
         guard caretX >= frame.minX - 1, caretX <= frame.maxX + request.spaceAdvance * 2 + 1 else { return nil }
         let height = min(max(caretHeight, 4), frame.height)
         let centre = (inkTop + inkBottom) / 2
@@ -392,7 +403,7 @@ final class PixelCaretLocator {
             lineIndex: 0,
             lineCount: 1,
             baselineOffsetFromTop: baselineOffset(of: line, lineTop: bottom + height, lineBox: height, region: region, scale: scale),
-            lineInkWidth: CGFloat(line.inkRightColumn - line.inkLeftColumn + 1) / scale
+            lineInkWidth: CGFloat(line.textRightColumn - line.inkLeftColumn + 1) / scale
         )
     }
 
