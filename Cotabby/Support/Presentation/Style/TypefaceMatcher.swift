@@ -143,6 +143,12 @@ enum TypefaceMatcher {
     /// unrefined, and a final step of 0.6% could still leave it a tenth of a point off; the last
     /// round is fine enough to land within a fiftieth.
     static let refinementRatios: [[CGFloat]] = [[0.975, 1.025], [0.9875, 1.0125], [0.994, 1.006], [0.997, 1.003]]
+    /// A neighbouring size replaces the current one only when it scores this much higher. The
+    /// correlation is jagged below a pixel (glyph origins snap), so a size a third of a percent
+    /// off the truth can edge out the truth by a few thousandths; without this a Chrome field at
+    /// a reported 18 refined to 18.054 and its ghost ran half a point long over a line
+    /// (2026-09-10). Real moves clear it easily: a tenth of a point off the truth costs 0.05.
+    static let refinementGain = 0.01
     /// Letter bodies (tallest ascender to baseline) span about this fraction of the point size in
     /// prose set in the common faces; it only centres the search, the grid absorbs the rest.
     static let bodyToPointSize: CGFloat = 0.72
@@ -284,16 +290,17 @@ enum TypefaceMatcher {
     }
 
     /// The best of `ranked` at each of its size times `ratios`, judged with `lag`. The ratio 1.0
-    /// re-scores the current size under the same lag so rounds compare like with like.
+    /// must come first: it re-scores the current size under the same lag so rounds compare like
+    /// with like, and a neighbour only displaces it by clearing `refinementGain`.
     private static func scoreAt(
         _ ranked: Ranked, ratios: [CGFloat], variants: [String], host: [Double], input: Input, lag: Int
     ) -> Ranked {
         var best = Ranked(font: ranked.font, pointSize: ranked.pointSize, score: -1)
-        for ratio in ratios {
+        for (index, ratio) in ratios.enumerated() {
             let size = ranked.pointSize * ratio
             let font = scaled(ranked.font, to: size)
             let score = score(font, variants: variants, host: host, input: input, lag: lag)
-            if score > best.score {
+            if index == 0 || score > best.score + refinementGain {
                 best = Ranked(font: font, pointSize: size, score: score)
             }
         }

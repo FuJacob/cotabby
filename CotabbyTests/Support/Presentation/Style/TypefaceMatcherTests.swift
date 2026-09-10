@@ -110,7 +110,9 @@ final class TypefaceMatcherTests: XCTestCase {
             )
         )
         XCTAssertEqual(match?.familyName, "Georgia", "\(String(describing: match))")
-        XCTAssertEqual(match?.pointSize ?? 0, 18, accuracy: 0.3)
+        // The truth sits on the grid; the finer refinement rounds must not wander off it (a
+        // Chrome field refined to 18.054 and its ghost ran half a point long over a line).
+        XCTAssertEqual(match?.pointSize ?? 0, 18, accuracy: 0.001)
     }
 
     /// Obsidian's caret line after a soft wrap holds a few words while the paragraph tail the
