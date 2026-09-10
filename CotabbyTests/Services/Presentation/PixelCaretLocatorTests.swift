@@ -37,6 +37,49 @@ final class PixelCaretLocatorTests: XCTestCase {
         XCTAssertEqual(measured.lineRect.minX, frame.minX)
     }
 
+    /// The baseline read from the same capture rides along as an offset below the caret box top.
+    func testTheCaretLinesBaselineComesFromTheSameCapture() throws {
+        let analysis = InkCaretAnalyzer.Measurement(
+            lines: [
+                .init(topRow: 20, bottomRow: 50, inkLeftColumn: 24, inkRightColumn: 1200, baselineRow: 44),
+                .init(topRow: 68, bottomRow: 98, inkLeftColumn: 26, inkRightColumn: 1029, baselineRow: 92)
+            ],
+            pitchRows: 48
+        )
+        let measured = try XCTUnwrap(PixelCaretLocator.measurement(from: analysis, scale: 2, region: region, request: request()))
+        // Second line box top is frame.maxY - 24; the baseline row 92 is 46pt below the region top,
+        // i.e. region.maxY - 46 = frame.maxY + 6 - 46 = frame.maxY - 40: 16pt below the box top.
+        XCTAssertEqual(try XCTUnwrap(measured.baselineOffsetFromTop), 16, accuracy: 0.01)
+    }
+
+    func testALoneGlyphsBaselineIsNotReported() throws {
+        // 20 device pixels of ink (one glyph): the baseline is read from the caret box's line box
+        // policy instead, because a single glyph's bottom is a row too high (measured in Obsidian).
+        let analysis = InkCaretAnalyzer.Measurement(
+            lines: [.init(topRow: 20, bottomRow: 50, inkLeftColumn: 24, inkRightColumn: 44, baselineRow: 44)], pitchRows: nil
+        )
+        let single = CGRect(x: 608, y: 700, width: 418, height: 20)
+        let req = PixelCaretLocator.Request(
+            focusedInputIdentityKey: 1, runFrame: single, paragraphTextBeforeCaret: "A", siblingLinePitch: nil, siblingLineBoxHeight: nil, spaceAdvance: 4.5
+        )
+        let reg = single.insetBy(dx: -PixelCaretLocator.padding, dy: -PixelCaretLocator.padding)
+        let measured = try XCTUnwrap(PixelCaretLocator.measurement(from: analysis, scale: 2, region: reg, request: req))
+        XCTAssertNil(measured.baselineOffsetFromTop)
+    }
+
+    func testABaselineOutsideTheLineBoxIsNotReported() throws {
+        let analysis = InkCaretAnalyzer.Measurement(
+            lines: [.init(topRow: 20, bottomRow: 50, inkLeftColumn: 24, inkRightColumn: 400, baselineRow: 4)], pitchRows: nil
+        )
+        let single = CGRect(x: 608, y: 700, width: 418, height: 20)
+        let req = PixelCaretLocator.Request(
+            focusedInputIdentityKey: 1, runFrame: single, paragraphTextBeforeCaret: "ends", siblingLinePitch: nil, siblingLineBoxHeight: nil, spaceAdvance: 4.5
+        )
+        let reg = single.insetBy(dx: -PixelCaretLocator.padding, dy: -PixelCaretLocator.padding)
+        let measured = try XCTUnwrap(PixelCaretLocator.measurement(from: analysis, scale: 2, region: reg, request: req))
+        XCTAssertNil(measured.baselineOffsetFromTop)
+    }
+
     func testTrailingSpacesAdvanceTheCaretPastTheInk() throws {
         let analysis = InkCaretAnalyzer.Measurement(
             lines: [.init(topRow: 12, bottomRow: 42, inkLeftColumn: 24, inkRightColumn: 400)], pitchRows: nil
@@ -76,5 +119,54 @@ final class PixelCaretLocatorTests: XCTestCase {
             pitchRows: 8
         )
         XCTAssertNil(PixelCaretLocator.measurement(from: analysis, scale: 2, region: region, request: request()))
+    }
+}
+
+/// The single-line measurement (Chrome's address bar, measured 2026-09-10: a 598x24pt field whose
+/// text ink ran from column 2 to 475 at 2x, rows 13 to 38, with nothing else painted in the frame).
+final class PixelCaretLocatorSingleLineTests: XCTestCase {
+    private let frame = CGRect(x: 279, y: 914, width: 598, height: 24)   // Cocoa: bottom-left origin
+    private var region: CGRect { frame.insetBy(dx: -PixelCaretLocator.padding, dy: -PixelCaretLocator.padding) }
+
+    private func request(text: String) -> PixelCaretLocator.Request {
+        PixelCaretLocator.Request(
+            focusedInputIdentityKey: 9, runFrame: frame, paragraphTextBeforeCaret: text,
+            siblingLinePitch: nil, siblingLineBoxHeight: nil, spaceAdvance: 4, singleLineCaretHeight: 16
+        )
+    }
+
+    func testCaretFollowsTheInkAndTheBoxIsCentredOnIt() throws {
+        // The region is padded by 6pt, so the field's column 475 is region column 475 + 12.
+        let analysis = InkCaretAnalyzer.Measurement(
+            lines: [.init(topRow: 25, bottomRow: 50, inkLeftColumn: 14, inkRightColumn: 487)], pitchRows: nil
+        )
+        let measured = try XCTUnwrap(PixelCaretLocator.measurement(from: analysis, scale: 2, region: region, request: request(text: "hi sarah thanks for sending the draft")))
+        XCTAssertEqual(measured.lineCount, 1)
+        XCTAssertNil(measured.linePitch)
+        XCTAssertEqual(measured.caretRect.minX, region.minX + 244 + PixelCaretLocator.inkToCaretGap, accuracy: 0.01)
+        XCTAssertEqual(measured.caretRect.height, 16, accuracy: 0.01)
+        // Ink spans 12.5pt to 25.5pt below the region top; its centre is the box's centre.
+        let inkCentre = region.maxY - (12.5 + 25.5) / 2
+        XCTAssertEqual(measured.caretRect.midY, inkCentre, accuracy: 0.01)
+        XCTAssertEqual(measured.lineRect.minX, frame.minX)
+        XCTAssertEqual(measured.lineRect.width, frame.width)
+    }
+
+    func testTheBoxStaysInsideTheFrameAndTrailingSpacesCount() throws {
+        // Ink hugging the top edge: the box is clamped to the frame rather than poking above it.
+        let analysis = InkCaretAnalyzer.Measurement(
+            lines: [.init(topRow: 10, bottomRow: 22, inkLeftColumn: 14, inkRightColumn: 100)], pitchRows: nil
+        )
+        let measured = try XCTUnwrap(PixelCaretLocator.measurement(from: analysis, scale: 2, region: region, request: request(text: "go  ")))
+        XCTAssertEqual(measured.caretRect.maxY, frame.maxY, accuracy: 0.01)
+        XCTAssertEqual(measured.caretRect.minX, region.minX + 50.5 + PixelCaretLocator.inkToCaretGap + 8, accuracy: 0.01)
+    }
+
+    func testInkOutsideTheFrameIsRefused() {
+        let analysis = InkCaretAnalyzer.Measurement(
+            lines: [.init(topRow: 0, bottomRow: 3, inkLeftColumn: 14, inkRightColumn: 100)], pitchRows: nil
+        )
+        // Rows 0-3 sit in the padding above the frame: not the field's text.
+        XCTAssertNil(PixelCaretLocator.measurement(from: analysis, scale: 2, region: region.offsetBy(dx: 0, dy: 40), request: request(text: "go")))
     }
 }

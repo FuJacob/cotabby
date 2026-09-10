@@ -179,11 +179,15 @@ enum GhostFontResolver {
         guard input.caretBoxHeight > 0 else {
             return size
         }
-        // A caret box is at least the glyph content area and rarely more than ~2x it (loose CSS
-        // line-height). Outside that band the size and the box disagree; trust the measured box.
+        // A caret box is rarely more than ~2x the glyph content area (loose CSS line-height); a box
+        // far taller than that is not this size's line, and the box is the measurement to trust.
+        // A box SHORTER than the content area is the other way round: real text never paints in a
+        // line shorter than its glyphs, so such a box is not the text's line at all (measured
+        // 2026-09-10: VS Code's hidden textarea reported an 8.5pt caret box for its 14pt editor and
+        // 48 ghosts rendered at 7pt), and the reported size stands.
         let probe = font(named: input.style?.fontName ?? "", size: size) ?? NSFont.systemFont(ofSize: size)
         let contentHeight = probe.ascender - probe.descender
-        guard contentHeight <= input.caretBoxHeight * 1.15 + 2, contentHeight * 2.2 >= input.caretBoxHeight else {
+        guard contentHeight * 2.2 >= input.caretBoxHeight else {
             return nil
         }
         return size

@@ -75,6 +75,13 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
     /// run (CodeMirror in Obsidian). AX cannot say which visual line the caret is on or where in it;
     /// `PixelCaretLocator` measures both from the host's own pixels before the ghost is placed.
     let wrappedRun: WrappedRunAnchor?
+    /// The caret line's baseline as an offset below the caret box top, read from the same pixels
+    /// that placed a pixel-measured caret; nil for every other caret. It outranks the baseline
+    /// policy and the calibrator's own strip for that presentation.
+    let pixelBaselineOffset: CGFloat?
+    /// Width of the ink on the caret's line as the pixel caret saw it; the typeface match trims
+    /// the paragraph tail to what fits it. Nil for every other caret.
+    let pixelLineInkWidth: CGFloat?
 
     init(
         caretRect: CGRect,
@@ -93,7 +100,9 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
         hasTrailingContent: Bool = false,
         elementFrameRect: CGRect? = nil,
         lineTextBeforeCaret: String? = nil,
-        wrappedRun: WrappedRunAnchor? = nil
+        wrappedRun: WrappedRunAnchor? = nil,
+        pixelBaselineOffset: CGFloat? = nil,
+        pixelLineInkWidth: CGFloat? = nil
     ) {
         self.caretRect = caretRect
         self.inputFrameRect = inputFrameRect
@@ -112,6 +121,8 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
         self.elementFrameRect = elementFrameRect
         self.lineTextBeforeCaret = lineTextBeforeCaret
         self.wrappedRun = wrappedRun
+        self.pixelBaselineOffset = pixelBaselineOffset
+        self.pixelLineInkWidth = pixelLineInkWidth
     }
 
     /// Returns a copy with only `caretRect` replaced. Used to advance the ghost by an exact measured
@@ -141,7 +152,9 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
     /// A copy carrying a pixel-measured caret: the measured box replaces the caret, the quality
     /// becomes `.derived` (a real measurement, not an estimate), and the measured line box and
     /// pitch ride along as host metrics so wrapped rows land on the host's real next lines.
-    func withPixelMeasuredCaret(_ caretRect: CGRect, lineRect: CGRect, linePitch: CGFloat?) -> SuggestionOverlayGeometry {
+    func withPixelMeasuredCaret(
+        _ caretRect: CGRect, lineRect: CGRect, linePitch: CGFloat?, baselineOffsetFromTop: CGFloat? = nil, lineInkWidth: CGFloat? = nil
+    ) -> SuggestionOverlayGeometry {
         SuggestionOverlayGeometry(
             caretRect: caretRect,
             inputFrameRect: inputFrameRect,
@@ -164,7 +177,9 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
             hasTrailingContent: hasTrailingContent,
             elementFrameRect: elementFrameRect,
             lineTextBeforeCaret: lineTextBeforeCaret,
-            wrappedRun: wrappedRun
+            wrappedRun: wrappedRun,
+            pixelBaselineOffset: baselineOffsetFromTop,
+            pixelLineInkWidth: lineInkWidth
         )
     }
 }

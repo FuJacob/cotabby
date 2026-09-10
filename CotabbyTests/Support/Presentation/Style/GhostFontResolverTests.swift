@@ -100,11 +100,19 @@ final class GhostFontResolverTests: XCTestCase {
         XCTAssertEqual(scaledWidth / hostWidth, 1, accuracy: 0.02)
     }
 
-    func testImplausibleReportedSizeFallsBackToCaretBox() {
-        // A 40pt face cannot fit a 16pt caret box; the box is the measurement to trust.
-        let resolution = resolve(style: ResolvedFieldStyle(fontName: "Helvetica", fontPointSize: 40, colorHex: nil), caretBoxHeight: 16)
+    func testACaretBoxFarTallerThanTheReportedSizeFallsBackToTheBox() {
+        // A 13pt size cannot own a 40pt line box; the box is the measurement to trust.
+        let resolution = resolve(style: ResolvedFieldStyle(fontName: "Helvetica", fontPointSize: 13, colorHex: nil), caretBoxHeight: 40)
         XCTAssertEqual(resolution.provenance, .caretDerived)
-        XCTAssertLessThan(resolution.font.pointSize, 16)
+        XCTAssertGreaterThan(resolution.font.pointSize, 13)
+    }
+
+    func testACaretBoxShorterThanTheReportedSizeNeverShrinksTheFace() {
+        // Measured in VS Code: the hidden textarea's 8.5pt caret box for a 14pt editor. Text never
+        // paints in a line shorter than its glyphs, so the box is not the line and the size stands.
+        let resolution = resolve(style: ResolvedFieldStyle(fontName: nil, fontPointSize: 14, colorHex: nil), caretBoxHeight: 8.5)
+        XCTAssertEqual(resolution.font.pointSize, 14)
+        XCTAssertNotEqual(resolution.provenance, .caretDerived)
     }
 
     func testNoStyleDerivesSizeFromTextKitLineHeight() {

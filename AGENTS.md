@@ -129,9 +129,13 @@ Accessibility data is eventually consistent and app-specific. Browser editors, E
 native AppKit fields, and secure fields expose different AX shapes. Preserve stale-result guards,
 `focusChangeSequence`, and capability checks unless the change explicitly replaces them. Known
 shapes worth keeping in mind: CodeMirror (Obsidian) exposes a wrapped paragraph as one static-text
-run plus a single-space spacer run per line (`WrappedRunAnchor` handles the caret there), and
+run plus a single-space spacer run per line (`WrappedRunAnchor` handles the caret there);
 Chromium's address bar keeps its inline completion selected after the caret (stripped by the
-resolver, not treated as a user selection).
+resolver and held as the host's marked text, never treated as a user selection) and answers every
+bounds query with a zero rect (the caret comes from its pixels, `PixelCaretLocator`); Mail's compose
+header rows are `AXTextField`s with identifiers `Mail.toField`, `Mail.ccField`, `Mail.subjectField`
+where Tab moves to the next field, so they are blocked (`MailHeaderFieldDetector`), and the body is
+an `AXWebArea` described "message body".
 
 ## Visual Context And OCR
 
@@ -247,6 +251,10 @@ Console.app stream.
 - `~/Desktop/cotabby-ax-dump.txt` — most recent Chrome AX tree snapshot. Overwritten on each
   Chrome focus change (debounced by focused-element identity).
 - Rotated previous logs: `*.jsonl.1` (one-step rotation when a file exceeds 10 MB).
+- `~/Library/Logs/<app>/strips/` — every calibration strip the overlay captured, as PNG plus a JSON
+  sidecar (caret column, size, line text), written only while
+  `defaults write <bundle> cotabbyDumpCalibrationStrips -bool YES` is set at launch. Replay one
+  through `TypefaceMatcher` offline to see why a face was or was not matched.
 
 **Correlation IDs.** Every prediction gets a `request_id` like `req_a3f9k2lq`, stamped on every log
 line touching that request (coordinator state transitions, router selection, engine generation, LLM

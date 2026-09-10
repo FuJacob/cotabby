@@ -55,7 +55,8 @@ final class OverlayController: SuggestionOverlayControlling {
         let geometry: SuggestionOverlayGeometry
         var fontResolution: GhostFontResolver.Resolution
         var baselineOffsetFromTop: CGFloat
-        /// "policy" (font metrics rule) or "calibrated" (measured from the host's pixels).
+        /// "policy" (font metrics rule), "calibrated" (measured from a strip of the host's pixels),
+        /// or "pixel" (read from the capture that placed the caret).
         var baselineSource: String
         /// The field's measured background, once known; rows over host text get opaque bands in it.
         var hostBackground: HostBaselineCalibrator.HostBackground?
@@ -131,7 +132,11 @@ final class OverlayController: SuggestionOverlayControlling {
         if let request = pixelCaretRequest(for: requestedGeometry) {
             if let measured = pixelCaretLocator.cachedMeasurement(for: request) {
                 geometry = requestedGeometry.withPixelMeasuredCaret(
-                    measured.caretRect, lineRect: measured.lineRect, linePitch: measured.linePitch
+                    measured.caretRect,
+                    lineRect: measured.lineRect,
+                    linePitch: measured.linePitch,
+                    baselineOffsetFromTop: measured.baselineOffsetFromTop,
+                    lineInkWidth: measured.lineInkWidth
                 )
             } else if !pixelCaretLocator.hasFailed(request) {
                 pixelCaretLocator.locate(request) { [weak self] _ in
@@ -230,7 +235,10 @@ final class OverlayController: SuggestionOverlayControlling {
             renderer: renderer
         )
         let calibration = calibrationRequest(for: geometry, resolution: fontResolution, policyOffset: policyOffset)
-        let cachedOffset = calibration.flatMap { baselineCalibrator?.cachedOffset(for: $0.key) }
+        // The baseline read from the pixels that placed the caret outranks the calibrator's own
+        // strip, which is cut around a box the frame arithmetic guessed.
+        let pixelOffset = geometry.pixelBaselineOffset
+        let cachedOffset = pixelOffset ?? calibration.flatMap { baselineCalibrator?.cachedOffset(for: $0.key) }
         let anchorCaretRect = Self.refinedCaretRect(for: geometry, font: fontResolution)
         let background = baselineCalibrator?.cachedBackground(for: geometry.focusedInputIdentityKey)
         if background == nil {
@@ -243,7 +251,7 @@ final class OverlayController: SuggestionOverlayControlling {
             geometry: geometry,
             fontResolution: fontResolution,
             baselineOffsetFromTop: cachedOffset ?? policyOffset,
-            baselineSource: cachedOffset == nil ? "policy" : "calibrated",
+            baselineSource: pixelOffset != nil ? "pixel" : (cachedOffset == nil ? "policy" : "calibrated"),
             hostBackground: background,
             layout: GhostTextLayout(
                 rows: [],
@@ -270,7 +278,9 @@ final class OverlayController: SuggestionOverlayControlling {
         session.layout = layout
         inlineSession = session
         renderInline(session)
-        if cachedOffset == nil || calibration?.matchTypeface == true, let calibration {
+        // Built after the render so the request knows where the panel now covers the host.
+        if cachedOffset == nil || calibration?.matchTypeface == true,
+           let calibration = calibrationRequest(for: geometry, resolution: fontResolution, policyOffset: policyOffset) {
             startCalibration(calibration, for: geometry)
         }
         return nil
@@ -306,19 +316,47 @@ final class OverlayController: SuggestionOverlayControlling {
     /// caret at the end of its paragraph is measured: the paragraph's last inked line then ends at
     /// the caret. A caret inside the paragraph keeps the existing card, which is honest about not
     /// knowing where the caret is.
+    /// Fields taller than this are not one line; the single-line measurement would read the wrong
+    /// ink. Chrome's address bar is 24pt; a multi-row composer starts around twice that.
+    static let singleLineFieldMaximumHeight: CGFloat = 44
+    /// The caret box reported for a single-line field, as a fraction of the field's height.
+    static let singleLineCaretBoxFraction: CGFloat = 0.75
+
     private func pixelCaretRequest(for geometry: SuggestionOverlayGeometry) -> PixelCaretLocator.Request? {
-        guard let wrapped = geometry.wrappedRun, geometry.isCaretAtEndOfLine, !geometry.isRightToLeft else {
-            return nil
-        }
+        guard geometry.isCaretAtEndOfLine, !geometry.isRightToLeft else { return nil }
         let renderer: GhostBaselinePolicy.HostRenderer = geometry.isWebContentField ? .webEngine : .textKit
         let font = resolveFont(for: geometry, renderer: renderer).font
+        if let wrapped = geometry.wrappedRun {
+            return PixelCaretLocator.Request(
+                focusedInputIdentityKey: geometry.focusedInputIdentityKey,
+                runFrame: wrapped.frame,
+                paragraphTextBeforeCaret: wrapped.paragraphTextBeforeCaret,
+                siblingLinePitch: geometry.hostTextMetrics?.linePitch,
+                siblingLineBoxHeight: geometry.hostTextMetrics?.lineRect?.height,
+                spaceAdvance: GhostFontResolver.width(of: " ", font: font)
+            )
+        }
+        // A single-line field whose caret AX could only estimate (Chrome's address bar answers no
+        // bounds query at all, measured 2026-09-10): the field frame is the line, and the caret is
+        // where its ink ends. Estimated carets otherwise go to the card.
+        guard geometry.caretQuality == .estimated || geometry.caretQuality == .layoutEstimated,
+              let frame = geometry.elementFrameRect, frame.height > 4, frame.height <= Self.singleLineFieldMaximumHeight,
+              let text = geometry.lineTextBeforeCaret, !text.trimmingCharacters(in: .whitespaces).isEmpty
+        else {
+            return nil
+        }
         return PixelCaretLocator.Request(
             focusedInputIdentityKey: geometry.focusedInputIdentityKey,
-            runFrame: wrapped.frame,
-            paragraphTextBeforeCaret: wrapped.paragraphTextBeforeCaret,
-            siblingLinePitch: geometry.hostTextMetrics?.linePitch,
-            siblingLineBoxHeight: geometry.hostTextMetrics?.lineRect?.height,
-            spaceAdvance: GhostFontResolver.width(of: " ", font: font)
+            runFrame: frame,
+            paragraphTextBeforeCaret: text,
+            siblingLinePitch: nil,
+            siblingLineBoxHeight: nil,
+            spaceAdvance: GhostFontResolver.width(of: " ", font: font),
+            // A fixed fraction of the field, not the estimate's own height: the estimate alternated
+            // between 16 and 18pt for Chrome's 24pt address bar (measured 2026-09-10) and the ghost's
+            // derived size flipped with it. The pixel match settles the size; this box only has to
+            // be the same every time.
+            singleLineCaretHeight: (frame.height * Self.singleLineCaretBoxFraction * 2).rounded() / 2
         )
     }
 
@@ -338,9 +376,15 @@ final class OverlayController: SuggestionOverlayControlling {
         let judged = applyingTypefaceEvidence(resolution, for: geometry)
         return Self.applyingMatchedTypeface(
             judged,
-            name: baselineCalibrator?.cachedTypeface(for: typefaceKey(for: geometry, font: judged.font)),
-            isWebContentField: geometry.isWebContentField
+            match: baselineCalibrator?.cachedTypeface(for: typefaceKey(for: geometry)),
+            hostNamesFace: Self.hostNamesFace(geometry),
+            sizeMultiplier: CGFloat(suggestionSettings.ghostTextSizeMultiplier)
         )
+    }
+
+    /// Whether the host told us its face (even one this Mac cannot load).
+    private static func hostNamesFace(_ geometry: SuggestionOverlayGeometry) -> Bool {
+        geometry.resolvedFieldStyle?.fontName != nil || geometry.resolvedFieldStyle?.fontFamily != nil
     }
 
     /// Holds a width-matched face steady across the samples a field produces over its life.
@@ -422,37 +466,45 @@ final class OverlayController: SuggestionOverlayControlling {
         return TypefaceEvidence.Sample(text: text, width: width)
     }
 
-    /// The system face at the host's size, scaled to the longest trustworthy sample the field has
-    /// produced. Shorter samples carry whole-point rounding noise that would nudge the size a
-    /// fraction each time one recurred; with none long enough the reported size is used as is.
+    /// The system face at the host's size, scaled to the field's adopted sample (the first one long
+    /// enough, held for the field's life, see `TypefaceEvidence.scalingAdoptionLength`). Until one
+    /// arrives the reported size is used as is: a size that followed every longer sample resized
+    /// Gemini's ghost three times in one sentence.
     private static func scaledSystemFace(size: CGFloat, evidence: TypefaceEvidence) -> GhostFontResolver.Resolution {
-        let longest = evidence.samples
-            .filter { $0.text.count >= TypefaceEvidence.minimumScalingLength }
-            .max { $0.text.count < $1.text.count }
-        guard let longest else {
+        guard let sample = evidence.scalingSample else {
             return GhostFontResolver.Resolution(font: NSFont.systemFont(ofSize: size), provenance: .hostSizeSystem, widthAgreement: 1)
         }
-        return GhostFontResolver.scaledSystemResolution(size: size, sample: longest.text, width: longest.width)
+        return GhostFontResolver.scaledSystemResolution(size: size, sample: sample.text, width: sample.width)
     }
 
+    /// The face and size the host's pixels matched replace a stand-in face, and a width-matched
+    /// family too: a strip of glyph shapes is stronger evidence than one or two whole-point width
+    /// samples (measured 2026-09-10: Chrome's Helvetica input width-matched Trebuchet MS for 108
+    /// presentations between pixel matches of Arial and Helvetica Neue). A face the host named is
+    /// never replaced, even one this Mac cannot load: the scaled system face is the honest stand-in
+    /// there (Gemini's Google Sans), and a near miss from the candidate list would look worse.
     private static func applyingMatchedTypeface(
         _ resolution: GhostFontResolver.Resolution,
-        name: String?,
-        isWebContentField: Bool
+        match: HostBaselineCalibrator.TypefaceMatchRecord?,
+        hostNamesFace: Bool,
+        sizeMultiplier: CGFloat
     ) -> GhostFontResolver.Resolution {
-        guard isWebContentField, resolution.provenance.isFallbackFace, let name,
-              let matched = GhostFontResolver.font(named: name, size: resolution.font.pointSize)
+        guard let match, !hostNamesFace, Self.acceptsPixelMatch(resolution.provenance),
+              let matched = GhostFontResolver.font(named: match.fontName, size: match.pointSize * max(sizeMultiplier, 0.01))
         else {
             return resolution
         }
         return GhostFontResolver.Resolution(font: matched, provenance: .pixelMatched, widthAgreement: 1)
     }
 
-    private func typefaceKey(for geometry: SuggestionOverlayGeometry, font: NSFont) -> HostBaselineCalibrator.TypefaceKey {
-        HostBaselineCalibrator.TypefaceKey(
-            focusedInputIdentityKey: geometry.focusedInputIdentityKey,
-            fontPointSize: Int(font.pointSize.rounded())
-        )
+    /// Provenances the pixel match outranks: every stand-in, a width-matched family, and an
+    /// earlier pixel match (the field's record may have improved).
+    static func acceptsPixelMatch(_ provenance: GhostFontResolver.Provenance) -> Bool {
+        provenance.isFallbackFace || provenance == .hostSizeMatchedFamily || provenance == .pixelMatched
+    }
+
+    private func typefaceKey(for geometry: SuggestionOverlayGeometry) -> HostBaselineCalibrator.TypefaceKey {
+        HostBaselineCalibrator.TypefaceKey(focusedInputIdentityKey: geometry.focusedInputIdentityKey)
     }
 
     /// Starts measuring the host's baseline for the line the caret is on (and the field's background
@@ -500,8 +552,14 @@ final class OverlayController: SuggestionOverlayControlling {
         resolution: GhostFontResolver.Resolution,
         policyOffset: CGFloat
     ) -> HostBaselineCalibrator.Request? {
-        guard baselineCalibrator != nil, Self.wantsBaselineCalibration(geometry, font: resolution.font) else { return nil }
+        guard baselineCalibrator != nil, Self.wantsBaselineCalibration(geometry, resolution: resolution) else { return nil }
         let font = resolution.font
+        // The ghost panel, when up, is excluded from the capture and comes back black; the strip
+        // must end before it. Its frame is the panel's current one: for a presentation this is
+        // the ghost just rendered, for a prewarm the previous ghost or nothing.
+        let occludedFrom: CGFloat? = panel.isVisible && panel.frame.intersects(geometry.caretRect.insetBy(dx: -maximumStripReach, dy: 0))
+            ? panel.frame.minX - Self.occlusionMargin
+            : nil
         return HostBaselineCalibrator.Request(
             key: HostBaselineCalibrator.Key(
                 focusedInputIdentityKey: geometry.focusedInputIdentityKey,
@@ -514,18 +572,47 @@ final class OverlayController: SuggestionOverlayControlling {
             policyOffset: policyOffset,
             lineText: geometry.lineTextBeforeCaret,
             pointSize: font.pointSize,
-            matchTypeface: resolution.provenance.isFallbackFace
+            matchTypeface: !Self.hostNamesFace(geometry) && Self.acceptsPixelMatch(resolution.provenance),
+            sizeIsReported: Self.sizeIsReported(resolution.provenance),
+            lineInkWidth: geometry.pixelLineInkWidth,
+            occludedFrom: occludedFrom
         )
     }
 
-    /// Web hosts always: their boxes are rounded to pixels. Native hosts only when the caret box is
-    /// not the face's own TextKit line fragment, because then the policy has to guess where the
-    /// extra line spacing went (Xcode's source editor puts it below the text; TextKit puts it above).
-    private static func wantsBaselineCalibration(_ geometry: SuggestionOverlayGeometry, font: NSFont) -> Bool {
-        if geometry.isWebContentField {
+    /// How far left of the caret a calibration strip can reach; the panel matters only within it.
+    private var maximumStripReach: CGFloat { HostBaselineCalibrator.maximumStripWidth + 4 }
+    /// Points the excluded region was measured to extend past the panel's own frame.
+    private static let occlusionMargin: CGFloat = 4
+
+    /// Whether the resolution's size came from the host (a plausible reported size, possibly
+    /// scaled to a width sample) rather than from the caret box.
+    static func sizeIsReported(_ provenance: GhostFontResolver.Provenance) -> Bool {
+        switch provenance {
+        case .hostFace, .hostFamily, .hostSizeMatchedFamily, .hostSizeScaledSystem, .hostSizeSystem, .hostFaceScaled, .pixelMatched:
+            return true
+        case .caretDerived, .caretDerivedCalibrated:
+            return false
+        }
+    }
+
+    /// Web hosts always: their boxes are rounded to pixels. Native hosts when the caret box is not
+    /// the face's own TextKit line fragment, because then the policy has to guess where the extra
+    /// line spacing went (Xcode's source editor puts it below the text; TextKit puts it above), and
+    /// when the face itself is a stand-in (Chrome's address bar names no font), because then both
+    /// the baseline and the face are guesses the pixels can replace.
+    private static func wantsBaselineCalibration(
+        _ geometry: SuggestionOverlayGeometry,
+        resolution: GhostFontResolver.Resolution
+    ) -> Bool {
+        // An estimated caret is not a line: for a union-run paragraph it is the whole field, and a
+        // strip cut from it measured whatever line happened to lie there (Obsidian, 2026-09-10:
+        // eighteen typeface searches of 70-360ms on nothing, competing with the model). The pixel
+        // caret upgrades the geometry to `.derived` before presentation; the calibration runs then.
+        guard geometry.caretQuality != .estimated else { return false }
+        if geometry.isWebContentField || resolution.provenance.isFallbackFace {
             return true
         }
-        let defaultHeight = NSLayoutManager().defaultLineHeight(for: font)
+        let defaultHeight = NSLayoutManager().defaultLineHeight(for: resolution.font)
         return abs(geometry.caretRect.height - defaultHeight) > 1
     }
 
@@ -542,13 +629,16 @@ final class OverlayController: SuggestionOverlayControlling {
                 return
             }
             var changed = false
-            if abs(session.baselineOffsetFromTop - calibration.baselineOffset) > 0.01 {
+            if session.geometry.pixelBaselineOffset == nil, abs(session.baselineOffsetFromTop - calibration.baselineOffset) > 0.01 {
                 session.baselineOffsetFromTop = calibration.baselineOffset
                 session.baselineSource = "calibrated"
                 changed = true
             }
             let rematched = Self.applyingMatchedTypeface(
-                session.fontResolution, name: calibration.typefaceName, isWebContentField: geometry.isWebContentField
+                session.fontResolution,
+                match: calibration.typefaceMatch,
+                hostNamesFace: Self.hostNamesFace(geometry),
+                sizeMultiplier: CGFloat(self.suggestionSettings.ghostTextSizeMultiplier)
             )
             if rematched.font != session.fontResolution.font {
                 session.fontResolution = rematched

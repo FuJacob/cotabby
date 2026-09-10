@@ -3,16 +3,23 @@ import CoreGraphics
 import Foundation
 
 /// File overview:
-/// Identifies the typeface a host painted from the host's own pixels, for fields that name no
-/// font and answer no width query.
+/// Identifies the typeface AND size a host painted from the host's own pixels, for fields that
+/// name no font or whose reported size cannot be trusted.
 ///
 /// Chromium contenteditables (Gmail, Slack, Notion, Docs-style editors) report a font size and
 /// nothing else: no family, and `AXBoundsForRange` returns an empty rect, so the width match in
-/// `GhostFontResolver` has nothing to work with and the ghost falls back to the system face. The
-/// text left of the caret is on screen, though, and its text is known. Rendering that text in each
-/// candidate face, right-aligned at the caret on the measured baseline, and correlating the column
-/// ink profile with the host's strip picks the face the host used. Pure (bitmap in, name out) so it
-/// is tested against strips rendered in known faces.
+/// `GhostFontResolver` has nothing to work with and the ghost falls back to the system face.
+/// CodeMirror (Obsidian) and web views like ChatGPT's composer report no size either, and a size
+/// derived from the caret box is only as good as the box: measured 2026-09-10, Obsidian's 16px
+/// body came through as 17 and 20 and ChatGPT's 16px as 19, and a face matched at the wrong size
+/// is confidently wrong (Times New Roman at 20 reproduced the advances of San Francisco at 16 and
+/// scored 0.92). So the match searches over size as well as face: each candidate is rendered at a
+/// grid of sizes around two centres, the caller's size and the size implied by the height of the
+/// letter bodies the baseline analyzer found, right-aligned at the caret on the measured baseline,
+/// and correlated column by column with the host's strip. A candidate whose letter bodies are not
+/// the height the host painted is marked down however well its advances line up, which is what
+/// separates a narrow face at a large size from a wide face at a small one. Pure (bitmap in, name
+/// and size out) so it is tested against strips rendered in known faces at known sizes.
 enum TypefaceMatcher {
     struct Input {
         /// Host pixels, row 0 at the top.
@@ -25,36 +32,116 @@ enum TypefaceMatcher {
         let baselineRow: CGFloat
         /// The text immediately before the caret on its visual line, or as much of it as is known.
         let text: String
+        /// The host's size as the caller believes it (an AX report or a caret-box derivation). One
+        /// centre of the size search and nothing more.
         let pointSize: CGFloat
+        /// Device-pixel height of the letter bodies in the strip, tallest ascender to baseline as
+        /// `InkBaselineAnalyzer` measures them: the second centre of the size search, and the
+        /// height every candidate rendering must reproduce. Nil when the caller measured none.
+        var bodyRows: Int? = nil
+        /// True when `pointSize` is the host's own report (a CSS size, an AX font size) rather than
+        /// a derivation from a caret box. A reported size narrows the search to its neighbourhood:
+        /// serif faces are near-degenerate across sizes (Times New Roman at 19.5 reproduced a
+        /// Georgia 18 strip in Chrome, measured 2026-09-10), and only an unknown size is worth
+        /// that risk.
+        var sizeIsReported: Bool = false
+        /// Width in points of the host ink on the caret's line, when the caller measured it. The
+        /// text rendered for a candidate is then trimmed from the left until it fits: a wrapped
+        /// paragraph's tail runs back into the previous visual line, while the strip holds only
+        /// the caret's line, and words that are not on screen cannot correlate with anything.
+        var lineInkWidth: CGFloat? = nil
+        /// Faces to try, at any size; the search rescales them.
         let candidates: [NSFont]
     }
 
     struct Match: Equatable {
         let fontName: String
         let familyName: String
+        /// The size at which the face reproduced the host's ink.
+        let pointSize: CGFloat
         let score: Double
         let runnerUpScore: Double
-        /// The system face's own score in the same comparison (-1 when it was not a candidate).
+        /// The system face's own best score in the same comparison (-1 when it was not a candidate).
         let systemScore: Double
+    }
+
+    /// One candidate at its best size with its score. `Sendable` so the calibrator can carry a
+    /// whole ranking out of its detached analysis and judge a later strip against the face it
+    /// already recorded.
+    struct Score: Equatable, Sendable {
+        let fontName: String
+        let familyName: String
+        let pointSize: CGFloat
+        let score: Double
+    }
+
+    /// The search's working unit: a candidate face at one size.
+    private struct Ranked {
+        let font: NSFont
+        let pointSize: CGFloat
+        let score: Double
     }
 
     /// Lowest normalized correlation accepted as "this is the face".
     static let minimumScore = 0.88
-    /// Smallest lead over the next candidate required, so two faces that fit equally well (Arial
-    /// and Helvetica share advances) resolve to the earlier, more common one only when it also
-    /// fits the glyph shapes better.
+    /// Smallest lead over the next family required, so two faces that fit equally well resolve to
+    /// the earlier, more common one only when it also fits the glyph shapes better.
     static let minimumMargin = 0.015
-    /// Horizontal slack for the caret column, which Accessibility rounds to whole points.
+    /// Horizontal slack for the caret column, which Accessibility rounds to whole points, when a
+    /// candidate is judged at its refined size.
     static let maximumLagPixels = 3
+    /// Slack during the coarse size pass. The grid is 5% apart and the correlation tolerates only
+    /// a few pixels of drift, so a face at a grid size 2% off its true size scored 0.23 while a
+    /// wrong face at that size scored 0.85 (Chrome's address bar, 2026-09-10); the coarse pass must
+    /// forgive the drift a coarse size implies, and the refinement removes it.
+    static let coarseLagPixels = 10
     /// Columns right of the caret and the caret itself are never compared.
     static let caretGapPixels = 2
-    /// Shorter text is too little evidence.
-    static let minimumTextLength = 3
+    /// Shorter text is too little evidence, and is declined before any candidate is rendered.
+    static let minimumTextLength = 10
+    /// Points of host ink a candidate must be compared over before its score counts. Measured
+    /// 2026-09-10 in Obsidian: a strip holding "Hi Sarah," let Helvetica Neue at 16.66 edge out the
+    /// system face at 16, and the field kept that face for 449 presentations; a dozen glyphs is
+    /// where the families separate reliably.
+    static let minimumEvidencePoints: CGFloat = 72
+    /// When the system face scores within this of the leader it is the answer: it is what web
+    /// content and native fields name by default, and a near tie against it on one strip is noise,
+    /// not evidence of a rarer face (Arial 0.980 against the system face's 0.969, measured).
+    static let systemPreferenceMargin = 0.03
+
+    /// Ratios of a search centre tried in the coarse pass. The span covers the caret-box errors
+    /// measured live (a 16px face asked for at 17, 19 and 20) with room to spare; the pass then
+    /// narrows on the leaders.
+    static let coarseSizeRatios: [CGFloat] = [0.70, 0.75, 0.80, 0.85, 0.90, 0.95, 1.0, 1.05, 1.10, 1.16, 1.22, 1.28, 1.35, 1.42]
+    /// The grid around a size the host reported itself: rounding and a scaled sample can move it
+    /// a few percent, never a face size.
+    static let reportedSizeRatios: [CGFloat] = [0.94, 0.97, 1.0, 1.03, 1.06]
+    /// Rounds of narrowing around a candidate's best coarse size: the first for every candidate
+    /// (a face's true size can sit between grid points), the rest for the leaders only.
+    static let refinementRatios: [[CGFloat]] = [[0.975, 1.025], [0.9875, 1.0125], [0.994, 1.006]]
+    static let refinedLeaders = 4
+    /// Letter bodies (tallest ascender to baseline) span about this fraction of the point size in
+    /// prose set in the common faces; it only centres the search, the grid absorbs the rest.
+    static let bodyToPointSize: CGFloat = 0.72
+    static let minimumPointSize: CGFloat = 6
+    static let maximumPointSize: CGFloat = 96
+    /// A candidate whose letter bodies differ from the host's by more than one device pixel loses
+    /// this much score per extra pixel, down to a floor: enough to sink a wrong face at a wrong
+    /// size (3px off scored 0.92 by advances alone) without touching an honest 1px rounding.
+    static let bodyMismatchPenaltyPerPixel = 0.04
+    static let bodyMismatchFloor = 0.7
 
     /// Families tried, most common first. The system face is always tried too.
     static let candidateFamilies: [String] = [
         "Helvetica", "Arial", "Helvetica Neue", "Georgia", "Times New Roman", "Verdana",
         "Menlo", "Courier New", "Trebuchet MS", "Avenir Next", "SF Mono"
+    ]
+
+    /// Families whose advances and shapes are close enough that the ghost looks the same in
+    /// either; a tie between two of them is not a doubt about the answer.
+    static let interchangeableFamilies: [Set<String>] = [
+        ["Helvetica", "Arial", "Helvetica Neue"],
+        ["Times New Roman", "Times"]
     ]
 
     static func defaultCandidates(pointSize: CGFloat) -> [NSFont] {
@@ -68,36 +155,189 @@ enum TypefaceMatcher {
     }
 
     static func match(_ input: Input) -> Match? {
-        guard input.text.count >= minimumTextLength, input.caretColumn > 8, !input.candidates.isEmpty else { return nil }
-        let hostProfile = InkProfile.columns(of: input.strip)
-        let variants = textVariants(HostLineText.tail(of: input.text))
-        var scored: [(font: NSFont, score: Double)] = []
-        for candidate in input.candidates {
-            var best = -1.0
-            for variant in variants {
-                guard let rendered = render(variant, font: candidate, input: input) else { continue }
-                let candidateProfile = InkProfile.darkInkColumns(of: rendered)
-                let score = correlate(host: hostProfile, candidate: candidateProfile, input: input, rendered: rendered)
-                best = max(best, score)
-            }
-            scored.append((candidate, best))
+        match(from: rank(input))
+    }
+
+    /// The decision over a ranking: the leader must clear `minimumScore` and lead the next family
+    /// by `minimumMargin`, unless that family is one the leader is interchangeable with.
+    static func match(from ranked: [Score]) -> Match? {
+        guard var winner = ranked.first, winner.score >= minimumScore else { return nil }
+        let system = ranked.first { $0.familyName == systemFamilyName }
+        let systemScore = system?.score ?? -1
+        if let system, winner.familyName != systemFamilyName, systemScore >= winner.score - systemPreferenceMargin {
+            winner = system
         }
-        scored.sort { $0.score > $1.score }
-        guard let winner = scored.first, winner.score >= minimumScore else { return nil }
-        let runnerUp = scored.dropFirst().first?.score ?? -1
-        // How well the system face itself scored, whatever its rank: the reference every
-        // replacement must beat, logged so a wrong swap can be judged from the numbers.
-        let systemScore = scored.first { $0.font.familyName == NSFont.systemFont(ofSize: 12).familyName }?.score ?? -1
-        guard winner.score - runnerUp >= minimumMargin || scored.dropFirst().first?.font.familyName == winner.font.familyName else {
-            return nil
+        let runnerUp = ranked.first { $0.familyName != winner.familyName }
+        let runnerUpScore = runnerUp?.score ?? -1
+        if let runnerUp, winner.familyName != systemFamilyName, winner.score - runnerUp.score < minimumMargin {
+            guard interchangeableFamilies.contains(where: { $0.contains(winner.familyName) && $0.contains(runnerUp.familyName) }) else {
+                return nil
+            }
         }
         return Match(
-            fontName: winner.font.fontName,
-            familyName: winner.font.familyName ?? winner.font.fontName,
+            fontName: winner.fontName,
+            familyName: winner.familyName,
+            pointSize: winner.pointSize,
             score: winner.score,
-            runnerUpScore: runnerUp,
+            runnerUpScore: runnerUpScore,
             systemScore: systemScore
         )
+    }
+
+    /// Every candidate at its best size, best first. Empty when the input carries too little text.
+    static func rank(_ input: Input) -> [Score] {
+        rankFonts(input).map {
+            Score(fontName: $0.font.fontName, familyName: $0.font.familyName ?? $0.font.fontName, pointSize: $0.pointSize, score: $0.score)
+        }
+    }
+
+    private static func rankFonts(_ input: Input) -> [Ranked] {
+        guard HostLineText.tail(of: input.text).count >= minimumTextLength, !input.candidates.isEmpty else { return [] }
+        // The strip must hold enough host ink left of the caret before a dozen faces at two dozen
+        // sizes are rendered against it; a caret a few glyphs into its line is declined for free.
+        let availableColumns = min(Int(input.caretColumn) - caretGapPixels, input.strip.width)
+        guard CGFloat(availableColumns) >= minimumEvidencePoints * input.scale else { return [] }
+        let sizes = searchSizes(input)
+        guard !sizes.isEmpty else { return [] }
+        var host = InkProfile.columns(of: input.strip)
+        // Columns inked from top to bottom are not text (no glyph fills a line box); they are the
+        // black an excluded window leaves in a capture, and at the caret end of the strip they
+        // outweigh every glyph column. They are dropped from the comparison.
+        let opaque = InkProfile.trailingOpaqueColumns(of: input.strip)
+        if opaque > 0 {
+            host.removeLast(min(opaque, host.count))
+        }
+        let variants = textVariants(HostLineText.tail(of: input.text))
+        // Coarse pass with the full line text; only when nothing fits is the strip assumed to hold
+        // just the tail after a soft wrap, and the pass repeated with the two-word variant. Running
+        // both variants over every face and size doubled a search that competes with the model.
+        var ranked = coarseRanking(candidates: input.candidates, sizes: sizes, variants: [variants[0]], host: host, input: input)
+        var chosenVariants = [variants[0]]
+        if variants.count > 1, (ranked.first?.score ?? -1) < minimumScore {
+            let tail = coarseRanking(candidates: input.candidates, sizes: sizes, variants: [variants[1]], host: host, input: input)
+            if (tail.first?.score ?? -1) > (ranked.first?.score ?? -1) {
+                ranked = tail
+                chosenVariants = [variants[1]]
+            }
+        }
+        // Narrow the sizes with the tight lag: every candidate once (its coarse score may be the
+        // grid's fault, not the face's), then the leaders further.
+        for (round, ratios) in refinementRatios.enumerated() {
+            let count = round == 0 ? ranked.count : min(refinedLeaders, ranked.count)
+            for index in 0..<count {
+                var best = ranked[index]
+                let refined = scoreAt(best, ratios: [1.0] + ratios, variants: chosenVariants, host: host, input: input, lag: maximumLagPixels)
+                if refined.score > best.score || round == 0 {
+                    best = refined
+                }
+                ranked[index] = best
+            }
+            ranked.sort { $0.score > $1.score }
+        }
+        return ranked
+    }
+
+    private static func coarseRanking(
+        candidates: [NSFont], sizes: [CGFloat], variants: [String], host: [Double], input: Input
+    ) -> [Ranked] {
+        var ranked: [Ranked] = []
+        for candidate in candidates {
+            var best = Ranked(font: candidate, pointSize: input.pointSize, score: -1)
+            for size in sizes {
+                let font = scaled(candidate, to: size)
+                let score = score(font, variants: variants, host: host, input: input, lag: coarseLagPixels)
+                if score > best.score {
+                    best = Ranked(font: font, pointSize: size, score: score)
+                }
+            }
+            ranked.append(best)
+        }
+        ranked.sort { $0.score > $1.score }
+        return ranked
+    }
+
+    /// The best of `ranked` at each of its size times `ratios`, judged with `lag`. The ratio 1.0
+    /// re-scores the current size under the same lag so rounds compare like with like.
+    private static func scoreAt(
+        _ ranked: Ranked, ratios: [CGFloat], variants: [String], host: [Double], input: Input, lag: Int
+    ) -> Ranked {
+        var best = Ranked(font: ranked.font, pointSize: ranked.pointSize, score: -1)
+        for ratio in ratios {
+            let size = ranked.pointSize * ratio
+            let font = scaled(ranked.font, to: size)
+            let score = score(font, variants: variants, host: host, input: input, lag: lag)
+            if score > best.score {
+                best = Ranked(font: font, pointSize: size, score: score)
+            }
+        }
+        return best
+    }
+
+    /// The sizes tried for every candidate: a coarse grid around the caller's size and, when the
+    /// strip's letter bodies were measured, around the size they imply. Both centres are kept
+    /// because either can be wrong: the caller's when the caret box is not the line, the bodies'
+    /// when the line happens to carry no ascender.
+    static func searchSizes(_ input: Input) -> [CGFloat] {
+        var centres: [CGFloat] = []
+        if input.pointSize > 0 {
+            centres.append(input.pointSize)
+        }
+        if !input.sizeIsReported, let rows = input.bodyRows, rows > 0, input.scale > 0 {
+            centres.append(CGFloat(rows) / input.scale / bodyToPointSize)
+        }
+        let ratios = input.sizeIsReported ? reportedSizeRatios : coarseSizeRatios
+        var sizes: [CGFloat] = []
+        for centre in centres {
+            for ratio in ratios {
+                let size = (centre * ratio * 4).rounded() / 4
+                guard size >= minimumPointSize, size <= maximumPointSize else { continue }
+                if !sizes.contains(where: { abs($0 - size) < 0.2 }) {
+                    sizes.append(size)
+                }
+            }
+        }
+        return sizes.sorted()
+    }
+
+    private static let systemFamilyName = NSFont.systemFont(ofSize: 12).familyName ?? ".AppleSystemUIFont"
+
+    /// The same face at another size. The system face goes through its own API so it keeps the
+    /// optical-size variant AppKit would pick for that size.
+    private static func scaled(_ font: NSFont, to size: CGFloat) -> NSFont {
+        if font.familyName == systemFamilyName {
+            return NSFont.systemFont(ofSize: size)
+        }
+        return NSFont(descriptor: font.fontDescriptor, size: size) ?? font
+    }
+
+    private static func score(_ font: NSFont, variants: [String], host: [Double], input: Input, lag: Int) -> Double {
+        var best = -1.0
+        for variant in variants {
+            let text = fitted(variant, font: font, lineInkWidth: input.lineInkWidth)
+            guard let rendered = render(text, font: font, input: input) else { continue }
+            best = max(best, correlate(host: host, rendered: rendered, input: input, lag: lag))
+        }
+        return best
+    }
+
+    /// Slack over the measured ink width before a leading word is dropped: the ink starts a side
+    /// bearing after the pen and the caret sits one after the last glyph.
+    static let lineFitSlack: CGFloat = 6
+
+    /// `text` with leading words dropped until its advance in `font` fits the caret line's ink.
+    static func fitted(_ text: String, font: NSFont, lineInkWidth: CGFloat?) -> String {
+        guard let lineInkWidth, lineInkWidth > 0 else { return text }
+        var words = text.split(separator: " ", omittingEmptySubsequences: false).map(String.init)
+        var current = text
+        while words.count > 1 {
+            let advance = CGFloat(CTLineGetTypographicBounds(
+                CTLineCreateWithAttributedString(NSAttributedString(string: current, attributes: [.font: font])), nil, nil, nil
+            ))
+            if advance <= lineInkWidth + lineFitSlack { break }
+            words.removeFirst()
+            current = words.joined(separator: " ")
+        }
+        return current
     }
 
     /// The full text and its last two words: when the caret sits shortly after a soft wrap the
@@ -112,7 +352,7 @@ enum TypefaceMatcher {
     }
 
     /// Renders `text` right-aligned so its advance ends at the caret column, on the host's baseline,
-    /// into a bitmap the size of the strip. Black on white; only the column profile is used.
+    /// into a bitmap the size of the strip. Black on white; only the ink profiles are used.
     private static func render(_ text: String, font: NSFont, input: Input) -> RGBABitmap? {
         let width = input.strip.width
         let height = input.strip.height
@@ -144,9 +384,11 @@ enum TypefaceMatcher {
         return RGBABitmap(width: width, height: height, bytes: buffer)
     }
 
-    /// Normalized cross-correlation of the two column profiles over the columns the candidate
-    /// rendering covers, maximized over a few pixels of horizontal lag.
-    private static func correlate(host: [Double], candidate: [Double], input: Input, rendered: RGBABitmap) -> Double {
+    /// Normalized cross-correlation of the column profiles over the columns the candidate covers,
+    /// maximized over a few pixels of horizontal lag, then marked down when the candidate's letter
+    /// bodies are not the height the host painted.
+    private static func correlate(host: [Double], rendered: RGBABitmap, input: Input, lag maximumLag: Int) -> Double {
+        let candidate = InkProfile.darkInkColumns(of: rendered)
         // The strip usually ends a little before the caret, so the caret column can lie past the
         // bitmap's right edge; never index beyond either profile.
         let end = min(Int(input.caretColumn) - caretGapPixels, host.count, candidate.count)
@@ -155,9 +397,9 @@ enum TypefaceMatcher {
         // left than the variant does not penalize a correct face.
         let firstInk = candidate.firstIndex(where: { $0 > 0.5 }) ?? 0
         let start = max(0, firstInk - 2)
-        guard end - start >= 12 else { return -1 }
+        guard CGFloat(end - start) >= minimumEvidencePoints * input.scale else { return -1 }
         var best = -1.0
-        for lag in -maximumLagPixels...maximumLagPixels {
+        for lag in -maximumLag...maximumLag {
             var sumH = 0.0, sumC = 0.0, count = 0.0
             for column in start..<end {
                 let hostColumn = column + lag
@@ -182,17 +424,32 @@ enum TypefaceMatcher {
             guard varianceH > 0, varianceC > 0 else { continue }
             best = max(best, numerator / (varianceH * varianceC).squareRoot())
         }
-        return best
+        guard best > 0, let hostBody = input.bodyRows, hostBody > 0 else { return best }
+        let candidateBody = InkProfile.bodyRows(of: rendered, columns: start..<end)
+        return best * bodyAgreement(hostRows: hostBody, candidateRows: candidateBody)
+    }
+
+    /// 1 when the candidate's letter bodies are within a device pixel of the host's, falling by
+    /// `bodyMismatchPenaltyPerPixel` per further pixel to `bodyMismatchFloor`.
+    static func bodyAgreement(hostRows: Int, candidateRows: Int) -> Double {
+        let excess = max(0, abs(hostRows - candidateRows) - 1)
+        return max(bodyMismatchFloor, 1 - bodyMismatchPenaltyPerPixel * Double(excess))
     }
 }
 
 /// Contrast-weighted ink profiles of a bitmap: how much each column differs from the background,
 /// ignoring saturated pixels (colored carets, squiggles, link underlines). Integer arithmetic over
-/// the raw bytes: a match renders a dozen candidate faces and the work must stay well under the
-/// model's own latency even in debug builds.
+/// the raw bytes: a match renders a dozen candidate faces at a couple of dozen sizes and the work
+/// must stay well under the model's own latency even in debug builds.
 enum InkProfile {
     /// Saturation limit as (max - min) * 100 / max, in percent.
     static let maximumSaturationPercent = 35
+    /// Ink darker than this (0...255 below white) counts as a body pixel in a candidate rendering;
+    /// mirrors `InkBaselineAnalyzer.inkContrast` on the host side.
+    static let candidateInkThreshold = 56
+    /// Rows carrying at least this fraction of the busiest row's ink are letter bodies; mirrors
+    /// `InkBaselineAnalyzer.bodyThreshold`.
+    static let bodyThreshold = 0.35
 
     static func columns(of bitmap: RGBABitmap) -> [Double] {
         let width = bitmap.width
@@ -214,6 +471,32 @@ enum InkProfile {
         return profile.map { Double($0) / 1000 }
     }
 
+    /// Fraction of a column's rows that must be inked for the column to count as opaque (a
+    /// blacked-out region, never a glyph: the tallest glyph spans about three quarters of a line
+    /// box).
+    static let opaqueColumnFraction = 0.95
+
+    /// Number of consecutive opaque columns at the strip's right edge.
+    static func trailingOpaqueColumns(of bitmap: RGBABitmap) -> Int {
+        let width = bitmap.width, height = bitmap.height
+        guard width > 0, height > 0 else { return 0 }
+        let background = backgroundLuminance(of: bitmap)
+        let needed = Int((Double(height) * opaqueColumnFraction).rounded(.up))
+        var count = 0
+        bitmap.bytes.withUnsafeBufferPointer { bytes in
+            for column in stride(from: width - 1, through: 0, by: -1) {
+                var inked = 0
+                for row in 0..<height {
+                    let offset = (row * width + column) * 4
+                    let contrast = abs(luminance(Int(bytes[offset]), Int(bytes[offset + 1]), Int(bytes[offset + 2])) - background)
+                    if contrast > 56_000 { inked += 1 }
+                }
+                if inked >= needed { count += 1 } else { break }
+            }
+        }
+        return count
+    }
+
     /// Profile of a rendering known to be dark ink on a white ground (the candidate faces): no
     /// background estimate or saturation test needed.
     static func darkInkColumns(of bitmap: RGBABitmap) -> [Double] {
@@ -228,6 +511,35 @@ enum InkProfile {
             }
         }
         return profile.map { Double($0) / 255 }
+    }
+
+    /// Height in rows of the letter bodies of a dark-on-white rendering within `columns`: the
+    /// first contiguous block of rows at least `bodyThreshold` as busy as the busiest row, the
+    /// same rule `InkBaselineAnalyzer` applies to the host's strip. 0 when nothing was drawn.
+    static func bodyRows(of bitmap: RGBABitmap, columns: Range<Int>) -> Int {
+        let width = bitmap.width
+        let lower = max(0, columns.lowerBound)
+        let upper = min(width, columns.upperBound)
+        guard lower < upper else { return 0 }
+        var rowInk = [Int](repeating: 0, count: bitmap.height)
+        bitmap.bytes.withUnsafeBufferPointer { bytes in
+            for row in 0..<bitmap.height {
+                let rowStart = row * width * 4
+                var count = 0
+                for column in lower..<upper where 255 - Int(bytes[rowStart + column * 4 + 1]) > candidateInkThreshold {
+                    count += 1
+                }
+                rowInk[row] = count
+            }
+        }
+        guard let peak = rowInk.max(), peak > 0 else { return 0 }
+        let threshold = bodyThreshold * Double(peak)
+        guard let first = rowInk.indices.first(where: { Double(rowInk[$0]) >= threshold }) else { return 0 }
+        var last = first
+        while last + 1 < bitmap.height, Double(rowInk[last + 1]) >= threshold {
+            last += 1
+        }
+        return last - first + 1
     }
 
     /// Luminance scaled by 1000 (0...255000).

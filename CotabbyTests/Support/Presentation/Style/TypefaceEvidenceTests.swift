@@ -71,4 +71,16 @@ final class TypefaceEvidenceTests: XCTestCase {
             "a second contradiction ends in the neutral face, not another switch"
         )
     }
+
+    /// Measured in Gemini: scaling to the longest sample so far resized the ghost three times in
+    /// one sentence. The first sample of a dozen characters sizes the field for good.
+    func testTheFirstLongSampleFixesTheScalingSample() {
+        var evidence = TypefaceEvidence()
+        evidence.record(.init(text: "ask me", width: 48), resolverFamily: nil)
+        XCTAssertNil(evidence.scalingSample)
+        evidence.record(.init(text: "ask me about the", width: 120), resolverFamily: nil)
+        XCTAssertEqual(evidence.scalingSample?.text, "ask me about the")
+        evidence.record(.init(text: "ask me about the weather in Toronto t", width: 290), resolverFamily: nil)
+        XCTAssertEqual(evidence.scalingSample?.text, "ask me about the", "a longer sample never re-sizes the field")
+    }
 }

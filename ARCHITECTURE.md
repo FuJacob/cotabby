@@ -199,7 +199,9 @@ across AppKit, browsers, Electron, and custom editors. Activity resets the caden
 state backs it off. Input and acceptance paths may request an explicit fresh capture, but do not trust
 event payloads as complete field state.
 
-FocusSnapshotResolver finds a usable editable candidate, blocks secure/unsupported surfaces, bounds
+FocusSnapshotResolver finds a usable editable candidate, blocks secure/unsupported surfaces (and
+Mail's compose header rows, [MailHeaderFieldDetector.swift](Cotabby/Support/Accessibility/MailHeaderFieldDetector.swift):
+Tab is the way from To to Subject to body there, not an accept), bounds
 text on both sides of the caret, resolves the focused process, and publishes stable domain values.
 Chromium/Electron require accessibility priming, cursor hit-test recovery, and out-of-process iframe
 handling. All fallbacks are revalidated and yield to a valid system-focused element.
@@ -264,7 +266,11 @@ generation loop remains the single owner of the output-token budget.
 
 [BaseCompletionPromptRenderer.swift](Cotabby/Support/Prompting/BaseCompletionPromptRenderer.swift) renders a
 base-model text continuation with optional budgeted context and the caret prefix last. It does not
-wrap a base GGUF in an instruction conversation. [FoundationModelPromptRenderer.swift](Cotabby/Support/Prompting/FoundationModelPromptRenderer.swift)
+wrap a base GGUF in an instruction conversation. The writer's name enters that preface only when
+the caret follows a valediction ([SignOffCue.swift](Cotabby/Support/Prompting/SignOffCue.swift)):
+named in every prompt, a base model introduced the writer at openings ("Hi, I'm Jacob"), addressed
+them as the recipient, and copied the preface wording into the ghost; at a sign-off the name is the
+one token wanted. The first-launch name is the Mac account's full name, never a placeholder. [FoundationModelPromptRenderer.swift](Cotabby/Support/Prompting/FoundationModelPromptRenderer.swift)
 keeps Apple's instruction-shaped prompt separate.
 
 The llama context window is 4096 tokens. `SuggestionConfiguration.derivedLlamaPromptTokenBudget`
@@ -293,7 +299,10 @@ the host's pixels (Screen Recording) and are asynchronous:
   wrong instead of one.
 - [PixelCaretLocator.swift](Cotabby/Services/Presentation/PixelCaretLocator.swift) places the caret
   inside a paragraph the host exposes only as one union-framed run with no answer to any bounds
-  query (Obsidian's CodeMirror). [InkCaretAnalyzer.swift](Cotabby/Support/Presentation/Geometry/InkCaretAnalyzer.swift)
+  query (Obsidian's CodeMirror), and in a single-line field whose caret Accessibility could only
+  estimate (Chrome's address bar answers every bounds query with a zero rect): there the field's
+  frame is the line and the caret is where its ink ends, so the ghost goes inline instead of to the
+  card. [InkCaretAnalyzer.swift](Cotabby/Support/Presentation/Geometry/InkCaretAnalyzer.swift)
   finds the inked lines in a capture of the run's frame; the caret is the end of the last line, the
   pitch is the distance between line tops, and the line box is the frame height less the pitch per
   extra line. Only a caret at the end of its paragraph is measured; a caret inside one keeps the
@@ -365,7 +374,14 @@ Inline ghost text is built to occupy the pixels the accepted text will occupy:
   host's face and size from the field's reported style, from a measured width sample
   ([HostTextMetricsProbe.swift](Cotabby/Services/Focus/Resolution/HostTextMetricsProbe.swift)), or
   from the host's own pixels ([TypefaceMatcher.swift](Cotabby/Support/Presentation/Style/TypefaceMatcher.swift))
-  when a web field names no family.
+  when the host names no face. Every capture is snapped to whole device pixels first: a fractional
+  edge makes ScreenCaptureKit resample the image and the blurred glyphs correlate with nothing. The pixel match searches size as well as face (a caret-box size is
+  a guess: Obsidian's 16px body arrived as 17 and 20, and a face matched at the wrong size is
+  confidently wrong), marks down a candidate whose letter bodies are not the height the host
+  painted, prefers the system face on a near tie, and declines on too little ink. The calibrator
+  keeps one record per field, replaced only when a later strip's winner beats the recorded face on
+  that same strip; scores from different strips are not comparable. A reported size stands when the
+  caret box is shorter than its glyphs (VS Code's hidden textarea reports 8.5pt boxes for 14pt text).
 - [GhostBaselinePolicy.swift](Cotabby/Support/Presentation/Geometry/GhostBaselinePolicy.swift) places
   the baseline the way TextKit or Blink/WebKit would inside the caret box;
   [HostBaselineCalibrator.swift](Cotabby/Services/Presentation/HostBaselineCalibrator.swift) measures a
@@ -388,7 +404,9 @@ Inline ghost text is built to occupy the pixels the accepted text will occupy:
 - While the host shows uncommitted text of its own (macOS inline predictive text, an IME
   composition; [HostMarkedTextPolicy.swift](Cotabby/Support/Input/HostMarkedTextPolicy.swift)) the
   coordinator holds: no generation, no ghost, session kept. Chromium's address bar completes inline
-  and leaves the completion selected; the resolver strips that selection so the field stays usable.
+  and leaves the completion selected; the resolver strips that selection from the text and treats
+  the completion as the host's marked text, so the hold covers it too and its ink is never read as
+  the caret line's end.
 - Editors that expose a whole wrapped paragraph as one text run (CodeMirror in Obsidian) get their
   caret from a layout of that paragraph inside the run's own frame at the sibling runs' pitch
   (`WrappedRunAnchor`, laid out by

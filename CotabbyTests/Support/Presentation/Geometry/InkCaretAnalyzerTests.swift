@@ -62,6 +62,28 @@ final class InkCaretAnalyzerTests: XCTestCase {
         XCTAssertLessThan(measurement.lines[0].bottomRow, measurement.lines[1].topRow)
     }
 
+    /// Measured in Obsidian: a pitch read from ink tops came out 41 rows instead of 48 when one
+    /// line held ascenders and the next did not. Baselines do not move with the text.
+    func testPitchComesFromBaselinesNotInkTops() throws {
+        let font = NSFont.systemFont(ofSize: 34)
+        let rendered = try XCTUnwrap(render(
+            lines: ["The quick brown fox jumps over the lazy dog", "some rows worn as a sensor was worn"],
+            on: Canvas(font: font, pitch: 48, inset: 12, width: 1200, height: 100)
+        ))
+        let measurement = try XCTUnwrap(InkCaretAnalyzer.measure(rendered.bitmap))
+        XCTAssertEqual(measurement.lines.count, 2)
+        // The second line has no ascender, so its ink top sits lower than the first line's.
+        XCTAssertGreaterThan(measurement.lines[1].topRow - measurement.lines[0].topRow, 48 + 3)
+        XCTAssertEqual(try XCTUnwrap(measurement.pitchRows), 48, accuracy: 1)
+        for line in measurement.lines {
+            XCTAssertGreaterThan(line.baselineRow, line.topRow)
+            XCTAssertLessThanOrEqual(line.baselineRow, line.bottomRow + 1)
+        }
+        // Each baseline sits where the renderer put it: descender room + 2 rows above the pitch line.
+        let expectedFirstBaseline = 48 - Int((abs(font.descender) + 2).rounded())
+        XCTAssertEqual(measurement.lines[0].baselineRow, expectedFirstBaseline, accuracy: 1)
+    }
+
     func testSingleLineHasNoPitch() throws {
         let rendered = try XCTUnwrap(render(
             lines: ["only one line"], on: Canvas(font: NSFont.systemFont(ofSize: 30), pitch: 44, inset: 10, width: 600, height: 50)

@@ -18,6 +18,13 @@ import ScreenCaptureKit
 /// case while typing), because then the caret is the end of the last inked line. A caret inside a
 /// paragraph keeps whatever the caller would have done without this service.
 ///
+/// The same measurement serves a single-line field that answers no bounds query at all. Chrome's
+/// address bar is the measured case (2026-09-10): `AXBoundsForRange` returns a zero rect for every
+/// range, the font dictionary is empty, and the only geometry is the field's frame; a text-layout
+/// estimate in a guessed font put the caret close, never exactly, and the ghost went to the card.
+/// The field paints one line, so its ink's right edge is the caret and the caret box is centred on
+/// that ink (`singleLineCaretHeight`).
+///
 /// Lifecycle: owned by `OverlayController`, one per app. Measurements are cached per field and
 /// paragraph text so the many presentations of one suggestion (stability-gate re-presents, the
 /// return from a card) reuse one capture; a keystroke changes the text, so the next generation
@@ -37,6 +44,10 @@ final class PixelCaretLocator {
         let siblingLineBoxHeight: CGFloat?
         /// Advance of one space in the ghost's font, for the unpainted trailing spaces.
         let spaceAdvance: CGFloat
+        /// For a single-line field: the height of the caret box to report, centred on the ink the
+        /// field paints (the box the host would have reported, had it answered). Nil for a wrapped
+        /// paragraph, whose line boxes come from the frame and pitch instead.
+        var singleLineCaretHeight: CGFloat? = nil
 
         var cacheKey: String {
             let frame = "\(Int(runFrame.minX.rounded())),\(Int(runFrame.maxY.rounded())),\(Int(runFrame.width.rounded()))"
@@ -54,6 +65,17 @@ final class PixelCaretLocator {
         let linePitch: CGFloat?
         let lineIndex: Int
         let lineCount: Int
+        /// Where the caret line's letters sit, as an offset below the caret box top, read from the
+        /// same capture; nil when the line painted nothing (a blank last line). A calibration strip
+        /// cut around a box that was itself a guess measured 15.0 where 16.0 was right on some
+        /// Obsidian lines (2026-09-10); the baseline in the capture that found the caret is not a
+        /// second measurement, it is the same one.
+        var baselineOffsetFromTop: CGFloat? = nil
+        /// Width in points of the ink on the caret's line, first glyph to last. The typeface
+        /// match trims the paragraph tail it renders to what fits this width, because a wrapped
+        /// paragraph's tail runs back into the previous visual line while the strip holds only
+        /// the caret's line (Obsidian, 2026-09-10: sixteen searches of the wrong words, no match).
+        var lineInkWidth: CGFloat? = nil
     }
 
     /// Points of slack captured around the run so a glyph touching the frame edge is not clipped.
@@ -102,14 +124,17 @@ final class PixelCaretLocator {
             return
         }
         inFlight[key] = [completion]
-        let region = request.runFrame.insetBy(dx: -Self.padding, dy: -Self.padding)
+        let requested = request.runFrame.insetBy(dx: -Self.padding, dy: -Self.padding)
         Task { @MainActor [weak self] in
             guard let self else { return }
             let started = Date()
             var measurement: Measurement?
             var failure = "capture"
             do {
-                let captured = try await self.capture(region)
+                // The region is snapped to whole pixels before capture (see the calibrator: a
+                // fractional edge makes ScreenCaptureKit resample and blur the glyphs), and the
+                // rows and columns map back through the rect that was really captured.
+                let (captured, region) = try await self.capture(requested)
                 let analysis = await Task.detached(priority: .userInitiated) {
                     InkCaretAnalyzer.measure(captured.bitmap)
                 }.value
@@ -151,6 +176,9 @@ final class PixelCaretLocator {
         request: Request
     ) -> Measurement? {
         guard scale > 0, !analysis.lines.isEmpty else { return nil }
+        if let caretHeight = request.singleLineCaretHeight {
+            return singleLineMeasurement(from: analysis, scale: scale, region: region, request: request, caretHeight: caretHeight)
+        }
         let frame = request.runFrame
         let pixelPitch = analysis.pitchRows.map { CGFloat($0) / scale }
         let pitch = pixelPitch ?? request.siblingLinePitch
@@ -183,12 +211,70 @@ final class PixelCaretLocator {
             caretX = inkRight + inkToCaretGap + CGFloat(trailingSpaces) * request.spaceAdvance
         }
         guard caretX >= frame.minX - 1, caretX <= frame.maxX + request.spaceAdvance * 2 + 1 else { return nil }
+        let painted = paintedCount < lineCount ? nil : analysis.lines[paintedCount - 1]
+        let baseline = painted.flatMap {
+            baselineOffset(of: $0, lineTop: lineRect.maxY, lineBox: lineBox, region: region, scale: scale)
+        }
         return Measurement(
             caretRect: CGRect(x: caretX, y: lineRect.minY, width: 2, height: lineBox),
             lineRect: lineRect,
             linePitch: pitch,
             lineIndex: lineIndex,
-            lineCount: lineCount
+            lineCount: lineCount,
+            baselineOffsetFromTop: baseline,
+            lineInkWidth: painted.map { CGFloat($0.inkRightColumn - $0.inkLeftColumn + 1) / scale }
+        )
+    }
+
+    /// The line's baseline as an offset below `lineTop`, when the analyzer read one and it lies
+    /// inside the line box (a little slack for a box whose bottom the frame arithmetic guessed).
+    /// Points of ink a line must span before its baseline is reported: a lone glyph's tapering
+    /// bottom reads a row high (a wrapped line holding one "A" measured 15.0 for 16.0, and a
+    /// two-letter address bar read 6.0).
+    static let minimumBaselineInkWidth: CGFloat = 24
+
+    nonisolated static func baselineOffset(
+        of line: InkCaretAnalyzer.Line, lineTop: CGFloat, lineBox: CGFloat, region: CGRect, scale: CGFloat
+    ) -> CGFloat? {
+        guard line.baselineRow > 0, CGFloat(line.inkRightColumn - line.inkLeftColumn + 1) / scale >= minimumBaselineInkWidth else { return nil }
+        let offset = lineTop - (region.maxY - CGFloat(line.baselineRow) / scale)
+        guard offset > 0, offset <= lineBox + 2 else { return nil }
+        return offset
+    }
+
+    /// A field that is one line: the caret follows the ink of the line painted in it (the widest
+    /// block, should a stray mark also qualify as a line), and the caret box is the requested
+    /// height centred on that ink, kept inside the frame, so the baseline policy and the calibrator
+    /// see the box a native host would have reported.
+    nonisolated static func singleLineMeasurement(
+        from analysis: InkCaretAnalyzer.Measurement,
+        scale: CGFloat,
+        region: CGRect,
+        request: Request,
+        caretHeight: CGFloat
+    ) -> Measurement? {
+        guard let line = analysis.lines.max(by: {
+            ($0.inkRightColumn - $0.inkLeftColumn) < ($1.inkRightColumn - $1.inkLeftColumn)
+        }) else { return nil }
+        let frame = request.runFrame
+        let inkTop = region.maxY - CGFloat(line.topRow) / scale
+        let inkBottom = region.maxY - CGFloat(line.bottomRow + 1) / scale
+        guard inkTop <= frame.maxY + 1, inkBottom >= frame.minY - 1 else { return nil }
+        let inkRight = region.minX + CGFloat(line.inkRightColumn + 1) / scale
+        let trailingSpaces = request.paragraphTextBeforeCaret.reversed().prefix { $0 == " " || $0 == "\u{00A0}" }.count
+        let caretX = inkRight + inkToCaretGap + CGFloat(trailingSpaces) * request.spaceAdvance
+        guard caretX >= frame.minX - 1, caretX <= frame.maxX + request.spaceAdvance * 2 + 1 else { return nil }
+        let height = min(max(caretHeight, 4), frame.height)
+        let centre = (inkTop + inkBottom) / 2
+        let bottom = min(max(centre - height / 2, frame.minY), frame.maxY - height)
+        return Measurement(
+            caretRect: CGRect(x: caretX, y: bottom, width: 2, height: height),
+            lineRect: CGRect(x: frame.minX, y: bottom, width: frame.width, height: height),
+            linePitch: nil,
+            lineIndex: 0,
+            lineCount: 1,
+            baselineOffsetFromTop: baselineOffset(of: line, lineTop: bottom + height, lineBox: height, region: region, scale: scale),
+            lineInkWidth: CGFloat(line.inkRightColumn - line.inkLeftColumn + 1) / scale
         )
     }
 
@@ -199,14 +285,15 @@ final class PixelCaretLocator {
         let scale: CGFloat
     }
 
-    private func capture(_ region: CGRect) async throws -> Captured {
+    private func capture(_ requested: CGRect) async throws -> (Captured, CGRect) {
         let content = try await currentShareableContent()
         let desktop = NSScreen.screens.map(\.frame).reduce(into: CGRect.null) { $0 = $0.union($1) }
+        let scale = NSScreen.screens.first { $0.frame.contains(CGPoint(x: requested.midX, y: requested.midY)) }?.backingScaleFactor ?? 2
+        let region = HostBaselineCalibrator.snappedToPixels(requested, scale: scale)
         let regionCG = CGRect(x: region.minX, y: desktop.maxY - region.maxY, width: region.width, height: region.height)
         guard let display = content.displays.first(where: { $0.frame.contains(CGPoint(x: regionCG.midX, y: regionCG.midY)) }) else {
             throw LocatorError.noDisplay
         }
-        let scale = NSScreen.screens.first { $0.frame.contains(CGPoint(x: region.midX, y: region.midY)) }?.backingScaleFactor ?? 2
         let ownApplications = content.applications.filter { $0.processID == ProcessInfo.processInfo.processIdentifier }
         let filter = SCContentFilter(display: display, excludingApplications: ownApplications, exceptingWindows: [])
         let configuration = SCStreamConfiguration()
@@ -227,7 +314,7 @@ final class PixelCaretLocator {
             }
         }
         guard let bitmap = RGBABitmap(image) else { throw LocatorError.noImage }
-        return Captured(bitmap: bitmap, scale: CGFloat(image.height) / region.height)
+        return (Captured(bitmap: bitmap, scale: CGFloat(image.height) / region.height), region)
     }
 
     private func currentShareableContent() async throws -> SCShareableContent {
@@ -281,6 +368,7 @@ final class PixelCaretLocator {
             metadata["line_index"] = .stringConvertible(measurement.lineIndex)
             metadata["line_count"] = .stringConvertible(measurement.lineCount)
             metadata["line_pitch"] = .stringConvertible(Double(measurement.linePitch ?? 0))
+            metadata["baseline_offset"] = .stringConvertible(Double(measurement.baselineOffsetFromTop ?? 0))
         } else {
             metadata["reason"] = .string(failure)
         }

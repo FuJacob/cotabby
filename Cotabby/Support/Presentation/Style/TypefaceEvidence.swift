@@ -39,12 +39,20 @@ struct TypefaceEvidence: Equatable {
     /// Shortest sample worth scaling the system face to; below it, rounding noise outweighs the
     /// scale it would set.
     static let minimumScalingLength = 6
+    /// The first sample at least this long fixes the scaled system face's size for the field's
+    /// life. Measured 2026-09-10 in Gemini's prompt bar: scaling to the longest sample so far
+    /// resized the ghost three times in one sentence (17 → 15.87 → 15.94 → 16.24) as longer samples
+    /// arrived; one adoption from a dozen characters is within the samples' own noise and never
+    /// moves text already on screen.
+    static let scalingAdoptionLength = 12
     static let maximumSamples = 8
 
     private(set) var samples: [Sample] = []
     private(set) var adoptedFamily: String?
     private(set) var hasSwitched = false
     private(set) var isUndecidable = false
+    /// The sample the scaled system face is sized from, once one long enough has arrived.
+    private(set) var scalingSample: Sample?
 
     /// Records a sample (deduplicated by text) and the family the resolver chose from it alone.
     mutating func record(_ sample: Sample, resolverFamily: String?) {
@@ -53,6 +61,9 @@ struct TypefaceEvidence: Equatable {
             if samples.count > Self.maximumSamples {
                 samples.removeFirst()
             }
+        }
+        if scalingSample == nil, sample.text.count >= Self.scalingAdoptionLength, sample.width > 0 {
+            scalingSample = sample
         }
         if adoptedFamily == nil, samples.count == 1 {
             adoptedFamily = resolverFamily

@@ -22,15 +22,27 @@ enum InkCaretAnalyzer {
         /// First and last bitmap columns carrying ink on this line (inclusive).
         let inkLeftColumn: Int
         let inkRightColumn: Int
+        /// The first row below this line's letter bodies (the same rule as
+        /// `InkBaselineAnalyzer`: the first contiguous block of rows at least `bodyThreshold` as
+        /// busy as the line's busiest row). Unlike the ink top, which moves with whether the line
+        /// happens to hold an ascender, the baseline is where every line's letters sit, so it is
+        /// what the pitch and the caret line's baseline are read from. 0 when unknown.
+        var baselineRow: Int = 0
 
         var inkHeight: Int { bottomRow - topRow + 1 }
     }
 
     struct Measurement: Equatable {
         let lines: [Line]
-        /// Median distance between consecutive line tops, in rows; nil with fewer than two lines.
+        /// Median distance between consecutive line baselines, in rows; nil with fewer than two
+        /// lines. Measured 2026-09-10 in Obsidian: the distance between ink TOPS read 41 rows for
+        /// a 48-row pitch when one line had ascenders and the next had none, and the caret line's
+        /// box landed 3.5pt high.
         let pitchRows: Double?
     }
+
+    /// Rows at least this fraction as busy as a line's busiest row are its letter bodies.
+    static let bodyThreshold = 0.35
 
     /// Same contrast and saturation rules as `InkBaselineAnalyzer`, so both analyzers agree on
     /// what counts as text: a colored caret, selection tint or spelling squiggle is not ink.
@@ -50,7 +62,7 @@ enum InkCaretAnalyzer {
         guard !lines.isEmpty else { return nil }
         var pitch: Double?
         if lines.count >= 2 {
-            let deltas = zip(lines, lines.dropFirst()).map { Double($1.topRow - $0.topRow) }.sorted()
+            let deltas = zip(lines, lines.dropFirst()).map { Double($1.baselineRow - $0.baselineRow) }.sorted()
             pitch = deltas[deltas.count / 2]
         }
         return Measurement(lines: lines, pitchRows: pitch)
@@ -112,14 +124,30 @@ enum InkCaretAnalyzer {
         guard block.count >= minimumLineHeightRows else { return nil }
         var left = Int.max
         var right = -1
+        var rowInk: [Int] = []
         for row in block {
+            var count = 0
             for column in 0..<width where mask[row * width + column] {
                 left = min(left, column)
                 right = max(right, column)
+                count += 1
             }
+            rowInk.append(count)
         }
-        guard right >= 0 else { return nil }
-        return Line(topRow: block.lowerBound, bottomRow: block.upperBound, inkLeftColumn: left, inkRightColumn: right)
+        guard right >= 0, let peak = rowInk.max(), peak > 0 else { return nil }
+        // Letter bodies: the first contiguous run of busy rows; the baseline is the row after it.
+        let threshold = bodyThreshold * Double(peak)
+        var baseline = block.upperBound + 1
+        if let first = rowInk.indices.first(where: { Double(rowInk[$0]) >= threshold }) {
+            var last = first
+            while last + 1 < rowInk.count, Double(rowInk[last + 1]) >= threshold {
+                last += 1
+            }
+            baseline = block.lowerBound + last + 1
+        }
+        return Line(
+            topRow: block.lowerBound, bottomRow: block.upperBound, inkLeftColumn: left, inkRightColumn: right, baselineRow: baseline
+        )
     }
 
     private static func median(_ values: [Double]) -> Double {
