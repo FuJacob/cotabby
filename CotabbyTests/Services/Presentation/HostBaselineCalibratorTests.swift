@@ -27,63 +27,6 @@ final class HostBaselineCalibratorTests: XCTestCase {
         XCTAssertFalse(HostBaselineCalibrator.accepts(measured: 26, policy: 20.5), "A neighbouring line is not this baseline")
     }
 
-    func testBackgroundRegionCoversTheCaretLineAndTheLineBelowInsideTheField() {
-        let caret = CGRect(x: 340, y: 809, width: 0, height: 15)
-        let region = HostBaselineCalibrator.backgroundRegion(
-            HostBaselineCalibrator.BackgroundRequest(
-                focusedInputIdentityKey: 1, caretRect: caret, linePitch: 20, contentLeft: 300, contentRight: 900, contentBottom: 700
-            )
-        )
-        XCTAssertEqual(region, CGRect(x: 300, y: 789, width: 160, height: 35))
-
-        let lastLine = HostBaselineCalibrator.backgroundRegion(
-            HostBaselineCalibrator.BackgroundRequest(
-                focusedInputIdentityKey: 1, caretRect: caret, linePitch: 20, contentLeft: nil, contentRight: nil, contentBottom: 805
-            )
-        )
-        XCTAssertEqual(lastLine, CGRect(x: 220, y: 805, width: 240, height: 19), "the field's bottom edge bounds the region")
-
-        let narrow = HostBaselineCalibrator.backgroundRegion(
-            HostBaselineCalibrator.BackgroundRequest(
-                focusedInputIdentityKey: 1, caretRect: caret, linePitch: nil, contentLeft: 335, contentRight: 345, contentBottom: nil
-            )
-        )
-        XCTAssertNil(narrow)
-    }
-
-    func testBackgroundSamplingSplitsTheCaretLineFromTheLineBelow() throws {
-        // 4x6 bitmap: the caret line (rows 0-2) is a tinted gray with one dark "glyph" pixel per row;
-        // the line below (rows 3-5) is white.
-        var bytes: [UInt8] = []
-        for row in 0..<6 {
-            for column in 0..<4 {
-                let isGlyph = row < 3 && column == 1
-                let value: UInt8 = row < 3 ? (isGlyph ? 20 : 235) : 255
-                bytes += [value, value, value, 255]
-            }
-        }
-        let bitmap = RGBABitmap(width: 4, height: 6, bytes: bytes)
-        let background = try XCTUnwrap(HostBaselineCalibrator.sampleBackground(bitmap, caretLineRows: 3))
-        XCTAssertEqual(background.caretLine, RGBABitmap.Pixel(red: 235 / 255, green: 235 / 255, blue: 235 / 255))
-        XCTAssertEqual(background.nextLine, RGBABitmap.Pixel(red: 1, green: 1, blue: 1))
-
-        let caretOnly = try XCTUnwrap(HostBaselineCalibrator.sampleBackground(bitmap, caretLineRows: 6))
-        XCTAssertEqual(caretOnly.nextLine, caretOnly.caretLine, "no pixels below the caret line: the caret line's color stands in")
-    }
-
-    func testWithoutScreenRecordingNothingIsMeasured() {
-        let calibrator = HostBaselineCalibrator(permissionCheck: { false })
-        var completions = 0
-        calibrator.measureBackground(
-            HostBaselineCalibrator.BackgroundRequest(
-                focusedInputIdentityKey: 7, caretRect: CGRect(x: 340, y: 809, width: 0, height: 15),
-                linePitch: nil, contentLeft: nil, contentRight: nil, contentBottom: nil
-            )
-        ) { _ in completions += 1 }
-        XCTAssertNil(calibrator.cachedBackground(for: 7))
-        XCTAssertEqual(completions, 0)
-    }
-
     func testWithoutScreenRecordingNothingIsCapturedOrCached() {
         let calibrator = HostBaselineCalibrator(permissionCheck: { false })
         let key = HostBaselineCalibrator.Key(focusedInputIdentityKey: 1, lineTop: 824, caretHeight: 15, fontPointSize: 13)

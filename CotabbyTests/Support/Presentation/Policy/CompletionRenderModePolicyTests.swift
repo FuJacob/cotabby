@@ -126,27 +126,44 @@ final class CompletionRenderModePolicyTests: XCTestCase {
 
     // MARK: - Mid-line caret
 
-    func test_auto_midLineCaret_staysInlineForExactGeometry() {
-        // A caret with real characters after it still renders inline: the ghost hides the trailing
-        // text under a band in the host's background color. Whether that band can be painted is the
-        // overlay controller's call (it needs a measured color), not the policy's.
+    func test_auto_midLineCaret_usesTheCardForExactGeometry() {
+        // Real characters follow the caret on its line. An inline ghost could only sit on top of
+        // them (painting them over in the field's background color read as overwriting the user's
+        // text, 2026-09-10), so the card anchored under the caret shows the suggestion instead.
         let policy = CompletionRenderModePolicy(userPreference: .auto)
         let geometry = CotabbyTestFixtures.overlayGeometry(
             caretQuality: .exact,
             isCaretAtEndOfLine: false
         )
 
-        XCTAssertEqual(policy.mode(for: geometry, bundleIdentifier: "com.apple.TextEdit"), .inline)
+        XCTAssertEqual(
+            policy.mode(for: geometry, bundleIdentifier: "com.apple.TextEdit"),
+            .mirror(reason: .caretMidLine)
+        )
     }
 
-    func test_auto_midLineCaret_staysInlineForDerivedGeometry() {
+    func test_auto_midLineCaret_usesTheCardForDerivedGeometry() {
         let policy = CompletionRenderModePolicy(userPreference: .auto)
         let geometry = CotabbyTestFixtures.overlayGeometry(
             caretQuality: .derived,
             isCaretAtEndOfLine: false
         )
 
-        XCTAssertEqual(policy.mode(for: geometry, bundleIdentifier: "com.google.Chrome"), .inline)
+        XCTAssertEqual(
+            policy.mode(for: geometry, bundleIdentifier: "com.google.Chrome"),
+            .mirror(reason: .caretMidLine)
+        )
+    }
+
+    func test_auto_endOfLineCaret_staysInline() {
+        // Only whitespace follows the caret: nothing on the line can be painted over.
+        let policy = CompletionRenderModePolicy(userPreference: .auto)
+        let geometry = CotabbyTestFixtures.overlayGeometry(
+            caretQuality: .exact,
+            isCaretAtEndOfLine: true
+        )
+
+        XCTAssertEqual(policy.mode(for: geometry, bundleIdentifier: "com.apple.TextEdit"), .inline)
     }
 
     func test_auto_midLineCaret_keepsEstimatedReason() {
@@ -163,6 +180,8 @@ final class CompletionRenderModePolicyTests: XCTestCase {
     }
 
     func test_alwaysInline_midLineCaret_staysInline() {
+        // An explicit inline pin is the user's call; the controller alone decides whether the
+        // ghost can be drawn there without covering the host's text.
         let policy = CompletionRenderModePolicy(userPreference: .alwaysInline)
         let geometry = CotabbyTestFixtures.overlayGeometry(
             caretQuality: .exact,

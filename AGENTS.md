@@ -186,8 +186,9 @@ The Swift generation loop owns the maximum output-token budget.
 - `OverlayController` owns the ghost-text panel lifecycle and positioning. Ghost glyphs are laid
   out by `GhostTextLayout` in the font `GhostFontResolver` resolves, on the baseline
   `GhostBaselinePolicy` (or a `HostBaselineCalibrator` measurement) gives, wrapping onto the host's
-  next lines at the measured pitch over opaque bands in the field's measured background color
-  (`HostBackgroundSampler`); change those pure helpers and their tests rather than nudging offsets
+  next lines at the measured pitch. A caret with text after it on its line gets the card under the
+  caret instead (`CompletionRenderModePolicy`): a ghost painted over the host's own characters
+  reads as overwriting them. Change those pure helpers and their tests rather than nudging offsets
   in the controller.
 - `SuggestionOverlayPresenter` decides whether a suggestion should be shown or hidden.
 - `ActivationIndicatorController` owns the optional caret/field-edge indicator.

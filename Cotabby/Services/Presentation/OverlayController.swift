@@ -58,8 +58,6 @@ final class OverlayController: SuggestionOverlayControlling {
         /// "policy" (font metrics rule), "calibrated" (measured from a strip of the host's pixels),
         /// or "pixel" (read from the capture that placed the caret).
         var baselineSource: String
-        /// The field's measured background, once known; rows over host text get opaque bands in it.
-        var hostBackground: HostBaselineCalibrator.HostBackground?
         var layout: GhostTextLayout
     }
 
@@ -240,10 +238,6 @@ final class OverlayController: SuggestionOverlayControlling {
         let pixelOffset = geometry.pixelBaselineOffset
         let cachedOffset = pixelOffset ?? calibration.flatMap { baselineCalibrator?.cachedOffset(for: $0.key) }
         let anchorCaretRect = Self.refinedCaretRect(for: geometry, font: fontResolution)
-        let background = baselineCalibrator?.cachedBackground(for: geometry.focusedInputIdentityKey)
-        if background == nil {
-            startBackgroundMeasurement(for: geometry)
-        }
         var session = InlineSession(
             fullText: text,
             consumedUTF16: 0,
@@ -252,28 +246,26 @@ final class OverlayController: SuggestionOverlayControlling {
             fontResolution: fontResolution,
             baselineOffsetFromTop: cachedOffset ?? policyOffset,
             baselineSource: pixelOffset != nil ? "pixel" : (cachedOffset == nil ? "policy" : "calibrated"),
-            hostBackground: background,
             layout: GhostTextLayout(
                 rows: [],
                 font: fontResolution.font,
                 boxHeight: 0,
                 baselineOffsetFromTop: 0,
                 keycapFrame: nil,
-                rowBands: [],
                 isTruncated: false,
                 contentBounds: .zero
             )
         )
+        // Text follows the caret on its line: an inline ghost there could only sit on the host's own
+        // characters, so the card under the caret shows the suggestion instead (the policy already
+        // picks it under `auto`; this covers an explicit inline preference).
+        guard geometry.isCaretAtEndOfLine else {
+            logInlineDeclined(geometry: geometry, fontResolution: fontResolution, reason: .caretMidLine)
+            return .caretMidLine
+        }
         guard let layout = makeLayout(for: session) else {
             logInlineDeclined(geometry: geometry, fontResolution: fontResolution, reason: .inlineLayoutUnavailable)
             return .inlineLayoutUnavailable
-        }
-        // Text follows the caret on its line. Only a band in the host's own background color makes
-        // an inline ghost readable there; until one can be painted (the background is still being
-        // measured, Screen Recording is off, or the band edge is unknown) the card shows it.
-        if !geometry.isCaretAtEndOfLine, !layout.rowBands.contains(where: \.isCaretRow) {
-            logInlineDeclined(geometry: geometry, fontResolution: fontResolution, reason: .caretMidLine)
-            return .caretMidLine
         }
         session.layout = layout
         inlineSession = session
@@ -507,9 +499,8 @@ final class OverlayController: SuggestionOverlayControlling {
         HostBaselineCalibrator.TypefaceKey(focusedInputIdentityKey: geometry.focusedInputIdentityKey)
     }
 
-    /// Starts measuring the host's baseline for the line the caret is on (and the field's background
-    /// color), while the model is still generating, so the first ghost on that line already sits on
-    /// the measured baseline and can paint its bands.
+    /// Starts measuring the host's baseline for the line the caret is on while the model is still
+    /// generating, so the first ghost on that line already sits on the measured baseline.
     func prepareInlinePresentation(for context: FocusedInputContext) {
         guard baselineCalibrator != nil else { return }
         let geometry = SuggestionOverlayGeometry(
@@ -533,7 +524,6 @@ final class OverlayController: SuggestionOverlayControlling {
            pixelCaretLocator.cachedMeasurement(for: request) == nil, !pixelCaretLocator.hasFailed(request) {
             pixelCaretLocator.locate(request) { _ in }
         }
-        startBackgroundMeasurement(for: geometry)
         let renderer: GhostBaselinePolicy.HostRenderer = context.isWebContentField ? .webEngine : .textKit
         let fontResolution = resolveFont(for: geometry, renderer: renderer)
         let policyOffset = GhostBaselinePolicy.baselineOffsetFromTop(
@@ -651,45 +641,6 @@ final class OverlayController: SuggestionOverlayControlling {
         }
     }
 
-    /// Measures the field's background once per field. When it arrives, a visible ghost gets its
-    /// bands, and a card that was up only because no band could be painted (the caret row could not
-    /// be covered, or the text needed rows over the host's following lines) is presented again,
-    /// inline this time.
-    private func startBackgroundMeasurement(for geometry: SuggestionOverlayGeometry) {
-        guard let baselineCalibrator, baselineCalibrator.cachedBackground(for: geometry.focusedInputIdentityKey) == nil else {
-            return
-        }
-        let identity = geometry.focusedInputIdentityKey
-        let request = HostBaselineCalibrator.BackgroundRequest(
-            focusedInputIdentityKey: identity,
-            caretRect: geometry.caretRect,
-            linePitch: linePitch(for: geometry),
-            contentLeft: geometry.hostTextMetrics?.lineRect?.minX ?? geometry.elementFrameRect?.minX,
-            contentRight: geometry.elementFrameRect?.maxX,
-            contentBottom: geometry.elementFrameRect?.minY
-        )
-        baselineCalibrator.measureBackground(request) { [weak self] background in
-            guard let self else { return }
-            switch self.state {
-            case .visible(let text, let visibleGeometry, .mirror(let reason))
-                where visibleGeometry.focusedInputIdentityKey == identity
-                    && (reason == .caretMidLine || reason == .inlineLayoutUnavailable):
-                self.showSuggestion(text, geometry: visibleGeometry)
-            case .visible(_, _, .inline):
-                guard var session = self.inlineSession, session.geometry.focusedInputIdentityKey == identity,
-                      session.hostBackground == nil
-                else { return }
-                session.hostBackground = background
-                guard let layout = self.makeLayout(for: session) else { return }
-                session.layout = layout
-                self.inlineSession = session
-                self.renderInline(session)
-            default:
-                return
-            }
-        }
-    }
-
     /// Advances the visible inline ghost past `insertedText` (typed through or accepted) by moving
     /// the consumed boundary inside the same session. No Accessibility geometry is read, so the
     /// rows that stay visible keep their exact pixels. Returns false when the held session cannot
@@ -741,9 +692,6 @@ final class OverlayController: SuggestionOverlayControlling {
             forBundleIdentifier: geometry.bundleIdentifier
         )
         let keycapWidth = acceptanceHintLabel.map(GhostTextPanelView.keycapWidth(for:)) ?? 0
-        // Host text under a row is hidden by an opaque band in the field's measured background; with
-        // no measurement the ghost stays to rows over blank space, as it always did.
-        let canPaintBands = session.hostBackground != nil
         return GhostTextLayout.make(
             GhostTextLayout.Input(
                 fullText: session.fullText,
@@ -755,11 +703,10 @@ final class OverlayController: SuggestionOverlayControlling {
                 linePitch: linePitch(for: geometry),
                 wrapBand: wrapBand(for: geometry),
                 isRightToLeft: geometry.isRightToLeft,
-                allowsMultipleRows: canPaintBands || !geometry.hasTrailingContent,
-                keycapWidth: keycapWidth,
-                paintsRowBands: canPaintBands && geometry.hasTrailingContent,
-                coversCaretRow: !geometry.isCaretAtEndOfLine,
-                containerFrame: geometry.elementFrameRect
+                // A second row would paint over the host's own following lines; with text below
+                // the caret the ghost keeps to the caret row and reveals the rest as it is accepted.
+                allowsMultipleRows: !geometry.hasTrailingContent,
+                keycapWidth: keycapWidth
             )
         )
     }
@@ -840,9 +787,7 @@ final class OverlayController: SuggestionOverlayControlling {
             textColor: ghostTextColor(for: session.geometry),
             keycapLabel: acceptanceHintLabel,
             panelOrigin: frame.origin,
-            isDarkAppearance: isDarkAppearance,
-            caretRowBackground: session.hostBackground.map { Self.bandColor($0.caretLine) },
-            continuationBackground: session.hostBackground.map { Self.bandColor($0.nextLine) }
+            isDarkAppearance: isDarkAppearance
         )
         panel.setFrame(frame, display: true)
         panel.orderFrontRegardless()
@@ -866,12 +811,6 @@ final class OverlayController: SuggestionOverlayControlling {
 
     private var isDarkAppearance: Bool {
         NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-    }
-
-    /// A captured pixel as a fill color. The capture is decoded into a device-RGB bitmap and the
-    /// panel is composited by the same display, so the device initializer reproduces the pixel.
-    private static func bandColor(_ pixel: RGBABitmap.Pixel) -> NSColor {
-        NSColor(deviceRed: pixel.red, green: pixel.green, blue: pixel.blue, alpha: 1)
     }
 
     // MARK: - Mirror card
@@ -986,16 +925,9 @@ final class OverlayController: SuggestionOverlayControlling {
             "consumed_utf16": .stringConvertible(session.consumedUTF16),
             "rows": .stringConvertible(session.layout.rows.count),
             "remaining_text": .string(String(session.layout.remainingText.prefix(40))),
-            "bands": .stringConvertible(session.layout.rowBands.count),
-            "band_rects": .string(
-                session.layout.rowBands
-                    .map { String(format: "%.1f,%.1f,%.1f,%.1f", $0.rect.minX, $0.rect.minY, $0.rect.width, $0.rect.height) }
-                    .joined(separator: ";")
-            ),
-            "caret_band": .stringConvertible(session.layout.rowBands.contains(where: \.isCaretRow)),
             "truncated": .stringConvertible(session.layout.isTruncated),
-            "background_known": .stringConvertible(session.hostBackground != nil),
             "trailing_content": .stringConvertible(session.geometry.hasTrailingContent),
+            "end_of_line": .stringConvertible(session.geometry.isCaretAtEndOfLine),
             "row0_pen_x": .stringConvertible(Double(firstRow?.penX ?? 0)),
             "row0_baseline_y": .stringConvertible(Double(firstRow?.baselineY ?? 0)),
             "panel_x": .stringConvertible(Double(panelFrame.minX)),
@@ -1048,7 +980,6 @@ final class OverlayController: SuggestionOverlayControlling {
             metadata: [
                 "stage": .string("overlay-inline-declined"),
                 "reason": .string(reason.rawValue),
-                "background_known": .stringConvertible(baselineCalibrator?.cachedBackground(for: geometry.focusedInputIdentityKey) != nil),
                 "end_of_line": .stringConvertible(geometry.isCaretAtEndOfLine),
                 "font_name": .string(fontResolution.font.fontName),
                 "trailing_content": .stringConvertible(geometry.hasTrailingContent),

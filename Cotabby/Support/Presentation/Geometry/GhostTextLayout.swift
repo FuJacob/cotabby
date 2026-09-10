@@ -15,9 +15,10 @@ import Foundation
 /// typesetter with the host's content band and measured line pitch, so a second row sits exactly
 /// where the host's next line sits. A host that offers only one row (no line pitch, or text that
 /// must not be painted over) shows the head of the suggestion that fits on it; the rest is revealed
-/// as the user accepts or types through. Rows that would sit over the host's own text are backed by
-/// opaque bands in the host's background color (`rowBands`) so they read as cleanly as rows over
-/// blank space.
+/// as the user accepts or types through. A row is never placed over the host's own text: with
+/// characters after the caret the ghost keeps to the caret row (or, mid-line, is not drawn inline
+/// at all, see `CompletionRenderModePolicy`), because a ghost painted over the user's words reads
+/// as overwriting them.
 struct GhostTextLayout: Equatable {
     /// One visual row of ghost text in global Cocoa screen coordinates.
     struct Row: Equatable {
@@ -29,17 +30,6 @@ struct GhostTextLayout: Equatable {
         let baselineY: CGFloat
         /// Typographic width of the row's text.
         let width: CGFloat
-    }
-
-    /// An opaque rectangle the panel fills in the host's own background color before the glyphs
-    /// are drawn, hiding the host text that would otherwise show through a ghost row.
-    struct RowBand: Equatable {
-        let rect: CGRect
-        /// True for the band on the caret's own line, which runs from the pen to the band's right
-        /// edge and hides the host text after the caret. False for a continuation row's band, which
-        /// spans the whole wrap band and hides the host line the row sits on. The two are painted in
-        /// separately measured colors because code editors tint the caret's line.
-        let isCaretRow: Bool
     }
 
     struct Input {
@@ -60,20 +50,11 @@ struct GhostTextLayout: Equatable {
         /// edge text may reach. The first row starts at the anchor and may run to `right`.
         let wrapBand: ClosedRange<CGFloat>?
         let isRightToLeft: Bool
-        /// False when text follows the caret and no band will hide it: a second row would then
-        /// paint over the host's own following lines.
+        /// False when text follows the caret anywhere below: a second row would then paint over
+        /// the host's own following lines.
         let allowsMultipleRows: Bool
         /// Width reserved after the text for the accept-key pill (0 when hidden).
         let keycapWidth: CGFloat
-        /// True when the panel will fill row bands in the host's background color: the color is
-        /// known and host text lies under the rows. Bands exist only then and count toward
-        /// `contentBounds`.
-        let paintsRowBands: Bool
-        /// True when host text follows the caret on its own line; with `paintsRowBands` the caret
-        /// row gets a band from the pen to the band's right edge.
-        let coversCaretRow: Bool
-        /// The host element's frame; bands never extend past it.
-        let containerFrame: CGRect?
 
         init(
             fullText: String,
@@ -86,10 +67,7 @@ struct GhostTextLayout: Equatable {
             wrapBand: ClosedRange<CGFloat>? = nil,
             isRightToLeft: Bool = false,
             allowsMultipleRows: Bool = true,
-            keycapWidth: CGFloat = 0,
-            paintsRowBands: Bool = false,
-            coversCaretRow: Bool = false,
-            containerFrame: CGRect? = nil
+            keycapWidth: CGFloat = 0
         ) {
             self.fullText = fullText
             self.consumedUTF16 = consumedUTF16
@@ -102,9 +80,6 @@ struct GhostTextLayout: Equatable {
             self.isRightToLeft = isRightToLeft
             self.allowsMultipleRows = allowsMultipleRows
             self.keycapWidth = keycapWidth
-            self.paintsRowBands = paintsRowBands
-            self.coversCaretRow = coversCaretRow
-            self.containerFrame = containerFrame
         }
 
         /// The same input with no room reserved for the accept-key pill.
@@ -120,10 +95,7 @@ struct GhostTextLayout: Equatable {
                 wrapBand: wrapBand,
                 isRightToLeft: isRightToLeft,
                 allowsMultipleRows: allowsMultipleRows,
-                keycapWidth: 0,
-                paintsRowBands: paintsRowBands,
-                coversCaretRow: coversCaretRow,
-                containerFrame: containerFrame
+                keycapWidth: 0
             )
         }
     }
@@ -134,13 +106,11 @@ struct GhostTextLayout: Equatable {
     let baselineOffsetFromTop: CGFloat
     /// Screen rect reserved for the accept-key pill, or nil when hidden.
     let keycapFrame: CGRect?
-    /// Opaque bands to paint under the rows (empty unless `Input.paintsRowBands`).
-    let rowBands: [RowBand]
     /// True when only the head of the text is shown: the host offers a single row and the text did
     /// not fit it. The session still holds the whole suggestion; acceptance and type-through
     /// advance through it and reveal the rest.
     let isTruncated: Bool
-    /// Union of every row's glyph box, the bands, and the keycap: what the panel must cover.
+    /// Union of every row's glyph box and the keycap: what the panel must cover.
     let contentBounds: CGRect
 
     /// Pixel height of the accept-key pill; matches the drawn keycap in `GhostTextPanelView`.
@@ -194,16 +164,14 @@ struct GhostTextLayout: Equatable {
                 height: keycapHeight
             )
             : nil
-        let bands = rowBands(rows: wrapped.rows, input: input)
         return GhostTextLayout(
             rows: wrapped.rows,
             font: input.font,
             boxHeight: input.boxHeight,
             baselineOffsetFromTop: input.baselineOffsetFromTop,
             keycapFrame: keycapFrame,
-            rowBands: bands,
             isTruncated: wrapped.isTruncated,
-            contentBounds: contentBounds(rows: wrapped.rows, keycapFrame: keycapFrame, bands: bands, input: input)
+            contentBounds: contentBounds(rows: wrapped.rows, keycapFrame: keycapFrame, input: input)
         )
     }
 
@@ -251,9 +219,9 @@ struct GhostTextLayout: Equatable {
             }
             if breakIndex == start {
                 // Nothing fits on this row. The caret row may be skipped once: an empty row keeps its
-                // place at the caret so row indices stay one per visual line (its band still covers
-                // the host text after the caret). An empty continuation row means the band itself is
-                // too narrow for the next word.
+                // place at the caret so row indices stay one per visual line, and the text starts on
+                // the next line exactly where the host would wrap it. An empty continuation row
+                // means the band itself is too narrow for the next word.
                 guard rows.isEmpty, let pitch = input.linePitch, let band = input.wrapBand else { return nil }
                 rows.append(Row(utf16Range: NSRange(location: start, length: 0), text: "", penX: penX, baselineY: baselineY, width: 0))
                 penX = band.lowerBound
@@ -362,43 +330,9 @@ struct GhostTextLayout: Equatable {
             boxHeight: input.boxHeight,
             baselineOffsetFromTop: input.baselineOffsetFromTop,
             keycapFrame: keycapFrame,
-            rowBands: [],
             isTruncated: false,
-            contentBounds: contentBounds(rows: [row], keycapFrame: keycapFrame, bands: [], input: input)
+            contentBounds: contentBounds(rows: [row], keycapFrame: keycapFrame, input: input)
         )
-    }
-
-    // MARK: - Bands
-
-    /// The opaque bands under the rows. Each spans one line pitch vertically so consecutive rows
-    /// tile without a seam: a host with symmetric leading centers its content box in the line box,
-    /// so half the extra pitch goes above a row's box and half below. The caret row's band never
-    /// rises above the caret box, which would clip the previous line's descenders on hosts that put
-    /// all their leading below the text (Xcode), and the last band stops at its row's box bottom.
-    private static func rowBands(rows: [Row], input: Input) -> [RowBand] {
-        guard input.paintsRowBands, let band = input.wrapBand, let lastIndex = rows.indices.last else { return [] }
-        let pitch = max(input.linePitch ?? input.boxHeight, input.boxHeight)
-        let leading = (pitch - input.boxHeight) / 2
-        var bands: [RowBand] = []
-        for (index, row) in rows.enumerated() {
-            let boxTop = rowTop(row, input)
-            let top = index == 0 ? boxTop : boxTop + leading
-            let bottom = boxTop - input.boxHeight - (index == lastIndex ? 0 : leading)
-            let left: CGFloat
-            if index == 0 {
-                guard input.coversCaretRow else { continue }
-                left = row.penX
-            } else {
-                left = band.lowerBound
-            }
-            var rect = CGRect(x: left, y: bottom, width: band.upperBound - left, height: top - bottom)
-            if let container = input.containerFrame {
-                rect = rect.intersection(container)
-            }
-            guard !rect.isNull, rect.width > 0, rect.height > 0 else { continue }
-            bands.append(RowBand(rect: rect, isCaretRow: index == 0))
-        }
-        return bands
     }
 
     // MARK: - Geometry helpers
@@ -407,7 +341,7 @@ struct GhostTextLayout: Equatable {
         row.baselineY + input.baselineOffsetFromTop
     }
 
-    private static func contentBounds(rows: [Row], keycapFrame: CGRect?, bands: [RowBand], input: Input) -> CGRect {
+    private static func contentBounds(rows: [Row], keycapFrame: CGRect?, input: Input) -> CGRect {
         // Glyph ink can overhang the typographic box (italics, descender swashes, subpixel
         // anti-aliasing), so each row's box is the font's full ascent/descent plus a small margin.
         let margin: CGFloat = 3
@@ -420,9 +354,6 @@ struct GhostTextLayout: Equatable {
                 height: input.font.ascender - input.font.descender + margin * 2
             )
             union = union.union(rowRect)
-        }
-        for band in bands {
-            union = union.union(band.rect)
         }
         if let keycapFrame {
             union = union.union(keycapFrame.insetBy(dx: -margin, dy: -margin))

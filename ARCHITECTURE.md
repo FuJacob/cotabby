@@ -393,14 +393,14 @@ Inline ghost text is built to occupy the pixels the accepted text will occupy:
   from the element's real frame, one row per host line at the measured line pitch (the probe scans
   single-character bounds for the nearest other line when a host's line APIs give none, as Chromium's
   do; sibling text runs give it for CodeMirror; the caret box height stands in until a field has a
-  second line). Rows that would sit over the host's
-  own text get opaque bands in the field's background color, measured from its pixels by
-  [HostBackgroundSampler.swift](Cotabby/Support/Presentation/Geometry/HostBackgroundSampler.swift)
-  through the calibrator (the caret's line and the line below are sampled separately because code
-  editors tint the current line); without a measurement the ghost keeps to rows over blank space and
-  a mid-line caret falls back to the card. Accepted or typed-through text only advances a consumed
-  offset, so remaining glyphs never move. [GhostTextPanelView.swift](Cotabby/Services/Presentation/GhostTextPanelView.swift)
-  fills the bands and draws the rows with CoreText on a whole-point panel origin.
+  second line). A row is never placed over the host's own text: with the host's lines below the
+  caret the ghost keeps to the caret row and reveals the rest as it is accepted, and a caret with
+  characters after it on its line gets the card under the caret from
+  [CompletionRenderModePolicy.swift](Cotabby/Support/Presentation/Policy/CompletionRenderModePolicy.swift)
+  (an opaque band in the field's background color was tried and read as the suggestion overwriting
+  the user's text). Accepted or typed-through text only advances a consumed offset, so remaining
+  glyphs never move. [GhostTextPanelView.swift](Cotabby/Services/Presentation/GhostTextPanelView.swift)
+  draws the rows with CoreText on a whole-point panel origin.
 - While the host shows uncommitted text of its own (macOS inline predictive text, an IME
   composition; [HostMarkedTextPolicy.swift](Cotabby/Support/Input/HostMarkedTextPolicy.swift)) the
   coordinator holds: no generation, no ghost, session kept. Chromium's address bar completes inline

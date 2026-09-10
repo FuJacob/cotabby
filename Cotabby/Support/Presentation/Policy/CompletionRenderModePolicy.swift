@@ -7,7 +7,7 @@ import Foundation
 /// auto rule misfires for their host mix.
 ///
 /// The global preference is live (Appearance settings Picker); per-app overrides are not wired yet.
-/// Note that a mid-line caret promotes inline to the card regardless of this preference; see
+/// Note that under `auto` a mid-line caret promotes inline to the card; see
 /// `CompletionRenderModePolicy.mode(for:bundleIdentifier:)`.
 enum MirrorPreference: String, Codable, CaseIterable, Identifiable, Equatable, Sendable {
     case auto
@@ -62,28 +62,34 @@ struct CompletionRenderModePolicy: Equatable, Sendable {
         for geometry: SuggestionOverlayGeometry,
         bundleIdentifier: String?
     ) -> CompletionRenderMode {
-        // A caret with text after it on its line used to promote every inline pick to the card here.
-        // The inline ghost now hides that text under an opaque band in the host's measured
-        // background color (`GhostTextLayout.rowBands`), which keeps the suggestion where the eye
-        // already is; `OverlayController` falls back to the card only when no band can be painted.
-        preferenceMode(for: geometry, bundleIdentifier: bundleIdentifier)
+        let preferred = preferenceMode(for: geometry, bundleIdentifier: bundleIdentifier)
+        // Text after the caret on its own line is the host's, and an inline ghost there can only
+        // sit on top of it. Painting the ghost over an opaque band in the field's background color
+        // was tried (2026-09-10) and read as the suggestion overwriting the user's text, so a
+        // mid-line caret gets the card anchored under it instead; the card is a preview, not a
+        // forgery, and leaves the host's own characters alone. `alwaysInline` is an explicit
+        // request and keeps its inline pick; the controller still declines to paint over text.
+        if case .inline = preferred, !geometry.isCaretAtEndOfLine, effectivePreference(for: bundleIdentifier) != .alwaysInline {
+            return .mirror(reason: .caretMidLine)
+        }
+        return preferred
+    }
+
+    private func effectivePreference(for bundleIdentifier: String?) -> MirrorPreference {
+        if let bundleIdentifier, let override = perAppOverrides[bundleIdentifier] {
+            return override
+        }
+        return userPreference
     }
 
     /// The render mode implied by the user (or per-app) preference and caret-geometry quality, before
-    /// the mid-line override in `mode(for:bundleIdentifier:)` is applied. Split out so that override
-    /// reads as a single, well-scoped rule rather than another branch threaded through the switch.
+    /// the mid-line rule in `mode(for:bundleIdentifier:)` is applied. Split out so that rule reads
+    /// as a single, well-scoped statement rather than another branch threaded through the switch.
     private func preferenceMode(
         for geometry: SuggestionOverlayGeometry,
         bundleIdentifier: String?
     ) -> CompletionRenderMode {
-        let effectivePreference: MirrorPreference
-        if let bundleIdentifier, let override = perAppOverrides[bundleIdentifier] {
-            effectivePreference = override
-        } else {
-            effectivePreference = userPreference
-        }
-
-        switch effectivePreference {
+        switch effectivePreference(for: bundleIdentifier) {
         case .alwaysInline:
             return .inline
 
