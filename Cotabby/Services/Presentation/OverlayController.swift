@@ -138,7 +138,7 @@ final class OverlayController: SuggestionOverlayControlling {
                     baselineOffsetFromTop: measured.baselineOffsetFromTop,
                     lineInkWidth: measured.lineInkWidth
                 )
-            } else if !pixelCaretLocator.hasFailed(request) {
+            } else if !pixelCaretLocator.hasFailed(request), !panelCovers(request.runFrame) {
                 pixelCaretLocator.locate(request) { [weak self] _ in
                     guard let self, self.pixelCaretShowToken == token else { return }
                     self.showSuggestion(text, geometry: requestedGeometry)
@@ -433,7 +433,11 @@ final class OverlayController: SuggestionOverlayControlling {
         var evidence = typefaceEvidence[identity] ?? TypefaceEvidence()
         let sample = Self.widthSample(of: geometry)
         if let sample {
+            let adoptedBefore = evidence.scalingSample
             evidence.record(sample, resolverFamily: resolution.provenance == .hostSizeMatchedFamily ? resolution.font.familyName : nil)
+            if let adopted = evidence.scalingSample, adopted != adoptedBefore {
+                Self.logAdoptedWidthSample(adopted, font: resolution.font, identity: identity)
+            }
         }
         if unavailableNamedFaceFields.contains(identity) {
             typefaceEvidence[identity] = evidence
@@ -481,6 +485,25 @@ final class OverlayController: SuggestionOverlayControlling {
         case .undecidable:
             return Self.scaledSystemFace(size: size, evidence: evidence)
         }
+    }
+
+    /// One record per adopted sample: the text, the host's width of it, and what the current face
+    /// makes of the same text, so a ghost sized from a bad sample can be traced to the sample.
+    private static func logAdoptedWidthSample(_ sample: TypefaceEvidence.Sample, font: NSFont, identity: UInt64) {
+        guard CotabbyLogger.suggestion.logLevel <= .debug else { return }
+        CotabbyLogger.suggestion.debug(
+            "Width sample adopted",
+            metadata: [
+                "stage": .string("width-sample"),
+                "identity": .stringConvertible(identity),
+                "sample": .string(String(sample.text.prefix(40))),
+                "chars": .stringConvertible(sample.text.count),
+                "host_width": .stringConvertible(Double(sample.width)),
+                "font": .string(font.fontName),
+                "font_size": .stringConvertible(Double(font.pointSize)),
+                "font_width": .stringConvertible(Double(GhostFontResolver.width(of: sample.text, font: font)))
+            ]
+        )
     }
 
     /// The host's measured width sample for this geometry, when it has one.
@@ -531,7 +554,14 @@ final class OverlayController: SuggestionOverlayControlling {
         else {
             return resolution
         }
-        if let widthSample, widthSample.width > 0, !widthSample.text.isEmpty {
+        // A settled match (`HostBaselineCalibrator.settledTypefaceScore`) is the host's face at
+        // the host's size to within a few hundredths of a point (the correlation falls off a fifth
+        // of the scale a sixth of a point away): it keeps its own size and needs no sample's
+        // agreement. Measured 2026-09-10 in Chrome's contenteditable: a first twelve-character
+        // caret sample one advance short refused the system face matched at 15.05 with 0.96 and
+        // left the ghost at 13.7 for the field's life.
+        if let widthSample, widthSample.width > 0, !widthSample.text.isEmpty,
+           match.score < HostBaselineCalibrator.settledTypefaceScore {
             let advance = GhostFontResolver.width(of: widthSample.text, font: unscaled)
             guard advance > 0, abs(advance / widthSample.width - 1) <= Self.matchedAdvanceTolerance else {
                 return resolution
@@ -580,7 +610,8 @@ final class OverlayController: SuggestionOverlayControlling {
         // The capture runs while the model generates, so the first ghost for this text already
         // knows its caret and nothing is held at presentation time.
         if let request = pixelCaretRequest(for: geometry),
-           pixelCaretLocator.cachedMeasurement(for: request) == nil, !pixelCaretLocator.hasFailed(request) {
+           pixelCaretLocator.cachedMeasurement(for: request) == nil, !pixelCaretLocator.hasFailed(request),
+           !panelCovers(request.runFrame) {
             pixelCaretLocator.locate(request) { _ in }
         }
         let renderer: GhostBaselinePolicy.HostRenderer = context.isWebContentField ? .webEngine : .textKit
@@ -634,6 +665,15 @@ final class OverlayController: SuggestionOverlayControlling {
             occludedFrom: occludedFrom,
             hostFontNames: hostFontNames
         )
+    }
+
+    /// Whether Cotabby's own ghost panel lies over `frame` right now. A capture excludes the app's
+    /// windows and an excluded region comes back black, so a pixel caret read under a visible
+    /// ghost takes the panel's right edge for the line's ink (Obsidian, 2026-09-10: the caret
+    /// measured 848, 1050 and 1244 on three consecutive keystrokes and the ghost teleported).
+    /// No measurement is taken then; the presentation keeps the geometry it was given.
+    private func panelCovers(_ frame: CGRect) -> Bool {
+        panel.isVisible && panel.frame.intersects(frame.insetBy(dx: -PixelCaretLocator.padding, dy: -PixelCaretLocator.padding))
     }
 
     /// How far left of the caret a calibration strip can reach; the panel matters only within it.

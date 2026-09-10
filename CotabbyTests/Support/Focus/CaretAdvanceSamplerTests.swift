@@ -61,6 +61,28 @@ final class CaretAdvanceSamplerTests: XCTestCase {
         XCTAssertEqual(sampler.sample?.width ?? 0, 7.5 * 16 + 3.8, accuracy: 0.001)
     }
 
+    func testAKeystrokePublishedBeforeItsCaretIsCountedOnceTheCaretMoves() {
+        // Chrome's contenteditable: a poll can show the new character in the text while the caret
+        // box still sits where it was; the next poll moves the caret. Measured 2026-09-10: without
+        // this, the first sample was one advance short and a 15px field rendered at 13.7.
+        var sampler = CaretAdvanceSampler()
+        var text = "as"; var x: CGFloat = 500
+        sampler.observe(observation(text, x: x))
+        for character in "the user writes" {
+            text.append(character)
+            sampler.observe(observation(text, x: x))          // text first, caret unmoved
+            x += 7.5
+            sampler.observe(observation(text, x: x))          // caret catches up
+        }
+        XCTAssertEqual(sampler.sample?.text, "the user writes")
+        XCTAssertEqual(sampler.sample?.width ?? 0, 7.5 * 15, accuracy: 0.001)
+        XCTAssertEqual(sampler.pendingCharacterCount, 0)
+        // A character the caret never moved for is not in the sample.
+        sampler.observe(observation(text + "x", x: x))
+        XCTAssertEqual(sampler.sample?.text, "the user writes")
+        XCTAssertEqual(sampler.pendingCharacterCount, 1)
+    }
+
     func testAnIdlePollChangesNothing() {
         // Focus polls run every 80ms whether or not a key was pressed; a poll that saw no change
         // must not reset the evidence gathered so far.

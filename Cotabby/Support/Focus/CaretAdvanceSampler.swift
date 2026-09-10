@@ -27,10 +27,13 @@ import Foundation
 ///     caret grew by a keystroke's worth (`maximumStep`) and the text before the new characters
 ///     still ends the way it did (a window that slid, a backspace or a pasted block all fail this
 ///     and start over); a poll that saw no change at all (most polls) changes nothing;
-///   - the sample offered ends on a letter: a space typed at the end of a line may hang with no
-///     advance until the next letter arrives (its width then comes with that letter), and a
-///     sample cut on the space would be a space short, a fifth of a short sample; the sample is
-///     offered once it holds `minimumLength` characters;
+///   - a character whose poll shows no caret movement is held back until the caret moves: a
+///     space typed at the end of a line hangs with no advance until the next letter, and a host
+///     can publish a keystroke's text a poll before its caret box (measured in Chrome's
+///     contenteditable, 2026-09-10: the first twelve-character sample was one advance short,
+///     eight percent, and the ghost rendered at 13.7 for a 15px field); the held text joins the
+///     next chunk whose advance covers it, so text and width always describe the same glyphs;
+///     the sample is offered once it holds `minimumLength` characters;
 ///   - the sample is trimmed to its newest `maximumLength` characters by whole chunks, so an
 ///     early integer-rounded caret position weighs less as the evidence grows;
 ///   - a non-breaking space reads as a space: Chromium stores a space typed at the end of a line
@@ -77,6 +80,8 @@ nonisolated struct CaretAdvanceSampler: Equatable, Sendable {
 
     private var last: Observation?
     private var chunks: [Sample] = []
+    /// Characters typed whose advance the caret has not shown yet (see the file overview).
+    private var pendingText = ""
 
     /// The current sample, or nil until enough same-line typing has been seen. Chunks that end in
     /// whitespace are left off its end (their advance may still be pending), never off its front.
@@ -87,6 +92,9 @@ nonisolated struct CaretAdvanceSampler: Equatable, Sendable {
         return Sample(text: text, width: usable.reduce(0) { $0 + $1.width })
     }
 
+    /// Characters typed so far that no chunk accounts for yet, for diagnostics.
+    var pendingCharacterCount: Int { pendingText.count }
+
     /// Feeds one poll. Returns the sample after it, for callers that merge it into metrics.
     @discardableResult
     mutating func observe(_ observation: Observation) -> Sample? {
@@ -94,6 +102,7 @@ nonisolated struct CaretAdvanceSampler: Equatable, Sendable {
         defer { last = observation }
         guard let previous = last else {
             chunks.removeAll()
+            pendingText = ""
             return nil
         }
         let step = observation.documentCaret - previous.documentCaret
@@ -101,10 +110,21 @@ nonisolated struct CaretAdvanceSampler: Equatable, Sendable {
         if step == 0 {
             // Nothing typed since the last poll: the field is unchanged and so is the sample. Any
             // other zero-step change (a character replaced in place) is not typing.
-            guard Self.spaceNormalized(observation.precedingText) == Self.spaceNormalized(previous.precedingText),
-                  abs(advance) < 0.01
+            guard Self.spaceNormalized(observation.precedingText) == Self.spaceNormalized(previous.precedingText)
             else {
                 chunks.removeAll()
+                pendingText = ""
+                return nil
+            }
+            // The caret caught up with text already counted: its advance belongs to that text.
+            if advance > 0, !pendingText.isEmpty {
+                chunks.append(Sample(text: pendingText, width: advance))
+                pendingText = ""
+                return sample
+            }
+            guard abs(advance) < 0.01 else {
+                chunks.removeAll()
+                pendingText = ""
                 return nil
             }
             return sample
@@ -119,11 +139,17 @@ nonisolated struct CaretAdvanceSampler: Equatable, Sendable {
               Self.continues(Self.spaceNormalized(previous.precedingText), into: next, typed: typed)
         else {
             chunks.removeAll()
+            pendingText = ""
             return nil
         }
         // A zero advance is a space hanging at the line's end, or a caret box the host has not
-        // moved yet; either way the next letter's advance carries it.
-        chunks.append(Sample(text: typed, width: advance))
+        // moved yet; either way the next movement carries it, so the text waits for it.
+        guard advance > 0 else {
+            pendingText += typed
+            return sample
+        }
+        chunks.append(Sample(text: pendingText + typed, width: advance))
+        pendingText = ""
         while chunks.count > 1, chunks.map(\.text.count).reduce(0, +) > Self.maximumLength {
             chunks.removeFirst()
         }

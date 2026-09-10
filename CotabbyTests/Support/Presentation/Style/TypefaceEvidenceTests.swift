@@ -74,13 +74,18 @@ final class TypefaceEvidenceTests: XCTestCase {
 
     /// Measured in Gemini: scaling to the longest sample so far resized the ghost three times in
     /// one sentence. The first sample of a dozen characters sizes the field for good.
-    func testTheFirstLongSampleFixesTheScalingSample() {
+    func testTheFirstLongSampleFixesTheScalingSampleUntilOneTwiceAsLongRefinesItOnce() {
         var evidence = TypefaceEvidence()
         evidence.record(.init(text: "ask me", width: 48), resolverFamily: nil)
         XCTAssertNil(evidence.scalingSample)
         evidence.record(.init(text: "ask me about the", width: 120), resolverFamily: nil)
         XCTAssertEqual(evidence.scalingSample?.text, "ask me about the")
+        evidence.record(.init(text: "ask me about the weather", width: 180), resolverFamily: nil)
+        XCTAssertEqual(evidence.scalingSample?.text, "ask me about the", "a merely longer sample never re-sizes the field")
+        // Twice the adopted length halves the rounding of a caret-measured sample: one refinement.
         evidence.record(.init(text: "ask me about the weather in Toronto t", width: 290), resolverFamily: nil)
-        XCTAssertEqual(evidence.scalingSample?.text, "ask me about the", "a longer sample never re-sizes the field")
+        XCTAssertEqual(evidence.scalingSample?.text, "ask me about the weather in Toronto t")
+        evidence.record(.init(text: String(repeating: "ask me about the weather in Toronto today ", count: 3), width: 900), resolverFamily: nil)
+        XCTAssertEqual(evidence.scalingSample?.text, "ask me about the weather in Toronto t", "the refinement happens once")
     }
 }

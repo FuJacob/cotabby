@@ -43,8 +43,13 @@ struct TypefaceEvidence: Equatable {
     /// life. Measured 2026-09-10 in Gemini's prompt bar: scaling to the longest sample so far
     /// resized the ghost three times in one sentence (17 → 15.87 → 15.94 → 16.24) as longer samples
     /// arrived; one adoption from a dozen characters is within the samples' own noise and never
-    /// moves text already on screen.
+    /// moves text already on screen. One refinement is allowed, from a sample at least
+    /// `scalingRefinementFactor` times longer: a dozen characters of whole-pixel caret positions
+    /// carry a percent of rounding that two dozen halve, and a single small step beats holding a
+    /// short sample's error for the field's life.
     static let scalingAdoptionLength = 12
+    static let scalingRefinementFactor = 2
+    private(set) var hasRefinedScaling = false
     static let maximumSamples = 8
 
     private(set) var samples: [Sample] = []
@@ -62,8 +67,14 @@ struct TypefaceEvidence: Equatable {
                 samples.removeFirst()
             }
         }
-        if scalingSample == nil, sample.text.count >= Self.scalingAdoptionLength, sample.width > 0 {
-            scalingSample = sample
+        if sample.width > 0 {
+            if scalingSample == nil, sample.text.count >= Self.scalingAdoptionLength {
+                scalingSample = sample
+            } else if let adopted = scalingSample, !hasRefinedScaling,
+                      sample.text.count >= adopted.text.count * Self.scalingRefinementFactor {
+                scalingSample = sample
+                hasRefinedScaling = true
+            }
         }
         if adoptedFamily == nil, samples.count == 1 {
             adoptedFamily = resolverFamily
