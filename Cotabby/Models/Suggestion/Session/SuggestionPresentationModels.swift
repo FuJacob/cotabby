@@ -71,6 +71,10 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
     /// The text between the last hard line break and the caret. The pixel typeface match renders
     /// its tail in candidate faces; `GhostCaretRefinement` measures its advance for the exact caret.
     let lineTextBeforeCaret: String?
+    /// Set when the caret sits inside a paragraph the host exposes only as one union-framed text
+    /// run (CodeMirror in Obsidian). AX cannot say which visual line the caret is on or where in it;
+    /// `PixelCaretLocator` measures both from the host's own pixels before the ghost is placed.
+    let wrappedRun: WrappedRunAnchor?
 
     init(
         caretRect: CGRect,
@@ -88,7 +92,8 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
         isWebContentField: Bool = false,
         hasTrailingContent: Bool = false,
         elementFrameRect: CGRect? = nil,
-        lineTextBeforeCaret: String? = nil
+        lineTextBeforeCaret: String? = nil,
+        wrappedRun: WrappedRunAnchor? = nil
     ) {
         self.caretRect = caretRect
         self.inputFrameRect = inputFrameRect
@@ -106,6 +111,7 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
         self.hasTrailingContent = hasTrailingContent
         self.elementFrameRect = elementFrameRect
         self.lineTextBeforeCaret = lineTextBeforeCaret
+        self.wrappedRun = wrappedRun
     }
 
     /// Returns a copy with only `caretRect` replaced. Used to advance the ghost by an exact measured
@@ -127,7 +133,38 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
             isWebContentField: isWebContentField,
             hasTrailingContent: hasTrailingContent,
             elementFrameRect: elementFrameRect,
-            lineTextBeforeCaret: lineTextBeforeCaret
+            lineTextBeforeCaret: lineTextBeforeCaret,
+            wrappedRun: wrappedRun
+        )
+    }
+
+    /// A copy carrying a pixel-measured caret: the measured box replaces the caret, the quality
+    /// becomes `.derived` (a real measurement, not an estimate), and the measured line box and
+    /// pitch ride along as host metrics so wrapped rows land on the host's real next lines.
+    func withPixelMeasuredCaret(_ caretRect: CGRect, lineRect: CGRect, linePitch: CGFloat?) -> SuggestionOverlayGeometry {
+        SuggestionOverlayGeometry(
+            caretRect: caretRect,
+            inputFrameRect: inputFrameRect,
+            caretQuality: .derived,
+            bundleIdentifier: bundleIdentifier,
+            isCaretAtEndOfLine: isCaretAtEndOfLine,
+            observedCharWidth: observedCharWidth,
+            isRightToLeft: isRightToLeft,
+            focusChangeSequence: focusChangeSequence,
+            focusedInputIdentityKey: focusedInputIdentityKey,
+            isCorrection: isCorrection,
+            resolvedFieldStyle: resolvedFieldStyle,
+            hostTextMetrics: HostTextMetrics(
+                sampleText: hostTextMetrics?.sampleText,
+                sampleWidth: hostTextMetrics?.sampleWidth,
+                lineRect: lineRect,
+                linePitch: linePitch ?? hostTextMetrics?.linePitch
+            ),
+            isWebContentField: isWebContentField,
+            hasTrailingContent: hasTrailingContent,
+            elementFrameRect: elementFrameRect,
+            lineTextBeforeCaret: lineTextBeforeCaret,
+            wrappedRun: wrappedRun
         )
     }
 }
