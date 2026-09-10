@@ -33,6 +33,12 @@ import Foundation
 ///     contenteditable, 2026-09-10: the first twelve-character sample was one advance short,
 ///     eight percent, and the ghost rendered at 13.7 for a 15px field); the held text joins the
 ///     next chunk whose advance covers it, so text and width always describe the same glyphs;
+///   - the other order holds too: a caret box that moves before its keystroke's text is published
+///     keeps that movement for the text that follows, once. Reading it as an edit started the
+///     sample over with the character still to come, which then took the next character's
+///     advance: every chunk paid one character late, and the sample held one more character than
+///     its width covered (Chrome's contenteditable, 2026-09-10: "i Sarah, thanks for s" measured
+///     131.0 for 135.3, which read as a face 3% narrow and briefly matched Avenir Next);
 ///     the sample is offered once it holds `minimumLength` characters;
 ///   - the sample is trimmed to its newest `maximumLength` characters by whole chunks, so an
 ///     early integer-rounded caret position weighs less as the evidence grows;
@@ -82,6 +88,9 @@ nonisolated struct CaretAdvanceSampler: Equatable, Sendable {
     private var chunks: [Sample] = []
     /// Characters typed whose advance the caret has not shown yet (see the file overview).
     private var pendingText = ""
+    /// Caret movement seen before the text it belongs to (see the file overview); at most one
+    /// poll's worth, claimed by the next text that arrives.
+    private var unclaimedAdvance: CGFloat = 0
 
     /// The current sample, or nil until enough same-line typing has been seen. Chunks that end in
     /// whitespace are left off its end (their advance may still be pending), never off its front.
@@ -101,8 +110,7 @@ nonisolated struct CaretAdvanceSampler: Equatable, Sendable {
         guard observation.isPositioned else { return sample }
         defer { last = observation }
         guard let previous = last else {
-            chunks.removeAll()
-            pendingText = ""
+            startOver()
             return nil
         }
         let step = observation.documentCaret - previous.documentCaret
@@ -112,8 +120,7 @@ nonisolated struct CaretAdvanceSampler: Equatable, Sendable {
             // other zero-step change (a character replaced in place) is not typing.
             guard Self.spaceNormalized(observation.precedingText) == Self.spaceNormalized(previous.precedingText)
             else {
-                chunks.removeAll()
-                pendingText = ""
+                startOver()
                 return nil
             }
             // The caret caught up with text already counted: its advance belongs to that text.
@@ -122,9 +129,14 @@ nonisolated struct CaretAdvanceSampler: Equatable, Sendable {
                 pendingText = ""
                 return sample
             }
+            // The caret moved ahead of its text: the text that arrives next claims the movement.
+            // A second such move before any text is not the host's lag; start over.
+            if advance > 0, unclaimedAdvance == 0 {
+                unclaimedAdvance = advance
+                return sample
+            }
             guard abs(advance) < 0.01 else {
-                chunks.removeAll()
-                pendingText = ""
+                startOver()
                 return nil
             }
             return sample
@@ -138,22 +150,30 @@ nonisolated struct CaretAdvanceSampler: Equatable, Sendable {
               !typed.contains(where: \.isNewline),
               Self.continues(Self.spaceNormalized(previous.precedingText), into: next, typed: typed)
         else {
-            chunks.removeAll()
-            pendingText = ""
+            startOver()
             return nil
         }
+        // A caret that moved ahead of this text already showed (part of) its advance.
+        let travelled = advance + unclaimedAdvance
+        unclaimedAdvance = 0
         // A zero advance is a space hanging at the line's end, or a caret box the host has not
         // moved yet; either way the next movement carries it, so the text waits for it.
-        guard advance > 0 else {
+        guard travelled > 0 else {
             pendingText += typed
             return sample
         }
-        chunks.append(Sample(text: pendingText + typed, width: advance))
+        chunks.append(Sample(text: pendingText + typed, width: travelled))
         pendingText = ""
         while chunks.count > 1, chunks.map(\.text.count).reduce(0, +) > Self.maximumLength {
             chunks.removeFirst()
         }
         return sample
+    }
+
+    private mutating func startOver() {
+        chunks.removeAll()
+        pendingText = ""
+        unclaimedAdvance = 0
     }
 
     /// Whether `next` is `previous` plus `typed`, judged on their tails so a text window that slid

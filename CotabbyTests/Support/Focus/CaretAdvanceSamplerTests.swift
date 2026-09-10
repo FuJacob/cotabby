@@ -83,6 +83,34 @@ final class CaretAdvanceSamplerTests: XCTestCase {
         XCTAssertEqual(sampler.pendingCharacterCount, 1)
     }
 
+    /// The other order, measured in Chrome's contenteditable (2026-09-10): the caret box moves a
+    /// poll before the keystroke's text. Read as an edit, it started the sample over and every
+    /// chunk paid one character late; "i Sarah, thanks for s" measured 131.0 for 135.3.
+    func testACaretThatMovesBeforeItsTextLendsItsAdvanceToThatText() {
+        var sampler = CaretAdvanceSampler()
+        var text = "H"; var x: CGFloat = 500
+        sampler.observe(observation(text, x: x))
+        for character in "i Sarah, thanks" {
+            x += 7.5
+            sampler.observe(observation(text, x: x, caret: text.count))   // caret first, text unmoved
+            text.append(character)
+            sampler.observe(observation(text, x: x))                      // text catches up
+        }
+        XCTAssertEqual(sampler.sample?.text, "i Sarah, thanks")
+        XCTAssertEqual(sampler.sample?.width ?? 0, 7.5 * 15, accuracy: 0.001)
+    }
+
+    /// Only one poll's lead is the host's lag: a caret that moves twice with no text is not typing.
+    func testACaretThatMovesTwiceWithoutTextStartsOver() {
+        var sampler = CaretAdvanceSampler()
+        let x = typed("the user writes", after: "as", from: 500, advance: 7.5, into: &sampler)
+        XCTAssertNotNil(sampler.sample)
+        sampler.observe(observation("asthe user writes", x: x + 7.5))
+        XCTAssertNotNil(sampler.sample, "one move ahead of its text is held")
+        sampler.observe(observation("asthe user writes", x: x + 15))
+        XCTAssertNil(sampler.sample, "a second move with no text starts over")
+    }
+
     func testAnIdlePollChangesNothing() {
         // Focus polls run every 80ms whether or not a key was pressed; a poll that saw no change
         // must not reset the evidence gathered so far.
