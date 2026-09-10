@@ -240,6 +240,9 @@ final class HostBaselineCalibrator {
     private struct Analysis: Sendable {
         let baselineOffset: CGFloat
         let baselineAccepted: Bool
+        /// Height in device pixels of the letter bodies the baseline was read from; logged so a
+        /// rejected measurement can be told apart from one that was never plausible.
+        let bodyRows: Int
         /// A face found in this capture (nil when known already or not asked for / not found).
         let typefaceMatch: TypefaceMatcher.Match?
         /// The face to report: freshly matched, or the one already known for the field.
@@ -258,7 +261,12 @@ final class HostBaselineCalibrator {
         guard let measurement = InkBaselineAnalyzer.measure(captured.bitmap) else { return nil }
         let measuredPoints = CGFloat(measurement.baselineRow) / captured.scale
         let offset = baselineOffset(fromCaretTop: request.caretRect.maxY, stripTop: strip.maxY, measured: measuredPoints)
-        let accepted = accepts(measured: offset, policy: request.policyOffset)
+        // Two independent checks, because they catch different failures: the letter bodies found in
+        // the strip must be the right size for the font (a strip that caught a fragment, a partly
+        // scrolled line, or a neighbouring line's descenders measures a baseline that is confidently
+        // wrong), and the answer must sit near the policy prediction.
+        let accepted = describesPlausibleBodies(measurement, pointSize: request.pointSize, scale: captured.scale)
+            && accepts(measured: offset, policy: request.policyOffset)
         var match: TypefaceMatcher.Match?
         var attempted = false
         if request.matchTypeface, knownTypeface == nil, let lineText = request.lineText, request.pointSize > 0 {
@@ -278,6 +286,7 @@ final class HostBaselineCalibrator {
         return Analysis(
             baselineOffset: offset,
             baselineAccepted: accepted,
+            bodyRows: measurement.baselineRow - measurement.bodyTopRow,
             typefaceMatch: match,
             typefaceName: match?.fontName ?? (request.matchTypeface ? knownTypeface : nil),
             typefaceAttempted: attempted
@@ -342,6 +351,34 @@ final class HostBaselineCalibrator {
 
     nonisolated static func accepts(measured: CGFloat, policy: CGFloat) -> Bool {
         abs(measured - policy) <= maximumCorrection
+    }
+
+    /// Fraction of a font's ascent the detected letter bodies may span and still be believable.
+    /// Body rows run from the tallest ascender down to the baseline, so they are close to the
+    /// ascent for ordinary prose and shorter for an all-x-height line ("sensor was worn"); the
+    /// floor allows that while rejecting a block far too small to be a line of this font.
+    static let minimumBodyAscentFraction: CGFloat = 0.45
+    static let maximumBodyAscentFraction: CGFloat = 1.35
+
+    /// Whether the ink the analyzer measured is the right size to BE this font's letter bodies.
+    ///
+    /// The baseline is only as good as the block it was read from. Measured in a real session, one
+    /// field's lines read 12.0 and 15.0 for the same font and caret box: a 3pt spread, and the ghost
+    /// on the 12.0 lines sat visibly high. Both readings passed the +/-4pt policy window, because
+    /// that window only asks whether the answer is near the prediction, never whether the thing
+    /// measured was a line of text at all.
+    nonisolated static func describesPlausibleBodies(
+        _ measurement: InkBaselineAnalyzer.Measurement,
+        pointSize: CGFloat,
+        scale: CGFloat
+    ) -> Bool {
+        guard pointSize > 0, scale > 0 else { return true }
+        let bodyRows = CGFloat(measurement.baselineRow - measurement.bodyTopRow)
+        guard bodyRows > 0 else { return false }
+        let ascentPixels = NSFont.systemFont(ofSize: pointSize).ascender * scale
+        guard ascentPixels > 0 else { return true }
+        let fraction = bodyRows / ascentPixels
+        return fraction >= minimumBodyAscentFraction && fraction <= maximumBodyAscentFraction
     }
 
     // MARK: - Capture
@@ -434,6 +471,7 @@ final class HostBaselineCalibrator {
             metadata: [
                 "stage": .string("baseline-calibration"),
                 "outcome": .string(analysis.baselineAccepted ? "measured" : "rejected"),
+                "body_rows": .stringConvertible(analysis.bodyRows),
                 "measured": .stringConvertible(Double(analysis.baselineOffset)),
                 "policy": .stringConvertible(Double(request.policyOffset)),
                 "caret_h": .stringConvertible(Double(request.caretRect.height)),

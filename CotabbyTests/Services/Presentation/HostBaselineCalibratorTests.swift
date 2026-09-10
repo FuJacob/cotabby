@@ -96,4 +96,50 @@ final class HostBaselineCalibratorTests: XCTestCase {
         XCTAssertNil(calibrator.cachedOffset(for: key))
         XCTAssertEqual(completions, 0)
     }
+
+    // MARK: - Measurement plausibility
+
+    private func measurement(bodyTop: Int, baseline: Int) -> InkBaselineAnalyzer.Measurement {
+        InkBaselineAnalyzer.Measurement(baselineRow: baseline, bodyTopRow: bodyTop, inkPixelCount: 400)
+    }
+
+    /// Ordinary prose at 17pt on a 2x display: bodies run about the font's ascent.
+    func testBodiesTheSizeOfTheFontsAscentAreBelievable() {
+        let ascent = Int((NSFont.systemFont(ofSize: 17).ascender * 2).rounded())
+        XCTAssertTrue(HostBaselineCalibrator.describesPlausibleBodies(
+            measurement(bodyTop: 4, baseline: 4 + ascent), pointSize: 17, scale: 2
+        ))
+    }
+
+    /// An all-x-height line has shorter bodies and must still be accepted.
+    func testShortButRealBodiesAreStillBelievable() {
+        let ascent = NSFont.systemFont(ofSize: 17).ascender * 2
+        let rows = Int((ascent * 0.55).rounded())
+        XCTAssertTrue(HostBaselineCalibrator.describesPlausibleBodies(
+            measurement(bodyTop: 6, baseline: 6 + rows), pointSize: 17, scale: 2
+        ))
+    }
+
+    /// The failure that put ghost text visibly high on some lines: the strip caught a fragment, so
+    /// the "bodies" are a few pixels tall and the baseline read from them is confidently wrong.
+    func testAFragmentTooSmallToBeALineIsRejected() {
+        XCTAssertFalse(HostBaselineCalibrator.describesPlausibleBodies(
+            measurement(bodyTop: 10, baseline: 14), pointSize: 17, scale: 2
+        ))
+    }
+
+    /// Two lines merged into one block (a strip that caught the line below) measure far too tall.
+    func testABlockTallerThanTheFontIsRejected() {
+        let ascent = NSFont.systemFont(ofSize: 17).ascender * 2
+        let rows = Int((ascent * 2).rounded())
+        XCTAssertFalse(HostBaselineCalibrator.describesPlausibleBodies(
+            measurement(bodyTop: 2, baseline: 2 + rows), pointSize: 17, scale: 2
+        ))
+    }
+
+    func testUnknownFontSizeLeavesTheMeasurementAlone() {
+        XCTAssertTrue(HostBaselineCalibrator.describesPlausibleBodies(
+            measurement(bodyTop: 10, baseline: 14), pointSize: 0, scale: 2
+        ))
+    }
 }
