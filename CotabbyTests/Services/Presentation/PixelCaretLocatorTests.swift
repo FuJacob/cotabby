@@ -94,10 +94,28 @@ final class PixelCaretLocatorTests: XCTestCase {
         XCTAssertNil(PixelCaretLocator.trailingInkGap(after: "", font: font))
     }
 
-    /// The host's own caret bar, when the capture caught it, is the caret: its centre, with no side
-    /// bearing and no trailing spaces added (they are behind it already), and the text's ink width
-    /// stops before it.
+    /// The host's own caret bar, caught right after a glyph, is the caret: its centre, with no side
+    /// bearing added, and the text's ink width stops before it.
     func testTheHostsCaretBarIsTheCaret() throws {
+        var caretLine = InkCaretAnalyzer.Line(topRow: 68, bottomRow: 98, inkLeftColumn: 26, inkRightColumn: 1030)
+        caretLine.caretBarColumns = 1029...1030
+        caretLine.glyphRightColumn = 1012
+        let analysis = InkCaretAnalyzer.Measurement(
+            lines: [.init(topRow: 20, bottomRow: 50, inkLeftColumn: 24, inkRightColumn: 1200), caretLine],
+            pitchRows: 48
+        )
+        let measured = try XCTUnwrap(PixelCaretLocator.measurement(
+            from: analysis, scale: 2, region: region, request: request(text: "the end of the paragraph")
+        ))
+        // Columns 1029-1030 cover 1029px to 1031px; their centre is 1030px, 515pt into the region.
+        XCTAssertEqual(measured.caretRect.minX, region.minX + 515, accuracy: 0.01)
+        XCTAssertEqual(try XCTUnwrap(measured.lineInkWidth), CGFloat(1012 - 26 + 1) / 2, accuracy: 0.01)
+    }
+
+    /// After a trailing space the host's bar stops short of the space's full advance, while the next
+    /// character lands at it (Obsidian, 2026-09-10): the caret is the text's own ink edge, the bar
+    /// left out, plus the glyph's bearing and the space.
+    func testAfterATrailingSpaceTheTextsInkPlacesTheCaretNotTheBar() throws {
         var caretLine = InkCaretAnalyzer.Line(topRow: 68, bottomRow: 98, inkLeftColumn: 26, inkRightColumn: 1030)
         caretLine.caretBarColumns = 1029...1030
         caretLine.glyphRightColumn = 1012
@@ -108,9 +126,8 @@ final class PixelCaretLocatorTests: XCTestCase {
         let measured = try XCTUnwrap(PixelCaretLocator.measurement(
             from: analysis, scale: 2, region: region, request: request(text: "the end of the paragraph ")
         ))
-        // Columns 1029-1030 cover 1029px to 1031px; their centre is 1030px, 515pt into the region.
-        XCTAssertEqual(measured.caretRect.minX, region.minX + 515, accuracy: 0.01)
-        XCTAssertEqual(try XCTUnwrap(measured.lineInkWidth), CGFloat(1012 - 26 + 1) / 2, accuracy: 0.01)
+        // Text ink ends at 1013px (506.5pt); then the default bearing and one 4.5pt space.
+        XCTAssertEqual(measured.caretRect.minX, region.minX + 506.5 + PixelCaretLocator.inkToCaretGap + 4.5, accuracy: 0.01)
     }
 
     func testTrailingSpacesAdvanceTheCaretPastTheInk() throws {
@@ -191,7 +208,7 @@ final class PixelCaretLocatorSingleLineTests: XCTestCase {
         line.glyphRightColumn = 470
         let analysis = InkCaretAnalyzer.Measurement(lines: [line], pitchRows: nil)
         let measured = try XCTUnwrap(PixelCaretLocator.measurement(
-            from: analysis, scale: 2, region: region, request: request(text: "hi sarah thanks for the ")
+            from: analysis, scale: 2, region: region, request: request(text: "hi sarah thanks for the")
         ))
         XCTAssertEqual(measured.caretRect.minX, region.minX + 244, accuracy: 0.01)
     }

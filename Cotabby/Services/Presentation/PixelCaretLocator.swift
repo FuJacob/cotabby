@@ -340,17 +340,25 @@ final class PixelCaretLocator {
     }
 
     /// Where the caret sits on its painted line: the centre of the host's own caret bar when the
-    /// capture caught it (CodeMirror centres a 1.2px bar on the insertion point, in the text
-    /// colour), else the last glyph's ink edge plus its side bearing and any trailing spaces, which
-    /// the host paints nothing for. Read as the last glyph, the bar put the caret a point right,
-    /// and five after a trailing space (measured 2026-09-10 in Obsidian).
+    /// capture caught it right after a glyph (CodeMirror centres a 1.2px bar on the insertion
+    /// point, in the text colour), else the last glyph's ink edge plus its side bearing and any
+    /// trailing spaces, which the host paints nothing for. Read as the last glyph, the bar put the
+    /// caret a point right, and five after a trailing space (measured 2026-09-10 in Obsidian).
+    ///
+    /// After trailing spaces the bar is not used: at the end of a line the host draws its caret
+    /// short of the spaces' full advance, while the next character it paints lands at the full
+    /// advance. Measured 2026-09-10 in Obsidian: the bar moved 3.5pt for a 4.19pt space, a ghost
+    /// anchored on it landed half a point short of the accepted text, and across 676 captures the
+    /// bar after a space sat 0.2 to 0.4pt left of the text's own ink plus its advances, against
+    /// agreement within 0.1pt after most glyphs. The text's ink edge (the bar left out) plus the
+    /// advances is where the next character goes.
     nonisolated static func caretX(on line: InkCaretAnalyzer.Line, region: CGRect, scale: CGFloat, request: Request) -> CGFloat {
-        if let bar = line.caretBarColumns {
+        let trailingSpaces = request.paragraphTextBeforeCaret.reversed().prefix { $0 == " " || $0 == "\u{00A0}" }.count
+        if let bar = line.caretBarColumns, trailingSpaces == 0 {
             return region.minX + CGFloat(bar.lowerBound + bar.upperBound + 1) / 2 / scale
         }
-        let inkRight = region.minX + CGFloat(line.inkRightColumn + 1) / scale
-        let trailingSpaces = request.paragraphTextBeforeCaret.reversed().prefix { $0 == " " || $0 == "\u{00A0}" }.count
-        return inkRight + request.trailingInkGap + CGFloat(trailingSpaces) * request.spaceAdvance
+        let textRight = region.minX + CGFloat(line.textRightColumn + 1) / scale
+        return textRight + request.trailingInkGap + CGFloat(trailingSpaces) * request.spaceAdvance
     }
 
     /// The line's baseline as an offset below `lineTop`, when the analyzer read one and it lies
