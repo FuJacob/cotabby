@@ -71,6 +71,13 @@ final class OverlayController: SuggestionOverlayControlling {
     /// positions), and one nameless snapshot was enough to let a width match flash Georgia in the
     /// middle of an otherwise settled field. Once seen, the fact holds for the field's life.
     private var unavailableNamedFaceFields: Set<UInt64> = []
+    /// Measures the caret from the host's pixels for paragraphs AX exposes only as one union run
+    /// (see `PixelCaretLocator`). Owned here because the measurement is a presentation concern:
+    /// it decides where the ghost is drawn and whether it can be drawn inline at all.
+    private let pixelCaretLocator = PixelCaretLocator()
+    /// Retires a held presentation: a show or hide that arrives while the pixels are still being
+    /// read bumps this, and the late measurement is dropped instead of resurrecting stale text.
+    private var pixelCaretShowToken: UInt64 = 0
     /// Measures web hosts' painted baselines; nil where screen capture is unwanted (tests).
     private let baselineCalibrator: HostBaselineCalibrator?
 
@@ -108,10 +115,31 @@ final class OverlayController: SuggestionOverlayControlling {
     /// Sizes and positions the overlay using the render mode the policy picks for this geometry.
     /// An inline pick that cannot be laid out honestly (the text needs a second row but the host
     /// exposed no line pitch, or it would paint over text after the caret) falls back to the card.
-    func showSuggestion(_ text: String, geometry: SuggestionOverlayGeometry) {
+    func showSuggestion(_ text: String, geometry requestedGeometry: SuggestionOverlayGeometry) {
         guard !text.isEmpty else {
             hide(reason: "Overlay not shown because the suggestion was empty.")
             return
+        }
+        pixelCaretShowToken &+= 1
+        let token = pixelCaretShowToken
+        var geometry = requestedGeometry
+        // A caret inside a union-run paragraph is placed from the host's pixels, not from AX (which
+        // has no answer there) and not from a font-metric layout (which put the ghost on top of the
+        // host's own glyphs). The first presentation for a given paragraph text waits for the
+        // capture, typically tens of milliseconds; later ones reuse it. If the pixels yield nothing
+        // the presentation proceeds exactly as it would have without this service.
+        if let request = pixelCaretRequest(for: requestedGeometry) {
+            if let measured = pixelCaretLocator.cachedMeasurement(for: request) {
+                geometry = requestedGeometry.withPixelMeasuredCaret(
+                    measured.caretRect, lineRect: measured.lineRect, linePitch: measured.linePitch
+                )
+            } else if !pixelCaretLocator.hasFailed(request) {
+                pixelCaretLocator.locate(request) { [weak self] _ in
+                    guard let self, self.pixelCaretShowToken == token else { return }
+                    self.showSuggestion(text, geometry: requestedGeometry)
+                }
+                return
+            }
         }
 
         // Decide on the fade using the panel state captured *before* `state` is reassigned below, so
@@ -167,6 +195,7 @@ final class OverlayController: SuggestionOverlayControlling {
 
     /// Hides the floating panel and records why the overlay is no longer visible.
     func hide(reason: String) {
+        pixelCaretShowToken &+= 1
         CotabbyLogger.suggestion.debug("Overlay hidden", metadata: ["stage": .string("overlay-hide"), "reason": .string(reason)])
         panel.orderOut(nil)
         inlineSession = nil
@@ -273,6 +302,26 @@ final class OverlayController: SuggestionOverlayControlling {
 
     /// The host's face by report or measurement; for a web field the host never named, a face the
     /// host's own pixels matched earlier in this field replaces the system stand-in.
+    /// The pixel measurement this geometry needs, or nil when AX already placed the caret. Only a
+    /// caret at the end of its paragraph is measured: the paragraph's last inked line then ends at
+    /// the caret. A caret inside the paragraph keeps the existing card, which is honest about not
+    /// knowing where the caret is.
+    private func pixelCaretRequest(for geometry: SuggestionOverlayGeometry) -> PixelCaretLocator.Request? {
+        guard let wrapped = geometry.wrappedRun, geometry.isCaretAtEndOfLine, !geometry.isRightToLeft else {
+            return nil
+        }
+        let renderer: GhostBaselinePolicy.HostRenderer = geometry.isWebContentField ? .webEngine : .textKit
+        let font = resolveFont(for: geometry, renderer: renderer).font
+        return PixelCaretLocator.Request(
+            focusedInputIdentityKey: geometry.focusedInputIdentityKey,
+            runFrame: wrapped.frame,
+            paragraphTextBeforeCaret: wrapped.paragraphTextBeforeCaret,
+            siblingLinePitch: geometry.hostTextMetrics?.linePitch,
+            siblingLineBoxHeight: geometry.hostTextMetrics?.lineRect?.height,
+            spaceAdvance: GhostFontResolver.width(of: " ", font: font)
+        )
+    }
+
     private func resolveFont(
         for geometry: SuggestionOverlayGeometry,
         renderer: GhostBaselinePolicy.HostRenderer
@@ -423,8 +472,15 @@ final class OverlayController: SuggestionOverlayControlling {
             hostTextMetrics: context.hostTextMetrics,
             isWebContentField: context.isWebContentField,
             elementFrameRect: context.elementFrameRect,
-            lineTextBeforeCaret: GhostCaretRefinement.paragraphTextBeforeCaret(in: context.precedingText)
+            lineTextBeforeCaret: GhostCaretRefinement.paragraphTextBeforeCaret(in: context.precedingText),
+            wrappedRun: context.observedContentEdges?.wrappedRun
         )
+        // The capture runs while the model generates, so the first ghost for this text already
+        // knows its caret and nothing is held at presentation time.
+        if let request = pixelCaretRequest(for: geometry),
+           pixelCaretLocator.cachedMeasurement(for: request) == nil, !pixelCaretLocator.hasFailed(request) {
+            pixelCaretLocator.locate(request) { _ in }
+        }
         startBackgroundMeasurement(for: geometry)
         let renderer: GhostBaselinePolicy.HostRenderer = context.isWebContentField ? .webEngine : .textKit
         let fontResolution = resolveFont(for: geometry, renderer: renderer)
