@@ -414,6 +414,14 @@ final class OverlayController: SuggestionOverlayControlling {
             typefaceEvidence[identity] = evidence
             return Self.scaledSystemFace(size: size, evidence: evidence)
         }
+        // A system face scaled to a width sample is scaled ONCE per field, to the first sample long
+        // enough (`TypefaceEvidence.scalingAdoptionLength`): a sample that grows poll by poll (the
+        // caret's own advance, `CaretAdvanceSampler`) would otherwise resize the ghost by a fraction
+        // of a point on every presentation.
+        if resolution.provenance == .hostSizeScaledSystem, evidence.scalingSample != nil {
+            typefaceEvidence[identity] = evidence
+            return Self.scaledSystemFace(size: size, evidence: evidence)
+        }
         guard let sample else {
             return resolution
         }

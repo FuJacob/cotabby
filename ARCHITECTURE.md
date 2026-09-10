@@ -372,8 +372,12 @@ Inline ghost text is built to occupy the pixels the accepted text will occupy:
 
 - [GhostFontResolver.swift](Cotabby/Support/Presentation/Style/GhostFontResolver.swift) picks the
   host's face and size from the field's reported style, from a measured width sample
-  ([HostTextMetricsProbe.swift](Cotabby/Services/Focus/Resolution/HostTextMetricsProbe.swift)), or
-  from the host's own pixels ([TypefaceMatcher.swift](Cotabby/Support/Presentation/Style/TypefaceMatcher.swift))
+  ([HostTextMetricsProbe.swift](Cotabby/Services/Focus/Resolution/HostTextMetricsProbe.swift); a host
+  that answers no width query gets one from how far its caret moves as the user types,
+  [CaretAdvanceSampler.swift](Cotabby/Support/Focus/CaretAdvanceSampler.swift), because a Chromium
+  size is CSS pixels that know nothing of page or Electron zoom: the Claude composer reported 14
+  and painted 15.4), or from the host's own pixels
+  ([TypefaceMatcher.swift](Cotabby/Support/Presentation/Style/TypefaceMatcher.swift))
   when the host names no face. Every capture is snapped to whole device pixels first: a fractional
   edge makes ScreenCaptureKit resample the image and the blurred glyphs correlate with nothing. The pixel match searches size as well as face (a caret-box size is
   a guess: Obsidian's 16px body arrived as 17 and 20, and a face matched at the wrong size is

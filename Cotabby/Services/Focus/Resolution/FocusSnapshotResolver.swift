@@ -52,6 +52,10 @@ struct FocusSnapshotResolver {
     /// Caches the measured host text geometry (width sample, line box, line pitch) per field, with
     /// bounded retries for hosts that answer empty until their text boxes load.
     private let hostTextMetricsCache = HostTextMetricsCache()
+    /// The host's rendered advance measured from the caret's own movement, for fields whose host
+    /// answers no width query (Chromium contenteditables, Electron composers); see
+    /// `CaretAdvanceSampler`. One sampler follows the focused field; a new field starts a new one.
+    private let caretAdvanceSamples = CaretAdvanceSampleStore()
 
     init(geometryResolver: AXTextGeometryResolver? = nil) {
         self.geometryResolver = geometryResolver ?? AXTextGeometryResolver()
@@ -267,7 +271,8 @@ struct FocusSnapshotResolver {
             processIdentifier: application.processIdentifier,
             text: value,
             selection: selection,
-            caretHeight: caretRect.height
+            caretRect: caretRect,
+            caretQuality: caretQuality
         )
         // Recognize an xterm.js integrated terminal (VS Code / Cursor / web terminal) from the
         // focused element's DOM classes. The terminal, code editor, and Copilot chat all live in one
@@ -421,17 +426,28 @@ struct FocusSnapshotResolver {
     /// Measures the host's rendered text geometry for the resolved field, once per field and with
     /// bounded retries (see `HostTextMetricsCache`). Skipped for secure fields and for
     /// marker-synthesized selections, whose window-relative offsets the NSRange bounds API would
-    /// misread.
+    /// misread. A host that answers no width query still gets a width sample, measured from how
+    /// far its caret moves as the user types (`CaretAdvanceSampler`).
     private func resolveHostTextMetrics(
         for candidate: AXFocusCandidate,
         processIdentifier: pid_t,
         text: String,
         selection: NSRange,
-        caretHeight: CGFloat
+        caretRect: CGRect,
+        caretQuality: CaretGeometryQuality
     ) -> HostTextMetrics? {
         guard !candidate.isSecure, !candidate.usesMarkerSelection else {
             return nil
         }
+        let caretHeight = caretRect.height
+        let caretAdvanceSample = observeCaretAdvance(
+            for: candidate,
+            processIdentifier: processIdentifier,
+            text: text,
+            selection: selection,
+            caretRect: caretRect,
+            caretQuality: caretQuality
+        )
         // The caret box height changes when the line's font changes, and the measured line box
         // moves with the element, so a new height or a moved/resized frame re-measures. Without the
         // frame in the key, a window dragged after focus kept vending the old line edge.
@@ -439,7 +455,7 @@ struct FocusSnapshotResolver {
             "\(Int($0.minX.rounded())),\(Int($0.minY.rounded())),\(Int($0.width.rounded())),\(Int($0.height.rounded()))"
         } ?? "-"
         let metricsKey = "\(processIdentifier):\(candidate.elementIdentifier):\(Int(caretHeight.rounded())):\(frameKey)"
-        return hostTextMetricsCache.metrics(forKey: metricsKey, caretLocation: selection.location) {
+        let measured = hostTextMetricsCache.metrics(forKey: metricsKey, caretLocation: selection.location) {
             HostTextMetricsProbe.measure(
                 HostTextMetricsProbe.Input(
                     element: candidate.element,
@@ -452,6 +468,42 @@ struct FocusSnapshotResolver {
                 )
             )
         }
+        return Self.mergingCaretAdvanceSample(measured, sample: caretAdvanceSample)
+    }
+
+    /// Feeds this poll's caret to the field's advance sampler and returns its current sample.
+    private func observeCaretAdvance(
+        for candidate: AXFocusCandidate,
+        processIdentifier: pid_t,
+        text: String,
+        selection: NSRange,
+        caretRect: CGRect,
+        caretQuality: CaretGeometryQuality
+    ) -> CaretAdvanceSampler.Sample? {
+        let nsText = text as NSString
+        let caret = min(max(selection.location, 0), nsText.length)
+        return caretAdvanceSamples.sample(
+            forKey: "\(processIdentifier):\(candidate.elementIdentifier)",
+            observation: CaretAdvanceSampler.Observation(
+                caretX: caretRect.minX,
+                lineY: caretRect.maxY,
+                documentCaret: candidate.documentCaretLocation ?? caret,
+                precedingText: nsText.substring(to: caret),
+                isPositioned: caretQuality == .exact || caretQuality == .derived
+            )
+        )
+    }
+
+    /// The probe's own width sample outranks the caret's: it is one query of the host's layout.
+    /// Only a host that answered none gets the sample measured from its caret.
+    static func mergingCaretAdvanceSample(_ metrics: HostTextMetrics?, sample: CaretAdvanceSampler.Sample?) -> HostTextMetrics? {
+        guard metrics?.sampleText == nil, let sample else { return metrics }
+        return HostTextMetrics(
+            sampleText: sample.text,
+            sampleWidth: sample.width,
+            lineRect: metrics?.lineRect,
+            linePitch: metrics?.linePitch
+        )
     }
 
     /// Resolves candidate elements lazily and stops as soon as the first fully capable editable
