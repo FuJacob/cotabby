@@ -147,6 +147,14 @@ struct FocusSnapshotResolver {
             role: resolvedCandidate.role,
             bundleIdentifier: bundleIdentifier
         )
+        // While the browser's own completion is on screen it is, for Cotabby's purposes, the host's
+        // uncommitted text: it occupies the spot a ghost would take and its ink would be read as the
+        // caret line's end by the pixel caret. Treating it as marked text holds the ghost until the
+        // browser commits or drops it, exactly as with the system's inline prediction.
+        let chromiumCompletionRange: NSRange? =
+            value.utf16.count < (resolvedCandidate.textValue ?? "").utf16.count
+            ? NSRange(location: selection.location, length: (resolvedCandidate.textValue ?? "").utf16.count - selection.location)
+            : nil
         // `NSRange` coming from AX is expressed in UTF-16 code units, which is why the code below
         // uses `NSString` instead of slicing a native Swift `String` directly.
         guard selection.location <= value.utf16.count else {
@@ -312,7 +320,7 @@ struct FocusSnapshotResolver {
             fieldPlaceholder: capturedSurface.fieldPlaceholder,
             hostTextMetrics: Self.mergingRunLinePitch(hostTextMetrics, edges: observedContentEdges),
             elementFrameRect: resolvedCandidate.elementFrameRect,
-            hostMarkedTextRange: resolvedCandidate.markedTextRange
+            hostMarkedTextRange: resolvedCandidate.markedTextRange ?? chromiumCompletionRange
         )
 
         if resolvedCandidate.isSecure {
@@ -320,6 +328,22 @@ struct FocusSnapshotResolver {
                 applicationName: applicationName,
                 bundleIdentifier: bundleIdentifier,
                 capability: .blocked("Secure text input is active."),
+                context: context
+            )
+        }
+
+        // Mail's To/Cc/Bcc/Subject rows: Tab is the writer's way to the next field, not an accept.
+        // The identifier is one extra AX read, made only for Mail's own text fields.
+        if MailHeaderFieldDetector.mightBeHeaderField(bundleIdentifier: bundleIdentifier, role: resolvedCandidate.role),
+           MailHeaderFieldDetector.isHeaderField(
+               bundleIdentifier: bundleIdentifier,
+               role: resolvedCandidate.role,
+               accessibilityIdentifier: AXHelper.accessibilityIdentifier(of: resolvedCandidate.element)
+           ) {
+            return FocusSnapshot(
+                applicationName: applicationName,
+                bundleIdentifier: bundleIdentifier,
+                capability: .blocked(MailHeaderFieldDetector.blockedReason),
                 context: context
             )
         }
@@ -469,6 +493,22 @@ struct FocusSnapshotResolver {
                         resolution: FocusCapabilityResolution(
                             selectedEvaluation: evaluation
                         )
+                    )
+                }
+
+                // The focused element itself falling short is the one verdict worth a line: it is
+                // why a neighbour (an ancestor's child, Mail's header row) ends up the target.
+                if CFEqual(element, focusedReading.element) {
+                    CotabbyLogger.focus.debug(
+                        "Focused element lacks capabilities",
+                        metadata: [
+                            "stage": .string("focused-element-partial"),
+                            "role": .string(candidate.role),
+                            "missing": .string(evaluation.missingCapabilities.map { "\($0)" }.joined(separator: ",")),
+                            "has_text": .stringConvertible(candidate.textValue != nil),
+                            "has_selection": .stringConvertible(candidate.selection != nil),
+                            "has_caret": .stringConvertible(candidate.caretRect != nil)
+                        ]
                     )
                 }
 
@@ -809,6 +849,11 @@ struct FocusSnapshotResolver {
         let hasStrongEditabilitySignal = AXHelper.hasStrongEditabilitySignal(
             role: role,
             explicitEditableFlag: explicitEditableFlag
+        ) || WebContentFieldDetector.isEditableWebArea(
+            role: role,
+            isFocusedElement: CFEqual(element, focusedReading.element),
+            bundleIdentifier: bundleIdentifier,
+            supportedAttributes: supportedAttributes
         )
         let isKnownReadOnlyRole = AXHelper.isKnownReadOnlyRole(role)
         let canBeEditableTarget = hasStrongEditabilitySignal && !isKnownReadOnlyRole

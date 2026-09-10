@@ -420,9 +420,13 @@ enum AXHelper {
         parameterizedAttributes: Set<String>
     ) -> MarkerSelection? {
         // Guard on advertised parameterized attributes so apps without marker support degrade to
-        // nil instead of issuing doomed cross-process AX calls on every poll.
-        guard parameterizedAttributes.contains(startMarkerForRangeAttribute as String),
-            parameterizedAttributes.contains(endMarkerForRangeAttribute as String),
+        // nil instead of issuing doomed cross-process AX calls on every poll. Chromium advertises
+        // the two range-splitting queries; WebKit's web areas answer them with
+        // kAXErrorParameterizedAttributeUnsupported (Mail's compose body, measured 2026-09-10) and
+        // are split with HIServices' own functions instead (`MarkerRangeSplitter`).
+        let splitsRangesItself = parameterizedAttributes.contains(startMarkerForRangeAttribute as String)
+            && parameterizedAttributes.contains(endMarkerForRangeAttribute as String)
+        guard splitsRangesItself || MarkerRangeSplitter.isAvailable,
             parameterizedAttributes.contains(markerRangeForMarkersAttribute as String),
             parameterizedAttributes.contains(stringForMarkerRangeAttribute as String)
         else {
@@ -431,12 +435,22 @@ enum AXHelper {
 
         guard let selectionRange = copyOpaqueAttribute(selectedTextMarkerRangeAttribute, on: element),
             let documentStart = copyOpaqueAttribute(startTextMarkerAttribute, on: element),
-            let documentEnd = copyOpaqueAttribute(endTextMarkerAttribute, on: element),
-            let selectionStart = copyOpaqueParameterized(
-                startMarkerForRangeAttribute, parameter: selectionRange, on: element),
-            let selectionEnd = copyOpaqueParameterized(
-                endMarkerForRangeAttribute, parameter: selectionRange, on: element)
+            let documentEnd = copyOpaqueAttribute(endTextMarkerAttribute, on: element)
         else {
+            return nil
+        }
+        let selectionStart: CFTypeRef
+        let selectionEnd: CFTypeRef
+        if splitsRangesItself,
+            let start = copyOpaqueParameterized(startMarkerForRangeAttribute, parameter: selectionRange, on: element),
+            let end = copyOpaqueParameterized(endMarkerForRangeAttribute, parameter: selectionRange, on: element) {
+            selectionStart = start
+            selectionEnd = end
+        } else if let start = MarkerRangeSplitter.startMarker(of: selectionRange),
+            let end = MarkerRangeSplitter.endMarker(of: selectionRange) {
+            selectionStart = start
+            selectionEnd = end
+        } else {
             return nil
         }
 
@@ -980,5 +994,43 @@ enum AXHelper {
             width: rect.width,
             height: rect.height
         )
+    }
+}
+
+/// File-local bridge to two HIServices functions that split an `AXTextMarkerRange` into its
+/// markers: `AXTextMarkerRangeCopyStartMarker` and `AXTextMarkerRangeCopyEndMarker`. They ship in
+/// HIServices (VoiceOver uses them) but are not in the public headers, so they are resolved once
+/// with `dlsym` and called through C function types.
+///
+/// Why: WebKit's editable web areas (Mail's compose body) vend the selection only as a marker
+/// range and refuse the parameterized attributes that would split it, while Chromium answers
+/// them. Without the split there is no before-caret text and no caret offset, and the resolver
+/// falls back to whichever header field happens to be capable. The returned markers are +1
+/// retained CF objects (the Copy rule) and are handed straight back to other marker queries; they
+/// are never inspected. On a system without the symbols `isAvailable` is false and the synthesis
+/// declines exactly as it did before.
+enum MarkerRangeSplitter {
+    private typealias CopyMarker = @convention(c) (CFTypeRef) -> Unmanaged<CFTypeRef>?
+
+    private static let copyStart: CopyMarker? = load("AXTextMarkerRangeCopyStartMarker")
+    private static let copyEnd: CopyMarker? = load("AXTextMarkerRangeCopyEndMarker")
+
+    static var isAvailable: Bool { copyStart != nil && copyEnd != nil }
+
+    static func startMarker(of range: CFTypeRef) -> CFTypeRef? {
+        copyStart?(range)?.takeRetainedValue()
+    }
+
+    static func endMarker(of range: CFTypeRef) -> CFTypeRef? {
+        copyEnd?(range)?.takeRetainedValue()
+    }
+
+    /// `dlsym` against the whole process image: HIServices is already loaded through
+    /// ApplicationServices, so no `dlopen` is needed. `unsafeBitCast` reinterprets the raw symbol
+    /// address as the C function type; that is the standard (and only) way to call an unexported
+    /// C function from Swift.
+    private static func load(_ name: String) -> CopyMarker? {
+        guard let handle = dlopen(nil, RTLD_NOW), let symbol = dlsym(handle, name) else { return nil }
+        return unsafeBitCast(symbol, to: CopyMarker.self)
     }
 }
