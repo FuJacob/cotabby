@@ -392,8 +392,11 @@ Inline ghost text is built to occupy the pixels the accepted text will occupy:
   confidently wrong), carries every candidate to its exact size (the correlation drops from 0.95
   to 0.66 a sixth of a point away, and a wrong face at a lucky size outscores the true face at a
   grid point), marks down a candidate whose letter bodies are not the height the host
-  painted, prefers the system face on a near tie, and declines on too little ink. An Electron
-  host's own bundled faces join the candidates
+  painted, prefers the system face on a near tie, and declines on too little ink. The size it
+  keeps is then fitted to the host's glyph positions alone, the chosen face rendered once and
+  stretched about the caret (`advanceFitted`): shape scoring picked Chrome's 18px Georgia at
+  18.054, a ghost two device pixels long by a line's end, while the positions put it at 18. An
+  Electron host's own bundled faces join the candidates
   ([HostBundledFontRegistry.swift](Cotabby/Services/Presentation/HostBundledFontRegistry.swift)
   registers its TrueType/OpenType files for this process alone), which is how Claude's composer
   can be drawn in Anthropic Sans rather than a stand-in. The calibrator

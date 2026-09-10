@@ -217,6 +217,37 @@ final class TypefaceMatcherTests: XCTestCase {
         XCTAssertEqual(TypefaceMatcher.match(from: clear)?.familyName, "Georgia")
     }
 
+    /// Measured 2026-09-10 in Chrome: Georgia at 18px matched 18.054 on shape while its glyph
+    /// positions put the host at 18. A match one refinement step large comes back at the host's size.
+    func testAMatchOneStepLargeIsFittedToTheHostsGlyphPositions() throws {
+        let text = "the words that end the line right here"
+        let (bitmap, caretColumn) = strip(text, font: try XCTUnwrap(NSFont(name: "Georgia", size: 18)), baselineFromTop: 17)
+        let input = TypefaceMatcher.Input(
+            strip: bitmap, scale: scale, caretColumn: caretColumn, baselineRow: 17 * scale,
+            text: text, pointSize: 18, candidates: TypefaceMatcher.defaultCandidates(pointSize: 18)
+        )
+        let large = TypefaceMatcher.Match(
+            fontName: "Georgia", familyName: "Georgia", pointSize: 18.054, score: 0.97, runnerUpScore: 0.8, systemScore: 0.6
+        )
+        let fitted = TypefaceMatcher.advanceFitted(large, input: input)
+        XCTAssertEqual(fitted.pointSize, 18, accuracy: 0.02)
+        XCTAssertEqual(fitted.score, large.score, "the shape score is left as it was")
+        XCTAssertLessThan(fitted.advanceScale, 1)
+    }
+
+    func testAShortStripKeepsTheSizeTheShapesChose() throws {
+        let text = "the end"
+        let (bitmap, caretColumn) = strip(text, font: try XCTUnwrap(NSFont(name: "Georgia", size: 18)), baselineFromTop: 17)
+        let input = TypefaceMatcher.Input(
+            strip: bitmap, scale: scale, caretColumn: caretColumn, baselineRow: 17 * scale,
+            text: text, pointSize: 18, candidates: TypefaceMatcher.defaultCandidates(pointSize: 18)
+        )
+        let large = TypefaceMatcher.Match(
+            fontName: "Georgia", familyName: "Georgia", pointSize: 18.054, score: 0.97, runnerUpScore: 0.8, systemScore: 0.6
+        )
+        XCTAssertEqual(TypefaceMatcher.advanceFitted(large, input: input), large)
+    }
+
     func testTooLittleInkDeclinesRatherThanGuessing() {
         // "Hi th" spans about 35pt at 16pt: whichever face fits it best, that is not evidence.
         XCTAssertNil(match("Hi th", font: NSFont.systemFont(ofSize: 16), dark: true))

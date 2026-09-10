@@ -73,6 +73,8 @@ enum TypefaceMatcher {
         let runnerUpScore: Double
         /// The system face's own best score in the same comparison (-1 when it was not a candidate).
         let systemScore: Double
+        /// The stretch `advanceFitted` applied to the size the shapes chose; 1 when it left it.
+        var advanceScale: CGFloat = 1
     }
 
     /// One candidate at its best size with its score. `Sendable` so the calibrator can carry a
@@ -461,6 +463,97 @@ enum TypefaceMatcher {
         guard best > 0, let hostBody = input.bodyRows, hostBody > 0 else { return best }
         let candidateBody = InkProfile.bodyRows(of: rendered, columns: start..<end)
         return best * bodyAgreement(hostRows: hostBody, candidateRows: candidateBody)
+    }
+
+    // MARK: - Advance fit
+
+    /// Stretches tried when fitting the chosen face's advance to the host's glyph positions: a
+    /// percent and a half either way, in steps of a twentieth of a percent.
+    static let advanceFitScales: [CGFloat] = stride(from: 0.985, through: 1.01501, by: 0.0005).map { CGFloat($0) }
+    /// Lowest correlation at which the fitted positions are trusted over the shape score's size.
+    static let minimumAdvanceFitCorrelation = 0.85
+    /// Points of host ink the fit needs: a shorter strip holds too few glyph positions to resolve
+    /// a tenth of a percent.
+    static let minimumAdvanceFitEvidencePoints: CGFloat = 120
+
+    /// `match` with its size corrected to the host's glyph positions. The size search scores glyph
+    /// shapes along with positions, and where a host's rasterizer paints stems a shade heavier than
+    /// CoreText, a candidate one refinement step too large wins on shape: Chrome's Georgia at 18px
+    /// matched 18.054 while the glyph positions in every strip put the host at CoreText's 17.99 to
+    /// 18.00, and the ghost ran two device pixels long by the end of a line (measured 2026-09-10).
+    /// Here the chosen face is rendered once and stretched about the caret column, never
+    /// re-rendered, so its shapes cannot pull the answer: the stretch that lines its glyphs up with
+    /// the host's is the host's advance relative to CoreText's. The match is returned unchanged
+    /// when the strip is short or no stretch correlates well.
+    static func advanceFitted(_ match: Match, input: Input) -> Match {
+        guard let candidate = input.candidates.first(where: { $0.fontName == match.fontName }),
+              let stretch = advanceScale(of: scaled(candidate, to: match.pointSize), input: input)
+        else { return match }
+        var fitted = Match(
+            fontName: match.fontName,
+            familyName: match.familyName,
+            pointSize: min(max(match.pointSize * stretch, minimumPointSize), maximumPointSize),
+            score: match.score,
+            runnerUpScore: match.runnerUpScore,
+            systemScore: match.systemScore
+        )
+        fitted.advanceScale = stretch
+        return fitted
+    }
+
+    /// The stretch about the caret column that best lines `font`'s rendering of the strip's text
+    /// up with the host's ink, over a few pixels of lag; nil when the strip holds too little text
+    /// or no stretch correlates at `minimumAdvanceFitCorrelation`.
+    static func advanceScale(of font: NSFont, input: Input) -> CGFloat? {
+        let text = fitted(input.text, font: font, lineInkWidth: input.lineInkWidth)
+        guard let rendered = render(text, font: font, input: input) else { return nil }
+        let host = InkProfile.columns(of: input.strip)
+        let candidate = InkProfile.darkInkColumns(of: rendered)
+        let end = min(Int(input.caretColumn) - caretGapPixels, host.count, candidate.count)
+        let firstInk = candidate.firstIndex(where: { $0 > 0.5 }) ?? 0
+        let start = max(0, firstInk - 2)
+        guard end > start, CGFloat(end - start) >= minimumAdvanceFitEvidencePoints * input.scale else { return nil }
+        let caret = Double(input.caretColumn)
+        let positions = Array(stride(from: Double(start), to: Double(end), by: 0.5))
+        let hostSamples = positions.map { interpolated(host, at: $0) }
+        var best = (score: -1.0, stretch: CGFloat(1))
+        for stretch in advanceFitScales {
+            for lagStep in -(maximumLagPixels * 4)...(maximumLagPixels * 4) {
+                let lag = Double(lagStep) / 4
+                let candidateSamples = positions.map { interpolated(candidate, at: caret + ($0 - caret) / Double(stretch) - lag) }
+                let score = pearson(hostSamples, candidateSamples)
+                if score > best.score {
+                    best = (score, stretch)
+                }
+            }
+        }
+        guard best.score >= minimumAdvanceFitCorrelation else { return nil }
+        return best.stretch
+    }
+
+    private static func interpolated(_ profile: [Double], at position: Double) -> Double {
+        guard !profile.isEmpty, position >= 0, position <= Double(profile.count - 1) else { return 0 }
+        let lower = Int(position.rounded(.down))
+        let upper = min(lower + 1, profile.count - 1)
+        let fraction = position - Double(lower)
+        return profile[lower] * (1 - fraction) + profile[upper] * fraction
+    }
+
+    private static func pearson(_ first: [Double], _ second: [Double]) -> Double {
+        let count = Double(min(first.count, second.count))
+        guard count > 1 else { return -1 }
+        let meanFirst = first.reduce(0, +) / count
+        let meanSecond = second.reduce(0, +) / count
+        var numerator = 0.0, varianceFirst = 0.0, varianceSecond = 0.0
+        for index in 0..<Int(count) {
+            let a = first[index] - meanFirst
+            let b = second[index] - meanSecond
+            numerator += a * b
+            varianceFirst += a * a
+            varianceSecond += b * b
+        }
+        guard varianceFirst > 0, varianceSecond > 0 else { return -1 }
+        return numerator / (varianceFirst * varianceSecond).squareRoot()
     }
 
     /// 1 when the candidate's letter bodies are within a device pixel of the host's, falling by

@@ -332,24 +332,25 @@ final class HostBaselineCalibrator {
             attempted = true
             // The matcher searches size as well as face, centred on the caller's size and on the
             // letter-body height just measured, so a caret-box size guess cannot mislead it.
-            ranking = TypefaceMatcher.rank(
-                TypefaceMatcher.Input(
-                    strip: captured.bitmap,
-                    scale: captured.scale,
-                    caretColumn: (request.caretRect.minX - strip.minX) * captured.scale,
-                    baselineRow: CGFloat(measurement.baselineRow),
-                    text: lineText,
-                    pointSize: request.pointSize,
-                    bodyRows: measurement.baselineRow - measurement.bodyTopRow,
-                    sizeIsReported: request.sizeIsReported,
-                    lineInkWidth: request.lineInkWidth,
-                    sizeIsMeasured: request.sizeIsMeasured,
-                    hostFontNames: Set(request.hostFontNames),
-                    candidates: TypefaceMatcher.defaultCandidates(pointSize: request.pointSize)
-                        + request.hostFontNames.compactMap { NSFont(name: $0, size: request.pointSize) }
-                )
+            let input = TypefaceMatcher.Input(
+                strip: captured.bitmap,
+                scale: captured.scale,
+                caretColumn: (request.caretRect.minX - strip.minX) * captured.scale,
+                baselineRow: CGFloat(measurement.baselineRow),
+                text: lineText,
+                pointSize: request.pointSize,
+                bodyRows: measurement.baselineRow - measurement.bodyTopRow,
+                sizeIsReported: request.sizeIsReported,
+                lineInkWidth: request.lineInkWidth,
+                sizeIsMeasured: request.sizeIsMeasured,
+                hostFontNames: Set(request.hostFontNames),
+                candidates: TypefaceMatcher.defaultCandidates(pointSize: request.pointSize)
+                    + request.hostFontNames.compactMap { NSFont(name: $0, size: request.pointSize) }
             )
+            ranking = TypefaceMatcher.rank(input)
+            // The face the shapes chose, at the size its glyph positions give (see `advanceFitted`).
             match = TypefaceMatcher.match(from: ranking, hostFontNames: Set(request.hostFontNames))
+                .map { TypefaceMatcher.advanceFitted($0, input: input) }
         }
         return Analysis(
             baselineOffset: offset,
@@ -572,9 +573,11 @@ final class HostBaselineCalibrator {
         let best = analysis.typefaceRanking.first
         let second = analysis.typefaceRanking.dropFirst().first
         let secondLabel = second.map { "\($0.familyName)@\($0.pointSize)" } ?? ""
+        let advanceScale = Double(analysis.typefaceMatch?.advanceScale ?? 1)
         CotabbyLogger.suggestion.debug(
             "Host typeface match",
             metadata: [
+                "advance_scale": .stringConvertible(advanceScale),
                 "stage": .string("typeface-match"),
                 "outcome": .string(analysis.typefaceMatch == nil ? "none" : "matched"),
                 "font": .string(analysis.typefaceMatch?.fontName ?? ""),
