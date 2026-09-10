@@ -65,6 +65,15 @@ nonisolated enum GhostSpaceBoundary {
         guard !last.isWhitespace else { return false }
         guard !openingCharacters.contains(last) else { return false }
         guard !bindingPunctuation.contains(first) else { return false }
+        // A colon between digits is a ratio or a time ("1:1", "10:30"), not a clause boundary.
+        if last == ":", first.isNumber, precedingText.dropLast().last?.isNumber == true {
+            return false
+        }
+        // A straight double quote closes a quotation only when it is the second of a pair; an
+        // unpaired one is opening, and the quoted text follows it directly.
+        if last == "\"", precedingText.filter({ $0 == "\"" }).count % 2 == 1 {
+            return false
+        }
         // Only a real word start earns a space; a completion opening with anything else is either
         // punctuation handled above or a shape whose spacing the model owns.
         return (last.isLetter || last.isNumber || bindingPunctuation.contains(last))

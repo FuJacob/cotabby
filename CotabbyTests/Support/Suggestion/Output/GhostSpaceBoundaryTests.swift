@@ -63,4 +63,19 @@ final class GhostSpaceBoundaryTests: XCTestCase {
         XCTAssertEqual(adjusted("The next step", after: "Most text is visible."), " The next step")
         XCTAssertEqual(adjusted("and then", after: "the draft,"), " and then")
     }
+
+    /// Typed live (2026-09-10): "Make it 1:" continued by "1." showed as "1: 1". A colon between
+    /// digits is a ratio or a time; a colon after a word still introduces a clause.
+    func testDigitsStayJoinedAcrossAColon() {
+        XCTAssertEqual(adjusted("1.", after: "Make it 1:"), "1.")
+        XCTAssertEqual(adjusted("30 sharp", after: "at 10:"), "30 sharp")
+        XCTAssertEqual(adjusted("the", after: "Note:"), " the")
+    }
+
+    /// An unpaired straight quote is opening the quotation, so the quoted word follows it directly;
+    /// after the closing quote of a pair the next word is a new one.
+    func testAnOpeningQuoteTakesNoSpaceAndAClosingQuoteDoes() {
+        XCTAssertEqual(adjusted("hello", after: "she said \""), "hello")
+        XCTAssertEqual(adjusted("and left", after: "she said \"hello\""), " and left")
+    }
 }
