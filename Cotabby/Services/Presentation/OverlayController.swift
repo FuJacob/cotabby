@@ -63,6 +63,14 @@ final class OverlayController: SuggestionOverlayControlling {
     }
 
     private var inlineSession: InlineSession?
+    /// What each field's width samples have said about its typeface so far (see `TypefaceEvidence`).
+    /// Keyed by the field's session identity, which survives the field growing as text wraps.
+    private var typefaceEvidence: [UInt64: TypefaceEvidence] = [:]
+    /// Fields whose host named a face this Mac cannot load (Gemini's bundled Google Sans). The
+    /// name is not on every snapshot's style (Chromium answers only a size for some caret
+    /// positions), and one nameless snapshot was enough to let a width match flash Georgia in the
+    /// middle of an otherwise settled field. Once seen, the fact holds for the field's life.
+    private var unavailableNamedFaceFields: Set<UInt64> = []
     /// Measures web hosts' painted baselines; nil where screen capture is unwanted (tests).
     private let baselineCalibrator: HostBaselineCalibrator?
 
@@ -278,11 +286,104 @@ final class OverlayController: SuggestionOverlayControlling {
                 sizeMultiplier: CGFloat(suggestionSettings.ghostTextSizeMultiplier)
             )
         )
+        let judged = applyingTypefaceEvidence(resolution, for: geometry)
         return Self.applyingMatchedTypeface(
-            resolution,
-            name: baselineCalibrator?.cachedTypeface(for: typefaceKey(for: geometry, font: resolution.font)),
+            judged,
+            name: baselineCalibrator?.cachedTypeface(for: typefaceKey(for: geometry, font: judged.font)),
             isWebContentField: geometry.isWebContentField
         )
+    }
+
+    /// Holds a width-matched face steady across the samples a field produces over its life.
+    ///
+    /// Inert for a field measured once (the resolver's own decision stands untouched) and for any
+    /// host whose named face loads. Two kinds of field reach the rules below:
+    ///   - a host that named a face this Mac cannot load (Gemini names its bundled Google Sans):
+    ///     once seen, the field renders the system face scaled to its longest sample for good,
+    ///     even on snapshots whose style momentarily carries only a size, which is what let a width
+    ///     match flash Georgia in the middle of an otherwise settled field;
+    ///   - a size-only field that keeps producing new, different width samples, judged by
+    ///     `TypefaceEvidence` (see the measured Gemini sequence there).
+    private func applyingTypefaceEvidence(
+        _ resolution: GhostFontResolver.Resolution,
+        for geometry: SuggestionOverlayGeometry
+    ) -> GhostFontResolver.Resolution {
+        switch resolution.provenance {
+        case .hostSizeMatchedFamily, .hostSizeSystem, .hostSizeScaledSystem:
+            break
+        default:
+            return resolution
+        }
+        let identity = geometry.focusedInputIdentityKey
+        let size = geometry.resolvedFieldStyle?.fontPointSize ?? resolution.font.pointSize
+        let hostNamesFace = geometry.resolvedFieldStyle?.fontName != nil || geometry.resolvedFieldStyle?.fontFamily != nil
+        if hostNamesFace, resolution.provenance != .hostSizeMatchedFamily {
+            unavailableNamedFaceFields.insert(identity)
+        }
+        var evidence = typefaceEvidence[identity] ?? TypefaceEvidence()
+        let sample = Self.widthSample(of: geometry)
+        if let sample {
+            evidence.record(sample, resolverFamily: resolution.provenance == .hostSizeMatchedFamily ? resolution.font.familyName : nil)
+        }
+        if unavailableNamedFaceFields.contains(identity) {
+            typefaceEvidence[identity] = evidence
+            return Self.scaledSystemFace(size: size, evidence: evidence)
+        }
+        guard let sample else {
+            return resolution
+        }
+        let verdict = evidence.verdict(candidates: GhostFontResolver.candidateFamilies) { family, sample in
+            GhostFontResolver.familyFits(family, sample: sample.text, width: sample.width, size: size)
+        }
+        typefaceEvidence[identity] = evidence
+        CotabbyLogger.suggestion.debug(
+            "Typeface evidence",
+            metadata: [
+                "stage": .string("typeface-evidence"),
+                "identity": .stringConvertible(identity),
+                "sample": .string(String(sample.text.prefix(32))),
+                "resolver_family": .string(resolution.font.familyName ?? "-"),
+                "resolver_provenance": .string(resolution.provenance.rawValue),
+                "host_font": .string(geometry.resolvedFieldStyle?.fontName ?? geometry.resolvedFieldStyle?.fontFamily ?? "-"),
+                "samples": .stringConvertible(evidence.samples.count),
+                "adopted": .string(evidence.adoptedFamily ?? "-"),
+                "verdict": .string("\(verdict)")
+            ]
+        )
+        switch verdict {
+        case .singleSample:
+            return resolution
+        case .family(let family):
+            guard resolution.font.familyName != family, let font = GhostFontResolver.familyFont(family, size: size) else {
+                return resolution
+            }
+            return GhostFontResolver.Resolution(
+                font: font, provenance: .hostSizeMatchedFamily, widthAgreement: resolution.widthAgreement
+            )
+        case .undecidable:
+            return Self.scaledSystemFace(size: size, evidence: evidence)
+        }
+    }
+
+    /// The host's measured width sample for this geometry, when it has one.
+    private static func widthSample(of geometry: SuggestionOverlayGeometry) -> TypefaceEvidence.Sample? {
+        guard let text = geometry.hostTextMetrics?.sampleText, let width = geometry.hostTextMetrics?.sampleWidth, width > 0 else {
+            return nil
+        }
+        return TypefaceEvidence.Sample(text: text, width: width)
+    }
+
+    /// The system face at the host's size, scaled to the longest trustworthy sample the field has
+    /// produced. Shorter samples carry whole-point rounding noise that would nudge the size a
+    /// fraction each time one recurred; with none long enough the reported size is used as is.
+    private static func scaledSystemFace(size: CGFloat, evidence: TypefaceEvidence) -> GhostFontResolver.Resolution {
+        let longest = evidence.samples
+            .filter { $0.text.count >= TypefaceEvidence.minimumScalingLength }
+            .max { $0.text.count < $1.text.count }
+        guard let longest else {
+            return GhostFontResolver.Resolution(font: NSFont.systemFont(ofSize: size), provenance: .hostSizeSystem, widthAgreement: 1)
+        }
+        return GhostFontResolver.scaledSystemResolution(size: size, sample: longest.text, width: longest.width)
     }
 
     private static func applyingMatchedTypeface(
