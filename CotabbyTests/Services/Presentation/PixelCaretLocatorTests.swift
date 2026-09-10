@@ -176,6 +176,23 @@ final class PixelCaretLocatorSingleLineTests: XCTestCase {
         XCTAssertEqual(measured.caretRect.minX, region.minX + 50.5 + PixelCaretLocator.inkToCaretGap + 8, accuracy: 0.01)
     }
 
+    /// Ink reaching the region's right edge runs on past it: no caret can be read there.
+    func testInkIntoTheRegionsRightEdgeIsRefused() {
+        let analysis = InkCaretAnalyzer.Measurement(
+            lines: [.init(topRow: 25, bottomRow: 50, inkLeftColumn: 14, inkRightColumn: Int(region.width * 2) - 1)], pitchRows: nil
+        )
+        XCTAssertNil(PixelCaretLocator.measurement(from: analysis, scale: 2, region: region, request: request(text: "a line that runs on")))
+    }
+
+    /// A one-line run inside a paragraph editor is captured in its own line box, a point either
+    /// side, never reaching its neighbours' lines four points away.
+    func testAOneLineRunIsCapturedInItsOwnLineBox() {
+        var oneLine = request(text: "A short second paragraph")
+        oneLine.verticalPadding = 1
+        XCTAssertEqual(oneLine.captureRegion, frame.insetBy(dx: -PixelCaretLocator.padding, dy: -1))
+        XCTAssertEqual(request(text: "go").captureRegion, region, "a single-line field keeps its padding")
+    }
+
     func testInkOutsideTheFrameIsRefused() {
         let analysis = InkCaretAnalyzer.Measurement(
             lines: [.init(topRow: 0, bottomRow: 3, inkLeftColumn: 14, inkRightColumn: 100)], pitchRows: nil
@@ -248,6 +265,13 @@ final class PixelCaretExtrapolationTests: XCTestCase {
         XCTAssertNil(PixelCaretLocator.extrapolated(from: base, for: wide))
     }
 
+    /// A one-line run's frame widens as the host catches up with the typing; the capture it was
+    /// read in still names the same line.
+    func testAWiderFrameForTheSameLineStillCarriesForward() {
+        let wider = request("the end of the paragraph and", frame: CGRect(x: 608, y: 700, width: 640, height: 44))
+        XCTAssertNotNil(PixelCaretLocator.extrapolated(from: base, for: wider))
+    }
+
     func testTypedTextIsWhatFollowsTheCapturedParagraph() {
         XCTAssertEqual(PixelCaretLocator.appendedText(from: "ab", to: "abc d"), "c d")
         XCTAssertNil(PixelCaretLocator.appendedText(from: "ab", to: "ab"))
@@ -255,5 +279,27 @@ final class PixelCaretExtrapolationTests: XCTestCase {
         XCTAssertNil(PixelCaretLocator.appendedText(from: "ab", to: "ab\nc"))
         XCTAssertNil(PixelCaretLocator.appendedText(from: "", to: String(repeating: "x", count: PixelCaretLocator.maximumExtrapolatedCharacters + 1)))
         XCTAssertNotNil(PixelCaretLocator.appendedText(from: "", to: String(repeating: "x", count: PixelCaretLocator.maximumExtrapolatedCharacters)))
+    }
+}
+
+/// Where a one-line run is read: its own line box, widened to where its text now ends.
+@MainActor
+final class OneLineRunReadFrameTests: XCTestCase {
+    func testTheReadFrameReachesPastTheTypedTextButNeverPastTheField() {
+        let font = NSFont.systemFont(ofSize: 16)
+        // The run's frame trails the typing: the host laid it out for fewer characters.
+        let run = WrappedRunAnchor(
+            frame: CGRect(x: 608, y: 503, width: 300, height: 20),
+            paragraphTextBeforeCaret: "A short second paragraph that stays on one line and keeps",
+            spansOneLine: true
+        )
+        let textEnd = 608 + GhostFontResolver.width(of: run.paragraphTextBeforeCaret, font: font)
+        let open = OverlayController.oneLineRunReadFrame(run, font: font, fieldRight: 1512)
+        XCTAssertEqual(open.minX, 608)
+        XCTAssertEqual(open.minY, 503)
+        XCTAssertEqual(open.height, 20)
+        XCTAssertEqual(open.maxX, textEnd + OverlayController.oneLineRunReadMargin, accuracy: 0.001)
+        let clamped = OverlayController.oneLineRunReadFrame(run, font: font, fieldRight: textEnd)
+        XCTAssertEqual(clamped.maxX, textEnd, accuracy: 0.001, "never past the field's own edge")
     }
 }

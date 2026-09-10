@@ -200,9 +200,13 @@ nonisolated struct ObservedContentEdges: Equatable, Sendable {
 nonisolated struct WrappedRunAnchor: Equatable, Sendable {
     /// The run's frame in global Cocoa coordinates.
     let frame: CGRect
-    /// The caret's paragraph (the parent text between line breaks) up to the caret, taken from
-    /// the live parent value rather than the run's text, which lags while typing.
+    /// The caret's run up to the caret, taken from the live parent value (from where the run's
+    /// text was anchored in it) rather than from the run's own text, which lags while typing.
     let paragraphTextBeforeCaret: String
+    /// True for a run that is one visual line (a short paragraph): its frame is already the
+    /// caret's line box, so the pixel read treats it as a single line and nothing lays its text
+    /// out to find the line. False for a union run whose frame spans wrapped lines.
+    var spansOneLine: Bool = false
 }
 
 /// This snapshot is the future handoff point into suggestion generation.

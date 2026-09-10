@@ -302,8 +302,10 @@ the host's pixels (Screen Recording) and are asynchronous:
   query (Obsidian's CodeMirror), and in a single-line field whose caret Accessibility could only
   estimate (Chrome's address bar answers every bounds query with a zero rect): there the field's
   frame is the line and the caret is where its ink ends, so the ghost goes inline instead of to the
-  card. A single-line paragraph run gets the same treatment: its proportional caret landed 3pt
-  off in Obsidian. A capture cannot see the run under Cotabby's own ghost (the excluded window
+  card. A single-line paragraph run gets the same treatment, read in its own line box widened to
+  where its text now ends: its proportional caret landed 3pt off in Obsidian, and the full
+  padding read its neighbours' ink as lines of its own. A capture cannot see the run under
+  Cotabby's own ghost (the excluded window
   comes back black), so while the ghost is up a re-anchor for text typed since the run's last
   capture carries that caret forward by the typed advance (`extrapolatedMeasurement`), and
   anything else takes the ghost down for the read; re-anchoring to the Accessibility estimate

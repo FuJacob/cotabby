@@ -75,6 +75,34 @@ final class SuggestionCaretLayoutRepairTests: XCTestCase {
         XCTAssertLessThan(anchor.rect.minX, 612 + 628)
     }
 
+    /// A one-line run keeps its Accessibility line: its frame is the host's own line box, and
+    /// laying the text out again (Obsidian's value runs its paragraphs together) put the caret
+    /// fourteen lines up, off screen (measured 2026-09-10).
+    func test_layoutRepair_aOneLineRunKeepsItsAccessibilityCaret() {
+        let run = CGRect(x: 608, y: 503, width: 369, height: 20)
+        let edges = ObservedContentEdges(
+            leftX: 608, topY: 523, linePitch: 24, lineBoxHeight: 20,
+            wrappedRun: WrappedRunAnchor(frame: run, paragraphTextBeforeCaret: "A short second paragraph", spansOneLine: true)
+        )
+        let caret = CGRect(x: 960, y: 503, width: 2, height: 20)
+        let context = CotabbyTestFixtures.focusedInputContext(
+            caretRect: caret,
+            inputFrameRect: CGRect(x: 344, y: 63, width: 1168, height: 652),
+            caretQuality: .derived,
+            observedContentEdges: edges,
+            precedingText: "This opening paragraph is long enough to wrap onto a second line.A short second paragraph",
+            isWebContentField: true
+        )
+
+        let anchor = SuggestionCoordinator.layoutRepairedAnchor(
+            for: context, fallbackRect: caret, pendingInsertion: "", isRightToLeft: false
+        )
+
+        XCTAssertEqual(anchor.rect, caret)
+        XCTAssertEqual(anchor.quality, .derived)
+        XCTAssertEqual(anchor.skipReason, .runMeasuredGeometry)
+    }
+
     func test_layoutRepair_leavesTrustedQualityUntouched() {
         // Exact and derived geometry must never be second-guessed by the repair; it exists solely
         // to rescue the AXFrame fallback.

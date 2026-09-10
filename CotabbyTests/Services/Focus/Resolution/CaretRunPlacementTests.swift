@@ -276,6 +276,42 @@ final class CaretRunPlacementTests: XCTestCase {
         XCTAssertEqual(geometry.boxHeight, 20)
     }
 
+    /// CodeMirror (Obsidian) runs its paragraphs together in the parent value with nothing between
+    /// them: the caret's run text starts where that run was anchored, not after a line break.
+    func test_runTextBeforeCaret_startsWhereTheCaretsRunWasAnchored() {
+        let runs = ["This opening paragraph wraps.", "A short second paragraph"]
+        let parent = "This opening paragraph wraps.A short second paragraph"
+        let caret = (parent as NSString).length
+        let result = AXTextGeometryResolver.caretRunPlacementWithStart(runTexts: runs, parentText: parent, caretOffset: caret)
+        XCTAssertEqual(result?.placement, Placement(runIndex: 1, fraction: 1, mode: .aligned))
+        XCTAssertEqual(result?.runStartOffset, 29)
+        XCTAssertEqual(
+            AXTextGeometryResolver.runTextBeforeCaret(in: parent, runStartOffset: result?.runStartOffset, caretOffset: caret),
+            "A short second paragraph"
+        )
+    }
+
+    /// Typed text the run frames have not caught up with belongs to the caret's run all the same.
+    func test_runTextBeforeCaret_includesTextTypedPastTheLaggingRun() {
+        let runs = ["This opening paragraph wraps.", "A short second paragraph"]
+        let parent = "This opening paragraph wraps.A short second paragraph that"
+        let caret = (parent as NSString).length
+        let result = AXTextGeometryResolver.caretRunPlacementWithStart(runTexts: runs, parentText: parent, caretOffset: caret)
+        XCTAssertEqual(result?.placement.trailingGapCharacters, 5)
+        XCTAssertEqual(
+            AXTextGeometryResolver.runTextBeforeCaret(in: parent, runStartOffset: result?.runStartOffset, caretOffset: caret),
+            "A short second paragraph that"
+        )
+    }
+
+    func test_runTextBeforeCaret_edges() {
+        XCTAssertEqual(AXTextGeometryResolver.runTextBeforeCaret(in: "aa\nbb", runStartOffset: 3, caretOffset: 5), "bb")
+        XCTAssertEqual(AXTextGeometryResolver.runTextBeforeCaret(in: "abc", runStartOffset: 3, caretOffset: 3), "", "the caret at the run's start")
+        XCTAssertEqual(AXTextGeometryResolver.runTextBeforeCaret(in: "abc", runStartOffset: 5, caretOffset: 3), "", "the caret before the run")
+        XCTAssertEqual(AXTextGeometryResolver.runTextBeforeCaret(in: "yy\nzz", runStartOffset: nil, caretOffset: 5), "zz", "no anchor: after the line break")
+        XCTAssertEqual(AXTextGeometryResolver.runTextBeforeCaret(in: "aa\nbb cc", runStartOffset: 0, caretOffset: 8), "bb cc", "never back across a line break")
+    }
+
     func test_paragraphTextBeforeCaretStopsAtTheLineBreak() {
         XCTAssertEqual(AXTextGeometryResolver.paragraphTextBeforeCaret(in: "one\ntwo three\nfour", caretOffset: 9), "two t")
         XCTAssertEqual(AXTextGeometryResolver.paragraphTextBeforeCaret(in: "single", caretOffset: 3), "sin")

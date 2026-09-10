@@ -343,12 +343,49 @@ final class OverlayController: SuggestionOverlayControlling {
     static let singleLineFieldMaximumHeight: CGFloat = 44
     /// The caret box reported for a single-line field, as a fraction of the field's height.
     static let singleLineCaretBoxFraction: CGFloat = 0.75
+    /// Points above and below a one-line run that its pixel read includes: less than the four
+    /// points between its line box and its neighbours', so their ink never reads as a line.
+    static let oneLineRunVerticalPadding: CGFloat = 1
+    /// Points past the typed text's estimated end that a one-line run's read reaches.
+    static let oneLineRunReadMargin: CGFloat = 24
+
+    /// The frame a one-line run is read in: its own line box, widened on the right to where its
+    /// text now ends. The host reports the run as wide as its text was at its last layout, which
+    /// trails the typing by a few characters, and a caret past that edge was refused as bad
+    /// geometry. The width is the text before the caret in the ghost's face plus a margin, never
+    /// past the field's own right edge (whatever the field paints beyond its text is not ink of
+    /// this line).
+    static func oneLineRunReadFrame(_ run: WrappedRunAnchor, font: NSFont, fieldRight: CGFloat?) -> CGRect {
+        let textEnd = run.frame.minX + GhostFontResolver.width(of: run.paragraphTextBeforeCaret, font: font) + oneLineRunReadMargin
+        var right = max(run.frame.maxX, textEnd)
+        if let fieldRight, fieldRight > run.frame.maxX {
+            right = min(right, fieldRight)
+        }
+        return CGRect(x: run.frame.minX, y: run.frame.minY, width: right - run.frame.minX, height: run.frame.height)
+    }
 
     private func pixelCaretRequest(for geometry: SuggestionOverlayGeometry) -> PixelCaretLocator.Request? {
         guard geometry.isCaretAtEndOfLine, !geometry.isRightToLeft else { return nil }
         let renderer: GhostBaselinePolicy.HostRenderer = geometry.isWebContentField ? .webEngine : .textKit
         let font = resolveFont(for: geometry, renderer: renderer).font
         if let wrapped = geometry.wrappedRun {
+            let trailingInkGap = PixelCaretLocator.trailingInkGap(after: wrapped.paragraphTextBeforeCaret, font: font)
+                ?? PixelCaretLocator.inkToCaretGap
+            // A one-line run is read as one line, in its own line box: see `oneLineRunReadFrame`.
+            if wrapped.spansOneLine {
+                return PixelCaretLocator.Request(
+                    focusedInputIdentityKey: geometry.focusedInputIdentityKey,
+                    runFrame: Self.oneLineRunReadFrame(wrapped, font: font, fieldRight: geometry.elementFrameRect?.maxX),
+                    paragraphTextBeforeCaret: wrapped.paragraphTextBeforeCaret,
+                    siblingLinePitch: nil,
+                    siblingLineBoxHeight: nil,
+                    spaceAdvance: GhostFontResolver.width(of: " ", font: font),
+                    trailingInkGap: trailingInkGap,
+                    singleLineCaretHeight: wrapped.frame.height,
+                    verticalPadding: Self.oneLineRunVerticalPadding,
+                    font: font
+                )
+            }
             return PixelCaretLocator.Request(
                 focusedInputIdentityKey: geometry.focusedInputIdentityKey,
                 runFrame: wrapped.frame,
@@ -356,8 +393,7 @@ final class OverlayController: SuggestionOverlayControlling {
                 siblingLinePitch: geometry.hostTextMetrics?.linePitch,
                 siblingLineBoxHeight: geometry.hostTextMetrics?.lineRect?.height,
                 spaceAdvance: GhostFontResolver.width(of: " ", font: font),
-                trailingInkGap: PixelCaretLocator.trailingInkGap(after: wrapped.paragraphTextBeforeCaret, font: font)
-                    ?? PixelCaretLocator.inkToCaretGap,
+                trailingInkGap: trailingInkGap,
                 font: font
             )
         }

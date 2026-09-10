@@ -54,14 +54,26 @@ final class PixelCaretLocator {
         /// field paints (the box the host would have reported, had it answered). Nil for a wrapped
         /// paragraph, whose line boxes come from the frame and pitch instead.
         var singleLineCaretHeight: CGFloat? = nil
+        /// Points captured above and below the frame. A one-line run inside a paragraph editor sits
+        /// four points from its neighbours' line boxes, and the full padding took their ascenders
+        /// and descenders for lines of its own: most reads of Obsidian's one-line paragraphs
+        /// failed that way (measured 2026-09-10).
+        var verticalPadding: CGFloat = PixelCaretLocator.padding
         /// The ghost's face, whose advances carry a captured caret forward over text typed since
         /// the capture (`extrapolatedMeasurement(for:)`). Nil disables that.
         var font: NSFont? = nil
 
-        /// Identifies the run (field and frame) independently of the paragraph's text.
+        /// Identifies the run (field, left edge, top and height) independently of its text and
+        /// width: a one-line run's frame widens as the host catches up with the typing, while a
+        /// wrap onto a new line changes its height.
         var runKey: String {
-            let frame = "\(Int(runFrame.minX.rounded())),\(Int(runFrame.maxY.rounded())),\(Int(runFrame.width.rounded()))"
+            let frame = "\(Int(runFrame.minX.rounded())),\(Int(runFrame.maxY.rounded())),\(Int(runFrame.height.rounded()))"
             return "\(focusedInputIdentityKey)|\(frame)"
+        }
+
+        /// The screen region captured for this request.
+        var captureRegion: CGRect {
+            runFrame.insetBy(dx: -PixelCaretLocator.padding, dy: -verticalPadding)
         }
 
         var cacheKey: String {
@@ -223,7 +235,7 @@ final class PixelCaretLocator {
             return
         }
         inFlight[key] = [completion]
-        let requested = request.runFrame.insetBy(dx: -Self.padding, dy: -Self.padding)
+        let requested = request.captureRegion
         Task { @MainActor [weak self] in
             guard let self else { return }
             let started = Date()
@@ -242,6 +254,9 @@ final class PixelCaretLocator {
                     failure = measurement == nil ? "geometry" : ""
                 } else {
                     failure = "no-ink"
+                }
+                if Self.dumpsCaptures {
+                    Self.dumpCapture(captured, region: region, request: request, analysis: analysis, measurement: measurement, failure: failure)
                 }
             } catch {
                 failure = "capture: \(error.localizedDescription)"
@@ -361,6 +376,9 @@ final class PixelCaretLocator {
         let inkBottom = region.maxY - CGFloat(line.bottomRow + 1) / scale
         guard inkTop <= frame.maxY + 1, inkBottom >= frame.minY - 1 else { return nil }
         let inkRight = region.minX + CGFloat(line.inkRightColumn + 1) / scale
+        // Ink running into the region's right edge goes on past it: the caret is further right
+        // than anything this capture shows.
+        guard inkRight < region.maxX - 1 else { return nil }
         let trailingSpaces = request.paragraphTextBeforeCaret.reversed().prefix { $0 == " " || $0 == "\u{00A0}" }.count
         let caretX = inkRight + request.trailingInkGap + CGFloat(trailingSpaces) * request.spaceAdvance
         guard caretX >= frame.minX - 1, caretX <= frame.maxX + request.spaceAdvance * 2 + 1 else { return nil }
@@ -437,6 +455,57 @@ final class PixelCaretLocator {
     private enum LocatorError: Error {
         case noDisplay
         case noImage
+    }
+
+    // MARK: - Capture dumps (developer diagnostics)
+
+    /// Debug-only, under the calibrator's strip switch
+    /// (`defaults write <bundle> cotabbyDumpCalibrationStrips -bool YES`): every caret capture is
+    /// written as a PNG plus a JSON sidecar (run frame, region, the text's tail, the analyzer's
+    /// lines and the caret they gave) next to the strips, so a caret read a point off can be
+    /// examined on exactly the pixels it came from. Off by default.
+    private static let dumpsCaptures = UserDefaults.standard.bool(forKey: "cotabbyDumpCalibrationStrips")
+
+    private nonisolated static func dumpCapture(
+        _ captured: Captured,
+        region: CGRect,
+        request: Request,
+        analysis: InkCaretAnalyzer.Measurement?,
+        measurement: Measurement?,
+        failure: String
+    ) {
+        let folder = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Logs/\(ProcessInfo.processInfo.processName)/strips", isDirectory: true)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let stamp = Int(Date().timeIntervalSince1970 * 1000)
+        let bitmap = captured.bitmap
+        if let representation = NSBitmapImageRep(
+            bitmapDataPlanes: nil, pixelsWide: bitmap.width, pixelsHigh: bitmap.height, bitsPerSample: 8, samplesPerPixel: 4,
+            hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: bitmap.width * 4, bitsPerPixel: 32
+        ), let data = representation.bitmapData {
+            bitmap.bytes.withUnsafeBufferPointer { data.update(from: $0.baseAddress!, count: bitmap.bytes.count) }
+            try? representation.representation(using: .png, properties: [:])?.write(to: folder.appendingPathComponent("caret-\(stamp).png"))
+        }
+        func values(_ rect: CGRect) -> [Double] { [rect.minX, rect.minY, rect.width, rect.height].map { Double($0) } }
+        var sidecar: [String: Any] = [
+            "run_frame": values(request.runFrame),
+            "region": values(region),
+            "scale": Double(captured.scale),
+            "text_tail": String(request.paragraphTextBeforeCaret.suffix(60)),
+            "trailing_ink_gap": Double(request.trailingInkGap),
+            "single_line": request.singleLineCaretHeight != nil,
+            "failure": failure
+        ]
+        if let analysis {
+            sidecar["lines"] = analysis.lines.map { [$0.topRow, $0.bottomRow, $0.inkLeftColumn, $0.inkRightColumn] }
+            sidecar["pitch_rows"] = analysis.pitchRows ?? 0
+        }
+        if let measurement {
+            sidecar["caret"] = values(measurement.caretRect)
+        }
+        if let json = try? JSONSerialization.data(withJSONObject: sidecar) {
+            try? json.write(to: folder.appendingPathComponent("caret-\(stamp).json"))
+        }
     }
 
     private func store(_ measurement: Measurement, for key: String) {

@@ -818,7 +818,10 @@ extension SuggestionCoordinator {
         // the paragraph is laid out in the run's own frame at the sibling runs' pitch, and the
         // line the caret lands on is placed from the union's top. That geometry is measured (frame
         // and pitch) except for the x inside the line, which is the host font's advance.
-        if let edges = context.observedContentEdges, edges.wrappedRun != nil {
+        // A one-line run is not laid out again: its frame is the host's own line box, so the
+        // Accessibility caret already has the right line and only its x is approximate (the pixel
+        // read corrects that at presentation). Laying it out put the caret fourteen lines up.
+        if let edges = context.observedContentEdges, let wrapped = edges.wrappedRun, !wrapped.spansOneLine {
             return wrappedRunAnchor(
                 edges: edges, context: context, fallbackRect: fallbackRect,
                 pendingInsertion: pendingInsertion, isRightToLeft: isRightToLeft

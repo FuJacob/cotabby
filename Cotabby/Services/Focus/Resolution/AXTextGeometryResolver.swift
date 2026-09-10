@@ -301,13 +301,19 @@ struct AXTextGeometryResolver {
         // Map the caret offset to a run by aligning run texts inside the parent value (see
         // `caretRunPlacement`). The run frame's Y is a real rendered line position, so a correct
         // run choice is what makes derived geometry trustworthy vertically.
-        guard let placement = Self.caretRunPlacement(
+        guard let placementWithStart = Self.caretRunPlacementWithStart(
             runTexts: textRuns.map(\.text),
             parentText: parentText,
             caretOffset: parentSelection.location
         ) else {
             return nil
         }
+        let placement = placementWithStart.placement
+        // The caret's own run up to the caret (see `runTextBeforeCaret`), from the live parent
+        // value: the run's own text lags while typing.
+        let runTextBeforeCaret = Self.runTextBeforeCaret(
+            in: parentText, runStartOffset: placementWithStart.runStartOffset, caretOffset: parentSelection.location
+        )
 
         // Electron editors may expose one AXStaticText child whose frame is the union of several
         // soft-wrapped lines. A proportional X inside that union has no relationship to the caret,
@@ -336,6 +342,7 @@ struct AXTextGeometryResolver {
                 selectedRun,
                 parentText: parentText,
                 parentSelection: parentSelection,
+                paragraphTextBeforeCaret: runTextBeforeCaret,
                 fallbackFrame: fallbackFrame,
                 siblingLines: siblingLines,
                 observedCharWidth: charWidth
@@ -356,7 +363,9 @@ struct AXTextGeometryResolver {
             // The proportional x below is a fraction of the frame by character count, which in a
             // proportional face lands several points off (measured 2026-09-10 in Obsidian's
             // single-line paragraphs: 3 to 3.5pt on a fifty-character line, the ghost's every word
-            // that far from the host's); the pixels put the caret at the last glyph's edge.
+            // that far from the host's); the pixels put the caret at the last glyph's edge. It is
+            // marked as one line: its frame is already the caret's line box, so only x is read from
+            // the pixels and nothing lays the text out again to find its line.
             contentEdges = ObservedContentEdges(
                 leftX: leftX,
                 topY: topY,
@@ -364,7 +373,8 @@ struct AXTextGeometryResolver {
                 lineBoxHeight: siblingLines.boxHeight,
                 wrappedRun: WrappedRunAnchor(
                     frame: runFrame,
-                    paragraphTextBeforeCaret: Self.paragraphTextBeforeCaret(in: parentText, caretOffset: parentSelection.location)
+                    paragraphTextBeforeCaret: runTextBeforeCaret,
+                    spansOneLine: true
                 )
             )
         } else {
@@ -399,6 +409,7 @@ struct AXTextGeometryResolver {
         _ selectedRun: StaticTextRunWalkThrottle.TextRun,
         parentText: String,
         parentSelection: NSRange,
+        paragraphTextBeforeCaret: String,
         fallbackFrame: CGRect?,
         siblingLines: (pitch: CGFloat?, boxHeight: CGFloat?) = (nil, nil),
         observedCharWidth: CGFloat? = nil
@@ -437,10 +448,7 @@ struct AXTextGeometryResolver {
         // out and find the caret's visual line (see `WrappedRunAnchor`); the rect below is only
         // the whole-field fallback for when that layout is rejected.
         let unionFrame = AXHelper.cocoaRect(fromAccessibilityRect: selectedRun.frame)
-        let wrappedRun = WrappedRunAnchor(
-            frame: unionFrame,
-            paragraphTextBeforeCaret: Self.paragraphTextBeforeCaret(in: parentText, caretOffset: parentSelection.location)
-        )
+        let wrappedRun = WrappedRunAnchor(frame: unionFrame, paragraphTextBeforeCaret: paragraphTextBeforeCaret)
         return CaretGeometryResult(
             rect: CGRect(
                 x: min(estimatedX, fallbackFrame.maxX),
@@ -645,6 +653,17 @@ struct AXTextGeometryResolver {
         parentText: String,
         caretOffset: Int
     ) -> CaretRunPlacement? {
+        caretRunPlacementWithStart(runTexts: runTexts, parentText: parentText, caretOffset: caretOffset)?.placement
+    }
+
+    /// `caretRunPlacement` plus where the caret's run begins in the parent value, as a UTF-16
+    /// offset (valid in the original string, since matching normalizes one unit for one). Nil
+    /// when the run was not anchored: the legacy cumulative walk matches no text.
+    static func caretRunPlacementWithStart(
+        runTexts: [String],
+        parentText: String,
+        caretOffset: Int
+    ) -> (placement: CaretRunPlacement, runStartOffset: Int?)? {
         guard !runTexts.isEmpty else {
             return nil
         }
@@ -654,12 +673,30 @@ struct AXTextGeometryResolver {
 
         let anchored = anchoredRunRanges(normalizedRuns: normalizedRuns, parent: parent)
         guard !anchored.isEmpty else {
-            return legacyCumulativePlacement(runTexts: runTexts, caretOffset: caret)
+            return (legacyCumulativePlacement(runTexts: runTexts, caretOffset: caret), nil)
         }
         let mode: CaretRunMappingMode = anchored.count == runTexts.count
             ? .aligned
             : .partiallyAligned
-        return placementAmongAnchors(anchored, caret: caret, mode: mode, parent: parent)
+        let result = placementAmongAnchors(anchored, caret: caret, mode: mode, parent: parent)
+        return (result.placement, result.runStartOffset)
+    }
+
+    /// The caret's run text up to the caret: the parent value from where the run was anchored.
+    /// A paragraph cannot be found by line breaks in every host: CodeMirror's value (Obsidian)
+    /// runs its paragraphs together with nothing between them, so the text after the last line
+    /// break was every paragraph before the caret, and laying that out in one run's frame put the
+    /// caret eight to fourteen lines away, off screen (measured 2026-09-10). Falls back to the text
+    /// after the last line break when the run was not anchored, and never reaches back across one.
+    static func runTextBeforeCaret(in parentText: String, runStartOffset: Int?, caretOffset: Int) -> String {
+        let parent = parentText as NSString
+        let caret = min(max(caretOffset, 0), parent.length)
+        guard let runStartOffset, runStartOffset >= 0 else {
+            return paragraphTextBeforeCaret(in: parentText, caretOffset: caret)
+        }
+        guard runStartOffset < caret else { return "" }
+        let runText = parent.substring(with: NSRange(location: runStartOffset, length: caret - runStartOffset))
+        return paragraphTextBeforeCaret(in: runText, caretOffset: (runText as NSString).length)
     }
 
     /// Anchors each run's text inside the parent value. Pass one accepts only boundary-clean
@@ -720,14 +757,14 @@ struct AXTextGeometryResolver {
         caret: Int,
         mode: CaretRunMappingMode,
         parent: NSString
-    ) -> CaretRunPlacement {
+    ) -> (placement: CaretRunPlacement, runStartOffset: Int) {
         for (position, entry) in anchored.enumerated() {
             if caret < entry.range.location {
                 if position > 0 {
                     let previous = anchored[position - 1]
                     let previousEnd = previous.range.location + previous.range.length
                     if caret - previousEnd <= entry.range.location - caret {
-                        return CaretRunPlacement(
+                        let placement = CaretRunPlacement(
                             runIndex: previous.runIndex,
                             fraction: 1,
                             mode: mode,
@@ -735,20 +772,21 @@ struct AXTextGeometryResolver {
                                 from: previousEnd, to: caret, in: parent
                             )
                         )
+                        return (placement, previous.range.location)
                     }
                 }
-                return CaretRunPlacement(runIndex: entry.runIndex, fraction: 0, mode: mode)
+                return (CaretRunPlacement(runIndex: entry.runIndex, fraction: 0, mode: mode), entry.range.location)
             }
             if caret <= entry.range.location + entry.range.length {
                 let fraction = entry.range.length > 0
                     ? CGFloat(caret - entry.range.location) / CGFloat(entry.range.length)
                     : 1
-                return CaretRunPlacement(runIndex: entry.runIndex, fraction: fraction, mode: mode)
+                return (CaretRunPlacement(runIndex: entry.runIndex, fraction: fraction, mode: mode), entry.range.location)
             }
         }
 
         let last = anchored[anchored.count - 1]
-        return CaretRunPlacement(
+        let placement = CaretRunPlacement(
             runIndex: last.runIndex,
             fraction: 1,
             mode: mode,
@@ -756,6 +794,7 @@ struct AXTextGeometryResolver {
                 from: last.range.location + last.range.length, to: caret, in: parent
             )
         )
+        return (placement, last.range.location)
     }
 
     /// The number of characters between a run's trailing edge and the caret when extending the
