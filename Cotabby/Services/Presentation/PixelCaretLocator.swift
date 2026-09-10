@@ -44,6 +44,10 @@ final class PixelCaretLocator {
         let siblingLineBoxHeight: CGFloat?
         /// Advance of one space in the ghost's font, for the unpainted trailing spaces.
         let spaceAdvance: CGFloat
+        /// Points between the last painted glyph's ink and the caret: that glyph's right side
+        /// bearing in the ghost's font (see `trailingInkGap(after:font:)`), or the average gap
+        /// when the glyph is unknown.
+        var trailingInkGap: CGFloat = PixelCaretLocator.inkToCaretGap
         /// For a single-line field: the height of the caret box to report, centred on the ink the
         /// field paints (the box the host would have reported, had it answered). Nil for a wrapped
         /// paragraph, whose line boxes come from the frame and pitch instead.
@@ -80,9 +84,33 @@ final class PixelCaretLocator {
 
     /// Points of slack captured around the run so a glyph touching the frame edge is not clipped.
     static let padding: CGFloat = 6
-    /// Where the host draws its caret relative to the last glyph's ink: the advance ends about a
-    /// side bearing past the ink, which is under a point at text sizes.
+    /// Where the host draws its caret relative to the last glyph's ink when the glyph is unknown:
+    /// the advance ends about a side bearing past the ink, which is under a point at text sizes.
+    /// Measured word by word in Obsidian (2026-09-10), a fixed gap after a "t" in the system face
+    /// put the ghost half a point right of the accepted text; the glyph's own bearing is used
+    /// whenever the text and face are known.
     static let inkToCaretGap: CGFloat = 0.75
+    /// Bearings outside this range are not a text glyph's (a symbol, a missing glyph) and fall
+    /// back to the average gap.
+    static let trailingInkGapRange: ClosedRange<CGFloat> = 0...1.5
+
+    /// The right side bearing of the last non-space character of `text` in `font`: how far the
+    /// caret sits past that glyph's ink. Nil when the text ends in whitespace, is empty, or the
+    /// glyph cannot be measured.
+    nonisolated static func trailingInkGap(after text: String, font: NSFont) -> CGFloat? {
+        guard let character = text.last(where: { !$0.isWhitespace }) else { return nil }
+        var units = Array(String(character).utf16)
+        guard units.count == 1 else { return nil }
+        var glyph: CGGlyph = 0
+        guard CTFontGetGlyphsForCharacters(font as CTFont, &units, &glyph, 1), glyph != 0 else { return nil }
+        var advance = CGSize.zero
+        CTFontGetAdvancesForGlyphs(font as CTFont, .horizontal, &glyph, &advance, 1)
+        var box = CGRect.zero
+        CTFontGetBoundingRectsForGlyphs(font as CTFont, .horizontal, &glyph, &box, 1)
+        guard advance.width > 0, !box.isNull, box.width > 0 else { return nil }
+        let bearing = advance.width - box.maxX
+        return trailingInkGapRange.contains(bearing) ? bearing : nil
+    }
     private static let cacheLimit = 8
 
     private var cache: [String: Measurement] = [:]
@@ -208,7 +236,7 @@ final class PixelCaretLocator {
             guard inkTop <= lineRect.maxY + 1, inkBottom >= lineRect.minY - 1 else { return nil }
             let inkRight = region.minX + CGFloat(last.inkRightColumn + 1) / scale
             let trailingSpaces = request.paragraphTextBeforeCaret.reversed().prefix { $0 == " " || $0 == "\u{00A0}" }.count
-            caretX = inkRight + inkToCaretGap + CGFloat(trailingSpaces) * request.spaceAdvance
+            caretX = inkRight + request.trailingInkGap + CGFloat(trailingSpaces) * request.spaceAdvance
         }
         guard caretX >= frame.minX - 1, caretX <= frame.maxX + request.spaceAdvance * 2 + 1 else { return nil }
         let painted = paintedCount < lineCount ? nil : analysis.lines[paintedCount - 1]
@@ -262,7 +290,7 @@ final class PixelCaretLocator {
         guard inkTop <= frame.maxY + 1, inkBottom >= frame.minY - 1 else { return nil }
         let inkRight = region.minX + CGFloat(line.inkRightColumn + 1) / scale
         let trailingSpaces = request.paragraphTextBeforeCaret.reversed().prefix { $0 == " " || $0 == "\u{00A0}" }.count
-        let caretX = inkRight + inkToCaretGap + CGFloat(trailingSpaces) * request.spaceAdvance
+        let caretX = inkRight + request.trailingInkGap + CGFloat(trailingSpaces) * request.spaceAdvance
         guard caretX >= frame.minX - 1, caretX <= frame.maxX + request.spaceAdvance * 2 + 1 else { return nil }
         let height = min(max(caretHeight, 4), frame.height)
         let centre = (inkTop + inkBottom) / 2

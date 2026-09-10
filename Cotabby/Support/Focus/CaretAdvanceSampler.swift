@@ -19,7 +19,9 @@ import Foundation
 ///
 /// Rules, all measured against Chromium's behavior:
 ///   - only an exact or derived caret counts; an estimated one is a guess about the field, not a
-///     position on the line;
+///     position on the line, and is simply skipped: CodeMirror's polls alternate between a
+///     run-aligned caret and an estimated one (Obsidian, 2026-09-10), and resetting on every
+///     estimated poll left the field without a sample for good;
 ///   - an observation extends the running sample only when it is on the same line (a wrap or a new
 ///     paragraph moves the caret to another y), the caret did not move backward, the document
 ///     caret grew by a keystroke's worth (`maximumStep`) and the text before the new characters
@@ -88,8 +90,9 @@ nonisolated struct CaretAdvanceSampler: Equatable, Sendable {
     /// Feeds one poll. Returns the sample after it, for callers that merge it into metrics.
     @discardableResult
     mutating func observe(_ observation: Observation) -> Sample? {
+        guard observation.isPositioned else { return sample }
         defer { last = observation }
-        guard observation.isPositioned, let previous = last, previous.isPositioned else {
+        guard let previous = last else {
             chunks.removeAll()
             return nil
         }

@@ -80,9 +80,23 @@ final class CaretAdvanceSamplerTests: XCTestCase {
         sampler.observe(observation("ast", x: 507.5, positioned: false))
         sampler.observe(observation("asth", x: 515, positioned: false))
         XCTAssertNil(sampler.sample)
-        // A positioned caret after an estimated one starts fresh rather than pairing with it.
+        // A positioned caret after estimated ones has nothing positioned to pair with yet.
         sampler.observe(observation("asthe", x: 522.5))
         XCTAssertNil(sampler.sample)
+    }
+
+    func testEstimatedPollsBetweenPositionedOnesAreSkippedNotReset() {
+        // CodeMirror alternates a run-aligned caret with an estimated one from poll to poll; the
+        // positioned polls still describe one run of typing.
+        var sampler = CaretAdvanceSampler()
+        var text = "as"; var x: CGFloat = 500
+        sampler.observe(observation(text, x: x))
+        for (index, character) in "the user writes".enumerated() {
+            text.append(character); x += 7.5
+            sampler.observe(observation(text, x: x, positioned: index % 2 == 0))
+        }
+        XCTAssertNotNil(sampler.sample)
+        XCTAssertEqual(sampler.sample?.width ?? 0, 7.5 * 15, accuracy: 0.001, "every skipped character's advance arrives with the next positioned poll")
     }
 
     func testABackspaceOrACaretMoveStartsOver() {

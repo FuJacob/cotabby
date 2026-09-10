@@ -80,6 +80,20 @@ final class PixelCaretLocatorTests: XCTestCase {
         XCTAssertNil(measured.baselineOffsetFromTop)
     }
 
+    func testTheCaretGapIsTheLastGlyphsOwnSideBearing() throws {
+        // Measured in Obsidian (2026-09-10): a fixed gap after a "t" in the system face put the
+        // ghost half a point right of the accepted text. Each glyph's bearing is its own.
+        let font = NSFont.systemFont(ofSize: 16)
+        let afterT = try XCTUnwrap(PixelCaretLocator.trailingInkGap(after: "the ghost", font: font))
+        let afterO = try XCTUnwrap(PixelCaretLocator.trailingInkGap(after: "hello", font: font))
+        XCTAssertTrue(PixelCaretLocator.trailingInkGapRange.contains(afterT))
+        XCTAssertTrue(PixelCaretLocator.trailingInkGapRange.contains(afterO))
+        XCTAssertNotEqual(afterT, afterO, accuracy: 0.05, "two glyphs with different bearings must not share one gap")
+        XCTAssertEqual(PixelCaretLocator.trailingInkGap(after: "the ghost ", font: font), afterT, "trailing spaces are added separately")
+        XCTAssertNil(PixelCaretLocator.trailingInkGap(after: "   ", font: font))
+        XCTAssertNil(PixelCaretLocator.trailingInkGap(after: "", font: font))
+    }
+
     func testTrailingSpacesAdvanceTheCaretPastTheInk() throws {
         let analysis = InkCaretAnalyzer.Measurement(
             lines: [.init(topRow: 12, bottomRow: 42, inkLeftColumn: 24, inkRightColumn: 400)], pitchRows: nil

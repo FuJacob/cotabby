@@ -330,7 +330,9 @@ final class OverlayController: SuggestionOverlayControlling {
                 paragraphTextBeforeCaret: wrapped.paragraphTextBeforeCaret,
                 siblingLinePitch: geometry.hostTextMetrics?.linePitch,
                 siblingLineBoxHeight: geometry.hostTextMetrics?.lineRect?.height,
-                spaceAdvance: GhostFontResolver.width(of: " ", font: font)
+                spaceAdvance: GhostFontResolver.width(of: " ", font: font),
+                trailingInkGap: PixelCaretLocator.trailingInkGap(after: wrapped.paragraphTextBeforeCaret, font: font)
+                    ?? PixelCaretLocator.inkToCaretGap
             )
         }
         // A single-line field whose caret AX could only estimate (Chrome's address bar answers no
@@ -349,6 +351,7 @@ final class OverlayController: SuggestionOverlayControlling {
             siblingLinePitch: nil,
             siblingLineBoxHeight: nil,
             spaceAdvance: GhostFontResolver.width(of: " ", font: font),
+            trailingInkGap: PixelCaretLocator.trailingInkGap(after: text, font: font) ?? PixelCaretLocator.inkToCaretGap,
             // A fixed fraction of the field, not the estimate's own height: the estimate alternated
             // between 16 and 18pt for Chrome's 24pt address bar (measured 2026-09-10) and the ghost's
             // derived size flipped with it. The pixel match settles the size; this box only has to
