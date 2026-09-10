@@ -40,8 +40,11 @@ final class SuggestionCoordinatorPredictionTests: XCTestCase {
         guard case let .ready(text, _) = rig.coordinator.state else {
             return XCTFail("Expected ready state")
         }
-        XCTAssertEqual(text, " world")
-        XCTAssertEqual(rig.overlayController.shownTexts, [" world"])
+        // The field already ends with a space, so the ghost carries none: `GhostSpaceBoundary`
+        // settles that against the live text, and the stub engine's canned " world" (which never
+        // went through the normalizer) is corrected here exactly as a real completion would be.
+        XCTAssertEqual(text, "world")
+        XCTAssertEqual(rig.overlayController.shownTexts, ["world"])
         XCTAssertTrue(rig.coordinator.overlayState.isVisible)
         XCTAssertEqual(rig.engine.requests.count, 1)
         XCTAssertEqual(rig.engine.requests.first?.prefixText.isEmpty, false)

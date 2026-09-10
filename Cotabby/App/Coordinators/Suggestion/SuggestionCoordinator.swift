@@ -117,6 +117,16 @@ final class SuggestionCoordinator: ObservableObject {
     /// ready → accepted/rejected) can be joined with a single `jq` filter on `request_id`.
     /// `nil` between sessions; replaced when `+Prediction` builds the next request.
     var latestRequestID: String?
+    /// The word-boundary anchor of the request now in flight, or nil when it was not anchored.
+    /// `GhostSpaceBoundary` needs it to tell a completion that finishes the user's half-typed word
+    /// (never takes a space) from one that starts a new word (takes exactly one). Kept beside
+    /// `latestRequestID` because both describe the in-flight request, and every reader is already
+    /// guarded by the work-id check that makes "in flight" meaningful.
+    var latestWordBoundaryAnchor: String?
+    /// True once the continuation of the active suggestion has been prefetched, so the extra
+    /// generation happens at most once per suggestion however many characters are typed through it.
+    /// Cleared whenever the session is torn down or replaced.
+    var hasPrefetchedContinuation = false
     /// Set when a full acceptance commits its final chunk; consumed by the next `apply`. Lets the
     /// coordinator drop a regeneration that only re-proposes the just-accepted tail before the host
     /// publishes the insert, the Chromium AX-publish race that otherwise loops accept/regenerate/
@@ -133,6 +143,7 @@ final class SuggestionCoordinator: ObservableObject {
     var suggestionAnchorCache = SuggestionAnchorCache()
     static let anchorReuseDisabledDefaultsKey = "cotabbyAnchorReuseDisabled"
     static let speculativePrefetchDisabledDefaultsKey = "cotabbySpeculativePrefetchDisabled"
+    static let continuationPrefetchDisabledDefaultsKey = "cotabbyContinuationPrefetchDisabled"
 
     /// Content signature a speculative post-acceptance generation was built against. While set,
     /// `apply` may accept a result whose generation predates the live one as long as the live

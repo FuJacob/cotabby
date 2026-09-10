@@ -132,6 +132,7 @@ extension SuggestionCoordinator {
         latestGenerationNumber = context.generation
         let request = requestBuildResult.request
         latestRequestID = request.requestID
+        latestWordBoundaryAnchor = request.wordBoundaryAnchor
 
         state = .generating
         // The model needs tens to hundreds of milliseconds; the overlay uses that time to measure
@@ -253,6 +254,7 @@ extension SuggestionCoordinator {
         latestGenerationNumber = context.generation
         let request = requestBuildResult.request
         latestRequestID = request.requestID
+        latestWordBoundaryAnchor = request.wordBoundaryAnchor
 
         let workID = workController.replaceDebouncedWork(delayMilliseconds: 0) { [weak self] workID in
             guard let self else { return }
@@ -266,6 +268,74 @@ extension SuggestionCoordinator {
             message: "Started the post-acceptance generation against the expected post-insert text.",
             prompt: requestBuildResult.promptPreview
         )
+    }
+
+    /// Longest remaining ghost text that still counts as "about to run out", in characters.
+    /// A short word plus its space: past this the user has enough ahead of them that the
+    /// continuation can wait for the ordinary cycle.
+    static let continuationPrefetchRemainingCharacters = 9
+
+    /// Generates the suggestion that comes AFTER the visible one and files it in the anchor cache,
+    /// so typing through the last word lands on a ready suggestion instead of a blank gap.
+    ///
+    /// Why the cache rather than the session: the result arrives while the user is still typing
+    /// through the visible ghost, and anything that touched the session or the overlay then would
+    /// either replace text the user is mid-way through or be dropped as stale (which hides the
+    /// ghost). Writing only to `suggestionAnchorCache` cannot disturb what is on screen; when the
+    /// type-through exhausts the suggestion, the regeneration that follows finds this entry through
+    /// `restoreSuggestionFromAnchorCache` and shows it with no model round-trip at all.
+    ///
+    /// This matters most at short word-count presets: a 2-4 word suggestion is typed through in a
+    /// second or two, and the gap that followed it was most of the time the ghost was absent.
+    ///
+    /// Deliberately outside `workController`: this generation must not become "the current work",
+    /// or it would retire the in-flight cycle and its own result would be judged as the visible
+    /// suggestion. It is fire-and-forget, and a stale answer is simply a cache entry the live text
+    /// never matches.
+    func prefetchContinuation(after session: ActiveSuggestionSession, rawContext: FocusedInputSnapshot) {
+        guard !userDefaults.bool(forKey: Self.continuationPrefetchDisabledDefaultsKey) else { return }
+        guard !hasPrefetchedContinuation else { return }
+        let remaining = session.remainingText
+        guard !remaining.isEmpty, remaining.count <= Self.continuationPrefetchRemainingCharacters else { return }
+        let optimistic = SpeculativeAcceptanceContext.optimisticSnapshot(after: rawContext, inserting: remaining)
+        guard SuggestionRequestFactory.shouldGenerateSuggestion(
+            for: optimistic.precedingText, trailingText: optimistic.trailingText
+        ) else { return }
+        hasPrefetchedContinuation = true
+
+        let context = interactionState.materializeContext(from: optimistic)
+        let identityKey = context.focusedInputIdentityKey
+        let precedingText = context.precedingText
+        let requestBuildResult = SuggestionRequestFactory.buildRequest(
+            context: context,
+            settings: settingsSnapshot,
+            configuration: configuration,
+            clipboardContext: pinnedClipboardContext(rawContext: optimistic),
+            visualContextSummary: permissionManager.screenRecordingGranted
+                ? visualContextCoordinator.excerpt(for: context)
+                : nil
+        )
+        let request = requestBuildResult.request
+        let suggestionEngine = suggestionEngine
+        Task { @MainActor [weak self] in
+            let result = try? await suggestionEngine.generateSuggestion(for: request)
+            guard let self, let result, !result.text.isEmpty else { return }
+            // Space-corrected against the text this continuation will follow, so the cached entry
+            // is already right when it is restored (see `GhostSpaceBoundary`).
+            let text = GhostSpaceBoundary.adjusted(
+                result.text, precedingText: precedingText, continuesPartialWord: request.wordBoundaryAnchor != nil
+            )
+            self.suggestionAnchorCache.record(identityKey: identityKey, precedingText: precedingText, fullText: text)
+            CotabbyLogger.suggestion.debug(
+                "Prefetched the continuation of the visible suggestion",
+                metadata: [
+                    "stage": .string("continuation-prefetch"),
+                    "request_id": .string(request.requestID),
+                    "after": .string(String(remaining.suffix(12))),
+                    "cached": .string(String(text.prefix(28)))
+                ]
+            )
+        }
     }
 
     /// Runs the engine generation for `request` as the replaceable work for `workID`, applying the
@@ -419,14 +489,19 @@ extension SuggestionCoordinator {
             return
         }
 
+        let spacedText = GhostSpaceBoundary.adjusted(
+            partial.text,
+            precedingText: liveContext.precedingText,
+            continuesPartialWord: latestWordBoundaryAnchor != nil
+        )
         _ = interactionState.startSession(
-            fullText: partial.text,
+            fullText: spacedText,
             liveContext: liveContext,
             latency: partial.latency
         )
         suggestionStreamingState.recordRendered(partial.text)
         presentOverlay(
-            text: partial.text,
+            text: spacedText,
             at: liveContext.caretRect,
             context: liveContext,
             isRightToLeft: TextDirectionDetector.isRightToLeft(liveContext.precedingText)
@@ -845,8 +920,18 @@ extension SuggestionCoordinator {
             precedingText: liveContext.precedingText,
             fullText: result.text
         )
+        // The leading space is decided here, against the text that is in the field now, not against
+        // the snapshot the request was built from: the user keeps typing while the model runs, so a
+        // space that arrived meanwhile would otherwise leave the ghost a space too far right (and
+        // insert two), and a completion the model returned without one would glue to the last word.
+        let spacedText = GhostSpaceBoundary.adjusted(
+            result.text,
+            precedingText: liveContext.precedingText,
+            continuesPartialWord: latestWordBoundaryAnchor != nil
+        )
+        hasPrefetchedContinuation = false
         let session = interactionState.startSession(
-            fullText: result.text,
+            fullText: spacedText,
             liveContext: liveContext,
             latency: result.latency
         )
@@ -1173,6 +1258,7 @@ extension SuggestionCoordinator {
 
     /// Clears the active suggestion and optionally preserves or drops diagnostic breadcrumbs.
     func clearSuggestion(clearDiagnostics: Bool = false) {
+        hasPrefetchedContinuation = false
         // Drop any pending accepted-tail guard whenever the suggestion state is torn down (user
         // typed, focus changed, predictions disabled). The final-chunk accept re-sets it afterward.
         lastAcceptedTail = nil
