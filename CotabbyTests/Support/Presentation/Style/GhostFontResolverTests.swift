@@ -193,3 +193,31 @@ final class GhostFontResolverTests: XCTestCase {
         XCTAssertEqual(resolution.font.pointSize, 17)
     }
 }
+
+/// Rescaling keeps the face: the system face rebuilt from its descriptor answers to the raw
+/// PostScript name (`.SFNS-Regular`), which the logs and the typeface match then take for a
+/// different face (Obsidian, 2026-09-10).
+final class GhostFontResolverResizingTests: XCTestCase {
+    func testTheSystemFaceKeepsItsNameAndAdvancesWhenResized() {
+        let system = NSFont.systemFont(ofSize: 16)
+        let resized = GhostFontResolver.resized(system, to: 15.8)
+        XCTAssertEqual(resized.fontName, system.fontName)
+        XCTAssertEqual(resized.pointSize, 15.8, accuracy: 0.001)
+        XCTAssertEqual(
+            GhostFontResolver.width(of: "the words that wrap", font: resized),
+            GhostFontResolver.width(of: "the words that wrap", font: NSFont.systemFont(ofSize: 15.8)),
+            accuracy: 0.001
+        )
+        let text = "the ghost text is placed"
+        let scaled = GhostFontResolver.scaled(system, toSample: text, width: GhostFontResolver.width(of: text, font: system) * 0.97)
+        XCTAssertEqual(scaled.fontName, system.fontName, "a sample-scaled system face is still the system face")
+        XCTAssertLessThan(scaled.pointSize, 16)
+    }
+
+    func testANamedFaceIsResizedInPlace() throws {
+        let georgia = try XCTUnwrap(NSFont(name: "Georgia", size: 18))
+        let resized = GhostFontResolver.resized(georgia, to: 15.4)
+        XCTAssertEqual(resized.fontName, "Georgia")
+        XCTAssertEqual(resized.pointSize, 15.4, accuracy: 0.001)
+    }
+}

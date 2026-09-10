@@ -347,17 +347,30 @@ struct AXTextGeometryResolver {
         let cocoaRunFrames = measurableRuns.map {
             AXHelper.cocoaRect(fromAccessibilityRect: $0.frame)
         }
+        let runFrame = AXHelper.cocoaRect(fromAccessibilityRect: selectedRun.frame)
         let contentEdges: ObservedContentEdges?
         if let leftX = cocoaRunFrames.map(\.minX).min(),
             let topY = cocoaRunFrames.map(\.maxY).max() {
+            // The run's frame and the caret's paragraph let the presentation layer read the caret
+            // from the run's own pixels (`PixelCaretLocator`), exactly as for a wrapped union run.
+            // The proportional x below is a fraction of the frame by character count, which in a
+            // proportional face lands several points off (measured 2026-09-10 in Obsidian's
+            // single-line paragraphs: 3 to 3.5pt on a fifty-character line, the ghost's every word
+            // that far from the host's); the pixels put the caret at the last glyph's edge.
             contentEdges = ObservedContentEdges(
-                leftX: leftX, topY: topY, linePitch: siblingLines.pitch, lineBoxHeight: siblingLines.boxHeight
+                leftX: leftX,
+                topY: topY,
+                linePitch: siblingLines.pitch,
+                lineBoxHeight: siblingLines.boxHeight,
+                wrappedRun: WrappedRunAnchor(
+                    frame: runFrame,
+                    paragraphTextBeforeCaret: Self.paragraphTextBeforeCaret(in: parentText, caretOffset: parentSelection.location)
+                )
             )
         } else {
             contentEdges = nil
         }
 
-        let runFrame = AXHelper.cocoaRect(fromAccessibilityRect: selectedRun.frame)
         var caretX = runFrame.minX + placement.fraction * runFrame.width
         // The parent value extends past the matched runs (text published, frames not yet
         // reflowed): extend the estimate by the measured per-character advance instead of parking

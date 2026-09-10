@@ -113,7 +113,7 @@ enum GhostFontResolver {
             return base
         }
         let scaledSize = clampedSize(base.font.pointSize * input.sizeMultiplier)
-        let scaled = NSFont(descriptor: base.font.fontDescriptor, size: scaledSize) ?? base.font
+        let scaled = resized(base.font, to: scaledSize)
         return Resolution(font: scaled, provenance: base.provenance, widthAgreement: base.widthAgreement)
     }
 
@@ -254,7 +254,7 @@ enum GhostFontResolver {
             ?? input.style?.fontFamily.flatMap { font(family: $0, size: 12) }
             ?? NSFont.systemFont(ofSize: 12)
         let boxHeight = input.caretBoxHeight > 0 ? input.caretBoxHeight : 17
-        let reference = NSFont(descriptor: face.fontDescriptor, size: 100) ?? NSFont.systemFont(ofSize: 100)
+        let reference = resized(face, to: 100)
         let unitHeight: CGFloat
         switch input.renderer {
         case .textKit:
@@ -263,7 +263,7 @@ enum GhostFontResolver {
             unitHeight = (reference.ascender - reference.descender) / 100
         }
         let solvedSize = clampedSize((boxHeight / max(unitHeight, 0.01)).rounded(toNearest: 0.5))
-        let derived = NSFont(descriptor: face.fontDescriptor, size: solvedSize) ?? NSFont.systemFont(ofSize: solvedSize)
+        let derived = resized(face, to: solvedSize)
         guard let sample = input.hostMetrics?.sampleText, let sampleWidth = input.hostMetrics?.sampleWidth,
               sampleWidth > 0, !sample.isEmpty else {
             return Resolution(font: derived, provenance: .caretDerived, widthAgreement: 1)
@@ -328,6 +328,17 @@ enum GhostFontResolver {
         scaledToSample(font, sample: sample, width: width)
     }
 
+    /// `font` at another size, still the same face. The system face is rebuilt through the
+    /// system-font API: from its descriptor it comes back under the raw PostScript name
+    /// (`.SFNS-Regular`), which draws the same glyphs at the same advances (measured 2026-09-10)
+    /// but reads as a different face in every log and typeface comparison.
+    static func resized(_ font: NSFont, to size: CGFloat) -> NSFont {
+        if font.fontName.hasPrefix("."), let system = self.font(named: font.fontName, size: size) {
+            return system
+        }
+        return NSFont(descriptor: font.fontDescriptor, size: size) ?? font
+    }
+
     /// Scales `font` so its width of `sample` matches the host's measurement. Iterated because the
     /// system font applies size-dependent tracking, so advances do not scale linearly with point
     /// size; two refinement passes land within a fraction of a percent.
@@ -339,8 +350,7 @@ enum GhostFontResolver {
             let scale = min(max(width / measured, minimumScale), maximumScale)
             guard abs(scale - 1) > 0.003 else { return current }
             let size = clampedSize(current.pointSize * scale)
-            guard let next = NSFont(descriptor: current.fontDescriptor, size: size) else { return current }
-            current = next
+            current = resized(current, to: size)
         }
         return current
     }

@@ -28,8 +28,10 @@ import ScreenCaptureKit
 /// Lifecycle: owned by `OverlayController`, one per app. Measurements are cached per field and
 /// paragraph text so the many presentations of one suggestion (stability-gate re-presents, the
 /// return from a card) reuse one capture; a keystroke changes the text, so the next generation
-/// measures again. Captures exclude Cotabby's own windows so a ghost already on screen is never
-/// mistaken for host text.
+/// measures again, unless the ghost lies over the run, when the run's last capture is carried
+/// forward by the typed text's advance instead (`extrapolatedMeasurement(for:)`). Captures
+/// exclude Cotabby's own windows, and an excluded window comes back black, so a ghost on screen
+/// is never mistaken for host text and never read through either.
 @MainActor
 final class PixelCaretLocator {
     struct Request: Equatable {
@@ -52,10 +54,18 @@ final class PixelCaretLocator {
         /// field paints (the box the host would have reported, had it answered). Nil for a wrapped
         /// paragraph, whose line boxes come from the frame and pitch instead.
         var singleLineCaretHeight: CGFloat? = nil
+        /// The ghost's face, whose advances carry a captured caret forward over text typed since
+        /// the capture (`extrapolatedMeasurement(for:)`). Nil disables that.
+        var font: NSFont? = nil
+
+        /// Identifies the run (field and frame) independently of the paragraph's text.
+        var runKey: String {
+            let frame = "\(Int(runFrame.minX.rounded())),\(Int(runFrame.maxY.rounded())),\(Int(runFrame.width.rounded()))"
+            return "\(focusedInputIdentityKey)|\(frame)"
+        }
 
         var cacheKey: String {
-            let frame = "\(Int(runFrame.minX.rounded())),\(Int(runFrame.maxY.rounded())),\(Int(runFrame.width.rounded()))"
-            return "\(focusedInputIdentityKey)|\(frame)|\(paragraphTextBeforeCaret.hashValue)"
+            "\(runKey)|\(paragraphTextBeforeCaret.hashValue)"
         }
     }
 
@@ -112,10 +122,19 @@ final class PixelCaretLocator {
         return trailingInkGapRange.contains(bearing) ? bearing : nil
     }
     private static let cacheLimit = 8
+    /// Characters typed since a capture beyond which its caret is no longer carried forward by
+    /// arithmetic. The ghost's face reproduces the host's advances to about a percent (measured
+    /// word by word in Obsidian, 2026-09-10: two device pixels over eight words), which over a
+    /// suggestion's length stays under a pixel and over a paragraph would not.
+    static let maximumExtrapolatedCharacters = 48
 
     private var cache: [String: Measurement] = [:]
     private var cacheOrder: [String] = []
     private var failures: Set<String> = []
+    /// The latest capture per run, the base every extrapolation on that run starts from (never an
+    /// extrapolation itself, so their error does not compound).
+    private var latestCaptures: [String: (request: Request, measurement: Measurement)] = [:]
+    private var latestCaptureOrder: [String] = []
     private var inFlight: [String: [@MainActor (Measurement?) -> Void]] = [:]
     private var shareableContent: SCShareableContent?
     private let permissionCheck: () -> Bool
@@ -132,6 +151,58 @@ final class PixelCaretLocator {
     /// instead of holding a presentation for a capture that will not help.
     func hasFailed(_ request: Request) -> Bool {
         failures.contains(request.cacheKey)
+    }
+
+    /// The caret for a paragraph typed further since the run's latest capture, without a new
+    /// capture: that caret moved right by the advance of the characters typed, in the ghost's own
+    /// face. The overlay uses this while its ghost lies over the run, where a capture would read
+    /// the panel instead of the host (see `OverlayController.panelCovers`); measured in Obsidian
+    /// (2026-09-10), the alternative of re-anchoring to the Accessibility estimate put the ghost
+    /// four lines up, or off screen, on every other keystroke of a typed-through suggestion.
+    /// The result is cached under the request like a capture, so the same text presents from it
+    /// again; nil when the run has no capture, the text changed other than by typing on, or the
+    /// arithmetic cannot be trusted (see `extrapolated(from:for:)`).
+    func extrapolatedMeasurement(for request: Request) -> Measurement? {
+        guard let base = latestCaptures[request.runKey],
+              let measurement = Self.extrapolated(from: base, for: request) else { return nil }
+        store(measurement, for: request.cacheKey)
+        Self.logExtrapolation(measurement, base: base.request, request: request)
+        return measurement
+    }
+
+    /// The pure arithmetic of `extrapolatedMeasurement(for:)`: nil unless `request` names the same
+    /// run and its text extends the base's by typed characters only (no line break, at most
+    /// `maximumExtrapolatedCharacters`), the request carries a face to measure them in, and the
+    /// moved caret is still inside the run's frame (past it the paragraph wrapped, and a capture
+    /// is needed).
+    nonisolated static func extrapolated(
+        from base: (request: Request, measurement: Measurement), for request: Request
+    ) -> Measurement? {
+        guard base.request.runKey == request.runKey, let font = request.font,
+              let typed = appendedText(from: base.request.paragraphTextBeforeCaret, to: request.paragraphTextBeforeCaret)
+        else { return nil }
+        let advance = GhostFontResolver.width(of: typed, font: font)
+        guard advance > 0 else { return nil }
+        var caretRect = base.measurement.caretRect
+        caretRect.origin.x += advance
+        guard caretRect.minX <= request.runFrame.maxX + request.spaceAdvance * 2 + 1 else { return nil }
+        return Measurement(
+            caretRect: caretRect,
+            lineRect: base.measurement.lineRect,
+            linePitch: base.measurement.linePitch,
+            lineIndex: base.measurement.lineIndex,
+            lineCount: base.measurement.lineCount,
+            baselineOffsetFromTop: base.measurement.baselineOffsetFromTop,
+            lineInkWidth: base.measurement.lineInkWidth.map { $0 + advance }
+        )
+    }
+
+    /// What was typed at the end of `base` to reach `text`, when that is all that changed.
+    nonisolated static func appendedText(from base: String, to text: String) -> String? {
+        guard text.count > base.count, text.hasPrefix(base) else { return nil }
+        let typed = String(text.dropFirst(base.count))
+        guard typed.count <= maximumExtrapolatedCharacters, !typed.contains(where: \.isNewline) else { return nil }
+        return typed
     }
 
     /// Starts a measurement, or joins the one in flight for the same key. `completion` runs on the
@@ -178,6 +249,7 @@ final class PixelCaretLocator {
             let listeners = self.inFlight.removeValue(forKey: key) ?? []
             if let measurement {
                 self.store(measurement, for: key)
+                self.recordLatestCapture(measurement, for: request)
             } else {
                 self.failures.insert(key)
             }
@@ -376,6 +448,35 @@ final class PixelCaretLocator {
         }
         cache[key] = measurement
         failures.remove(key)
+    }
+
+    private func recordLatestCapture(_ measurement: Measurement, for request: Request) {
+        let key = request.runKey
+        if latestCaptures[key] == nil {
+            latestCaptureOrder.append(key)
+            if latestCaptureOrder.count > Self.cacheLimit {
+                latestCaptures.removeValue(forKey: latestCaptureOrder.removeFirst())
+            }
+        }
+        latestCaptures[key] = (request, measurement)
+    }
+
+    private static func logExtrapolation(_ measurement: Measurement, base: Request, request: Request) {
+        guard CotabbyLogger.suggestion.logLevel <= .debug else { return }
+        CotabbyLogger.suggestion.debug(
+            "Pixel caret carried forward",
+            metadata: [
+                "stage": .string("pixel-caret-extrapolated"),
+                "run_frame": .string(String(
+                    format: "%.0f,%.0f %.0fx%.0f",
+                    request.runFrame.minX, request.runFrame.maxY, request.runFrame.width, request.runFrame.height
+                )),
+                "typed_since": .stringConvertible(request.paragraphTextBeforeCaret.count - base.paragraphTextBeforeCaret.count),
+                "paragraph_chars": .stringConvertible(request.paragraphTextBeforeCaret.count),
+                "caret_x": .stringConvertible(Double(measurement.caretRect.minX)),
+                "caret_top": .stringConvertible(Double(measurement.caretRect.maxY))
+            ]
+        )
     }
 
     private static func log(_ measurement: Measurement?, failure: String, request: Request, elapsedMilliseconds: Int) {

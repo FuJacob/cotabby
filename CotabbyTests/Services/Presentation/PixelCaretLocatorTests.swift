@@ -184,3 +184,76 @@ final class PixelCaretLocatorSingleLineTests: XCTestCase {
         XCTAssertNil(PixelCaretLocator.measurement(from: analysis, scale: 2, region: region.offsetBy(dx: 0, dy: 40), request: request(text: "go")))
     }
 }
+
+/// Carrying a captured caret forward over text typed since the capture, while the ghost panel
+/// lies over the run and a fresh capture would read the panel (Obsidian, 2026-09-10).
+final class PixelCaretExtrapolationTests: XCTestCase {
+    private let frame = CGRect(x: 608, y: 700, width: 605, height: 44)
+    private let font = NSFont.systemFont(ofSize: 16)
+
+    private func request(_ text: String, frame: CGRect? = nil, font: NSFont? = NSFont.systemFont(ofSize: 16)) -> PixelCaretLocator.Request {
+        PixelCaretLocator.Request(
+            focusedInputIdentityKey: 1, runFrame: frame ?? self.frame, paragraphTextBeforeCaret: text,
+            siblingLinePitch: 24, siblingLineBoxHeight: 20, spaceAdvance: 4.5, font: font
+        )
+    }
+
+    private var base: (request: PixelCaretLocator.Request, measurement: PixelCaretLocator.Measurement) {
+        (request("the end of the paragraph"), PixelCaretLocator.Measurement(
+            caretRect: CGRect(x: 1000, y: 700, width: 2, height: 20),
+            lineRect: CGRect(x: 608, y: 700, width: 605, height: 20),
+            linePitch: 24, lineIndex: 1, lineCount: 2, baselineOffsetFromTop: 16, lineInkWidth: 380
+        ))
+    }
+
+    func testTheCaretMovesByTheTypedTextsAdvanceAndTheLineStays() throws {
+        let carried = try XCTUnwrap(PixelCaretLocator.extrapolated(from: base, for: request("the end of the paragraph and")))
+        let advance = GhostFontResolver.width(of: " and", font: font)
+        XCTAssertEqual(carried.caretRect.minX, 1000 + advance, accuracy: 0.001)
+        XCTAssertEqual(carried.caretRect.minY, 700)
+        XCTAssertEqual(carried.caretRect.height, 20)
+        XCTAssertEqual(carried.lineRect, base.measurement.lineRect)
+        XCTAssertEqual(carried.lineIndex, 1)
+        XCTAssertEqual(carried.lineCount, 2)
+        XCTAssertEqual(try XCTUnwrap(carried.baselineOffsetFromTop), 16)
+        XCTAssertEqual(try XCTUnwrap(carried.lineInkWidth), 380 + advance, accuracy: 0.001)
+    }
+
+    /// A trailing space typed counts as its advance too: the host's caret sits past it.
+    func testATypedSpaceAdvancesTheCaret() throws {
+        let carried = try XCTUnwrap(PixelCaretLocator.extrapolated(from: base, for: request("the end of the paragraph ")))
+        XCTAssertEqual(carried.caretRect.minX, 1000 + GhostFontResolver.width(of: " ", font: font), accuracy: 0.001)
+    }
+
+    func testOnlyTextTypedOnTheEndOfTheSameRunIsCarriedForward() {
+        XCTAssertNil(PixelCaretLocator.extrapolated(from: base, for: request("the end of the paragraph")), "the same text is the cached capture's business")
+        XCTAssertNil(PixelCaretLocator.extrapolated(from: base, for: request("the end of the paragrap")), "a deletion")
+        XCTAssertNil(PixelCaretLocator.extrapolated(from: base, for: request("The end of the paragraph and")), "an edit elsewhere")
+        XCTAssertNil(PixelCaretLocator.extrapolated(from: base, for: request("the end of the paragraph\nand")), "a new paragraph")
+        XCTAssertNil(PixelCaretLocator.extrapolated(from: base, for: request("the end of the paragraph and", frame: frame.offsetBy(dx: 0, dy: -24))), "another run frame (the paragraph reflowed)")
+        XCTAssertNil(PixelCaretLocator.extrapolated(from: base, for: request("the end of the paragraph and", font: nil)), "no face to measure the typed text in")
+        let long = "the end of the paragraph" + String(repeating: " and more", count: 8)
+        XCTAssertNil(PixelCaretLocator.extrapolated(from: base, for: request(long)), "too much typed since the capture to trust the arithmetic")
+    }
+
+    /// Past the run's right edge the paragraph has wrapped: the caret is on a line the capture
+    /// never saw, so a capture is needed.
+    func testACaretCarriedPastTheRunsEdgeIsNotTrusted() {
+        let wide = PixelCaretLocator.Request(
+            focusedInputIdentityKey: 1, runFrame: frame, paragraphTextBeforeCaret: "the end of the paragraph and then the words that wrap around the edge",
+            siblingLinePitch: 24, siblingLineBoxHeight: 20, spaceAdvance: 4.5, font: font
+        )
+        // 1000 + the advance of the 44 typed characters at 16pt (over 300pt) is past the frame's
+        // right edge at 1213 plus two spaces of slack.
+        XCTAssertNil(PixelCaretLocator.extrapolated(from: base, for: wide))
+    }
+
+    func testTypedTextIsWhatFollowsTheCapturedParagraph() {
+        XCTAssertEqual(PixelCaretLocator.appendedText(from: "ab", to: "abc d"), "c d")
+        XCTAssertNil(PixelCaretLocator.appendedText(from: "ab", to: "ab"))
+        XCTAssertNil(PixelCaretLocator.appendedText(from: "ab", to: "xbc"))
+        XCTAssertNil(PixelCaretLocator.appendedText(from: "ab", to: "ab\nc"))
+        XCTAssertNil(PixelCaretLocator.appendedText(from: "", to: String(repeating: "x", count: PixelCaretLocator.maximumExtrapolatedCharacters + 1)))
+        XCTAssertNotNil(PixelCaretLocator.appendedText(from: "", to: String(repeating: "x", count: PixelCaretLocator.maximumExtrapolatedCharacters)))
+    }
+}

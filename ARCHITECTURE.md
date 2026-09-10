@@ -302,7 +302,13 @@ the host's pixels (Screen Recording) and are asynchronous:
   query (Obsidian's CodeMirror), and in a single-line field whose caret Accessibility could only
   estimate (Chrome's address bar answers every bounds query with a zero rect): there the field's
   frame is the line and the caret is where its ink ends, so the ghost goes inline instead of to the
-  card. [InkCaretAnalyzer.swift](Cotabby/Support/Presentation/Geometry/InkCaretAnalyzer.swift)
+  card. A single-line paragraph run gets the same treatment: its proportional caret landed 3pt
+  off in Obsidian. A capture cannot see the run under Cotabby's own ghost (the excluded window
+  comes back black), so while the ghost is up a re-anchor for text typed since the run's last
+  capture carries that caret forward by the typed advance (`extrapolatedMeasurement`), and
+  anything else takes the ghost down for the read; re-anchoring to the Accessibility estimate
+  instead put the ghost four lines up on every other keystroke.
+  [InkCaretAnalyzer.swift](Cotabby/Support/Presentation/Geometry/InkCaretAnalyzer.swift)
   finds the inked lines in a capture of the run's frame; the caret is the end of the last line, the
   pitch is the distance between line tops, and the line box is the frame height less the pitch per
   extra line. Only a caret at the end of its paragraph is measured; a caret inside one keeps the

@@ -77,6 +77,10 @@ final class OverlayController: SuggestionOverlayControlling {
     /// Retires a held presentation: a show or hide that arrives while the pixels are still being
     /// read bumps this, and the late measurement is dropped instead of resurrecting stale text.
     private var pixelCaretShowToken: UInt64 = 0
+    /// True while the ghost has been taken down so a capture can read the run it covered; the
+    /// held presentation puts it back. A typed-through advance meanwhile cannot render into the
+    /// hidden panel and asks for a fresh present instead (`advanceInline`).
+    private var panelHeldForCapture = false
     /// Measures web hosts' painted baselines; nil where screen capture is unwanted (tests).
     private let baselineCalibrator: HostBaselineCalibrator?
     /// The faces an Electron host ships in its bundle, for the pixel match (see the registry).
@@ -123,14 +127,26 @@ final class OverlayController: SuggestionOverlayControlling {
         }
         pixelCaretShowToken &+= 1
         let token = pixelCaretShowToken
+        panelHeldForCapture = false
         var geometry = requestedGeometry
         // A caret inside a union-run paragraph is placed from the host's pixels, not from AX (which
         // has no answer there) and not from a font-metric layout (which put the ghost on top of the
         // host's own glyphs). The first presentation for a given paragraph text waits for the
         // capture, typically tens of milliseconds; later ones reuse it. If the pixels yield nothing
         // the presentation proceeds exactly as it would have without this service.
+        //
+        // A capture cannot see the run under Cotabby's own ghost (`panelCovers`). While the ghost
+        // is up, a re-anchor for text typed on since the run's capture carries that caret forward
+        // by the typed advance instead (`extrapolatedMeasurement`): the ghost's tail stays exactly
+        // where it was drawn. Anything else (the paragraph wrapped, an edit elsewhere) takes the
+        // ghost down for the read and puts it back where the pixels say. Re-anchoring to the
+        // Accessibility estimate instead put the ghost four lines up, or off screen, on every
+        // other keystroke of a typed-through suggestion (Obsidian, 2026-09-10).
         if let request = pixelCaretRequest(for: requestedGeometry) {
-            if let measured = pixelCaretLocator.cachedMeasurement(for: request) {
+            let covered = panelCovers(request.runFrame)
+            let measured = pixelCaretLocator.cachedMeasurement(for: request)
+                ?? (covered ? pixelCaretLocator.extrapolatedMeasurement(for: request) : nil)
+            if let measured {
                 geometry = requestedGeometry.withPixelMeasuredCaret(
                     measured.caretRect,
                     lineRect: measured.lineRect,
@@ -138,7 +154,15 @@ final class OverlayController: SuggestionOverlayControlling {
                     baselineOffsetFromTop: measured.baselineOffsetFromTop,
                     lineInkWidth: measured.lineInkWidth
                 )
-            } else if !pixelCaretLocator.hasFailed(request), !panelCovers(request.runFrame) {
+            } else if !pixelCaretLocator.hasFailed(request) {
+                if covered {
+                    panelHeldForCapture = true
+                    panel.orderOut(nil)
+                    CotabbyLogger.suggestion.debug(
+                        "Ghost taken down for a pixel caret read",
+                        metadata: ["stage": .string("pixel-caret-hold"), "paragraph_chars": .stringConvertible(request.paragraphTextBeforeCaret.count)]
+                    )
+                }
                 pixelCaretLocator.locate(request) { [weak self] _ in
                     guard let self, self.pixelCaretShowToken == token else { return }
                     self.showSuggestion(text, geometry: requestedGeometry)
@@ -201,6 +225,7 @@ final class OverlayController: SuggestionOverlayControlling {
     /// Hides the floating panel and records why the overlay is no longer visible.
     func hide(reason: String) {
         pixelCaretShowToken &+= 1
+        panelHeldForCapture = false
         CotabbyLogger.suggestion.debug("Overlay hidden", metadata: ["stage": .string("overlay-hide"), "reason": .string(reason)])
         panel.orderOut(nil)
         inlineSession = nil
@@ -332,7 +357,8 @@ final class OverlayController: SuggestionOverlayControlling {
                 siblingLineBoxHeight: geometry.hostTextMetrics?.lineRect?.height,
                 spaceAdvance: GhostFontResolver.width(of: " ", font: font),
                 trailingInkGap: PixelCaretLocator.trailingInkGap(after: wrapped.paragraphTextBeforeCaret, font: font)
-                    ?? PixelCaretLocator.inkToCaretGap
+                    ?? PixelCaretLocator.inkToCaretGap,
+                font: font
             )
         }
         // A single-line field whose caret AX could only estimate (Chrome's address bar answers no
@@ -356,7 +382,8 @@ final class OverlayController: SuggestionOverlayControlling {
             // between 16 and 18pt for Chrome's 24pt address bar (measured 2026-09-10) and the ghost's
             // derived size flipped with it. The pixel match settles the size; this box only has to
             // be the same every time.
-            singleLineCaretHeight: (frame.height * Self.singleLineCaretBoxFraction * 2).rounded() / 2
+            singleLineCaretHeight: (frame.height * Self.singleLineCaretBoxFraction * 2).rounded() / 2,
+            font: font
         )
     }
 
@@ -418,8 +445,12 @@ final class OverlayController: SuggestionOverlayControlling {
             // long enough is held for a later pixel match to take its size from.
             if let sample = Self.widthSample(of: geometry) {
                 var evidence = typefaceEvidence[identity] ?? TypefaceEvidence()
+                let adoptedBefore = evidence.scalingSample
                 evidence.record(sample, resolverFamily: nil)
                 typefaceEvidence[identity] = evidence
+                if let adopted = evidence.scalingSample, adopted != adoptedBefore {
+                    Self.logAdoptedWidthSample(adopted, font: resolution.font, identity: identity)
+                }
             }
             return resolution
         default:
@@ -567,7 +598,7 @@ final class OverlayController: SuggestionOverlayControlling {
                 return resolution
             }
             let fitted = GhostFontResolver.scaled(unscaled, toSample: widthSample.text, width: widthSample.width)
-            let sized = NSFont(descriptor: fitted.fontDescriptor, size: fitted.pointSize * max(sizeMultiplier, 0.01)) ?? matched
+            let sized = GhostFontResolver.resized(fitted, to: fitted.pointSize * max(sizeMultiplier, 0.01))
             return GhostFontResolver.Resolution(font: sized, provenance: .pixelMatched, widthAgreement: 1)
         }
         return GhostFontResolver.Resolution(font: matched, provenance: .pixelMatched, widthAgreement: 1)
@@ -671,7 +702,8 @@ final class OverlayController: SuggestionOverlayControlling {
     /// windows and an excluded region comes back black, so a pixel caret read under a visible
     /// ghost takes the panel's right edge for the line's ink (Obsidian, 2026-09-10: the caret
     /// measured 848, 1050 and 1244 on three consecutive keystrokes and the ghost teleported).
-    /// No measurement is taken then; the presentation keeps the geometry it was given.
+    /// No measurement is taken then: a presentation carries the run's last capture forward over
+    /// the text typed since, or takes the ghost down for the read (`showSuggestion`).
     private func panelCovers(_ frame: CGRect) -> Bool {
         panel.isVisible && panel.frame.intersects(frame.insetBy(dx: -PixelCaretLocator.padding, dy: -PixelCaretLocator.padding))
     }
@@ -765,7 +797,10 @@ final class OverlayController: SuggestionOverlayControlling {
     /// rows that stay visible keep their exact pixels. Returns false when the held session cannot
     /// account for the change; the caller then re-anchors through a fresh present.
     func advanceInline(to remainingText: String, insertedText: String) -> Bool {
-        guard var session = inlineSession, case .visible(_, _, let mode) = state, case .inline = mode else {
+        // With the panel down for a capture there is nothing on screen to slide; the fresh present
+        // this asks for retires the held one and reads the caret for the advanced text itself.
+        guard !panelHeldForCapture,
+              var session = inlineSession, case .visible(_, _, let mode) = state, case .inline = mode else {
             return false
         }
         let full = session.fullText as NSString

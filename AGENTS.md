@@ -129,7 +129,9 @@ Accessibility data is eventually consistent and app-specific. Browser editors, E
 native AppKit fields, and secure fields expose different AX shapes. Preserve stale-result guards,
 `focusChangeSequence`, and capability checks unless the change explicitly replaces them. Known
 shapes worth keeping in mind: CodeMirror (Obsidian) exposes a wrapped paragraph as one static-text
-run plus a single-space spacer run per line (`WrappedRunAnchor` handles the caret there);
+run plus a single-space spacer run per line (`WrappedRunAnchor` hands both that and a single-line
+paragraph run to `PixelCaretLocator`, which reads the caret from the run's pixels and carries it
+forward by the typed advance while the ghost covers the run);
 Chromium's address bar keeps its inline completion selected after the caret (stripped by the
 resolver and held as the host's marked text, never treated as a user selection) and answers every
 bounds query with a zero rect (the caret comes from its pixels, `PixelCaretLocator`); Mail's compose
