@@ -30,7 +30,11 @@ import Foundation
 ///     sample cut on the space would be a space short, a fifth of a short sample; the sample is
 ///     offered once it holds `minimumLength` characters;
 ///   - the sample is trimmed to its newest `maximumLength` characters by whole chunks, so an
-///     early integer-rounded caret position weighs less as the evidence grows.
+///     early integer-rounded caret position weighs less as the evidence grows;
+///   - a non-breaking space reads as a space: Chromium stores a space typed at the end of a line
+///     as U+00A0 and turns it into U+0020 once the next character arrives, which would otherwise
+///     break the text's continuity at every word (measured 2026-09-10: no sample ever formed in a
+///     Chrome contenteditable, 389 presentations without one).
 ///
 /// Pure value type in `Support/`: the resolver keeps one per focused field and feeds it every poll;
 /// nothing here touches Accessibility.
@@ -94,19 +98,22 @@ nonisolated struct CaretAdvanceSampler: Equatable, Sendable {
         if step == 0 {
             // Nothing typed since the last poll: the field is unchanged and so is the sample. Any
             // other zero-step change (a character replaced in place) is not typing.
-            guard observation.precedingText == previous.precedingText, abs(advance) < 0.01 else {
+            guard Self.spaceNormalized(observation.precedingText) == Self.spaceNormalized(previous.precedingText),
+                  abs(advance) < 0.01
+            else {
                 chunks.removeAll()
                 return nil
             }
             return sample
         }
-        let typed = String(observation.precedingText.suffix(max(step, 0)))
+        let next = Self.spaceNormalized(observation.precedingText)
+        let typed = String(next.suffix(max(step, 0)))
         guard step >= 1, step <= Self.maximumStep,
               abs(observation.lineY - previous.lineY) <= Self.lineTolerance,
               advance >= 0,
               typed.count == step,
               !typed.contains(where: \.isNewline),
-              Self.continues(previous.precedingText, into: observation.precedingText, typed: typed)
+              Self.continues(Self.spaceNormalized(previous.precedingText), into: next, typed: typed)
         else {
             chunks.removeAll()
             return nil
@@ -127,5 +134,11 @@ nonisolated struct CaretAdvanceSampler: Equatable, Sendable {
         let before = next.dropLast(typed.count)
         let tail = previous.suffix(continuityLength)
         return before.hasSuffix(tail)
+    }
+
+    /// Text with every non-breaking space read as a plain space (one UTF-16 unit each, so offsets
+    /// are unchanged); see `SuggestionSessionReconciler.spaceNormalized`.
+    private static func spaceNormalized(_ text: String) -> String {
+        text.replacingOccurrences(of: "\u{00A0}", with: " ")
     }
 }

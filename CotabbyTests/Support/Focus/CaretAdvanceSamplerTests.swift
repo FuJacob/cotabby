@@ -129,6 +129,19 @@ final class CaretAdvanceSamplerTests: XCTestCase {
         XCTAssertEqual(sampler.sample?.text, "the user writes")
     }
 
+    func testChromiumsNonBreakingLineEndSpaceDoesNotBreakTheRun() {
+        // Chromium stores the space typed at the end of a line as U+00A0 and turns it back into a
+        // plain space when the next letter arrives; both polls describe the same typing.
+        var sampler = CaretAdvanceSampler()
+        sampler.observe(observation("asthe", x: 500))
+        sampler.observe(observation("asthe\u{00A0}", x: 503.8))
+        sampler.observe(observation("asthe user", x: 503.8 + 7.5 * 4))
+        sampler.observe(observation("asthe user\u{00A0}", x: 503.8 + 7.5 * 4 + 3.8))
+        sampler.observe(observation("asthe user writes", x: 500 + 3.8 * 2 + 7.5 * 10))
+        XCTAssertEqual(sampler.sample?.text, " user writes")
+        XCTAssertEqual(sampler.sample?.width ?? 0, 3.8 * 2 + 7.5 * 10, accuracy: 0.001)
+    }
+
     func testOldChunksFallOffOnceTheSampleIsLongEnough() {
         var sampler = CaretAdvanceSampler()
         let long = "the quick brown fox jumps over the lazy dog again"
