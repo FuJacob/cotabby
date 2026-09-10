@@ -34,6 +34,8 @@ enum TypefaceMatcher {
         let familyName: String
         let score: Double
         let runnerUpScore: Double
+        /// The system face's own score in the same comparison (-1 when it was not a candidate).
+        let systemScore: Double
     }
 
     /// Lowest normalized correlation accepted as "this is the face".
@@ -83,6 +85,9 @@ enum TypefaceMatcher {
         scored.sort { $0.score > $1.score }
         guard let winner = scored.first, winner.score >= minimumScore else { return nil }
         let runnerUp = scored.dropFirst().first?.score ?? -1
+        // How well the system face itself scored, whatever its rank: the reference every
+        // replacement must beat, logged so a wrong swap can be judged from the numbers.
+        let systemScore = scored.first { $0.font.familyName == NSFont.systemFont(ofSize: 12).familyName }?.score ?? -1
         guard winner.score - runnerUp >= minimumMargin || scored.dropFirst().first?.font.familyName == winner.font.familyName else {
             return nil
         }
@@ -90,7 +95,8 @@ enum TypefaceMatcher {
             fontName: winner.font.fontName,
             familyName: winner.font.familyName ?? winner.font.fontName,
             score: winner.score,
-            runnerUpScore: runnerUp
+            runnerUpScore: runnerUp,
+            systemScore: systemScore
         )
     }
 

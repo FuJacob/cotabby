@@ -488,6 +488,7 @@ final class HostBaselineCalibrator {
                 "font": .string(analysis.typefaceMatch?.fontName ?? ""),
                 "score": .stringConvertible(analysis.typefaceMatch?.score ?? 0),
                 "runner_up": .stringConvertible(analysis.typefaceMatch?.runnerUpScore ?? 0),
+                "system_score": .stringConvertible(analysis.typefaceMatch?.systemScore ?? -1),
                 "size": .stringConvertible(Double(request.pointSize)),
                 "text_len": .stringConvertible(request.lineText?.count ?? 0),
                 "analysis_ms": .stringConvertible(elapsedMilliseconds)
