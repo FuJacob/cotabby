@@ -282,9 +282,12 @@ final class OverlayController: SuggestionOverlayControlling {
 
     /// The caret box to anchor the ghost at. Web hosts round caret boxes to whole pixels; when the
     /// host's exact face and the line's left edge are known, the caret x is recomputed from the
-    /// text's own advance (see `GhostCaretRefinement`). Native hosts report exact carets already.
+    /// text's own advance (see `GhostCaretRefinement`). Native hosts report exact carets already,
+    /// and so does a caret read from the host's pixels: measured in Obsidian (2026-09-10), the
+    /// typographic advance ran 1.5% longer than the host's own rendering of the same face and the
+    /// refinement moved an exact pixel caret a point to the right.
     private static func refinedCaretRect(for geometry: SuggestionOverlayGeometry, font: GhostFontResolver.Resolution) -> CGRect {
-        guard geometry.isWebContentField, !font.provenance.isFallbackFace,
+        guard geometry.isWebContentField, !font.provenance.isFallbackFace, geometry.pixelBaselineOffset == nil,
               let lineLeft = geometry.hostTextMetrics?.lineRect?.minX,
               let paragraph = geometry.lineTextBeforeCaret,
               let refinedX = GhostCaretRefinement.caretX(
@@ -372,9 +375,16 @@ final class OverlayController: SuggestionOverlayControlling {
             judged,
             match: baselineCalibrator?.cachedTypeface(for: typefaceKey(for: geometry)),
             hostNamesFace: Self.hostNamesFace(geometry),
-            widthSample: Self.widthSample(of: geometry),
+            widthSample: heldWidthSample(for: geometry),
             sizeMultiplier: CGFloat(suggestionSettings.ghostTextSizeMultiplier)
         )
+    }
+
+    /// The width sample a pixel match is sized to: the one the field adopted (the first long
+    /// enough, held for the field's life, see `TypefaceEvidence.scalingAdoptionLength`), so a
+    /// sample that grows with every poll cannot resize the ghost between presentations.
+    private func heldWidthSample(for geometry: SuggestionOverlayGeometry) -> TypefaceEvidence.Sample? {
+        typefaceEvidence[geometry.focusedInputIdentityKey]?.scalingSample ?? Self.widthSample(of: geometry)
     }
 
     /// Whether the host told us its face (even one this Mac cannot load).
@@ -396,13 +406,22 @@ final class OverlayController: SuggestionOverlayControlling {
         _ resolution: GhostFontResolver.Resolution,
         for geometry: SuggestionOverlayGeometry
     ) -> GhostFontResolver.Resolution {
+        let identity = geometry.focusedInputIdentityKey
         switch resolution.provenance {
         case .hostSizeMatchedFamily, .hostSizeSystem, .hostSizeScaledSystem:
             break
+        case .caretDerived, .caretDerivedCalibrated:
+            // No face to judge here, but the field's samples are still recorded so the first one
+            // long enough is held for a later pixel match to take its size from.
+            if let sample = Self.widthSample(of: geometry) {
+                var evidence = typefaceEvidence[identity] ?? TypefaceEvidence()
+                evidence.record(sample, resolverFamily: nil)
+                typefaceEvidence[identity] = evidence
+            }
+            return resolution
         default:
             return resolution
         }
-        let identity = geometry.focusedInputIdentityKey
         let size = geometry.resolvedFieldStyle?.fontPointSize ?? resolution.font.pointSize
         let hostNamesFace = geometry.resolvedFieldStyle?.fontName != nil || geometry.resolvedFieldStyle?.fontFamily != nil
         if hostNamesFace, resolution.provenance != .hostSizeMatchedFamily {
@@ -491,7 +510,11 @@ final class OverlayController: SuggestionOverlayControlling {
     /// advance is the host's own metric, and a face whose advance of the sample text is off by more
     /// than `matchedAdvanceTolerance` is at the wrong size whatever its shapes scored (Claude's
     /// composer, 2026-09-10: the system face at 16.15 scored 0.89 on Anthropic Sans set at 15.4,
-    /// five percent wider than the caret's own travel).
+    /// five percent wider than the caret's own travel). Within that tolerance the pixels name the
+    /// face and the sample sets its size: a web engine renders a face without the tracking
+    /// CoreText applies (Obsidian's system face at 16 advanced 1.5% less than CoreText's), and a
+    /// ghost whose advances are the host's lands every typed-through and accepted word where the
+    /// host puts it, at a glyph size a fraction of a pixel off.
     static func applyingMatchedTypeface(
         _ resolution: GhostFontResolver.Resolution,
         match: HostBaselineCalibrator.TypefaceMatchRecord?,
@@ -510,6 +533,9 @@ final class OverlayController: SuggestionOverlayControlling {
             guard advance > 0, abs(advance / widthSample.width - 1) <= Self.matchedAdvanceTolerance else {
                 return resolution
             }
+            let fitted = GhostFontResolver.scaled(unscaled, toSample: widthSample.text, width: widthSample.width)
+            let sized = NSFont(descriptor: fitted.fontDescriptor, size: fitted.pointSize * max(sizeMultiplier, 0.01)) ?? matched
+            return GhostFontResolver.Resolution(font: sized, provenance: .pixelMatched, widthAgreement: 1)
         }
         return GhostFontResolver.Resolution(font: matched, provenance: .pixelMatched, widthAgreement: 1)
     }
@@ -677,7 +703,7 @@ final class OverlayController: SuggestionOverlayControlling {
                 session.fontResolution,
                 match: calibration.typefaceMatch,
                 hostNamesFace: Self.hostNamesFace(geometry),
-                widthSample: Self.widthSample(of: geometry),
+                widthSample: self.heldWidthSample(for: geometry),
                 sizeMultiplier: CGFloat(self.suggestionSettings.ghostTextSizeMultiplier)
             )
             if rematched.font != session.fontResolution.font {

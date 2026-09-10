@@ -31,7 +31,23 @@ final class OverlayControllerTypefaceTests: XCTestCase {
         )
         XCTAssertEqual(rightSize.provenance, .pixelMatched)
         XCTAssertEqual(rightSize.font.familyName, "Georgia")
-        XCTAssertEqual(rightSize.font.pointSize, 15.4)
+        XCTAssertEqual(rightSize.font.pointSize, 15.4, accuracy: 0.05)
+    }
+
+    func testTheSampleSetsAMatchedFacesSizeWithinTheTolerance() {
+        // Obsidian: the pixels named the system face at 16, the caret's own travel over this text
+        // ran 1.5% short of CoreText's advance at 16. The face stands; its size follows the host.
+        let text = "the ghost text is placed when a"
+        let hostWidth = GhostFontResolver.width(of: text, font: NSFont.systemFont(ofSize: 16)) * 0.985
+        let sample = TypefaceEvidence.Sample(text: text, width: hostWidth)
+        let standIn = resolution(NSFont.systemFont(ofSize: 16.2), .caretDerivedCalibrated)
+        let matched = OverlayController.applyingMatchedTypeface(
+            standIn, match: record(".AppleSystemUIFont", 16), hostNamesFace: false, widthSample: sample, sizeMultiplier: 1
+        )
+        XCTAssertEqual(matched.provenance, .pixelMatched)
+        XCTAssertEqual(GhostFontResolver.width(of: text, font: matched.font), hostWidth, accuracy: hostWidth * 0.004)
+        XCTAssertLessThan(matched.font.pointSize, 16)
+        XCTAssertGreaterThan(matched.font.pointSize, 15.6)
     }
 
     func testWithoutASampleTheMatchStandsOnItsShapes() {

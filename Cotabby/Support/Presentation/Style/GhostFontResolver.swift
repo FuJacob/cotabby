@@ -322,6 +322,12 @@ enum GhostFontResolver {
         return abs(measured - width) / width
     }
 
+    /// `font` at the size whose width of `sample` is the host's measurement; public so a face the
+    /// pixels named can take its size from the host's own advance.
+    static func scaled(_ font: NSFont, toSample sample: String, width: CGFloat) -> NSFont {
+        scaledToSample(font, sample: sample, width: width)
+    }
+
     /// Scales `font` so its width of `sample` matches the host's measurement. Iterated because the
     /// system font applies size-dependent tracking, so advances do not scale linearly with point
     /// size; two refinement passes land within a fraction of a percent.
