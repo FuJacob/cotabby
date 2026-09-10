@@ -199,8 +199,17 @@ final class SuggestionRequestFactoryTests: XCTestCase {
             result.request.visualContextSummary,
             "Calendar window says project review at 3 PM."
         )
-        XCTAssertTrue(result.promptPreview.contains("Casey"))
+        // The name rides on the request but reaches the prompt only at a sign-off (`SignOffCue`);
+        // "Hello" is an opening, where a named writer made the model introduce itself.
+        XCTAssertFalse(result.promptPreview.contains("Casey"))
         XCTAssertTrue(result.promptPreview.contains("Calendar window says project review at 3 PM."))
+
+        let signing = SuggestionRequestFactory.buildRequest(
+            context: CotabbyTestFixtures.focusedInputContext(precedingText: "See you Friday.\n\nThanks,\n"),
+            settings: CotabbyTestFixtures.settingsSnapshot(userName: "Casey"),
+            configuration: .standard
+        )
+        XCTAssertTrue(signing.promptPreview.contains("Casey"))
     }
 
     func test_buildRequest_sanitizesVisualContextBeforePromptInjection() {

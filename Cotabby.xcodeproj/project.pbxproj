@@ -18,6 +18,7 @@
 		0203A1A205162551A22FAC98 /* PermissionGuidanceController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0C41A249D9538B91B7FA8A9 /* PermissionGuidanceController.swift */; };
 		023A1A2A26B192E244192D8D /* TrailingDuplicationFilterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E824A5614BC7E7FCA05AD29 /* TrailingDuplicationFilterTests.swift */; };
 		02A837BD3861FD72B3E99D0F /* BaseCompletionPromptRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 612CA2988BF19FAE0114165A /* BaseCompletionPromptRendererTests.swift */; };
+		51F3BABA2C6CDBD787163A8D /* SignOffCueTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E880B83DE990263EF46F5C3D /* SignOffCueTests.swift */; };
 		02C80969B8D6A0DBDC619FCA /* FocusSessionScopedCacheTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 487D8C5521411FC6845D4A51 /* FocusSessionScopedCacheTests.swift */; };
 		02DA43985CDAE6859014F14F /* SuggestionOverlayPresenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D598CC3134879999D567455 /* SuggestionOverlayPresenter.swift */; };
 		02DABCA8259C5C811D245239 /* OpenAICompatibleCredentialStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B23950F38B1B3C8A5CC5BE5 /* OpenAICompatibleCredentialStore.swift */; };
@@ -519,6 +520,7 @@
 		9A2D50EF4911E45EEB4556D6 /* Aria2OutputParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83457CCF1A50CE83428C363D /* Aria2OutputParser.swift */; };
 		9AE3398FB0E4696C89550C04 /* EmojiMatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA8311FAC345FE431FA89855 /* EmojiMatcher.swift */; };
 		9B6C176547D2B6D118572E41 /* BaseCompletionPromptRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C1AE4120FA68524700C9324 /* BaseCompletionPromptRenderer.swift */; };
+		6EE74F5B17A64822A7BA8BD3 /* SignOffCue.swift in Sources */ = {isa = PBXBuildFile; fileRef = B102D6615C7EB1184FA1026E /* SignOffCue.swift */; };
 		9B7FE4C9ED6959A6D5181EF5 /* EngineAndModelPaneView+Endpoint.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A184538FD926947EBB88D9E /* EngineAndModelPaneView+Endpoint.swift */; };
 		9BA9E52F33F00E65692EE6CD /* he-100k.txt in Resources */ = {isa = PBXBuildFile; fileRef = 7C9BB65FA5FC42B89766B037 /* he-100k.txt */; };
 		9BDC4312E18A9E67045DD4F1 /* CompositionInputModeClassifierTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EE61CD2E8D2399E23D48818 /* CompositionInputModeClassifierTests.swift */; };
@@ -734,6 +736,7 @@
 		DA8D967DFA3AFDE469D1FAE7 /* DebouncePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = B630D1F95FD08BC30E624672 /* DebouncePolicy.swift */; };
 		DC0394C83D334B92A512A775 /* NOTICE.md in Resources */ = {isa = PBXBuildFile; fileRef = 66CF2A70D4699421AC9BD849 /* NOTICE.md */; };
 		DC6C087A7C0E973967BB38D5 /* BaseCompletionPromptRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C1AE4120FA68524700C9324 /* BaseCompletionPromptRenderer.swift */; };
+		A187907396050364BC7B0F33 /* SignOffCue.swift in Sources */ = {isa = PBXBuildFile; fileRef = B102D6615C7EB1184FA1026E /* SignOffCue.swift */; };
 		DC6FEE1602B6891CA4D0CDCA /* VisualContextStartCoalescerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70F68E9A9255F607C4439ED5 /* VisualContextStartCoalescerTests.swift */; };
 		DC9EBC526DBF265C00853AE4 /* LanguageTagsEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFB53B865B0FA4378DEF2054 /* LanguageTagsEditor.swift */; };
 		DCA6BB5C622ADE0DA1B9769F /* SuggestionWorkController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A66389B78743ABACE7CD4D82 /* SuggestionWorkController.swift */; };
@@ -906,6 +909,7 @@
 		1BB42779285A1BA40B7848C8 /* TickMarkSlider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TickMarkSlider.swift; sourceTree = "<group>"; };
 		1BF6C6A11D5B5A7B987AFB9C /* TextLayoutCaretEstimator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextLayoutCaretEstimator.swift; sourceTree = "<group>"; };
 		1C1AE4120FA68524700C9324 /* BaseCompletionPromptRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BaseCompletionPromptRenderer.swift; sourceTree = "<group>"; };
+		B102D6615C7EB1184FA1026E /* SignOffCue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignOffCue.swift; sourceTree = "<group>"; };
 		1D1AC5EC06664F49A6AE2B17 /* SettingsNavigationModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsNavigationModel.swift; sourceTree = "<group>"; };
 		1D60AC0AFFF7CEAA24FC617E /* OnboardingFlowStepTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingFlowStepTests.swift; sourceTree = "<group>"; };
 		1DE72A73D906285AE10F623B /* EmojiRecents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiRecents.swift; sourceTree = "<group>"; };
@@ -1039,6 +1043,7 @@
 		601C120D3DB41535E1D90E24 /* WebContentFieldDetectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebContentFieldDetectorTests.swift; sourceTree = "<group>"; };
 		604A895738E56186324D3387 /* SuggestionPauseModelsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionPauseModelsTests.swift; sourceTree = "<group>"; };
 		612CA2988BF19FAE0114165A /* BaseCompletionPromptRendererTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BaseCompletionPromptRendererTests.swift; sourceTree = "<group>"; };
+		E880B83DE990263EF46F5C3D /* SignOffCueTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignOffCueTests.swift; sourceTree = "<group>"; };
 		61CCBF33813CE5CD3B9EA37B /* SpellingLanguageResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpellingLanguageResolver.swift; sourceTree = "<group>"; };
 		61DFA08E857DB36A7876FFEA /* EngineAndModelPaneView+Actions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "EngineAndModelPaneView+Actions.swift"; sourceTree = "<group>"; };
 		620D393D3B7E687A08FA9446 /* es-100l.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "es-100l.txt"; sourceTree = "<group>"; };
@@ -1960,6 +1965,7 @@
 			isa = PBXGroup;
 			children = (
 				612CA2988BF19FAE0114165A /* BaseCompletionPromptRendererTests.swift */,
+				E880B83DE990263EF46F5C3D /* SignOffCueTests.swift */,
 				3D6234872B84ECB56A707945 /* ControlTokenMarkersTests.swift */,
 				DAC4D7129517D678D95D0BC2 /* PromptPolicyTests.swift */,
 				A73D95F2BF5CA59705653931 /* PromptSectionBudgetTests.swift */,
@@ -2516,6 +2522,7 @@
 			isa = PBXGroup;
 			children = (
 				1C1AE4120FA68524700C9324 /* BaseCompletionPromptRenderer.swift */,
+				B102D6615C7EB1184FA1026E /* SignOffCue.swift */,
 				33D4F378E5C70CAF7827A90A /* ControlTokenMarkers.swift */,
 				3A051152D3C503A2339BF0FA /* FoundationModelPromptRenderer.swift */,
 				AAE89BEAF57DF3A287DF56F1 /* PromptSectionBudget.swift */,
@@ -3409,6 +3416,7 @@
 				91979FC94BCE7A80F74EC47F /* Aria2StagingDirectoryResolver.swift in Sources */,
 				D5F36CA1A9400432CB1FDAFC /* ArithmeticEvaluator.swift in Sources */,
 				9B6C176547D2B6D118572E41 /* BaseCompletionPromptRenderer.swift in Sources */,
+				6EE74F5B17A64822A7BA8BD3 /* SignOffCue.swift in Sources */,
 				CCE3A8C0CDB6F493D61131F6 /* BrowserAppDetector.swift in Sources */,
 				51A2818103753C731384D948 /* BrowserDomain.swift in Sources */,
 				A30F28CB21A2DDE9E44FC10A /* BundleVersion.swift in Sources */,
@@ -3711,6 +3719,7 @@
 				3A2A9FE7D529DDA2D471C8F5 /* Aria2StagingDirectoryResolver.swift in Sources */,
 				2CA5740E5D8A1167043D6045 /* ArithmeticEvaluator.swift in Sources */,
 				DC6C087A7C0E973967BB38D5 /* BaseCompletionPromptRenderer.swift in Sources */,
+				A187907396050364BC7B0F33 /* SignOffCue.swift in Sources */,
 				2D33BFF41BDE6CE7464885B8 /* BrowserAppDetector.swift in Sources */,
 				A35366FD201FE8747BAE0C09 /* BrowserDomain.swift in Sources */,
 				8F216FA9E4DD8C0317E28286 /* BundleVersion.swift in Sources */,
@@ -4004,6 +4013,7 @@
 				A638F12BABC343E76EA948C6 /* Aria2StagingDirectoryResolverTests.swift in Sources */,
 				1741F4AFFEA90CD6F81959F3 /* ArithmeticEvaluatorTests.swift in Sources */,
 				02A837BD3861FD72B3E99D0F /* BaseCompletionPromptRendererTests.swift in Sources */,
+				51F3BABA2C6CDBD787163A8D /* SignOffCueTests.swift in Sources */,
 				5461DD0133FE632B2EB4936A /* BrowserAppDetectorTests.swift in Sources */,
 				D1B42567FEECD406CECFEC45 /* BrowserDomainTests.swift in Sources */,
 				85FCDC35AC29F4A89E30F559 /* BundledRuntimeLocatorTests.swift in Sources */,

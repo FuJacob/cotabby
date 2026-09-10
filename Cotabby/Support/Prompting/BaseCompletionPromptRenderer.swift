@@ -51,7 +51,7 @@ enum BaseCompletionPromptRenderer {
                 )
             }
         }
-        if let persona = Self.personaLine(userName) {
+        if let persona = Self.personaLine(userName, prefix: trimmedPrefix) {
             sections.append(Self.contextSection("persona", persona, priority: 60, maxChars: 200))
         }
         if let style = Self.styleLine(customRules) {
@@ -123,9 +123,15 @@ enum BaseCompletionPromptRenderer {
         PromptSection(name: name, content: content, priority: priority, minChars: 0, maxChars: maxChars, truncation: .preserveStart)
     }
 
-    /// "Written by <name>." or nil. Conditions the voice via authorship framing.
-    private static func personaLine(_ userName: String?) -> String? {
-        guard let name = Self.nonEmpty(userName) else { return nil }
+    /// "Written by <name>." when the caret follows a valediction (see `SignOffCue`), nil otherwise.
+    ///
+    /// The name is deliberately absent from every other prompt. A base model given a name in its
+    /// preface reaches for it whenever the caret text is thin, and the live logs (2026-09-10,
+    /// 31 of 2844 generations) showed it introducing the writer at message openings, addressing
+    /// them as the recipient, and copying "written by" into the ghost text. At a sign-off the name
+    /// is the one token wanted, and the closing line anchors the model so nothing else leaks.
+    private static func personaLine(_ userName: String?, prefix: String) -> String? {
+        guard let name = Self.nonEmpty(userName), SignOffCue.precedesSignature(prefix) else { return nil }
         return "Written by \(name)."
     }
 

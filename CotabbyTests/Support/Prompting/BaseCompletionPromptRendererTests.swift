@@ -58,7 +58,7 @@ final class BaseCompletionPromptRendererTests: XCTestCase {
         XCTAssertTrue(prompt.hasSuffix("the meeting is at"), "the caret prefix is never starved under a token budget")
     }
 
-    func test_personaFramingConditionsOnNameStyleAndLanguage() {
+    func test_styleAndLanguageConditionWithoutNamingTheWriterAtAnOpening() {
         let prompt = BaseCompletionPromptRenderer.prompt(
             prefixText: "Hi team,",
             applicationName: "Mail",
@@ -66,10 +66,26 @@ final class BaseCompletionPromptRendererTests: XCTestCase {
             customRules: ["friendly", "professional"],
             languageInstruction: "Write in English."
         )
-        XCTAssertTrue(prompt.contains("Written by Jacob"))
+        // Measured live: a name in the preface at an opening made the model write "Hi, I'm Jacob".
+        XCTAssertFalse(prompt.contains("Jacob"))
         XCTAssertTrue(prompt.contains("friendly, professional"))
         XCTAssertTrue(prompt.contains("Write in English."))
         XCTAssertTrue(prompt.hasSuffix("Hi team,"))
+    }
+
+    func test_writerIsNamedOnlyWhereTheCaretFollowsAValediction() {
+        let signing = BaseCompletionPromptRenderer.prompt(
+            prefixText: "Could you add the budget numbers before Friday?\n\nThanks again,\n",
+            applicationName: "Mail",
+            userName: "Jacob"
+        )
+        XCTAssertTrue(signing.contains("Written by Jacob."))
+        XCTAssertTrue(signing.hasSuffix("Thanks again,"))
+
+        for prefix in ["", "Hi", "Thanks for", "I will forward the draft to", "the rest of the"] {
+            let prompt = BaseCompletionPromptRenderer.prompt(prefixText: prefix, applicationName: "Mail", userName: "Jacob")
+            XCTAssertFalse(prompt.contains("Jacob"), "the name must not condition \(prefix.debugDescription)")
+        }
     }
 
     func test_trailingWhitespaceTrimmedButMidWordPreserved() {
@@ -109,7 +125,8 @@ final class BaseCompletionPromptRendererTests: XCTestCase {
             surfaceContext: surface
         )
         XCTAssertTrue(prompt.hasPrefix("Email draft. Window title: \"Re: Q3 budget review\"."))
-        XCTAssertTrue(prompt.contains("Written by Jacob"))
+        // "Thanks again for" is mid-sentence, not a sign-off, so the writer stays unnamed.
+        XCTAssertFalse(prompt.contains("Jacob"))
         XCTAssertTrue(prompt.hasSuffix("Thanks again for"))
     }
 
@@ -132,10 +149,11 @@ final class BaseCompletionPromptRendererTests: XCTestCase {
             prefixText: prefix,
             applicationName: "Pages",
             userName: "Jacob",
+            languageInstruction: "Write in English.",
             tokenBudget: SuggestionConfiguration.standard.llamaPromptTokenBudget
         )
         XCTAssertTrue(prompt.hasSuffix("and the end"))
         XCTAssertTrue(prompt.contains("every word counts here"), "the full prefix survives the token budget")
-        XCTAssertTrue(prompt.contains("Written by Jacob"), "context still fits alongside a large prefix")
+        XCTAssertTrue(prompt.contains("Write in English."), "context still fits alongside a large prefix")
     }
 }
