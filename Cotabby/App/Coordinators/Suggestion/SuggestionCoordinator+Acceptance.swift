@@ -543,6 +543,11 @@ extension SuggestionCoordinator {
         }
 
         state = .ready(text: advancedSession.remainingText, latency: advancedSession.latency)
+        // Nearly typed through: fetch what comes next into the cache now, so exhausting this
+        // suggestion lands on a ready one instead of a blank gap (see `prefetchContinuation`).
+        if let rawContext = focusModel.snapshot.context {
+            prefetchContinuation(after: advancedSession, rawContext: rawContext)
+        }
         if isHoldingForHostMarkedText {
             // The host's own prediction still occupies the ghost's spot; the advanced tail stays
             // hidden until a snapshot without marked text reconciles and re-presents it.
