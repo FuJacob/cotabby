@@ -106,6 +106,7 @@
 		1AAC3A35721942F618E5C37F /* ApplicationBundleMetadata.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD1E28CF46BF59ABDC3056BF /* ApplicationBundleMetadata.swift */; };
 		1AB037C6DC95769F4765B5CA /* SettingsAttentionEvaluator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79AAAB1C46A0E5A9C6FC7D3D /* SettingsAttentionEvaluator.swift */; };
 		1B1DDCEEA435F7DAB6C68B92 /* LlamaSuggestionEngineCancellationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC812721A3E5327154D6CD4E /* LlamaSuggestionEngineCancellationTests.swift */; };
+		43E9D9D74DC04B0EAD360064 /* LlamaAbortTargetTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B633E9A32C6E1EAD05A15D73 /* LlamaAbortTargetTests.swift */; };
 		1B66CA97E53D1ADB9F4E9A4A /* InputMonitorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB36177FC6C26F5E4CD1AD6E /* InputMonitorTests.swift */; };
 		1B80604D77F1AF1DF96DDD45 /* MarkerSelectionSynthesizerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F7E66CFA5AB733CE1F793A8 /* MarkerSelectionSynthesizerTests.swift */; };
 		1C30344A181A9F6EBC4A9C8F /* DeviceInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6586D6D735F287F43D42520A /* DeviceInfo.swift */; };
@@ -247,6 +248,7 @@
 		44B7F10676606D11D0B1D5D0 /* SuggestionCoordinator+Acceptance.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA85693671D2A705F544B566 /* SuggestionCoordinator+Acceptance.swift */; };
 		4564DFEF1670EA473D9AE335 /* LlamaSuggestionEngineStreamingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD1FC547BE2E96D2ABB55DF4 /* LlamaSuggestionEngineStreamingTests.swift */; };
 		45E72FDF94C0510AFCAA6C3E /* LlamaRuntimeCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 019029E24E67812E3FF63286 /* LlamaRuntimeCore.swift */; };
+		91ED6E1A436F1622F9973771 /* LlamaAbortTarget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01A7F3B99388741F77AD068D /* LlamaAbortTarget.swift */; };
 		4666D3B3A81CCB4CC68FC395 /* FocusModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5B778713FE1C9481CE0DF065 /* FocusModels.swift */; };
 		468477E87700B5D18BCD7A7A /* SuggestionEngineModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DB1A3F7D6C0FF28717E6D4C /* SuggestionEngineModels.swift */; };
 		469626C2EFEDFD6C188941F5 /* de.txt in Resources */ = {isa = PBXBuildFile; fileRef = C648EBB10D7F8E0B904DEC91 /* de.txt */; };
@@ -804,6 +806,7 @@
 		EFEA8845584EC9AE7D3B123D /* SelfCaptureGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13838E1372956FF2CFC5ECCC /* SelfCaptureGate.swift */; };
 		F00030AE79BA5E78B5615100 /* PermissionGuidanceController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0C41A249D9538B91B7FA8A9 /* PermissionGuidanceController.swift */; };
 		F02C29667DEA43507521C87B /* LlamaRuntimeCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 019029E24E67812E3FF63286 /* LlamaRuntimeCore.swift */; };
+		BE931A3DE8D10EAB77F60D75 /* LlamaAbortTarget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01A7F3B99388741F77AD068D /* LlamaAbortTarget.swift */; };
 		F07B21A61B8B0C0E3B3147F6 /* TextLayoutCaretEstimator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BF6C6A11D5B5A7B987AFB9C /* TextLayoutCaretEstimator.swift */; };
 		F0DCEFED640B453A5ECEB810 /* HuggingFaceModelBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C696204AAEBA357129F77646 /* HuggingFaceModelBrowserView.swift */; };
 		F0E47B759322F911BB54EFCB /* EmojiMatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA8311FAC345FE431FA89855 /* EmojiMatcher.swift */; };
@@ -873,6 +876,7 @@
 		003594B09C83EF2DF35577D5 /* SuggestionDebugLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SuggestionDebugLogger.swift; sourceTree = "<group>"; };
 		00BD4DE5D9D8C9BB66B78633 /* TextDirectionDetectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextDirectionDetectorTests.swift; sourceTree = "<group>"; };
 		019029E24E67812E3FF63286 /* LlamaRuntimeCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LlamaRuntimeCore.swift; sourceTree = "<group>"; };
+		01A7F3B99388741F77AD068D /* LlamaAbortTarget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LlamaAbortTarget.swift; sourceTree = "<group>"; };
 		023BA8AA7DF3F8A45F9CE8FA /* ScreenshotContextGeneratorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenshotContextGeneratorTests.swift; sourceTree = "<group>"; };
 		024A80AEB32CC1AE8C0FF69E /* PerformanceMetricsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PerformanceMetricsStore.swift; sourceTree = "<group>"; };
 		0259095D0A3E9B8DC26CB4B0 /* ModelFileValidatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelFileValidatorTests.swift; sourceTree = "<group>"; };
@@ -1254,6 +1258,7 @@
 		BC4F887528AE74AC0DD30314 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		BC7FA0146AC6B78725105BA4 /* InkBaselineAnalyzerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InkBaselineAnalyzerTests.swift; sourceTree = "<group>"; };
 		BC812721A3E5327154D6CD4E /* LlamaSuggestionEngineCancellationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LlamaSuggestionEngineCancellationTests.swift; sourceTree = "<group>"; };
+		B633E9A32C6E1EAD05A15D73 /* LlamaAbortTargetTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LlamaAbortTargetTests.swift; sourceTree = "<group>"; };
 		BCF2889446A21BC8AC773A81 /* CotabbyTestFixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CotabbyTestFixtures.swift; sourceTree = "<group>"; };
 		BD1E28CF46BF59ABDC3056BF /* ApplicationBundleMetadata.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApplicationBundleMetadata.swift; sourceTree = "<group>"; };
 		BD33A18BECBD7292ACD9F8B8 /* TextDirectionDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextDirectionDetector.swift; sourceTree = "<group>"; };
@@ -2919,6 +2924,7 @@
 				A8F0F084B3A58EDA94A32324 /* LlamaDecodeGateDefaultsTests.swift */,
 				D5E16CB478D3F015EE0C5D8F /* LlamaPromptCacheHintTrackerTests.swift */,
 				BC812721A3E5327154D6CD4E /* LlamaSuggestionEngineCancellationTests.swift */,
+				B633E9A32C6E1EAD05A15D73 /* LlamaAbortTargetTests.swift */,
 				6BCF5B9CC0B74A171519B6D8 /* LlamaSuggestionEnginePrewarmTests.swift */,
 				CD1FC547BE2E96D2ABB55DF4 /* LlamaSuggestionEngineStreamingTests.swift */,
 			);
@@ -3084,6 +3090,7 @@
 			isa = PBXGroup;
 			children = (
 				019029E24E67812E3FF63286 /* LlamaRuntimeCore.swift */,
+				01A7F3B99388741F77AD068D /* LlamaAbortTarget.swift */,
 				E45161160AC94229A630FC3A /* LlamaRuntimeManager.swift */,
 				B19F5B58A9F2F20E7FA94AF8 /* LlamaSuggestionEngine.swift */,
 			);
@@ -3564,6 +3571,7 @@
 				BD4D2296BC699984D1916450 /* LanguageCatalog.swift in Sources */,
 				DC9EBC526DBF265C00853AE4 /* LanguageTagsEditor.swift in Sources */,
 				F02C29667DEA43507521C87B /* LlamaRuntimeCore.swift in Sources */,
+				BE931A3DE8D10EAB77F60D75 /* LlamaAbortTarget.swift in Sources */,
 				163735A1B906AE8B009CC547 /* LlamaRuntimeManager.swift in Sources */,
 				F50F54FB1B3B2B2E464B8683 /* LlamaRuntimeModels.swift in Sources */,
 				3A5BA316620E502DAED81EE1 /* LlamaSuggestionEngine.swift in Sources */,
@@ -3870,6 +3878,7 @@
 				54091F97C3F64ABB737DC76B /* LanguageCatalog.swift in Sources */,
 				9C31C64224E710040F23CEB2 /* LanguageTagsEditor.swift in Sources */,
 				45E72FDF94C0510AFCAA6C3E /* LlamaRuntimeCore.swift in Sources */,
+				91ED6E1A436F1622F9973771 /* LlamaAbortTarget.swift in Sources */,
 				7BEA76E69707BC760B0D2394 /* LlamaRuntimeManager.swift in Sources */,
 				D42BBBD704B21898047615E0 /* LlamaRuntimeModels.swift in Sources */,
 				3CEF8F66CBBD5D828135FF9E /* LlamaSuggestionEngine.swift in Sources */,
@@ -4128,6 +4137,7 @@
 				3C1D10594D37E35313B86BDD /* LlamaEvalScoringTests.swift in Sources */,
 				C4D2228E292AB40109C93C63 /* LlamaPromptCacheHintTrackerTests.swift in Sources */,
 				1B1DDCEEA435F7DAB6C68B92 /* LlamaSuggestionEngineCancellationTests.swift in Sources */,
+				43E9D9D74DC04B0EAD360064 /* LlamaAbortTargetTests.swift in Sources */,
 				635026FA5A2CDD7CB29AC20F /* LlamaSuggestionEnginePrewarmTests.swift in Sources */,
 				4564DFEF1670EA473D9AE335 /* LlamaSuggestionEngineStreamingTests.swift in Sources */,
 				BE16C2851265AB659A322835 /* LlamaSuggestionEvalTests.swift in Sources */,

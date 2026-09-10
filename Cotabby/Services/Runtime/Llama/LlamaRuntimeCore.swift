@@ -33,11 +33,12 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
     private var autocompletePromptTokens: [Int32] = []
     private var autocompleteSamplingFingerprint: SamplingFingerprint?
 
-    /// The sequence the in-flight autocomplete operation is decoding into, published for
-    /// `abortInFlightGeneration` to target from the canceller's thread. Guarded by its own lock
-    /// because the abort fires while `autocompleteLock` is held by the very work being aborted.
-    private let abortTargetLock = NSLock()
-    private var abortTargetSequenceID: Int32 = -1
+    /// The sequence the in-flight prompt decode is writing into, published for
+    /// `abortInFlightGeneration` to reach from the canceller's thread and withdrawn the moment that
+    /// decode returns. Guarded by its own lock because the abort fires while `autocompleteLock` is
+    /// held by the very work being aborted (see `LlamaAbortTarget` for why it must not outlive
+    /// the decode).
+    private let abortTarget = LlamaAbortTarget()
 
     /// One loud line per model load when the engine rejects partial KV trims (llama.cpp cannot
     /// drop mid-sequence ranges on hybrid/recurrent or SWA caches). Without this signal the
@@ -161,8 +162,8 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         defer { autocompleteLock.unlock() }
         // Registered before `obtainAutocompleteSequence` because that call publishes the abort
         // target ahead of its prompt decode; every exit (including a cancelled prefill throwing)
-        // must clear it so a late abort can never flag a recycled sequence slot.
-        defer { clearAbortTarget() }
+        // must withdraw it so a late abort can never flag a recycled sequence slot.
+        defer { abortTarget.withdraw() }
 
         let sequenceID = try obtainAutocompleteSequence(
             promptTokens: preparation.promptTokens,
@@ -171,18 +172,26 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
             cachedPrefixBytes: preparation.cachedPrefixBytes,
             options: options
         )
+        // The prompt is decoded. From here on cancellation is polled between sampled tokens, so
+        // the engine-level abort is withdrawn now rather than at exit: its flag is set-once, and
+        // an abort that landed during sampling left the kept sequence flagged, so the next
+        // request's prompt decode on it returned `cancelled` at once and that request died unseen.
+        try discardIfAborted(sequenceID)
 
         defer {
             // Trim sampled tokens so KV retains only the prompt for the next request. A rejected
             // trim leaves the sampled tokens in KV while the tracker records prompt-only state;
             // that mismatch self-heals (the next reuse trim is rejected too and rebuilds fresh),
             // but it also proves this model can never reuse, so remember that for `prefill`.
-            if !engine.trimKV(sequenceID, Int32(preparation.promptTokens.count)) {
-                modelRejectsPartialTrims = true
+            // A sequence discarded below is gone: nothing to trim, and nothing to learn from.
+            if autocompleteSequenceID == sequenceID {
+                if !engine.trimKV(sequenceID, Int32(preparation.promptTokens.count)) {
+                    modelRejectsPartialTrims = true
+                }
+                autocompletePromptBytes = preparation.promptBytes
+                autocompletePromptTokens = preparation.promptTokens
+                autocompleteSamplingFingerprint = preparation.fingerprint
             }
-            autocompletePromptBytes = preparation.promptBytes
-            autocompletePromptTokens = preparation.promptTokens
-            autocompleteSamplingFingerprint = preparation.fingerprint
         }
 
         // The KV-trim defer above runs after the decoder returns, restoring prompt-only KV state for
@@ -230,7 +239,7 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         autocompleteLock.lock()
         defer { autocompleteLock.unlock() }
         // Same exit guarantee as `generate`: see the comment there.
-        defer { clearAbortTarget() }
+        defer { abortTarget.withdraw() }
 
         // On models that reject partial trims (the hybrid/SWA catalog families), a warmed
         // sequence can never be reused, so prefilling would only double the cold decode the
@@ -255,6 +264,9 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
             cachedPrefixBytes: preparation.cachedPrefixBytes,
             options: options
         )
+        // A superseded warmup's abort that reached the warmed sequence after its decode returned
+        // retires it here, as in `generate`: kept, it would refuse the real request's decode.
+        try discardIfAborted(sequenceID)
 
         // `decodePrompt` samples one seed token beyond the prompt, so the trim is what restores
         // prompt-only KV. If it is rejected, the warmed sequence still carries the seed and can
@@ -275,27 +287,26 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
     /// Aborts the in-flight autocomplete operation's native work mid-prefill. Task cancellation is
     /// only polled between sampled tokens, so without this an uninterruptible prompt decode makes
     /// the next request wait out the entire stale prefill. Safe from any thread: the engine flag
-    /// is atomic and its sequence lookup is mutex-guarded; a no-op when nothing is in flight.
+    /// is atomic and its sequence lookup is mutex-guarded. A no-op unless a prompt decode is in
+    /// flight: a request that is sampling stops at its next token without touching the flag.
     func abortInFlightGeneration() {
-        abortTargetLock.lock()
-        let target = abortTargetSequenceID
-        abortTargetLock.unlock()
-        guard target >= 0 else {
-            return
-        }
-        engine.cancelSequence(target)
+        abortTarget.abort { engine.cancelSequence($0) }
     }
 
     private func setAbortTarget(_ sequenceID: Int32) {
-        abortTargetLock.lock()
-        abortTargetSequenceID = sequenceID
-        abortTargetLock.unlock()
+        abortTarget.publish(sequenceID)
     }
 
-    private func clearAbortTarget() {
-        abortTargetLock.lock()
-        abortTargetSequenceID = -1
-        abortTargetLock.unlock()
+    /// Withdraws the abort target once a prompt decode has returned and, when an abort reached
+    /// the sequence first, destroys it and surfaces the cancellation. The engine's abort flag is
+    /// set-once, so a flagged sequence kept for prefix reuse would refuse the next request's
+    /// decode (measured 2026-09-10 in Obsidian: three of eight typing pauses showed no
+    /// suggestion, each one's request dead within two milliseconds of starting).
+    private func discardIfAborted(_ sequenceID: Int32) throws {
+        guard abortTarget.withdraw() else { return }
+        engine.destroySequence(sequenceID)
+        autocompleteSequenceID = -1
+        throw CancellationError()
     }
 
     /// Shared tokenize/truncate/log front half of `generate` and `prefill`.
