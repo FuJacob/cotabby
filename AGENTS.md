@@ -337,13 +337,6 @@ xcodebuild -project Cotabby.xcodeproj -scheme "Cotabby Dev" -configuration Relea
   -destination 'platform=macOS' build -derivedDataPath build/DerivedData
 ```
 
-Ghost placement changes are verified against the pixels the user sees, not against log counts: the
-session scratchpad's `align_cases.sh` (modes `obsidian-single`, `obsidian-multi`, `textedit`,
-`chrome-ce`) types fragments, captures the ghost, accepts it, captures the host's own rendering of the
-same words, and reports the ghost's dx/dy in points per line. A placement fix is done when every mode
-stays within about 0.2pt on every line; a change that helps one host and moves another is a regression
-even when its own log counters improve.
-
 Run targeted tests for changed pure logic when available. If `xcodebuild test` fails locally because
 of app-hosted test bundle signing or Team ID mismatch, report the exact failure and still provide the
 successful build/build-for-testing result.

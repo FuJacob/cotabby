@@ -63,21 +63,6 @@ final class OverlayController: SuggestionOverlayControlling {
     }
 
     private var inlineSession: InlineSession?
-    /// What each field's width samples have said about its typeface so far (see `TypefaceEvidence`).
-    /// Keyed by the field's session identity, which survives the field growing as text wraps.
-    private var typefaceEvidence: [UInt64: TypefaceEvidence] = [:]
-    /// Fields whose host named a face this Mac cannot load (Gemini's bundled Google Sans). The
-    /// name is not on every snapshot's style (Chromium answers only a size for some caret
-    /// positions), and one nameless snapshot was enough to let a width match flash Georgia in the
-    /// middle of an otherwise settled field. Once seen, the fact holds for the field's life.
-    private var unavailableNamedFaceFields: Set<UInt64> = []
-    /// Measures the caret from the host's pixels for paragraphs AX exposes only as one union run
-    /// (see `PixelCaretLocator`). Owned here because the measurement is a presentation concern:
-    /// it decides where the ghost is drawn and whether it can be drawn inline at all.
-    private let pixelCaretLocator = PixelCaretLocator()
-    /// Retires a held presentation: a show or hide that arrives while the pixels are still being
-    /// read bumps this, and the late measurement is dropped instead of resurrecting stale text.
-    private var pixelCaretShowToken: UInt64 = 0
     /// Measures web hosts' painted baselines; nil where screen capture is unwanted (tests).
     private let baselineCalibrator: HostBaselineCalibrator?
 
@@ -115,31 +100,10 @@ final class OverlayController: SuggestionOverlayControlling {
     /// Sizes and positions the overlay using the render mode the policy picks for this geometry.
     /// An inline pick that cannot be laid out honestly (the text needs a second row but the host
     /// exposed no line pitch, or it would paint over text after the caret) falls back to the card.
-    func showSuggestion(_ text: String, geometry requestedGeometry: SuggestionOverlayGeometry) {
+    func showSuggestion(_ text: String, geometry: SuggestionOverlayGeometry) {
         guard !text.isEmpty else {
             hide(reason: "Overlay not shown because the suggestion was empty.")
             return
-        }
-        pixelCaretShowToken &+= 1
-        let token = pixelCaretShowToken
-        var geometry = requestedGeometry
-        // A caret inside a union-run paragraph is placed from the host's pixels, not from AX (which
-        // has no answer there) and not from a font-metric layout (which put the ghost on top of the
-        // host's own glyphs). The first presentation for a given paragraph text waits for the
-        // capture, typically tens of milliseconds; later ones reuse it. If the pixels yield nothing
-        // the presentation proceeds exactly as it would have without this service.
-        if let request = pixelCaretRequest(for: requestedGeometry) {
-            if let measured = pixelCaretLocator.cachedMeasurement(for: request) {
-                geometry = requestedGeometry.withPixelMeasuredCaret(
-                    measured.caretRect, lineRect: measured.lineRect, linePitch: measured.linePitch
-                )
-            } else if !pixelCaretLocator.hasFailed(request) {
-                pixelCaretLocator.locate(request) { [weak self] _ in
-                    guard let self, self.pixelCaretShowToken == token else { return }
-                    self.showSuggestion(text, geometry: requestedGeometry)
-                }
-                return
-            }
         }
 
         // Decide on the fade using the panel state captured *before* `state` is reassigned below, so
@@ -195,7 +159,6 @@ final class OverlayController: SuggestionOverlayControlling {
 
     /// Hides the floating panel and records why the overlay is no longer visible.
     func hide(reason: String) {
-        pixelCaretShowToken &+= 1
         CotabbyLogger.suggestion.debug("Overlay hidden", metadata: ["stage": .string("overlay-hide"), "reason": .string(reason)])
         panel.orderOut(nil)
         inlineSession = nil
@@ -302,26 +265,6 @@ final class OverlayController: SuggestionOverlayControlling {
 
     /// The host's face by report or measurement; for a web field the host never named, a face the
     /// host's own pixels matched earlier in this field replaces the system stand-in.
-    /// The pixel measurement this geometry needs, or nil when AX already placed the caret. Only a
-    /// caret at the end of its paragraph is measured: the paragraph's last inked line then ends at
-    /// the caret. A caret inside the paragraph keeps the existing card, which is honest about not
-    /// knowing where the caret is.
-    private func pixelCaretRequest(for geometry: SuggestionOverlayGeometry) -> PixelCaretLocator.Request? {
-        guard let wrapped = geometry.wrappedRun, geometry.isCaretAtEndOfLine, !geometry.isRightToLeft else {
-            return nil
-        }
-        let renderer: GhostBaselinePolicy.HostRenderer = geometry.isWebContentField ? .webEngine : .textKit
-        let font = resolveFont(for: geometry, renderer: renderer).font
-        return PixelCaretLocator.Request(
-            focusedInputIdentityKey: geometry.focusedInputIdentityKey,
-            runFrame: wrapped.frame,
-            paragraphTextBeforeCaret: wrapped.paragraphTextBeforeCaret,
-            siblingLinePitch: geometry.hostTextMetrics?.linePitch,
-            siblingLineBoxHeight: geometry.hostTextMetrics?.lineRect?.height,
-            spaceAdvance: GhostFontResolver.width(of: " ", font: font)
-        )
-    }
-
     private func resolveFont(
         for geometry: SuggestionOverlayGeometry,
         renderer: GhostBaselinePolicy.HostRenderer
@@ -335,104 +278,11 @@ final class OverlayController: SuggestionOverlayControlling {
                 sizeMultiplier: CGFloat(suggestionSettings.ghostTextSizeMultiplier)
             )
         )
-        let judged = applyingTypefaceEvidence(resolution, for: geometry)
         return Self.applyingMatchedTypeface(
-            judged,
+            resolution,
             name: baselineCalibrator?.cachedTypeface(for: typefaceKey(for: geometry, font: resolution.font)),
             isWebContentField: geometry.isWebContentField
         )
-    }
-
-    /// Holds a width-matched face steady across the samples a field produces over its life.
-    ///
-    /// Inert for a field measured once (the resolver's own decision stands untouched) and for any
-    /// host whose named face loads. Two kinds of field reach the rules below:
-    ///   - a host that named a face this Mac cannot load (Gemini names its bundled Google Sans):
-    ///     once seen, the field renders the system face scaled to its longest sample for good,
-    ///     even on snapshots whose style momentarily carries only a size, which is what let a width
-    ///     match flash Georgia in the middle of an otherwise settled field;
-    ///   - a size-only field that keeps producing new, different width samples, judged by
-    ///     `TypefaceEvidence` (see the measured Gemini sequence there).
-    private func applyingTypefaceEvidence(
-        _ resolution: GhostFontResolver.Resolution,
-        for geometry: SuggestionOverlayGeometry
-    ) -> GhostFontResolver.Resolution {
-        switch resolution.provenance {
-        case .hostSizeMatchedFamily, .hostSizeSystem, .hostSizeScaledSystem:
-            break
-        default:
-            return resolution
-        }
-        let identity = geometry.focusedInputIdentityKey
-        let size = geometry.resolvedFieldStyle?.fontPointSize ?? resolution.font.pointSize
-        let hostNamesFace = geometry.resolvedFieldStyle?.fontName != nil || geometry.resolvedFieldStyle?.fontFamily != nil
-        if hostNamesFace, resolution.provenance != .hostSizeMatchedFamily {
-            unavailableNamedFaceFields.insert(identity)
-        }
-        var evidence = typefaceEvidence[identity] ?? TypefaceEvidence()
-        let sample = Self.widthSample(of: geometry)
-        if let sample {
-            evidence.record(sample, resolverFamily: resolution.provenance == .hostSizeMatchedFamily ? resolution.font.familyName : nil)
-        }
-        if unavailableNamedFaceFields.contains(identity) {
-            typefaceEvidence[identity] = evidence
-            return Self.scaledSystemFace(size: size, evidence: evidence)
-        }
-        guard let sample else {
-            return resolution
-        }
-        let verdict = evidence.verdict(candidates: GhostFontResolver.candidateFamilies) { family, sample in
-            GhostFontResolver.familyFits(family, sample: sample.text, width: sample.width, size: size)
-        }
-        typefaceEvidence[identity] = evidence
-        CotabbyLogger.suggestion.debug(
-            "Typeface evidence",
-            metadata: [
-                "stage": .string("typeface-evidence"),
-                "identity": .stringConvertible(identity),
-                "sample": .string(String(sample.text.prefix(32))),
-                "resolver_family": .string(resolution.font.familyName ?? "-"),
-                "resolver_provenance": .string(resolution.provenance.rawValue),
-                "host_font": .string(geometry.resolvedFieldStyle?.fontName ?? geometry.resolvedFieldStyle?.fontFamily ?? "-"),
-                "samples": .stringConvertible(evidence.samples.count),
-                "adopted": .string(evidence.adoptedFamily ?? "-"),
-                "verdict": .string("\(verdict)")
-            ]
-        )
-        switch verdict {
-        case .singleSample:
-            return resolution
-        case .family(let family):
-            guard resolution.font.familyName != family, let font = GhostFontResolver.familyFont(family, size: size) else {
-                return resolution
-            }
-            return GhostFontResolver.Resolution(
-                font: font, provenance: .hostSizeMatchedFamily, widthAgreement: resolution.widthAgreement
-            )
-        case .undecidable:
-            return Self.scaledSystemFace(size: size, evidence: evidence)
-        }
-    }
-
-    /// The host's measured width sample for this geometry, when it has one.
-    private static func widthSample(of geometry: SuggestionOverlayGeometry) -> TypefaceEvidence.Sample? {
-        guard let text = geometry.hostTextMetrics?.sampleText, let width = geometry.hostTextMetrics?.sampleWidth, width > 0 else {
-            return nil
-        }
-        return TypefaceEvidence.Sample(text: text, width: width)
-    }
-
-    /// The system face at the host's size, scaled to the longest trustworthy sample the field has
-    /// produced. Shorter samples carry whole-point rounding noise that would nudge the size a
-    /// fraction each time one recurred; with none long enough the reported size is used as is.
-    private static func scaledSystemFace(size: CGFloat, evidence: TypefaceEvidence) -> GhostFontResolver.Resolution {
-        let longest = evidence.samples
-            .filter { $0.text.count >= TypefaceEvidence.minimumScalingLength }
-            .max { $0.text.count < $1.text.count }
-        guard let longest else {
-            return GhostFontResolver.Resolution(font: NSFont.systemFont(ofSize: size), provenance: .hostSizeSystem, widthAgreement: 1)
-        }
-        return GhostFontResolver.scaledSystemResolution(size: size, sample: longest.text, width: longest.width)
     }
 
     private static func applyingMatchedTypeface(
@@ -472,15 +322,8 @@ final class OverlayController: SuggestionOverlayControlling {
             hostTextMetrics: context.hostTextMetrics,
             isWebContentField: context.isWebContentField,
             elementFrameRect: context.elementFrameRect,
-            lineTextBeforeCaret: GhostCaretRefinement.paragraphTextBeforeCaret(in: context.precedingText),
-            wrappedRun: context.observedContentEdges?.wrappedRun
+            lineTextBeforeCaret: GhostCaretRefinement.paragraphTextBeforeCaret(in: context.precedingText)
         )
-        // The capture runs while the model generates, so the first ghost for this text already
-        // knows its caret and nothing is held at presentation time.
-        if let request = pixelCaretRequest(for: geometry),
-           pixelCaretLocator.cachedMeasurement(for: request) == nil, !pixelCaretLocator.hasFailed(request) {
-            pixelCaretLocator.locate(request) { _ in }
-        }
         startBackgroundMeasurement(for: geometry)
         let renderer: GhostBaselinePolicy.HostRenderer = context.isWebContentField ? .webEngine : .textKit
         let fontResolution = resolveFont(for: geometry, renderer: renderer)
@@ -896,7 +739,6 @@ final class OverlayController: SuggestionOverlayControlling {
             "consumed_utf16": .stringConvertible(session.consumedUTF16),
             "rows": .stringConvertible(session.layout.rows.count),
             "remaining_text": .string(String(session.layout.remainingText.prefix(40))),
-            "identity": .stringConvertible(session.geometry.focusedInputIdentityKey),
             "bands": .stringConvertible(session.layout.rowBands.count),
             "band_rects": .string(
                 session.layout.rowBands

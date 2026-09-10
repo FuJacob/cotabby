@@ -96,18 +96,4 @@ final class HostBaselineCalibratorTests: XCTestCase {
         XCTAssertNil(calibrator.cachedOffset(for: key))
         XCTAssertEqual(completions, 0)
     }
-
-    /// The calibrator publishes the field's agreed offset for every line, not each line's raw
-    /// reading; see `BaselineOffsetConsensus` for why. Exercised through the public surface the
-    /// controller uses (`cachedOffset`) with readings folded in via the store path.
-    func testCachedOffsetIsTheFieldValueAcrossLines() {
-        let calibrator = HostBaselineCalibrator(permissionCheck: { false })
-        let line1 = HostBaselineCalibrator.Key(focusedInputIdentityKey: 9, lineTop: 700, caretHeight: 20, fontPointSize: 17)
-        let line2 = HostBaselineCalibrator.Key(focusedInputIdentityKey: 9, lineTop: 676, caretHeight: 20, fontPointSize: 17)
-        calibrator.recordMeasurementForTesting(16, for: line1)
-        calibrator.recordMeasurementForTesting(15, for: line2)
-        XCTAssertEqual(calibrator.cachedOffset(for: line1), 16)
-        XCTAssertEqual(calibrator.cachedOffset(for: line2), 16, "a lone dissenting line renders on the field baseline")
-        XCTAssertEqual(calibrator.fieldOffset(for: line2), 16)
-    }
 }

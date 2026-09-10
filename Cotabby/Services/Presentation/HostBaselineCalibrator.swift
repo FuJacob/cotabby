@@ -111,26 +111,8 @@ final class HostBaselineCalibrator {
     static let maximumCorrection: CGFloat = 4
     private static let cacheLimit = 64
 
-    /// Per-line readings, kept so each line is measured once (the measurement is what feeds the
-    /// field consensus below) and so the log can show what a given line actually read.
     private var cache: [Key: CGFloat] = [:]
     private var cacheOrder: [Key] = []
-    /// What every line of a field renders with. Keyed without the line: the offset is a property
-    /// of the field's font and line box, and `BaselineOffsetConsensus` explains why one line's
-    /// reading must not be applied verbatim.
-    private var fieldConsensus: [FieldKey: BaselineOffsetConsensus] = [:]
-
-    struct FieldKey: Hashable {
-        let focusedInputIdentityKey: UInt64
-        let caretHeight: Int
-        let fontPointSize: Int
-
-        init(_ key: Key) {
-            focusedInputIdentityKey = key.focusedInputIdentityKey
-            caretHeight = key.caretHeight
-            fontPointSize = key.fontPointSize
-        }
-    }
     private var typefaces: [TypefaceKey: String] = [:]
     /// Callers waiting on a measurement in flight, per key. A present that arrives while the
     /// generation-time prewarm is still capturing joins its measurement instead of being dropped.
@@ -147,10 +129,9 @@ final class HostBaselineCalibrator {
         self.permissionCheck = permissionCheck
     }
 
-    /// The baseline offset from the caret box top to render with: the field's agreed value once
-    /// any line of it has been measured, so every line of a field sits on the same baseline.
+    /// The measured baseline offset from the caret box top for this line, if already known.
     func cachedOffset(for key: Key) -> CGFloat? {
-        fieldConsensus[FieldKey(key)]?.value ?? cache[key]
+        cache[key]
     }
 
     /// The face the host's pixels matched for this field and size, if already known.
@@ -231,20 +212,13 @@ final class HostBaselineCalibrator {
                 if analysis.baselineAccepted {
                     self.store(analysis.baselineOffset, for: key)
                 }
-                // Listeners get the field's agreed value, never this line's raw reading: a reading
-                // the consensus held back as a dissent must not move a ghost that is already right.
-                let fieldOffset = self.fieldConsensus[FieldKey(key)]?.value
                 if let match = analysis.typefaceMatch, self.typefaces[typefaceKey] == nil {
                     self.typefaces[typefaceKey] = match.fontName
                 }
-                Self.log(
-                    analysis, request: request,
-                    elapsedMilliseconds: Int(Date().timeIntervalSince(started) * 1000),
-                    fieldOffset: fieldOffset
-                )
+                Self.log(analysis, request: request, elapsedMilliseconds: Int(Date().timeIntervalSince(started) * 1000))
                 guard analysis.baselineAccepted || analysis.typefaceName != nil else { return }
                 let calibration = Calibration(
-                    baselineOffset: fieldOffset ?? self.cache[key] ?? request.policyOffset,
+                    baselineOffset: analysis.baselineAccepted ? analysis.baselineOffset : (self.cache[key] ?? request.policyOffset),
                     typefaceName: analysis.typefaceName
                 )
                 for listener in listeners {
@@ -431,31 +405,10 @@ final class HostBaselineCalibrator {
         if cache[key] == nil {
             cacheOrder.append(key)
             if cacheOrder.count > Self.cacheLimit {
-                let evicted = cacheOrder.removeFirst()
-                cache.removeValue(forKey: evicted)
-                if !cacheOrder.contains(where: { FieldKey($0) == FieldKey(evicted) }) {
-                    fieldConsensus.removeValue(forKey: FieldKey(evicted))
-                }
+                cache.removeValue(forKey: cacheOrder.removeFirst())
             }
         }
         cache[key] = offset
-        let fieldKey = FieldKey(key)
-        if fieldConsensus[fieldKey] == nil {
-            fieldConsensus[fieldKey] = BaselineOffsetConsensus(first: offset)
-        } else {
-            _ = fieldConsensus[fieldKey]?.offer(offset)
-        }
-    }
-
-    /// Feeds one accepted reading through the store path without a screen, so the consensus rule
-    /// is testable end to end through `cachedOffset`.
-    func recordMeasurementForTesting(_ offset: CGFloat, for key: Key) {
-        store(offset, for: key)
-    }
-
-    /// The consensus state for a field, for tests and diagnostics.
-    func fieldOffset(for key: Key) -> CGFloat? {
-        fieldConsensus[FieldKey(key)]?.value
     }
 
     private static func log(_ background: HostBackground, request: BackgroundRequest) {
@@ -474,14 +427,13 @@ final class HostBaselineCalibrator {
         )
     }
 
-    private static func log(_ analysis: Analysis, request: Request, elapsedMilliseconds: Int, fieldOffset: CGFloat?) {
+    private static func log(_ analysis: Analysis, request: Request, elapsedMilliseconds: Int) {
         guard CotabbyLogger.suggestion.logLevel <= .debug else { return }
         CotabbyLogger.suggestion.debug(
             "Host baseline calibration",
             metadata: [
                 "stage": .string("baseline-calibration"),
                 "outcome": .string(analysis.baselineAccepted ? "measured" : "rejected"),
-                "field_offset": .stringConvertible(Double(fieldOffset ?? -1)),
                 "measured": .stringConvertible(Double(analysis.baselineOffset)),
                 "policy": .stringConvertible(Double(request.policyOffset)),
                 "caret_h": .stringConvertible(Double(request.caretRect.height)),

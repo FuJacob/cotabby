@@ -279,24 +279,6 @@ Prewarm is opportunistic and goes only to the selected backend. Context reset re
 The local runtime is loaded only for the Open Source engine and is released when switching to Apple
 or endpoint mode so mapped weights and Metal buffers do not stay resident unnecessarily.
 
-Two measurements happen at presentation time rather than in the focus resolver, because they read
-the host's pixels (Screen Recording) and are asynchronous:
-
-- [HostBaselineCalibrator.swift](Cotabby/Services/Presentation/HostBaselineCalibrator.swift) finds
-  the painted baseline on the caret's line. Its per-line readings feed one
-  [BaselineOffsetConsensus.swift](Cotabby/Support/Presentation/Geometry/BaselineOffsetConsensus.swift)
-  per field: the first accepted reading defines the field, a lone dissenting line never moves the
-  text, and two agreeing dissents correct it once. Measured in Obsidian, one line's reading was a
-  full point off its neighbours; applied verbatim it put ghost text visibly higher on that line.
-- [PixelCaretLocator.swift](Cotabby/Services/Presentation/PixelCaretLocator.swift) places the caret
-  inside a paragraph the host exposes only as one union-framed run with no answer to any bounds
-  query (Obsidian's CodeMirror). [InkCaretAnalyzer.swift](Cotabby/Support/Presentation/Geometry/InkCaretAnalyzer.swift)
-  finds the inked lines in a capture of the run's frame; the caret is the end of the last line, the
-  pitch is the distance between line tops, and the line box is the frame height less the pitch per
-  extra line. Only a caret at the end of its paragraph is measured; a caret inside one keeps the
-  card. `OverlayController` holds the first presentation for a paragraph text until the capture
-  answers (tens of milliseconds) and reuses it for every later presentation of that text.
-
 ## Context, Privacy, and Permissions
 
 [PermissionManager.swift](Cotabby/Services/Permission/PermissionManager.swift) tracks:

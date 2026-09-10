@@ -86,7 +86,7 @@ enum GhostFontResolver {
     /// Faces the width match tries when a web host reports a size but no family. Ordered by how
     /// often they are the real answer on macOS web pages; ties in width agreement go to the earlier
     /// entry. Arial shares Helvetica's advances, so it needs no separate entry.
-    static let candidateFamilies: [String] = [
+    private static let candidateFamilies: [String] = [
         "Helvetica",
         "Menlo",
         "Georgia",
@@ -128,28 +128,9 @@ enum GhostFontResolver {
             if let family = input.style?.fontFamily, let font = font(family: family, size: reportedSize) {
                 return fittedToSample(font, provenance: .hostFamily, input)
             }
-            // The host named a face this Mac does not have (Gemini names its bundled Google Sans;
-            // web pages name their webfonts). Guessing an installed family from one width sample is
-            // wrong by construction: the real face is known and it is none of the candidates.
-            // Measured in Gemini, that guess walked through Trebuchet, Georgia and Helvetica as
-            // the sample changed. The system face scaled to the host's width is the honest stand-in.
-            if input.style?.fontName != nil || input.style?.fontFamily != nil {
-                return scaledSystem(reportedSize, input)
-            }
             return resolveBySize(reportedSize, input)
         }
         return resolveFromCaretBox(input)
-    }
-
-    /// The system face at the host's size, scaled to the width sample when there is one.
-    private static func scaledSystem(_ size: CGFloat, _ input: Input) -> Resolution {
-        let systemFont = NSFont.systemFont(ofSize: size)
-        guard let sample = input.hostMetrics?.sampleText, let sampleWidth = input.hostMetrics?.sampleWidth,
-              sampleWidth > 0, !sample.isEmpty else {
-            return Resolution(font: systemFont, provenance: .hostSizeSystem, widthAgreement: 1)
-        }
-        let scaled = scaledToSample(systemFont, sample: sample, width: sampleWidth)
-        return Resolution(font: scaled, provenance: .hostSizeScaledSystem, widthAgreement: widthAgreement(of: scaled, input))
     }
 
     /// A named face is trusted as is unless the host's own measured text disagrees with it by more
@@ -210,36 +191,6 @@ enum GhostFontResolver {
         }
         let scaled = scaledToSample(systemFont, sample: sample, width: sampleWidth)
         return Resolution(font: scaled, provenance: .hostSizeScaledSystem, widthAgreement: widthAgreement(of: scaled, input))
-    }
-
-    // MARK: - Evidence across samples
-
-    /// Whether `family` reproduces one host width sample within the match tolerance. The unit of
-    /// evidence `TypefaceEvidence` judges a field's samples with; same rule as the single-sample
-    /// match in `resolveBySize`, so the two never disagree about what "fits" means.
-    static func familyFits(_ family: String, sample: String, width: CGFloat, size: CGFloat) -> Bool {
-        guard width > 0, !sample.isEmpty, let candidate = font(family: family, size: size) else { return false }
-        return relativeError(of: candidate, sample: sample, width: width) <= widthMatchTolerance
-    }
-
-    /// The system face scaled to a sample: what a field renders in once its samples have ruled
-    /// out every candidate family.
-    static func scaledSystemResolution(size: CGFloat, sample: String, width: CGFloat) -> Resolution {
-        let systemFont = NSFont.systemFont(ofSize: size)
-        guard width > 0, !sample.isEmpty else {
-            return Resolution(font: systemFont, provenance: .hostSizeSystem, widthAgreement: 1)
-        }
-        let scaled = scaledToSample(systemFont, sample: sample, width: width)
-        let measured = self.width(of: sample, font: scaled)
-        return Resolution(
-            font: scaled, provenance: .hostSizeScaledSystem, widthAgreement: measured > 0 ? width / measured : 1
-        )
-    }
-
-    /// A candidate family at a size, public so the evidence rule can re-render in the family it
-    /// settled on.
-    static func familyFont(_ family: String, size: CGFloat) -> NSFont? {
-        font(family: family, size: size)
     }
 
     // MARK: - Caret-derived size

@@ -156,32 +156,4 @@ final class GhostFontResolverTests: XCTestCase {
         XCTAssertEqual(resolution.widthAgreement, 1, accuracy: 0.01)
         XCTAssertGreaterThan(resolution.font.pointSize, 12)
     }
-
-    /// A host that names a face the Mac does not have (Gemini names its bundled Google Sans) gets
-    /// the system face scaled to its measured width, never a guessed installed family: the real
-    /// face is known and is none of the candidates, and guessing one flipped per sample.
-    func testUnavailableNamedFaceUsesTheScaledSystemFace() {
-        let sample = "delta echo foxtrot golf hotel"
-        let hostWidth = GhostFontResolver.width(of: sample, font: NSFont(name: "Georgia", size: 17)!)
-        let resolution = resolve(
-            style: ResolvedFieldStyle(fontName: "GoogleSansText-Regular", fontFamily: "Google Sans Text", fontPointSize: 17, colorHex: nil),
-            metrics: HostTextMetrics(sampleText: sample, sampleWidth: hostWidth),
-            caretBoxHeight: 21,
-            renderer: .webEngine
-        )
-        XCTAssertEqual(resolution.provenance, .hostSizeScaledSystem)
-        XCTAssertNotEqual(resolution.font.familyName, "Georgia")
-        XCTAssertEqual(resolution.widthAgreement, 1, accuracy: 0.01, "scaled so its advances match the host's measurement")
-    }
-
-    func testUnavailableNamedFaceWithoutASampleUsesTheSystemFaceAtHostSize() {
-        let resolution = resolve(
-            style: ResolvedFieldStyle(fontName: "GoogleSansText-Regular", fontFamily: nil, fontPointSize: 17, colorHex: nil),
-            metrics: nil,
-            caretBoxHeight: 21,
-            renderer: .webEngine
-        )
-        XCTAssertEqual(resolution.provenance, .hostSizeSystem)
-        XCTAssertEqual(resolution.font.pointSize, 17)
-    }
 }
