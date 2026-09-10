@@ -381,8 +381,14 @@ Inline ghost text is built to occupy the pixels the accepted text will occupy:
   when the host names no face. Every capture is snapped to whole device pixels first: a fractional
   edge makes ScreenCaptureKit resample the image and the blurred glyphs correlate with nothing. The pixel match searches size as well as face (a caret-box size is
   a guess: Obsidian's 16px body arrived as 17 and 20, and a face matched at the wrong size is
-  confidently wrong), marks down a candidate whose letter bodies are not the height the host
-  painted, prefers the system face on a near tie, and declines on too little ink. The calibrator
+  confidently wrong), carries every candidate to its exact size (the correlation drops from 0.95
+  to 0.66 a sixth of a point away, and a wrong face at a lucky size outscores the true face at a
+  grid point), marks down a candidate whose letter bodies are not the height the host
+  painted, prefers the system face on a near tie, and declines on too little ink. An Electron
+  host's own bundled faces join the candidates
+  ([HostBundledFontRegistry.swift](Cotabby/Services/Presentation/HostBundledFontRegistry.swift)
+  registers its TrueType/OpenType files for this process alone), which is how Claude's composer
+  can be drawn in Anthropic Sans rather than a stand-in. The calibrator
   keeps one record per field, replaced only when a later strip's winner beats the recorded face on
   that same strip; scores from different strips are not comparable. A reported size stands when the
   caret box is shorter than its glyphs (VS Code's hidden textarea reports 8.5pt boxes for 14pt text).

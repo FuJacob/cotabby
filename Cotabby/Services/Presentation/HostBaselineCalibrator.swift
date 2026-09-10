@@ -45,6 +45,9 @@ final class HostBaselineCalibrator {
         let matchTypeface: Bool
         /// Whether `pointSize` is the host's own report; see `TypefaceMatcher.Input.sizeIsReported`.
         let sizeIsReported: Bool
+        /// Whether `pointSize` was scaled to a width the host rendered; see
+        /// `TypefaceMatcher.Input.sizeIsMeasured`.
+        let sizeIsMeasured: Bool
         /// Ink width of the caret's line when a pixel caret measured it; see
         /// `TypefaceMatcher.Input.lineInkWidth`.
         let lineInkWidth: CGFloat?
@@ -53,6 +56,9 @@ final class HostBaselineCalibrator {
         /// panel carried nineteen black columns at its end (Chrome's address bar, 2026-09-10) and
         /// no face could correlate with it. The strip stops short of this edge.
         let occludedFrom: CGFloat?
+        /// PostScript names of faces the host ships in its own bundle (`HostBundledFontRegistry`),
+        /// tried alongside the installed candidates when the face is matched.
+        let hostFontNames: [String]
 
         init(
             key: Key,
@@ -63,8 +69,10 @@ final class HostBaselineCalibrator {
             pointSize: CGFloat = 0,
             matchTypeface: Bool = false,
             sizeIsReported: Bool = false,
+            sizeIsMeasured: Bool = false,
             lineInkWidth: CGFloat? = nil,
-            occludedFrom: CGFloat? = nil
+            occludedFrom: CGFloat? = nil,
+            hostFontNames: [String] = []
         ) {
             self.key = key
             self.caretRect = caretRect
@@ -74,8 +82,10 @@ final class HostBaselineCalibrator {
             self.pointSize = pointSize
             self.matchTypeface = matchTypeface
             self.sizeIsReported = sizeIsReported
+            self.sizeIsMeasured = sizeIsMeasured
             self.lineInkWidth = lineInkWidth
             self.occludedFrom = occludedFrom
+            self.hostFontNames = hostFontNames
         }
     }
 
@@ -333,10 +343,13 @@ final class HostBaselineCalibrator {
                     bodyRows: measurement.baselineRow - measurement.bodyTopRow,
                     sizeIsReported: request.sizeIsReported,
                     lineInkWidth: request.lineInkWidth,
+                    sizeIsMeasured: request.sizeIsMeasured,
+                    hostFontNames: Set(request.hostFontNames),
                     candidates: TypefaceMatcher.defaultCandidates(pointSize: request.pointSize)
+                        + request.hostFontNames.compactMap { NSFont(name: $0, size: request.pointSize) }
                 )
             )
-            match = TypefaceMatcher.match(from: ranking)
+            match = TypefaceMatcher.match(from: ranking, hostFontNames: Set(request.hostFontNames))
         }
         return Analysis(
             baselineOffset: offset,
@@ -575,6 +588,7 @@ final class HostBaselineCalibrator {
                 "best_score": .stringConvertible(best?.score ?? 0),
                 "second": .string(secondLabel),
                 "text_len": .stringConvertible(request.lineText?.count ?? 0),
+                "host_fonts": .stringConvertible(request.hostFontNames.count),
                 "analysis_ms": .stringConvertible(elapsedMilliseconds)
             ]
         )

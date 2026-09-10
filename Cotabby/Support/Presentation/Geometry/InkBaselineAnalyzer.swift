@@ -28,6 +28,12 @@ enum InkBaselineAnalyzer {
     static let maximumSaturation = 0.35
     static let minimumInkPixels = 40
     static let minimumBodyRows = 3
+    /// Rows below the body threshold that may sit INSIDE the letter bodies. A line with capitals
+    /// and no descenders has a dip right under the cap tops, where only vertical stems remain
+    /// (measured 2026-09-10 on "Continue. Make it PERFECT." in Claude's composer: one row at 68
+    /// against a threshold of 69 cut the bodies in two and the baseline read 18 rows high). An
+    /// underline sits at least a descender's depth below the bodies, well past this.
+    static let maximumBodyGapRows = 2
 
     static func measure(_ image: CGImage) -> Measurement? {
         guard let pixels = RGBABitmap(image) else { return nil }
@@ -72,8 +78,16 @@ enum InkBaselineAnalyzer {
         // baseline on the letters (measured live: Safari's squiggle under "juliet" read 3.5pt low).
         guard let first = rowInk.indices.first(where: { Double(rowInk[$0]) >= threshold }) else { return nil }
         var last = first
-        while last + 1 < height, Double(rowInk[last + 1]) >= threshold {
-            last += 1
+        var row = first
+        while row + 1 < height {
+            row += 1
+            if Double(rowInk[row]) >= threshold {
+                last = row
+            } else if row - last > maximumBodyGapRows {
+                // A gap this deep is the descender space under the bodies, not a thin row inside
+                // them; whatever is busy below it (an underline) is not the baseline.
+                break
+            }
         }
         guard last - first + 1 >= minimumBodyRows else { return nil }
         return Measurement(baselineRow: last + 1, bodyTopRow: first, inkPixelCount: total)

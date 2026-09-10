@@ -67,6 +67,20 @@ final class TypefaceMatcherTests: XCTestCase {
         }
     }
 
+    /// A zoomed web page paints its face at a size no grid point lands on. Measured 2026-09-10 on
+    /// Claude's composer (Anthropic Sans at 15.4 under 110% zoom): the true face scored 0.66 at
+    /// the grid's 15.25 and 0.95 at 15.40, while a wrong face reached 0.87 at a size of its own;
+    /// refining only the coarse leaders left the true face unrefined in fifth place. Every
+    /// candidate must be carried to its exact size.
+    func testAFaceAtAnOffGridSizeIsRecoveredToWithinAFewHundredths() {
+        for (font, family) in [(NSFont(name: "Georgia", size: 15.4)!, "Georgia"), (NSFont.systemFont(ofSize: 15.4), systemFamily)] {
+            let match = match("notes and I was wondering about the", font: font, dark: family != "Georgia", asking: 14)
+            XCTAssertEqual(match?.familyName, family, "\(String(describing: match))")
+            XCTAssertEqual(match?.pointSize ?? 0, 15.4, accuracy: 0.06, "\(String(describing: match))")
+            XCTAssertGreaterThan(match?.score ?? 0, 0.9)
+        }
+    }
+
     func testASerifFaceIsRecoveredFromAnUndersizedClaim() {
         let match = match("and the second section needs more", font: NSFont(name: "TimesNewRomanPSMT", size: 16)!, asking: 13)
         XCTAssertEqual(match?.familyName, "Times New Roman", "\(String(describing: match))")
@@ -157,6 +171,29 @@ final class TypefaceMatcherTests: XCTestCase {
         XCTAssertTrue(sizes.contains { abs($0 - 16) < 0.5 }, "\(sizes)")
         XCTAssertTrue(sizes.contains { abs($0 - 41.5) < 0.5 }, "\(sizes)")
         XCTAssertEqual(sizes, sizes.sorted())
+    }
+
+    func testAMeasuredSizeKeepsTheSearchToItsNeighbourhoodAndSeedsNoBodyCentre() {
+        // The caret's own advance scaled the size to 15.4; a page size 5% away is not this text.
+        let input = TypefaceMatcher.Input(
+            strip: RGBABitmap(width: 4, height: 4, bytes: [UInt8](repeating: 255, count: 64)), scale: 2, caretColumn: 3,
+            baselineRow: 2, text: "abc", pointSize: 15.4, bodyRows: 60, sizeIsMeasured: true, candidates: []
+        )
+        let sizes = TypefaceMatcher.searchSizes(input)
+        XCTAssertTrue(sizes.allSatisfy { $0 >= 14.9 && $0 <= 15.9 }, "\(sizes)")
+        XCTAssertFalse(sizes.contains { $0 > 20 }, "the letter bodies seed nothing against a measured size: \(sizes)")
+    }
+
+    func testAFaceTheHostShipsIsNotOutrankedByTheSystemFaceOnANearTie() {
+        // Claude's composer, 2026-09-10: Anthropic Sans 0.914 against the system face at 0.894.
+        let scores = [
+            TypefaceMatcher.Score(fontName: "AnthropicSansVariable-TextRegular", familyName: "Anthropic Sans", pointSize: 15.4, score: 0.914),
+            TypefaceMatcher.Score(fontName: ".AppleSystemUIFont", familyName: systemFamily, pointSize: 16.15, score: 0.894)
+        ]
+        XCTAssertEqual(TypefaceMatcher.match(from: scores)?.familyName, systemFamily, "an installed candidate still yields the near tie")
+        let hosted = TypefaceMatcher.match(from: scores, hostFontNames: ["AnthropicSansVariable-TextRegular"])
+        XCTAssertEqual(hosted?.fontName, "AnthropicSansVariable-TextRegular")
+        XCTAssertEqual(hosted?.pointSize, 15.4)
     }
 
     func testTheSystemFaceWinsANearTie() {

@@ -50,6 +50,16 @@ enum TypefaceMatcher {
         /// paragraph's tail runs back into the previous visual line, while the strip holds only
         /// the caret's line, and words that are not on screen cannot correlate with anything.
         var lineInkWidth: CGFloat? = nil
+        /// True when `pointSize` was scaled to a width the host itself rendered (a bounds query
+        /// or the caret's own advance, see `CaretAdvanceSampler`). Such a size is within a couple
+        /// of percent of the truth, tighter than any report: a zoomed page reports its CSS size and
+        /// paints another (Claude's composer: 14 reported, 15.4 painted), so the search stays in
+        /// the measured neighbourhood and the letter bodies no longer seed a second centre.
+        var sizeIsMeasured: Bool = false
+        /// PostScript names among `candidates` that the host itself ships (see
+        /// `HostBundledFontRegistry`). A face the host bundles is not a guess about installed
+        /// fonts, so the system face is not preferred over it on a near tie.
+        var hostFontNames: Set<String> = []
         /// Faces to try, at any size; the search rescales them.
         let candidates: [NSFont]
     }
@@ -116,10 +126,23 @@ enum TypefaceMatcher {
     /// The grid around a size the host reported itself: rounding and a scaled sample can move it
     /// a few percent, never a face size.
     static let reportedSizeRatios: [CGFloat] = [0.94, 0.97, 1.0, 1.03, 1.06]
-    /// Rounds of narrowing around a candidate's best coarse size: the first for every candidate
-    /// (a face's true size can sit between grid points), the rest for the leaders only.
-    static let refinementRatios: [[CGFloat]] = [[0.975, 1.025], [0.9875, 1.0125], [0.994, 1.006]]
-    static let refinedLeaders = 4
+    /// The grid around a size scaled to the host's own rendered width: the sample carries at most
+    /// a percent or two of rounding.
+    static let measuredSizeRatios: [CGFloat] = [0.97, 0.985, 1.0, 1.015, 1.03]
+    /// The full line text is replaced by its last two words only when it clearly is not what the
+    /// strip holds. A near miss is a face at the wrong size, not the wrong text: measured
+    /// 2026-09-10 on Claude's composer, the true face led the full-text pass at 0.835 and the
+    /// two-word pass ("it PERFECT.", eleven characters of capitals) handed the search to Helvetica
+    /// Neue at 0.856, after which the system face reached 0.894 on those few glyphs.
+    static let tailVariantCeiling = 0.72
+    /// Rounds of narrowing around a candidate's best coarse size, every round for every candidate.
+    /// The correlation is sharp in size: measured on a strip of Anthropic Sans at 15.4 (Claude's
+    /// composer, 2026-09-10), the true face scored 0.95 at 15.40, 0.93 a twentieth of a point
+    /// away, 0.86 a tenth away and 0.66 at the grid's 15.25, while Helvetica Neue reached 0.87 at
+    /// some size of its own. Refining only the coarse leaders dropped the true face in fifth place
+    /// unrefined, and a final step of 0.6% could still leave it a tenth of a point off; the last
+    /// round is fine enough to land within a fiftieth.
+    static let refinementRatios: [[CGFloat]] = [[0.975, 1.025], [0.9875, 1.0125], [0.994, 1.006], [0.997, 1.003]]
     /// Letter bodies (tallest ascender to baseline) span about this fraction of the point size in
     /// prose set in the common faces; it only centres the search, the grid absorbs the rest.
     static let bodyToPointSize: CGFloat = 0.72
@@ -155,16 +178,20 @@ enum TypefaceMatcher {
     }
 
     static func match(_ input: Input) -> Match? {
-        match(from: rank(input))
+        match(from: rank(input), hostFontNames: input.hostFontNames)
     }
 
     /// The decision over a ranking: the leader must clear `minimumScore` and lead the next family
-    /// by `minimumMargin`, unless that family is one the leader is interchangeable with.
-    static func match(from ranked: [Score]) -> Match? {
+    /// by `minimumMargin`, unless that family is one the leader is interchangeable with. The
+    /// system face takes a near tie from an installed candidate (the candidate list is a guess
+    /// about what a web host might use, and the system face is the likeliest), never from a face
+    /// the host ships in its own bundle.
+    static func match(from ranked: [Score], hostFontNames: Set<String> = []) -> Match? {
         guard var winner = ranked.first, winner.score >= minimumScore else { return nil }
         let system = ranked.first { $0.familyName == systemFamilyName }
         let systemScore = system?.score ?? -1
-        if let system, winner.familyName != systemFamilyName, systemScore >= winner.score - systemPreferenceMargin {
+        if let system, winner.familyName != systemFamilyName, !hostFontNames.contains(winner.fontName),
+           systemScore >= winner.score - systemPreferenceMargin {
             winner = system
         }
         let runnerUp = ranked.first { $0.familyName != winner.familyName }
@@ -213,18 +240,18 @@ enum TypefaceMatcher {
         // both variants over every face and size doubled a search that competes with the model.
         var ranked = coarseRanking(candidates: input.candidates, sizes: sizes, variants: [variants[0]], host: host, input: input)
         var chosenVariants = [variants[0]]
-        if variants.count > 1, (ranked.first?.score ?? -1) < minimumScore {
+        if variants.count > 1, (ranked.first?.score ?? -1) < tailVariantCeiling {
             let tail = coarseRanking(candidates: input.candidates, sizes: sizes, variants: [variants[1]], host: host, input: input)
             if (tail.first?.score ?? -1) > (ranked.first?.score ?? -1) {
                 ranked = tail
                 chosenVariants = [variants[1]]
             }
         }
-        // Narrow the sizes with the tight lag: every candidate once (its coarse score may be the
-        // grid's fault, not the face's), then the leaders further.
+        // Narrow the sizes with the tight lag, every candidate in every round: a coarse score is
+        // the grid's fault as often as the face's, and the true face can trail a wrong one by a
+        // fifth of the scale until its size is right (see `refinementRatios`).
         for (round, ratios) in refinementRatios.enumerated() {
-            let count = round == 0 ? ranked.count : min(refinedLeaders, ranked.count)
-            for index in 0..<count {
+            for index in ranked.indices {
                 var best = ranked[index]
                 let refined = scoreAt(best, ratios: [1.0] + ratios, variants: chosenVariants, host: host, input: input, lag: maximumLagPixels)
                 if refined.score > best.score || round == 0 {
@@ -282,10 +309,10 @@ enum TypefaceMatcher {
         if input.pointSize > 0 {
             centres.append(input.pointSize)
         }
-        if !input.sizeIsReported, let rows = input.bodyRows, rows > 0, input.scale > 0 {
+        if !input.sizeIsReported, !input.sizeIsMeasured, let rows = input.bodyRows, rows > 0, input.scale > 0 {
             centres.append(CGFloat(rows) / input.scale / bodyToPointSize)
         }
-        let ratios = input.sizeIsReported ? reportedSizeRatios : coarseSizeRatios
+        let ratios = input.sizeIsMeasured ? measuredSizeRatios : (input.sizeIsReported ? reportedSizeRatios : coarseSizeRatios)
         var sizes: [CGFloat] = []
         for centre in centres {
             for ratio in ratios {

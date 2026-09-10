@@ -138,7 +138,8 @@ where Tab moves to the next field, so they are blocked (`MailHeaderFieldDetector
 an `AXWebArea` described "message body". A Chromium or Electron host reports its font size in CSS
 pixels and nothing of its zoom (the Claude desktop composer reports 14 and paints 15.4 at 110%),
 and a contenteditable answers no width query: the ghost's size there follows the advance measured
-from the caret's own movement (`CaretAdvanceSampler`).
+from the caret's own movement (`CaretAdvanceSampler`), and the faces such a host bundles in its
+own `Contents/Resources` are registered for the pixel match (`HostBundledFontRegistry`).
 
 ## Visual Context And OCR
 

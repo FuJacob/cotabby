@@ -79,6 +79,8 @@ final class OverlayController: SuggestionOverlayControlling {
     private var pixelCaretShowToken: UInt64 = 0
     /// Measures web hosts' painted baselines; nil where screen capture is unwanted (tests).
     private let baselineCalibrator: HostBaselineCalibrator?
+    /// The faces an Electron host ships in its bundle, for the pixel match (see the registry).
+    private let hostBundledFonts = HostBundledFontRegistry()
 
     init(
         suggestionSettings: SuggestionSettingsModel,
@@ -370,6 +372,7 @@ final class OverlayController: SuggestionOverlayControlling {
             judged,
             match: baselineCalibrator?.cachedTypeface(for: typefaceKey(for: geometry)),
             hostNamesFace: Self.hostNamesFace(geometry),
+            widthSample: Self.widthSample(of: geometry),
             sizeMultiplier: CGFloat(suggestionSettings.ghostTextSizeMultiplier)
         )
     }
@@ -483,19 +486,38 @@ final class OverlayController: SuggestionOverlayControlling {
     /// presentations between pixel matches of Arial and Helvetica Neue). A face the host named is
     /// never replaced, even one this Mac cannot load: the scaled system face is the honest stand-in
     /// there (Gemini's Google Sans), and a near miss from the candidate list would look worse.
-    private static func applyingMatchedTypeface(
+    ///
+    /// A match must also agree with the width the host itself rendered, when one was measured: the
+    /// advance is the host's own metric, and a face whose advance of the sample text is off by more
+    /// than `matchedAdvanceTolerance` is at the wrong size whatever its shapes scored (Claude's
+    /// composer, 2026-09-10: the system face at 16.15 scored 0.89 on Anthropic Sans set at 15.4,
+    /// five percent wider than the caret's own travel).
+    static func applyingMatchedTypeface(
         _ resolution: GhostFontResolver.Resolution,
         match: HostBaselineCalibrator.TypefaceMatchRecord?,
         hostNamesFace: Bool,
+        widthSample: TypefaceEvidence.Sample? = nil,
         sizeMultiplier: CGFloat
     ) -> GhostFontResolver.Resolution {
         guard let match, !hostNamesFace, Self.acceptsPixelMatch(resolution.provenance),
+              let unscaled = GhostFontResolver.font(named: match.fontName, size: match.pointSize),
               let matched = GhostFontResolver.font(named: match.fontName, size: match.pointSize * max(sizeMultiplier, 0.01))
         else {
             return resolution
         }
+        if let widthSample, widthSample.width > 0, !widthSample.text.isEmpty {
+            let advance = GhostFontResolver.width(of: widthSample.text, font: unscaled)
+            guard advance > 0, abs(advance / widthSample.width - 1) <= Self.matchedAdvanceTolerance else {
+                return resolution
+            }
+        }
         return GhostFontResolver.Resolution(font: matched, provenance: .pixelMatched, widthAgreement: 1)
     }
+
+    /// Relative disagreement between a pixel-matched face's advance and the host's measured
+    /// sample above which the match is not this text's size. A twelve-character sample of
+    /// whole-pixel caret positions carries about a percent of rounding.
+    static let matchedAdvanceTolerance: CGFloat = 0.02
 
     /// Provenances the pixel match outranks: every stand-in, a width-matched family, and an
     /// earlier pixel match (the field's record may have improved).
@@ -558,6 +580,12 @@ final class OverlayController: SuggestionOverlayControlling {
         let occludedFrom: CGFloat? = panel.isVisible && panel.frame.intersects(geometry.caretRect.insetBy(dx: -maximumStripReach, dy: 0))
             ? panel.frame.minX - Self.occlusionMargin
             : nil
+        let matchTypeface = !Self.hostNamesFace(geometry) && Self.acceptsPixelMatch(resolution.provenance)
+        // A browser's bundle holds no page fonts; an Electron app's holds the faces its editor
+        // is set in (Claude's composer: Anthropic Sans), which no installed candidate approximates.
+        let hostFontNames = matchTypeface && geometry.isWebContentField && !BrowserAppDetector.isBrowser(bundleIdentifier: geometry.bundleIdentifier)
+            ? hostBundledFonts.candidateFontNames(forBundleIdentifier: geometry.bundleIdentifier)
+            : []
         return HostBaselineCalibrator.Request(
             key: HostBaselineCalibrator.Key(
                 focusedInputIdentityKey: geometry.focusedInputIdentityKey,
@@ -570,10 +598,12 @@ final class OverlayController: SuggestionOverlayControlling {
             policyOffset: policyOffset,
             lineText: geometry.lineTextBeforeCaret,
             pointSize: font.pointSize,
-            matchTypeface: !Self.hostNamesFace(geometry) && Self.acceptsPixelMatch(resolution.provenance),
+            matchTypeface: matchTypeface,
             sizeIsReported: Self.sizeIsReported(resolution.provenance),
+            sizeIsMeasured: Self.sizeIsMeasured(resolution.provenance),
             lineInkWidth: geometry.pixelLineInkWidth,
-            occludedFrom: occludedFrom
+            occludedFrom: occludedFrom,
+            hostFontNames: hostFontNames
         )
     }
 
@@ -589,6 +619,17 @@ final class OverlayController: SuggestionOverlayControlling {
         case .hostFace, .hostFamily, .hostSizeMatchedFamily, .hostSizeScaledSystem, .hostSizeSystem, .hostFaceScaled, .pixelMatched:
             return true
         case .caretDerived, .caretDerivedCalibrated:
+            return false
+        }
+    }
+
+    /// Whether the resolution's size was scaled to a width the host rendered (a bounds query or
+    /// the caret's own advance), which pins it within a couple of percent whatever the host said.
+    static func sizeIsMeasured(_ provenance: GhostFontResolver.Provenance) -> Bool {
+        switch provenance {
+        case .hostSizeScaledSystem, .hostFaceScaled, .caretDerivedCalibrated:
+            return true
+        case .hostFace, .hostFamily, .hostSizeMatchedFamily, .hostSizeSystem, .pixelMatched, .caretDerived:
             return false
         }
     }
@@ -636,6 +677,7 @@ final class OverlayController: SuggestionOverlayControlling {
                 session.fontResolution,
                 match: calibration.typefaceMatch,
                 hostNamesFace: Self.hostNamesFace(geometry),
+                widthSample: Self.widthSample(of: geometry),
                 sizeMultiplier: CGFloat(self.suggestionSettings.ghostTextSizeMultiplier)
             )
             if rematched.font != session.fontResolution.font {
