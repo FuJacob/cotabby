@@ -283,11 +283,14 @@ Two measurements happen at presentation time rather than in the focus resolver, 
 the host's pixels (Screen Recording) and are asynchronous:
 
 - [HostBaselineCalibrator.swift](Cotabby/Services/Presentation/HostBaselineCalibrator.swift) finds
-  the painted baseline on the caret's line. Its per-line readings feed one
-  [BaselineOffsetConsensus.swift](Cotabby/Support/Presentation/Geometry/BaselineOffsetConsensus.swift)
-  per field: the first accepted reading defines the field, a lone dissenting line never moves the
-  text, and two agreeing dissents correct it once. Measured in Obsidian, one line's reading was a
-  full point off its neighbours; applied verbatim it put ghost text visibly higher on that line.
+  the painted baseline on the caret's line. A reading is accepted only if the letter bodies it was
+  read from are the right size to be a line of this font (`describesPlausibleBodies`: body rows
+  within 0.45x-1.35x the font's ascent) and the answer sits within the policy window; otherwise the
+  policy baseline, the font's own metric, stands. Measured in a real session, one field's lines read
+  12.0 and 15.0 for the same font: both passed the policy window, and the 12.0 lines put the ghost
+  three points high. The gate is on the measurement, not a vote across lines: an earlier attempt to
+  let one line's reading speak for the whole field adopted a bad first reading and made every line
+  wrong instead of one.
 - [PixelCaretLocator.swift](Cotabby/Services/Presentation/PixelCaretLocator.swift) places the caret
   inside a paragraph the host exposes only as one union-framed run with no answer to any bounds
   query (Obsidian's CodeMirror). [InkCaretAnalyzer.swift](Cotabby/Support/Presentation/Geometry/InkCaretAnalyzer.swift)
