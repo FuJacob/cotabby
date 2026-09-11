@@ -42,6 +42,38 @@ final class HostMarkedTextPolicyTests: XCTestCase {
         XCTAssertEqual(kept, "hello world")
     }
 
+    /// Gmail's compose body (2026-09-11): Smart Compose's gray suggestion and its "tab" key hint
+    /// read as text after the caret. The span through the hint is Gmail's; a signature below it is
+    /// the user's.
+    func testGmailsSmartComposeSuggestionIsTheHostsPrediction() {
+        let gmail = "https://mail.google.com/mail/u/0/#inbox?compose=new"
+        let typed = "It took a "
+        let caret = NSRange(location: (typed as NSString).length, length: 0)
+        XCTAssertEqual(
+            HostMarkedTextPolicy.smartComposeSuggestionRange(text: typed + "lot of time\ntab", selection: caret, urlString: gmail),
+            NSRange(location: caret.location, length: ("lot of time\ntab" as NSString).length)
+        )
+        XCTAssertEqual(
+            HostMarkedTextPolicy.smartComposeSuggestionRange(text: typed + "the app\ntab\n\n--\nMason", selection: caret, urlString: gmail),
+            NSRange(location: caret.location, length: ("the app\ntab" as NSString).length)
+        )
+    }
+
+    func testOnlyGmailsSmartComposeShapeIsTheHostsPrediction() {
+        let gmail = "https://mail.google.com/mail/u/0/"
+        let caret = NSRange(location: 3, length: 0)
+        func range(_ text: String, _ selection: NSRange = NSRange(location: 3, length: 0), _ url: String? = gmail) -> NSRange? {
+            HostMarkedTextPolicy.smartComposeSuggestionRange(text: text, selection: selection, urlString: url)
+        }
+        XCTAssertNotNil(range("abcdef\ntab"))
+        XCTAssertNil(range("abcdef\ntab", caret, "https://example.com/"), "another site")
+        XCTAssertNil(range("abcdef\ntab", caret, nil), "no page address")
+        XCTAssertNil(range("abcdef\ntabular"), "a line that only starts with the hint")
+        XCTAssertNil(range("abcdef"), "no hint")
+        XCTAssertNil(range("abc\ntab"), "nothing suggested before the hint")
+        XCTAssertNil(range("abcdef\ntab", NSRange(location: 3, length: 2)), "a selection")
+    }
+
     func testOutOfBoundsOrEmptyRangesAreIgnoredOrClamped() {
         XCTAssertEqual(
             HostMarkedTextPolicy.strippingPredictionAfterCaret(

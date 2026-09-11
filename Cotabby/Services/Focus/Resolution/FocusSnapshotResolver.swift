@@ -259,6 +259,12 @@ struct FocusSnapshotResolver {
             }
         }
         let focusedURLString = capturedSurface.urlString
+        // Gmail writes its Smart Compose suggestion and a "tab" hint into the compose body right after
+        // the caret: the host's own prediction, held like the address bar's completion (see
+        // `HostMarkedTextPolicy.smartComposeSuggestionRange`).
+        let smartComposeRange = HostMarkedTextPolicy.smartComposeSuggestionRange(
+            text: value, selection: selection, urlString: focusedURLString
+        )
         // Resolve the host field's own font/color so ghost text can match it. Cached per style run
         // (see `FieldStyleCache`) and skipped for secure fields, which are never styled or assisted.
         let resolvedFieldStyle = resolveFieldStyle(
@@ -329,7 +335,7 @@ struct FocusSnapshotResolver {
             fieldPlaceholder: capturedSurface.fieldPlaceholder,
             hostTextMetrics: Self.mergingRunLinePitch(hostTextMetrics, edges: observedContentEdges),
             elementFrameRect: resolvedCandidate.elementFrameRect,
-            hostMarkedTextRange: resolvedCandidate.markedTextRange ?? chromiumCompletionRange
+            hostMarkedTextRange: resolvedCandidate.markedTextRange ?? chromiumCompletionRange ?? smartComposeRange
         )
 
         if resolvedCandidate.isSecure {
