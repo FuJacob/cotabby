@@ -290,8 +290,13 @@ final class PixelCaretLocator {
     /// The caret line is the last inked line. The frame's height says how many lines the host laid
     /// out (one line box plus a pitch per extra line); when the pixels show one fewer, the last line
     /// is blank (the paragraph wrapped exactly at its end) and the caret sits at that blank line's
-    /// start. The line box and pitch come from the pixels when two or more lines were painted,
-    /// else from sibling runs, else the frame itself is the one line.
+    /// start. The pitch comes from the pixels when two or more lines were painted with baselines
+    /// that can be a pitch, else from sibling runs. Failing both, lines the pixels show share the
+    /// frame evenly, which puts the caret on its line within a point or two; that share is not
+    /// reported as the pitch, so the ghost's rows take the one the host style measured before
+    /// (`OverlayController.linePitch(for:fontSize:)`). Without it the frame itself was taken for the
+    /// caret's line box, two lines tall after a wrap. With one painted line and no pitch the frame is
+    /// the one line.
     nonisolated static func measurement(
         from analysis: InkCaretAnalyzer.Measurement,
         scale: CGFloat,
@@ -303,9 +308,9 @@ final class PixelCaretLocator {
             return singleLineMeasurement(from: analysis, scale: scale, region: region, request: request, caretHeight: caretHeight)
         }
         let frame = request.runFrame
-        let pixelPitch = analysis.pitchRows.map { CGFloat($0) / scale }
-        let pitch = pixelPitch ?? request.siblingLinePitch
         let paintedCount = analysis.lines.count
+        let measuredPitch = analysis.pitchRows.map { CGFloat($0) / scale } ?? request.siblingLinePitch
+        let pitch = measuredPitch ?? (paintedCount >= 2 ? frame.height / CGFloat(paintedCount) : nil)
         // The number of line boxes the frame holds; only meaningful once the pitch is known.
         var lineCount = paintedCount
         var lineBox = frame.height
@@ -339,7 +344,7 @@ final class PixelCaretLocator {
         return Measurement(
             caretRect: CGRect(x: caretX, y: lineRect.minY, width: 2, height: lineBox),
             lineRect: lineRect,
-            linePitch: pitch,
+            linePitch: measuredPitch,
             lineIndex: lineIndex,
             lineCount: lineCount,
             baselineOffsetFromTop: baseline,

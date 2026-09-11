@@ -805,8 +805,17 @@ struct AXTextGeometryResolver {
         text.allSatisfy(\.isWhitespace)
     }
 
+    /// The distances between two single-line runs' tops that can be one line's pitch, as multiples
+    /// of the runs' line box. Only single-line runs are seen here, so two of them can be lines apart
+    /// with a wrapped paragraph between: in an Obsidian note whose only one-line paragraphs were the
+    /// second and fourth, the pitch came out 72pt for 20pt boxes on 24pt lines (measured 2026-09-11,
+    /// 163 presentations), was remembered for the host, and would have stepped a wrapped ghost's next
+    /// row three lines down. A pitch below the box would overlap the lines.
+    static let plausibleRunPitchRange: ClosedRange<CGFloat> = 0.95...2.2
+
     /// The host's line pitch and line box from the single-line runs: the median distance between
-    /// consecutive distinct run tops, and the median run height. Nil until two lines were seen.
+    /// consecutive distinct run tops that can be a pitch (see `plausibleRunPitchRange`), and the
+    /// median run height. Nil until two adjacent lines were seen.
     static func lineGeometry(
         fromSingleLineRuns runs: [StaticTextRunWalkThrottle.TextRun]
     ) -> (pitch: CGFloat?, boxHeight: CGFloat?) {
@@ -816,10 +825,11 @@ struct AXTextGeometryResolver {
         let boxHeight = heights[heights.count / 2]
         var tops = Array(Set(frames.map { ($0.maxY * 2).rounded() / 2 })).sorted(by: >)
         tops = tops.filter { $0.isFinite }
+        let plausible = (boxHeight * plausibleRunPitchRange.lowerBound)...(boxHeight * plausibleRunPitchRange.upperBound)
         var deltas: [CGFloat] = []
         for (upper, lower) in zip(tops, tops.dropFirst()) {
             let delta = upper - lower
-            if delta >= 6, delta <= 120 {
+            if delta >= 6, delta <= 120, plausible.contains(delta) {
                 deltas.append(delta)
             }
         }

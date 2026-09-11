@@ -170,6 +170,33 @@ final class PixelCaretLocatorTests: XCTestCase {
         )
         XCTAssertNil(PixelCaretLocator.measurement(from: analysis, scale: 2, region: region, request: request()))
     }
+
+    /// Measured 2026-09-11 in Claude's composer: an "E" typed onto a fresh line gave no pitch its
+    /// lines could have (`InkCaretAnalyzer.pitchRows(of:)`), and the frame arithmetic then made three
+    /// 12.5pt line boxes out of two lines. With no pitch the painted lines share the frame: the caret
+    /// is on the second line, after the "E", and no pitch is reported for the rows to step by.
+    func testTwoLinesWithNoPitchShareTheFrame() throws {
+        let composer = CGRect(x: 342, y: 51, width: 670, height: 41)
+        let region = composer.insetBy(dx: -PixelCaretLocator.padding, dy: -PixelCaretLocator.padding)
+        let analysis = InkCaretAnalyzer.Measurement(
+            lines: [
+                .init(topRow: 19, bottomRow: 49, inkLeftColumn: 12, inkRightColumn: 1343, baselineRow: 42),
+                .init(topRow: 56, bottomRow: 93, inkLeftColumn: 14, inkRightColumn: 31, baselineRow: 67)
+            ],
+            pitchRows: nil
+        )
+        let request = PixelCaretLocator.Request(
+            focusedInputIdentityKey: 1, runFrame: composer, paragraphTextBeforeCaret: "making sure it appears E",
+            siblingLinePitch: nil, siblingLineBoxHeight: nil, spaceAdvance: 4
+        )
+        let measured = try XCTUnwrap(PixelCaretLocator.measurement(from: analysis, scale: 2, region: region, request: request))
+        XCTAssertEqual(measured.lineCount, 2)
+        XCTAssertEqual(measured.lineIndex, 1)
+        XCTAssertEqual(measured.caretRect.minY, composer.minY, accuracy: 0.01)
+        XCTAssertEqual(measured.caretRect.height, 20.5, accuracy: 0.01)
+        XCTAssertEqual(measured.caretRect.minX, region.minX + 16 + PixelCaretLocator.inkToCaretGap, accuracy: 0.01)
+        XCTAssertNil(measured.linePitch)
+    }
 }
 
 /// The single-line measurement (Chrome's address bar, measured 2026-09-10: a 598x24pt field whose

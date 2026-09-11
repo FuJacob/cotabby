@@ -245,6 +245,35 @@ final class InkCaretAnalyzerTests: XCTestCase {
         XCTAssertNil(measurement.lines[1].caretBarColumns)
     }
 
+    /// The pair measured 2026-09-11 in Claude's composer (2x): a full line (rows 19-49, baseline 42)
+    /// and a fresh line holding one "E" beside the caret (rows 56-93), whose first busy rows are the
+    /// capital's top bar, so its baseline read 25 rows below the first line's for a 44-row pitch.
+    /// Two separate lines cannot be closer than about their ink height: no pitch from that pair.
+    func testALoneCapitalsTopBarGivesNoPitch() {
+        let lines = [
+            InkCaretAnalyzer.Line(topRow: 19, bottomRow: 49, inkLeftColumn: 12, inkRightColumn: 1343, baselineRow: 42),
+            InkCaretAnalyzer.Line(topRow: 56, bottomRow: 93, inkLeftColumn: 14, inkRightColumn: 31, baselineRow: 67)
+        ]
+        XCTAssertNil(InkCaretAnalyzer.pitchRows(of: lines))
+        let settled = [lines[0], InkCaretAnalyzer.Line(topRow: 61, bottomRow: 93, inkLeftColumn: 13, inkRightColumn: 1251, baselineRow: 86)]
+        XCTAssertEqual(try XCTUnwrap(InkCaretAnalyzer.pitchRows(of: settled)), 44, accuracy: 0.5)
+    }
+
+    /// Rendered: a capital alone on the caret's fresh line never yields a pitch shorter than the
+    /// lines' own ink (a true one, 40 rows here, is still fine).
+    func testACapitalAloneOnAFreshLineIsNoShortPitch() throws {
+        for capital in ["E", "T", "F"] {
+            let rendered = try XCTUnwrap(renderTight(
+                ["There are still a lot of problems, a LOT of problems with positioning, going,", capital], barTopBelowFirstLine: 3
+            ))
+            let measurement = try XCTUnwrap(InkCaretAnalyzer.measure(rendered.bitmap))
+            XCTAssertEqual(measurement.lines.count, 2, capital)
+            if let pitch = measurement.pitchRows {
+                XCTAssertEqual(pitch, 40, accuracy: 1, capital)
+            }
+        }
+    }
+
     func testBlankCaptureMeasuresNothing() throws {
         let rendered = try XCTUnwrap(render(
             lines: [], on: Canvas(font: NSFont.systemFont(ofSize: 30), pitch: 44, inset: 10, width: 300, height: 40)

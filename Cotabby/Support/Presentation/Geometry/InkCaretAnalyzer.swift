@@ -103,12 +103,27 @@ enum InkCaretAnalyzer {
         let blocks = giving(bar, to: inkedRowBlocks(rowInk: rowInk))
         let lines = blocks.compactMap { line(for: $0, mask: mask.ink, width: bitmap.width) }
         guard !lines.isEmpty else { return nil }
-        var pitch: Double?
-        if lines.count >= 2 {
-            let deltas = zip(lines, lines.dropFirst()).map { Double($1.baselineRow - $0.baselineRow) }.sorted()
-            pitch = deltas[deltas.count / 2]
-        }
-        return Measurement(lines: lines, pitchRows: pitch)
+        return Measurement(lines: lines, pitchRows: pitchRows(of: lines))
+    }
+
+    /// How far below a line's baseline the next one's may start, as a fraction of the taller of the
+    /// two lines' ink: two lines are separate blocks, so the lower one's baseline lies at least its
+    /// ascent plus the upper one's descent below the upper one's, about their ink height.
+    static let minimumPitchInkFraction = 0.8
+
+    /// Median distance between consecutive baselines, from the pairs whose distance is a pitch at
+    /// all. A line holding one capital has no letter body to find a baseline under: its first busy
+    /// rows are the capital's top bar. Measured 2026-09-11 in Claude's composer: an "E" typed onto a
+    /// fresh line read 25 rows below the line above's baseline for a 44-row pitch, the frame then
+    /// held three line boxes of 12.5pt, and ten ghosts were drawn at the start of a line that did not
+    /// exist. Nil when no pair qualifies; the caller has other sources of a pitch.
+    static func pitchRows(of lines: [Line]) -> Double? {
+        let deltas = zip(lines, lines.dropFirst()).compactMap { upper, lower -> Double? in
+            let delta = Double(lower.baselineRow - upper.baselineRow)
+            let tallest = Double(max(upper.inkHeight, lower.inkHeight))
+            return delta >= minimumPitchInkFraction * tallest ? delta : nil
+        }.sorted()
+        return deltas.isEmpty ? nil : deltas[deltas.count / 2]
     }
 
     private struct InkMask {

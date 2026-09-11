@@ -276,6 +276,20 @@ final class CaretRunPlacementTests: XCTestCase {
         XCTAssertEqual(geometry.boxHeight, 20)
     }
 
+    /// Measured 2026-09-11 in Obsidian: the note's only one-line paragraphs were the second and the
+    /// fourth, a wrapped paragraph between them, and their 72pt distance became the pitch of 24pt
+    /// lines. Runs three lines apart are not a pitch; there is none until two adjacent lines show.
+    func test_lineGeometryTakesNoPitchFromRunsLinesApart() {
+        func run(_ text: String, y: CGFloat) -> StaticTextRunWalkThrottle.TextRun {
+            StaticTextRunWalkThrottle.TextRun(
+                text: text, frame: CGRect(x: 608, y: y, width: 300, height: 20), allowsProportionalCaretPlacement: true
+            )
+        }
+        let geometry = AXTextGeometryResolver.lineGeometry(fromSingleLineRuns: [run("A short second paragraph", y: 291), run("And a final short one", y: 363)])
+        XCTAssertNil(geometry.pitch)
+        XCTAssertEqual(geometry.boxHeight, 20)
+    }
+
     /// CodeMirror (Obsidian) runs its paragraphs together in the parent value with nothing between
     /// them: the caret's run text starts where that run was anchored, not after a line break.
     func test_runTextBeforeCaret_startsWhereTheCaretsRunWasAnchored() {

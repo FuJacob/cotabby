@@ -109,6 +109,20 @@ nonisolated struct HostFaceMemory: Sendable {
         return update(key) { $0.pitch = pitch }
     }
 
+    /// The line pitches text of a given size can have, as multiples of that size: CSS line-height 1
+    /// up to double spacing and a little over (the hosts measured sit between 1.17, TextEdit, and
+    /// 1.6, Antinote). Outside it a pitch is a misread, and a remembered one is used for every first
+    /// wrap of the style: the dev app's memory held 72pt for Obsidian's 16pt text (one-line runs
+    /// three lines apart taken for neighbours) and 12.5pt for Claude's 15.3pt (a capital's top bar
+    /// read as a baseline), found 2026-09-11.
+    static let plausiblePitchRange: ClosedRange<CGFloat> = 0.95...2.6
+
+    /// Whether `pitch` can be the line pitch of text set at `pointSize` (see `plausiblePitchRange`).
+    static func isPlausiblePitch(_ pitch: CGFloat, pointSize: CGFloat) -> Bool {
+        guard pitch.isFinite, pointSize.isFinite, pointSize > 0 else { return false }
+        return plausiblePitchRange.contains(pitch / pointSize)
+    }
+
     private mutating func update(_ key: Key, _ change: (inout Entry) -> Void) -> Bool {
         let before = entries[key]
         if before == nil {
@@ -169,7 +183,8 @@ extension HostFaceMemory {
     /// The memory `encoded()` produced, or an empty one for missing or unreadable data. A browser
     /// page's style is skipped here too: an earlier version kept page origins in the preferences
     /// (the dev app's held a test page's, found 2026-09-11), and they must neither come back into
-    /// use nor be written out again.
+    /// use nor be written out again. So is a pitch its style's face says no text of that size has
+    /// (see `plausiblePitchRange`): earlier versions remembered misreads as they came.
     init(restoring data: Data?) {
         self.init()
         guard let data, let stored = try? JSONDecoder().decode([Stored].self, from: data) else { return }
@@ -178,7 +193,12 @@ extension HostFaceMemory {
                 record(face, for: item.key)
             }
             if let pitch = item.pitch {
-                recordPitch(pitch, for: item.key)
+                // The face was kept at the ghost's size, the user's multiplier applied; the pitch is
+                // the host's own.
+                let hostSize = item.face.map { $0.pointSize * 100 / CGFloat(max(item.key.sizeMultiplier, 1)) }
+                if hostSize.map({ Self.isPlausiblePitch(pitch, pointSize: $0) }) ?? true {
+                    recordPitch(pitch, for: item.key)
+                }
             }
         }
     }

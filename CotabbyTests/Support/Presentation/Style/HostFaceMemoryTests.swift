@@ -142,6 +142,38 @@ final class HostFaceMemoryTests: XCTestCase {
         XCTAssertFalse(written.contains("127.0.0.1"))
     }
 
+    /// The entries found in the dev app's memory 2026-09-11: 72pt for Obsidian's 16pt text (one-line
+    /// runs three lines apart) and 12.5pt for Claude's 15.3pt (a capital's top bar read as a
+    /// baseline) are misreads; restoring drops those pitches, keeps their faces, and keeps Claude's
+    /// real 22pt.
+    func testAPitchNoTextOfItsSizeHasIsDroppedOnRestore() throws {
+        let stored = """
+        [{"pitch":72,"key":{"sizeMultiplier":100,"reportedSize":-1,"host":"md.obsidian","caretHeight":10},\
+        "face":{"fontName":".AppleSystemUIFont","pointSize":15.997890573500335,"advanceMeasured":true}},\
+        {"pitch":12.5,"key":{"sizeMultiplier":100,"reportedSize":-1,"host":"com.anthropic.claudefordesktop","caretHeight":8},\
+        "face":{"advanceMeasured":true,"fontName":"AnthropicSansVariable-TextRegular","pointSize":15.32483523774129}},\
+        {"pitch":22,"key":{"sizeMultiplier":100,"reportedSize":-1,"host":"com.anthropic.claudefordesktop","caretHeight":10},\
+        "face":{"advanceMeasured":true,"fontName":"AnthropicSansVariable-TextRegular","pointSize":15.32483523774129}}]
+        """
+        let restored = HostFaceMemory(restoring: Data(stored.utf8))
+        let obsidian = try XCTUnwrap(key("md.obsidian", size: nil, caret: 20))
+        XCTAssertNil(restored.pitch(for: obsidian))
+        XCTAssertNotNil(restored.face(for: obsidian), "the face stays")
+        XCTAssertNil(restored.pitch(for: try XCTUnwrap(key(size: nil, caret: 16))))
+        XCTAssertEqual(restored.pitch(for: try XCTUnwrap(key(size: nil, caret: 19))), 22)
+    }
+
+    func testAPitchIsPlausibleFromLineHeightOneToDoubleSpacing() {
+        XCTAssertTrue(HostFaceMemory.isPlausiblePitch(22, pointSize: 15.325), "Claude's composer")
+        XCTAssertTrue(HostFaceMemory.isPlausiblePitch(24, pointSize: 16), "Obsidian")
+        XCTAssertTrue(HostFaceMemory.isPlausiblePitch(14, pointSize: 12), "TextEdit")
+        XCTAssertTrue(HostFaceMemory.isPlausiblePitch(16, pointSize: 16), "line-height 1")
+        XCTAssertTrue(HostFaceMemory.isPlausiblePitch(38, pointSize: 16), "double spacing")
+        XCTAssertFalse(HostFaceMemory.isPlausiblePitch(72, pointSize: 16))
+        XCTAssertFalse(HostFaceMemory.isPlausiblePitch(12.5, pointSize: 15.325))
+        XCTAssertFalse(HostFaceMemory.isPlausiblePitch(20, pointSize: 0))
+    }
+
     /// A size measured from the host's own caret advance keeps that mark across a launch, so the next
     /// field's short-strip match does not replace it (see `OverlayController.applyingHostAdvance`).
     func testAnAdvanceMeasuredSizeKeepsItsMarkAcrossALaunch() throws {

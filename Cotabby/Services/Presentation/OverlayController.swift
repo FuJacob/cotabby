@@ -1152,7 +1152,7 @@ final class OverlayController: SuggestionOverlayControlling {
                 anchorTopLeft: CGPoint(x: session.anchorCaretRect.minX, y: session.anchorCaretRect.maxY),
                 boxHeight: session.anchorCaretRect.height,
                 baselineOffsetFromTop: session.baselineOffsetFromTop,
-                linePitch: linePitch(for: geometry),
+                linePitch: linePitch(for: geometry, fontSize: session.fontResolution.font.pointSize),
                 wrapBand: wrapBand(for: geometry),
                 isRightToLeft: geometry.isRightToLeft,
                 // A second row would paint over the host's own following lines; with text below
@@ -1169,9 +1169,16 @@ final class OverlayController: SuggestionOverlayControlling {
     /// can be a pixel short of the line box (Chrome: 15 or 16 for a 16.25 pitch), which matters
     /// only until the field has a second line to measure. A row placed a pixel off beats the card:
     /// measured live, the card at the end of a first line was the single most disliked behavior.
-    private func linePitch(for geometry: SuggestionOverlayGeometry) -> CGFloat? {
+    ///
+    /// A pitch no text of the ghost's size can have (`HostFaceMemory.isPlausiblePitch`) is a misread
+    /// and is neither used nor remembered: Obsidian's one-line runs three lines apart once gave 72pt
+    /// for 16pt text, and a capital alone on a fresh line in Claude gave 12.5pt for 15.3pt.
+    private func linePitch(for geometry: SuggestionOverlayGeometry, fontSize: CGFloat) -> CGFloat? {
         let key = geometry.isWebContentField ? hostStyleKey(for: geometry) : nil
-        if let measured = geometry.hostTextMetrics?.linePitch, measured > 0 {
+        // The ghost's size carries the user's multiplier; the host's line-height does not.
+        let hostSize = fontSize / max(CGFloat(suggestionSettings.ghostTextSizeMultiplier), 0.01)
+        if let measured = geometry.hostTextMetrics?.linePitch, measured > 0,
+           HostFaceMemory.isPlausiblePitch(measured, pointSize: hostSize) {
             if let key {
                 if hostFaceMemory.recordPitch(measured, for: key) {
                     saveFaceMemory()
@@ -1183,8 +1190,9 @@ final class OverlayController: SuggestionOverlayControlling {
             return nil
         }
         // A web engine's caret box is the glyph box, shorter than the line (Claude's composer: 19
-        // for 23); a field of the same style that did measure its pitch knows the line-height.
-        if let key, let remembered = hostFaceMemory.pitch(for: key) {
+        // for 22); a field of the same style that did measure its pitch knows the line-height.
+        if let key, let remembered = hostFaceMemory.pitch(for: key),
+           HostFaceMemory.isPlausiblePitch(remembered, pointSize: hostSize) {
             return remembered
         }
         return geometry.caretRect.height
