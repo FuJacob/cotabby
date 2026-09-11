@@ -313,7 +313,7 @@ final class HostTextMetricsProbeMarkerLineTests: XCTestCase {
         let glyph = CGRect(x: 95, y: 871, width: 8, height: 19)
         let caret = CGRect(x: 813, y: 871, width: 0, height: 19)
         let line = try XCTUnwrap(HostTextMetricsProbe.markerLine(
-            lineBox: padded, firstCharacter: glyph, previousLineBox: nil, previousFirstCharacter: nil,
+            .init(lineBox: padded, firstCharacter: glyph),
             caret: caret, anchor: composer, caretHeight: 19
         ))
         XCTAssertEqual(line.rect.minX, 95)
@@ -330,21 +330,23 @@ final class HostTextMetricsProbeMarkerLineTests: XCTestCase {
         let lineOne = CGRect(x: 95, y: 874, width: 8, height: 19)
         let caret = CGRect(x: 300, y: 851, width: 0, height: 19)
         let line = try XCTUnwrap(HostTextMetricsProbe.markerLine(
-            lineBox: paragraph, firstCharacter: lineTwo, previousLineBox: paragraph, previousFirstCharacter: lineOne,
+            .init(lineBox: paragraph, firstCharacter: lineTwo, previousLineBox: paragraph, previousFirstCharacter: lineOne),
             caret: caret, anchor: field, caretHeight: 19
         ))
         XCTAssertEqual(line.rect.minX, 95)
         XCTAssertEqual(try XCTUnwrap(line.pitch), 23, accuracy: 0.001)
     }
 
-    /// Where the host's line boxes are glyph lines (the ProseMirror replica), nothing changes.
+    /// Where the host's line boxes are glyph lines (a ProseMirror-style page), nothing changes.
     func testGlyphLineBoxesMeasureTheSame() throws {
         let field = CGRect(x: 100, y: 747, width: 863, height: 77)
         let lineTwo = CGRect(x: 113, y: 767, width: 93, height: 20)
         let lineOne = CGRect(x: 113, y: 791, width: 700, height: 19)
         let line = try XCTUnwrap(HostTextMetricsProbe.markerLine(
-            lineBox: lineTwo, firstCharacter: CGRect(x: 113, y: 767, width: 9, height: 20),
-            previousLineBox: lineOne, previousFirstCharacter: CGRect(x: 113, y: 791, width: 9, height: 19),
+            .init(
+                lineBox: lineTwo, firstCharacter: CGRect(x: 113, y: 767, width: 9, height: 20),
+                previousLineBox: lineOne, previousFirstCharacter: CGRect(x: 113, y: 791, width: 9, height: 19)
+            ),
             caret: CGRect(x: 206, y: 767, width: 0, height: 20), anchor: field, caretHeight: 20
         ))
         XCTAssertEqual(line.rect.minX, 113)
@@ -352,19 +354,18 @@ final class HostTextMetricsProbeMarkerLineTests: XCTestCase {
     }
 
     /// A ProseMirror-style paragraph (a <p> per paragraph, no padding) frames one line box: in the
-    /// composer replica in Chrome (2026-09-11) the caret's glyph box was 17pt and its paragraph 21pt,
+    /// ProseMirror-style page in Chrome (2026-09-11) the caret's glyph box was 17pt and its paragraph 21pt,
     /// 14px at line-height 1.5, starting where the text does. In a browser a one-line paragraph takes
     /// that for its pitch before any second line exists; elsewhere nothing changes.
     func testAOneLineParagraphsBoxIsItsPitchInABrowser() throws {
         let field = CGRect(x: 96, y: 700, width: 784, height: 70)
         let glyph = CGRect(x: 108, y: 740, width: 9, height: 17)
         let paragraph = CGRect(x: 108, y: 738, width: 760, height: 21)
-        func line(browser: Bool) -> (rect: CGRect, pitch: CGFloat?, pitchFromParagraph: Bool)? {
+        func line(browser: Bool) -> HostTextMetricsProbe.MarkerLine? {
             HostTextMetricsProbe.markerLine(
-                lineBox: CGRect(x: 108, y: 740, width: 73, height: 17), firstCharacter: glyph,
-                previousLineBox: nil, previousFirstCharacter: nil,
+                .init(lineBox: CGRect(x: 108, y: 740, width: 73, height: 17), firstCharacter: glyph, paragraph: paragraph),
                 caret: CGRect(x: 181, y: 740, width: 0, height: 17), anchor: field, caretHeight: 17,
-                paragraph: paragraph, allowsParagraphPitch: browser
+                allowsParagraphPitch: browser
             )
         }
         XCTAssertEqual(try XCTUnwrap(line(browser: true)?.pitch), 21, accuracy: 0.001)
@@ -385,11 +386,11 @@ final class HostTextMetricsProbeMarkerLineTests: XCTestCase {
     func testAnEmptyLineKeepsItsBoxAndAFrameSizedBoxIsDropped() {
         let empty = CGRect(x: 95, y: 868, width: 785, height: 20)
         XCTAssertEqual(HostTextMetricsProbe.markerLine(
-            lineBox: empty, firstCharacter: nil, previousLineBox: nil, previousFirstCharacter: nil,
+            .init(lineBox: empty),
             caret: CGRect(x: 95, y: 868, width: 0, height: 20), anchor: composer, caretHeight: 20
         )?.rect.minX, 95)
         XCTAssertNil(HostTextMetricsProbe.markerLine(
-            lineBox: composer, firstCharacter: nil, previousLineBox: nil, previousFirstCharacter: nil,
+            .init(lineBox: composer),
             caret: CGRect(x: 95, y: 868, width: 0, height: 20), anchor: composer, caretHeight: 20
         ))
     }

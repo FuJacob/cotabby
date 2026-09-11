@@ -14,7 +14,7 @@ final class OverlayControllerTypefaceTests: XCTestCase {
         HostBaselineCalibrator.TypefaceMatchRecord(fontName: fontName, pointSize: size, score: 0.9, textLength: 20, attempts: 1)
     }
 
-    /// Measured 2026-09-11 in the composer replica at 110%: a paragraph's box read 24 for a 23.1pt
+    /// Measured 2026-09-11 in a ProseMirror-style page at 110%: a paragraph's box read 24 for a 23.1pt
     /// line where two lines had measured 23.5, and every first wrap after the first sat a point low.
     /// A remembered pitch within the box's rounding wins; one further off belongs to another
     /// line-height and does not; with none remembered the box stands.

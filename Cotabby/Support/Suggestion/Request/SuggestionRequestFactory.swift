@@ -188,7 +188,7 @@ enum SuggestionRequestFactory {
     /// those words exactly as typed. A base model continues text, and the line and paragraph breaks
     /// are part of that text: rejoining the words with single spaces, as the window did before,
     /// handed the model "Hi Sam, Thanks for" for "Hi Sam,\n\nThanks for", and a new paragraph as
-    /// the tail of the sentence before it (a Chrome replica of Claude's composer, 2026-09-11: "one
+    /// the tail of the sentence before it (a Chrome page modelled on Claude's composer, 2026-09-11: "one
     /// line. The second paragraph starts here and A third one" for three paragraphs). Leading
     /// whitespace stays out, and so do trailing spaces and tabs, as before; a trailing line break
     /// stays, since the caret then opens a new line. Text without a word, or a count below one,

@@ -53,9 +53,9 @@ These rules explain most of the structure:
 - [CotabbyTests](CotabbyTests): unit tests and microbenchmarks, with emphasis on pure Support and
   Models behavior.
 - CotabbyInference: the llama.cpp Swift wrapper consumed from an external SwiftPM package; native
-  code is not vendored here. This branch resolves it from the `feat/required-prefix` branch of the
-  `Mason363/cotabbyinference` fork, which adds the required-prefix constraint the mid-word anchoring
-  needs, until that change lands upstream and the pin returns to `FuJacob/cotabbyinference` main.
+  code is not vendored here. The mid-word anchoring needs a required-prefix constraint that is not in
+  `FuJacob/cotabbyinference` main yet, so the package resolves from the `feat/required-prefix` branch
+  of the `Mason363/cotabbyinference` fork that adds it; the pin returns to main once it lands there.
 
 [SOURCE_LAYOUT.md](SOURCE_LAYOUT.md) expands this map into the canonical nested source and test
 layout. Child folders name stable responsibilities inside a subsystem; they do not create Swift

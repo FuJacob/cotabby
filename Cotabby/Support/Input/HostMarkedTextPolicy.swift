@@ -29,9 +29,9 @@ enum HostMarkedTextPolicy {
 
     /// The span of Gmail's Smart Compose suggestion after the caret, or nil. Gmail writes its gray
     /// suggestion and a "tab" key hint on the line below it into the editable text, so
-    /// Accessibility reads both as text after the caret: in Mason's compose body (2026-09-11) it
-    /// read "lot of time\ntab", " and running\ntab", and "the app\ntab" then "he app\ntab" once he
-    /// typed its "t". Read as his own text, it made every caret at a line's end look mid-line: the
+    /// Accessibility reads both as text after the caret: in a Gmail compose body (2026-09-11) it
+    /// read "lot of time\ntab", " and running\ntab", and "the app\ntab" then "he app\ntab" once its
+    /// "t" was typed. Read as the user's own text, it made every caret at a line's end look mid-line: the
     /// ghost gave way to the card, and Cotabby's suggestion competed with Gmail's for the same spot
     /// and the same Tab key. The span runs from the caret through the hint; anything after that
     /// line (a signature) stays the user's. Only on Gmail, where the shape was measured, and only

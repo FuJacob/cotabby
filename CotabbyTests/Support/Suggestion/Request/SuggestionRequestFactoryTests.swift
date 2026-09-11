@@ -426,7 +426,7 @@ final class SuggestionRequestFactoryTests: XCTestCase {
 
 /// The prompt's word window keeps the text as typed between its words.
 final class SuggestionRequestFactoryWordWindowTests: XCTestCase {
-    /// Measured 2026-09-11 in a Chrome replica of Claude's composer: three paragraphs reached the
+    /// Measured 2026-09-11 in a Chrome page modelled on Claude's composer: three paragraphs reached the
     /// model as "one line. The second paragraph starts here and A third one".
     func testTheWindowKeepsLineAndParagraphBreaks() {
         let text = "Hi Sam,\n\nThanks for the update.\nBest"

@@ -9,7 +9,8 @@ final class CaretLagPolicyTests: XCTestCase {
 
     private func lags(_ text: String, caretX: CGFloat, rightToLeft: Bool = false) -> Bool {
         CaretLagPolicy.caretLagsTypedText(
-            caretX: caretX, lineLeft: 342, lineWidth: 677, textBeforeCaretOnLine: text, font: font, isRightToLeft: rightToLeft
+            caretX: caretX, line: CGRect(x: 342, y: 0, width: 677, height: 20), textBeforeCaretOnLine: text, font: font,
+            isRightToLeft: rightToLeft
         )
     }
 

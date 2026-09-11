@@ -29,8 +29,8 @@ enum WordBoundaryAnchorPolicy {
     /// break stays at the end of the prompt instead (see
     /// `BaseCompletionPromptRenderer.trimmingTrailingWhitespace`) and the completion begins with the
     /// anchor: required as a prefix, the break let the model open with a token whose text is empty,
-    /// after which no completion matched the typed letters and nothing was shown (a Chrome replica
-    /// of Claude's composer, 2026-09-11: "<unused9>" first on every request for a new line's first
+    /// after which no completion matched the typed letters and nothing was shown (a Chrome page
+    /// modelled on Claude's composer, 2026-09-11: "<unused9>" first on every request for a new line's first
     /// word, all dropped as word-boundary mismatches).
     static func requiredCompletionPrefix(precedingText: String, anchor: String) -> String {
         guard precedingText.hasSuffix(anchor) else { return anchor }

@@ -24,22 +24,21 @@ enum CaretLagPolicy {
     /// Fraction of the line's width the text must stay under to be sure it did not wrap.
     static let oneLineFraction: CGFloat = 0.8
 
-    /// True when `caretX` is at the line's leading edge (`lineLeft`) although `textBeforeCaretOnLine`
-    /// holds a glyph that, laid out in `font`, fits well inside `lineWidth`. Right-to-left lines are
-    /// not judged.
+    /// True when `caretX` is at the leading edge of the host's `line` box although
+    /// `textBeforeCaretOnLine` holds a glyph that, laid out in `font`, fits well inside the line's
+    /// width. Right-to-left lines are not judged.
     static func caretLagsTypedText(
         caretX: CGFloat,
-        lineLeft: CGFloat,
-        lineWidth: CGFloat,
+        line: CGRect,
         textBeforeCaretOnLine: String,
         font: NSFont,
         isRightToLeft: Bool
     ) -> Bool {
-        guard !isRightToLeft, lineWidth > 0,
+        guard !isRightToLeft, line.width > 0,
               textBeforeCaretOnLine.contains(where: { !$0.isWhitespace && !$0.isNewline }),
-              abs(caretX - lineLeft) <= edgeTolerance
+              abs(caretX - line.minX) <= edgeTolerance
         else { return false }
         let advance = GhostFontResolver.width(of: textBeforeCaretOnLine, font: font)
-        return advance > 0 && advance < lineWidth * oneLineFraction
+        return advance > 0 && advance < line.width * oneLineFraction
     }
 }

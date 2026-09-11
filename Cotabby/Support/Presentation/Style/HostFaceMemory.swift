@@ -9,7 +9,7 @@ import Foundation
 /// sample of a dozen characters on one line or a pixel strip with enough ink. Until then a field
 /// that names no face renders the reported size. Claude's composer reports 14 and paints Anthropic
 /// Sans at 15.4, so every new message began with ghosts a tenth too small that grew once the
-/// evidence arrived (measured 2026-09-10 in a replica of the composer: the first 26 to 77
+/// evidence arrived (measured 2026-09-10 in a ProseMirror-style page modelled on the composer: the first 26 to 77
 /// presentations of every field at 14, then 15.2 to 15.9). A host sets the same text the same way
 /// from one field to the next, so the last settled face is the best evidence a new field has, and
 /// the field's own match replaces it as soon as it has one.
@@ -60,7 +60,7 @@ nonisolated struct HostFaceMemory: Sendable {
             }
             self.reportedSize = reportedSize.map { Int(($0 * 4).rounded()) } ?? -1
             // With a reported size the caret box adds nothing, and Chromium's wanders by a point from
-            // line to line (19 and 20pt in the composer replica, which split one style in two and
+            // line to line (19 and 20pt in a ProseMirror-style page, which split one style in two and
             // lost the line pitch it had measured); without one it is the only size signal, kept in
             // two-point steps.
             self.caretHeight = reportedSize == nil ? Int((caretHeight / 2).rounded()) : -1
@@ -74,7 +74,7 @@ nonisolated struct HostFaceMemory: Sendable {
         /// True when the size was measured from the host's own caret advance over a line
         /// (`HostAdvanceFit`), which a later field's short-strip match does not outrank for the same
         /// face. Optional so styles kept by an earlier version still decode.
-        var advanceMeasured: Bool? = nil
+        var advanceMeasured: Bool?
     }
 
     /// Distinct styles kept; the first one recorded is the first forgotten.

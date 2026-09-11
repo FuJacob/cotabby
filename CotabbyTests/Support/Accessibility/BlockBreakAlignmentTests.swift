@@ -1,7 +1,7 @@
 import XCTest
 @testable import Cotabby
 
-/// Each case is a shape measured in Chrome (a ProseMirror replica of Claude's composer, 2026-09-11):
+/// Each case is a shape measured in Chrome (a ProseMirror page modelled on Claude's composer, 2026-09-11):
 /// the field's value, its range text before the caret, and where the caret belongs in the value.
 final class BlockBreakAlignmentTests: XCTestCase {
     private func caret(

@@ -152,9 +152,7 @@ final class OverlayController: SuggestionOverlayControlling {
             return
         }
         pixelCaretShowToken &+= 1
-        let token = pixelCaretShowToken
         panelHeldForCapture = false
-        var geometry = requestedGeometry
         // A caret the host has not yet moved for text it has already published (see
         // `CaretLagPolicy`): the next snapshot brings the real one, and a ghost drawn from this one
         // would sit over the typed text, sized from an empty line's box.
@@ -170,47 +168,9 @@ final class OverlayController: SuggestionOverlayControlling {
             )
             return
         }
-        // A caret inside a union-run paragraph is placed from the host's pixels, not from AX (which
-        // has no answer there) and not from a font-metric layout (which put the ghost on top of the
-        // host's own glyphs). The first presentation for a given paragraph text waits for the
-        // capture, typically tens of milliseconds; later ones reuse it. If the pixels yield nothing
-        // the presentation proceeds exactly as it would have without this service.
-        //
-        // A capture cannot see the run under Cotabby's own ghost (`panelCovers`). While the ghost
-        // is up, a re-anchor for text typed on since the run's capture carries that caret forward
-        // by the typed advance instead (`extrapolatedMeasurement`): the ghost's tail stays exactly
-        // where it was drawn. Anything else (the paragraph wrapped, an edit elsewhere) takes the
-        // ghost down for the read and puts it back where the pixels say. Re-anchoring to the
-        // Accessibility estimate instead put the ghost four lines up, or off screen, on every
-        // other keystroke of a typed-through suggestion (Obsidian, 2026-09-10).
-        if let request = pixelCaretRequest(for: requestedGeometry) {
-            let covered = panelCovers(request.runFrame)
-            let measured = pixelCaretLocator.cachedMeasurement(for: request)
-                ?? (covered ? pixelCaretLocator.extrapolatedMeasurement(for: request) : nil)
-            if let measured {
-                geometry = requestedGeometry.withPixelMeasuredCaret(
-                    measured.caretRect,
-                    lineRect: measured.lineRect,
-                    linePitch: measured.linePitch,
-                    baselineOffsetFromTop: measured.baselineOffsetFromTop,
-                    lineInkWidth: measured.lineInkWidth
-                )
-            } else if !pixelCaretLocator.hasFailed(request) {
-                if covered {
-                    panelHeldForCapture = true
-                    panel.orderOut(nil)
-                    CotabbyLogger.suggestion.debug(
-                        "Ghost taken down for a pixel caret read",
-                        metadata: ["stage": .string("pixel-caret-hold"), "paragraph_chars": .stringConvertible(request.paragraphTextBeforeCaret.count)]
-                    )
-                }
-                pixelCaretLocator.locate(request) { [weak self] _ in
-                    guard let self, self.pixelCaretShowToken == token else { return }
-                    self.showSuggestion(text, geometry: requestedGeometry)
-                }
-                return
-            }
-        }
+        // A caret inside a union-run paragraph is placed from the host's pixels (see
+        // `pixelPlacedGeometry`); a presentation waiting for that capture returns here and runs again.
+        guard let geometry = pixelPlacedGeometry(requestedGeometry, text: text) else { return }
 
         // Decide on the fade using the panel state captured *before* `state` is reassigned below, so
         // the animation plays only on a genuine appearance, never on a reposition or streamed update.
@@ -261,6 +221,57 @@ final class OverlayController: SuggestionOverlayControlling {
         if fadesIn {
             fadeInPanel()
         }
+    }
+
+    /// The geometry to present `text` at, its caret placed from the host's pixels when AX cannot
+    /// place it, or nil when the presentation must wait for a capture: `showSuggestion` then runs
+    /// again with the answer.
+    ///
+    /// A caret inside a union-run paragraph is placed from the host's pixels, not from AX (which
+    /// has no answer there) and not from a font-metric layout (which put the ghost on top of the
+    /// host's own glyphs). The first presentation for a given paragraph text waits for the
+    /// capture, typically tens of milliseconds; later ones reuse it. If the pixels yield nothing
+    /// the presentation proceeds exactly as it would have without this service.
+    ///
+    /// A capture cannot see the run under Cotabby's own ghost (`panelCovers`). While the ghost
+    /// is up, a re-anchor for text typed on since the run's capture carries that caret forward
+    /// by the typed advance instead (`extrapolatedMeasurement`): the ghost's tail stays exactly
+    /// where it was drawn. Anything else (the paragraph wrapped, an edit elsewhere) takes the
+    /// ghost down for the read and puts it back where the pixels say. Re-anchoring to the
+    /// Accessibility estimate instead put the ghost four lines up, or off screen, on every
+    /// other keystroke of a typed-through suggestion (Obsidian, 2026-09-10).
+    private func pixelPlacedGeometry(_ requestedGeometry: SuggestionOverlayGeometry, text: String) -> SuggestionOverlayGeometry? {
+        guard let request = pixelCaretRequest(for: requestedGeometry) else { return requestedGeometry }
+        let covered = panelCovers(request.runFrame)
+        let measured = pixelCaretLocator.cachedMeasurement(for: request)
+            ?? (covered ? pixelCaretLocator.extrapolatedMeasurement(for: request) : nil)
+        if let measured {
+            return requestedGeometry.withPixelMeasuredCaret(
+                measured.caretRect,
+                lineRect: measured.lineRect,
+                linePitch: measured.linePitch,
+                baselineOffsetFromTop: measured.baselineOffsetFromTop,
+                lineInkWidth: measured.lineInkWidth
+            )
+        }
+        guard !pixelCaretLocator.hasFailed(request) else { return requestedGeometry }
+        if covered {
+            panelHeldForCapture = true
+            panel.orderOut(nil)
+            CotabbyLogger.suggestion.debug(
+                "Ghost taken down for a pixel caret read",
+                metadata: [
+                    "stage": .string("pixel-caret-hold"),
+                    "paragraph_chars": .stringConvertible(request.paragraphTextBeforeCaret.count)
+                ]
+            )
+        }
+        let token = pixelCaretShowToken
+        pixelCaretLocator.locate(request) { [weak self] _ in
+            guard let self, self.pixelCaretShowToken == token else { return }
+            self.showSuggestion(text, geometry: requestedGeometry)
+        }
+        return nil
     }
 
     /// Hides the floating panel and records why the overlay is no longer visible.
@@ -418,8 +429,7 @@ final class OverlayController: SuggestionOverlayControlling {
         else { return false }
         return CaretLagPolicy.caretLagsTypedText(
             caretX: geometry.caretRect.minX,
-            lineLeft: line.minX,
-            lineWidth: line.width,
+            line: line,
             textBeforeCaretOnLine: text,
             font: resolveFont(for: geometry, renderer: .webEngine).font,
             isRightToLeft: geometry.isRightToLeft
@@ -716,39 +726,20 @@ final class OverlayController: SuggestionOverlayControlling {
             // long enough is held for a later pixel match to take its size from.
             if let sample = Self.widthSample(of: geometry) {
                 var evidence = typefaceEvidence[identity] ?? TypefaceEvidence()
-                let adoptedBefore = evidence.scalingSample
-                evidence.record(sample, resolverFamily: nil)
+                Self.recordWidthSample(sample, in: &evidence, resolverFamily: nil, font: resolution.font, identity: identity)
                 typefaceEvidence[identity] = evidence
-                if let adopted = evidence.scalingSample, adopted != adoptedBefore {
-                    Self.logAdoptedWidthSample(adopted, font: resolution.font, identity: identity)
-                }
             }
             return resolution
         default:
             return resolution
         }
         let size = geometry.resolvedFieldStyle?.fontPointSize ?? resolution.font.pointSize
-        let hostNamesFace = geometry.resolvedFieldStyle?.fontName != nil || geometry.resolvedFieldStyle?.fontFamily != nil
-        if hostNamesFace, resolution.provenance != .hostSizeMatchedFamily {
-            unavailableNamedFaceFields.insert(identity)
-        }
-        // An Electron host that ships its editor's face (Claude's composer: Anthropic Sans) names
-        // none, and no installed family is it: a width match at the reported size is a near miss
-        // (Verdana at 14 fits Anthropic Sans at 15.4 within a percent) that flashed Verdana and
-        // Georgia between samples (2026-09-10). Such a field takes the honest stand-in, the system
-        // face scaled to its own width, until the pixel match names the bundled face.
-        if geometry.isWebContentField, !BrowserAppDetector.isBrowser(bundleIdentifier: geometry.bundleIdentifier),
-           !hostBundledFonts.candidateFontNames(forBundleIdentifier: geometry.bundleIdentifier).isEmpty {
-            unavailableNamedFaceFields.insert(identity)
-        }
+        markUnavailableNamedFace(resolution, for: geometry)
         var evidence = typefaceEvidence[identity] ?? TypefaceEvidence()
         let sample = Self.widthSample(of: geometry)
         if let sample {
-            let adoptedBefore = evidence.scalingSample
-            evidence.record(sample, resolverFamily: resolution.provenance == .hostSizeMatchedFamily ? resolution.font.familyName : nil)
-            if let adopted = evidence.scalingSample, adopted != adoptedBefore {
-                Self.logAdoptedWidthSample(adopted, font: resolution.font, identity: identity)
-            }
+            let resolverFamily = resolution.provenance == .hostSizeMatchedFamily ? resolution.font.familyName : nil
+            Self.recordWidthSample(sample, in: &evidence, resolverFamily: resolverFamily, font: resolution.font, identity: identity)
         }
         if unavailableNamedFaceFields.contains(identity) {
             typefaceEvidence[identity] = evidence
@@ -795,6 +786,53 @@ final class OverlayController: SuggestionOverlayControlling {
                 "verdict": .string("\(verdict)")
             ]
         )
+        return Self.settledResolution(for: verdict, replacing: resolution, systemFamily: systemFamily, size: size, evidence: evidence)
+    }
+
+    /// Marks a field whose face the ghost cannot load, which from then on takes the system face
+    /// scaled to its own width (see `applyingTypefaceEvidence`).
+    private func markUnavailableNamedFace(_ resolution: GhostFontResolver.Resolution, for geometry: SuggestionOverlayGeometry) {
+        let identity = geometry.focusedInputIdentityKey
+        if Self.hostNamesFace(geometry), resolution.provenance != .hostSizeMatchedFamily {
+            unavailableNamedFaceFields.insert(identity)
+        }
+        // An Electron host that ships its editor's face (Claude's composer: Anthropic Sans) names
+        // none, and no installed family is it: a width match at the reported size is a near miss
+        // (Verdana at 14 fits Anthropic Sans at 15.4 within a percent) that flashed Verdana and
+        // Georgia between samples (2026-09-10). Such a field takes the honest stand-in, the system
+        // face scaled to its own width, until the pixel match names the bundled face.
+        if geometry.isWebContentField, !BrowserAppDetector.isBrowser(bundleIdentifier: geometry.bundleIdentifier),
+           !hostBundledFonts.candidateFontNames(forBundleIdentifier: geometry.bundleIdentifier).isEmpty {
+            unavailableNamedFaceFields.insert(identity)
+        }
+    }
+
+    /// Records a width sample in a field's evidence, logging the sample the evidence adopts when
+    /// that changes.
+    private static func recordWidthSample(
+        _ sample: TypefaceEvidence.Sample,
+        in evidence: inout TypefaceEvidence,
+        resolverFamily: String?,
+        font: NSFont,
+        identity: UInt64
+    ) {
+        let adoptedBefore = evidence.scalingSample
+        evidence.record(sample, resolverFamily: resolverFamily)
+        if let adopted = evidence.scalingSample, adopted != adoptedBefore {
+            logAdoptedWidthSample(adopted, font: font, identity: identity)
+        }
+    }
+
+    /// The face a typeface verdict settles on, or `resolution` when it settles nothing new: the
+    /// system face or a matched family replaces it, and an undecidable field takes the system face
+    /// scaled to its own width.
+    private static func settledResolution(
+        for verdict: TypefaceEvidence.Verdict,
+        replacing resolution: GhostFontResolver.Resolution,
+        systemFamily: String,
+        size: CGFloat,
+        evidence: TypefaceEvidence
+    ) -> GhostFontResolver.Resolution {
         switch verdict {
         case .singleSample:
             return resolution
@@ -809,7 +847,7 @@ final class OverlayController: SuggestionOverlayControlling {
                 font: font, provenance: .hostSizeMatchedFamily, widthAgreement: resolution.widthAgreement
             )
         case .undecidable:
-            return Self.scaledSystemFace(size: size, evidence: evidence)
+            return scaledSystemFace(size: size, evidence: evidence)
         }
     }
 
@@ -1015,7 +1053,8 @@ final class OverlayController: SuggestionOverlayControlling {
         let matchTypeface = !Self.hostNamesFace(geometry) && Self.acceptsPixelMatch(resolution.provenance)
         // A browser's bundle holds no page fonts; an Electron app's holds the faces its editor
         // is set in (Claude's composer: Anthropic Sans), which no installed candidate approximates.
-        let hostFontNames = matchTypeface && geometry.isWebContentField && !BrowserAppDetector.isBrowser(bundleIdentifier: geometry.bundleIdentifier)
+        let isAppWebField = geometry.isWebContentField && !BrowserAppDetector.isBrowser(bundleIdentifier: geometry.bundleIdentifier)
+        let hostFontNames = matchTypeface && isAppWebField
             ? hostBundledFonts.candidateFontNames(forBundleIdentifier: geometry.bundleIdentifier)
             : []
         return HostBaselineCalibrator.Request(
@@ -1255,7 +1294,7 @@ final class OverlayController: SuggestionOverlayControlling {
 
     /// The pitch for a paragraph's first line when the host gave only the paragraph's box: the pitch
     /// this host style measured between two lines, when one is remembered and agrees with the box to
-    /// within its rounding, else the box. In the composer replica at 110% the box read 24 where two
+    /// within its rounding, else the box. In a ProseMirror-style page at 110% the box read 24 where two
     /// lines had measured 23.5 for the true 23.1, and every first wrap after the first sat a point
     /// low. A remembered pitch further from the box belongs to another line-height of the same size
     /// and page (a double-spaced text area beside a chat box) and does not replace it.

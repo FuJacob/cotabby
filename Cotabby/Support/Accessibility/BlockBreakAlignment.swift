@@ -8,7 +8,7 @@ import Foundation
 /// between block elements (paragraphs, list items). Its range queries (`AXSelectedTextRange`,
 /// `AXStringForRange`) and its text-marker strings run the blocks together, and the caret offset
 /// is counted in that run-together space. A break typed with Shift+Return is a character in both.
-/// Measured 2026-09-11 in a ProseMirror replica of Claude's composer: the value "abc\ndef\nghi"
+/// Measured 2026-09-11 in a ProseMirror page modelled on Claude's composer: the value "abc\ndef\nghi"
 /// against the range text "abc\ndefghi", the caret at the end reported at 10 of the value's 11.
 /// Read in the range space:
 ///   - the model was handed "here.Se" and continued it as "conde paragraph";

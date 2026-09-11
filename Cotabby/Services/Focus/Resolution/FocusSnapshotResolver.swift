@@ -279,9 +279,7 @@ struct FocusSnapshotResolver {
             processIdentifier: application.processIdentifier,
             text: value,
             selection: selection,
-            caretRect: caretRect,
-            caretQuality: caretQuality,
-            caretSourceDetail: caret.sourceDetail,
+            caret: caret,
             isBrowser: BrowserAppDetector.isBrowser(bundleIdentifier: bundleIdentifier)
         )
         // Recognize an xterm.js integrated terminal (VS Code / Cursor / web terminal) from the
@@ -338,48 +336,13 @@ struct FocusSnapshotResolver {
             hostMarkedTextRange: resolvedCandidate.markedTextRange ?? chromiumCompletionRange ?? smartComposeRange
         )
 
-        if resolvedCandidate.isSecure {
+        if let reason = Self.blockedReason(
+            for: resolvedCandidate, bundleIdentifier: bundleIdentifier, selection: selection, rawSelection: rawSelection
+        ) {
             return FocusSnapshot(
                 applicationName: applicationName,
                 bundleIdentifier: bundleIdentifier,
-                capability: .blocked("Secure text input is active."),
-                context: context
-            )
-        }
-
-        // Mail's To/Cc/Bcc/Subject rows: Tab is the writer's way to the next field, not an accept.
-        // The identifier is one extra AX read, made only for Mail's own text fields.
-        if MailHeaderFieldDetector.mightBeHeaderField(bundleIdentifier: bundleIdentifier, role: resolvedCandidate.role),
-           MailHeaderFieldDetector.isHeaderField(
-               bundleIdentifier: bundleIdentifier,
-               role: resolvedCandidate.role,
-               accessibilityIdentifier: AXHelper.accessibilityIdentifier(of: resolvedCandidate.element)
-           ) {
-            return FocusSnapshot(
-                applicationName: applicationName,
-                bundleIdentifier: bundleIdentifier,
-                capability: .blocked(MailHeaderFieldDetector.blockedReason),
-                context: context
-            )
-        }
-
-        if selection.length > 0 {
-            if BrowserAppDetector.isChromiumBrowser(bundleIdentifier: bundleIdentifier) {
-                CotabbyLogger.focus.debug(
-                    "Chromium selection blocks the field",
-                    metadata: [
-                        "stage": .string("chromium-selection"),
-                        "role": .string(resolvedCandidate.role),
-                        "selection": .string("\(rawSelection.location),\(rawSelection.length)"),
-                        "value_length": .stringConvertible((resolvedCandidate.textValue ?? "").utf16.count),
-                        "element": .string(resolvedCandidate.elementIdentifier)
-                    ]
-                )
-            }
-            return FocusSnapshot(
-                applicationName: applicationName,
-                bundleIdentifier: bundleIdentifier,
-                capability: .blocked("Text is currently selected."),
+                capability: .blocked(reason),
                 context: context
             )
         }
@@ -390,6 +353,45 @@ struct FocusSnapshotResolver {
             capability: .supported,
             context: context
         )
+    }
+
+    /// Why a field Cotabby can read is still one it must not complete in, or nil when it may: a
+    /// secure field, one of Mail's header rows, or a field with text selected.
+    private static func blockedReason(
+        for candidate: AXFocusCandidate,
+        bundleIdentifier: String,
+        selection: NSRange,
+        rawSelection: NSRange
+    ) -> String? {
+        if candidate.isSecure {
+            return "Secure text input is active."
+        }
+
+        // Mail's To/Cc/Bcc/Subject rows: Tab is the writer's way to the next field, not an accept.
+        // The identifier is one extra AX read, made only for Mail's own text fields.
+        if MailHeaderFieldDetector.mightBeHeaderField(bundleIdentifier: bundleIdentifier, role: candidate.role),
+           MailHeaderFieldDetector.isHeaderField(
+               bundleIdentifier: bundleIdentifier,
+               role: candidate.role,
+               accessibilityIdentifier: AXHelper.accessibilityIdentifier(of: candidate.element)
+           ) {
+            return MailHeaderFieldDetector.blockedReason
+        }
+
+        guard selection.length > 0 else { return nil }
+        if BrowserAppDetector.isChromiumBrowser(bundleIdentifier: bundleIdentifier) {
+            CotabbyLogger.focus.debug(
+                "Chromium selection blocks the field",
+                metadata: [
+                    "stage": .string("chromium-selection"),
+                    "role": .string(candidate.role),
+                    "selection": .string("\(rawSelection.location),\(rawSelection.length)"),
+                    "value_length": .stringConvertible((candidate.textValue ?? "").utf16.count),
+                    "element": .string(candidate.elementIdentifier)
+                ]
+            )
+        }
+        return "Text is currently selected."
     }
 
     /// Reads the host's font/color at the caret through the style cache: one attributed-string read
@@ -443,22 +445,16 @@ struct FocusSnapshotResolver {
         processIdentifier: pid_t,
         text: String,
         selection: NSRange,
-        caretRect: CGRect,
-        caretQuality: CaretGeometryQuality,
-        caretSourceDetail: String?,
+        caret: CaretGeometrySelector.Selected,
         isBrowser: Bool = false
     ) -> HostTextMetrics? {
         guard !candidate.isSecure, !candidate.usesMarkerSelection else {
             return nil
         }
+        let caretRect = caret.rect
         let caretHeight = caretRect.height
         let caretAdvanceSample = observeCaretAdvance(
-            for: candidate,
-            processIdentifier: processIdentifier,
-            text: text,
-            selection: selection,
-            caretRect: caretRect,
-            caretMeasuresGlyphs: Self.caretMeasuresGlyphs(quality: caretQuality, sourceDetail: caretSourceDetail)
+            for: candidate, processIdentifier: processIdentifier, text: text, selection: selection, caret: caret
         )
         // The caret box height changes when the line's font changes, and the measured line box
         // moves with the element, so a new height or a moved/resized frame re-measures. Without the
@@ -477,7 +473,7 @@ struct FocusSnapshotResolver {
                     caretHeight: caretHeight,
                     supportedParameterizedAttributes: candidate.supportedParameterizedAttributes,
                     anchorFrame: candidate.elementFrameRect ?? candidate.inputFrameRect,
-                    allowsTextMarkerLine: caretQuality == .exact && caretSourceDetail == "text-marker",
+                    allowsTextMarkerLine: caret.quality == .exact && caret.sourceDetail == "text-marker",
                     caretRect: caretRect,
                     isBrowser: isBrowser
                 )
@@ -509,19 +505,18 @@ struct FocusSnapshotResolver {
         processIdentifier: pid_t,
         text: String,
         selection: NSRange,
-        caretRect: CGRect,
-        caretMeasuresGlyphs: Bool
+        caret: CaretGeometrySelector.Selected
     ) -> CaretAdvanceSampler.Sample? {
         let nsText = text as NSString
-        let caret = min(max(selection.location, 0), nsText.length)
+        let offset = min(max(selection.location, 0), nsText.length)
         return caretAdvanceSamples.sample(
             forKey: "\(processIdentifier):\(candidate.elementIdentifier)",
             observation: CaretAdvanceSampler.Observation(
-                caretX: caretRect.minX,
-                lineY: caretRect.maxY,
-                documentCaret: candidate.documentCaretLocation ?? caret,
-                precedingText: nsText.substring(to: caret),
-                isPositioned: caretMeasuresGlyphs
+                caretX: caret.rect.minX,
+                lineY: caret.rect.maxY,
+                documentCaret: candidate.documentCaretLocation ?? offset,
+                precedingText: nsText.substring(to: offset),
+                isPositioned: Self.caretMeasuresGlyphs(quality: caret.quality, sourceDetail: caret.sourceDetail)
             )
         )
     }

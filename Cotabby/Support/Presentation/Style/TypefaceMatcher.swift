@@ -38,7 +38,7 @@ enum TypefaceMatcher {
         /// Device-pixel height of the letter bodies in the strip, tallest ascender to baseline as
         /// `InkBaselineAnalyzer` measures them: the second centre of the size search, and the
         /// height every candidate rendering must reproduce. Nil when the caller measured none.
-        var bodyRows: Int? = nil
+        var bodyRows: Int?
         /// True when `pointSize` is the host's own report (a CSS size, an AX font size) rather than
         /// a derivation from a caret box. A reported size narrows the search to its neighbourhood:
         /// serif faces are near-degenerate across sizes (Times New Roman at 19.5 reproduced a
@@ -49,7 +49,7 @@ enum TypefaceMatcher {
         /// text rendered for a candidate is then trimmed from the left until it fits: a wrapped
         /// paragraph's tail runs back into the previous visual line, while the strip holds only
         /// the caret's line, and words that are not on screen cannot correlate with anything.
-        var lineInkWidth: CGFloat? = nil
+        var lineInkWidth: CGFloat?
         /// True when `pointSize` was scaled to a width the host itself rendered (a bounds query
         /// or the caret's own advance, see `CaretAdvanceSampler`). Such a size is within a couple
         /// of percent of the truth, tighter than any report: a zoomed page reports its CSS size and
@@ -258,10 +258,11 @@ enum TypefaceMatcher {
         // Narrow the sizes with the tight lag, every candidate in every round: a coarse score is
         // the grid's fault as often as the face's, and the true face can trail a wrong one by a
         // fifth of the scale until its size is right (see `refinementRatios`).
+        let scoring = Scoring(variants: chosenVariants, host: host, input: input)
         for (round, ratios) in refinementRatios.enumerated() {
             for index in ranked.indices {
                 var best = ranked[index]
-                let refined = scoreAt(best, ratios: [1.0] + ratios, variants: chosenVariants, host: host, input: input, lag: maximumLagPixels)
+                let refined = scoreAt(best, ratios: [1.0] + ratios, scoring: scoring, lag: maximumLagPixels)
                 if refined.score > best.score || round == 0 {
                     best = refined
                 }
@@ -291,17 +292,23 @@ enum TypefaceMatcher {
         return ranked
     }
 
+    /// What a candidate rendering is scored against: the text variants, the host strip's column
+    /// profile, and the input they came from.
+    private struct Scoring {
+        let variants: [String]
+        let host: [Double]
+        let input: Input
+    }
+
     /// The best of `ranked` at each of its size times `ratios`, judged with `lag`. The ratio 1.0
     /// must come first: it re-scores the current size under the same lag so rounds compare like
     /// with like, and a neighbour only displaces it by clearing `refinementGain`.
-    private static func scoreAt(
-        _ ranked: Ranked, ratios: [CGFloat], variants: [String], host: [Double], input: Input, lag: Int
-    ) -> Ranked {
+    private static func scoreAt(_ ranked: Ranked, ratios: [CGFloat], scoring: Scoring, lag: Int) -> Ranked {
         var best = Ranked(font: ranked.font, pointSize: ranked.pointSize, score: -1)
         for (index, ratio) in ratios.enumerated() {
             let size = ranked.pointSize * ratio
             let font = scaled(ranked.font, to: size)
-            let score = score(font, variants: variants, host: host, input: input, lag: lag)
+            let score = score(font, variants: scoring.variants, host: scoring.host, input: scoring.input, lag: lag)
             if index == 0 || score > best.score + refinementGain {
                 best = Ranked(font: font, pointSize: size, score: score)
             }
@@ -546,11 +553,11 @@ enum TypefaceMatcher {
         let meanSecond = second.reduce(0, +) / count
         var numerator = 0.0, varianceFirst = 0.0, varianceSecond = 0.0
         for index in 0..<Int(count) {
-            let a = first[index] - meanFirst
-            let b = second[index] - meanSecond
-            numerator += a * b
-            varianceFirst += a * a
-            varianceSecond += b * b
+            let deviationFirst = first[index] - meanFirst
+            let deviationSecond = second[index] - meanSecond
+            numerator += deviationFirst * deviationSecond
+            varianceFirst += deviationFirst * deviationFirst
+            varianceSecond += deviationSecond * deviationSecond
         }
         guard varianceFirst > 0, varianceSecond > 0 else { return -1 }
         return numerator / (varianceFirst * varianceSecond).squareRoot()

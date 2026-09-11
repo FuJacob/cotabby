@@ -30,9 +30,9 @@ enum InkCaretAnalyzer {
         var baselineRow: Int = 0
         /// The host's own caret bar at the right end of the line, when the capture caught it (see
         /// `trailingCaretBar`); `inkRightColumn` then includes it. Nil when there is none.
-        var caretBarColumns: ClosedRange<Int>? = nil
+        var caretBarColumns: ClosedRange<Int>?
         /// The last column of text ink left of a caret bar; nil when there is no bar.
-        var glyphRightColumn: Int? = nil
+        var glyphRightColumn: Int?
 
         var inkHeight: Int { bottomRow - topRow + 1 }
         /// The right edge of the line's text, whatever the caret bar did.
@@ -167,21 +167,7 @@ enum InkCaretAnalyzer {
     /// anything else (a glyph, a block, a caret the blink hid): the lines are then found exactly as
     /// they were before the bar was looked for.
     static func standingCaretBar(mask: [Bool], width: Int, height: Int) -> Stroke? {
-        // Each column's longest unbroken run of ink.
-        var runs = [ClosedRange<Int>?](repeating: nil, count: width)
-        for column in 0..<width {
-            var best: ClosedRange<Int>?
-            var start: Int?
-            for row in 0...height {
-                if row < height, mask[row * width + column] {
-                    if start == nil { start = row }
-                } else if let begun = start {
-                    if row - begun > (best?.count ?? 0) { best = begun...(row - 1) }
-                    start = nil
-                }
-            }
-            runs[column] = best
-        }
+        let runs = longestInkRuns(mask: mask, width: width, height: height)
         guard let tallest = runs.indices.max(by: { (runs[$0]?.count ?? 0) < (runs[$1]?.count ?? 0) }),
               let core = runs[tallest], core.count >= minimumLineHeightRows else { return nil }
         func joins(_ column: Int) -> Bool {
@@ -210,6 +196,25 @@ enum InkCaretAnalyzer {
         }
         guard others >= minimumLineHeightRows, Double(core.count) >= caretBarHeightRatio * Double(others) else { return nil }
         return Stroke(columns: left...right, rows: rows)
+    }
+
+    /// Each column's longest unbroken run of ink rows, nil for a column with none.
+    private static func longestInkRuns(mask: [Bool], width: Int, height: Int) -> [ClosedRange<Int>?] {
+        var runs = [ClosedRange<Int>?](repeating: nil, count: width)
+        for column in 0..<width {
+            var best: ClosedRange<Int>?
+            var start: Int?
+            for row in 0...height {
+                if row < height, mask[row * width + column] {
+                    if start == nil { start = row }
+                } else if let begun = start {
+                    if row - begun > (best?.count ?? 0) { best = begun...(row - 1) }
+                    start = nil
+                }
+            }
+            runs[column] = best
+        }
+        return runs
     }
 
     /// The blocks with the caret bar's rows given back to the line it stands on: the block sharing
@@ -277,7 +282,7 @@ enum InkCaretAnalyzer {
         var line = Line(
             topRow: block.lowerBound, bottomRow: block.upperBound, inkLeftColumn: left, inkRightColumn: right, baselineRow: baseline
         )
-        if let found = trailingCaretBar(block: block, left: left, right: right, baseline: baseline, mask: mask, width: width) {
+        if let found = trailingCaretBar(block: block, columns: left...right, baseline: baseline, mask: mask, width: width) {
             line.caretBarColumns = found.bar
             line.glyphRightColumn = found.textRight
         }
@@ -331,10 +336,13 @@ enum InkCaretAnalyzer {
     /// letters' baseline, with text to their left. A final "l" or "I" also fills a line that has no
     /// descenders, but it stops at the baseline. The caret is drawn in the text colour (Obsidian),
     /// so it passes the saturation rule, and read as the last glyph it put the caret a point right,
-    /// five after a trailing space (measured 2026-09-10). Returns the bar and the last text column.
+    /// five after a trailing space (measured 2026-09-10). `columns` is the line's ink, left to right.
+    /// Returns the bar and the last text column.
     static func trailingCaretBar(
-        block: ClosedRange<Int>, left: Int, right: Int, baseline: Int, mask: [Bool], width: Int
+        block: ClosedRange<Int>, columns: ClosedRange<Int>, baseline: Int, mask: [Bool], width: Int
     ) -> (bar: ClosedRange<Int>, textRight: Int)? {
+        let left = columns.lowerBound
+        let right = columns.upperBound
         let needed = Int((Double(block.count) * caretBarFill).rounded(.up))
         let belowBaseline = max(2, block.count / 10)
         func isBarColumn(_ column: Int) -> Bool {

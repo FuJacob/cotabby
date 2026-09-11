@@ -54,7 +54,7 @@ final class HostMarkedTextPolicyTests: XCTestCase {
             NSRange(location: caret.location, length: ("lot of time\ntab" as NSString).length)
         )
         XCTAssertEqual(
-            HostMarkedTextPolicy.smartComposeSuggestionRange(text: typed + "the app\ntab\n\n--\nMason", selection: caret, urlString: gmail),
+            HostMarkedTextPolicy.smartComposeSuggestionRange(text: typed + "the app\ntab\n\n--\nSam", selection: caret, urlString: gmail),
             NSRange(location: caret.location, length: ("the app\ntab" as NSString).length)
         )
     }

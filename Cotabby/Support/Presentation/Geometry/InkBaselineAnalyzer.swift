@@ -41,35 +41,10 @@ enum InkBaselineAnalyzer {
     }
 
     static func measure(_ bitmap: RGBABitmap) -> Measurement? {
-        let width = bitmap.width
         let height = bitmap.height
-        guard width > 0, height > 0 else { return nil }
-        var luminance = [Double](repeating: 0, count: width * height)
-        var saturation = [Double](repeating: 0, count: width * height)
-        for row in 0..<height {
-            for column in 0..<width {
-                let pixel = bitmap.pixel(column: column, row: row)
-                let index = row * width + column
-                luminance[index] = pixel.luminance
-                let maxChannel = max(pixel.red, pixel.green, pixel.blue)
-                let minChannel = min(pixel.red, pixel.green, pixel.blue)
-                saturation[index] = maxChannel > 0 ? (maxChannel - minChannel) / maxChannel : 0
-            }
-        }
-        let background = median(luminance)
-        var rowInk = [Int](repeating: 0, count: height)
-        var total = 0
-        for row in 0..<height {
-            var count = 0
-            for column in 0..<width {
-                let index = row * width + column
-                if abs(luminance[index] - background) > inkContrast, saturation[index] < maximumSaturation {
-                    count += 1
-                }
-            }
-            rowInk[row] = count
-            total += count
-        }
+        guard bitmap.width > 0, height > 0 else { return nil }
+        let rowInk = inkRowCounts(bitmap)
+        let total = rowInk.reduce(0, +)
         guard total >= minimumInkPixels, let peak = rowInk.max(), peak > 0 else { return nil }
         let threshold = bodyThreshold * Double(peak)
         // The letter bodies are one contiguous block of busy rows. A spell-check or link underline a
@@ -91,6 +66,38 @@ enum InkBaselineAnalyzer {
         }
         guard last - first + 1 >= minimumBodyRows else { return nil }
         return Measurement(baselineRow: last + 1, bodyTopRow: first, inkPixelCount: total)
+    }
+
+    /// Each row's count of ink pixels: unsaturated pixels whose luminance stands `inkContrast` off
+    /// the median (background) luminance.
+    private static func inkRowCounts(_ bitmap: RGBABitmap) -> [Int] {
+        let width = bitmap.width
+        let height = bitmap.height
+        var luminance = [Double](repeating: 0, count: width * height)
+        var saturation = [Double](repeating: 0, count: width * height)
+        for row in 0..<height {
+            for column in 0..<width {
+                let pixel = bitmap.pixel(column: column, row: row)
+                let index = row * width + column
+                luminance[index] = pixel.luminance
+                let maxChannel = max(pixel.red, pixel.green, pixel.blue)
+                let minChannel = min(pixel.red, pixel.green, pixel.blue)
+                saturation[index] = maxChannel > 0 ? (maxChannel - minChannel) / maxChannel : 0
+            }
+        }
+        let background = median(luminance)
+        var rowInk = [Int](repeating: 0, count: height)
+        for row in 0..<height {
+            var count = 0
+            for column in 0..<width {
+                let index = row * width + column
+                if abs(luminance[index] - background) > inkContrast, saturation[index] < maximumSaturation {
+                    count += 1
+                }
+            }
+            rowInk[row] = count
+        }
+        return rowInk
     }
 
     private static func median(_ values: [Double]) -> Double {

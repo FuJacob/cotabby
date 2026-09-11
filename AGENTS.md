@@ -57,9 +57,10 @@ When adding a `struct`, `class`, `enum`, actor, or protocol, explain:
 - `CotabbyTests/`: unit and microbench tests that mirror the production subsystem map. Prefer
   testing pure `Support/` and `Models/` logic when possible.
 - `CotabbyInference`: the llama.cpp wrapper, consumed as a SwiftPM package rather than vendored
-  in-tree. Upstream is `github.com/FuJacob/cotabbyinference` (`main`); this branch resolves the
-  `feat/required-prefix` branch of the `Mason363/cotabbyinference` fork, which adds the
-  required-prefix sampling constraint that mid-word anchoring depends on, until it lands upstream.
+  in-tree. Upstream is `github.com/FuJacob/cotabbyinference` (`main`). Mid-word anchoring depends on
+  a required-prefix sampling constraint that is not in upstream `main` yet, so `project.yml`
+  resolves the `feat/required-prefix` branch of the `Mason363/cotabbyinference` fork that adds it;
+  once the constraint lands upstream, the pin returns to `FuJacob/cotabbyinference` `main`.
 
 Within a subsystem, child folders describe stable responsibilities rather than Swift namespaces.
 Examples include `Services/Runtime/{AppleIntelligence,Llama,OpenAICompatible}` and
@@ -354,12 +355,12 @@ xcodebuild -project Cotabby.xcodeproj -scheme "Cotabby Dev" -configuration Relea
   -destination 'platform=macOS' build -derivedDataPath build/DerivedData
 ```
 
-Ghost placement changes are verified against the pixels the user sees, not against log counts: the
-session scratchpad's `align_cases.sh` (modes `obsidian-single`, `obsidian-multi`, `textedit`,
-`chrome-ce`) types fragments, captures the ghost, accepts it, captures the host's own rendering of the
-same words, and reports the ghost's dx/dy in points per line. A placement fix is done when every mode
-stays within about 0.2pt on every line; a change that helps one host and moves another is a regression
-even when its own log counters improve.
+Ghost placement changes are verified against the pixels the user sees, not against log counts: type
+a fragment at the end of a field, capture the ghost, accept it, capture the host's own rendering of the
+same words, and compare the two, the ghost's dx/dy in points per line. A placement fix is done when
+every host checked (TextEdit, a Chrome contenteditable, an Obsidian note with one wrapped paragraph and
+with several) stays within about 0.2pt on every line; a change that helps one host and moves another
+is a regression even when its own log counters improve.
 
 Run targeted tests for changed pure logic when available. If `xcodebuild test` fails locally because
 of app-hosted test bundle signing or Team ID mismatch, report the exact failure and still provide the

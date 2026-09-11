@@ -22,7 +22,7 @@ enum CaretGeometrySelector {
         let observedCharWidth: CGFloat?
         let observedContentEdges: ObservedContentEdges?
         /// How the chosen source placed the caret (e.g. the caret-to-run mapping mode), when it said.
-        var sourceDetail: String? = nil
+        var sourceDetail: String?
     }
 
     /// Whether the primary (focused-input) caret geometry is too weak to trust, so the resolver

@@ -198,22 +198,31 @@ final class HostBaselineCalibrator {
     ) -> TypefaceMatchRecord? {
         guard let known else {
             guard let match else { return nil }
-            return TypefaceMatchRecord(fontName: match.fontName, pointSize: match.pointSize, score: match.score, textLength: textLength, attempts: 1)
+            return TypefaceMatchRecord(
+                fontName: match.fontName, pointSize: match.pointSize, score: match.score, textLength: textLength, attempts: 1
+            )
         }
         let attempts = known.attempts + 1
         guard let match else {
-            return TypefaceMatchRecord(fontName: known.fontName, pointSize: known.pointSize, score: known.score, textLength: textLength, attempts: attempts)
+            return TypefaceMatchRecord(
+                fontName: known.fontName, pointSize: known.pointSize, score: known.score, textLength: textLength, attempts: attempts
+            )
         }
         if match.fontName == known.fontName {
             return TypefaceMatchRecord(
-                fontName: known.fontName, pointSize: known.pointSize, score: max(known.score, match.score), textLength: textLength, attempts: attempts
+                fontName: known.fontName, pointSize: known.pointSize, score: max(known.score, match.score),
+                textLength: textLength, attempts: attempts
             )
         }
         let knownOnThisStrip = ranking.first { $0.fontName == known.fontName }?.score ?? -1
         if match.score >= knownOnThisStrip + typefaceReplacementMargin {
-            return TypefaceMatchRecord(fontName: match.fontName, pointSize: match.pointSize, score: match.score, textLength: textLength, attempts: attempts)
+            return TypefaceMatchRecord(
+                fontName: match.fontName, pointSize: match.pointSize, score: match.score, textLength: textLength, attempts: attempts
+            )
         }
-        return TypefaceMatchRecord(fontName: known.fontName, pointSize: known.pointSize, score: known.score, textLength: textLength, attempts: attempts)
+        return TypefaceMatchRecord(
+            fontName: known.fontName, pointSize: known.pointSize, score: known.score, textLength: textLength, attempts: attempts
+        )
     }
 
     /// Starts a measurement for `request` unless one is cached, or joins the one already in flight
@@ -235,56 +244,70 @@ final class HostBaselineCalibrator {
         ) else { return }
         waiters[key] = [completion]
         Task { @MainActor [weak self] in
-            guard let self else { return }
-            do {
-                let (captured, strip) = try await self.capture(strip)
-                if Self.dumpsStrips {
-                    Self.dumpStrip(captured, strip: strip, request: request, attemptTypeface: attemptTypeface)
-                }
-                let started = Date()
-                if attemptTypeface { self.typefaceSearchInFlight = true }
-                // Pixel analysis (row/column profiles, candidate renderings) runs off the main actor
-                // so a focus poll never waits on it; only the bookkeeping below touches state.
-                let analysis = await Task.detached(priority: .userInitiated) {
-                    Self.analyze(captured, strip: strip, request: request, attemptTypeface: attemptTypeface)
-                }.value
-                if attemptTypeface { self.typefaceSearchInFlight = false }
-                let listeners = self.waiters.removeValue(forKey: key) ?? []
-                guard let analysis else { return }
-                if analysis.baselineAccepted {
-                    self.store(analysis.baselineOffset, for: key)
-                }
-                if analysis.typefaceAttempted {
-                    // Only a strip the matcher actually searched, and whose letter bodies looked
-                    // like a line of this font, counts as a miss; one declined for holding too
-                    // little ink, or cut from somewhere that was not the caret's line, was never
-                    // evidence either way.
-                    if analysis.typefaceMatch == nil, self.typefaces[typefaceKey] == nil, !analysis.typefaceRanking.isEmpty,
-                       analysis.baselineAccepted {
-                        self.typefaceMisses[typefaceKey, default: 0] += 1
-                    }
-                    self.typefaces[typefaceKey] = Self.updatedTypefaceRecord(
-                        known: self.typefaces[typefaceKey],
-                        match: analysis.typefaceMatch,
-                        ranking: analysis.typefaceRanking,
-                        textLength: request.lineText?.count ?? 0
-                    )
-                }
-                let record = request.matchTypeface ? self.typefaces[typefaceKey] : nil
-                Self.log(analysis, request: request, elapsedMilliseconds: Int(Date().timeIntervalSince(started) * 1000))
-                guard analysis.baselineAccepted || record != nil else { return }
-                let calibration = Calibration(
-                    baselineOffset: analysis.baselineAccepted ? analysis.baselineOffset : (self.cache[key] ?? request.policyOffset),
-                    typefaceMatch: record
-                )
-                for listener in listeners {
-                    listener(calibration)
-                }
-            } catch {
-                self.waiters.removeValue(forKey: key)
-                if attemptTypeface { self.typefaceSearchInFlight = false }
-                CotabbyLogger.suggestion.debug("Baseline calibration failed: \(error.localizedDescription)")
+            await self?.measureStrip(strip, for: request, attemptTypeface: attemptTypeface)
+        }
+    }
+
+    /// The measurement `calibrate` started: captures `strip`, reads it off the main actor, and
+    /// hands what it found to everyone waiting on the request's key (see `deliver`).
+    private func measureStrip(_ strip: CGRect, for request: Request, attemptTypeface: Bool) async {
+        do {
+            let (captured, strip) = try await capture(strip)
+            if Self.dumpsStrips {
+                Self.dumpStrip(captured, strip: strip, request: request, attemptTypeface: attemptTypeface)
             }
+            let started = Date()
+            if attemptTypeface { typefaceSearchInFlight = true }
+            // Pixel analysis (row/column profiles, candidate renderings) runs off the main actor
+            // so a focus poll never waits on it; only the bookkeeping in `deliver` touches state.
+            let analysis = await Task.detached(priority: .userInitiated) {
+                Self.analyze(captured, strip: strip, request: request, attemptTypeface: attemptTypeface)
+            }.value
+            if attemptTypeface { typefaceSearchInFlight = false }
+            deliver(analysis, for: request, started: started)
+        } catch {
+            waiters.removeValue(forKey: request.key)
+            if attemptTypeface { typefaceSearchInFlight = false }
+            CotabbyLogger.suggestion.debug("Baseline calibration failed: \(error.localizedDescription)")
+        }
+    }
+
+    /// Stores what a strip's analysis found (an accepted baseline, the typeface search's outcome)
+    /// and hands it to everyone waiting on the request's key. Nothing is handed on when the strip
+    /// held no usable text, or neither a baseline nor a face came of it.
+    private func deliver(_ analysis: Analysis?, for request: Request, started: Date) {
+        let key = request.key
+        let typefaceKey = TypefaceKey(focusedInputIdentityKey: key.focusedInputIdentityKey)
+        let listeners = waiters.removeValue(forKey: key) ?? []
+        guard let analysis else { return }
+        if analysis.baselineAccepted {
+            store(analysis.baselineOffset, for: key)
+        }
+        if analysis.typefaceAttempted {
+            // Only a strip the matcher actually searched, and whose letter bodies looked
+            // like a line of this font, counts as a miss; one declined for holding too
+            // little ink, or cut from somewhere that was not the caret's line, was never
+            // evidence either way.
+            if analysis.typefaceMatch == nil, typefaces[typefaceKey] == nil, !analysis.typefaceRanking.isEmpty,
+               analysis.baselineAccepted {
+                typefaceMisses[typefaceKey, default: 0] += 1
+            }
+            typefaces[typefaceKey] = Self.updatedTypefaceRecord(
+                known: typefaces[typefaceKey],
+                match: analysis.typefaceMatch,
+                ranking: analysis.typefaceRanking,
+                textLength: request.lineText?.count ?? 0
+            )
+        }
+        let record = request.matchTypeface ? typefaces[typefaceKey] : nil
+        Self.log(analysis, request: request, elapsedMilliseconds: Int(Date().timeIntervalSince(started) * 1000))
+        guard analysis.baselineAccepted || record != nil else { return }
+        let calibration = Calibration(
+            baselineOffset: analysis.baselineAccepted ? analysis.baselineOffset : (cache[key] ?? request.policyOffset),
+            typefaceMatch: record
+        )
+        for listener in listeners {
+            listener(calibration)
         }
     }
 
@@ -461,7 +484,10 @@ final class HostBaselineCalibrator {
             "match_typeface": attemptTypeface,
             "line_text": request.lineText ?? "",
             "strip": [Double(strip.minX), Double(strip.minY), Double(strip.width), Double(strip.height)],
-            "caret": [Double(request.caretRect.minX), Double(request.caretRect.minY), Double(request.caretRect.width), Double(request.caretRect.height)]
+            "caret": [
+                Double(request.caretRect.minX), Double(request.caretRect.minY),
+                Double(request.caretRect.width), Double(request.caretRect.height)
+            ]
         ]
         if let json = try? JSONSerialization.data(withJSONObject: sidecar) {
             try? json.write(to: logs.appendingPathComponent("strip-\(stamp).json"))

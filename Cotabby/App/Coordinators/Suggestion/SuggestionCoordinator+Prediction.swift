@@ -974,18 +974,7 @@ extension SuggestionCoordinator {
         )
         state = .ready(text: session.remainingText, latency: session.latency)
 
-        // A host prediction that appeared while the model was thinking owns the spot right now;
-        // the session is kept and shows itself once the host span clears.
-        if liveContext.hasHostMarkedText {
-            holdForHostMarkedText()
-        } else {
-            presentOverlay(
-                text: session.remainingText,
-                at: liveContext.caretRect,
-                context: liveContext,
-                isRightToLeft: TextDirectionDetector.isRightToLeft(liveContext.precedingText)
-            )
-        }
+        presentFreshSession(session, liveContext: liveContext)
         logStage(
             "ready",
             workID: workID,
@@ -999,6 +988,21 @@ extension SuggestionCoordinator {
         // word now so rapid Tabbing keeps inserting words across the exhaustion boundary instead of
         // stalling once the previous suggestion ran out. No-op when nothing was queued.
         flushQueuedPostExhaustionAcceptIfNeeded()
+    }
+
+    /// Shows a fresh session's ghost. A host prediction that appeared while the model was thinking
+    /// owns the spot right now; the session is then kept and shows itself once the host span clears.
+    private func presentFreshSession(_ session: ActiveSuggestionSession, liveContext: FocusedInputContext) {
+        if liveContext.hasHostMarkedText {
+            holdForHostMarkedText()
+        } else {
+            presentOverlay(
+                text: session.remainingText,
+                at: liveContext.caretRect,
+                context: liveContext,
+                isRightToLeft: TextDirectionDetector.isRightToLeft(liveContext.precedingText)
+            )
+        }
     }
 
     /// Converts a runtime or engine failure into visible coordinator state and clears stale UI.

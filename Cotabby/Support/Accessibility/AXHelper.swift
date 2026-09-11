@@ -123,6 +123,15 @@ enum AXHelper {
     /// Converts loosely typed Accessibility values into `AXValue` only after verifying the Core
     /// Foundation type id. This keeps the unsafe CF boundary in one place and avoids force casts in
     /// the higher-level helpers below.
+    /// The `AXUIElement` a Core Foundation value holds, or nil when it holds anything else. The type
+    /// check makes the bit cast safe: `AXUIElement` is a Core Foundation type.
+    private static func axElement(from value: AnyObject?) -> AXUIElement? {
+        guard let value, CFGetTypeID(value) == AXUIElementGetTypeID() else {
+            return nil
+        }
+        return unsafeBitCast(value, to: AXUIElement.self)
+    }
+
     private static func axValue(from value: AnyObject?) -> AXValue? {
         guard let value, CFGetTypeID(value) == AXValueGetTypeID() else {
             return nil
@@ -428,9 +437,9 @@ enum AXHelper {
         /// The frame of the element around the caret's text (its paragraph), for a line with text,
         /// when that element is not the field itself. In a ProseMirror-style editor (a <p> per
         /// paragraph, no padding) a one-line paragraph's frame is the line box: 21pt around a 17pt
-        /// glyph box in the composer replica, 14px at line-height 1.5 (2026-09-11). Whether it is a
+        /// glyph box in a ProseMirror-style page, 14px at line-height 1.5 (2026-09-11). Whether it is a
         /// line box is `HostTextMetricsProbe.paragraphLinePitch`'s to judge.
-        var paragraph: CGRect? = nil
+        var paragraph: CGRect?
     }
 
     /// Line ranges a caret line may be split into before the walk back to its start gives up (see
@@ -532,14 +541,11 @@ enum AXHelper {
         // paragraph of its own, and the field's frame holds its padding).
         var paragraph: CGRect?
         if !lineText.isEmpty, parameterizedAttributes.contains(elementForMarkerAttribute as String),
-           let textRef = copyOpaqueParameterized(elementForMarkerAttribute, parameter: caret, on: element),
-           CFGetTypeID(textRef) == AXUIElementGetTypeID() {
-            // `AXUIElement` is a Core Foundation type: the type check above makes the cast safe.
-            let textElement = textRef as! AXUIElement
+           let textElement = axElement(from: copyOpaqueParameterized(elementForMarkerAttribute, parameter: caret, on: element)) {
             var parentRef: CFTypeRef?
             if AXUIElementCopyAttributeValue(textElement, kAXParentAttribute as CFString, &parentRef) == .success,
-               let parentRef, CFGetTypeID(parentRef) == AXUIElementGetTypeID(), !CFEqual(parentRef, element) {
-                paragraph = accessibilityFrame(of: parentRef as! AXUIElement)
+               let parent = axElement(from: parentRef), !CFEqual(parent, element) {
+                paragraph = accessibilityFrame(of: parent)
             }
         }
         return MarkerLineGeometry(
@@ -555,16 +561,15 @@ enum AXHelper {
         var sizeRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &positionRef) == .success,
               AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &sizeRef) == .success,
-              let positionRef, let sizeRef,
-              CFGetTypeID(positionRef) == AXValueGetTypeID(), CFGetTypeID(sizeRef) == AXValueGetTypeID()
+              let positionValue = axValue(from: positionRef), let sizeValue = axValue(from: sizeRef)
         else {
             return nil
         }
         var position = CGPoint.zero
         var size = CGSize.zero
-        // Both were checked to be AXValues; `AXValueGetValue` reports false for a wrong payload type.
-        guard AXValueGetValue(positionRef as! AXValue, .cgPoint, &position),
-              AXValueGetValue(sizeRef as! AXValue, .cgSize, &size),
+        // `AXValueGetValue` reports false for a wrong payload type.
+        guard AXValueGetValue(positionValue, .cgPoint, &position),
+              AXValueGetValue(sizeValue, .cgSize, &size),
               size.width > 0, size.height > 0
         else {
             return nil
@@ -632,12 +637,12 @@ enum AXHelper {
         _ first: CFTypeRef, _ second: CFTypeRef, on element: AXUIElement, attributes: Set<String>
     ) -> Bool {
         guard attributes.contains(elementForMarkerAttribute as String),
-              let a = copyOpaqueParameterized(elementForMarkerAttribute, parameter: first, on: element),
-              let b = copyOpaqueParameterized(elementForMarkerAttribute, parameter: second, on: element)
+              let firstElement = copyOpaqueParameterized(elementForMarkerAttribute, parameter: first, on: element),
+              let secondElement = copyOpaqueParameterized(elementForMarkerAttribute, parameter: second, on: element)
         else {
             return false
         }
-        return CFEqual(a, b)
+        return CFEqual(firstElement, secondElement)
     }
 
     /// Whether the element reads its text through text markers (a WebKit or Chromium web area).
@@ -648,7 +653,7 @@ enum AXHelper {
     /// Whether the caret sits at the start of a text block (a paragraph, a list item) rather than at
     /// the end of the block before it. Chromium's range offsets count both spots as one (see
     /// `BlockBreakAlignment`); its text markers keep them apart. Measured 2026-09-11 in a
-    /// ProseMirror replica of Claude's composer: at a paragraph's start the caret's marker names that
+    /// ProseMirror page modelled on Claude's composer: at a paragraph's start the caret's marker names that
     /// paragraph's text and the marker before it another element; at the end of the paragraph
     /// before, both name that paragraph's text; in an empty paragraph the caret's marker names the
     /// paragraph's group. False whenever the markers cannot answer, which leaves the caret where the

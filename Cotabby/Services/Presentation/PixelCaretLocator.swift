@@ -54,7 +54,7 @@ final class PixelCaretLocator {
         /// For a single-line field: the height of the caret box to report, centred on the ink the
         /// field paints (the box the host would have reported, had it answered). Nil for a wrapped
         /// paragraph, whose line boxes come from the frame and pitch instead.
-        var singleLineCaretHeight: CGFloat? = nil
+        var singleLineCaretHeight: CGFloat?
         /// Points captured above and below the frame. A one-line run inside a paragraph editor sits
         /// four points from its neighbours' line boxes, and the full padding took their ascenders
         /// and descenders for lines of its own: most reads of Obsidian's one-line paragraphs
@@ -62,7 +62,7 @@ final class PixelCaretLocator {
         var verticalPadding: CGFloat = PixelCaretLocator.padding
         /// The ghost's face, whose advances carry a captured caret forward over text typed since
         /// the capture (`extrapolatedMeasurement(for:)`). Nil disables that.
-        var font: NSFont? = nil
+        var font: NSFont?
         /// Whether a fresh capture for this request feeds its field's advance fit (see
         /// `HostAdvanceFit`): set by the caller for a web field that reports no size, in a face its
         /// pixels named or, in a single-line field, its stand-in (`OverlayController.takesHostAdvance`).
@@ -117,12 +117,12 @@ final class PixelCaretLocator {
         /// cut around a box that was itself a guess measured 15.0 where 16.0 was right on some
         /// Obsidian lines (2026-09-10); the baseline in the capture that found the caret is not a
         /// second measurement, it is the same one.
-        var baselineOffsetFromTop: CGFloat? = nil
+        var baselineOffsetFromTop: CGFloat?
         /// Width in points of the ink on the caret's line, first glyph to last. The typeface
         /// match trims the paragraph tail it renders to what fits this width, because a wrapped
         /// paragraph's tail runs back into the previous visual line while the strip holds only
         /// the caret's line (Obsidian, 2026-09-10: sixteen searches of the wrong words, no match).
-        var lineInkWidth: CGFloat? = nil
+        var lineInkWidth: CGFloat?
     }
 
     /// Points of slack captured around the run so a glyph touching the frame edge is not clipped.
@@ -280,7 +280,7 @@ final class PixelCaretLocator {
                     failure = "no-ink"
                 }
                 if Self.dumpsCaptures {
-                    Self.dumpCapture(captured, region: region, request: request, analysis: analysis, measurement: measurement, failure: failure)
+                    Self.dumpCapture(captured, region: region, request: request, analysis: analysis, measurement: measurement)
                 }
             } catch {
                 failure = "capture: \(error.localizedDescription)"
@@ -343,7 +343,7 @@ final class PixelCaretLocator {
         if request.caretIsMidLine {
             return midLineMeasurement(
                 from: analysis, scale: scale, region: region, request: request,
-                pitch: pitch, reportedPitch: measuredPitch, lineCount: lineCount, lineBox: lineBox
+                lines: FrameLines(pitch: pitch, reportedPitch: measuredPitch, lineCount: lineCount, lineBox: lineBox)
             )
         }
         let lineIndex = lineCount - 1
@@ -378,29 +378,36 @@ final class PixelCaretLocator {
         )
     }
 
+    /// The frame arithmetic's answer for a paragraph run: the pitch its lines step by (measured, or
+    /// the frame shared evenly), the pitch that was measured and is reported, how many line boxes
+    /// the frame holds, and one line box's height.
+    struct FrameLines {
+        let pitch: CGFloat?
+        let reportedPitch: CGFloat?
+        let lineCount: Int
+        let lineBox: CGFloat
+    }
+
     /// The mid-line counterpart of `measurement(from:scale:region:request:)`: the caret's line and x
     /// come from `midLineCaret(lines:scale:region:text:font:)`, its box from the same frame
-    /// arithmetic. No ink width is reported: the line's ink runs on past the caret, so it says
-    /// nothing about the text before it.
+    /// arithmetic (`lines`). No ink width is reported: the line's ink runs on past the caret, so it
+    /// says nothing about the text before it.
     nonisolated static func midLineMeasurement(
         from analysis: InkCaretAnalyzer.Measurement,
         scale: CGFloat,
         region: CGRect,
         request: Request,
-        pitch: CGFloat?,
-        reportedPitch: CGFloat?,
-        lineCount: Int,
-        lineBox: CGFloat
+        lines: FrameLines
     ) -> Measurement? {
         guard let font = request.font,
               let placement = midLineCaret(
                 lines: analysis.lines, scale: scale, region: region, text: request.paragraphTextBeforeCaret, font: font
               ),
-              placement.lineIndex < max(lineCount, analysis.lines.count)
+              placement.lineIndex < max(lines.lineCount, analysis.lines.count)
         else { return nil }
         let frame = request.runFrame
-        let lineTop = frame.maxY - CGFloat(placement.lineIndex) * (pitch ?? 0)
-        let lineRect = CGRect(x: frame.minX, y: lineTop - lineBox, width: frame.width, height: lineBox)
+        let lineTop = frame.maxY - CGFloat(placement.lineIndex) * (lines.pitch ?? 0)
+        let lineRect = CGRect(x: frame.minX, y: lineTop - lines.lineBox, width: frame.width, height: lines.lineBox)
         let painted = analysis.lines[placement.lineIndex]
         let inkTop = region.maxY - CGFloat(painted.topRow) / scale
         let inkBottom = region.maxY - CGFloat(painted.bottomRow + 1) / scale
@@ -408,12 +415,14 @@ final class PixelCaretLocator {
               placement.x >= frame.minX - 1, placement.x <= frame.maxX + request.spaceAdvance * 2 + 1
         else { return nil }
         return Measurement(
-            caretRect: CGRect(x: placement.x, y: lineRect.minY, width: 2, height: lineBox),
+            caretRect: CGRect(x: placement.x, y: lineRect.minY, width: 2, height: lines.lineBox),
             lineRect: lineRect,
-            linePitch: reportedPitch,
+            linePitch: lines.reportedPitch,
             lineIndex: placement.lineIndex,
-            lineCount: max(lineCount, analysis.lines.count),
-            baselineOffsetFromTop: baselineOffset(of: painted, lineTop: lineRect.maxY, lineBox: lineBox, region: region, scale: scale),
+            lineCount: max(lines.lineCount, analysis.lines.count),
+            baselineOffsetFromTop: baselineOffset(
+                of: painted, lineTop: lineRect.maxY, lineBox: lines.lineBox, region: region, scale: scale
+            ),
             lineInkWidth: nil
         )
     }
@@ -456,7 +465,8 @@ final class PixelCaretLocator {
     nonisolated static func baselineOffset(
         of line: InkCaretAnalyzer.Line, lineTop: CGFloat, lineBox: CGFloat, region: CGRect, scale: CGFloat
     ) -> CGFloat? {
-        guard line.baselineRow > 0, CGFloat(line.textRightColumn - line.inkLeftColumn + 1) / scale >= minimumBaselineInkWidth else { return nil }
+        let inkWidth = CGFloat(line.textRightColumn - line.inkLeftColumn + 1) / scale
+        guard line.baselineRow > 0, inkWidth >= minimumBaselineInkWidth else { return nil }
         let offset = lineTop - (region.maxY - CGFloat(line.baselineRow) / scale)
         guard offset > 0, offset >= lineBox * minimumBaselineDepthFraction, offset <= lineBox + 2 else { return nil }
         return offset
@@ -482,20 +492,13 @@ final class PixelCaretLocator {
     nonisolated static func midLineCaret(
         lines: [InkCaretAnalyzer.Line], scale: CGFloat, region: CGRect, text: String, font: NSFont
     ) -> (lineIndex: Int, x: CGFloat)? {
-        let string = text as NSString
-        let length = string.length
+        let paragraph = TypesetParagraph(text, font: font)
+        let length = paragraph.length
         guard length > 0, scale > 0 else { return nil }
-        let typeset = CTLineCreateWithAttributedString(NSAttributedString(string: text, attributes: [.font: font]))
-        // Advance from the paragraph's start to a UTF-16 offset, kerning included.
-        func advance(to index: Int) -> CGFloat { CTLineGetOffsetForStringIndex(typeset, index, nil) }
-        func isSpace(_ index: Int) -> Bool {
-            let unit = string.character(at: index)
-            return unit == 0x20 || unit == 0xA0
-        }
         var start = 0
         for (index, line) in lines.enumerated() {
             // A wrapped line starts at its first letter; the spaces the host broke at hang off the line above.
-            while start < length, isSpace(start) { start += 1 }
+            while start < length, paragraph.isSpace(start) { start += 1 }
             let inkLeft = region.minX + CGFloat(line.inkLeftColumn) / scale
             if start == length {
                 // Only spaces remained: the caret is where this line starts.
@@ -503,15 +506,58 @@ final class PixelCaretLocator {
             }
             let inkWidth = CGFloat(line.textRightColumn - line.inkLeftColumn + 1) / scale
             let tolerance = max(midLineMatchTolerance, inkWidth * midLineMatchFraction)
-            let origin = advance(to: start)
-            let lineStart = inkLeft - leftSideBearing(of: string, at: start, font: font)
+            let origin = paragraph.advance(to: start)
+            let lineStart = inkLeft - leftSideBearing(of: paragraph.string, at: start, font: font)
             var restEnd = length
-            while restEnd > start, isSpace(restEnd - 1) { restEnd -= 1 }
-            if advance(to: restEnd) - origin < inkWidth - tolerance {
-                return (index, lineStart + advance(to: length) - origin)
+            while restEnd > start, paragraph.isSpace(restEnd - 1) { restEnd -= 1 }
+            if paragraph.advance(to: restEnd) - origin < inkWidth - tolerance {
+                return (index, lineStart + paragraph.advance(to: length) - origin)
             }
             // The word end whose advance from the line's start comes closest to the ink's width.
-            var best: (end: Int, next: Int, error: CGFloat)?
+            guard let found = paragraph.closestWordEnd(from: start, origin: origin, inkWidth: inkWidth, tolerance: tolerance) else {
+                return nil
+            }
+            if found.end >= restEnd {
+                if restEnd < length, index + 1 < lines.count {
+                    return (index + 1, region.minX + CGFloat(lines[index + 1].inkLeftColumn) / scale)
+                }
+                return (index, lineStart + paragraph.advance(to: length) - origin)
+            }
+            start = found.next
+        }
+        return nil
+    }
+
+    /// A paragraph typeset in the ghost's face, walked word by word against the lines its host
+    /// painted (see `midLineCaret(lines:scale:region:text:font:)`). Nonisolated, like
+    /// `midLineCaret`: a capture is read off the main actor.
+    private nonisolated struct TypesetParagraph {
+        let string: NSString
+        let line: CTLine
+
+        init(_ text: String, font: NSFont) {
+            string = text as NSString
+            line = CTLineCreateWithAttributedString(NSAttributedString(string: text, attributes: [.font: font]))
+        }
+
+        var length: Int { string.length }
+
+        /// Advance from the paragraph's start to a UTF-16 offset, kerning included.
+        func advance(to index: Int) -> CGFloat {
+            CTLineGetOffsetForStringIndex(line, index, nil)
+        }
+
+        func isSpace(_ index: Int) -> Bool {
+            let unit = string.character(at: index)
+            return unit == 0x20 || unit == 0xA0
+        }
+
+        /// The word end after `start` whose advance from `origin` comes closest to `inkWidth`, and
+        /// where the word after it starts; nil when even the closest is more than `tolerance` off.
+        /// The walk stops at the first word that runs past the ink by more than `tolerance`.
+        func closestWordEnd(from start: Int, origin: CGFloat, inkWidth: CGFloat, tolerance: CGFloat) -> (end: Int, next: Int)? {
+            var best: (end: Int, next: Int)?
+            var bestError = CGFloat.infinity
             var cursor = start
             while cursor < length {
                 var wordEnd = cursor
@@ -520,22 +566,15 @@ final class PixelCaretLocator {
                 while next < length, isSpace(next) { next += 1 }
                 let width = advance(to: wordEnd) - origin
                 let error = abs(width - inkWidth)
-                if best.map({ error < $0.error }) ?? true {
-                    best = (wordEnd, next, error)
+                if error < bestError {
+                    best = (wordEnd, next)
+                    bestError = error
                 }
                 if width > inkWidth + tolerance { break }
                 cursor = next
             }
-            guard let found = best, found.error <= tolerance else { return nil }
-            if found.end >= restEnd {
-                if restEnd < length, index + 1 < lines.count {
-                    return (index + 1, region.minX + CGFloat(lines[index + 1].inkLeftColumn) / scale)
-                }
-                return (index, lineStart + advance(to: length) - origin)
-            }
-            start = found.next
+            return bestError <= tolerance ? best : nil
         }
-        return nil
     }
 
     /// The left side bearing of the glyph for the UTF-16 unit at `index`: how far right of the pen
@@ -574,7 +613,9 @@ final class PixelCaretLocator {
         if request.caretIsMidLine {
             // The line's ink runs on past the caret, wherever it ends.
             guard let font = request.font,
-                  let placement = midLineCaret(lines: [line], scale: scale, region: region, text: request.paragraphTextBeforeCaret, font: font),
+                  let placement = midLineCaret(
+                      lines: [line], scale: scale, region: region, text: request.paragraphTextBeforeCaret, font: font
+                  ),
                   placement.lineIndex == 0
             else { return nil }
             caretX = placement.x
@@ -674,9 +715,16 @@ final class PixelCaretLocator {
         region: CGRect,
         request: Request,
         analysis: InkCaretAnalyzer.Measurement?,
-        measurement: Measurement?,
-        failure: String
+        measurement: Measurement?
     ) {
+        // The capture itself succeeded; what failed, if anything, was the pixels or the geometry.
+        // Matched as patterns rather than compared with `== nil`, which would reach for the
+        // measurements' `Equatable` conformances, isolated to the main actor.
+        let failure = switch (analysis, measurement) {
+        case (.none, _): "no-ink"
+        case (_, .none): "geometry"
+        default: ""
+        }
         let folder = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("Logs/\(ProcessInfo.processInfo.processName)/strips", isDirectory: true)
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)

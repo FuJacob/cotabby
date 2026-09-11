@@ -35,7 +35,7 @@ final class HostFaceMemoryTests: XCTestCase {
         XCTAssertNil(memory.face(for: try XCTUnwrap(key(multiplier: 1.2))))
     }
 
-    /// Chromium's caret box wanders by a point from line to line (19 and 20 in the composer replica,
+    /// Chromium's caret box wanders by a point from line to line (19 and 20 in a ProseMirror-style page,
     /// 2026-09-10): with a reported size the caret box does not split the style; without one it is
     /// the only size signal and does, two points at a time.
     func testTheCaretBoxSplitsAStyleOnlyWhenTheHostReportsNoSize() {
@@ -47,9 +47,9 @@ final class HostFaceMemoryTests: XCTestCase {
 
     func testABrowserKeysOnThePageOrigin() throws {
         var memory = HostFaceMemory()
-        let site = try XCTUnwrap(key("com.google.Chrome", url: "http://127.0.0.1:8766/composer.html", browser: true))
+        let site = try XCTUnwrap(key("com.google.Chrome", url: "http://localhost:3000/compose", browser: true))
         memory.record(.init(fontName: "A", pointSize: 15.4), for: site)
-        let samePage = try XCTUnwrap(key("com.google.Chrome", url: "http://127.0.0.1:8766/other.html", browser: true))
+        let samePage = try XCTUnwrap(key("com.google.Chrome", url: "http://localhost:3000/drafts", browser: true))
         XCTAssertEqual(memory.face(for: samePage)?.fontName, "A")
         XCTAssertNil(memory.face(for: try XCTUnwrap(key("com.google.Chrome", url: "https://example.com/", browser: true))))
         XCTAssertNil(key("com.google.Chrome", url: nil, browser: true), "a browser page with no known origin is not remembered")
@@ -130,19 +130,19 @@ final class HostFaceMemoryTests: XCTestCase {
     /// written out again, while the app's own styles restore as saved.
     func testAPageStyleLeftByAnEarlierVersionIsDroppedOnRestore() throws {
         let stored = """
-        [{"key":{"host":"com.google.Chrome|127.0.0.1:8766","reportedSize":56,"caretHeight":-1,"sizeMultiplier":100},\
+        [{"key":{"host":"com.google.Chrome|localhost:3000","reportedSize":56,"caretHeight":-1,"sizeMultiplier":100},\
         "face":{"fontName":".AppleSystemUIFont","pointSize":15.7}},\
         {"key":{"host":"com.anthropic.claudefordesktop","reportedSize":-1,"caretHeight":10,"sizeMultiplier":100},\
         "face":{"fontName":"AnthropicSansVariable-TextRegular","pointSize":15.1585}}]
         """
         let restored = HostFaceMemory(restoring: Data(stored.utf8))
-        let page = try XCTUnwrap(key("com.google.Chrome", url: "http://127.0.0.1:8766/composer.html", browser: true, size: 14))
+        let page = try XCTUnwrap(key("com.google.Chrome", url: "http://localhost:3000/compose", browser: true, size: 14))
         XCTAssertNil(restored.face(for: page))
         let claude = try XCTUnwrap(key(size: nil, caret: 19))
         XCTAssertEqual(restored.face(for: claude)?.pointSize, 15.1585)
         XCTAssertNil(restored.face(for: claude)?.advanceMeasured, "a style saved before the mark existed has none")
         let written = String(decoding: try XCTUnwrap(restored.encoded()), as: UTF8.self)
-        XCTAssertFalse(written.contains("127.0.0.1"))
+        XCTAssertFalse(written.contains("localhost"))
     }
 
     /// The entries found in the dev app's memory 2026-09-11: 72pt for Obsidian's 16pt text (one-line
