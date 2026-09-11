@@ -275,7 +275,8 @@ struct FocusSnapshotResolver {
             selection: selection,
             caretRect: caretRect,
             caretQuality: caretQuality,
-            caretSourceDetail: caret.sourceDetail
+            caretSourceDetail: caret.sourceDetail,
+            isBrowser: BrowserAppDetector.isBrowser(bundleIdentifier: bundleIdentifier)
         )
         // Recognize an xterm.js integrated terminal (VS Code / Cursor / web terminal) from the
         // focused element's DOM classes. The terminal, code editor, and Copilot chat all live in one
@@ -438,7 +439,8 @@ struct FocusSnapshotResolver {
         selection: NSRange,
         caretRect: CGRect,
         caretQuality: CaretGeometryQuality,
-        caretSourceDetail: String?
+        caretSourceDetail: String?,
+        isBrowser: Bool = false
     ) -> HostTextMetrics? {
         guard !candidate.isSecure, !candidate.usesMarkerSelection else {
             return nil
@@ -470,7 +472,8 @@ struct FocusSnapshotResolver {
                     supportedParameterizedAttributes: candidate.supportedParameterizedAttributes,
                     anchorFrame: candidate.elementFrameRect ?? candidate.inputFrameRect,
                     allowsTextMarkerLine: caretQuality == .exact && caretSourceDetail == "text-marker",
-                    caretRect: caretRect
+                    caretRect: caretRect,
+                    isBrowser: isBrowser
                 )
             )
         }
@@ -526,7 +529,8 @@ struct FocusSnapshotResolver {
             sampleWidth: sample.width,
             lineRect: metrics?.lineRect,
             linePitch: metrics?.linePitch,
-            lineRectIsFromTextMarkers: metrics?.lineRectIsFromTextMarkers ?? false
+            lineRectIsFromTextMarkers: metrics?.lineRectIsFromTextMarkers ?? false,
+            linePitchIsFromParagraphBox: metrics?.linePitchIsFromParagraphBox ?? false
         )
     }
 

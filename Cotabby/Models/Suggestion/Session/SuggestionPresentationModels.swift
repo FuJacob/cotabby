@@ -185,7 +185,8 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
                 sampleText: hostTextMetrics?.sampleText,
                 sampleWidth: hostTextMetrics?.sampleWidth,
                 lineRect: lineRect,
-                linePitch: linePitch ?? hostTextMetrics?.linePitch
+                linePitch: linePitch ?? hostTextMetrics?.linePitch,
+                linePitchIsFromParagraphBox: linePitch == nil && (hostTextMetrics?.linePitchIsFromParagraphBox ?? false)
             ),
             isWebContentField: isWebContentField,
             hasTrailingContent: hasTrailingContent,

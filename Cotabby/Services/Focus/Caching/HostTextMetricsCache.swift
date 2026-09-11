@@ -58,7 +58,10 @@ final class HostTextMetricsCache {
         }
         if let metrics {
             let retrySample = metrics.sampleText == nil && shouldRetrySample(caretLocation: caretLocation, now: now)
-            let retryPitch = metrics.linePitch == nil && shouldRetryPitch(caretLocation: caretLocation, now: now)
+            // A paragraph's box stands in for a pitch until two lines give one (see
+            // `HostTextMetrics.linePitchIsFromParagraphBox`), so it does not end the search.
+            let retryPitch = (metrics.linePitch == nil || metrics.linePitchIsFromParagraphBox)
+                && shouldRetryPitch(caretLocation: caretLocation, now: now)
             guard retrySample || retryPitch else {
                 return metrics
             }
@@ -77,14 +80,20 @@ final class HostTextMetricsCache {
             // Every answer only adds to what is known. WebKit answers no line for a caret at the
             // very end of the text, so a re-measure taken there must not drop the line box learned
             // at focus time, and a sample-less re-measure must not drop the sample.
+            // A pitch measured between two lines is not given up for a paragraph's box read later
+            // (a caret back on a paragraph's first line), which is only its whole-point stand-in.
+            let keepsMeasuredPitch = metrics.linePitch != nil && !metrics.linePitchIsFromParagraphBox
+                && remeasured.linePitchIsFromParagraphBox
+            let keptPitchMetrics = keepsMeasuredPitch || remeasured.linePitch == nil ? metrics : remeasured
             let merged = HostTextMetrics(
                 sampleText: remeasured.sampleText ?? metrics.sampleText,
                 sampleWidth: remeasured.sampleText != nil ? remeasured.sampleWidth : metrics.sampleWidth,
                 lineRect: remeasured.lineRect ?? metrics.lineRect,
-                linePitch: remeasured.linePitch ?? metrics.linePitch,
-                // The flag travels with whichever line box was kept.
+                linePitch: keptPitchMetrics.linePitch,
+                // The flags travel with whichever line box and pitch were kept.
                 lineRectIsFromTextMarkers: remeasured.lineRect != nil
-                    ? remeasured.lineRectIsFromTextMarkers : metrics.lineRectIsFromTextMarkers
+                    ? remeasured.lineRectIsFromTextMarkers : metrics.lineRectIsFromTextMarkers,
+                linePitchIsFromParagraphBox: keptPitchMetrics.linePitchIsFromParagraphBox
             )
             self.metrics = merged
             return merged

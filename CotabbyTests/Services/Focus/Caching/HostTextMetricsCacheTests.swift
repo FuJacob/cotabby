@@ -128,6 +128,56 @@ final class HostTextMetricsCacheTests: XCTestCase {
         XCTAssertEqual(third?.linePitch, 15.2)
     }
 
+    /// A paragraph's box stands in for the pitch until two lines give one: the search goes on, and a
+    /// pitch measured between lines replaces it. Measured 2026-09-11 at 110%: the box read 24 for a
+    /// 23.1pt line, two lines 23.5.
+    func testAParagraphBoxPitchKeepsThePitchSearchGoingUntilTwoLinesGiveOne() {
+        let cache = HostTextMetricsCache()
+        var measures = 0
+        let start = Date()
+        let first = cache.metrics(forKey: "f", caretLocation: 5, now: start, measure: {
+            measures += 1
+            // A sample is known, so the only retry left in play is the pitch's.
+            return HostTextMetrics(
+                sampleText: "hello", sampleWidth: 40, lineRect: CGRect(x: 113, y: 700, width: 60, height: 17),
+                linePitch: 24, linePitchIsFromParagraphBox: true
+            )
+        })
+        XCTAssertEqual(first?.linePitch, 24)
+        let second = cache.metrics(forKey: "f", caretLocation: 40, now: start.addingTimeInterval(1), measure: {
+            measures += 1
+            return HostTextMetrics(linePitch: 23.5, lineRectIsFromTextMarkers: true)
+        })
+        XCTAssertEqual(measures, 2, "a box pitch does not end the search")
+        XCTAssertEqual(second?.linePitch, 23.5)
+        XCTAssertEqual(second?.linePitchIsFromParagraphBox, false)
+        _ = cache.metrics(forKey: "f", caretLocation: 80, now: start.addingTimeInterval(2), measure: { measures += 1; return nil })
+        XCTAssertEqual(measures, 2, "a pitch measured between lines does")
+    }
+
+    /// Back on a paragraph's first line the probe can read the box again; the pitch two lines gave
+    /// is kept.
+    func testAPitchMeasuredBetweenLinesIsNotGivenUpForAParagraphBox() {
+        let cache = HostTextMetricsCache()
+        let start = Date()
+        _ = cache.metrics(forKey: "f", caretLocation: 5, now: start, measure: {
+            HostTextMetrics(sampleText: "he", sampleWidth: 14, linePitch: nil)
+        })
+        let measured = cache.metrics(forKey: "f", caretLocation: 40, now: start.addingTimeInterval(1), measure: {
+            HostTextMetrics(linePitch: 23.5)
+        })
+        XCTAssertEqual(measured?.linePitch, 23.5)
+        // A sample-less field keeps asking for a sample; that re-measure returns the box.
+        let cacheWithoutSample = HostTextMetricsCache()
+        _ = cacheWithoutSample.metrics(forKey: "g", caretLocation: 0, now: start, measure: { HostTextMetrics(linePitch: 23.5) })
+        let later = cacheWithoutSample.metrics(forKey: "g", caretLocation: 12, now: start.addingTimeInterval(1), measure: {
+            HostTextMetrics(sampleText: "hello there", sampleWidth: 80, linePitch: 24, linePitchIsFromParagraphBox: true)
+        })
+        XCTAssertEqual(later?.sampleText, "hello there")
+        XCTAssertEqual(later?.linePitch, 23.5)
+        XCTAssertEqual(later?.linePitchIsFromParagraphBox, false)
+    }
+
     func testMissingPitchRetriesAreBounded() {
         let cache = HostTextMetricsCache()
         var measures = 0
@@ -299,6 +349,36 @@ final class HostTextMetricsProbeMarkerLineTests: XCTestCase {
         ))
         XCTAssertEqual(line.rect.minX, 113)
         XCTAssertEqual(try XCTUnwrap(line.pitch), 23.5, accuracy: 0.001)
+    }
+
+    /// A ProseMirror-style paragraph (a <p> per paragraph, no padding) frames one line box: in the
+    /// composer replica in Chrome (2026-09-11) the caret's glyph box was 17pt and its paragraph 21pt,
+    /// 14px at line-height 1.5, starting where the text does. In a browser a one-line paragraph takes
+    /// that for its pitch before any second line exists; elsewhere nothing changes.
+    func testAOneLineParagraphsBoxIsItsPitchInABrowser() throws {
+        let field = CGRect(x: 96, y: 700, width: 784, height: 70)
+        let glyph = CGRect(x: 108, y: 740, width: 9, height: 17)
+        let paragraph = CGRect(x: 108, y: 738, width: 760, height: 21)
+        func line(browser: Bool) -> (rect: CGRect, pitch: CGFloat?, pitchFromParagraph: Bool)? {
+            HostTextMetricsProbe.markerLine(
+                lineBox: CGRect(x: 108, y: 740, width: 73, height: 17), firstCharacter: glyph,
+                previousLineBox: nil, previousFirstCharacter: nil,
+                caret: CGRect(x: 181, y: 740, width: 0, height: 17), anchor: field, caretHeight: 17,
+                paragraph: paragraph, allowsParagraphPitch: browser
+            )
+        }
+        XCTAssertEqual(try XCTUnwrap(line(browser: true)?.pitch), 21, accuracy: 0.001)
+        XCTAssertEqual(line(browser: true)?.pitchFromParagraph, true)
+        XCTAssertNotNil(line(browser: false))
+        XCTAssertNil(line(browser: false)?.pitch)
+    }
+
+    /// A block padded beside its text, or two lines tall, is not one line's box.
+    func testAPaddedOrTwoLineParagraphIsNoLineBox() {
+        let glyph = CGRect(x: 95, y: 871, width: 8, height: 19)
+        XCTAssertNil(HostTextMetricsProbe.paragraphLinePitch(paragraph: CGRect(x: 84, y: 866, width: 731, height: 33), firstCharacter: glyph))
+        XCTAssertNil(HostTextMetricsProbe.paragraphLinePitch(paragraph: CGRect(x: 95, y: 850, width: 731, height: 46), firstCharacter: glyph))
+        XCTAssertEqual(HostTextMetricsProbe.paragraphLinePitch(paragraph: CGRect(x: 95, y: 869, width: 731, height: 23), firstCharacter: glyph), 23)
     }
 
     /// An empty line has no glyph: its box stands, and a frame-sized box is still no line.

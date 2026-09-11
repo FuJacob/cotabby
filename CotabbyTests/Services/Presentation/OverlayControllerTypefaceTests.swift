@@ -14,6 +14,16 @@ final class OverlayControllerTypefaceTests: XCTestCase {
         HostBaselineCalibrator.TypefaceMatchRecord(fontName: fontName, pointSize: size, score: 0.9, textLength: 20, attempts: 1)
     }
 
+    /// Measured 2026-09-11 in the composer replica at 110%: a paragraph's box read 24 for a 23.1pt
+    /// line where two lines had measured 23.5, and every first wrap after the first sat a point low.
+    /// A remembered pitch within the box's rounding wins; one further off belongs to another
+    /// line-height and does not; with none remembered the box stands.
+    func testAParagraphsBoxGivesWayToARememberedPitchWithinItsRounding() {
+        XCTAssertEqual(OverlayController.pitch(fromParagraphBox: 24, remembered: 23.5), 23.5)
+        XCTAssertEqual(OverlayController.pitch(fromParagraphBox: 33, remembered: 23.5), 33)
+        XCTAssertEqual(OverlayController.pitch(fromParagraphBox: 24, remembered: nil), 24)
+    }
+
     /// A system-font Chrome field (2026-09-11): the reported 15.0, then three presentations of the
     /// system face scaled to a dozen-character sample (15.06), then the pixel match's 15.0. A scaled
     /// size within a percent of the host's zoom step is that step; a stand-in further off keeps the

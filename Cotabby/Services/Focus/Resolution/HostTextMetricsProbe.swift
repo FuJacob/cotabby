@@ -39,6 +39,10 @@ enum HostTextMetricsProbe {
         var allowsTextMarkerLine = false
         /// This poll's caret box in Cocoa coordinates: a text-marker line box must hold it.
         var caretRect: CGRect? = nil
+        /// A browser page: a one-line paragraph's own box may stand for the pitch (see
+        /// `paragraphLinePitch`), since a page's style is remembered only while the app runs and
+        /// every page's first wrap otherwise steps by the caret box. Apps keep the pitch they measure.
+        var isBrowser = false
     }
 
     /// Longest sample measured before the caret. Long enough to average out per-glyph rounding,
@@ -68,7 +72,8 @@ enum HostTextMetricsProbe {
             sampleWidth: usable?.width,
             lineRect: line?.rect ?? markerLine?.rect,
             linePitch: knownPitch ?? scannedPitch,
-            lineRectIsFromTextMarkers: line == nil && markerLine != nil
+            lineRectIsFromTextMarkers: line == nil && markerLine != nil,
+            linePitchIsFromParagraphBox: line?.pitch == nil && markerLine?.pitch != nil && markerLine?.pitchFromParagraph == true
         )
         if CotabbyLogger.focus.logLevel <= .debug {
             CotabbyLogger.focus.debug(
@@ -84,7 +89,9 @@ enum HostTextMetricsProbe {
                     "line_rect": .string((line?.rect ?? markerLine?.rect).map(Self.describe) ?? ""),
                     "line_pitch": .stringConvertible(Double(knownPitch ?? scannedPitch ?? 0)),
                     "pitch_source": .string(
-                        line?.pitch != nil ? "line-api" : (markerLine?.pitch != nil ? "text-marker" : (scannedPitch != nil ? "scan" : ""))
+                        line?.pitch != nil ? "line-api" : (markerLine?.pitch != nil
+                            ? (markerLine?.pitchFromParagraph == true ? "paragraph-box" : "text-marker")
+                            : (scannedPitch != nil ? "scan" : ""))
                     ),
                     "anchor": .string(input.anchorFrame.map(Self.describe) ?? ""),
                     "caret": .stringConvertible(input.caretLocation),
@@ -98,7 +105,7 @@ enum HostTextMetricsProbe {
 
     /// The caret line's box and pitch through text markers (see `AXHelper.textMarkerCaretLine`), in
     /// global Cocoa coordinates.
-    private static func markerLineGeometry(_ input: Input) -> (rect: CGRect, pitch: CGFloat?)? {
+    private static func markerLineGeometry(_ input: Input) -> (rect: CGRect, pitch: CGFloat?, pitchFromParagraph: Bool)? {
         guard let found = AXHelper.textMarkerCaretLine(
             on: input.element, parameterizedAttributes: input.supportedParameterizedAttributes
         ), let box = cocoaRect(fromAccessibility: found.line, input) else {
@@ -111,7 +118,9 @@ enum HostTextMetricsProbe {
             previousFirstCharacter: found.previousFirstCharacter.flatMap { cocoaRect(fromAccessibility: $0, input) },
             caret: input.caretRect,
             anchor: input.anchorFrame,
-            caretHeight: input.caretHeight
+            caretHeight: input.caretHeight,
+            paragraph: found.paragraph.flatMap { cocoaRect(fromAccessibility: $0, input) },
+            allowsParagraphPitch: input.isBrowser
         )
     }
 
@@ -129,8 +138,10 @@ enum HostTextMetricsProbe {
         previousFirstCharacter: CGRect?,
         caret: CGRect?,
         anchor: CGRect?,
-        caretHeight: CGFloat
-    ) -> (rect: CGRect, pitch: CGFloat?)? {
+        caretHeight: CGFloat,
+        paragraph: CGRect? = nil,
+        allowsParagraphPitch: Bool = false
+    ) -> (rect: CGRect, pitch: CGFloat?, pitchFromParagraph: Bool)? {
         var rect = lineBox
         if let first = firstCharacter {
             rect = CGRect(x: first.minX, y: first.minY, width: max(first.width, lineBox.maxX - first.minX), height: first.height)
@@ -155,7 +166,32 @@ enum HostTextMetricsProbe {
                   isCaretLine(above, caret: nil, anchor: anchor, caretHeight: caretHeight) {
             pitch = plausiblePitch(above.midY - rect.midY)
         }
-        return (rect, pitch)
+        // A line with no line above in its paragraph has no pitch to measure; in a browser its
+        // paragraph's own box can be its line box (see `paragraphLinePitch`).
+        if pitch == nil, allowsParagraphPitch, let paragraph, let first = firstCharacter,
+           let fromParagraph = paragraphLinePitch(paragraph: paragraph, firstCharacter: first) {
+            return (rect, fromParagraph, true)
+        }
+        return (rect, pitch, false)
+    }
+
+    /// Glyph boxes tall a paragraph may be to be ONE line's box: a line-height of twice the font's
+    /// content box, and then some, fits; two lines of the tightest text do not.
+    static let maximumOneLineParagraphRatio: CGFloat = 2.2
+
+    /// A one-line paragraph's line box, which is the paragraph's line pitch: the paragraph's own
+    /// frame when it starts where its first glyph does (no padding beside the text: Claude's chat
+    /// composer answered a block from x 84 for text at 95), holds that glyph's box, and is taller
+    /// than it by less than `maximumOneLineParagraphRatio`. Nil otherwise.
+    static func paragraphLinePitch(paragraph: CGRect, firstCharacter: CGRect) -> CGFloat? {
+        guard abs(paragraph.minX - firstCharacter.minX) <= 1,
+              paragraph.minY <= firstCharacter.minY + 0.5, paragraph.maxY >= firstCharacter.maxY - 0.5,
+              paragraph.height > firstCharacter.height,
+              paragraph.height <= firstCharacter.height * maximumOneLineParagraphRatio
+        else {
+            return nil
+        }
+        return paragraph.height
     }
 
     private static func plausiblePitch(_ delta: CGFloat) -> CGFloat? {

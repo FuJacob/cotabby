@@ -160,19 +160,26 @@ nonisolated struct HostTextMetrics: Equatable, Sendable {
     /// no index-based line query). Its left edge places wrapped rows, but the typographic caret
     /// refinement that trusts an index-based line box is not verified against it.
     let lineRectIsFromTextMarkers: Bool
+    /// True when `linePitch` is the height of the caret's one-line paragraph rather than a distance
+    /// measured between two lines (see `HostTextMetricsProbe.paragraphLinePitch`). Chromium rounds
+    /// that box out to whole points, 24 for a 23.1pt line at 110% (2026-09-11), so a pitch the host
+    /// style measured between lines outranks it, and it is never remembered in that one's place.
+    let linePitchIsFromParagraphBox: Bool
 
     init(
         sampleText: String? = nil,
         sampleWidth: CGFloat? = nil,
         lineRect: CGRect? = nil,
         linePitch: CGFloat? = nil,
-        lineRectIsFromTextMarkers: Bool = false
+        lineRectIsFromTextMarkers: Bool = false,
+        linePitchIsFromParagraphBox: Bool = false
     ) {
         self.sampleText = sampleText
         self.sampleWidth = sampleWidth
         self.lineRect = lineRect
         self.linePitch = linePitch
         self.lineRectIsFromTextMarkers = lineRectIsFromTextMarkers
+        self.linePitchIsFromParagraphBox = linePitchIsFromParagraphBox
     }
 
     var isEmpty: Bool {

@@ -1193,6 +1193,11 @@ final class OverlayController: SuggestionOverlayControlling {
         let hostSize = fontSize / max(CGFloat(suggestionSettings.ghostTextSizeMultiplier), 0.01)
         if let measured = geometry.hostTextMetrics?.linePitch, measured > 0,
            HostFaceMemory.isPlausiblePitch(measured, pointSize: hostSize) {
+            if geometry.hostTextMetrics?.linePitchIsFromParagraphBox == true {
+                let remembered = key.flatMap { hostFaceMemory.pitch(for: $0) }
+                    .flatMap { HostFaceMemory.isPlausiblePitch($0, pointSize: hostSize) ? $0 : nil }
+                return Self.pitch(fromParagraphBox: measured, remembered: remembered)
+            }
             if let key {
                 if hostFaceMemory.recordPitch(measured, for: key) {
                     saveFaceMemory()
@@ -1210,6 +1215,21 @@ final class OverlayController: SuggestionOverlayControlling {
             return remembered
         }
         return geometry.caretRect.height
+    }
+
+    /// Points a remembered pitch may differ from a paragraph's box and still describe the same lines:
+    /// Chromium rounds the box out to whole points (24 for a 23.1pt line at 110%, 2026-09-11).
+    static let paragraphBoxPitchSlack: CGFloat = 1.5
+
+    /// The pitch for a paragraph's first line when the host gave only the paragraph's box: the pitch
+    /// this host style measured between two lines, when one is remembered and agrees with the box to
+    /// within its rounding, else the box. In the composer replica at 110% the box read 24 where two
+    /// lines had measured 23.5 for the true 23.1, and every first wrap after the first sat a point
+    /// low. A remembered pitch further from the box belongs to another line-height of the same size
+    /// and page (a double-spaced text area beside a chat box) and does not replace it.
+    static func pitch(fromParagraphBox box: CGFloat, remembered: CGFloat?) -> CGFloat {
+        guard let remembered, abs(remembered - box) <= paragraphBoxPitchSlack else { return box }
+        return remembered
     }
 
     /// The horizontal band ghost rows may occupy (see `GhostWrapBandPolicy`).

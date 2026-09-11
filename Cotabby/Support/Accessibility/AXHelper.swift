@@ -425,6 +425,12 @@ enum AXHelper {
         /// The glyph box of the first character of the line above, under the same conditions as
         /// `previousLine`: with `firstCharacter` it measures the pitch between two glyph boxes.
         let previousFirstCharacter: CGRect?
+        /// The frame of the element around the caret's text (its paragraph), for a line with text,
+        /// when that element is not the field itself. In a ProseMirror-style editor (a <p> per
+        /// paragraph, no padding) a one-line paragraph's frame is the line box: 21pt around a 17pt
+        /// glyph box in the composer replica, 14px at line-height 1.5 (2026-09-11). Whether it is a
+        /// line box is `HostTextMetricsProbe.paragraphLinePitch`'s to judge.
+        var paragraph: CGRect? = nil
     }
 
     /// The caret's visual line for a host whose index-based bounds answer nothing (a Chromium
@@ -484,9 +490,49 @@ enum AXHelper {
                 previousFirst = box
             }
         }
+        // The paragraph around the caret's text: the parent of the text element the caret marker is
+        // in, unless that parent is the field (text straight inside a contenteditable has no
+        // paragraph of its own, and the field's frame holds its padding).
+        var paragraph: CGRect?
+        if !lineText.isEmpty, parameterizedAttributes.contains(elementForMarkerAttribute as String),
+           let textRef = copyOpaqueParameterized(elementForMarkerAttribute, parameter: caret, on: element),
+           CFGetTypeID(textRef) == AXUIElementGetTypeID() {
+            // `AXUIElement` is a Core Foundation type: the type check above makes the cast safe.
+            let textElement = textRef as! AXUIElement
+            var parentRef: CFTypeRef?
+            if AXUIElementCopyAttributeValue(textElement, kAXParentAttribute as CFString, &parentRef) == .success,
+               let parentRef, CFGetTypeID(parentRef) == AXUIElementGetTypeID(), !CFEqual(parentRef, element) {
+                paragraph = accessibilityFrame(of: parentRef as! AXUIElement)
+            }
+        }
         return MarkerLineGeometry(
-            line: line, previousLine: previous, firstCharacter: firstCharacter, previousFirstCharacter: previousFirst
+            line: line, previousLine: previous, firstCharacter: firstCharacter, previousFirstCharacter: previousFirst,
+            paragraph: paragraph
         )
+    }
+
+    /// An element's frame from its position and size, in Accessibility (top-left origin) coordinates;
+    /// nil when either is missing or the size is empty.
+    private static func accessibilityFrame(of element: AXUIElement) -> CGRect? {
+        var positionRef: CFTypeRef?
+        var sizeRef: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &positionRef) == .success,
+              AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &sizeRef) == .success,
+              let positionRef, let sizeRef,
+              CFGetTypeID(positionRef) == AXValueGetTypeID(), CFGetTypeID(sizeRef) == AXValueGetTypeID()
+        else {
+            return nil
+        }
+        var position = CGPoint.zero
+        var size = CGSize.zero
+        // Both were checked to be AXValues; `AXValueGetValue` reports false for a wrong payload type.
+        guard AXValueGetValue(positionRef as! AXValue, .cgPoint, &position),
+              AXValueGetValue(sizeRef as! AXValue, .cgSize, &size),
+              size.width > 0, size.height > 0
+        else {
+            return nil
+        }
+        return CGRect(origin: position, size: size)
     }
 
     /// The first marker of an opaque range: through the element's own query when it advertises one,
