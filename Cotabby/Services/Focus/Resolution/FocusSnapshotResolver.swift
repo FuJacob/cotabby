@@ -272,7 +272,8 @@ struct FocusSnapshotResolver {
             text: value,
             selection: selection,
             caretRect: caretRect,
-            caretQuality: caretQuality
+            caretQuality: caretQuality,
+            caretSourceDetail: caret.sourceDetail
         )
         // Recognize an xterm.js integrated terminal (VS Code / Cursor / web terminal) from the
         // focused element's DOM classes. The terminal, code editor, and Copilot chat all live in one
@@ -434,7 +435,8 @@ struct FocusSnapshotResolver {
         text: String,
         selection: NSRange,
         caretRect: CGRect,
-        caretQuality: CaretGeometryQuality
+        caretQuality: CaretGeometryQuality,
+        caretSourceDetail: String?
     ) -> HostTextMetrics? {
         guard !candidate.isSecure, !candidate.usesMarkerSelection else {
             return nil
@@ -446,7 +448,7 @@ struct FocusSnapshotResolver {
             text: text,
             selection: selection,
             caretRect: caretRect,
-            caretQuality: caretQuality
+            caretMeasuresGlyphs: Self.caretMeasuresGlyphs(quality: caretQuality, sourceDetail: caretSourceDetail)
         )
         // The caret box height changes when the line's font changes, and the measured line box
         // moves with the element, so a new height or a moved/resized frame re-measures. Without the
@@ -471,6 +473,23 @@ struct FocusSnapshotResolver {
         return Self.mergingCaretAdvanceSample(measured, sample: caretAdvanceSample)
     }
 
+    /// Whether this poll's caret is a measured glyph position, the only kind a width sample may be
+    /// made of: an exact caret, or a derived one from real character bounds. A caret placed inside a
+    /// text run by its share of the run's characters is not: its movement is the run frame's width
+    /// spread evenly over the characters, and Obsidian's run frames are wider than their ink.
+    /// Measured 2026-09-10: once such samples were kept, one of "ely long enough that" read 1% wide
+    /// and sized the ghost's face at 16.13 for the host's 16, three device pixels long by a line's end.
+    static func caretMeasuresGlyphs(quality: CaretGeometryQuality, sourceDetail: String?) -> Bool {
+        switch quality {
+        case .exact:
+            return true
+        case .derived:
+            return AXTextGeometryResolver.CaretRunMappingMode(rawValue: sourceDetail ?? "") == nil
+        default:
+            return false
+        }
+    }
+
     /// Feeds this poll's caret to the field's advance sampler and returns its current sample.
     private func observeCaretAdvance(
         for candidate: AXFocusCandidate,
@@ -478,7 +497,7 @@ struct FocusSnapshotResolver {
         text: String,
         selection: NSRange,
         caretRect: CGRect,
-        caretQuality: CaretGeometryQuality
+        caretMeasuresGlyphs: Bool
     ) -> CaretAdvanceSampler.Sample? {
         let nsText = text as NSString
         let caret = min(max(selection.location, 0), nsText.length)
@@ -489,7 +508,7 @@ struct FocusSnapshotResolver {
                 lineY: caretRect.maxY,
                 documentCaret: candidate.documentCaretLocation ?? caret,
                 precedingText: nsText.substring(to: caret),
-                isPositioned: caretQuality == .exact || caretQuality == .derived
+                isPositioned: caretMeasuresGlyphs
             )
         )
     }

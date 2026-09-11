@@ -18,10 +18,11 @@ import Foundation
 /// the probe's, so the ghost's advances match the host's whatever the reported size says.
 ///
 /// Rules, all measured against Chromium's behavior:
-///   - only an exact or derived caret counts; an estimated one is a guess about the field, not a
-///     position on the line, and is simply skipped: CodeMirror's polls alternate between a
-///     run-aligned caret and an estimated one (Obsidian, 2026-09-10), and resetting on every
-///     estimated poll left the field without a sample for good;
+///   - only a caret that is a measured glyph position counts (an exact one, or one derived from
+///     character bounds); an estimated one is a guess about the field, and one placed inside a run
+///     by its share of the run's characters spreads the run frame evenly over them, so both are
+///     simply skipped, never reset on: CodeMirror's polls alternate between the two (Obsidian,
+///     2026-09-10), and resetting on every such poll left the field without a sample for good;
 ///   - an observation extends the running sample only when it is on the same line (a wrap or a new
 ///     paragraph moves the caret to another y), the caret did not move backward, the document
 ///     caret grew by a keystroke's worth (`maximumStep`) and the text before the new characters
@@ -61,7 +62,8 @@ nonisolated struct CaretAdvanceSampler: Equatable, Sendable {
         let documentCaret: Int
         /// The text before the caret as the snapshot carries it (possibly a bounded tail).
         let precedingText: String
-        /// True for `.exact` and `.derived` caret geometry.
+        /// True when the caret is a measured glyph position (see
+        /// `FocusSnapshotResolver.caretMeasuresGlyphs`); other polls are skipped.
         let isPositioned: Bool
     }
 

@@ -21,6 +21,8 @@ enum CaretGeometrySelector {
         let quality: CaretGeometryQuality
         let observedCharWidth: CGFloat?
         let observedContentEdges: ObservedContentEdges?
+        /// How the chosen source placed the caret (e.g. the caret-to-run mapping mode), when it said.
+        var sourceDetail: String? = nil
     }
 
     /// Whether the primary (focused-input) caret geometry is too weak to trust, so the resolver
@@ -71,7 +73,8 @@ enum CaretGeometrySelector {
                 source: labeled("exact primary", detail: primarySourceDetail),
                 quality: .exact,
                 observedCharWidth: primaryObservedCharWidth,
-                observedContentEdges: primaryObservedContentEdges
+                observedContentEdges: primaryObservedContentEdges,
+                sourceDetail: primarySourceDetail
             )
         }
         if let primary = primaryRect, primaryQuality == .derived {
@@ -80,7 +83,8 @@ enum CaretGeometrySelector {
                 source: labeled("derived primary", detail: primarySourceDetail),
                 quality: .derived,
                 observedCharWidth: primaryObservedCharWidth,
-                observedContentEdges: primaryObservedContentEdges
+                observedContentEdges: primaryObservedContentEdges,
+                sourceDetail: primarySourceDetail
             )
         }
         if let deep = deepResult {
@@ -89,7 +93,8 @@ enum CaretGeometrySelector {
                 source: labeled("\(deep.quality.label) deep", detail: deep.sourceDetail),
                 quality: deep.quality,
                 observedCharWidth: deep.observedCharWidth,
-                observedContentEdges: deep.observedContentEdges
+                observedContentEdges: deep.observedContentEdges,
+                sourceDetail: deep.sourceDetail
             )
         }
         if let primary = primaryRect {
@@ -101,7 +106,8 @@ enum CaretGeometrySelector {
                 ),
                 quality: primaryQuality ?? .estimated,
                 observedCharWidth: primaryObservedCharWidth,
-                observedContentEdges: primaryObservedContentEdges
+                observedContentEdges: primaryObservedContentEdges,
+                sourceDetail: primarySourceDetail
             )
         }
         return nil
