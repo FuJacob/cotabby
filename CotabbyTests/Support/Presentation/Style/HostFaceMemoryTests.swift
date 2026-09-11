@@ -121,5 +121,36 @@ final class HostFaceMemoryTests: XCTestCase {
         XCTAssertNil(restored.face(for: page), "the origin stays out of the saved memory")
         XCTAssertEqual(restored.face(for: app)?.pointSize, 16)
     }
+
+    /// An earlier version kept browser pages' styles in the preferences (the dev app's held a test
+    /// page's, 2026-09-11): restoring drops them, so an origin neither comes back into use nor is
+    /// written out again, while the app's own styles restore as saved.
+    func testAPageStyleLeftByAnEarlierVersionIsDroppedOnRestore() throws {
+        let stored = """
+        [{"key":{"host":"com.google.Chrome|127.0.0.1:8766","reportedSize":56,"caretHeight":-1,"sizeMultiplier":100},\
+        "face":{"fontName":".AppleSystemUIFont","pointSize":15.7}},\
+        {"key":{"host":"com.anthropic.claudefordesktop","reportedSize":-1,"caretHeight":10,"sizeMultiplier":100},\
+        "face":{"fontName":"AnthropicSansVariable-TextRegular","pointSize":15.1585}}]
+        """
+        let restored = HostFaceMemory(restoring: Data(stored.utf8))
+        let page = try XCTUnwrap(key("com.google.Chrome", url: "http://127.0.0.1:8766/composer.html", browser: true, size: 14))
+        XCTAssertNil(restored.face(for: page))
+        let claude = try XCTUnwrap(key(size: nil, caret: 19))
+        XCTAssertEqual(restored.face(for: claude)?.pointSize, 15.1585)
+        XCTAssertNil(restored.face(for: claude)?.advanceMeasured, "a style saved before the mark existed has none")
+        let written = String(decoding: try XCTUnwrap(restored.encoded()), as: UTF8.self)
+        XCTAssertFalse(written.contains("127.0.0.1"))
+    }
+
+    /// A size measured from the host's own caret advance keeps that mark across a launch, so the next
+    /// field's short-strip match does not replace it (see `OverlayController.applyingHostAdvance`).
+    func testAnAdvanceMeasuredSizeKeepsItsMarkAcrossALaunch() throws {
+        var memory = HostFaceMemory()
+        let claude = try XCTUnwrap(key(size: nil, caret: 19))
+        memory.record(.init(fontName: "AnthropicSansVariable-TextRegular", pointSize: 15.345, advanceMeasured: true), for: claude)
+        let restored = HostFaceMemory(restoring: memory.encoded())
+        XCTAssertEqual(restored.face(for: claude)?.advanceMeasured, true)
+        XCTAssertEqual(restored.face(for: claude)?.pointSize ?? 0, 15.345, accuracy: 0.0001)
+    }
 }
 

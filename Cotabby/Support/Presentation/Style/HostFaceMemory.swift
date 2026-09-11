@@ -166,11 +166,14 @@ nonisolated struct HostFaceMemory: Sendable {
 }
 
 extension HostFaceMemory {
-    /// The memory `encoded()` produced, or an empty one for missing or unreadable data.
+    /// The memory `encoded()` produced, or an empty one for missing or unreadable data. A browser
+    /// page's style is skipped here too: an earlier version kept page origins in the preferences
+    /// (the dev app's held a test page's, found 2026-09-11), and they must neither come back into
+    /// use nor be written out again.
     init(restoring data: Data?) {
         self.init()
         guard let data, let stored = try? JSONDecoder().decode([Stored].self, from: data) else { return }
-        for item in stored.suffix(Self.capacity) {
+        for item in stored.suffix(Self.capacity) where !item.key.isPageScoped {
             if let face = item.face {
                 record(face, for: item.key)
             }
