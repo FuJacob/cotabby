@@ -42,11 +42,12 @@ enum GhostFontMetrics {
     }
 
     /// `sizeMultiplier` is the user's Appearance "Ghost Text Size" knob. It scales the
-    /// caret-approximated size *after* the `[minimum, maximum]` clamp, so the knob reliably resizes
-    /// ghost text even for fields that auto-size onto those rails; applying it before the clamp would
-    /// make a "smaller" choice a no-op whenever the field already sits at `minimum`. Growth is bounded
-    /// by the caller's clamped multiplier rather than a second ceiling here; only the absolute floor
-    /// is re-applied so a low multiplier can never produce illegibly small text.
+    /// caret-approximated size *before* the `[minimum, maximum]` clamp, because `minimum` and
+    /// `maximum` are the user's "Smallest/Largest Ghost Text" settings and have to be absolute. The
+    /// trade-off is deliberate: in a field already pinned to a rail the knob cannot move text past
+    /// that rail, and lowering the floor or raising the ceiling is how a user asks for that.
+    /// `absoluteMinimumPointSize` is re-applied last as a backstop that only binds when the user's
+    /// floor sits below it.
     ///
     /// `caretHeightIsSynthetic` marks the case where `caretHeight` is not a measurement at all. On
     /// the `AXFrame` fallback path the resolver has no text-range geometry to read, so it fabricates

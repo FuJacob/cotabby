@@ -41,8 +41,9 @@ struct FocusSnapshotResolver {
     private let terminalDetectionCache = FocusSessionScopedCache<Bool>()
     /// Where the host actually starts drawing text on the caret's line, which a field's
     /// `AXFrame` does not reveal (Word's frame is the page edge, not the text margin). Three AX
-    /// round trips, so it is resolved once per focus session; the margin cannot move without the
-    /// field's frame moving, which already bumps `focusChangeSequence`.
+    /// round trips, so each result is cached per focus session *and* per paragraph: the margin
+    /// changes between an indented block, a list item or a table cell inside one field without
+    /// `focusChangeSequence` turning over. The lookup site documents how the paragraph key is built.
     private let lineContentEdgesCache = FocusSessionScopedCache<ObservedContentEdges?>()
     /// Every parameterized attribute `resolveLineContentEdges` needs. All three must be
     /// advertised before it runs; see that method for why an ungated call is a stall risk.
@@ -829,25 +830,41 @@ struct FocusSnapshotResolver {
         // place entirely.
         let lineQueryOffsetIsDocumentRelative = markerSelection == nil
         let observedContentEdges = caretResult?.observedContentEdges
-            ?? (lineQueryOffsetIsDocumentRelative ? selectionForGeometry : nil).flatMap { selection in
-            // Keyed by paragraph as well as focus session. The measured edge belongs to one visual
-            // line, and moving between paragraphs inside the same field — an indented block, a list
-            // item, a table cell — changes the margin without changing `focusChangeSequence`, which
-            // only turns over when the field's frame does. Counting newlines before the caret is a
-            // local string scan, so the extra precision costs no AX round trip.
-            let paragraphSource = (textValue ?? "") as NSString
-            let paragraphIndex = paragraphSource
-                .substring(to: min(max(selection.location, 0), paragraphSource.length))
-                .reduce(into: 0) { count, character in
-                    if character.isNewline { count += 1 }
-                }
+            ?? (lineQueryOffsetIsDocumentRelative ? selectionForGeometry : nil).flatMap {
+                geometrySelection -> ObservedContentEdges? in
+            // Keyed by the document offset where the caret's paragraph starts, alongside the focus
+            // session. The measured edge belongs to one visual line, and moving between paragraphs
+            // inside the same field — an indented block, a list item, a table cell — changes the
+            // margin without changing `focusChangeSequence`, which only turns over when the field's
+            // frame does. Finding the paragraph start is a local string scan, so no AX round trip.
+            //
+            // The offsets must agree on units. `textValue` can be a bounded window around the caret,
+            // indexed by the window-relative `selection`, while `geometrySelection` is document-
+            // relative. Measuring the window against the document offset overshoots it and lets
+            // different paragraphs share a key, so the paragraph start is found in window coordinates
+            // and shifted by the window's document origin. If the paragraph begins before the window,
+            // the key falls back to that origin, which moves as the window slides: a cache miss and a
+            // fresh lookup, never another paragraph's edge.
+            guard let windowSelection = selection, let windowText = textValue else { return nil }
+            let window = windowText as NSString
+            let caretInWindow = min(max(windowSelection.location, 0), window.length)
+            let newlineBeforeCaret = window.rangeOfCharacter(
+                from: .newlines,
+                options: .backwards,
+                range: NSRange(location: 0, length: caretInWindow)
+            )
+            let paragraphStartInWindow = newlineBeforeCaret.location == NSNotFound
+                ? 0
+                : NSMaxRange(newlineBeforeCaret)
+            let windowDocumentOrigin = geometrySelection.location - windowSelection.location
+            let paragraphDocumentStart = windowDocumentOrigin + paragraphStartInWindow
             return lineContentEdgesCache.value(
-                forKey: "lineEdges:\(AXHelper.elementIdentity(for: element)):p\(paragraphIndex)",
+                forKey: "lineEdges:\(AXHelper.elementIdentity(for: element)):p\(paragraphDocumentStart)",
                 focusChangeSequence: focusChangeSequence
             ) {
                 geometryResolver.resolveLineContentEdges(
                     for: element,
-                    caretLocation: selection.location,
+                    caretLocation: geometrySelection.location,
                     anchorFrame: inputFrameRect,
                     // Read from the attribute list already fetched for this element, so the gate
                     // adds no round trip. Hosts that resolve their caret through text markers

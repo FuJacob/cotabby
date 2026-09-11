@@ -318,8 +318,7 @@ final class OverlayController: SuggestionOverlayControlling {
             contentSize: contentSize,
             layout: layout,
             renderFont: renderFont,
-            fontSize: fontSize,
-            geometryObservedContentEdges: geometry.observedContentEdges
+            fontSize: fontSize
         )
 
         // Capture exactly what this inline render used, so a subsequent `advanceInline` slides the
@@ -534,6 +533,9 @@ final class OverlayController: SuggestionOverlayControlling {
         referenceFieldFont: NSFont?,
         fontSize: CGFloat
     ) {
+        // Every inline render reaches this; bail before building the signature so the default,
+        // non-debug configuration pays nothing for a diagnostic it will never emit.
+        guard CotabbyLogger.suggestion.logLevel <= .debug else { return }
         let style = geometry.resolvedFieldStyle
         let signature = [
             geometry.bundleIdentifier ?? "-",
@@ -585,9 +587,11 @@ final class OverlayController: SuggestionOverlayControlling {
         contentSize: CGSize,
         layout: GhostSuggestionLayout,
         renderFont: NSFont?,
-        fontSize: CGFloat,
-        geometryObservedContentEdges: ObservedContentEdges?
+        fontSize: CGFloat
     ) {
+        // Same reasoning as `logGhostFontResolution`: skip the font metrics and signature work
+        // entirely unless this line can actually be emitted.
+        guard CotabbyLogger.suggestion.logLevel <= .debug else { return }
         let font = renderFont ?? NSFont.systemFont(ofSize: fontSize)
         // Text sits on its baseline, which is `descent` above the bottom of its own line box.
         let ghostDescent = -font.descender
@@ -598,10 +602,11 @@ final class OverlayController: SuggestionOverlayControlling {
         let hostDescent = ghostDescent * (caretRect.height / max(contentSize.height, 1))
         let hostBaselineY = caretRect.minY + hostDescent
 
-        // Whether the wrapped-line anchor came from the host's measured text margin or fell back to
-        // the field frame. Without this, "ghost text ignores the document margin" is unanswerable
-        // from logs: both outcomes just look like an X coordinate.
-        let usedContentEdge = geometryObservedContentEdges != nil
+        // Whether the panel actually anchored to the host's measured text margin. Read from the
+        // layout's own anchor decision, not from whether edges were measured at all: a single-line
+        // suggestion anchors at the caret even when a margin exists, so "measured" and "used"
+        // differ, and only "used" answers whether ghost text followed the document margin.
+        let usedContentEdge = layout.panelAnchoredToHostContentEdge
 
         let signature = [
             String(format: "%.0f", caretRect.height),

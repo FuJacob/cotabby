@@ -116,13 +116,15 @@ final class GhostFontMetricsTests: XCTestCase {
         XCTAssertEqual(size, 15.6, accuracy: 0.0001)
     }
 
-    func testSizeMultiplierScalesResolvedSize() {
-        // The multiplier scales the auto-approximated 15.6 in both directions.
+    func testSizeMultiplierScalesResolvedSizeBetweenTheBounds() {
+        // Inside [minimum, maximum] the multiplier scales the auto-approximated 15.6 in both
+        // directions. The floor is lowered to 10 so the 0.7x result (10.92) stays within it; at the
+        // fixture's 14pt floor it would clamp, which is the absolute-bound behavior pinned below.
         let smaller = GhostFontMetrics.pointSize(
             caretHeight: 20,
             fieldMetrics: nil,
             fallbackRatio: fallbackRatio,
-            minimum: minimum,
+            minimum: 10,
             maximum: maximum,
             sizeMultiplier: 0.7
         )
@@ -132,16 +134,17 @@ final class GhostFontMetricsTests: XCTestCase {
             caretHeight: 20,
             fieldMetrics: nil,
             fallbackRatio: fallbackRatio,
-            minimum: minimum,
+            minimum: 10,
             maximum: maximum,
             sizeMultiplier: 1.3
         )
         XCTAssertEqual(larger, 15.6 * 1.3, accuracy: 0.0001)
     }
 
-    func testSizeMultiplierAppliesAfterTheMinimumClamp() {
-        // The multiplier scales the floored auto-size (not the raw caret math), so a field auto-sizing
-        // to the 14 floor still shrinks: 14 * 0.8 = 11.2, which is above the absolute floor.
+    func testSizeMultiplierAtTheFloorStaysAtTheFloor() {
+        // The multiplier scales before the clamp, so the user's floor is absolute: a field already
+        // auto-sizing onto the 14pt floor does not shrink below it (5 * 0.78 * 0.8 = 3.12 -> 14).
+        // Lowering "Smallest Ghost Text" is how a user asks for smaller text than that.
         let size = GhostFontMetrics.pointSize(
             caretHeight: 5,
             fieldMetrics: nil,
@@ -150,17 +153,17 @@ final class GhostFontMetricsTests: XCTestCase {
             maximum: maximum,
             sizeMultiplier: 0.8
         )
-        XCTAssertEqual(size, minimum * 0.8, accuracy: 0.0001)
+        XCTAssertEqual(size, minimum, accuracy: 0.0001)
     }
 
     func testSizeMultiplierRespectsAbsoluteFloor() {
-        // A degenerate multiplier far below the shipped range cannot push ghost text under the
-        // legibility floor: 14 * 0.5 = 7, clamped up to absoluteMinimumPointSize.
+        // `absoluteMinimumPointSize` is the backstop beneath the user's floor, so it only binds when
+        // that floor is set below it. With a floor of 1: 5 * 0.78 * 0.5 = 1.95, clamped up to 9.
         let size = GhostFontMetrics.pointSize(
             caretHeight: 5,
             fieldMetrics: nil,
             fallbackRatio: fallbackRatio,
-            minimum: minimum,
+            minimum: 1,
             maximum: maximum,
             sizeMultiplier: 0.5
         )

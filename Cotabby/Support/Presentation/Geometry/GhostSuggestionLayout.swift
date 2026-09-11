@@ -25,6 +25,11 @@ struct GhostSuggestionLayout: Equatable {
     let lineHeight: CGFloat
     let topLineCenterOffsetFromCaret: CGFloat
     let isRightToLeft: Bool
+    /// True when the panel's origin is the host's measured text margin rather than the caret or the
+    /// field frame. Diagnostics read this instead of inferring it from whether a measurement merely
+    /// existed: a single-line suggestion anchors at the caret, and a frame too narrow to use falls
+    /// back to the caret region, so "a margin was measured" does not mean "the margin was used".
+    var panelAnchoredToHostContentEdge: Bool = false
 
     private enum Metrics {
         static let caretGap: CGFloat = 6
@@ -62,10 +67,11 @@ struct GhostSuggestionLayout: Equatable {
         )
         // When the keycap is hidden the text can use the full width, so we stop reserving room for it.
         let keycapReservation = showsAcceptanceHint ? Metrics.estimatedKeycapAndSpacingWidth : 0
-        let usableFrame = usableTextFrame(
+        let usable = usableTextFrame(
             geometry: geometry,
             visibleFrame: visibleFrame
         )
+        let usableFrame = usable.frame
 
         // Direction-dependent anchor and budget.
         // LTR: anchor at the right edge of the caret, budget extends rightward.
@@ -116,7 +122,11 @@ struct GhostSuggestionLayout: Equatable {
                 panelOriginX: firstLineAnchor,
                 lineHeight: lineHeight,
                 topLineCenterOffsetFromCaret: 0,
-                isRightToLeft: isRTL
+                isRightToLeft: isRTL,
+                // A single line anchors at the caret; the margin only wins when it lies past the caret.
+                panelAnchoredToHostContentEdge: usable.usesHostContentEdge
+                    && !isRTL
+                    && firstLineAnchor == usableFrame.minX
             )
         }
 
@@ -182,7 +192,9 @@ struct GhostSuggestionLayout: Equatable {
             panelOriginX: panelOriginX,
             lineHeight: lineHeight,
             topLineCenterOffsetFromCaret: startsBelowCaret ? -lineHeight : 0,
-            isRightToLeft: isRTL
+            isRightToLeft: isRTL,
+            // LTR wrapped panels start at the usable frame's left edge, which is the margin if one fed it.
+            panelAnchoredToHostContentEdge: usable.usesHostContentEdge && !isRTL
         )
     }
 
@@ -209,7 +221,7 @@ struct GhostSuggestionLayout: Equatable {
     private static func usableTextFrame(
         geometry: SuggestionOverlayGeometry,
         visibleFrame: CGRect
-    ) -> CGRect {
+    ) -> (frame: CGRect, usesHostContentEdge: Bool) {
         if let inputFrame = geometry.inputFrameRect?.standardized,
            inputFrame.width > Metrics.minimumLineWidth {
             // A measured content edge is the host's real text margin, so it needs no padding guess.
@@ -231,11 +243,15 @@ struct GhostSuggestionLayout: Equatable {
             )
 
             if maxX - minX > Metrics.minimumLineWidth {
-                return CGRect(
-                    x: minX,
-                    y: inputFrame.minY,
-                    width: maxX - minX,
-                    height: inputFrame.height
+                return (
+                    CGRect(
+                        x: minX,
+                        y: inputFrame.minY,
+                        width: maxX - minX,
+                        height: inputFrame.height
+                    ),
+                    // The screen margin can override the measured edge; only report it when it survived.
+                    contentLeftX.map { $0 == minX } ?? false
                 )
             }
         }
@@ -252,11 +268,14 @@ struct GhostSuggestionLayout: Equatable {
             fallbackMaxX = visibleFrame.maxX - Metrics.fallbackScreenMargin
         }
 
-        return CGRect(
-            x: fallbackMinX,
-            y: geometry.caretRect.minY,
-            width: max(Metrics.minimumLineWidth, fallbackMaxX - fallbackMinX),
-            height: geometry.caretRect.height
+        return (
+            CGRect(
+                x: fallbackMinX,
+                y: geometry.caretRect.minY,
+                width: max(Metrics.minimumLineWidth, fallbackMaxX - fallbackMinX),
+                height: geometry.caretRect.height
+            ),
+            false
         )
     }
 
