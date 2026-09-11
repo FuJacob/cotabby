@@ -38,10 +38,10 @@ enum SignOffCue {
         candidates(in: prefix).contains { valedictions.contains(normalized($0)) }
     }
 
-    /// The closing may sit on its own line in the field, but by the time the prefix reaches the
-    /// prompt its line breaks have been folded into spaces (`SuggestionRequestFactory` re-joins the
-    /// windowed words with single spaces), so it also has to be found at the end of the last
-    /// sentence: "See you Friday. Thanks," is the same closing as "See you Friday.\n\nThanks,\n".
+    /// The closing usually sits on its own line, which the prompt prefix keeps as typed
+    /// (`SuggestionRequestFactory.lastWords`); it is also found at the end of the last sentence,
+    /// for hosts that run lines together: "See you Friday. Thanks," is the same closing as
+    /// "See you Friday.\n\nThanks,\n".
     private static func candidates(in text: String) -> [Substring] {
         var found: [Substring] = []
         if let line = lastNonBlankLine(of: text) {

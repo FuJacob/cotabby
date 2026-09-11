@@ -80,7 +80,8 @@ final class BaseCompletionPromptRendererTests: XCTestCase {
             userName: "Jacob"
         )
         XCTAssertTrue(signing.contains("Written by Jacob."))
-        XCTAssertTrue(signing.hasSuffix("Thanks again,"))
+        // The caret is on the line after the closing, where the name goes, and the model is told so.
+        XCTAssertTrue(signing.hasSuffix("Thanks again,\n"))
 
         for prefix in ["", "Hi", "Thanks for", "I will forward the draft to", "the rest of the"] {
             let prompt = BaseCompletionPromptRenderer.prompt(prefixText: prefix, applicationName: "Mail", userName: "Jacob")
@@ -94,8 +95,13 @@ final class BaseCompletionPromptRendererTests: XCTestCase {
             "doing my aft"
         )
         XCTAssertEqual(
-            BaseCompletionPromptRenderer.prompt(prefixText: "see you   \n", applicationName: "X", userName: nil),
+            BaseCompletionPromptRenderer.prompt(prefixText: "see you   ", applicationName: "X", userName: nil),
             "see you"
+        )
+        // A line break the caret follows is the start of a new line, and the model is told so.
+        XCTAssertEqual(
+            BaseCompletionPromptRenderer.prompt(prefixText: "Hi Sarah,\n  ", applicationName: "X", userName: nil),
+            "Hi Sarah,\n"
         )
     }
 

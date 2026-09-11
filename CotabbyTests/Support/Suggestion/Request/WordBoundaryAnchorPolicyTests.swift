@@ -20,7 +20,10 @@ final class WordBoundaryAnchorPolicyTests: XCTestCase {
     func testRequiredCompletionPrefixRestoresTheBoundaryWhitespace() {
         let policy = WordBoundaryAnchorPolicy.self
         XCTAssertEqual(policy.requiredCompletionPrefix(precedingText: "over the draft yest", anchor: "yest"), " yest")
-        XCTAssertEqual(policy.requiredCompletionPrefix(precedingText: "Hi Sarah,\nTh", anchor: "Th"), "\nTh")
+        XCTAssertEqual(
+            policy.requiredCompletionPrefix(precedingText: "Hi Sarah,\nTh", anchor: "Th"), "Th",
+            "a line break stays in the prompt, so the model is not asked to start with it"
+        )
         XCTAssertEqual(policy.requiredCompletionPrefix(precedingText: "Th", anchor: "Th"), "Th", "no boundary before the first word")
     }
 

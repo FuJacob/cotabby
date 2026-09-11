@@ -423,3 +423,30 @@ final class SuggestionRequestFactoryTests: XCTestCase {
         XCTAssertFalse(result.request.prompt.contains("Project.swift"))
     }
 }
+
+/// The prompt's word window keeps the text as typed between its words.
+final class SuggestionRequestFactoryWordWindowTests: XCTestCase {
+    /// Measured 2026-09-11 in a Chrome replica of Claude's composer: three paragraphs reached the
+    /// model as "one line. The second paragraph starts here and A third one".
+    func testTheWindowKeepsLineAndParagraphBreaks() {
+        let text = "Hi Sam,\n\nThanks for the update.\nBest"
+        XCTAssertEqual(
+            SuggestionRequestFactory.truncatedPromptPrefix(from: text, configuration: .standard, engine: .llamaOpenSource),
+            text
+        )
+    }
+
+    func testTheWindowStartsAtAWordAndEndsAtTheLastWord() {
+        XCTAssertEqual(SuggestionRequestFactory.lastWords(of: "one two\nthree  four", count: 2), "three  four")
+        XCTAssertEqual(SuggestionRequestFactory.lastWords(of: "one two\nthree  four", count: 3), "two\nthree  four")
+        XCTAssertEqual(SuggestionRequestFactory.lastWords(of: "  one two  ", count: 5), "one two")
+        XCTAssertEqual(SuggestionRequestFactory.lastWords(of: "First paragraph ends here.\n", count: 10), "First paragraph ends here.\n")
+        XCTAssertEqual(SuggestionRequestFactory.lastWords(of: "Hi Sarah,\n\n  ", count: 10), "Hi Sarah,\n\n")
+    }
+
+    func testTextWithoutAWordComesBackWhole() {
+        XCTAssertEqual(SuggestionRequestFactory.lastWords(of: " \n ", count: 3), " \n ")
+        XCTAssertEqual(SuggestionRequestFactory.lastWords(of: "", count: 3), "")
+        XCTAssertEqual(SuggestionRequestFactory.lastWords(of: "one two", count: 0), "one two")
+    }
+}

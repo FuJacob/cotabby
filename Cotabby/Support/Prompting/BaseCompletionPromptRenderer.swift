@@ -102,7 +102,10 @@ enum BaseCompletionPromptRenderer {
         } else {
             kept = PromptSectionBudget.allocate(sections, totalChars: contextBudget)
         }
-        let prefix = kept.first { $0.name == "prefix" }?.content ?? trimmedPrefix
+        // The budget trims every section at both ends; a line break the caret follows belongs to
+        // the prefix (see `trimmingTrailingWhitespace`), so it goes back on.
+        let prefix = kept.first { $0.name == "prefix" }.map { $0.content + Self.trailingWhitespace(of: trimmedPrefix) }
+            ?? trimmedPrefix
         let preface = kept.filter { $0.name != "prefix" }.map(\.content)
 
         guard !preface.isEmpty else {
@@ -151,10 +154,20 @@ enum BaseCompletionPromptRenderer {
         return trimmed.isEmpty ? nil : trimmed
     }
 
-    /// Drops trailing spaces, tabs, and newlines so the base-model prompt ends at a word boundary.
+    /// The whitespace `text` ends with: after `trimmingTrailingWhitespace`, only the line breaks the
+    /// caret follows (with any spaces between them).
+    private static func trailingWhitespace(of text: String) -> String {
+        String(text.reversed().prefix { $0.isWhitespace }.reversed())
+    }
+
+    /// Drops trailing spaces and tabs so the base-model prompt ends at a word boundary (a tokenizer
+    /// carries a word's space on the word). A trailing line break stays: it is a token of its own,
+    /// and it is how the model learns that the caret opens a new line or paragraph. An anchored
+    /// request for that line's first word then requires the word without the break (see
+    /// `WordBoundaryAnchorPolicy.requiredCompletionPrefix`).
     static func trimmingTrailingWhitespace(_ text: String) -> String {
         var view = Substring(text)
-        while let last = view.last, last.isWhitespace {
+        while let last = view.last, last.isWhitespace, !last.isNewline {
             view = view.dropLast()
         }
         return String(view)

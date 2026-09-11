@@ -181,13 +181,38 @@ enum SuggestionRequestFactory {
         }
 
         let characterWindow = String(precedingText.suffix(maxCharacters))
-        let trailingWords = characterWindow
-            .split(whereSeparator: { $0.isWhitespace })
-            .suffix(maxWords)
-            .map(String.init)
-            .joined(separator: " ")
+        return lastWords(of: characterWindow, count: maxWords)
+    }
 
-        return trailingWords.isEmpty ? characterWindow : trailingWords
+    /// The text from the start of its `count`-th last word to its end, with the whitespace between
+    /// those words exactly as typed. A base model continues text, and the line and paragraph breaks
+    /// are part of that text: rejoining the words with single spaces, as the window did before,
+    /// handed the model "Hi Sam, Thanks for" for "Hi Sam,\n\nThanks for", and a new paragraph as
+    /// the tail of the sentence before it (a Chrome replica of Claude's composer, 2026-09-11: "one
+    /// line. The second paragraph starts here and A third one" for three paragraphs). Leading
+    /// whitespace stays out, and so do trailing spaces and tabs, as before; a trailing line break
+    /// stays, since the caret then opens a new line. Text without a word, or a count below one,
+    /// comes back whole.
+    static func lastWords(of text: String, count: Int) -> String {
+        guard count > 0 else { return text }
+        var wordStarts: [String.Index] = []
+        var end: String.Index?
+        var inWord = false
+        var index = text.startIndex
+        while index < text.endIndex {
+            let character = text[index]
+            let isSpace = character.isWhitespace
+            if !isSpace, !inWord {
+                wordStarts.append(index)
+            }
+            inWord = !isSpace
+            index = text.index(after: index)
+            if !isSpace || (character.isNewline && end != nil) {
+                end = index
+            }
+        }
+        guard let end, !wordStarts.isEmpty else { return text }
+        return String(text[wordStarts[max(0, wordStarts.count - count)]..<end])
     }
 
     private static func activeUserName(

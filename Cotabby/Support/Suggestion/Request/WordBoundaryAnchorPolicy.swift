@@ -23,13 +23,19 @@ enum WordBoundaryAnchorPolicy {
     static let minimumAnchorLength = 1
     static let maximumAnchorLength = 24
 
-    /// The bytes an anchored completion must begin with: the whitespace that separated the anchor
-    /// from the word before it (one space, or the newline the user typed), then the anchor itself.
-    /// The prompt has that whitespace trimmed away, so the completion must supply it.
+    /// The bytes an anchored completion must begin with: the space that separated the anchor from
+    /// the word before it, then the anchor itself. The prompt has that space trimmed away (a
+    /// tokenizer carries a word's space on the word), so the completion must supply it. A line
+    /// break stays at the end of the prompt instead (see
+    /// `BaseCompletionPromptRenderer.trimmingTrailingWhitespace`) and the completion begins with the
+    /// anchor: required as a prefix, the break let the model open with a token whose text is empty,
+    /// after which no completion matched the typed letters and nothing was shown (a Chrome replica
+    /// of Claude's composer, 2026-09-11: "<unused9>" first on every request for a new line's first
+    /// word, all dropped as word-boundary mismatches).
     static func requiredCompletionPrefix(precedingText: String, anchor: String) -> String {
         guard precedingText.hasSuffix(anchor) else { return anchor }
         let beforeAnchor = precedingText.dropLast(anchor.count)
-        guard let separator = beforeAnchor.last, separator.isWhitespace else { return anchor }
+        guard let separator = beforeAnchor.last, separator.isWhitespace, !separator.isNewline else { return anchor }
         return String(separator) + anchor
     }
 
