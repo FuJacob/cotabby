@@ -52,6 +52,99 @@ final class PixelCaretLocatorTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(measured.baselineOffsetFromTop), 16, accuracy: 0.01)
     }
 
+    // MARK: - A caret with text after it on its line
+
+    /// The ink the analyzer would report for `lines` set in `font` at 2x from the run's left edge
+    /// (6pt into the region), `pitchRows` apart: each line's ink from its first glyph's left side
+    /// bearing to its last word's advance.
+    private func inkLines(_ lines: [String], font: NSFont, pitchRows: Int = 44) -> [InkCaretAnalyzer.Line] {
+        lines.enumerated().map { index, text in
+            let trimmed = text.replacingOccurrences(of: "\\s+$", with: "", options: .regularExpression)
+            let width = GhostFontResolver.width(of: trimmed, font: font)
+            let bearing = PixelCaretLocator.leftSideBearing(of: text as NSString, at: 0, font: font)
+            let top = 19 + index * pitchRows
+            return InkCaretAnalyzer.Line(
+                topRow: top, bottomRow: top + 30,
+                inkLeftColumn: Int(((PixelCaretLocator.padding + bearing) * 2).rounded()),
+                inkRightColumn: Int(((PixelCaretLocator.padding + width) * 2).rounded()) - 1,
+                baselineRow: top + 23
+            )
+        }
+    }
+
+    private let composerFirstLine = "There are still things to work on: perfecting the positioning of the text, making sure a "
+    private let composerSecondLine = "prediction appears where it should, and much more."
+    private let composerFrame = CGRect(x: 342, y: 51, width: 670, height: 41)
+
+    /// Measured 2026-09-11 in Claude's composer: the caret moved back before ", " on a paragraph's
+    /// second line, and the card stood under the field's right edge. The text before the caret,
+    /// walked through the lines' ink, puts it on the second line after "should".
+    func testAMidLineCaretIsFoundAmongTheLinesByTheTextBeforeIt() throws {
+        let font = NSFont.systemFont(ofSize: 15.3)
+        let region = composerFrame.insetBy(dx: -PixelCaretLocator.padding, dy: -PixelCaretLocator.padding)
+        let lines = inkLines([composerFirstLine, composerSecondLine], font: font)
+        let placement = try XCTUnwrap(PixelCaretLocator.midLineCaret(
+            lines: lines, scale: 2, region: region, text: composerFirstLine + "prediction appears where it should", font: font
+        ))
+        XCTAssertEqual(placement.lineIndex, 1)
+        XCTAssertEqual(placement.x, composerFrame.minX + GhostFontResolver.width(of: "prediction appears where it should", font: font), accuracy: 1)
+
+        let early = try XCTUnwrap(PixelCaretLocator.midLineCaret(lines: lines, scale: 2, region: region, text: "There are still things", font: font))
+        XCTAssertEqual(early.lineIndex, 0, "text after the caret on the first line keeps it there")
+        XCTAssertEqual(early.x, composerFrame.minX + GhostFontResolver.width(of: "There are still things", font: font), accuracy: 1)
+    }
+
+    /// A word the host moved to the next line whole takes the caret inside it along.
+    func testACaretInsideAWordTheHostWrappedIsOnTheNextLine() throws {
+        let font = NSFont.systemFont(ofSize: 15.3)
+        let region = composerFrame.insetBy(dx: -PixelCaretLocator.padding, dy: -PixelCaretLocator.padding)
+        let lines = inkLines([composerFirstLine, composerSecondLine], font: font)
+        let placement = try XCTUnwrap(PixelCaretLocator.midLineCaret(
+            lines: lines, scale: 2, region: region, text: composerFirstLine + "predic", font: font
+        ))
+        XCTAssertEqual(placement.lineIndex, 1)
+        XCTAssertEqual(placement.x, composerFrame.minX + GhostFontResolver.width(of: "predic", font: font), accuracy: 1)
+    }
+
+    /// Ink that ends between two word ends by more than the tolerance is not this text in this face.
+    func testInkThatEndsAtNoWordIsNoPlacement() {
+        let font = NSFont.systemFont(ofSize: 15.3)
+        let region = composerFrame.insetBy(dx: -PixelCaretLocator.padding, dy: -PixelCaretLocator.padding)
+        let short = GhostFontResolver.width(of: "There are still", font: font)
+        let long = GhostFontResolver.width(of: "There are still things", font: font)
+        let between = (short + long) / 2
+        let lines = [
+            InkCaretAnalyzer.Line(topRow: 19, bottomRow: 49, inkLeftColumn: 12, inkRightColumn: 12 + Int(between * 2), baselineRow: 42),
+            InkCaretAnalyzer.Line(topRow: 63, bottomRow: 93, inkLeftColumn: 12, inkRightColumn: 900, baselineRow: 86)
+        ]
+        XCTAssertNil(PixelCaretLocator.midLineCaret(
+            lines: lines, scale: 2, region: region, text: "There are still things to work on: perfecting", font: font
+        ))
+    }
+
+    /// The read gives the caret's own line box (the second of two, 22pt apart) and no ink width: that
+    /// line's ink runs on past the caret.
+    func testAMidLineReadGivesTheCaretsLineBoxAndNoInkWidth() throws {
+        let font = NSFont.systemFont(ofSize: 15.3)
+        let region = composerFrame.insetBy(dx: -PixelCaretLocator.padding, dy: -PixelCaretLocator.padding)
+        let analysis = InkCaretAnalyzer.Measurement(lines: inkLines([composerFirstLine, composerSecondLine], font: font), pitchRows: 44)
+        let request = PixelCaretLocator.Request(
+            focusedInputIdentityKey: 1, runFrame: composerFrame,
+            paragraphTextBeforeCaret: composerFirstLine + "prediction appears where it should",
+            siblingLinePitch: nil, siblingLineBoxHeight: nil, spaceAdvance: 4, font: font, caretIsMidLine: true
+        )
+        let measured = try XCTUnwrap(PixelCaretLocator.measurement(from: analysis, scale: 2, region: region, request: request))
+        XCTAssertEqual(measured.lineIndex, 1)
+        XCTAssertEqual(measured.caretRect.maxY, composerFrame.maxY - 22, accuracy: 0.01)
+        XCTAssertEqual(measured.caretRect.height, 19, accuracy: 0.01)
+        XCTAssertNil(measured.lineInkWidth)
+        XCTAssertEqual(try XCTUnwrap(measured.linePitch), 22, accuracy: 0.01)
+        XCTAssertNotEqual(request.cacheKey, PixelCaretLocator.Request(
+            focusedInputIdentityKey: 1, runFrame: composerFrame, paragraphTextBeforeCaret: request.paragraphTextBeforeCaret,
+            siblingLinePitch: nil, siblingLineBoxHeight: nil, spaceAdvance: 4, font: font
+        ).cacheKey, "a caret read at the ink's end never stands in for one inside the line")
+    }
+
     func testALoneGlyphsBaselineIsNotReported() throws {
         // 20 device pixels of ink (one glyph): the baseline is read from the caret box's line box
         // policy instead, because a single glyph's bottom is a row too high (measured in Obsidian).

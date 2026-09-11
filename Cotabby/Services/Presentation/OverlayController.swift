@@ -427,13 +427,17 @@ final class OverlayController: SuggestionOverlayControlling {
     }
 
     private func pixelCaretRequest(for geometry: SuggestionOverlayGeometry) -> PixelCaretLocator.Request? {
-        guard geometry.isCaretAtEndOfLine, !geometry.isRightToLeft else { return nil }
+        guard !geometry.isRightToLeft else { return nil }
+        // A caret with text after it on its line gets the card, whose anchor a union run's
+        // Accessibility answer cannot give either (Claude's composer: the field's right edge); its
+        // pixels can, from the text before it (see `PixelCaretLocator.Request.caretIsMidLine`).
+        let midLine = !geometry.isCaretAtEndOfLine
         let renderer: GhostBaselinePolicy.HostRenderer = geometry.isWebContentField ? .webEngine : .textKit
         let resolution = resolveFont(for: geometry, renderer: renderer)
         let font = resolution.font
         // The captures of a web field that reports no size, in a face its pixels named, measure that
         // face's size (see `recordAdvanceCapture`).
-        let recordsAdvance = geometry.isWebContentField && geometry.resolvedFieldStyle?.fontPointSize == nil
+        let recordsAdvance = !midLine && geometry.isWebContentField && geometry.resolvedFieldStyle?.fontPointSize == nil
             && resolution.provenance == .pixelMatched
         if let wrapped = geometry.wrappedRun {
             let trailingInkGap = PixelCaretLocator.trailingInkGap(after: wrapped.paragraphTextBeforeCaret, font: font)
@@ -451,7 +455,8 @@ final class OverlayController: SuggestionOverlayControlling {
                     singleLineCaretHeight: wrapped.frame.height,
                     verticalPadding: Self.oneLineRunVerticalPadding,
                     font: font,
-                    recordsAdvance: recordsAdvance
+                    recordsAdvance: recordsAdvance,
+                    caretIsMidLine: midLine
                 )
             }
             return PixelCaretLocator.Request(
@@ -465,13 +470,14 @@ final class OverlayController: SuggestionOverlayControlling {
                 spaceAdvance: GhostFontResolver.width(of: " ", font: font),
                 trailingInkGap: trailingInkGap,
                 font: font,
-                recordsAdvance: recordsAdvance
+                recordsAdvance: recordsAdvance,
+                caretIsMidLine: midLine
             )
         }
         // A single-line field whose caret AX could only estimate (Chrome's address bar answers no
         // bounds query at all, measured 2026-09-10): the field frame is the line, and the caret is
         // where its ink ends. Estimated carets otherwise go to the card.
-        guard geometry.caretQuality == .estimated || geometry.caretQuality == .layoutEstimated,
+        guard !midLine, geometry.caretQuality == .estimated || geometry.caretQuality == .layoutEstimated,
               let frame = geometry.elementFrameRect, frame.height > 4, frame.height <= Self.singleLineFieldMaximumHeight,
               let text = geometry.lineTextBeforeCaret, !text.trimmingCharacters(in: .whitespaces).isEmpty
         else {
@@ -559,7 +565,8 @@ final class OverlayController: SuggestionOverlayControlling {
     /// paragraph's first line, whose start every capture shares. The fit is taken in the ghost's face
     /// at the host size it assumes, the user's size multiplier divided out.
     private func recordAdvanceCapture(_ measurement: PixelCaretLocator.Measurement, request: PixelCaretLocator.Request) {
-        guard request.recordsAdvance, measurement.lineIndex == 0, let face = request.font,
+        // A mid-line caret is placed from the ghost face's own advances, so it measures nothing.
+        guard request.recordsAdvance, !request.caretIsMidLine, measurement.lineIndex == 0, let face = request.font,
               let last = request.paragraphTextBeforeCaret.last, !last.isWhitespace,
               !request.paragraphTextBeforeCaret.contains(where: \.isNewline),
               let hostFace = GhostFontResolver.font(
@@ -921,6 +928,10 @@ final class OverlayController: SuggestionOverlayControlling {
             // match with enough text, 0.58 to 0.88 for the wrong faces).
             bundleIdentifier: context.bundleIdentifier,
             focusedURLString: context.focusedURLString,
+            // Where the caret stands in its line decides how the pixel read below finds it: left at
+            // its default, a caret moved back into a paragraph was read as its end (Obsidian,
+            // 2026-09-11: 975.9 for a caret at 948.1, the line's ink end plus a space).
+            isCaretAtEndOfLine: context.isCaretAtEndOfLine,
             observedCharWidth: context.observedCharWidth,
             isRightToLeft: false,
             focusChangeSequence: context.focusChangeSequence,
@@ -928,6 +939,7 @@ final class OverlayController: SuggestionOverlayControlling {
             resolvedFieldStyle: context.resolvedFieldStyle,
             hostTextMetrics: context.hostTextMetrics,
             isWebContentField: context.isWebContentField,
+            hasTrailingContent: context.hasTrailingContent,
             elementFrameRect: context.elementFrameRect,
             lineTextBeforeCaret: GhostCaretRefinement.paragraphTextBeforeCaret(in: context.precedingText),
             wrappedRun: context.observedContentEdges?.wrappedRun
