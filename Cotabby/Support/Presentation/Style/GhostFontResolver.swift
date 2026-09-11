@@ -292,8 +292,21 @@ enum GhostFontResolver {
             return Resolution(font: derived, provenance: .caretDerived, widthAgreement: 1)
         }
         let calibrated = scaledToSample(derived, sample: sample, width: sampleWidth)
+        // A sample this far from the caret box's face is another face, not another size: scaled to
+        // it, the system face grew with every sample of a Menlo textarea (15.5, 18.4, 19.3, 20.3,
+        // 21.5, 22.0pt over twelve seconds of typing, measured 2026-09-11) until the pixel match
+        // named Menlo at 14.3. The caret box's size stands until something names the face.
+        let scale = calibrated.pointSize / max(derived.pointSize, 0.01)
+        guard maximumCaretBoxScale.contains(scale) else {
+            return Resolution(font: derived, provenance: .caretDerived, widthAgreement: widthAgreement(of: derived, input))
+        }
         return Resolution(font: calibrated, provenance: .caretDerivedCalibrated, widthAgreement: widthAgreement(of: calibrated, input))
     }
+
+    /// How far a width sample may rescale the face solved from a caret box (see
+    /// `resolveFromCaretBox`): the box gives the size to within a step or two, so beyond this the
+    /// sample describes a different face.
+    static let maximumCaretBoxScale: ClosedRange<CGFloat> = (1 / 1.15)...1.15
 
     // MARK: - Helpers
 
@@ -314,7 +327,12 @@ enum GhostFontResolver {
 
     static func font(family: String, size: CGFloat) -> NSFont? {
         guard !family.isEmpty else { return nil }
-        if family == "SF Mono" {
+        // The monospaced system face reports its family as ".AppleSystemUIFontMonospaced", which the
+        // dotted rule below would turn into the proportional system face: a field whose first sample
+        // matched it then judged every later sample against the proportional face (a Menlo textarea
+        // in Chrome, 2026-09-11, whose ghost ended as that face scaled to monospace widths, 13pt text
+        // as 17.2; see `TypefaceEvidence.verdict`).
+        if family == "SF Mono" || family.localizedCaseInsensitiveContains("Monospaced") {
             return NSFont.monospacedSystemFont(ofSize: size, weight: .regular)
         }
         if family.hasPrefix(".") || family.localizedCaseInsensitiveContains("system") {

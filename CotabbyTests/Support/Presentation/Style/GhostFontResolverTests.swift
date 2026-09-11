@@ -115,6 +115,50 @@ final class GhostFontResolverTests: XCTestCase {
         XCTAssertNotEqual(resolution.provenance, .caretDerived)
     }
 
+    /// Measured 2026-09-11: a Menlo textarea whose host reported no style. Its width samples were a
+    /// face wider than the system face its caret box named, and scaled to them the system face grew
+    /// from 15.5 to 22pt over twelve seconds of typing. The box's size stands until something names
+    /// the face.
+    func testASampleFromAnotherFaceDoesNotRescaleTheCaretBoxFace() throws {
+        let sample = "it is still in the list, I will fill it in"
+        let boxOnly = resolve(style: nil, caretBoxHeight: 18, renderer: .webEngine)
+        let hostWidth = GhostFontResolver.width(of: sample, font: try XCTUnwrap(NSFont(name: "Menlo-Regular", size: 14.3)))
+        XCTAssertGreaterThan(hostWidth / GhostFontResolver.width(of: sample, font: boxOnly.font), 1.15, "a face apart, not a size")
+        let resolution = resolve(
+            style: nil, metrics: HostTextMetrics(sampleText: sample, sampleWidth: hostWidth), caretBoxHeight: 18, renderer: .webEngine
+        )
+        XCTAssertEqual(resolution.provenance, .caretDerived)
+        XCTAssertEqual(resolution.font.pointSize, boxOnly.font.pointSize, accuracy: 0.01)
+    }
+
+    func testASampleCloseToTheCaretBoxFaceStillCalibratesIt() {
+        let sample = "it is still in the list, I will fill it in"
+        let boxOnly = resolve(style: nil, caretBoxHeight: 18, renderer: .webEngine)
+        let hostWidth = GhostFontResolver.width(of: sample, font: boxOnly.font) * 1.06
+        let resolution = resolve(
+            style: nil, metrics: HostTextMetrics(sampleText: sample, sampleWidth: hostWidth), caretBoxHeight: 18, renderer: .webEngine
+        )
+        XCTAssertEqual(resolution.provenance, .caretDerivedCalibrated)
+        // The system face's advance per point shrinks as it grows (its tracking changes with size),
+        // so a sample 6% wider takes a size nearly 8% larger: what must agree is the width.
+        XCTAssertEqual(GhostFontResolver.width(of: sample, font: resolution.font) / hostWidth, 1, accuracy: 0.01)
+    }
+
+    /// The monospaced system face names its family ".AppleSystemUIFontMonospaced"; read as a dotted
+    /// system name it became the proportional face, so a field that matched it failed every later
+    /// sample in it (a Menlo textarea in Chrome, 2026-09-11, then settled on SF scaled to 17.2).
+    func testTheMonospacedSystemFamilyIsTheMonospacedFace() throws {
+        let monospaced = NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
+        let family = try XCTUnwrap(monospaced.familyName)
+        let resolved = try XCTUnwrap(GhostFontResolver.familyFont(family, size: 13))
+        XCTAssertTrue(resolved.isFixedPitch || resolved.fontDescriptor.symbolicTraits.contains(.monoSpace))
+        // Its own text fits it; Menlo's, 2.7% narrower, does not (they are different faces).
+        let sample = "Thanks for sending the report"
+        XCTAssertTrue(GhostFontResolver.familyFits(family, sample: sample, width: GhostFontResolver.width(of: sample, font: monospaced), size: 13))
+        let menloWidth = GhostFontResolver.width(of: sample, font: try XCTUnwrap(NSFont(name: "Menlo-Regular", size: 13)))
+        XCTAssertFalse(GhostFontResolver.familyFits(family, sample: sample, width: menloWidth, size: 13))
+    }
+
     func testNoStyleDerivesSizeFromTextKitLineHeight() {
         let resolution = resolve(style: nil, caretBoxHeight: 16, renderer: .textKit)
         XCTAssertEqual(resolution.provenance, .caretDerived)

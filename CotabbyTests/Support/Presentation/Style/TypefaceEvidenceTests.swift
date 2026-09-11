@@ -90,12 +90,26 @@ final class TypefaceEvidenceTests: XCTestCase {
     }
 
     /// With the system face first among the candidates, a second family that also fits every sample
-    /// leaves the verdict undecided instead of electing that family.
+    /// is not elected: the system face is kept.
     func testAFamilyThatOnlyMatchesTheSystemFaceIsNotElected() {
         var evidence = TypefaceEvidence()
         evidence.record(.init(text: "the first sample text", width: 100), resolverFamily: nil)
         evidence.record(.init(text: "another longer sample", width: 110), resolverFamily: nil)
         let verdict = evidence.verdict(candidates: ["System", "Trebuchet MS"]) { _, _ in true }
-        XCTAssertEqual(verdict, .undecidable)
+        XCTAssertEqual(verdict, .family("System"))
+    }
+
+    /// Measured 2026-09-11 in a Menlo textarea in Chrome: the first sample named the monospaced system
+    /// face, a longer one ruled it out, and Menlo and Courier New both fitted every sample. Demanding a
+    /// single fitting family made the field undecidable and drew the proportional system face scaled
+    /// to monospace widths; the earlier candidate is the face instead.
+    func testSeveralFamiliesFittingEverySampleElectTheEarliestCandidate() {
+        var evidence = TypefaceEvidence()
+        evidence.record(.init(text: "Thanks for sendi", width: 124.9), resolverFamily: "SF Mono")
+        evidence.record(.init(text: "Thanks for sending the report ", width: 234.2), resolverFamily: "SF Mono")
+        let verdict = evidence.verdict(candidates: ["System", "Helvetica", "Menlo", "Courier New", "SF Mono"]) { family, _ in
+            family == "Menlo" || family == "Courier New"
+        }
+        XCTAssertEqual(verdict, .family("Menlo"))
     }
 }

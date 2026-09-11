@@ -12,8 +12,8 @@ import AppKit
 ///
 /// Rule, applied only once a field has produced a second, different sample:
 ///   - the family adopted from the first sample is kept while every later long sample still fits it;
-///   - a long sample it fails switches the field to a family that fits ALL long samples, if there is
-///     exactly such a family, at most once;
+///   - a long sample it fails switches the field, at most once, to a family that fits ALL long
+///     samples, the earliest candidate when several do (they then share the face's advances);
 ///   - if no family fits every long sample, the field is undecidable and settles on the system
 ///     face scaled to the latest sample, for the rest of the field's life.
 /// Short samples (under `minimumEvidenceLength`) are recorded but never decide: three characters
@@ -91,11 +91,16 @@ struct TypefaceEvidence: Equatable {
         if let adopted = adoptedFamily, evidence.allSatisfy({ fits(adopted, $0) }) {
             return .family(adopted)
         }
+        // Families that fit every long sample are all the face's advances; the candidates' own order
+        // (how often each is the real answer) breaks the tie. Demanding exactly one left a Menlo
+        // textarea undecidable, Courier New fitting its samples as well as Menlo, and it settled on
+        // the proportional system face scaled to monospace widths, 13pt text as 17.2 (Chrome,
+        // 2026-09-11).
         let fitting = candidates.filter { family in evidence.allSatisfy { fits(family, $0) } }
-        if !hasSwitched, fitting.count == 1, let only = fitting.first {
-            adoptedFamily = only
+        if !hasSwitched, let first = fitting.first {
+            adoptedFamily = first
             hasSwitched = true
-            return .family(only)
+            return .family(first)
         }
         if let adopted = adoptedFamily, hasSwitched, fitting.contains(adopted) {
             return .family(adopted)
