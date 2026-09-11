@@ -138,4 +138,23 @@ final class OverlayControllerTypefaceTests: XCTestCase {
         )
         XCTAssertEqual(matched.font.pointSize, 14 * 1.0954451150103321 * 1.5, accuracy: 0.002)
     }
+
+    /// Chrome's address bar (2026-09-11): no reported size, the system face, no bounds answer, and a
+    /// pixel match that never names it; its caret-derived stand-in ran 7% large. A single-line
+    /// field's stand-in takes the size its caret's advance fits; a paragraph's does not, nor does a
+    /// field that reports its size or one outside web content.
+    func testASingleLineFieldsStandInTakesItsCaretsAdvance() {
+        func takes(_ provenance: GhostFontResolver.Provenance, web: Bool = true, reportsSize: Bool = false, singleLine: Bool) -> Bool {
+            OverlayController.takesHostAdvance(
+                provenance: provenance, isWebContentField: web, reportsSize: reportsSize, isSingleLineField: singleLine
+            )
+        }
+        XCTAssertTrue(takes(.caretDerived, singleLine: true))
+        XCTAssertTrue(takes(.hostAdvanceFitted, singleLine: true), "a fitted face keeps refining")
+        XCTAssertFalse(takes(.caretDerived, singleLine: false))
+        XCTAssertTrue(takes(.pixelMatched, singleLine: false))
+        XCTAssertFalse(takes(.caretDerived, reportsSize: true, singleLine: true))
+        XCTAssertFalse(takes(.caretDerived, web: false, singleLine: true))
+        XCTAssertFalse(takes(.hostFace, singleLine: true), "a face the host named is its own")
+    }
 }

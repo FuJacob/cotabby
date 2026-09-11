@@ -85,6 +85,9 @@ final class HostFaceMemoryTests: XCTestCase {
         XCTAssertTrue(HostFaceMemory.isSettled(.hostSizeScaledSystem, fieldAdoptedSample: true))
         XCTAssertFalse(HostFaceMemory.isSettled(.hostSizeScaledSystem, fieldAdoptedSample: false))
         XCTAssertFalse(HostFaceMemory.isSettled(.hostSizeSystem, fieldAdoptedSample: true))
+        // A stand-in sized along its own line by the caret's advance is the host's size.
+        XCTAssertTrue(HostFaceMemory.isSettled(.hostAdvanceFitted, fieldAdoptedSample: false))
+        XCTAssertFalse(HostFaceMemory.yieldsToMemory(.hostAdvanceFitted))
         XCTAssertTrue(HostFaceMemory.yieldsToMemory(.hostSizeSystem))
         XCTAssertTrue(HostFaceMemory.yieldsToMemory(.caretDerived))
         XCTAssertTrue(HostFaceMemory.yieldsToMemory(.hostSizeMatchedFamily))

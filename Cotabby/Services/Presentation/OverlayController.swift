@@ -435,10 +435,14 @@ final class OverlayController: SuggestionOverlayControlling {
         let renderer: GhostBaselinePolicy.HostRenderer = geometry.isWebContentField ? .webEngine : .textKit
         let resolution = resolveFont(for: geometry, renderer: renderer)
         let font = resolution.font
-        // The captures of a web field that reports no size, in a face its pixels named, measure that
-        // face's size (see `recordAdvanceCapture`).
-        let recordsAdvance = !midLine && geometry.isWebContentField && geometry.resolvedFieldStyle?.fontPointSize == nil
-            && resolution.provenance == .pixelMatched
+        // The captures of a web field that reports no size measure its face's size (see
+        // `recordAdvanceCapture`, `takesHostAdvance`).
+        let recordsAdvance = !midLine && Self.takesHostAdvance(
+            provenance: resolution.provenance,
+            isWebContentField: geometry.isWebContentField,
+            reportsSize: geometry.resolvedFieldStyle?.fontPointSize != nil,
+            isSingleLineField: geometry.isSingleLineField
+        )
         if let wrapped = geometry.wrappedRun {
             let trailingInkGap = PixelCaretLocator.trailingInkGap(after: wrapped.paragraphTextBeforeCaret, font: font)
                 ?? PixelCaretLocator.inkToCaretGap
@@ -496,7 +500,10 @@ final class OverlayController: SuggestionOverlayControlling {
             // derived size flipped with it. The pixel match settles the size; this box only has to
             // be the same every time.
             singleLineCaretHeight: (frame.height * Self.singleLineCaretBoxFraction * 2).rounded() / 2,
-            font: font
+            font: font,
+            recordsAdvance: recordsAdvance,
+            // An address-bar query is often shorter than a paragraph's line ever gets.
+            advanceFitMinimumSpan: HostAdvanceFit.singleLineMinimumSpan
         )
     }
 
@@ -527,9 +534,10 @@ final class OverlayController: SuggestionOverlayControlling {
         return rememberingHostFace(sized.resolution, advanceMeasured: sized.advanceMeasured, for: geometry)
     }
 
-    /// A pixel-matched face in a web field that reports no size takes the size the field's own caret
-    /// advance measured (`HostAdvanceFit`) or, until the field has measured one, the size an earlier
-    /// field of the same style measured for the same face. The match's own size comes from a short
+    /// A pixel-matched face in a web field that reports no size, or a single-line field's stand-in
+    /// (`takesHostAdvance`), takes the size the field's own caret advance measured (`HostAdvanceFit`)
+    /// or, until the field has measured one, the size an earlier field of the same style measured for
+    /// the same face. The match's own size comes from a short
     /// strip whose size search is coarse, and its score says nothing about its size: Claude's Code
     /// composer matched 15.1585 with 0.97 where the host paints 15.336 (2026-09-11). A host that
     /// reports its size snaps the match to its zoom ladder instead (`applyingMatchedTypeface`).
@@ -538,8 +546,12 @@ final class OverlayController: SuggestionOverlayControlling {
         _ resolution: GhostFontResolver.Resolution,
         for geometry: SuggestionOverlayGeometry
     ) -> (resolution: GhostFontResolver.Resolution, advanceMeasured: Bool) {
-        guard geometry.isWebContentField, geometry.resolvedFieldStyle?.fontPointSize == nil,
-              resolution.provenance == .pixelMatched else {
+        guard Self.takesHostAdvance(
+            provenance: resolution.provenance,
+            isWebContentField: geometry.isWebContentField,
+            reportsSize: geometry.resolvedFieldStyle?.fontPointSize != nil,
+            isSingleLineField: geometry.isSingleLineField
+        ) else {
             return (resolution, false)
         }
         let size: CGFloat
@@ -556,7 +568,28 @@ final class OverlayController: SuggestionOverlayControlling {
         guard let font = GhostFontResolver.font(named: resolution.font.fontName, size: size) else {
             return (resolution, false)
         }
-        return (GhostFontResolver.Resolution(font: font, provenance: .pixelMatched, widthAgreement: 1), true)
+        // A face the pixels named keeps saying so; a stand-in whose size alone was fitted says that.
+        let provenance: GhostFontResolver.Provenance = resolution.provenance == .pixelMatched ? .pixelMatched : .hostAdvanceFitted
+        return (GhostFontResolver.Resolution(font: font, provenance: provenance, widthAgreement: 1), true)
+    }
+
+    /// Whether a web field's ghost takes its size from the field's own caret advance
+    /// (`HostAdvanceFit`): only a field that reports no size, in a face its pixels named or, in a
+    /// single-line field, the stand-in. Chrome's address bar names no face, paints the system one,
+    /// and answers no bounds query; its caret-derived stand-in ran 7% large (15.5 where the caret's
+    /// own advance along five queries fitted 14.48 to 14.58, 2026-09-11), and no pixel match ever
+    /// names its face: the match reads a strip from the field's left edge, where the search icon
+    /// sits, not text. A
+    /// paragraph's stand-in stays out: its captures are fitted along one line in a face no pixel
+    /// has confirmed, and a wrong family fitted to width reads as the right one.
+    static func takesHostAdvance(
+        provenance: GhostFontResolver.Provenance,
+        isWebContentField: Bool,
+        reportsSize: Bool,
+        isSingleLineField: Bool
+    ) -> Bool {
+        guard isWebContentField, !reportsSize else { return false }
+        return provenance == .pixelMatched || (isSingleLineField && provenance.isFallbackFace)
     }
 
     /// Feeds a fresh capture of the caret on a paragraph's first line to its field's advance fit
@@ -577,7 +610,8 @@ final class OverlayController: SuggestionOverlayControlling {
         var fit = hostAdvanceFits[identity] ?? HostAdvanceFit()
         let lineKey = "\(Int(request.runFrame.minX.rounded()))|\(Int(measurement.lineRect.maxY.rounded()))"
         let adopted = fit.record(
-            text: request.paragraphTextBeforeCaret, caretX: measurement.caretRect.minX, lineKey: lineKey, face: hostFace
+            text: request.paragraphTextBeforeCaret, caretX: measurement.caretRect.minX, lineKey: lineKey, face: hostFace,
+            minimumSpan: request.advanceFitMinimumSpan
         )
         hostAdvanceFits[identity] = fit
         guard let adopted, CotabbyLogger.suggestion.logLevel <= .debug else { return }
@@ -1025,7 +1059,7 @@ final class OverlayController: SuggestionOverlayControlling {
     static func sizeIsReported(_ provenance: GhostFontResolver.Provenance) -> Bool {
         switch provenance {
         case .hostFace, .hostFamily, .hostSizeMatchedFamily, .hostSizeScaledSystem, .hostSizeSystem, .hostFaceScaled, .pixelMatched,
-             .hostRemembered:
+             .hostRemembered, .hostAdvanceFitted:
             return true
         case .caretDerived, .caretDerivedCalibrated:
             return false
@@ -1036,7 +1070,7 @@ final class OverlayController: SuggestionOverlayControlling {
     /// the caret's own advance), which pins it within a couple of percent whatever the host said.
     static func sizeIsMeasured(_ provenance: GhostFontResolver.Provenance) -> Bool {
         switch provenance {
-        case .hostSizeScaledSystem, .hostFaceScaled, .caretDerivedCalibrated:
+        case .hostSizeScaledSystem, .hostFaceScaled, .caretDerivedCalibrated, .hostAdvanceFitted:
             return true
         case .hostFace, .hostFamily, .hostSizeMatchedFamily, .hostSizeSystem, .pixelMatched, .caretDerived, .hostRemembered:
             return false

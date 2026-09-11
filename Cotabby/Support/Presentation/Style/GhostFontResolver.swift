@@ -42,11 +42,17 @@ enum GhostFontResolver {
         /// A new field whose host's last field settled its face (`HostFaceMemory`): that face and
         /// size, until this field's own evidence (a width sample, a pixel match) replaces it.
         case hostRemembered = "host_remembered"
+        /// A stand-in face the host never named, sized to the caret's own advance along the field's
+        /// text (`HostAdvanceFit`): Chrome's address bar, which paints the system face, reports no
+        /// size, and answers no bounds query. Its face is still a guess a pixel match may replace;
+        /// its size is the host's.
+        case hostAdvanceFitted = "host_advance_fitted"
 
         /// True when the face is a stand-in the host never named; a pixel match may replace it.
         var isFallbackFace: Bool {
             switch self {
-            case .hostSizeSystem, .hostSizeScaledSystem, .caretDerived, .caretDerivedCalibrated, .hostRemembered:
+            case .hostSizeSystem, .hostSizeScaledSystem, .caretDerived, .caretDerivedCalibrated, .hostRemembered,
+                 .hostAdvanceFitted:
                 return true
             case .hostFace, .hostFamily, .hostSizeMatchedFamily, .pixelMatched, .hostFaceScaled:
                 return false

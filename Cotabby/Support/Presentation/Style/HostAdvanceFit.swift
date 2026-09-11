@@ -42,6 +42,11 @@ nonisolated struct HostAdvanceFit: Equatable {
     /// Host advance a fit must span before it is adopted: a capture's caret is good to about a
     /// quarter point, so 150pt holds the scale to a few tenths of a percent.
     static let minimumSpan: CGFloat = 150
+    /// The span a single-line field's fit is adopted at. Its text is often shorter than a paragraph
+    /// line ever gets: Chrome's address bar held queries of 65 to 234pt while its caret-derived ghost
+    /// ran 7% large (15.5 where each query's captures fitted 14.48 to 14.58, 2026-09-11). 60pt holds
+    /// the scale to under half a percent, a tenth of that error.
+    static let singleLineMinimumSpan: CGFloat = 60
     /// Two captures closer than this give no slope worth taking.
     static let minimumPairAdvance: CGFloat = 24
     static let maximumCaptures = 40
@@ -60,8 +65,11 @@ nonisolated struct HostAdvanceFit: Equatable {
     /// Records a capture of the caret on the first line of a paragraph (`lineKey` names that line:
     /// the captures of one line share its start) and returns the fit when this capture adopted or
     /// refined it. `face` is the ghost's face at the host size it currently assumes; a new face
-    /// starts the field over, a new line starts its captures over.
-    mutating func record(text: String, caretX: CGFloat, lineKey: String, face: NSFont) -> Fit? {
+    /// starts the field over, a new line starts its captures over. `minimumSpan` is `minimumSpan`
+    /// for a paragraph's line and `singleLineMinimumSpan` for a single-line field.
+    mutating func record(
+        text: String, caretX: CGFloat, lineKey: String, face: NSFont, minimumSpan: CGFloat = HostAdvanceFit.minimumSpan
+    ) -> Fit? {
         if face.fontName != faceName {
             faceName = face.fontName
             adopted = nil
@@ -76,7 +84,8 @@ nonisolated struct HostAdvanceFit: Equatable {
         if captures.count > Self.maximumCaptures {
             captures.removeFirst()
         }
-        guard let fit = Self.fit(captures, face: face), abs(fit.pointSize / face.pointSize - 1) <= Self.maximumDeviation else {
+        guard let fit = Self.fit(captures, face: face, minimumSpan: minimumSpan),
+              abs(fit.pointSize / face.pointSize - 1) <= Self.maximumDeviation else {
             return nil
         }
         if let adopted {
@@ -88,8 +97,9 @@ nonisolated struct HostAdvanceFit: Equatable {
     }
 
     /// The host's size from `captures` of one line, advances measured in `face`: the Theil–Sen slope
-    /// of caret against advance, times the face's size. Nil with too few captures or too little span.
-    static func fit(_ captures: [Capture], face: NSFont) -> Fit? {
+    /// of caret against advance, times the face's size. Nil with too few captures or less span than
+    /// `minimumSpan`.
+    static func fit(_ captures: [Capture], face: NSFont, minimumSpan: CGFloat = HostAdvanceFit.minimumSpan) -> Fit? {
         guard captures.count >= minimumCaptures, face.pointSize > 0 else { return nil }
         let advances = captures.map { GhostFontResolver.width(of: $0.text, font: face) }
         var slopes: [CGFloat] = []

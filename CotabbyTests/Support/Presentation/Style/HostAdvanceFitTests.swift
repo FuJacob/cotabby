@@ -90,4 +90,21 @@ final class HostAdvanceFitTests: XCTestCase {
         }
         XCTAssertNil(fit.adopted)
     }
+
+    /// Chrome's address bar (2026-09-11): its queries are short, and its caret-derived ghost at 15.5
+    /// ran 7% large where the caret's advance along each of five queries fitted 14.48 to 14.58.
+    /// Captures along a query of about 80pt fit nothing at a paragraph line's span, and the host's
+    /// size at a single-line field's.
+    func testASingleLineFieldFitsFromAShorterSpan() throws {
+        let face = NSFont.systemFont(ofSize: 15.5)
+        let host = NSFont.systemFont(ofSize: 14.51)
+        let query = "nothing ear 3 find"
+        let captures = stride(from: 8, through: query.count, by: 2).map { count -> HostAdvanceFit.Capture in
+            let text = String(query.prefix(count))
+            return HostAdvanceFit.Capture(text: text, caretX: 279 + GhostFontResolver.width(of: text, font: host))
+        }
+        XCTAssertNil(HostAdvanceFit.fit(captures, face: face), "the query spans less than a paragraph line's fit needs")
+        let fit = try XCTUnwrap(HostAdvanceFit.fit(captures, face: face, minimumSpan: HostAdvanceFit.singleLineMinimumSpan))
+        XCTAssertEqual(fit.pointSize, 14.51, accuracy: 0.15)
+    }
 }

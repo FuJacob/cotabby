@@ -154,11 +154,11 @@ nonisolated struct HostFaceMemory: Sendable {
         return try? JSONEncoder().encode(stored)
     }
 
-    /// A resolution worth remembering: the host's own pixels named the face, or the field's adopted
-    /// width sample sized the stand-in.
+    /// A resolution worth remembering: the host's own pixels named the face or sized the stand-in
+    /// along its line (`HostAdvanceFit`), or the field's adopted width sample sized the stand-in.
     static func isSettled(_ provenance: GhostFontResolver.Provenance, fieldAdoptedSample: Bool) -> Bool {
         switch provenance {
-        case .pixelMatched:
+        case .pixelMatched, .hostAdvanceFitted:
             return true
         case .hostSizeScaledSystem:
             return fieldAdoptedSample
