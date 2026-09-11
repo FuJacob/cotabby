@@ -832,34 +832,16 @@ struct FocusSnapshotResolver {
         let observedContentEdges = caretResult?.observedContentEdges
             ?? (lineQueryOffsetIsDocumentRelative ? selectionForGeometry : nil).flatMap {
                 geometrySelection -> ObservedContentEdges? in
-            // Keyed by the document offset where the caret's paragraph starts, alongside the focus
-            // session. The measured edge belongs to one visual line, and moving between paragraphs
-            // inside the same field — an indented block, a list item, a table cell — changes the
-            // margin without changing `focusChangeSequence`, which only turns over when the field's
-            // frame does. Finding the paragraph start is a local string scan, so no AX round trip.
-            //
-            // The offsets must agree on units. `textValue` can be a bounded window around the caret,
-            // indexed by the window-relative `selection`, while `geometrySelection` is document-
-            // relative. Measuring the window against the document offset overshoots it and lets
-            // different paragraphs share a key, so the paragraph start is found in window coordinates
-            // and shifted by the window's document origin. If the paragraph begins before the window,
-            // the key falls back to that origin, which moves as the window slides: a cache miss and a
-            // fresh lookup, never another paragraph's edge.
+            // Cached per paragraph as well as per focus session. `lineContentEdgesParagraphKey`
+            // documents how the key stays correct across paragraphs yet stable while typing.
             guard let windowSelection = selection, let windowText = textValue else { return nil }
-            let window = windowText as NSString
-            let caretInWindow = min(max(windowSelection.location, 0), window.length)
-            let newlineBeforeCaret = window.rangeOfCharacter(
-                from: .newlines,
-                options: .backwards,
-                range: NSRange(location: 0, length: caretInWindow)
+            let paragraphKey = Self.lineContentEdgesParagraphKey(
+                windowText: windowText,
+                windowCaretLocation: windowSelection.location,
+                documentCaretLocation: geometrySelection.location
             )
-            let paragraphStartInWindow = newlineBeforeCaret.location == NSNotFound
-                ? 0
-                : NSMaxRange(newlineBeforeCaret)
-            let windowDocumentOrigin = geometrySelection.location - windowSelection.location
-            let paragraphDocumentStart = windowDocumentOrigin + paragraphStartInWindow
             return lineContentEdgesCache.value(
-                forKey: "lineEdges:\(AXHelper.elementIdentity(for: element)):p\(paragraphDocumentStart)",
+                forKey: "lineEdges:\(AXHelper.elementIdentity(for: element)):\(paragraphKey)",
                 focusChangeSequence: focusChangeSequence
             ) {
                 geometryResolver.resolveLineContentEdges(
@@ -920,6 +902,54 @@ struct FocusSnapshotResolver {
             vendsDOMAttributes: vendsDOMAttributes,
             resolverCandidate: resolverCandidate
         )
+    }
+
+    /// Builds the paragraph component of the line-content-edge cache key.
+    ///
+    /// A measured margin belongs to one paragraph: moving between an indented block, a list item or
+    /// a table cell inside one field changes it without `focusChangeSequence` turning over. So the key
+    /// names the paragraph by the document offset where it starts, found with a local string scan
+    /// rather than an AX round trip. `windowText` is the bounded text around the caret, indexed by
+    /// the window-relative `windowCaretLocation`; `documentCaretLocation` is the same caret in
+    /// document coordinates, and their difference is the window's document origin.
+    ///
+    /// The hard case is a paragraph that starts before the window. Its real start is unknowable here,
+    /// and the window's own origin is not a usable stand-in: `nativeTextWindow` keeps
+    /// `focusedTextContextWindowUTF16` units before the caret, so the origin advances with every
+    /// character typed, and a key built from it would miss the cache on every keystroke — putting
+    /// three blocking AX calls back on the typing path. Instead the origin is bucketed by that same
+    /// window size, so the key changes at most once per window's worth of typing. Buckets cannot merge
+    /// two different such paragraphs: a caret whose paragraph start is out of view sits more than one
+    /// window past that start, which is itself past any earlier paragraph, so two such carets'
+    /// origins always differ by more than a bucket. The `p` and `u` prefixes keep the two key kinds
+    /// from ever colliding.
+    ///
+    /// Internal (not private) so the key rule is unit-testable without live AX elements, and
+    /// `nonisolated` because it is pure string arithmetic over a `Sendable` constant: inheriting the
+    /// resolver's `@MainActor` isolation would force every caller onto the main actor for no reason.
+    nonisolated static func lineContentEdgesParagraphKey(
+        windowText: String,
+        windowCaretLocation: Int,
+        documentCaretLocation: Int
+    ) -> String {
+        let window = windowText as NSString
+        let caretInWindow = min(max(windowCaretLocation, 0), window.length)
+        let windowDocumentOrigin = max(documentCaretLocation - caretInWindow, 0)
+        let newlineBeforeCaret = window.rangeOfCharacter(
+            from: .newlines,
+            options: .backwards,
+            range: NSRange(location: 0, length: caretInWindow)
+        )
+
+        if newlineBeforeCaret.location != NSNotFound {
+            return "p\(windowDocumentOrigin + NSMaxRange(newlineBeforeCaret))"
+        }
+        // No newline before the caret and the window begins at the document start, so the paragraph
+        // provably starts at offset 0.
+        if windowDocumentOrigin == 0 {
+            return "p0"
+        }
+        return "u\(windowDocumentOrigin / focusedTextContextWindowUTF16)"
     }
 
     /// Reads the smallest native text window the host can provide around the current selection.
