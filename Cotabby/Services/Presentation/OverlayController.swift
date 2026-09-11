@@ -691,7 +691,9 @@ final class OverlayController: SuggestionOverlayControlling {
         if resolution.provenance == .hostSizeScaledSystem || resolution.provenance == .hostSizeSystem,
            evidence.scalingSample != nil {
             typefaceEvidence[identity] = evidence
-            return Self.scaledSystemFace(size: size, evidence: evidence)
+            return Self.scaledSystemFace(
+                size: size, evidence: evidence, reportedSize: zoomStep(for: geometry).reportedSize, zoomKind: zoomStep(for: geometry).kind
+            )
         }
         guard let sample else {
             return resolution
@@ -768,11 +770,33 @@ final class OverlayController: SuggestionOverlayControlling {
     /// enough, held for the field's life, see `TypefaceEvidence.scalingAdoptionLength`). Until one
     /// arrives the reported size is used as is: a size that followed every longer sample resized
     /// Gemini's ghost three times in one sentence.
-    private static func scaledSystemFace(size: CGFloat, evidence: TypefaceEvidence) -> GhostFontResolver.Resolution {
+    ///
+    /// Where the host's face is judged to be the system face itself (`reportedSize` and `zoomKind`
+    /// given), the host paints the reported size times a zoom step, and a scaled size within a
+    /// percent of such a product is that product, as for a pixel match (`applyingMatchedTypeface`):
+    /// a dozen-character sample of whole-point carets carries about half a percent, which showed as
+    /// 15.06 between the reported 15.0 and the pixel match's 15.0 in a system-font Chrome field
+    /// (three presentations, 2026-09-11). As a stand-in for another face (one the host names but
+    /// this Mac lacks, or one no family fits) the scaled size is that face's advance, not a size the
+    /// host set, and it is kept as the sample gives it.
+    static func scaledSystemFace(
+        size: CGFloat, evidence: TypefaceEvidence, reportedSize: CGFloat? = nil, zoomKind: HostZoomLadder.Kind? = nil
+    ) -> GhostFontResolver.Resolution {
         guard let sample = evidence.scalingSample else {
             return GhostFontResolver.Resolution(font: NSFont.systemFont(ofSize: size), provenance: .hostSizeSystem, widthAgreement: 1)
         }
-        return GhostFontResolver.scaledSystemResolution(size: size, sample: sample.text, width: sample.width)
+        let scaled = GhostFontResolver.scaledSystemResolution(size: size, sample: sample.text, width: sample.width)
+        guard let reportedSize, let zoomKind,
+              let snapped = HostZoomLadder.snappedSize(measured: scaled.font.pointSize, reported: reportedSize, kind: zoomKind),
+              snapped != scaled.font.pointSize
+        else {
+            return scaled
+        }
+        let font = GhostFontResolver.resized(scaled.font, to: snapped)
+        let measured = GhostFontResolver.width(of: sample.text, font: font)
+        return GhostFontResolver.Resolution(
+            font: font, provenance: .hostSizeScaledSystem, widthAgreement: measured > 0 ? sample.width / measured : 1
+        )
     }
 
     /// The face and size the host's pixels matched replace a stand-in face, and a width-matched

@@ -14,6 +14,25 @@ final class OverlayControllerTypefaceTests: XCTestCase {
         HostBaselineCalibrator.TypefaceMatchRecord(fontName: fontName, pointSize: size, score: 0.9, textLength: 20, attempts: 1)
     }
 
+    /// A system-font Chrome field (2026-09-11): the reported 15.0, then three presentations of the
+    /// system face scaled to a dozen-character sample (15.06), then the pixel match's 15.0. A scaled
+    /// size within a percent of the host's zoom step is that step; a stand-in further off keeps the
+    /// size its sample gives.
+    func testAScaledSystemFaceTakesTheHostsZoomStep() throws {
+        let text = "I was thinking that"
+        var nearLadder = TypefaceEvidence()
+        nearLadder.record(.init(text: text, width: GhostFontResolver.width(of: text, font: NSFont.systemFont(ofSize: 15.0621))), resolverFamily: nil)
+        XCTAssertEqual(OverlayController.scaledSystemFace(size: 15, evidence: nearLadder).font.pointSize, 15.0621, accuracy: 0.01)
+        let snapped = OverlayController.scaledSystemFace(size: 15, evidence: nearLadder, reportedSize: 15, zoomKind: .chromeBrowser)
+        XCTAssertEqual(snapped.font.pointSize, 15.0, accuracy: 0.001)
+        XCTAssertEqual(snapped.provenance, .hostSizeScaledSystem)
+
+        var offLadder = TypefaceEvidence()
+        offLadder.record(.init(text: text, width: GhostFontResolver.width(of: text, font: NSFont.systemFont(ofSize: 15.45))), resolverFamily: nil)
+        let standIn = OverlayController.scaledSystemFace(size: 15, evidence: offLadder, reportedSize: 15, zoomKind: .chromeBrowser)
+        XCTAssertEqual(standIn.font.pointSize, 15.45, accuracy: 0.01, "a stand-in three percent off the ladder keeps its sample's size")
+    }
+
     func testAMatchWhoseAdvanceDisagreesWithTheHostsSampleIsRefused() {
         // Claude's composer: the caret travelled the width of Georgia 15.4 over this text; the
         // system face at 16.15 scored well on the shapes but is five percent wider than that.
