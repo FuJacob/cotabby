@@ -22,11 +22,11 @@ enum InkCaretAnalyzer {
         /// First and last bitmap columns carrying ink on this line (inclusive).
         let inkLeftColumn: Int
         let inkRightColumn: Int
-        /// The first row below this line's letter bodies (the same rule as
-        /// `InkBaselineAnalyzer`: the first contiguous block of rows at least `bodyThreshold` as
-        /// busy as the line's busiest row). Unlike the ink top, which moves with whether the line
-        /// happens to hold an ascender, the baseline is where every line's letters sit, so it is
-        /// what the pitch and the caret line's baseline are read from. 0 when unknown.
+        /// The first row below this line's letter bodies: the longest contiguous block of rows at
+        /// least `bodyThreshold` as busy as the line's busiest row (see `bodyRows(in:threshold:)`).
+        /// Unlike the ink top, which moves with whether the line happens to hold an ascender, the
+        /// baseline is where every line's letters sit, so it is what the pitch and the caret line's
+        /// baseline are read from. 0 when unknown.
         var baselineRow: Int = 0
         /// The host's own caret bar at the right end of the line, when the capture caught it (see
         /// `trailingCaretBar`); `inkRightColumn` then includes it. Nil when there is none.
@@ -271,16 +271,9 @@ enum InkCaretAnalyzer {
             rowInk.append(count)
         }
         guard right >= 0, let peak = rowInk.max(), peak > 0 else { return nil }
-        // Letter bodies: the first contiguous run of busy rows; the baseline is the row after it.
-        let threshold = bodyThreshold * Double(peak)
-        var baseline = block.upperBound + 1
-        if let first = rowInk.indices.first(where: { Double(rowInk[$0]) >= threshold }) {
-            var last = first
-            while last + 1 < rowInk.count, Double(rowInk[last + 1]) >= threshold {
-                last += 1
-            }
-            baseline = block.lowerBound + last + 1
-        }
+        // Letter bodies: the longest run of busy rows; the baseline is the row after it.
+        let bodies = bodyRows(in: rowInk, threshold: bodyThreshold * Double(peak))
+        let baseline = bodies.map { block.lowerBound + $0.upperBound + 1 } ?? block.upperBound + 1
         var line = Line(
             topRow: block.lowerBound, bottomRow: block.upperBound, inkLeftColumn: left, inkRightColumn: right, baselineRow: baseline
         )
@@ -289,6 +282,48 @@ enum InkCaretAnalyzer {
             line.glyphRightColumn = found.textRight
         }
         return line
+    }
+
+    /// Least share of a line's rows a later busy run must span to be taken for its letter bodies
+    /// over the first: an x-height band is nearly half the line (17 of the 38 rows beside Claude's
+    /// caret), a capital's bar a tenth.
+    static let minimumBodyShare = 0.3
+
+    /// A line's letter bodies, as indices into `rowInk` (the line's rows, top first): the first run
+    /// of rows at least `threshold` busy, unless a longer run spanning `minimumBodyShare` of the rows
+    /// follows it, which is then the bodies.
+    ///
+    /// A capital's top curve, with the ascender tops beside it, passes the threshold on its own above
+    /// a dip where only stems remain: Claude's Code composer (2026-09-11) read "Should" with the
+    /// baseline under the S's top curve, 5.5pt below the caret box's top for the true 15.0, and drew
+    /// the ghost nine points high. Over 4,823 dumped reads the first run put 245 of 2,736 single-line
+    /// baselines a third of the way into the caret box instead of four fifths; with the longer run
+    /// taken none is there, and 267 reads change, not one of them away from four fifths. A lone
+    /// capital keeps its first run: its bars are about equal, none spans a third of the line, and a
+    /// lower bar is no baseline (an "F"'s middle bar would give a pitch eleven rows short). The
+    /// calibrator's rule, which bridges dips of two rows (`InkBaselineAnalyzer.maximumBodyGapRows`),
+    /// closes the dip too but also bridges down into a "g"'s bowl under the baseline: Chrome's
+    /// address bar read "is g" and "goo" 2.5pt low with it.
+    static func bodyRows(in rowInk: [Int], threshold: Double) -> ClosedRange<Int>? {
+        var runs: [ClosedRange<Int>] = []
+        var start: Int?
+        for index in 0...rowInk.count {
+            if index < rowInk.count, Double(rowInk[index]) >= threshold {
+                if start == nil { start = index }
+            } else if let begun = start {
+                runs.append(begun...(index - 1))
+                start = nil
+            }
+        }
+        guard let first = runs.first else { return nil }
+        var longest = first
+        for run in runs where run.count > longest.count {
+            longest = run
+        }
+        guard longest != first, Double(longest.count) >= minimumBodyShare * Double(rowInk.count) else {
+            return first
+        }
+        return longest
     }
 
     /// The host's caret bar at the right end of a line's ink, when the capture caught it: one to

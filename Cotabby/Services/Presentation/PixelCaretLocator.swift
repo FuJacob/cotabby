@@ -446,13 +446,19 @@ final class PixelCaretLocator {
     /// bottom reads a row high (a wrapped line holding one "A" measured 15.0 for 16.0, and a
     /// two-letter address bar read 6.0).
     static let minimumBaselineInkWidth: CGFloat = 24
+    /// Least depth below the line box's top a baseline may have, as a fraction of the box: letters
+    /// sit on a baseline about four fifths of the way down their box. Over 4,823 dumped reads
+    /// (2026-09-11) every sound single-line baseline lay half the box deep or more, and every one
+    /// read under a capital's top bar (see `InkCaretAnalyzer.bodyRows(in:threshold:)`) a third of the
+    /// way or less; a read that shallow is refused, and the ghost keeps the calibrated baseline.
+    static let minimumBaselineDepthFraction: CGFloat = 0.45
 
     nonisolated static func baselineOffset(
         of line: InkCaretAnalyzer.Line, lineTop: CGFloat, lineBox: CGFloat, region: CGRect, scale: CGFloat
     ) -> CGFloat? {
         guard line.baselineRow > 0, CGFloat(line.textRightColumn - line.inkLeftColumn + 1) / scale >= minimumBaselineInkWidth else { return nil }
         let offset = lineTop - (region.maxY - CGFloat(line.baselineRow) / scale)
-        guard offset > 0, offset <= lineBox + 2 else { return nil }
+        guard offset > 0, offset >= lineBox * minimumBaselineDepthFraction, offset <= lineBox + 2 else { return nil }
         return offset
     }
 

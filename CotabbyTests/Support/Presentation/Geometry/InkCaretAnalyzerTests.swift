@@ -280,4 +280,32 @@ final class InkCaretAnalyzerTests: XCTestCase {
         ))
         XCTAssertNil(InkCaretAnalyzer.measure(rendered.bitmap))
     }
+
+    /// Claude's Code composer (2026-09-11, 2x): each row's ink beside the caret after "Should". Rows
+    /// 11-12 are the S's top curve and the ascender tops, 13-14 the stems between them and the
+    /// lowercase letters, 15-31 the letters (the busiest row, 60, their bottom curves), the rest the
+    /// caret bar alone. The first busy run was the top curve: the baseline read 5.5pt into a 19pt
+    /// caret box for the true 15.0, and the ghost was drawn nine points high.
+    func testTheLetterBodiesAreNotACapitalsTopCurve() {
+        let should = [0, 0, 2, 2, 2, 2, 2, 2, 2, 12, 19, 21, 23, 19, 17, 39, 45, 53, 44, 44, 41, 40, 39, 34, 36, 39, 40, 41, 41,
+                      60, 54, 45, 6, 2, 2, 2, 2, 2, 2, 2, 0, 0]
+        XCTAssertEqual(InkCaretAnalyzer.bodyRows(in: should, threshold: InkCaretAnalyzer.bodyThreshold * 60), 15...31)
+    }
+
+    /// Chrome's address bar (2026-09-11): "is g". The letters end at row 45; the "g"'s bowl passes the
+    /// threshold again at rows 48-50, under two thin rows, and is no part of them.
+    func testADescendersBowlIsNotPartOfTheLetterBodies() {
+        let isG = [Int](repeating: 0, count: 18) + [2, 2, 2, 2, 2, 2, 2, 5, 7, 5, 3, 2, 5, 22, 27, 27, 20, 16, 17, 20, 21, 19, 16, 18,
+                                                     25, 27, 25, 16, 6, 9, 14, 13, 10, 2]
+        XCTAssertEqual(InkCaretAnalyzer.bodyRows(in: isG, threshold: InkCaretAnalyzer.bodyThreshold * 27), 31...45)
+    }
+
+    /// A lone capital has no letter bodies: its first bar stands, as before, whether a lower bar is as
+    /// thick (an "E") or a row thicker (an "F"'s middle bar, which is no baseline).
+    func testALoneCapitalKeepsItsFirstBar() {
+        let e = [2, 2, 20, 20, 20, 6, 6, 6, 6, 6, 6, 6, 20, 20, 20, 6, 6, 6, 6, 6, 6, 6, 20, 20, 20, 2, 2, 2]
+        XCTAssertEqual(InkCaretAnalyzer.bodyRows(in: e, threshold: 7), 2...4)
+        let f = [2, 2, 20, 20, 20, 6, 6, 6, 6, 6, 6, 20, 20, 20, 20, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 2, 2, 2]
+        XCTAssertEqual(InkCaretAnalyzer.bodyRows(in: f, threshold: 7), 2...4)
+    }
 }

@@ -173,6 +173,22 @@ final class PixelCaretLocatorTests: XCTestCase {
         XCTAssertNil(measured.baselineOffsetFromTop)
     }
 
+    /// Claude's Code composer (2026-09-11): "Should" read in the capture at 336,50 86x21 (2x) for a
+    /// caret box from 51 to 70. A baseline under the S's top curve (row 13) lies 5.5pt into the 19pt
+    /// box and is refused, so the ghost keeps its calibrated baseline; one under the letters (row 32)
+    /// lies 15pt deep and places it.
+    func testABaselineAThirdOfTheWayIntoItsBoxIsRefused() throws {
+        let region = CGRect(x: 336, y: 50, width: 86, height: 21)
+        func offset(baselineRow: Int) -> CGFloat? {
+            PixelCaretLocator.baselineOffset(
+                of: InkCaretAnalyzer.Line(topRow: 2, bottomRow: 39, inkLeftColumn: 12, inkRightColumn: 110, baselineRow: baselineRow),
+                lineTop: 70, lineBox: 19, region: region, scale: 2
+            )
+        }
+        XCTAssertNil(offset(baselineRow: 13))
+        XCTAssertEqual(try XCTUnwrap(offset(baselineRow: 32)), 15, accuracy: 0.001)
+    }
+
     func testTheCaretGapIsTheLastGlyphsOwnSideBearing() throws {
         // Measured in Obsidian (2026-09-10): a fixed gap after a "t" in the system face put the
         // ghost half a point right of the accepted text. Each glyph's bearing is its own.
