@@ -67,4 +67,19 @@ final class ControlTokenMarkersTests: XCTestCase {
             "strike <s>this</s> out"
         )
     }
+
+    /// A pasted ChatML transcript (2026-09-11): the model continued the note, then opened the next
+    /// turn on its own line.
+    func testATurnOpeningOnItsOwnLineEndsTheContinuation() {
+        XCTAssertEqual(
+            ControlTokenMarkers.sanitize(" to unplug the router for 10 seconds.\n<|im_start|>user\nHow do I reset my router?<|im_end|>"),
+            " to unplug the router for 10 seconds.\n"
+        )
+        XCTAssertEqual(
+            ControlTokenMarkers.sanitize(" challenging hike with stunning views.\n  <|user|>\nWhat else?"),
+            " challenging hike with stunning views.\n  "
+        )
+        XCTAssertEqual(ControlTokenMarkers.sanitize("<|im_start|>assistant\nHello"), "assistant\nHello", "a leading marker is removed in place")
+        XCTAssertEqual(ControlTokenMarkers.sanitize("\n<|im_start|>Hello"), "\nHello", "no text before the line: nothing ended")
+    }
 }
