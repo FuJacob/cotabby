@@ -205,6 +205,55 @@ struct AppearancePaneView: View {
                     )
                 }
                 .settingsItem(.ghostTextSize)
+
+                LabeledContent {
+                    HStack(spacing: 10) {
+                        TickMarkSlider(
+                            value: ghostFontSizeFloorBinding,
+                            range: SuggestionSettingsModel.minimumGhostFontSizeFloor
+                                ... SuggestionSettingsModel.maximumGhostFontSizeFloor,
+                            step: SuggestionSettingsModel.ghostFontSizeStep
+                        )
+                        .frame(width: 180)
+
+                        Text(ghostFontSizeFloorLabel)
+                            .font(.callout)
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                            .frame(width: 42, alignment: .trailing)
+                    }
+                } label: {
+                    SettingsRowLabel(
+                        title: "Smallest Ghost Text",
+                        description: "Suggestions never render below this size, even in fields that report tiny text.",
+                        systemImage: "arrow.down.to.line"
+                    )
+                }
+                .settingsItem(.ghostTextSizeLimits)
+
+                LabeledContent {
+                    HStack(spacing: 10) {
+                        TickMarkSlider(
+                            value: ghostFontSizeCeilingBinding,
+                            range: SuggestionSettingsModel.minimumGhostFontSizeCeiling
+                                ... SuggestionSettingsModel.maximumGhostFontSizeCeiling,
+                            step: SuggestionSettingsModel.ghostFontSizeStep
+                        )
+                        .frame(width: 180)
+
+                        Text(ghostFontSizeCeilingLabel)
+                            .font(.callout)
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                            .frame(width: 42, alignment: .trailing)
+                    }
+                } label: {
+                    SettingsRowLabel(
+                        title: "Largest Ghost Text",
+                        description: "Suggestions never render above this size. Lower it if ghost text ever appears oversized.",
+                        systemImage: "arrow.up.to.line"
+                    )
+                }
             }
         }
     }
@@ -292,6 +341,22 @@ struct AppearancePaneView: View {
         )
     }
 
+    /// The model keeps floor <= ceiling by pushing the other value along, so these bindings can stay
+    /// plain pass-throughs; the slider simply reflects whatever the model settled on.
+    private var ghostFontSizeFloorBinding: Binding<Double> {
+        Binding(
+            get: { suggestionSettings.ghostFontSizeFloor },
+            set: { suggestionSettings.setGhostFontSizeFloor($0) }
+        )
+    }
+
+    private var ghostFontSizeCeilingBinding: Binding<Double> {
+        Binding(
+            get: { suggestionSettings.ghostFontSizeCeiling },
+            set: { suggestionSettings.setGhostFontSizeCeiling($0) }
+        )
+    }
+
     // MARK: - Ghost color swatch helpers
 
     /// Mirrors the overlay's automatic fallback (`GhostSuggestionView.ghostColor`) so the Automatic
@@ -317,6 +382,16 @@ struct AppearancePaneView: View {
     /// size knob distinct from the opacity row's "%" right above it.
     private var ghostTextSizeLabel: String {
         String(format: "%.1f×", suggestionSettings.ghostTextSizeMultiplier)
+    }
+
+    /// Shown in points rather than a scale factor, because these are absolute clamps — unlike the
+    /// multiplier row above, which is relative to whatever the host's caret implies.
+    private var ghostFontSizeFloorLabel: String {
+        "\(Int(suggestionSettings.ghostFontSizeFloor.rounded())) pt"
+    }
+
+    private var ghostFontSizeCeilingLabel: String {
+        "\(Int(suggestionSettings.ghostFontSizeCeiling.rounded())) pt"
     }
 
     @ViewBuilder

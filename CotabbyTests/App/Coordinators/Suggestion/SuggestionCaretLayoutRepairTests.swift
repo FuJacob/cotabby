@@ -228,7 +228,7 @@ final class SuggestionCaretLayoutRepairTests: XCTestCase {
             caretRect: axRect,
             inputFrameRect: frame,
             caretQuality: .derived,
-            observedContentEdges: ObservedContentEdges(leftX: 4, topY: 116),
+            observedContentEdges: ObservedContentEdges(leftX: 4, topY: 116, isRunMeasured: true),
             precedingText: "Hello",
             isWebContentField: true
         )
@@ -244,6 +244,34 @@ final class SuggestionCaretLayoutRepairTests: XCTestCase {
         XCTAssertEqual(anchor.rect, axRect)
         XCTAssertNil(anchor.outcome)
         XCTAssertEqual(anchor.skipReason, .runMeasuredGeometry)
+    }
+
+    func test_layoutRepair_lineQueryEdgesDoNotBuyTheRunMeasuredSkip() {
+        // Same wrong-line derived web caret, but these edges came from the host's line-query
+        // attributes rather than child-run frames. They describe a left margin and say nothing about
+        // which visual line the caret is on, so they must not skip the repair: a wrong-line caret
+        // that skipped it would stay wrong. Only run-measured provenance earns the exemption above.
+        let frame = CGRect(x: 0, y: 0, width: 300, height: 120)
+        let axRect = CGRect(x: 50, y: 52, width: 2, height: 16)
+        let context = CotabbyTestFixtures.focusedInputContext(
+            caretRect: axRect,
+            inputFrameRect: frame,
+            caretQuality: .derived,
+            observedContentEdges: ObservedContentEdges(leftX: 4, topY: 116, isRunMeasured: false),
+            precedingText: "Hello",
+            isWebContentField: true
+        )
+
+        let anchor = SuggestionCoordinator.layoutRepairedAnchor(
+            for: context,
+            fallbackRect: axRect,
+            pendingInsertion: "",
+            isRightToLeft: false
+        )
+
+        XCTAssertNotEqual(anchor.skipReason, .runMeasuredGeometry)
+        XCTAssertNotNil(anchor.outcome, "the estimator must run rather than be skipped")
+        XCTAssertEqual(anchor.quality, .layoutEstimated)
     }
 
     func test_layoutRepair_derivedKeepsAXRectWhenEstimatorRejects() {

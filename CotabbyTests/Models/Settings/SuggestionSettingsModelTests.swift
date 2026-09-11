@@ -631,6 +631,61 @@ final class SuggestionSettingsModelTests: XCTestCase {
         XCTAssertEqual(model.ghostTextSizeMultiplier, SuggestionSettingsModel.minimumGhostTextSizeMultiplier)
     }
 
+    func test_ghostFontSizeLimits_clampToTheirOwnRanges() {
+        let model = makeModel()
+
+        model.setGhostFontSizeFloor(1000)
+        XCTAssertEqual(model.ghostFontSizeFloor, SuggestionSettingsModel.maximumGhostFontSizeFloor)
+        model.setGhostFontSizeFloor(0)
+        XCTAssertEqual(model.ghostFontSizeFloor, SuggestionSettingsModel.minimumGhostFontSizeFloor)
+
+        model.setGhostFontSizeCeiling(1000)
+        XCTAssertEqual(model.ghostFontSizeCeiling, SuggestionSettingsModel.maximumGhostFontSizeCeiling)
+        model.setGhostFontSizeCeiling(0)
+        XCTAssertEqual(model.ghostFontSizeCeiling, SuggestionSettingsModel.minimumGhostFontSizeCeiling)
+    }
+
+    func test_ghostFontSizeFloorPushesCeilingUpRatherThanInvertingTheRange() {
+        let model = makeModel()
+        model.setGhostFontSizeCeiling(SuggestionSettingsModel.minimumGhostFontSizeCeiling)
+
+        // Raising the floor above the ceiling must not leave an empty range, where the ceiling would
+        // silently win and the control the user just moved would appear to do nothing.
+        model.setGhostFontSizeFloor(SuggestionSettingsModel.maximumGhostFontSizeFloor)
+
+        XCTAssertEqual(model.ghostFontSizeFloor, SuggestionSettingsModel.maximumGhostFontSizeFloor)
+        XCTAssertGreaterThanOrEqual(model.ghostFontSizeCeiling, model.ghostFontSizeFloor)
+    }
+
+    func test_ghostFontSizeCeilingPullsFloorDownRatherThanInvertingTheRange() {
+        let model = makeModel()
+        model.setGhostFontSizeFloor(SuggestionSettingsModel.maximumGhostFontSizeFloor)
+
+        model.setGhostFontSizeCeiling(SuggestionSettingsModel.minimumGhostFontSizeCeiling)
+
+        XCTAssertEqual(model.ghostFontSizeCeiling, SuggestionSettingsModel.minimumGhostFontSizeCeiling)
+        XCTAssertLessThanOrEqual(model.ghostFontSizeFloor, model.ghostFontSizeCeiling)
+    }
+
+    func test_ghostFontSizeLimitsDefaultToThePreviouslyHardCodedValues() {
+        // An untouched install must render exactly as it did before these became user settings.
+        let model = makeModel()
+        XCTAssertEqual(model.ghostFontSizeFloor, 11)
+        XCTAssertEqual(model.ghostFontSizeCeiling, 48)
+    }
+
+    func test_ghostFontSizeLimitsSurviveAReload() {
+        let model = makeModel()
+        model.setGhostFontSizeFloor(14)
+        model.setGhostFontSizeCeiling(30)
+
+        // A fresh model over the same defaults suite is the reload: it catches a renamed key or a
+        // dropped save call, which is the whole point of this test class.
+        let reloaded = makeModel()
+        XCTAssertEqual(reloaded.ghostFontSizeFloor, 14)
+        XCTAssertEqual(reloaded.ghostFontSizeCeiling, 30)
+    }
+
     func test_setCustomSuggestionTextColorHex_normalizesAndClears() {
         let model = makeModel()
 
@@ -690,5 +745,17 @@ final class SuggestionSettingsModelTests: XCTestCase {
         let snapshot = model.snapshot
         XCTAssertEqual(snapshot.disabledAppBundleIdentifiers, ["com.example.app"])
         XCTAssertEqual(snapshot.extendedContext, "context body")
+    }
+
+    func test_invertedGhostFontBoundsOnDiskAreRepairedOnLoad() {
+        // The two bounds are separate UserDefaults keys written one at a time, so a crash between
+        // the writes can persist floor > ceiling. Loading that pair unrepaired would hand
+        // GhostFontMetrics an inverted range where the ceiling silently wins.
+        defaults.set(40.0, forKey: "cotabbyGhostFontSizeFloor")
+        defaults.set(16.0, forKey: "cotabbyGhostFontSizeCeiling")
+
+        let model = makeModel()
+
+        XCTAssertLessThanOrEqual(model.ghostFontSizeFloor, model.ghostFontSizeCeiling)
     }
 }

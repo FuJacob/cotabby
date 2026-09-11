@@ -133,6 +133,19 @@ nonisolated struct ObservedContentEdges: Equatable, Sendable {
     let leftX: CGFloat
     /// Global Cocoa-coordinate top edge (maxY) of the topmost text run.
     let topY: CGFloat
+    /// True only when these edges came from walking the host's child text-run frames. Those frames
+    /// carry the host's real line positions, which is why `layoutRepairedAnchor` lets them outrank
+    /// its own layout estimate for a web field. Edges obtained any other way — the host's line-query
+    /// attributes, for instance — describe a margin but say nothing about which visual line the
+    /// caret is on, so they must not buy that same trust. Defaults to `false` so a future source has
+    /// to opt in deliberately rather than inherit an exemption it did not earn.
+    let isRunMeasured: Bool
+
+    init(leftX: CGFloat, topY: CGFloat, isRunMeasured: Bool = false) {
+        self.leftX = leftX
+        self.topY = topY
+        self.isRunMeasured = isRunMeasured
+    }
 }
 
 /// This snapshot is the future handoff point into suggestion generation.

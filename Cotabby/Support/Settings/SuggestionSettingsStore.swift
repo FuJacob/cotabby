@@ -47,6 +47,31 @@ struct SuggestionSettingsStore {
     static let defaultGhostTextSizeMultiplier: Double = 1.0
     static let ghostTextSizeMultiplierStep: Double = 0.1
 
+    /// User-adjustable floor and ceiling for the caret-approximated ghost-text size, in points.
+    ///
+    /// These bound the size *before* `ghostTextSizeMultiplier` scales it. They exist as their own
+    /// controls because the multiplier cannot express what they express: it rescales every host
+    /// proportionally, whereas these clamp the outliers — a host whose caret geometry reads far
+    /// smaller or larger than its real text. The shipped defaults are the values the overlay used
+    /// when they were hard-coded, so an untouched install behaves exactly as before.
+    ///
+    /// The two controls have deliberately different ranges. A floor above ~24pt would force ghost
+    /// text larger than ordinary body text in most hosts, and a ceiling below ~16pt would clamp
+    /// ordinary body text back down, so neither control is allowed into the other's territory by
+    /// range alone. `SuggestionSettingsModel` additionally keeps floor <= ceiling, which range
+    /// clamping cannot do because each value is stored independently.
+    static let defaultGhostFontSizeFloor: Double = 11
+    static let minimumGhostFontSizeFloor: Double = 6
+    static let maximumGhostFontSizeFloor: Double = 24
+
+    static let defaultGhostFontSizeCeiling: Double = 48
+    static let minimumGhostFontSizeCeiling: Double = 16
+    static let maximumGhostFontSizeCeiling: Double = 96
+
+    /// Whole points: sub-point precision is invisible in rendered ghost text and only makes the
+    /// slider fiddly.
+    static let ghostFontSizeStep: Double = 1
+
     /// New installs start with fades enabled; the renderer still yields to macOS Reduce Motion, so
     /// this product default never overrides the user's accessibility preference.
     static let defaultFadeInSuggestions = true
@@ -90,6 +115,8 @@ struct SuggestionSettingsStore {
     private static let customSuggestionTextColorHexDefaultsKey = "cotabbyCustomSuggestionTextColorHex"
     private static let ghostTextOpacityDefaultsKey = "cotabbyGhostTextOpacity"
     private static let ghostTextSizeMultiplierDefaultsKey = "cotabbyGhostTextSizeMultiplier"
+    private static let ghostFontSizeFloorDefaultsKey = "cotabbyGhostFontSizeFloor"
+    private static let ghostFontSizeCeilingDefaultsKey = "cotabbyGhostFontSizeCeiling"
     private static let selectedEngineDefaultsKey = "cotabbySelectedEngine"
     private static let openAICompatibleBaseURLDefaultsKey = "cotabbyOpenAICompatibleBaseURL"
     private static let openAICompatibleModelNameDefaultsKey = "cotabbyOpenAICompatibleModelName"
@@ -177,6 +204,8 @@ struct SuggestionSettingsStore {
         customSuggestionTextColorHexDefaultsKey,
         ghostTextOpacityDefaultsKey,
         ghostTextSizeMultiplierDefaultsKey,
+        ghostFontSizeFloorDefaultsKey,
+        ghostFontSizeCeilingDefaultsKey,
         selectedEngineDefaultsKey,
         openAICompatibleBaseURLDefaultsKey,
         openAICompatibleModelNameDefaultsKey,
@@ -275,6 +304,25 @@ struct SuggestionSettingsStore {
             } else {
                 Self.clampedGhostTextSizeMultiplier(userDefaults.double(forKey: Self.ghostTextSizeMultiplierDefaultsKey))
             }
+        let resolvedGhostFontSizeFloor: Double =
+            if userDefaults.object(forKey: Self.ghostFontSizeFloorDefaultsKey) == nil {
+                Self.defaultGhostFontSizeFloor
+            } else {
+                Self.clampedGhostFontSizeFloor(userDefaults.double(forKey: Self.ghostFontSizeFloorDefaultsKey))
+            }
+        let resolvedGhostFontSizeCeiling: Double =
+            if userDefaults.object(forKey: Self.ghostFontSizeCeilingDefaultsKey) == nil {
+                Self.defaultGhostFontSizeCeiling
+            } else {
+                Self.clampedGhostFontSizeCeiling(userDefaults.double(forKey: Self.ghostFontSizeCeilingDefaultsKey))
+            }
+        // The two bounds are separate keys written one at a time, so a crash between the writes can
+        // leave floor > ceiling on disk. `GhostFontMetrics` would then clamp with an inverted range
+        // and the ceiling would silently win every time, so repair the pair here rather than trust
+        // that the setters always completed.
+        let normalizedGhostFontSizeCeiling = max(resolvedGhostFontSizeCeiling, resolvedGhostFontSizeFloor)
+        let normalizedGhostFontSizeFloor = min(resolvedGhostFontSizeFloor, normalizedGhostFontSizeCeiling)
+
         let resolvedEngine = userDefaults
             .string(forKey: Self.selectedEngineDefaultsKey)
             .flatMap(SuggestionEngineKind.init(rawValue:))
@@ -562,6 +610,8 @@ struct SuggestionSettingsStore {
                 customSuggestionTextColorHex: resolvedCustomSuggestionTextColorHex,
                 ghostTextOpacity: resolvedGhostTextOpacity,
                 ghostTextSizeMultiplier: resolvedGhostTextSizeMultiplier,
+                ghostFontSizeFloor: normalizedGhostFontSizeFloor,
+                ghostFontSizeCeiling: normalizedGhostFontSizeCeiling,
                 isMenuBarIconVisible: resolvedMenuBarIconVisible,
                 isMenuBarWordCountVisible: resolvedMenuBarWordCountVisible,
                 mirrorPreference: resolvedMirrorPreference,
@@ -605,6 +655,8 @@ struct SuggestionSettingsStore {
         saveCustomSuggestionTextColorHex(data.customSuggestionTextColorHex)
         saveGhostTextOpacity(data.ghostTextOpacity)
         saveGhostTextSizeMultiplier(data.ghostTextSizeMultiplier)
+        saveGhostFontSizeFloor(data.ghostFontSizeFloor)
+        saveGhostFontSizeCeiling(data.ghostFontSizeCeiling)
         saveSelectedEngine(data.selectedEngine)
         saveOpenAICompatibleBaseURL(data.openAICompatibleBaseURL)
         saveOpenAICompatibleModelName(data.openAICompatibleModelName)
@@ -755,6 +807,14 @@ struct SuggestionSettingsStore {
 
     func saveGhostTextSizeMultiplier(_ multiplier: Double) {
         userDefaults.set(multiplier, forKey: Self.ghostTextSizeMultiplierDefaultsKey)
+    }
+
+    func saveGhostFontSizeFloor(_ points: Double) {
+        userDefaults.set(points, forKey: Self.ghostFontSizeFloorDefaultsKey)
+    }
+
+    func saveGhostFontSizeCeiling(_ points: Double) {
+        userDefaults.set(points, forKey: Self.ghostFontSizeCeilingDefaultsKey)
     }
 
     func saveSelectedEngine(_ engine: SuggestionEngineKind) {
@@ -1092,6 +1152,22 @@ struct SuggestionSettingsStore {
         }
 
         return min(maximumGhostTextSizeMultiplier, max(minimumGhostTextSizeMultiplier, value))
+    }
+
+    static func clampedGhostFontSizeFloor(_ value: Double) -> Double {
+        guard value.isFinite else {
+            return defaultGhostFontSizeFloor
+        }
+
+        return min(maximumGhostFontSizeFloor, max(minimumGhostFontSizeFloor, value))
+    }
+
+    static func clampedGhostFontSizeCeiling(_ value: Double) -> Double {
+        guard value.isFinite else {
+            return defaultGhostFontSizeCeiling
+        }
+
+        return min(maximumGhostFontSizeCeiling, max(minimumGhostFontSizeCeiling, value))
     }
 
     static func clampedFadeInDuration(_ value: Double) -> Double {

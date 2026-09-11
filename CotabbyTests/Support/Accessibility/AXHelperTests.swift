@@ -347,4 +347,54 @@ final class AXHelperTests: XCTestCase {
         let element = AXHelper.systemWideElement()
         XCTAssertEqual(CFGetTypeID(element), AXUIElementGetTypeID())
     }
+
+    // MARK: - AXFont dictionary face selection
+
+    /// Microsoft Word publishes a fixed `AXFontName: Helvetica` placeholder while reporting the
+    /// document's real typeface beside it, verified from a live dump of a Word text area:
+    ///
+    ///     AXFont = {AXFontFamily: Aptos, AXFontName: Helvetica, AXFontSize: 12, AXVisibleName: Aptos}
+    ///
+    /// Reading `AXFontName` alone therefore drew ghost text in Helvetica over an Aptos document.
+    func testPrefersReportedFamilyWhenFaceNameContradictsIt() {
+        let fontInfo: [String: Any] = [
+            "AXFontFamily": "Aptos",
+            "AXFontName": "Helvetica",
+            "AXFontSize": 12,
+            "AXVisibleName": "Aptos"
+        ]
+        XCTAssertEqual(AXHelper.faceName(fromAXFontDictionary: fontInfo), "Aptos")
+    }
+
+    func testFallsBackToVisibleNameWhenFamilyMissing() {
+        let fontInfo: [String: Any] = ["AXFontName": "Helvetica", "AXVisibleName": "Aptos"]
+        XCTAssertEqual(AXHelper.faceName(fromAXFontDictionary: fontInfo), "Aptos")
+    }
+
+    func testKeepsSpecificFaceWhenItBelongsToTheReportedFamily() {
+        // An honest host's PostScript name encodes weight and slant, which the family name loses,
+        // so the specific face must win whenever the two agree.
+        let fontInfo: [String: Any] = ["AXFontName": "Helvetica-Bold", "AXFontFamily": "Helvetica"]
+        XCTAssertEqual(AXHelper.faceName(fromAXFontDictionary: fontInfo), "Helvetica-Bold")
+    }
+
+    func testKeepsFamilyPrefixedFaceThatIsNotInstalledYet() {
+        // A host's privately bundled face cannot be instantiated until `HostFontRegistry` loads it,
+        // so the name test has to stand in for the family check at this point.
+        let fontInfo: [String: Any] = ["AXFontName": "Aptos-Bold", "AXFontFamily": "Aptos"]
+        XCTAssertEqual(AXHelper.faceName(fromAXFontDictionary: fontInfo), "Aptos-Bold")
+    }
+
+    func testUsesFaceNameWhenNoFamilyIsReported() {
+        // Legacy shape: nothing to cross-check against, so behavior is unchanged.
+        XCTAssertEqual(AXHelper.faceName(fromAXFontDictionary: ["AXFontName": "Helvetica"]), "Helvetica")
+    }
+
+    func testIgnoresEmptyNamesAndReturnsNilWhenNothingUsable() {
+        XCTAssertEqual(
+            AXHelper.faceName(fromAXFontDictionary: ["AXFontName": "", "AXFontFamily": "Aptos"]),
+            "Aptos"
+        )
+        XCTAssertNil(AXHelper.faceName(fromAXFontDictionary: ["AXFontSize": 12]))
+    }
 }

@@ -33,6 +33,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     case ghostTextColor
     case ghostTextOpacity
     case ghostTextSize
+    case ghostTextSizeLimits
     // Emoji
     case emojiPicker
     case emojiSkinTone
@@ -120,6 +121,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .ghostTextColor: return "Ghost Text Color"
         case .ghostTextOpacity: return "Ghost Text Opacity"
         case .ghostTextSize: return "Ghost Text Size"
+        case .ghostTextSizeLimits: return "Ghost Text Size Limits"
         case .emojiPicker: return "Inline Emoji Picker"
         case .emojiSkinTone: return "Skin Tone"
         case .emojiPeopleStyle: return "People Emoji Style"
@@ -196,6 +198,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .ghostTextColor: return "paintpalette"
         case .ghostTextOpacity: return "circle.lefthalf.filled"
         case .ghostTextSize: return "textformat.size"
+        case .ghostTextSizeLimits: return "arrow.up.and.down.text.horizontal"
         case .emojiPicker: return "face.smiling"
         case .emojiSkinTone: return "hand.raised.fingers.spread"
         case .emojiPeopleStyle: return "person.2"
@@ -256,7 +259,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
             return .general
         case .suggestionDisplay, .streamWhileGenerating, .fadeInSuggestions, .showFieldIndicator,
              .showWordCount, .showMenuBarIcon, .showKeyHint, .ghostTextColor,
-             .ghostTextOpacity, .ghostTextSize:
+             .ghostTextOpacity, .ghostTextSize, .ghostTextSizeLimits:
             return .appearance
         case .emojiPicker, .emojiSkinTone, .emojiPeopleStyle, .emojiHistory:
             return .emoji
@@ -309,6 +312,8 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .ghostTextColor: return "Pick the color of the inline suggestion."
         case .ghostTextOpacity: return "How faint the suggestion looks before you accept it."
         case .ghostTextSize: return "Scale suggestions if the ghost text looks too big or small."
+        case .ghostTextSizeLimits:
+            return "Smallest and largest point size ghost text is allowed to use."
         case .emojiPicker: return "Type :name to search and insert emoji inline."
         case .emojiSkinTone: return "Prefer a skin tone in emoji suggestions."
         case .emojiPeopleStyle: return "Person, man, or woman variants when available."
@@ -433,6 +438,9 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .ghostTextSize:
             return ["size", "font size", "scale", "bigger", "smaller", "larger", "text size",
                     "zoom", "multiplier", "too big", "too small"]
+        case .ghostTextSizeLimits:
+            return ["limit", "limits", "minimum", "maximum", "floor", "ceiling", "clamp",
+                    "point size", "pt", "smallest", "largest", "range", "cap"]
         case .emojiPicker:
             return ["emoji", "smile", "picker", "inline", "colon", "emoticon", "face",
                     "symbol"]

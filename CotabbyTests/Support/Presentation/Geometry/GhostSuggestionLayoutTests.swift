@@ -193,9 +193,12 @@ final class GhostSuggestionLayoutTests: XCTestCase {
 
         // Panel X should match panelOriginX
         XCTAssertEqual(frame.origin.x, layout.panelOriginX)
-        // Panel should be vertically centered around the caret midY
+        // The top line is centered on the caret midY using the height the text actually rendered at
+        // (`contentSize.height / lines.count`), not the `fontSize * 1.25` estimate in `lineHeight`:
+        // the two disagree in practice, and positioning by the estimate shifted the ghost vertically.
         let expectedTopCenter = caretRect.midY + layout.topLineCenterOffsetFromCaret
-        let expectedY = expectedTopCenter - contentSize.height + (layout.lineHeight / 2)
+        let renderedLineHeight = contentSize.height / CGFloat(layout.lines.count)
+        let expectedY = expectedTopCenter - contentSize.height + (renderedLineHeight / 2)
         XCTAssertEqual(frame.origin.y, expectedY)
     }
 
@@ -262,8 +265,9 @@ final class GhostSuggestionLayoutTests: XCTestCase {
 
         // RTL: actual origin.x = panelOriginX - contentSize.width
         XCTAssertEqual(frame.origin.x, layout.panelOriginX - contentSize.width)
-        // Panel should be entirely to the left of the caret
-        XCTAssertLessThan(frame.maxX, geometry.caretRect.minX)
+        // Panel sits entirely left of the caret and flush against it: inline ghost text starts at the
+        // caret edge with no artificial gap, since the suggestion carries its own leading space.
+        XCTAssertEqual(frame.maxX, geometry.caretRect.minX)
     }
 
     // MARK: - RTL multi-line layout
@@ -336,8 +340,8 @@ final class GhostSuggestionLayoutTests: XCTestCase {
     // MARK: - Explicit newlines
 
     func test_make_explicitNewlineForcesLineBreakAtThatPoint() {
-        // usable frame: minX = max(0 + 8, 0 + 16) = 16; caret anchor = 12 + 6 = 18, so the first
-        // line is indented 2pt from the panel origin and the wrapped line starts at the origin.
+        // usable frame: minX = max(0 + 8, 0 + 16) = 16; caret anchor = max(caret maxX 12, 16) = 16
+        // (no artificial caret gap), so the first line starts at the panel origin like the wrapped one.
         let geometry = CotabbyTestFixtures.overlayGeometry(
             caretRect: CGRect(x: 10, y: 80, width: 2, height: 18),
             inputFrameRect: CGRect(x: 0, y: 70, width: 400, height: 30),
@@ -352,7 +356,7 @@ final class GhostSuggestionLayoutTests: XCTestCase {
         )
 
         XCTAssertEqual(layout.lines.map(\.text), ["hello", "world"])
-        XCTAssertEqual(layout.lines[0].leadingIndent, 2)
+        XCTAssertEqual(layout.lines[0].leadingIndent, 0)
         XCTAssertEqual(layout.lines[1].leadingIndent, 0)
         XCTAssertEqual(layout.topLineCenterOffsetFromCaret, 0)
         XCTAssertEqual(layout.panelOriginX, 16)
@@ -375,7 +379,7 @@ final class GhostSuggestionLayoutTests: XCTestCase {
         )
 
         XCTAssertEqual(layout.lines.map(\.text), ["world"])
-        XCTAssertEqual(layout.lines[0].leadingIndent, 2)
+        XCTAssertEqual(layout.lines[0].leadingIndent, 0)
         XCTAssertEqual(layout.topLineCenterOffsetFromCaret, 0)
     }
 
@@ -403,8 +407,8 @@ final class GhostSuggestionLayoutTests: XCTestCase {
     }
 
     func test_make_overwideSegmentBeforeNewlineWidthWrapsAndCarriesRemainder() {
-        // usable: minX 16, maxX 492; first-line budget = 492 - 18 - 36 (keycap) = 438; at 10pt per
-        // char the 60-char segment splits after 43 chars, and the leftover 17 chars must carry
+        // usable: minX 16, maxX 492; first-line budget = 492 - 16 - 36 (keycap) = 440; at 10pt per
+        // char the 60-char segment splits after 44 chars, and the leftover 16 chars must carry
         // forward together with the post-newline text as separate lines.
         let geometry = CotabbyTestFixtures.overlayGeometry(
             caretRect: CGRect(x: 10, y: 80, width: 2, height: 18),
@@ -421,9 +425,9 @@ final class GhostSuggestionLayoutTests: XCTestCase {
 
         XCTAssertEqual(
             layout.lines.map(\.text),
-            [String(repeating: "a", count: 43), String(repeating: "a", count: 17), "rest"]
+            [String(repeating: "a", count: 44), String(repeating: "a", count: 16), "rest"]
         )
-        XCTAssertEqual(layout.lines[0].leadingIndent, 2)
+        XCTAssertEqual(layout.lines[0].leadingIndent, 0)
         XCTAssertEqual(layout.topLineCenterOffsetFromCaret, 0)
         XCTAssertEqual(layout.lines.last?.showsKeycap, true)
     }
@@ -445,7 +449,7 @@ final class GhostSuggestionLayoutTests: XCTestCase {
         )
 
         XCTAssertEqual(layout.lines.map(\.text), ["W", "n", "e", "x", "t"])
-        XCTAssertEqual(layout.lines[0].leadingIndent, 2)
+        XCTAssertEqual(layout.lines[0].leadingIndent, 0)
     }
 
     func test_make_trailingNewlineAfterOverwideSegmentKeepsWidthWrappedRemainder() {
@@ -466,7 +470,7 @@ final class GhostSuggestionLayoutTests: XCTestCase {
 
         XCTAssertEqual(
             layout.lines.map(\.text),
-            [String(repeating: "a", count: 43), String(repeating: "a", count: 17)]
+            [String(repeating: "a", count: 44), String(repeating: "a", count: 16)]
         )
     }
 
@@ -563,5 +567,130 @@ final class GhostSuggestionLayoutTests: XCTestCase {
         let small = GhostSuggestionLayout.renderedWidth(of: "sample", font: NSFont.systemFont(ofSize: 12))
         let large = GhostSuggestionLayout.renderedWidth(of: "sample", font: NSFont.systemFont(ofSize: 24))
         XCTAssertGreaterThan(large, small)
+    }
+
+    // MARK: - Wrapped lines follow the host's text margin
+
+    /// Word publishes the whole page as one `AXTextArea`, so its `AXFrame` left edge is the paper's
+    /// edge rather than the document's text margin. Overflow lines anchored to the frame started
+    /// roughly an inch left of where the host's own text wraps to.
+    func test_make_overflowLinesAlignToMeasuredContentEdgeWhenAvailable() {
+        let pageFrame = CGRect(x: 0, y: 0, width: 800, height: 900)
+        let textMarginX: CGFloat = 140
+
+        let geometry = CotabbyTestFixtures.overlayGeometry(
+            caretRect: CGRect(x: 700, y: 800, width: 2, height: 18),
+            inputFrameRect: pageFrame,
+            observedContentEdges: ObservedContentEdges(leftX: textMarginX, topY: 860)
+        )
+
+        let layout = GhostSuggestionLayout.make(
+            text: " wrapping text that is far too long to fit on the caret's own line",
+            geometry: geometry,
+            fontSize: 14,
+            visibleFrame: CGRect(x: 0, y: 0, width: 1000, height: 1000)
+        )
+
+        XCTAssertGreaterThan(layout.lines.count, 1, "expected the text to wrap")
+        XCTAssertEqual(layout.panelOriginX, textMarginX, accuracy: 0.001)
+    }
+
+    func test_make_overflowLinesFallBackToFramePaddingWithoutContentEdge() {
+        // Unchanged behavior for every host that exposes no measured content edge.
+        let pageFrame = CGRect(x: 0, y: 0, width: 800, height: 900)
+        let geometry = CotabbyTestFixtures.overlayGeometry(
+            caretRect: CGRect(x: 700, y: 800, width: 2, height: 18),
+            inputFrameRect: pageFrame,
+            observedContentEdges: nil
+        )
+
+        let layout = GhostSuggestionLayout.make(
+            text: " wrapping text that is far too long to fit on the caret's own line",
+            geometry: geometry,
+            fontSize: 14,
+            visibleFrame: CGRect(x: 0, y: 0, width: 1000, height: 1000)
+        )
+
+        XCTAssertGreaterThan(layout.lines.count, 1)
+        XCTAssertGreaterThan(layout.panelOriginX, pageFrame.minX)
+        XCTAssertLessThan(layout.panelOriginX, 140)
+    }
+
+    func test_make_contentEdgeOutsideTheFieldIsClampedBackIntoIt() {
+        // A stale or mis-reported edge must never push ghost text off the field entirely.
+        let pageFrame = CGRect(x: 100, y: 0, width: 800, height: 900)
+        let geometry = CotabbyTestFixtures.overlayGeometry(
+            caretRect: CGRect(x: 700, y: 800, width: 2, height: 18),
+            inputFrameRect: pageFrame,
+            observedContentEdges: ObservedContentEdges(leftX: -5000, topY: 860)
+        )
+
+        let layout = GhostSuggestionLayout.make(
+            text: " wrapping text that is far too long to fit on the caret's own line",
+            geometry: geometry,
+            fontSize: 14,
+            visibleFrame: CGRect(x: 0, y: 0, width: 1000, height: 1000)
+        )
+
+        XCTAssertGreaterThanOrEqual(layout.panelOriginX, pageFrame.minX)
+    }
+
+    // MARK: - Anchor provenance for diagnostics
+
+    /// `used_host_content_edge` in the placement log must describe the anchor the layout chose, not
+    /// whether a margin was merely measured. These pin the three cases that previously disagreed.
+    func test_make_wrappedPanelAnchoredToMeasuredMarginReportsIt() {
+        let geometry = CotabbyTestFixtures.overlayGeometry(
+            caretRect: CGRect(x: 700, y: 800, width: 2, height: 18),
+            inputFrameRect: CGRect(x: 0, y: 0, width: 800, height: 900),
+            observedContentEdges: ObservedContentEdges(leftX: 140, topY: 860)
+        )
+
+        let layout = GhostSuggestionLayout.make(
+            text: " wrapping text that is far too long to fit on the caret's own line",
+            geometry: geometry,
+            fontSize: 14,
+            visibleFrame: CGRect(x: 0, y: 0, width: 1000, height: 1000)
+        )
+
+        XCTAssertGreaterThan(layout.lines.count, 1)
+        XCTAssertTrue(layout.panelAnchoredToHostContentEdge)
+    }
+
+    func test_make_singleLineAtCaretDoesNotClaimTheMeasuredMargin() {
+        // The margin exists, but a short suggestion anchors at the caret, which lies past it.
+        let geometry = CotabbyTestFixtures.overlayGeometry(
+            caretRect: CGRect(x: 200, y: 800, width: 2, height: 18),
+            inputFrameRect: CGRect(x: 0, y: 0, width: 800, height: 900),
+            observedContentEdges: ObservedContentEdges(leftX: 140, topY: 860)
+        )
+
+        let layout = GhostSuggestionLayout.make(
+            text: " hi",
+            geometry: geometry,
+            fontSize: 14,
+            visibleFrame: CGRect(x: 0, y: 0, width: 1000, height: 1000)
+        )
+
+        XCTAssertEqual(layout.lines.count, 1)
+        XCTAssertFalse(layout.panelAnchoredToHostContentEdge)
+    }
+
+    func test_make_withoutMeasuredMarginNeverReportsIt() {
+        let geometry = CotabbyTestFixtures.overlayGeometry(
+            caretRect: CGRect(x: 700, y: 800, width: 2, height: 18),
+            inputFrameRect: CGRect(x: 0, y: 0, width: 800, height: 900),
+            observedContentEdges: nil
+        )
+
+        let layout = GhostSuggestionLayout.make(
+            text: " wrapping text that is far too long to fit on the caret's own line",
+            geometry: geometry,
+            fontSize: 14,
+            visibleFrame: CGRect(x: 0, y: 0, width: 1000, height: 1000)
+        )
+
+        XCTAssertGreaterThan(layout.lines.count, 1)
+        XCTAssertFalse(layout.panelAnchoredToHostContentEdge)
     }
 }

@@ -39,6 +39,19 @@ struct FocusSnapshotResolver {
     /// fields (see `FocusSessionScopedCache`).
     private let secureFieldVerdictCache = FocusSessionScopedCache<Bool>()
     private let terminalDetectionCache = FocusSessionScopedCache<Bool>()
+    /// Where the host actually starts drawing text on the caret's line, which a field's
+    /// `AXFrame` does not reveal (Word's frame is the page edge, not the text margin). Three AX
+    /// round trips, so each result is cached per focus session *and* per paragraph: the margin
+    /// changes between an indented block, a list item or a table cell inside one field without
+    /// `focusChangeSequence` turning over. The lookup site documents how the paragraph key is built.
+    private let lineContentEdgesCache = FocusSessionScopedCache<ObservedContentEdges?>()
+    /// Every parameterized attribute `resolveLineContentEdges` needs. All three must be
+    /// advertised before it runs; see that method for why an ungated call is a stall risk.
+    private static let lineGeometryAttributes = [
+        "AXLineForIndex",
+        "AXRangeForLine",
+        kAXBoundsForRangeParameterizedAttribute as String
+    ]
 
     /// Caches the resolved field font/color per focused element so the attributed-string AX read
     /// happens once per field rather than on every poll. Reference type for the same reason as
@@ -807,6 +820,42 @@ struct FocusSnapshotResolver {
         }
         let caretRect = caretResult?.rect
         let caretQuality = caretResult?.quality
+        // Prefer content edges the caret resolver already measured from child text runs. Hosts whose
+        // caret comes from `AXBoundsForRange` never walk those runs, so fall back to asking the host
+        // directly for its line geometry — that is the only way to learn a document's text margin as
+        // distinct from its page edge.
+        // Only ask for line geometry when the offset means what the host thinks it means. A
+        // marker-synthesized selection is window-relative (see Branch 1's gate above), so handing it
+        // to `AXLineForIndex` resolves some other visual line and yields a margin from the wrong
+        // place entirely.
+        let lineQueryOffsetIsDocumentRelative = markerSelection == nil
+        let observedContentEdges = caretResult?.observedContentEdges
+            ?? (lineQueryOffsetIsDocumentRelative ? selectionForGeometry : nil).flatMap {
+                geometrySelection -> ObservedContentEdges? in
+            // Cached per paragraph as well as per focus session. `lineContentEdgesParagraphKey`
+            // documents how the key stays correct across paragraphs yet stable while typing.
+            guard let windowSelection = selection, let windowText = textValue else { return nil }
+            let paragraphKey = Self.lineContentEdgesParagraphKey(
+                windowText: windowText,
+                windowCaretLocation: windowSelection.location,
+                documentCaretLocation: geometrySelection.location
+            )
+            return lineContentEdgesCache.value(
+                forKey: "lineEdges:\(AXHelper.elementIdentity(for: element)):\(paragraphKey)",
+                focusChangeSequence: focusChangeSequence
+            ) {
+                geometryResolver.resolveLineContentEdges(
+                    for: element,
+                    caretLocation: geometrySelection.location,
+                    anchorFrame: inputFrameRect,
+                    // Read from the attribute list already fetched for this element, so the gate
+                    // adds no round trip. Hosts that resolve their caret through text markers
+                    // advertise none of these and must not pay three blocking calls to learn that.
+                    supportsLineGeometry: Self.lineGeometryAttributes
+                        .allSatisfy(supportedParameterizedAttributes.contains)
+                )
+            }
+        }
         // Recorded from the already-fetched attribute list (no extra AX call) so snapshot
         // assembly can classify the field as web-rendered without touching the element again.
         let vendsDOMAttributes = WebContentFieldDetector.vendsDOMAttributes(supportedAttributes)
@@ -845,7 +894,7 @@ struct FocusSnapshotResolver {
             caretRect: caretRect,
             caretQuality: caretQuality,
             observedCharWidth: caretResult?.observedCharWidth,
-            observedContentEdges: caretResult?.observedContentEdges,
+            observedContentEdges: observedContentEdges,
             caretSourceDetail: caretResult?.sourceDetail,
             caretAllowsDeepSearch: caretResult?.allowsDeepSearch ?? true,
             inputFrameRect: inputFrameRect,
@@ -853,6 +902,54 @@ struct FocusSnapshotResolver {
             vendsDOMAttributes: vendsDOMAttributes,
             resolverCandidate: resolverCandidate
         )
+    }
+
+    /// Builds the paragraph component of the line-content-edge cache key.
+    ///
+    /// A measured margin belongs to one paragraph: moving between an indented block, a list item or
+    /// a table cell inside one field changes it without `focusChangeSequence` turning over. So the key
+    /// names the paragraph by the document offset where it starts, found with a local string scan
+    /// rather than an AX round trip. `windowText` is the bounded text around the caret, indexed by
+    /// the window-relative `windowCaretLocation`; `documentCaretLocation` is the same caret in
+    /// document coordinates, and their difference is the window's document origin.
+    ///
+    /// The hard case is a paragraph that starts before the window. Its real start is unknowable here,
+    /// and the window's own origin is not a usable stand-in: `nativeTextWindow` keeps
+    /// `focusedTextContextWindowUTF16` units before the caret, so the origin advances with every
+    /// character typed, and a key built from it would miss the cache on every keystroke — putting
+    /// three blocking AX calls back on the typing path. Instead the origin is bucketed by that same
+    /// window size, so the key changes at most once per window's worth of typing. Buckets cannot merge
+    /// two different such paragraphs: a caret whose paragraph start is out of view sits more than one
+    /// window past that start, which is itself past any earlier paragraph, so two such carets'
+    /// origins always differ by more than a bucket. The `p` and `u` prefixes keep the two key kinds
+    /// from ever colliding.
+    ///
+    /// Internal (not private) so the key rule is unit-testable without live AX elements, and
+    /// `nonisolated` because it is pure string arithmetic over a `Sendable` constant: inheriting the
+    /// resolver's `@MainActor` isolation would force every caller onto the main actor for no reason.
+    nonisolated static func lineContentEdgesParagraphKey(
+        windowText: String,
+        windowCaretLocation: Int,
+        documentCaretLocation: Int
+    ) -> String {
+        let window = windowText as NSString
+        let caretInWindow = min(max(windowCaretLocation, 0), window.length)
+        let windowDocumentOrigin = max(documentCaretLocation - caretInWindow, 0)
+        let newlineBeforeCaret = window.rangeOfCharacter(
+            from: .newlines,
+            options: .backwards,
+            range: NSRange(location: 0, length: caretInWindow)
+        )
+
+        if newlineBeforeCaret.location != NSNotFound {
+            return "p\(windowDocumentOrigin + NSMaxRange(newlineBeforeCaret))"
+        }
+        // No newline before the caret and the window begins at the document start, so the paragraph
+        // provably starts at offset 0.
+        if windowDocumentOrigin == 0 {
+            return "p0"
+        }
+        return "u\(windowDocumentOrigin / focusedTextContextWindowUTF16)"
     }
 
     /// Reads the smallest native text window the host can provide around the current selection.
