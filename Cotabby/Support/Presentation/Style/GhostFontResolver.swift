@@ -103,6 +103,9 @@ enum GhostFontResolver {
 
     /// Relative width error below which a candidate face is accepted as the host's typeface.
     private static let widthMatchTolerance: CGFloat = 0.02
+    /// How much better than the system face a family must fit one sample to replace it: twice a
+    /// whole-point sample's rounding over a dozen characters.
+    static let familyMargin: CGFloat = 0.01
     /// Bounds for scaling the system face to a measured average advance, so one noisy measurement
     /// cannot produce absurd sizes.
     private static let minimumScale: CGFloat = 0.7
@@ -203,13 +206,23 @@ enum GhostFontResolver {
               sampleWidth > 0, !sample.isEmpty else {
             return Resolution(font: systemFont, provenance: .hostSizeSystem, widthAgreement: 1)
         }
-        var best: (font: NSFont, error: CGFloat) = (systemFont, relativeError(of: systemFont, sample: sample, width: sampleWidth))
+        let systemError = relativeError(of: systemFont, sample: sample, width: sampleWidth)
+        var best: (font: NSFont, error: CGFloat) = (systemFont, systemError)
         for family in candidateFamilies {
             guard let candidate = font(family: family, size: size) else { continue }
             let error = relativeError(of: candidate, sample: sample, width: sampleWidth)
             if error < best.error {
                 best = (candidate, error)
             }
+        }
+        // The system face stays unless a family fits clearly better. A whole-point caret sample is
+        // off by up to half a percent, so over a dozen characters some family often fits a little
+        // better by chance: a system-font Chrome field sampled " was thinking t" at 99.0pt, the
+        // system face 0.41% off and Trebuchet MS 0.20%, and the best fit flashed Trebuchet until the
+        // pixel match named the system face (2026-09-11). Georgia's own advance beats the system
+        // face by 1.4 points and is still taken.
+        if systemError <= widthMatchTolerance, best.error + familyMargin >= systemError {
+            best = (systemFont, systemError)
         }
         if best.error <= widthMatchTolerance {
             let provenance: Provenance = best.font.familyName == systemFont.familyName ? .hostSizeSystem : .hostSizeMatchedFamily
@@ -227,6 +240,13 @@ enum GhostFontResolver {
     static func familyFits(_ family: String, sample: String, width: CGFloat, size: CGFloat) -> Bool {
         guard width > 0, !sample.isEmpty, let candidate = font(family: family, size: size) else { return false }
         return relativeError(of: candidate, sample: sample, width: width) <= widthMatchTolerance
+    }
+
+    /// Whether the system face reproduces one host width sample within the match tolerance: the
+    /// first candidate `TypefaceEvidence` judges, so a family that merely also fits never replaces it.
+    static func systemFaceFits(sample: String, width: CGFloat, size: CGFloat) -> Bool {
+        guard width > 0, !sample.isEmpty else { return false }
+        return relativeError(of: NSFont.systemFont(ofSize: size), sample: sample, width: width) <= widthMatchTolerance
     }
 
     /// The system face scaled to a sample: what a field renders in once its samples have ruled

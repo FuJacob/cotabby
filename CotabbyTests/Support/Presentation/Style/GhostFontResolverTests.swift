@@ -220,4 +220,20 @@ final class GhostFontResolverResizingTests: XCTestCase {
         XCTAssertEqual(resized.fontName, "Georgia")
         XCTAssertEqual(resized.pointSize, 15.4, accuracy: 0.001)
     }
+
+    /// A system-font Chrome field (2026-09-11): " was thinking t" measured 99.0pt from the caret, the
+    /// system face 0.41% off and Trebuchet MS 0.20%, and the best fit showed Trebuchet.
+    func testTheSystemFaceStaysWhenAFamilyFitsOnlyByChance() {
+        let resolution = GhostFontResolver.resolve(
+            GhostFontResolver.Input(
+                style: ResolvedFieldStyle(fontName: nil, fontPointSize: 15, colorHex: nil),
+                hostMetrics: HostTextMetrics(sampleText: " was thinking t", sampleWidth: 99.0),
+                caretBoxHeight: 18,
+                renderer: .webEngine,
+                sizeMultiplier: 1
+            )
+        )
+        XCTAssertEqual(resolution.provenance, GhostFontResolver.Provenance.hostSizeSystem)
+        XCTAssertEqual(resolution.font.familyName, NSFont.systemFont(ofSize: 15).familyName)
+    }
 }

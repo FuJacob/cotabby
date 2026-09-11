@@ -696,8 +696,13 @@ final class OverlayController: SuggestionOverlayControlling {
         guard let sample else {
             return resolution
         }
-        let verdict = evidence.verdict(candidates: GhostFontResolver.candidateFamilies) { family, sample in
-            GhostFontResolver.familyFits(family, sample: sample.text, width: sample.width, size: size)
+        // The system face is the first candidate: while it fits every sample, another family that
+        // also fits is a coin flip on whole-point widths, not evidence (see `resolveBySize`).
+        let systemFamily = NSFont.systemFont(ofSize: size).familyName ?? ""
+        let verdict = evidence.verdict(candidates: [systemFamily] + GhostFontResolver.candidateFamilies) { family, sample in
+            family == systemFamily
+                ? GhostFontResolver.systemFaceFits(sample: sample.text, width: sample.width, size: size)
+                : GhostFontResolver.familyFits(family, sample: sample.text, width: sample.width, size: size)
         }
         typefaceEvidence[identity] = evidence
         CotabbyLogger.suggestion.debug(
@@ -717,6 +722,9 @@ final class OverlayController: SuggestionOverlayControlling {
         switch verdict {
         case .singleSample:
             return resolution
+        case .family(let family) where family == systemFamily:
+            guard resolution.font.familyName != systemFamily else { return resolution }
+            return GhostFontResolver.Resolution(font: NSFont.systemFont(ofSize: size), provenance: .hostSizeSystem, widthAgreement: 1)
         case .family(let family):
             guard resolution.font.familyName != family, let font = GhostFontResolver.familyFont(family, size: size) else {
                 return resolution

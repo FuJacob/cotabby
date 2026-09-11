@@ -88,4 +88,14 @@ final class TypefaceEvidenceTests: XCTestCase {
         evidence.record(.init(text: String(repeating: "ask me about the weather in Toronto today ", count: 3), width: 900), resolverFamily: nil)
         XCTAssertEqual(evidence.scalingSample?.text, "ask me about the weather in Toronto t", "the refinement happens once")
     }
+
+    /// With the system face first among the candidates, a second family that also fits every sample
+    /// leaves the verdict undecided instead of electing that family.
+    func testAFamilyThatOnlyMatchesTheSystemFaceIsNotElected() {
+        var evidence = TypefaceEvidence()
+        evidence.record(.init(text: "the first sample text", width: 100), resolverFamily: nil)
+        evidence.record(.init(text: "another longer sample", width: 110), resolverFamily: nil)
+        let verdict = evidence.verdict(candidates: ["System", "Trebuchet MS"]) { _, _ in true }
+        XCTAssertEqual(verdict, .undecidable)
+    }
 }
