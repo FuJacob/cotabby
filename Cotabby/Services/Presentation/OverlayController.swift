@@ -1082,16 +1082,14 @@ final class OverlayController: SuggestionOverlayControlling {
                 session.baselineSource = "calibrated"
                 changed = true
             }
-            let zoom = self.zoomStep(for: geometry)
-            let rematched = Self.applyingMatchedTypeface(
-                session.fontResolution,
-                match: calibration.typefaceMatch,
-                hostNamesFace: Self.hostNamesFace(geometry),
-                widthSample: self.heldWidthSample(for: geometry),
-                sizeMultiplier: CGFloat(self.suggestionSettings.ghostTextSizeMultiplier),
-                reportedSize: zoom.reportedSize,
-                zoomKind: zoom.kind
-            )
+            // The face goes through the path a present takes (`resolveFont`, which reads the match
+            // the calibrator just recorded), so the ghost re-rendered here is the one the next
+            // keystroke presents. Re-applying the fresh match to the session's own face skipped the
+            // size the field's caret advance had measured (`applyingHostAdvance`): Claude's Code
+            // composer, which reports no size, drew the match's raw 15.48 for a frame between 15.34
+            // frames after each of two matches two seconds apart (2026-09-11).
+            let renderer: GhostBaselinePolicy.HostRenderer = session.geometry.isWebContentField ? .webEngine : .textKit
+            let rematched = self.resolveFont(for: session.geometry, renderer: renderer)
             if rematched.font != session.fontResolution.font {
                 session.fontResolution = rematched
                 changed = true
