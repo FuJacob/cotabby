@@ -433,6 +433,21 @@ enum AXHelper {
         var paragraph: CGRect? = nil
     }
 
+    /// Line ranges a caret line may be split into before the walk back to its start gives up (see
+    /// `textMarkerCaretLine`): a line holds a handful of inline elements, not dozens.
+    static let maximumLineFragments = 8
+
+    /// Whether `range`, the box of the line range just before a line range's start, is an earlier
+    /// part of the same visual line rather than the line above: on the line (its middle within half
+    /// a glyph box of the line's first glyph), starting left of that glyph and ending at it (within
+    /// a glyph box: a column further left is another text), and no taller than two glyph boxes.
+    static func isEarlierFragment(_ range: CGRect, ofLineStartingAt first: CGRect) -> Bool {
+        abs(range.midY - first.midY) < first.height / 2
+            && range.minX < first.minX - 0.5
+            && abs(range.maxX - first.minX) <= first.height
+            && range.height <= first.height * 2
+    }
+
     /// The caret's visual line for a host whose index-based bounds answer nothing (a Chromium
     /// contenteditable such as Claude's composer), read through text markers: the caret marker's
     /// line range and its box, and the box of the line above it.
@@ -456,7 +471,7 @@ enum AXHelper {
         let lineText = stringForMarkerRange(lineRange, on: element) ?? ""
         // The line's first glyph, past a list item's marker ("• "): its box is where the line's text
         // starts and how tall a line of it is, whatever box the host gives the whole range.
-        let firstCharacter = lineText.isEmpty ? nil : characterBox(
+        var firstCharacter = lineText.isEmpty ? nil : characterBox(
             from: lineStart, advancing: textOffsetPastBullet(lineText) ?? 0, on: element, attributes: parameterizedAttributes
         )
         // An empty line has no box of its own; the caret sits at its start, so its box is the edge.
@@ -471,24 +486,46 @@ enum AXHelper {
         }
         // The line above is the line of the character just before this line's start. (Asked for
         // the previous line start from a line start, Chrome answered this line's own start, 2026-09-10.)
+        // Chromium can also end a line range partway along its visual line, at an inline element's
+        // edge: in Gmail's compose body (2026-09-11) the caret line's range started at x 804, then
+        // 743, on a line whose text starts at 393, and every wrapped ghost row started there. The
+        // range before such a start lies on the same visual line (`isEarlierFragment`); those are
+        // walked back over, and the first range before that is another line is the line above.
+        var start = lineStart
         var previous: CGRect?
         var previousFirst: CGRect?
-        if let before = copyOpaqueParameterized(previousMarkerAttribute, parameter: lineStart, on: element),
-           let previousRange = copyOpaqueParameterized(lineRangeForMarkerAttribute, parameter: before, on: element),
-           let previousStart = startMarker(of: previousRange, on: element, attributes: parameterizedAttributes),
-           sameTextElement(lineStart, previousStart, on: element, attributes: parameterizedAttributes) {
-            if let rect = markerRangeRect(previousRange, on: element, requiresWidth: true), rect.minY < line.minY - 1 {
-                previous = rect
-            }
+        var fragments = 0
+        while let before = copyOpaqueParameterized(previousMarkerAttribute, parameter: start, on: element),
+              let previousRange = copyOpaqueParameterized(lineRangeForMarkerAttribute, parameter: before, on: element),
+              let previousStart = startMarker(of: previousRange, on: element, attributes: parameterizedAttributes) {
+            let previousRect = markerRangeRect(previousRange, on: element, requiresWidth: true)
             let previousText = stringForMarkerRange(previousRange, on: element) ?? ""
-            if let first = firstCharacter, !previousText.isEmpty,
-               let box = characterBox(
-                   from: previousStart, advancing: textOffsetPastBullet(previousText) ?? 0,
-                   on: element, attributes: parameterizedAttributes
-               ),
-               box.minY < first.minY - 1 {
-                previousFirst = box
+            func previousGlyph() -> CGRect? {
+                previousText.isEmpty ? nil : characterBox(
+                    from: previousStart, advancing: textOffsetPastBullet(previousText) ?? 0,
+                    on: element, attributes: parameterizedAttributes
+                )
             }
+            if fragments < maximumLineFragments, let first = firstCharacter, let rect = previousRect,
+               isEarlierFragment(rect, ofLineStartingAt: first) {
+                // The line starts at the fragment's first glyph, on the caret line's glyph row.
+                let glyph = previousGlyph()
+                let left = min(glyph?.minX ?? rect.minX, first.minX)
+                line = CGRect(x: left, y: line.minY, width: max(0, line.maxX - left), height: line.height)
+                firstCharacter = CGRect(x: left, y: first.minY, width: glyph?.width ?? first.width, height: first.height)
+                start = previousStart
+                fragments += 1
+                continue
+            }
+            if sameTextElement(start, previousStart, on: element, attributes: parameterizedAttributes) {
+                if let rect = previousRect, rect.minY < line.minY - 1 {
+                    previous = rect
+                }
+                if let first = firstCharacter, let box = previousGlyph(), box.minY < first.minY - 1 {
+                    previousFirst = box
+                }
+            }
+            break
         }
         // The paragraph around the caret's text: the parent of the text element the caret marker is
         // in, unless that parent is the field (text straight inside a contenteditable has no

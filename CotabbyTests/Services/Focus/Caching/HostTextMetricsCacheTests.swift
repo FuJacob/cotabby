@@ -393,5 +393,23 @@ final class HostTextMetricsProbeMarkerLineTests: XCTestCase {
             caret: CGRect(x: 95, y: 868, width: 0, height: 20), anchor: composer, caretHeight: 20
         ))
     }
+
+    /// Gmail's compose body in Chrome (2026-09-11): the caret line's range started at x 804, then
+    /// 743, on a line whose text starts at 393 (15pt glyph boxes, a line 15pt above). The ranges
+    /// before such a start on the same glyph row are earlier parts of the line; the line above, and
+    /// text in a column further left, are not.
+    func testALineRangeStartingPartwayAlongItsLineHasEarlierFragments() {
+        let first = CGRect(x: 804, y: 220, width: 7, height: 15)
+        XCTAssertTrue(AXHelper.isEarlierFragment(CGRect(x: 743, y: 220, width: 61, height: 15), ofLineStartingAt: first))
+        XCTAssertTrue(AXHelper.isEarlierFragment(
+            CGRect(x: 393, y: 220, width: 350, height: 15), ofLineStartingAt: CGRect(x: 743, y: 220, width: 8, height: 15)
+        ))
+        XCTAssertFalse(AXHelper.isEarlierFragment(CGRect(x: 393, y: 205, width: 1000, height: 15), ofLineStartingAt: first),
+                       "the line above")
+        XCTAssertFalse(AXHelper.isEarlierFragment(CGRect(x: 100, y: 220, width: 200, height: 15), ofLineStartingAt: first),
+                       "a column further left")
+        XCTAssertFalse(AXHelper.isEarlierFragment(CGRect(x: 393, y: 205, width: 411, height: 45), ofLineStartingAt: first),
+                       "a block three lines tall")
+    }
 }
 
