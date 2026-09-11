@@ -133,6 +133,7 @@ extension SuggestionCoordinator {
         let request = requestBuildResult.request
         latestRequestID = request.requestID
         latestWordBoundaryAnchor = request.wordBoundaryAnchor
+        latestRequestPrecedingText = request.context.precedingText
 
         state = .generating
         // The model needs tens to hundreds of milliseconds; the overlay uses that time to measure
@@ -255,6 +256,7 @@ extension SuggestionCoordinator {
         let request = requestBuildResult.request
         latestRequestID = request.requestID
         latestWordBoundaryAnchor = request.wordBoundaryAnchor
+        latestRequestPrecedingText = request.context.precedingText
 
         let workID = workController.replaceDebouncedWork(delayMilliseconds: 0) { [weak self] workID in
             guard let self else { return }
@@ -323,7 +325,10 @@ extension SuggestionCoordinator {
             // Space-corrected against the text this continuation will follow, so the cached entry
             // is already right when it is restored (see `GhostSpaceBoundary`).
             let text = GhostSpaceBoundary.adjusted(
-                result.text, precedingText: precedingText, continuesPartialWord: request.wordBoundaryAnchor != nil
+                result.text,
+                precedingText: precedingText,
+                requestPrecedingText: result.spacingIsExact ? request.context.precedingText : nil,
+                continuesPartialWord: request.wordBoundaryAnchor != nil
             )
             self.suggestionAnchorCache.record(identityKey: identityKey, precedingText: precedingText, fullText: text)
             CotabbyLogger.suggestion.debug(
@@ -488,10 +493,14 @@ extension SuggestionCoordinator {
         ) else {
             return
         }
+        guard !GhostSpaceBoundary.isStaleAfterTypedSpace(partial.text, precedingText: liveContext.precedingText) else {
+            return
+        }
 
         let spacedText = GhostSpaceBoundary.adjusted(
             partial.text,
             precedingText: liveContext.precedingText,
+            requestPrecedingText: partial.spacingIsExact ? latestRequestPrecedingText : nil,
             continuesPartialWord: latestWordBoundaryAnchor != nil
         )
         _ = interactionState.startSession(
@@ -911,15 +920,28 @@ extension SuggestionCoordinator {
             return
         }
 
+        // A completion that attaches to a word the user has since ended with a space is stale
+        // (see `GhostSpaceBoundary.isStaleAfterTypedSpace`).
+        if GhostSpaceBoundary.isStaleAfterTypedSpace(result.text, precedingText: liveContext.precedingText) {
+            clearSuggestion()
+            hideOverlay(reason: "Overlay hidden because the completion attached to a word the user had already ended.")
+            state = .idle
+            qualityMetricsStore.recordSuppressed(reason: "punctuationAfterTypedSpace")
+            logStage(
+                "stale-punctuation",
+                workID: workID,
+                generation: result.generation,
+                message: "Dropped a completion that opened with punctuation after the user typed a space.",
+                rawOutput: result.rawText,
+                normalizedOutput: result.text
+            )
+            return
+        }
+
         latestGenerationNumber = liveContext.generation
         // One shown event per suggestion: this is the only place a fresh generation becomes
         // visible (re-presentations after partial accepts reuse the same session).
         qualityMetricsStore.recordShown()
-        suggestionAnchorCache.record(
-            identityKey: liveContext.focusedInputIdentityKey,
-            precedingText: liveContext.precedingText,
-            fullText: result.text
-        )
         // The leading space is decided here, against the text that is in the field now, not against
         // the snapshot the request was built from: the user keeps typing while the model runs, so a
         // space that arrived meanwhile would otherwise leave the ghost a space too far right (and
@@ -927,7 +949,15 @@ extension SuggestionCoordinator {
         let spacedText = GhostSpaceBoundary.adjusted(
             result.text,
             precedingText: liveContext.precedingText,
+            requestPrecedingText: result.spacingIsExact ? latestRequestPrecedingText : nil,
             continuesPartialWord: latestWordBoundaryAnchor != nil
+        )
+        // Cached as shown, spaced against the live text it follows, so a restore re-offers exactly
+        // this ghost (the prefetched continuation is cached the same way).
+        suggestionAnchorCache.record(
+            identityKey: liveContext.focusedInputIdentityKey,
+            precedingText: liveContext.precedingText,
+            fullText: spacedText
         )
         hasPrefetchedContinuation = false
         let session = interactionState.startSession(

@@ -123,6 +123,11 @@ final class SuggestionCoordinator: ObservableObject {
     /// `latestRequestID` because both describe the in-flight request, and every reader is already
     /// guarded by the work-id check that makes "in flight" meaningful.
     var latestWordBoundaryAnchor: String?
+    /// The text before the caret the request now in flight was built from. A base model's
+    /// completion is exact text following it, so `GhostSpaceBoundary` reads the model's own word
+    /// boundary against it (see `SuggestionResult.spacingIsExact`). Set and read beside
+    /// `latestWordBoundaryAnchor`, under the same work-id guard.
+    var latestRequestPrecedingText: String?
     /// True once the continuation of the active suggestion has been prefetched, so the extra
     /// generation happens at most once per suggestion however many characters are typed through it.
     /// Cleared whenever the session is torn down or replaced.
