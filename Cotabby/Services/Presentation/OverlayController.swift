@@ -89,14 +89,27 @@ final class OverlayController: SuggestionOverlayControlling {
     /// The faces an Electron host ships in its bundle, for the pixel match (see the registry).
     private let hostBundledFonts = HostBundledFontRegistry()
 
+    /// Where `hostFaceMemory` is kept between launches; nil keeps it in memory only (tests).
+    private let faceMemoryDefaults: UserDefaults?
+    static let faceMemoryDefaultsKey = "cotabbyHostFaceMemory"
+
     init(
         suggestionSettings: SuggestionSettingsModel,
         renderModePolicyOverride: CompletionRenderModePolicy? = nil,
-        baselineCalibrator: HostBaselineCalibrator? = nil
+        baselineCalibrator: HostBaselineCalibrator? = nil,
+        faceMemoryDefaults: UserDefaults? = nil
     ) {
         self.suggestionSettings = suggestionSettings
         self.renderModePolicyOverride = renderModePolicyOverride
         self.baselineCalibrator = baselineCalibrator
+        self.faceMemoryDefaults = faceMemoryDefaults
+        self.hostFaceMemory = HostFaceMemory(restoring: faceMemoryDefaults?.data(forKey: Self.faceMemoryDefaultsKey))
+    }
+
+    /// Saves the face memory after a record changed it (a new style settled, or its size or pitch
+    /// moved): once per field at most, not once per presentation.
+    private func saveFaceMemory() {
+        faceMemoryDefaults?.set(hostFaceMemory.encoded(), forKey: Self.faceMemoryDefaultsKey)
     }
 
     private lazy var panel: OverlayPanel = {
@@ -479,7 +492,9 @@ final class OverlayController: SuggestionOverlayControlling {
         }
         let adoptedSample = typefaceEvidence[geometry.focusedInputIdentityKey]?.scalingSample != nil
         if HostFaceMemory.isSettled(resolution.provenance, fieldAdoptedSample: adoptedSample) {
-            hostFaceMemory.record(.init(fontName: resolution.font.fontName, pointSize: resolution.font.pointSize), for: key)
+            if hostFaceMemory.record(.init(fontName: resolution.font.fontName, pointSize: resolution.font.pointSize), for: key) {
+                saveFaceMemory()
+            }
             return resolution
         }
         guard HostFaceMemory.yieldsToMemory(resolution.provenance),
@@ -977,7 +992,9 @@ final class OverlayController: SuggestionOverlayControlling {
         let key = geometry.isWebContentField ? hostStyleKey(for: geometry) : nil
         if let measured = geometry.hostTextMetrics?.linePitch, measured > 0 {
             if let key {
-                hostFaceMemory.recordPitch(measured, for: key)
+                if hostFaceMemory.recordPitch(measured, for: key) {
+                    saveFaceMemory()
+                }
             }
             return measured
         }

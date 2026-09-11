@@ -166,7 +166,8 @@ final class CotabbyAppEnvironment {
         }
         let overlayController = OverlayController(
             suggestionSettings: suggestionSettings,
-            baselineCalibrator: HostBaselineCalibrator()
+            baselineCalibrator: HostBaselineCalibrator(),
+            faceMemoryDefaults: .standard
         )
         let activationIndicatorController = ActivationIndicatorController()
         let clipboardContextProvider = ClipboardContextProvider()

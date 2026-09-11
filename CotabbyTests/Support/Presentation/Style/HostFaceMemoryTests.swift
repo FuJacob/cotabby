@@ -91,4 +91,35 @@ final class HostFaceMemoryTests: XCTestCase {
         XCTAssertFalse(HostFaceMemory.yieldsToMemory(.pixelMatched))
         XCTAssertFalse(HostFaceMemory.yieldsToMemory(.hostFace))
     }
+
+    /// Kept across launches: the first field after one starts in the face its host last settled on.
+    func testTheMemorySurvivesARestart() throws {
+        var memory = HostFaceMemory()
+        let claude = try XCTUnwrap(key("com.anthropic.claudefordesktop", size: 14, caret: 19))
+        let obsidian = try XCTUnwrap(key("md.obsidian", size: nil, caret: 20))
+        XCTAssertTrue(memory.record(.init(fontName: "AnthropicSansVariable-TextRegular", pointSize: 15.336), for: claude))
+        XCTAssertFalse(memory.record(.init(fontName: "AnthropicSansVariable-TextRegular", pointSize: 15.336), for: claude), "the same face again changes nothing")
+        XCTAssertTrue(memory.recordPitch(23, for: claude))
+        XCTAssertTrue(memory.record(.init(fontName: ".AppleSystemUIFont", pointSize: 16), for: obsidian))
+
+        let restored = HostFaceMemory(restoring: memory.encoded())
+        XCTAssertEqual(restored.face(for: claude), .init(fontName: "AnthropicSansVariable-TextRegular", pointSize: 15.336))
+        XCTAssertEqual(restored.pitch(for: claude), 23)
+        XCTAssertEqual(restored.face(for: obsidian), .init(fontName: ".AppleSystemUIFont", pointSize: 16))
+        XCTAssertNil(HostFaceMemory(restoring: Data("not json".utf8)).face(for: claude))
+        XCTAssertNil(HostFaceMemory(restoring: nil).face(for: claude))
+    }
+
+    func testABrowserPagesStyleIsNotKeptAcrossLaunches() throws {
+        var memory = HostFaceMemory()
+        let page = try XCTUnwrap(key("com.google.Chrome", url: "https://mail.example.com/inbox", browser: true, size: 15))
+        let app = try XCTUnwrap(key("md.obsidian", size: nil, caret: 20))
+        memory.record(.init(fontName: "Georgia", pointSize: 15), for: page)
+        memory.record(.init(fontName: ".AppleSystemUIFont", pointSize: 16), for: app)
+        XCTAssertTrue(page.isPageScoped)
+        let restored = HostFaceMemory(restoring: memory.encoded())
+        XCTAssertNil(restored.face(for: page), "the origin stays out of the saved memory")
+        XCTAssertEqual(restored.face(for: app)?.pointSize, 16)
+    }
 }
+

@@ -22,9 +22,11 @@ import Foundation
 /// Keyed by what makes two fields the same text style: the app (and, for a browser, the page
 /// origin, since two sites share nothing), the size the host reports, the caret box height, and the
 /// user's size multiplier. A value type in `Support/`; `OverlayController` owns the one instance
-/// for the app's lifetime.
+/// for the app's lifetime and keeps it across launches (`encoded()`, `init(restoring:)`): the first
+/// field after a launch had nothing to start from, and Obsidian's showed the caret box's 17pt for
+/// three seconds of typing before its pixel match named the 16pt system face (2026-09-11).
 nonisolated struct HostFaceMemory: Sendable {
-    struct Key: Hashable, Sendable {
+    struct Key: Hashable, Codable, Sendable {
         let host: String
         /// Reported size in quarter points, or -1 when the host reports none.
         let reportedSize: Int
@@ -32,6 +34,11 @@ nonisolated struct HostFaceMemory: Sendable {
         let caretHeight: Int
         /// The user's ghost size multiplier in percent.
         let sizeMultiplier: Int
+
+        /// True for a browser page's style, whose host names the page's origin.
+        var isPageScoped: Bool {
+            host.contains("|")
+        }
 
         /// Nil when there is no host to key on, or for a browser page whose origin is unknown.
         init?(
@@ -61,7 +68,7 @@ nonisolated struct HostFaceMemory: Sendable {
         }
     }
 
-    struct Face: Equatable, Sendable {
+    struct Face: Equatable, Codable, Sendable {
         let fontName: String
         let pointSize: CGFloat
     }
@@ -69,7 +76,7 @@ nonisolated struct HostFaceMemory: Sendable {
     /// Distinct styles kept; the first one recorded is the first forgotten.
     static let capacity = 48
 
-    private struct Entry {
+    private struct Entry: Equatable {
         var face: Face?
         var pitch: CGFloat?
     }
@@ -85,25 +92,48 @@ nonisolated struct HostFaceMemory: Sendable {
         entries[key]?.pitch
     }
 
-    mutating func record(_ face: Face, for key: Key) {
+    /// Records `face` for `key`; true when that changed what is remembered (worth saving).
+    @discardableResult
+    mutating func record(_ face: Face, for key: Key) -> Bool {
         update(key) { $0.face = face }
     }
 
-    mutating func recordPitch(_ pitch: CGFloat, for key: Key) {
-        guard pitch > 0, pitch.isFinite else { return }
-        update(key) { $0.pitch = pitch }
+    /// Records the line pitch for `key`; true when that changed what is remembered.
+    @discardableResult
+    mutating func recordPitch(_ pitch: CGFloat, for key: Key) -> Bool {
+        guard pitch > 0, pitch.isFinite else { return false }
+        return update(key) { $0.pitch = pitch }
     }
 
-    private mutating func update(_ key: Key, _ change: (inout Entry) -> Void) {
-        if entries[key] == nil {
+    private mutating func update(_ key: Key, _ change: (inout Entry) -> Void) -> Bool {
+        let before = entries[key]
+        if before == nil {
             order.append(key)
         }
-        var entry = entries[key] ?? Entry()
+        var entry = before ?? Entry()
         change(&entry)
         entries[key] = entry
         while order.count > Self.capacity {
             entries[order.removeFirst()] = nil
         }
+        return entry != before
+    }
+
+    /// One remembered style, as kept between launches.
+    private struct Stored: Codable {
+        let key: Key
+        let face: Face?
+        let pitch: CGFloat?
+    }
+
+    /// The remembered styles, oldest first, for keeping across launches. A browser page's style is
+    /// kept only while the app runs: its key names the page's origin, and the sites a user typed on
+    /// are not something to leave in the app's preferences.
+    func encoded() -> Data? {
+        let stored = order.filter { !$0.isPageScoped }.compactMap { key in
+            entries[key].map { Stored(key: key, face: $0.face, pitch: $0.pitch) }
+        }
+        return try? JSONEncoder().encode(stored)
     }
 
     /// A resolution worth remembering: the host's own pixels named the face, or the field's adopted
@@ -127,6 +157,22 @@ nonisolated struct HostFaceMemory: Sendable {
             return true
         default:
             return false
+        }
+    }
+}
+
+extension HostFaceMemory {
+    /// The memory `encoded()` produced, or an empty one for missing or unreadable data.
+    init(restoring data: Data?) {
+        self.init()
+        guard let data, let stored = try? JSONDecoder().decode([Stored].self, from: data) else { return }
+        for item in stored.suffix(Self.capacity) {
+            if let face = item.face {
+                record(face, for: item.key)
+            }
+            if let pitch = item.pitch {
+                recordPitch(pitch, for: item.key)
+            }
         }
     }
 }
