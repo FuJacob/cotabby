@@ -762,6 +762,7 @@ extension SuggestionCoordinator {
             hostTextMetrics: context.hostTextMetrics,
             isWebContentField: context.isWebContentField,
             hasTrailingContent: context.hasTrailingContent,
+            isSingleLineField: context.isSingleLineField,
             elementFrameRect: context.elementFrameRect,
             lineTextBeforeCaret: GhostCaretRefinement.paragraphTextBeforeCaret(in: context.precedingText),
             wrappedRun: context.observedContentEdges?.wrappedRun

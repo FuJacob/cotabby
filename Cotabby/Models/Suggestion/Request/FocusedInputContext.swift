@@ -100,6 +100,15 @@ struct FocusedInputContext: Equatable, Sendable {
         trailingText.contains { !$0.isWhitespace }
     }
 
+    /// True for a field the host lays out on one line: a text field or combo box by its
+    /// Accessibility role (an HTML `<input>`, Chromium's address bar, an `NSTextField`). Its text
+    /// scrolls sideways instead of wrapping, so a ghost row past its right edge has no line below
+    /// to go to: measured 2026-09-11 in a Chrome text input and a search input, a long ghost's
+    /// second row was drawn under the input, over the page.
+    var isSingleLineField: Bool {
+        role == "AXTextField" || role == "AXComboBox"
+    }
+
     /// True while the host shows uncommitted text of its own: an inline prediction after the caret
     /// or an IME composition before it. Generation and ghost rendering pause until it clears.
     var hasHostMarkedText: Bool {

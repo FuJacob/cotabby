@@ -940,6 +940,7 @@ final class OverlayController: SuggestionOverlayControlling {
             hostTextMetrics: context.hostTextMetrics,
             isWebContentField: context.isWebContentField,
             hasTrailingContent: context.hasTrailingContent,
+            isSingleLineField: context.isSingleLineField,
             elementFrameRect: context.elementFrameRect,
             lineTextBeforeCaret: GhostCaretRefinement.paragraphTextBeforeCaret(in: context.precedingText),
             wrappedRun: context.observedContentEdges?.wrappedRun
@@ -1169,7 +1170,8 @@ final class OverlayController: SuggestionOverlayControlling {
                 isRightToLeft: geometry.isRightToLeft,
                 // A second row would paint over the host's own following lines; with text below
                 // the caret the ghost keeps to the caret row and reveals the rest as it is accepted.
-                allowsMultipleRows: !geometry.hasTrailingContent,
+                // A single-line field has no line below at all: its text scrolls sideways.
+                allowsMultipleRows: !geometry.hasTrailingContent && !geometry.isSingleLineField,
                 keycapWidth: keycapWidth
             )
         )

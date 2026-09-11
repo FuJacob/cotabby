@@ -67,6 +67,10 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
     /// True when non-whitespace text follows the caret. A ghost may then occupy only one row: a
     /// second row would paint over the host's own following lines.
     let hasTrailingContent: Bool
+    /// True for a field the host keeps on one line (`FocusedInputContext.isSingleLineField`): its
+    /// text scrolls sideways rather than wrapping, so a ghost takes one row there and reveals the
+    /// rest as it is accepted.
+    let isSingleLineField: Bool
     /// The focused element's own frame, unwidened (see `FocusedInputSnapshot.elementFrameRect`).
     /// Wrapped ghost rows must stay inside it; `inputFrameRect` is grown for card placement and
     /// would let a row run past the host's real right edge.
@@ -102,6 +106,7 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
         hostTextMetrics: HostTextMetrics? = nil,
         isWebContentField: Bool = false,
         hasTrailingContent: Bool = false,
+        isSingleLineField: Bool = false,
         elementFrameRect: CGRect? = nil,
         lineTextBeforeCaret: String? = nil,
         wrappedRun: WrappedRunAnchor? = nil,
@@ -123,6 +128,7 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
         self.hostTextMetrics = hostTextMetrics
         self.isWebContentField = isWebContentField
         self.hasTrailingContent = hasTrailingContent
+        self.isSingleLineField = isSingleLineField
         self.elementFrameRect = elementFrameRect
         self.lineTextBeforeCaret = lineTextBeforeCaret
         self.wrappedRun = wrappedRun
@@ -149,6 +155,7 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
             hostTextMetrics: hostTextMetrics,
             isWebContentField: isWebContentField,
             hasTrailingContent: hasTrailingContent,
+            isSingleLineField: isSingleLineField,
             elementFrameRect: elementFrameRect,
             lineTextBeforeCaret: lineTextBeforeCaret,
             wrappedRun: wrappedRun
@@ -182,6 +189,7 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
             ),
             isWebContentField: isWebContentField,
             hasTrailingContent: hasTrailingContent,
+            isSingleLineField: isSingleLineField,
             elementFrameRect: elementFrameRect,
             lineTextBeforeCaret: lineTextBeforeCaret,
             wrappedRun: wrappedRun,
