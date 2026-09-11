@@ -32,6 +32,13 @@ enum HostTextMetricsProbe {
         let supportedParameterizedAttributes: Set<String>
         /// The element's frame in Cocoa coordinates, anchoring the AX-rect coordinate validation.
         let anchorFrame: CGRect?
+        /// True when this poll's caret is the host's own text-marker caret, exact: only then are its
+        /// markers trusted for the line box. CodeMirror (Obsidian) answers the same marker queries
+        /// with a box 15.5pt tall starting 43pt left of its text, which derailed its pixel caret
+        /// (2026-09-10); Chromium's contenteditables answer with the text's own line.
+        var allowsTextMarkerLine = false
+        /// This poll's caret box in Cocoa coordinates: a text-marker line box must hold it.
+        var caretRect: CGRect? = nil
     }
 
     /// Longest sample measured before the caret. Long enough to average out per-glyph rounding,
@@ -41,18 +48,27 @@ enum HostTextMetricsProbe {
     static let maximumPitchProbes = 24
 
     static func measure(_ input: Input) -> HostTextMetrics? {
-        guard input.supportedParameterizedAttributes.contains(kAXBoundsForRangeParameterizedAttribute as String) else {
+        let answersIndexBounds = input.supportedParameterizedAttributes.contains(
+            kAXBoundsForRangeParameterizedAttribute as String
+        )
+        let usesTextMarkers = input.allowsTextMarkerLine
+            && input.supportedParameterizedAttributes.contains("AXLineTextMarkerRangeForTextMarker")
+        guard answersIndexBounds || usesTextMarkers else {
             return nil
         }
-        let line = lineGeometry(input)
-        let sample = widthSample(input, lineStart: line?.range.location)
+        let line = answersIndexBounds ? lineGeometry(input) : nil
+        // A Chromium contenteditable answers no index-based line query; its text markers do.
+        let markerLine = line == nil && usesTextMarkers ? markerLineGeometry(input) : nil
+        let sample = answersIndexBounds ? widthSample(input, lineStart: line?.range.location) : nil
         let usable = sample.flatMap { $0.isUsable ? $0 : nil }
-        let scannedPitch = line?.pitch == nil ? scannedPitch(input) : nil
+        let knownPitch = line?.pitch ?? markerLine?.pitch
+        let scannedPitch = knownPitch == nil && answersIndexBounds ? scannedPitch(input) : nil
         let metrics = HostTextMetrics(
             sampleText: usable?.text,
             sampleWidth: usable?.width,
-            lineRect: line?.rect,
-            linePitch: line?.pitch ?? scannedPitch
+            lineRect: line?.rect ?? markerLine?.rect,
+            linePitch: knownPitch ?? scannedPitch,
+            lineRectIsFromTextMarkers: line == nil && markerLine != nil
         )
         if CotabbyLogger.focus.logLevel <= .debug {
             CotabbyLogger.focus.debug(
@@ -63,10 +79,13 @@ enum HostTextMetricsProbe {
                     "sample_w": .stringConvertible(Double(sample?.width ?? 0)),
                     "sample_h": .stringConvertible(Double(sample?.height ?? 0)),
                     "sample_rejected": .string(sample?.rejection ?? ""),
-                    "line_known": .stringConvertible(line != nil),
-                    "line_rect": .string(line.map { Self.describe($0.rect) } ?? ""),
-                    "line_pitch": .stringConvertible(Double(line?.pitch ?? scannedPitch ?? 0)),
-                    "pitch_source": .string(line?.pitch != nil ? "line-api" : (scannedPitch != nil ? "scan" : "")),
+                    "line_known": .stringConvertible(line != nil || markerLine != nil),
+                    "line_source": .string(line != nil ? "line-api" : (markerLine != nil ? "text-marker" : "")),
+                    "line_rect": .string((line?.rect ?? markerLine?.rect).map(Self.describe) ?? ""),
+                    "line_pitch": .stringConvertible(Double(knownPitch ?? scannedPitch ?? 0)),
+                    "pitch_source": .string(
+                        line?.pitch != nil ? "line-api" : (markerLine?.pitch != nil ? "text-marker" : (scannedPitch != nil ? "scan" : ""))
+                    ),
                     "anchor": .string(input.anchorFrame.map(Self.describe) ?? ""),
                     "caret": .stringConvertible(input.caretLocation),
                     "caret_h": .stringConvertible(Double(input.caretHeight))
@@ -75,6 +94,66 @@ enum HostTextMetricsProbe {
         }
         guard !metrics.isEmpty else { return nil }
         return metrics
+    }
+
+    /// The caret line's box and pitch through text markers (see `AXHelper.textMarkerCaretLine`), in
+    /// global Cocoa coordinates.
+    private static func markerLineGeometry(_ input: Input) -> (rect: CGRect, pitch: CGFloat?)? {
+        guard let found = AXHelper.textMarkerCaretLine(
+            on: input.element, parameterizedAttributes: input.supportedParameterizedAttributes
+        ), let rect = cocoaRect(fromAccessibility: found.line, input) else {
+            return nil
+        }
+        // A marker query that fell back to the element answers with the element's own frame (seen
+        // once in Chrome while the field grew): that is no line, and its edge is the frame's.
+        if let anchor = input.anchorFrame, rect.width >= anchor.width - 1, rect.height >= anchor.height - 1 {
+            return nil
+        }
+        guard isCaretLine(rect, caret: input.caretRect, anchor: input.anchorFrame, caretHeight: input.caretHeight) else {
+            return nil
+        }
+        var pitch: CGFloat?
+        if let previous = found.previousLine.flatMap({ cocoaRect(fromAccessibility: $0, input) }),
+           isCaretLine(previous, caret: nil, anchor: input.anchorFrame, caretHeight: input.caretHeight) {
+            let delta = previous.minY - rect.minY
+            if delta > 2, delta < 200 {
+                pitch = delta
+            }
+        }
+        return (rect, pitch)
+    }
+
+    /// Whether a box from a text-marker line query can be the caret's visual line: inside the
+    /// element, no taller than two caret boxes, and holding the caret when one is given. Chrome
+    /// answered some of those queries with a range that is no line of the field at all (fields.html,
+    /// 2026-09-10: a box 696pt wide and 88pt tall above a 546pt field, which put the ghost's second
+    /// row outside the field); such a box is dropped and the band falls back to the element.
+    static func isCaretLine(_ line: CGRect, caret: CGRect?, anchor: CGRect?, caretHeight: CGFloat) -> Bool {
+        if let anchor, !anchor.isEmpty {
+            guard line.minX >= anchor.minX - 1, line.maxX <= anchor.maxX + 1,
+                  line.minY >= anchor.minY - 1, line.maxY <= anchor.maxY + 1
+            else {
+                return false
+            }
+        }
+        if caretHeight > 0, line.height > caretHeight * 2 {
+            return false
+        }
+        if let caret, caret.height > 0 {
+            return caret.midY >= line.minY - 2 && caret.midY <= line.maxY + 2
+        }
+        return true
+    }
+
+    /// An Accessibility rect in Cocoa coordinates, when it lies where the element does.
+    private static func cocoaRect(fromAccessibility raw: CGRect, _ input: Input) -> CGRect? {
+        guard raw.height > 0, AXHelper.rectHasFiniteComponents(raw) else { return nil }
+        let cocoa = AXHelper.validatedCocoaTextRect(fromAccessibilityRect: raw, anchorFrame: input.anchorFrame)
+        if let anchor = input.anchorFrame, !anchor.isEmpty {
+            let halo = anchor.insetBy(dx: -80, dy: -80)
+            guard halo.contains(CGPoint(x: cocoa.midX, y: cocoa.midY)) else { return nil }
+        }
+        return cocoa
     }
 
     private static func describe(_ rect: CGRect) -> String {

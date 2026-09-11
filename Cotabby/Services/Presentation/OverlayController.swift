@@ -316,6 +316,9 @@ final class OverlayController: SuggestionOverlayControlling {
     /// refinement moved an exact pixel caret a point to the right.
     private static func refinedCaretRect(for geometry: SuggestionOverlayGeometry, font: GhostFontResolver.Resolution) -> CGRect {
         guard geometry.isWebContentField, !font.provenance.isFallbackFace, geometry.pixelBaselineOffset == nil,
+              // A line box read through text markers (Chromium) places wrapped rows; this
+              // refinement was measured against index-based line boxes (WebKit) only.
+              geometry.hostTextMetrics?.lineRectIsFromTextMarkers != true,
               let lineLeft = geometry.hostTextMetrics?.lineRect?.minX,
               let paragraph = geometry.lineTextBeforeCaret,
               let refinedX = GhostCaretRefinement.caretX(
@@ -394,7 +397,9 @@ final class OverlayController: SuggestionOverlayControlling {
                 runFrame: wrapped.frame,
                 paragraphTextBeforeCaret: wrapped.paragraphTextBeforeCaret,
                 siblingLinePitch: geometry.hostTextMetrics?.linePitch,
-                siblingLineBoxHeight: geometry.hostTextMetrics?.lineRect?.height,
+                // A text-marker box is the text's glyph line, not the run's line box the pixel read expects.
+                siblingLineBoxHeight: geometry.hostTextMetrics?.lineRectIsFromTextMarkers == true
+                    ? nil : geometry.hostTextMetrics?.lineRect?.height,
                 spaceAdvance: GhostFontResolver.width(of: " ", font: font),
                 trailingInkGap: trailingInkGap,
                 font: font

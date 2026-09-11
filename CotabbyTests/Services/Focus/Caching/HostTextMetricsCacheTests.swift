@@ -206,3 +206,48 @@ final class HostTextMetricsCacheTests: XCTestCase {
         XCTAssertEqual(grown, large)
     }
 }
+
+/// A line box's source survives the cache's merges (see `HostTextMetrics.lineRectIsFromTextMarkers`):
+/// the typographic caret refinement must never read a text-marker box as an index-based one.
+@MainActor
+final class HostTextMetricsCacheMarkerLineTests: XCTestCase {
+    func testAMarkerLineBoxKeepsItsSourceThroughARemeasure() {
+        let cache = HostTextMetricsCache()
+        let start = Date(timeIntervalSince1970: 1_000)
+        let markerLine = HostTextMetrics(
+            lineRect: CGRect(x: 95, y: 300, width: 400, height: 19), lineRectIsFromTextMarkers: true
+        )
+        let sampleOnly = HostTextMetrics(sampleText: "Keep on veri", sampleWidth: 89)
+        _ = cache.metrics(forKey: "f", caretLocation: 1, now: start) { markerLine }
+        let merged = cache.metrics(forKey: "f", caretLocation: 9, now: start.addingTimeInterval(2)) { sampleOnly }
+        XCTAssertEqual(merged?.sampleText, "Keep on veri")
+        XCTAssertEqual(merged?.lineRect, markerLine.lineRect)
+        XCTAssertEqual(merged?.lineRectIsFromTextMarkers, true)
+    }
+}
+
+/// Which text-marker line boxes the probe believes (see `HostTextMetricsProbe.isCaretLine`).
+@MainActor
+final class HostTextMetricsProbeCaretLineTests: XCTestCase {
+    private let field = CGRect(x: 88, y: 327, width: 546, height: 257)
+
+    func testTheCaretsOwnLineIsBelieved() {
+        let line = CGRect(x: 101, y: 540, width: 520, height: 29)
+        let caret = CGRect(x: 400, y: 544, width: 1, height: 21)
+        XCTAssertTrue(HostTextMetricsProbe.isCaretLine(line, caret: caret, anchor: field, caretHeight: 21))
+    }
+
+    /// Measured 2026-09-10 in Chrome: a box 696pt wide and 88pt tall above a 546pt field.
+    func testABoxOutsideTheFieldOrTallerThanALineIsNot() {
+        let caret = CGRect(x: 400, y: 544, width: 1, height: 21)
+        XCTAssertFalse(HostTextMetricsProbe.isCaretLine(
+            CGRect(x: 44, y: 585.5, width: 696, height: 88), caret: caret, anchor: field, caretHeight: 21
+        ))
+        XCTAssertFalse(HostTextMetricsProbe.isCaretLine(
+            CGRect(x: 101, y: 400, width: 520, height: 60), caret: nil, anchor: field, caretHeight: 21
+        ), "three lines tall is no line")
+        XCTAssertFalse(HostTextMetricsProbe.isCaretLine(
+            CGRect(x: 101, y: 400, width: 520, height: 29), caret: caret, anchor: field, caretHeight: 21
+        ), "a line that does not hold the caret is another line")
+    }
+}

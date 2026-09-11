@@ -156,12 +156,23 @@ nonisolated struct HostTextMetrics: Equatable, Sendable {
     let lineRect: CGRect?
     /// Vertical distance between consecutive visual lines, when the host exposes line geometry.
     let linePitch: CGFloat?
+    /// True when `lineRect` came from the text-marker API (a Chromium contenteditable, which answers
+    /// no index-based line query). Its left edge places wrapped rows, but the typographic caret
+    /// refinement that trusts an index-based line box is not verified against it.
+    let lineRectIsFromTextMarkers: Bool
 
-    init(sampleText: String? = nil, sampleWidth: CGFloat? = nil, lineRect: CGRect? = nil, linePitch: CGFloat? = nil) {
+    init(
+        sampleText: String? = nil,
+        sampleWidth: CGFloat? = nil,
+        lineRect: CGRect? = nil,
+        linePitch: CGFloat? = nil,
+        lineRectIsFromTextMarkers: Bool = false
+    ) {
         self.sampleText = sampleText
         self.sampleWidth = sampleWidth
         self.lineRect = lineRect
         self.linePitch = linePitch
+        self.lineRectIsFromTextMarkers = lineRectIsFromTextMarkers
     }
 
     var isEmpty: Bool {

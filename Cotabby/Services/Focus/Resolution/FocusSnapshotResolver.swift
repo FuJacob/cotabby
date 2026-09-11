@@ -466,7 +466,9 @@ struct FocusSnapshotResolver {
                     caretLocationInText: selection.location,
                     caretHeight: caretHeight,
                     supportedParameterizedAttributes: candidate.supportedParameterizedAttributes,
-                    anchorFrame: candidate.elementFrameRect ?? candidate.inputFrameRect
+                    anchorFrame: candidate.elementFrameRect ?? candidate.inputFrameRect,
+                    allowsTextMarkerLine: caretQuality == .exact && caretSourceDetail == "text-marker",
+                    caretRect: caretRect
                 )
             )
         }
@@ -521,7 +523,8 @@ struct FocusSnapshotResolver {
             sampleText: sample.text,
             sampleWidth: sample.width,
             lineRect: metrics?.lineRect,
-            linePitch: metrics?.linePitch
+            linePitch: metrics?.linePitch,
+            lineRectIsFromTextMarkers: metrics?.lineRectIsFromTextMarkers ?? false
         )
     }
 
@@ -1235,7 +1238,8 @@ struct FocusSnapshotResolver {
             sampleText: metrics?.sampleText,
             sampleWidth: metrics?.sampleWidth,
             lineRect: metrics?.lineRect,
-            linePitch: pitch
+            linePitch: pitch,
+            lineRectIsFromTextMarkers: metrics?.lineRectIsFromTextMarkers ?? false
         )
     }
 

@@ -81,7 +81,10 @@ final class HostTextMetricsCache {
                 sampleText: remeasured.sampleText ?? metrics.sampleText,
                 sampleWidth: remeasured.sampleText != nil ? remeasured.sampleWidth : metrics.sampleWidth,
                 lineRect: remeasured.lineRect ?? metrics.lineRect,
-                linePitch: remeasured.linePitch ?? metrics.linePitch
+                linePitch: remeasured.linePitch ?? metrics.linePitch,
+                // The flag travels with whichever line box was kept.
+                lineRectIsFromTextMarkers: remeasured.lineRect != nil
+                    ? remeasured.lineRectIsFromTextMarkers : metrics.lineRectIsFromTextMarkers
             )
             self.metrics = merged
             return merged

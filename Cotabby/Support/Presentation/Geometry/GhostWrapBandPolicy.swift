@@ -39,6 +39,13 @@ enum GhostWrapBandPolicy {
         var right: CGFloat?
         if let element = input.elementFrame?.standardized, element.width > minimumContainerWidth {
             let inset = contentInset(lineLeft: input.lineLeft, elementLeft: element.minX)
+            // A line box left of the element is not this element's line: the edge falls back to the
+            // element's own. Measured 2026-09-10: a Chrome contenteditable's text-marker line box
+            // answered x=44 for a field framed at 88, and the ghost's second row painted outside the
+            // field. A line box deep inside the element is a centered column and still anchors it.
+            if let lineLeft = left, lineLeft < element.minX - 1 {
+                left = nil
+            }
             left = left ?? (element.minX + inset)
             right = element.maxX - inset
         } else if let frame = input.inputFrame?.standardized, frame.width > minimumContainerWidth {

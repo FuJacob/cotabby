@@ -92,3 +92,29 @@ final class GhostWrapBandPolicyTests: XCTestCase {
         XCTAssertEqual(band.upperBound, 1504, accuracy: 0.001)
     }
 }
+
+/// A line box that is not the element's own line never places the band (see `GhostWrapBandPolicy`).
+final class GhostWrapBandPolicyForeignLineTests: XCTestCase {
+    private let screen = CGRect(x: 0, y: 0, width: 1512, height: 944)
+    private let field = CGRect(x: 88, y: 327, width: 546, height: 257)
+
+    /// Measured 2026-09-10: a Chrome contenteditable's text-marker line box answered x=44 for a field
+    /// framed at 88, and the ghost's second row painted outside the field.
+    func testALineBoxLeftOfTheElementFallsBackToTheElementsEdge() {
+        let band = GhostWrapBandPolicy.band(GhostWrapBandPolicy.Input(
+            caretRect: CGRect(x: 500, y: 400, width: 1, height: 21),
+            elementFrame: field, inputFrame: nil, lineLeft: 44, screenVisibleFrame: screen
+        ))
+        XCTAssertEqual(band.lowerBound, 92, accuracy: 0.001)
+        XCTAssertEqual(band.upperBound, 630, accuracy: 0.001)
+    }
+
+    func testABelievableLineBoxStillPlacesTheBand() {
+        let band = GhostWrapBandPolicy.band(GhostWrapBandPolicy.Input(
+            caretRect: CGRect(x: 500, y: 400, width: 1, height: 21),
+            elementFrame: field, inputFrame: nil, lineLeft: 101, screenVisibleFrame: screen
+        ))
+        XCTAssertEqual(band.lowerBound, 101, accuracy: 0.001)
+        XCTAssertEqual(band.upperBound, 621, accuracy: 0.001)
+    }
+}
