@@ -170,7 +170,7 @@ struct MirrorOverlayLayout: Equatable {
             // chrome padding that previously dropped omnibox popups by roughly one text row. For
             // multiline or unrefined AXFrame fallbacks, caret.minY equals inputFrame.minY, so this
             // preserves the old conservative field-bottom placement.
-            if !geometry.caretRect.isEmpty {
+            if hasCaretLine(geometry.caretRect) {
                 return geometry.caretRect.minY - Metrics.anchorGap
             }
             if let inputFrame = geometry.inputFrameRect?.standardized, !inputFrame.isEmpty {
@@ -184,7 +184,7 @@ struct MirrorOverlayLayout: Equatable {
             // document. Keep the same tight visual gap used for trusted caret geometry: the caret
             // rect already describes the full line box, so another line-height offset would create
             // an unnecessary blank row between the typed line and the card.
-            if !geometry.caretRect.isEmpty {
+            if hasCaretLine(geometry.caretRect) {
                 return geometry.caretRect.minY - Metrics.anchorGap
             }
             if let inputFrame = geometry.inputFrameRect?.standardized, !inputFrame.isEmpty {
@@ -196,7 +196,7 @@ struct MirrorOverlayLayout: Equatable {
             // Caret geometry is trustworthy in these cases. Sit just under the caret line so the
             // popup tracks the cursor like the inline ghost does, instead of floating below the
             // entire field.
-            if !geometry.caretRect.isEmpty {
+            if hasCaretLine(geometry.caretRect) {
                 return geometry.caretRect.minY - Metrics.anchorGap
             }
             if let inputFrame = geometry.inputFrameRect?.standardized, !inputFrame.isEmpty {
@@ -206,24 +206,39 @@ struct MirrorOverlayLayout: Equatable {
         }
     }
 
-    /// Aligns the card's leading edge with the caret: the left edge starts at the caret's trailing
-    /// edge for LTR text, while the right edge starts at the caret's trailing edge for RTL text.
-    /// A degenerate caret falls back to centering the card beneath the field.
+    /// Whether the caret rect describes a line to sit under. A caret has height and, from most
+    /// hosts, no width: Chromium's text-marker carets and many AppKit insertion points are zero
+    /// points wide, and `CGRect.isEmpty` calls any rect with a zero side empty. Read that way, every
+    /// mid-line card in Gmail's compose body was anchored under the whole body instead of the
+    /// caret, 440pt below it at the bottom of the screen (measured 2026-09-11, 13 presentations).
+    /// Only a caret with no height (the all-zero rect some hosts publish right after focus) is none.
+    static func hasCaretLine(_ caretRect: CGRect) -> Bool {
+        !caretRect.isNull && caretRect.height > 0
+            && caretRect.minX.isFinite && caretRect.minY.isFinite && caretRect.height.isFinite
+    }
+
+    /// Places the card so the suggestion's first letter sits under the insertion point, the card
+    /// padding reaching back past it: the suggestion reads as continuing from the caret, one line
+    /// down. The insertion point is the caret rect's leading edge (`minX`), the convention the inline
+    /// ghost's pen follows; a 2pt caret box's trailing edge put the text two points late, and the
+    /// padding ten more. For RTL text the suggestion's first letter is its rightmost, so the card's
+    /// text ends at the caret instead. A caret with no line falls back to centering the card
+    /// beneath the field.
     private static func computeAnchorOriginX(
         geometry: SuggestionOverlayGeometry,
         cardWidth: CGFloat
     ) -> CGFloat {
-        if geometry.caretRect.width > 0 || geometry.caretRect.minX > 0 {
+        if hasCaretLine(geometry.caretRect) {
             return geometry.isRightToLeft
-                ? geometry.caretRect.minX - cardWidth
-                : geometry.caretRect.maxX
+                ? geometry.caretRect.minX + Metrics.horizontalPadding - cardWidth
+                : geometry.caretRect.minX - Metrics.horizontalPadding
         }
         if let inputFrame = geometry.inputFrameRect?.standardized, !inputFrame.isEmpty {
             return inputFrame.midX - (cardWidth / 2)
         }
         return geometry.isRightToLeft
-            ? geometry.caretRect.minX - cardWidth
-            : geometry.caretRect.maxX
+            ? geometry.caretRect.minX + Metrics.horizontalPadding - cardWidth
+            : geometry.caretRect.minX - Metrics.horizontalPadding
     }
 
     /// The leading run of `suggestionText` the accept-word key will insert next, reused from the real
