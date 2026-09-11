@@ -156,6 +156,95 @@ final class InkCaretAnalyzerTests: XCTestCase {
         XCTAssertNil(line.caretBarColumns)
     }
 
+    /// Dark text on a light ground at 15.336pt (2x), one line per 40 rows (Claude's composer: 14px at
+    /// its 110% zoom, line-height 1.3), with an optional caret bar drawn the way Chromium draws it:
+    /// in the text colour, 2px wide, from `barTopBelowFirstLine` rows under the first line's lowest ink
+    /// down to the caret line's descent. The caret stands after the last line's text, or at the line
+    /// start when that line is empty. Returns the bitmap, the bar's columns and the first line's
+    /// lowest inked row.
+    private func renderTight(
+        _ lines: [String], barTopBelowFirstLine: Int?
+    ) -> (bitmap: RGBABitmap, bar: ClosedRange<Int>?, firstLineBottom: Int)? {
+        let font = NSFont.systemFont(ofSize: 30.672)
+        let (width, height, pitch, inset) = (1400, 100, 40, 12)
+        guard let context = CGContext(
+            data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
+            space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue
+        ) else { return nil }
+        context.setFillColor(CGColor(gray: 1, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        let ink = NSColor(red: 0.08, green: 0.08, blue: 0.075, alpha: 1)
+        let ascent = CTFontGetAscent(font)
+        let descent = CTFontGetDescent(font)
+        let halfLeading = (CGFloat(pitch) - ascent - descent) / 2
+        func baseline(_ index: Int) -> CGFloat { CGFloat(height - 10 - index * pitch) - halfLeading - ascent }
+        var lastAdvance: CGFloat = 0
+        for (index, text) in lines.enumerated() {
+            let line = CTLineCreateWithAttributedString(NSAttributedString(string: text, attributes: [.font: font, .foregroundColor: ink]))
+            context.textPosition = CGPoint(x: CGFloat(inset), y: baseline(index))
+            CTLineDraw(line, context)
+            lastAdvance = CTLineGetTypographicBounds(line, nil, nil, nil)
+        }
+        guard let firstImage = context.makeImage(), let first = RGBABitmap(firstImage) else { return nil }
+        var firstLineBottom = 0
+        for row in 0..<(10 + pitch) {
+            for column in 0..<width where first.pixel(column: column, row: row).luminance < 0.7 {
+                firstLineBottom = max(firstLineBottom, row)
+            }
+        }
+        var columns: ClosedRange<Int>?
+        if let barTopBelowFirstLine {
+            let x = inset + Int(lastAdvance.rounded(.up)) + 2
+            let topRow = firstLineBottom + barTopBelowFirstLine
+            let bottomRow = Int((CGFloat(height) - baseline(lines.count - 1) + descent).rounded())
+            context.setFillColor(ink.cgColor)
+            context.fill(CGRect(x: x, y: height - bottomRow - 1, width: 2, height: bottomRow - topRow + 1))
+            columns = x...(x + 1)
+        }
+        guard let image = context.makeImage(), let bitmap = RGBABitmap(image) else { return nil }
+        return (bitmap, columns, firstLineBottom)
+    }
+
+    /// Measured 2026-09-11 in Claude's composer: under its tight line height the caret reached to
+    /// within two device rows of the line above's descenders, the two lines read as one block, and
+    /// after every wrap the caret was put at the end of the FIRST line. The bar is set aside while
+    /// the lines are found, and is still the caret of the line it stands on.
+    func testACaretBarBridgingTwoTightLinesDoesNotJoinThem() throws {
+        let rendered = try XCTUnwrap(renderTight(
+            ["There are still a lot of problems, a LOT of problems with positioning, going,", "keep"], barTopBelowFirstLine: 3
+        ))
+        let measurement = try XCTUnwrap(InkCaretAnalyzer.measure(rendered.bitmap))
+        XCTAssertEqual(measurement.lines.count, 2)
+        XCTAssertEqual(try XCTUnwrap(measurement.pitchRows), 40, accuracy: 1)
+        let bar = try XCTUnwrap(rendered.bar)
+        XCTAssertEqual(measurement.lines[1].caretBarColumns, bar)
+        XCTAssertLessThan(measurement.lines[1].textRightColumn, bar.lowerBound)
+        XCTAssertEqual(measurement.lines[0].bottomRow, rendered.firstLineBottom, "the first line keeps its own rows")
+        XCTAssertGreaterThan(measurement.lines[0].inkRightColumn, 900, "and its own right edge")
+    }
+
+    /// A caret alone on a fresh line (after a line break) is that line's only ink, as before.
+    func testACaretAloneOnAFreshLineIsThatLine() throws {
+        let rendered = try XCTUnwrap(renderTight(
+            ["There are still a lot of problems, a LOT of problems with positioning, going,", ""], barTopBelowFirstLine: 3
+        ))
+        let measurement = try XCTUnwrap(InkCaretAnalyzer.measure(rendered.bitmap))
+        XCTAssertEqual(measurement.lines.count, 2)
+        let bar = try XCTUnwrap(rendered.bar)
+        XCTAssertEqual(measurement.lines[1].inkLeftColumn, bar.lowerBound)
+        XCTAssertEqual(measurement.lines[1].inkRightColumn, bar.upperBound)
+    }
+
+    /// A stroke no taller than the text's own (a "|", an "l") is text: nothing is set aside, and with
+    /// the caret hidden by its blink the lines are found exactly as before.
+    func testAGlyphStrokeIsNotTakenForTheCaret() throws {
+        let rendered = try XCTUnwrap(renderTight(["a path | with bars | and ll", "then the next line"], barTopBelowFirstLine: nil))
+        let measurement = try XCTUnwrap(InkCaretAnalyzer.measure(rendered.bitmap))
+        XCTAssertEqual(measurement.lines.count, 2)
+        XCTAssertNil(measurement.lines[0].caretBarColumns)
+        XCTAssertNil(measurement.lines[1].caretBarColumns)
+    }
+
     func testBlankCaptureMeasuresNothing() throws {
         let rendered = try XCTUnwrap(render(
             lines: [], on: Canvas(font: NSFont.systemFont(ofSize: 30), pitch: 44, inset: 10, width: 300, height: 40)

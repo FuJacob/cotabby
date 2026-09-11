@@ -68,10 +68,39 @@ enum InkCaretAnalyzer {
     /// 13 to 18 for the letters beside it.
     static let caretBarFill = 0.9
 
+    /// A vertical stroke of ink: the host's caret bar when `standingCaretBar` finds one.
+    struct Stroke: Equatable {
+        let columns: ClosedRange<Int>
+        let rows: ClosedRange<Int>
+    }
+
+    /// How much taller than every other column's ink a stroke must be to be the caret. The caret
+    /// spans the font's whole ascent and descent, which no glyph does: measured 2026-09-11 in
+    /// Claude's composer (Anthropic Sans at 15.3pt, 2x), a 38-row caret beside 24-row stems; a "|"
+    /// reaches 30.
+    static let caretBarHeightRatio = 1.3
+    /// Fraction of a stroke's rows the columns beside it may be inked on while it still stands apart
+    /// from the text: the last glyph's bowl can reach the caret's neighbouring column on its body rows.
+    static let caretBarNeighbourFill = 0.5
+
     static func measure(_ bitmap: RGBABitmap) -> Measurement? {
         guard bitmap.width > 0, bitmap.height > 0 else { return nil }
         let mask = inkMask(bitmap)
-        let blocks = inkedRowBlocks(rowInk: mask.rowInk)
+        // The caret is found before the lines and set aside while they are: under a tight line
+        // height it reaches from its own line's box to within a device row or two of the line above's
+        // descenders, and read as ink those rows joined the two lines into one block. Claude's
+        // composer (2026-09-11, 20pt pitch, a 19.2pt caret): every capture after a wrap came back as
+        // one line, the caret at the end of the FIRST line, and the ghost there, a line off.
+        let bar = standingCaretBar(mask: mask.ink, width: bitmap.width, height: bitmap.height)
+        var rowInk = mask.rowInk
+        if let bar {
+            for row in bar.rows {
+                for column in bar.columns where mask.ink[row * bitmap.width + column] {
+                    rowInk[row] -= 1
+                }
+            }
+        }
+        let blocks = giving(bar, to: inkedRowBlocks(rowInk: rowInk))
         let lines = blocks.compactMap { line(for: $0, mask: mask.ink, width: bitmap.width) }
         guard !lines.isEmpty else { return nil }
         var pitch: Double?
@@ -113,6 +142,84 @@ enum InkCaretAnalyzer {
             }
         }
         return InkMask(ink: ink, rowInk: rowInk)
+    }
+
+    /// The host's caret bar, when the capture caught one standing apart from the text: the tallest
+    /// column's run of ink, widened over the neighbouring columns that run over nearly the same rows
+    /// (a caret at a fractional position covers two or three), no wider than
+    /// `maximumCaretBarColumns`, clear of the ink beside it (`caretBarNeighbourFill`), and taller
+    /// than every other column's ink by `caretBarHeightRatio`. Nil when the tallest stroke is
+    /// anything else (a glyph, a block, a caret the blink hid): the lines are then found exactly as
+    /// they were before the bar was looked for.
+    static func standingCaretBar(mask: [Bool], width: Int, height: Int) -> Stroke? {
+        // Each column's longest unbroken run of ink.
+        var runs = [ClosedRange<Int>?](repeating: nil, count: width)
+        for column in 0..<width {
+            var best: ClosedRange<Int>?
+            var start: Int?
+            for row in 0...height {
+                if row < height, mask[row * width + column] {
+                    if start == nil { start = row }
+                } else if let begun = start {
+                    if row - begun > (best?.count ?? 0) { best = begun...(row - 1) }
+                    start = nil
+                }
+            }
+            runs[column] = best
+        }
+        guard let tallest = runs.indices.max(by: { (runs[$0]?.count ?? 0) < (runs[$1]?.count ?? 0) }),
+              let core = runs[tallest], core.count >= minimumLineHeightRows else { return nil }
+        func joins(_ column: Int) -> Bool {
+            guard column >= 0, column < width, let run = runs[column] else { return false }
+            let shared = min(run.upperBound, core.upperBound) - max(run.lowerBound, core.lowerBound) + 1
+            return Double(shared) >= 0.8 * Double(core.count)
+        }
+        var left = tallest
+        var right = tallest
+        while right - left + 1 < maximumCaretBarColumns, joins(left - 1) { left -= 1 }
+        while right - left + 1 < maximumCaretBarColumns, joins(right + 1) { right += 1 }
+        // Still stroke-like past the widest caret: a block of ink, not a caret.
+        guard !joins(left - 1), !joins(right + 1) else { return nil }
+        var rows = core
+        for column in left...right {
+            if let run = runs[column] { rows = min(rows.lowerBound, run.lowerBound)...max(rows.upperBound, run.upperBound) }
+        }
+        func fill(_ column: Int) -> Double {
+            guard column >= 0, column < width else { return 0 }
+            return Double(rows.filter { mask[$0 * width + column] }.count) / Double(rows.count)
+        }
+        guard fill(left - 1) <= caretBarNeighbourFill, fill(right + 1) <= caretBarNeighbourFill else { return nil }
+        var others = 0
+        for column in runs.indices where column < left - 1 || column > right + 1 {
+            others = max(others, runs[column]?.count ?? 0)
+        }
+        guard others >= minimumLineHeightRows, Double(core.count) >= caretBarHeightRatio * Double(others) else { return nil }
+        return Stroke(columns: left...right, rows: rows)
+    }
+
+    /// The blocks with the caret bar's rows given back to the line it stands on: the block sharing
+    /// most of its rows, grown over the rest but never into a neighbouring block. A caret on a line
+    /// that holds nothing else is that line's only ink, as it was before the bar was set aside.
+    private static func giving(_ bar: Stroke?, to blocks: [ClosedRange<Int>]) -> [ClosedRange<Int>] {
+        guard let bar else { return blocks }
+        func shared(_ block: ClosedRange<Int>) -> Int {
+            max(0, min(block.upperBound, bar.rows.upperBound) - max(block.lowerBound, bar.rows.lowerBound) + 1)
+        }
+        var result = blocks
+        if let index = blocks.indices.max(by: { shared(blocks[$0]) < shared(blocks[$1]) }), shared(blocks[index]) > 0 {
+            let floor = index > 0 ? blocks[index - 1].upperBound + 1 : 0
+            let ceiling = index + 1 < blocks.count ? blocks[index + 1].lowerBound - 1 : Int.max
+            result[index] = min(blocks[index].lowerBound, max(bar.rows.lowerBound, floor))
+                ... max(blocks[index].upperBound, min(bar.rows.upperBound, ceiling))
+            return result
+        }
+        let floor = blocks.last(where: { $0.upperBound < bar.rows.lowerBound }).map { $0.upperBound + 1 } ?? 0
+        let ceiling = blocks.first(where: { $0.lowerBound > bar.rows.upperBound }).map { $0.lowerBound - 1 } ?? Int.max
+        let lower = max(bar.rows.lowerBound, floor)
+        let upper = min(bar.rows.upperBound, ceiling)
+        guard lower <= upper else { return blocks }
+        result.append(lower...upper)
+        return result.sorted { $0.lowerBound < $1.lowerBound }
     }
 
     /// Contiguous blocks of inked rows, allowing short gaps inside a line (an "i" dot above its
