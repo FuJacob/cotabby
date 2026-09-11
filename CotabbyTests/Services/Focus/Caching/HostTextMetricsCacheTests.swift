@@ -251,3 +251,67 @@ final class HostTextMetricsProbeCaretLineTests: XCTestCase {
         ), "a line that does not hold the caret is another line")
     }
 }
+
+/// Marker lines from glyph boxes, with Claude's composer as measured on 2026-09-11 (Cocoa rects).
+@MainActor
+final class HostTextMetricsProbeMarkerLineTests: XCTestCase {
+    private let composer = CGRect(x: 84, y: 862, width: 801, height: 48)
+
+    /// The line range's box was the paragraph's padded block: x 84 for text at 95, 33pt tall.
+    func testTheLineStartsAtItsFirstGlyphNotAtItsPaddedBox() throws {
+        let padded = CGRect(x: 84, y: 866, width: 731, height: 33)
+        let glyph = CGRect(x: 95, y: 871, width: 8, height: 19)
+        let caret = CGRect(x: 813, y: 871, width: 0, height: 19)
+        let line = try XCTUnwrap(HostTextMetricsProbe.markerLine(
+            lineBox: padded, firstCharacter: glyph, previousLineBox: nil, previousFirstCharacter: nil,
+            caret: caret, anchor: composer, caretHeight: 19
+        ))
+        XCTAssertEqual(line.rect.minX, 95)
+        XCTAssertEqual(line.rect.height, 19)
+        XCTAssertNil(line.pitch)
+    }
+
+    /// A wrapped paragraph's box spans both lines and fails the one-line check; the glyphs of the
+    /// two lines still measure the pitch.
+    func testTheGlyphsOfTwoLinesMeasureThePitchWhereTheBoxesSpanBoth() throws {
+        let field = CGRect(x: 84, y: 842, width: 801, height: 68)
+        let paragraph = CGRect(x: 84, y: 846, width: 790, height: 56)
+        let lineTwo = CGRect(x: 95, y: 851, width: 8, height: 19)
+        let lineOne = CGRect(x: 95, y: 874, width: 8, height: 19)
+        let caret = CGRect(x: 300, y: 851, width: 0, height: 19)
+        let line = try XCTUnwrap(HostTextMetricsProbe.markerLine(
+            lineBox: paragraph, firstCharacter: lineTwo, previousLineBox: paragraph, previousFirstCharacter: lineOne,
+            caret: caret, anchor: field, caretHeight: 19
+        ))
+        XCTAssertEqual(line.rect.minX, 95)
+        XCTAssertEqual(try XCTUnwrap(line.pitch), 23, accuracy: 0.001)
+    }
+
+    /// Where the host's line boxes are glyph lines (the ProseMirror replica), nothing changes.
+    func testGlyphLineBoxesMeasureTheSame() throws {
+        let field = CGRect(x: 100, y: 747, width: 863, height: 77)
+        let lineTwo = CGRect(x: 113, y: 767, width: 93, height: 20)
+        let lineOne = CGRect(x: 113, y: 791, width: 700, height: 19)
+        let line = try XCTUnwrap(HostTextMetricsProbe.markerLine(
+            lineBox: lineTwo, firstCharacter: CGRect(x: 113, y: 767, width: 9, height: 20),
+            previousLineBox: lineOne, previousFirstCharacter: CGRect(x: 113, y: 791, width: 9, height: 19),
+            caret: CGRect(x: 206, y: 767, width: 0, height: 20), anchor: field, caretHeight: 20
+        ))
+        XCTAssertEqual(line.rect.minX, 113)
+        XCTAssertEqual(try XCTUnwrap(line.pitch), 23.5, accuracy: 0.001)
+    }
+
+    /// An empty line has no glyph: its box stands, and a frame-sized box is still no line.
+    func testAnEmptyLineKeepsItsBoxAndAFrameSizedBoxIsDropped() {
+        let empty = CGRect(x: 95, y: 868, width: 785, height: 20)
+        XCTAssertEqual(HostTextMetricsProbe.markerLine(
+            lineBox: empty, firstCharacter: nil, previousLineBox: nil, previousFirstCharacter: nil,
+            caret: CGRect(x: 95, y: 868, width: 0, height: 20), anchor: composer, caretHeight: 20
+        )?.rect.minX, 95)
+        XCTAssertNil(HostTextMetricsProbe.markerLine(
+            lineBox: composer, firstCharacter: nil, previousLineBox: nil, previousFirstCharacter: nil,
+            caret: CGRect(x: 95, y: 868, width: 0, height: 20), anchor: composer, caretHeight: 20
+        ))
+    }
+}
+

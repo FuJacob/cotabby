@@ -101,26 +101,65 @@ enum HostTextMetricsProbe {
     private static func markerLineGeometry(_ input: Input) -> (rect: CGRect, pitch: CGFloat?)? {
         guard let found = AXHelper.textMarkerCaretLine(
             on: input.element, parameterizedAttributes: input.supportedParameterizedAttributes
-        ), let rect = cocoaRect(fromAccessibility: found.line, input) else {
+        ), let box = cocoaRect(fromAccessibility: found.line, input) else {
             return nil
         }
-        // A marker query that fell back to the element answers with the element's own frame (seen
-        // once in Chrome while the field grew): that is no line, and its edge is the frame's.
-        if let anchor = input.anchorFrame, rect.width >= anchor.width - 1, rect.height >= anchor.height - 1 {
+        return markerLine(
+            lineBox: box,
+            firstCharacter: found.firstCharacter.flatMap { cocoaRect(fromAccessibility: $0, input) },
+            previousLineBox: found.previousLine.flatMap { cocoaRect(fromAccessibility: $0, input) },
+            previousFirstCharacter: found.previousFirstCharacter.flatMap { cocoaRect(fromAccessibility: $0, input) },
+            caret: input.caretRect,
+            anchor: input.anchorFrame,
+            caretHeight: input.caretHeight
+        )
+    }
+
+    /// The caret line and pitch from a text-marker line query, in global Cocoa coordinates. The
+    /// line is its first glyph's box when there is one: a line range's box can be its paragraph's
+    /// padded block (Claude's composer, 2026-09-11: x 84 for text starting at 95, 33pt tall for a
+    /// 20pt glyph line, and for a wrapped paragraph a box taller than two caret boxes, dropped), and
+    /// the pitch is measured between the first glyphs of the caret line and the line above for the
+    /// same reason. A host whose line boxes are glyph lines (the ProseMirror replica) measures the
+    /// same either way.
+    static func markerLine(
+        lineBox: CGRect,
+        firstCharacter: CGRect?,
+        previousLineBox: CGRect?,
+        previousFirstCharacter: CGRect?,
+        caret: CGRect?,
+        anchor: CGRect?,
+        caretHeight: CGFloat
+    ) -> (rect: CGRect, pitch: CGFloat?)? {
+        var rect = lineBox
+        if let first = firstCharacter {
+            rect = CGRect(x: first.minX, y: first.minY, width: max(first.width, lineBox.maxX - first.minX), height: first.height)
+        } else if let anchor, lineBox.width >= anchor.width - 1, lineBox.height >= anchor.height - 1 {
+            // A marker query that fell back to the element answers with the element's own frame (seen
+            // once in Chrome while the field grew): that is no line, and its edge is the frame's.
             return nil
         }
-        guard isCaretLine(rect, caret: input.caretRect, anchor: input.anchorFrame, caretHeight: input.caretHeight) else {
+        guard isCaretLine(rect, caret: caret, anchor: anchor, caretHeight: caretHeight) else {
             return nil
         }
+        // Centers, not edges: Chrome rounds each edge of a box to whole points on its own (the
+        // composer replica at 110%: boxes 19 and 20pt tall for lines 23.1pt apart, bottoms 24 apart
+        // and tops 23), so the mean of the two edges is off by less than either edge.
         var pitch: CGFloat?
-        if let previous = found.previousLine.flatMap({ cocoaRect(fromAccessibility: $0, input) }),
-           isCaretLine(previous, caret: nil, anchor: input.anchorFrame, caretHeight: input.caretHeight) {
-            let delta = previous.minY - rect.minY
-            if delta > 2, delta < 200 {
-                pitch = delta
+        if let first = firstCharacter {
+            if let above = previousFirstCharacter,
+               isCaretLine(above, caret: nil, anchor: anchor, caretHeight: caretHeight) {
+                pitch = plausiblePitch(above.midY - first.midY)
             }
+        } else if let above = previousLineBox,
+                  isCaretLine(above, caret: nil, anchor: anchor, caretHeight: caretHeight) {
+            pitch = plausiblePitch(above.midY - rect.midY)
         }
         return (rect, pitch)
+    }
+
+    private static func plausiblePitch(_ delta: CGFloat) -> CGFloat? {
+        delta > 2 && delta < 200 ? delta : nil
     }
 
     /// Whether a box from a text-marker line query can be the caret's visual line: inside the

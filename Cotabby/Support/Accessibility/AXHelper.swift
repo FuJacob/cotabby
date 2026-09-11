@@ -417,6 +417,14 @@ enum AXHelper {
         /// The box of the line above, only when it belongs to the same text element: the distance
         /// between the two is then the paragraph's own line pitch, never a gap between paragraphs.
         let previousLine: CGRect?
+        /// The glyph box of the caret line's first character (past a list marker), when the line has
+        /// one. A line range's own box can be its paragraph's padded block: Claude's composer
+        /// answered x 84 for text at 95 and 33pt for 20pt glyph lines (2026-09-11), and a two-line
+        /// paragraph's box was taller than any line.
+        let firstCharacter: CGRect?
+        /// The glyph box of the first character of the line above, under the same conditions as
+        /// `previousLine`: with `firstCharacter` it measures the pitch between two glyph boxes.
+        let previousFirstCharacter: CGRect?
     }
 
     /// The caret's visual line for a host whose index-based bounds answer nothing (a Chromium
@@ -440,31 +448,45 @@ enum AXHelper {
             return nil
         }
         let lineText = stringForMarkerRange(lineRange, on: element) ?? ""
+        // The line's first glyph, past a list item's marker ("• "): its box is where the line's text
+        // starts and how tall a line of it is, whatever box the host gives the whole range.
+        let firstCharacter = lineText.isEmpty ? nil : characterBox(
+            from: lineStart, advancing: textOffsetPastBullet(lineText) ?? 0, on: element, attributes: parameterizedAttributes
+        )
         // An empty line has no box of its own; the caret sits at its start, so its box is the edge.
         guard var line = markerRangeRect(lineRange, on: element, requiresWidth: !lineText.isEmpty)
             ?? (lineText.isEmpty ? markerRangeRect(selection, on: element, requiresWidth: false) : nil)
+            ?? firstCharacter
         else {
             return nil
         }
-        // A list item's first line begins with its marker ("• "), while the item's wrapped lines
-        // start at its text: measure the first character past the marker.
-        if let offset = textOffsetPastBullet(lineText),
-           let left = characterLeft(from: lineStart, advancing: offset, on: element, attributes: parameterizedAttributes),
-           left > line.minX {
+        if let left = firstCharacter?.minX, left > line.minX {
             line = CGRect(x: left, y: line.minY, width: max(0, line.maxX - left), height: line.height)
         }
         // The line above is the line of the character just before this line's start. (Asked for
         // the previous line start from a line start, Chrome answered this line's own start, 2026-09-10.)
         var previous: CGRect?
+        var previousFirst: CGRect?
         if let before = copyOpaqueParameterized(previousMarkerAttribute, parameter: lineStart, on: element),
            let previousRange = copyOpaqueParameterized(lineRangeForMarkerAttribute, parameter: before, on: element),
            let previousStart = startMarker(of: previousRange, on: element, attributes: parameterizedAttributes),
-           sameTextElement(lineStart, previousStart, on: element, attributes: parameterizedAttributes),
-           let rect = markerRangeRect(previousRange, on: element, requiresWidth: true),
-           rect.minY < line.minY - 1 {
-            previous = rect
+           sameTextElement(lineStart, previousStart, on: element, attributes: parameterizedAttributes) {
+            if let rect = markerRangeRect(previousRange, on: element, requiresWidth: true), rect.minY < line.minY - 1 {
+                previous = rect
+            }
+            let previousText = stringForMarkerRange(previousRange, on: element) ?? ""
+            if let first = firstCharacter, !previousText.isEmpty,
+               let box = characterBox(
+                   from: previousStart, advancing: textOffsetPastBullet(previousText) ?? 0,
+                   on: element, attributes: parameterizedAttributes
+               ),
+               box.minY < first.minY - 1 {
+                previousFirst = box
+            }
         }
-        return MarkerLineGeometry(line: line, previousLine: previous)
+        return MarkerLineGeometry(
+            line: line, previousLine: previous, firstCharacter: firstCharacter, previousFirstCharacter: previousFirst
+        )
     }
 
     /// The first marker of an opaque range: through the element's own query when it advertises one,
@@ -503,10 +525,10 @@ enum AXHelper {
         return index < characters.count && index <= 8 ? index : nil
     }
 
-    /// Left edge of the character `count` markers after `start`.
-    private static func characterLeft(
+    /// The glyph box of the character `count` markers after `start`, in Accessibility coordinates.
+    private static func characterBox(
         from start: CFTypeRef, advancing count: Int, on element: AXUIElement, attributes: Set<String>
-    ) -> CGFloat? {
+    ) -> CGRect? {
         guard attributes.contains(nextMarkerAttribute as String) else { return nil }
         var marker = start
         for _ in 0..<count {
@@ -519,7 +541,7 @@ enum AXHelper {
         else {
             return nil
         }
-        return rect.minX
+        return rect
     }
 
     /// Whether two markers sit in the same text element (one paragraph's text node).
