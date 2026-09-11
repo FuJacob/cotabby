@@ -65,6 +65,9 @@ final class OverlayController: SuggestionOverlayControlling {
     /// What each field's width samples have said about its typeface so far (see `TypefaceEvidence`).
     /// Keyed by the field's session identity, which survives the field growing as text wraps.
     private var typefaceEvidence: [UInt64: TypefaceEvidence] = [:]
+    /// Per field: the host's size measured from its own caret's advance along a line, for a web
+    /// field that reports no size (see `HostAdvanceFit`, `applyingHostAdvance`).
+    private var hostAdvanceFits: [UInt64: HostAdvanceFit] = [:]
     /// Fields whose host named a face this Mac cannot load (Gemini's bundled Google Sans). The
     /// name is not on every snapshot's style (Chromium answers only a size for some caret
     /// positions), and one nameless snapshot was enough to let a width match flash Georgia in the
@@ -106,6 +109,11 @@ final class OverlayController: SuggestionOverlayControlling {
         self.baselineCalibrator = baselineCalibrator
         self.faceMemoryDefaults = faceMemoryDefaults
         self.hostFaceMemory = HostFaceMemory(restoring: faceMemoryDefaults?.data(forKey: Self.faceMemoryDefaultsKey))
+        // Every fresh read of the host's caret is also a measurement of its text size (see
+        // `recordAdvanceCapture`); `[weak self]` because the locator is owned by this controller.
+        pixelCaretLocator.onFreshCapture = { [weak self] request, measurement in
+            self?.recordAdvanceCapture(measurement, request: request)
+        }
     }
 
     /// Saves the face memory after a record changed it (a new style settled, or its size or pitch
@@ -388,7 +396,12 @@ final class OverlayController: SuggestionOverlayControlling {
     private func pixelCaretRequest(for geometry: SuggestionOverlayGeometry) -> PixelCaretLocator.Request? {
         guard geometry.isCaretAtEndOfLine, !geometry.isRightToLeft else { return nil }
         let renderer: GhostBaselinePolicy.HostRenderer = geometry.isWebContentField ? .webEngine : .textKit
-        let font = resolveFont(for: geometry, renderer: renderer).font
+        let resolution = resolveFont(for: geometry, renderer: renderer)
+        let font = resolution.font
+        // The captures of a web field that reports no size, in a face its pixels named, measure that
+        // face's size (see `recordAdvanceCapture`).
+        let recordsAdvance = geometry.isWebContentField && geometry.resolvedFieldStyle?.fontPointSize == nil
+            && resolution.provenance == .pixelMatched
         if let wrapped = geometry.wrappedRun {
             let trailingInkGap = PixelCaretLocator.trailingInkGap(after: wrapped.paragraphTextBeforeCaret, font: font)
                 ?? PixelCaretLocator.inkToCaretGap
@@ -404,7 +417,8 @@ final class OverlayController: SuggestionOverlayControlling {
                     trailingInkGap: trailingInkGap,
                     singleLineCaretHeight: wrapped.frame.height,
                     verticalPadding: Self.oneLineRunVerticalPadding,
-                    font: font
+                    font: font,
+                    recordsAdvance: recordsAdvance
                 )
             }
             return PixelCaretLocator.Request(
@@ -417,7 +431,8 @@ final class OverlayController: SuggestionOverlayControlling {
                     ? nil : geometry.hostTextMetrics?.lineRect?.height,
                 spaceAdvance: GhostFontResolver.width(of: " ", font: font),
                 trailingInkGap: trailingInkGap,
-                font: font
+                font: font,
+                recordsAdvance: recordsAdvance
             )
         }
         // A single-line field whose caret AX could only estimate (Chrome's address bar answers no
@@ -469,7 +484,76 @@ final class OverlayController: SuggestionOverlayControlling {
             reportedSize: zoomStep(for: geometry).reportedSize,
             zoomKind: zoomStep(for: geometry).kind
         )
-        return rememberingHostFace(matched, for: geometry)
+        let sized = applyingHostAdvance(matched, for: geometry)
+        return rememberingHostFace(sized.resolution, advanceMeasured: sized.advanceMeasured, for: geometry)
+    }
+
+    /// A pixel-matched face in a web field that reports no size takes the size the field's own caret
+    /// advance measured (`HostAdvanceFit`) or, until the field has measured one, the size an earlier
+    /// field of the same style measured for the same face. The match's own size comes from a short
+    /// strip whose size search is coarse, and its score says nothing about its size: Claude's Code
+    /// composer matched 15.1585 with 0.97 where the host paints 15.336 (2026-09-11). A host that
+    /// reports its size snaps the match to its zoom ladder instead (`applyingMatchedTypeface`).
+    /// `advanceMeasured` marks the result for `HostFaceMemory`.
+    private func applyingHostAdvance(
+        _ resolution: GhostFontResolver.Resolution,
+        for geometry: SuggestionOverlayGeometry
+    ) -> (resolution: GhostFontResolver.Resolution, advanceMeasured: Bool) {
+        guard geometry.isWebContentField, geometry.resolvedFieldStyle?.fontPointSize == nil,
+              resolution.provenance == .pixelMatched else {
+            return (resolution, false)
+        }
+        let size: CGFloat
+        if let fit = hostAdvanceFits[geometry.focusedInputIdentityKey], fit.faceName == resolution.font.fontName,
+           let adopted = fit.adopted {
+            size = adopted.pointSize * max(CGFloat(suggestionSettings.ghostTextSizeMultiplier), 0.01)
+        } else if let key = hostStyleKey(for: geometry), let remembered = hostFaceMemory.face(for: key),
+                  remembered.advanceMeasured == true, remembered.fontName == resolution.font.fontName {
+            // Kept with the multiplier applied, under a key that includes it.
+            size = remembered.pointSize
+        } else {
+            return (resolution, false)
+        }
+        guard let font = GhostFontResolver.font(named: resolution.font.fontName, size: size) else {
+            return (resolution, false)
+        }
+        return (GhostFontResolver.Resolution(font: font, provenance: .pixelMatched, widthAgreement: 1), true)
+    }
+
+    /// Feeds a fresh capture of the caret on a paragraph's first line to its field's advance fit
+    /// (`HostAdvanceFit`): only for requests `pixelCaretRequest` marked, only a caret right after a
+    /// glyph (a trailing space's advance is the ghost's own, not a measurement), and only the
+    /// paragraph's first line, whose start every capture shares. The fit is taken in the ghost's face
+    /// at the host size it assumes, the user's size multiplier divided out.
+    private func recordAdvanceCapture(_ measurement: PixelCaretLocator.Measurement, request: PixelCaretLocator.Request) {
+        guard request.recordsAdvance, measurement.lineIndex == 0, let face = request.font,
+              let last = request.paragraphTextBeforeCaret.last, !last.isWhitespace,
+              !request.paragraphTextBeforeCaret.contains(where: \.isNewline),
+              let hostFace = GhostFontResolver.font(
+                  named: face.fontName, size: face.pointSize / max(CGFloat(suggestionSettings.ghostTextSizeMultiplier), 0.01)
+              )
+        else { return }
+        let identity = request.focusedInputIdentityKey
+        var fit = hostAdvanceFits[identity] ?? HostAdvanceFit()
+        let lineKey = "\(Int(request.runFrame.minX.rounded()))|\(Int(measurement.lineRect.maxY.rounded()))"
+        let adopted = fit.record(
+            text: request.paragraphTextBeforeCaret, caretX: measurement.caretRect.minX, lineKey: lineKey, face: hostFace
+        )
+        hostAdvanceFits[identity] = fit
+        guard let adopted, CotabbyLogger.suggestion.logLevel <= .debug else { return }
+        CotabbyLogger.suggestion.debug(
+            "Host advance fit adopted",
+            metadata: [
+                "stage": .string("advance-fit"),
+                "identity": .stringConvertible(identity),
+                "font": .string(hostFace.fontName),
+                "assumed_size": .stringConvertible(Double(hostFace.pointSize)),
+                "fitted_size": .stringConvertible(Double(adopted.pointSize)),
+                "span": .stringConvertible(Double(adopted.span)),
+                "captures": .stringConvertible(adopted.captures),
+                "refinements": .stringConvertible(fit.refinements)
+            ]
+        )
     }
 
     /// The reported CSS size and zoom ladder a web field's pixel-matched size snaps to (see
@@ -498,6 +582,7 @@ final class OverlayController: SuggestionOverlayControlling {
     /// A host that names its face never needs this: the resolver has that face already.
     private func rememberingHostFace(
         _ resolution: GhostFontResolver.Resolution,
+        advanceMeasured: Bool = false,
         for geometry: SuggestionOverlayGeometry
     ) -> GhostFontResolver.Resolution {
         guard !Self.hostNamesFace(geometry), let key = hostStyleKey(for: geometry) else {
@@ -505,7 +590,10 @@ final class OverlayController: SuggestionOverlayControlling {
         }
         let adoptedSample = typefaceEvidence[geometry.focusedInputIdentityKey]?.scalingSample != nil
         if HostFaceMemory.isSettled(resolution.provenance, fieldAdoptedSample: adoptedSample) {
-            if hostFaceMemory.record(.init(fontName: resolution.font.fontName, pointSize: resolution.font.pointSize), for: key) {
+            let face = HostFaceMemory.Face(
+                fontName: resolution.font.fontName, pointSize: resolution.font.pointSize, advanceMeasured: advanceMeasured ? true : nil
+            )
+            if hostFaceMemory.record(face, for: key) {
                 saveFaceMemory()
             }
             return resolution

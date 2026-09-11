@@ -62,6 +62,10 @@ final class PixelCaretLocator {
         /// The ghost's face, whose advances carry a captured caret forward over text typed since
         /// the capture (`extrapolatedMeasurement(for:)`). Nil disables that.
         var font: NSFont? = nil
+        /// Whether a fresh capture for this request feeds its field's advance fit (see
+        /// `HostAdvanceFit`): set by the caller for a web field that reports no size, in a face its
+        /// pixels named.
+        var recordsAdvance = false
 
         /// Identifies the run (field, left edge, top and height) independently of its text and
         /// width: a one-line run's frame widens as the host catches up with the typing, while a
@@ -150,6 +154,9 @@ final class PixelCaretLocator {
     private var inFlight: [String: [@MainActor (Measurement?) -> Void]] = [:]
     private var shareableContent: SCShareableContent?
     private let permissionCheck: () -> Bool
+    /// Called on the main actor with every fresh capture's request and measurement (never a cached
+    /// or carried-forward one), so the overlay can fit the host's advance from real reads only.
+    var onFreshCapture: (@MainActor (Request, Measurement) -> Void)?
 
     init(permissionCheck: @escaping () -> Bool = { CGPreflightScreenCaptureAccess() }) {
         self.permissionCheck = permissionCheck
@@ -265,6 +272,7 @@ final class PixelCaretLocator {
             if let measurement {
                 self.store(measurement, for: key)
                 self.recordLatestCapture(measurement, for: request)
+                self.onFreshCapture?(request, measurement)
             } else {
                 self.failures.insert(key)
             }

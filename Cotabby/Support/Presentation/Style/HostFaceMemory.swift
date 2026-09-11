@@ -71,6 +71,10 @@ nonisolated struct HostFaceMemory: Sendable {
     struct Face: Equatable, Codable, Sendable {
         let fontName: String
         let pointSize: CGFloat
+        /// True when the size was measured from the host's own caret advance over a line
+        /// (`HostAdvanceFit`), which a later field's short-strip match does not outrank for the same
+        /// face. Optional so styles kept by an earlier version still decode.
+        var advanceMeasured: Bool? = nil
     }
 
     /// Distinct styles kept; the first one recorded is the first forgotten.
