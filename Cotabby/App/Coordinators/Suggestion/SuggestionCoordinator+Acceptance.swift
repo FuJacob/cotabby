@@ -751,6 +751,7 @@ extension SuggestionCoordinator {
             inputFrameRect: context.inputFrameRect,
             caretQuality: anchor.quality,
             bundleIdentifier: context.bundleIdentifier,
+            focusedURLString: context.focusedURLString,
             isCaretAtEndOfLine: context.isCaretAtEndOfLine,
             observedCharWidth: context.observedCharWidth,
             isRightToLeft: isRightToLeft,

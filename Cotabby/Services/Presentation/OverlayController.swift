@@ -70,6 +70,9 @@ final class OverlayController: SuggestionOverlayControlling {
     /// positions), and one nameless snapshot was enough to let a width match flash Georgia in the
     /// middle of an otherwise settled field. Once seen, the fact holds for the field's life.
     private var unavailableNamedFaceFields: Set<UInt64> = []
+    /// The face each host text style last settled on, for fields that have measured nothing yet
+    /// (see `HostFaceMemory`). Lives as long as the controller, which is the app's lifetime.
+    private var hostFaceMemory = HostFaceMemory()
     /// Measures the caret from the host's pixels for paragraphs AX exposes only as one union run
     /// (see `PixelCaretLocator`). Owned here because the measurement is a presentation concern:
     /// it decides where the ghost is drawn and whether it can be drawn inline at all.
@@ -437,13 +440,50 @@ final class OverlayController: SuggestionOverlayControlling {
             )
         )
         let judged = applyingTypefaceEvidence(resolution, for: geometry)
-        return Self.applyingMatchedTypeface(
+        let matched = Self.applyingMatchedTypeface(
             judged,
             match: baselineCalibrator?.cachedTypeface(for: typefaceKey(for: geometry)),
             hostNamesFace: Self.hostNamesFace(geometry),
             widthSample: heldWidthSample(for: geometry),
             sizeMultiplier: CGFloat(suggestionSettings.ghostTextSizeMultiplier)
         )
+        return rememberingHostFace(matched, for: geometry)
+    }
+
+    /// The key `HostFaceMemory` files a field's host text style under.
+    private func hostStyleKey(for geometry: SuggestionOverlayGeometry) -> HostFaceMemory.Key? {
+        HostFaceMemory.Key(
+            bundleIdentifier: geometry.bundleIdentifier,
+            urlString: geometry.focusedURLString,
+            isBrowser: BrowserAppDetector.isBrowser(bundleIdentifier: geometry.bundleIdentifier),
+            reportedSize: geometry.resolvedFieldStyle?.fontPointSize,
+            caretHeight: geometry.caretRect.height,
+            sizeMultiplier: CGFloat(suggestionSettings.ghostTextSizeMultiplier)
+        )
+    }
+
+    /// Records a field's settled face for its host's text style, and starts a field that has
+    /// measured nothing yet in the face its host's last field settled on (see `HostFaceMemory`).
+    /// A host that names its face never needs this: the resolver has that face already.
+    private func rememberingHostFace(
+        _ resolution: GhostFontResolver.Resolution,
+        for geometry: SuggestionOverlayGeometry
+    ) -> GhostFontResolver.Resolution {
+        guard !Self.hostNamesFace(geometry), let key = hostStyleKey(for: geometry) else {
+            return resolution
+        }
+        let adoptedSample = typefaceEvidence[geometry.focusedInputIdentityKey]?.scalingSample != nil
+        if HostFaceMemory.isSettled(resolution.provenance, fieldAdoptedSample: adoptedSample) {
+            hostFaceMemory.record(.init(fontName: resolution.font.fontName, pointSize: resolution.font.pointSize), for: key)
+            return resolution
+        }
+        guard HostFaceMemory.yieldsToMemory(resolution.provenance),
+              let remembered = hostFaceMemory.face(for: key),
+              let font = GhostFontResolver.font(named: remembered.fontName, size: remembered.pointSize)
+        else {
+            return resolution
+        }
+        return GhostFontResolver.Resolution(font: font, provenance: .hostRemembered, widthAgreement: 1)
     }
 
     /// The width sample a pixel match is sized to: the one the field adopted (the first long
@@ -497,6 +537,15 @@ final class OverlayController: SuggestionOverlayControlling {
         if hostNamesFace, resolution.provenance != .hostSizeMatchedFamily {
             unavailableNamedFaceFields.insert(identity)
         }
+        // An Electron host that ships its editor's face (Claude's composer: Anthropic Sans) names
+        // none, and no installed family is it: a width match at the reported size is a near miss
+        // (Verdana at 14 fits Anthropic Sans at 15.4 within a percent) that flashed Verdana and
+        // Georgia between samples (2026-09-10). Such a field takes the honest stand-in, the system
+        // face scaled to its own width, until the pixel match names the bundled face.
+        if geometry.isWebContentField, !BrowserAppDetector.isBrowser(bundleIdentifier: geometry.bundleIdentifier),
+           !hostBundledFonts.candidateFontNames(forBundleIdentifier: geometry.bundleIdentifier).isEmpty {
+            unavailableNamedFaceFields.insert(identity)
+        }
         var evidence = typefaceEvidence[identity] ?? TypefaceEvidence()
         let sample = Self.widthSample(of: geometry)
         if let sample {
@@ -514,7 +563,12 @@ final class OverlayController: SuggestionOverlayControlling {
         // enough (`TypefaceEvidence.scalingAdoptionLength`): a sample that grows poll by poll (the
         // caret's own advance, `CaretAdvanceSampler`) would otherwise resize the ghost by a fraction
         // of a point on every presentation.
-        if resolution.provenance == .hostSizeScaledSystem, evidence.scalingSample != nil {
+        // The adopted sample also outlives the caret sampler, which starts over at every line change
+        // and edit: a presentation between two samples reached here as the unscaled reported size
+        // and fell back to it (Claude's composer, 2026-09-10: the reported 14 for the painted 15.4,
+        // 49 times in six minutes, each for the first dozen characters after a new line or edit).
+        if resolution.provenance == .hostSizeScaledSystem || resolution.provenance == .hostSizeSystem,
+           evidence.scalingSample != nil {
             typefaceEvidence[identity] = evidence
             return Self.scaledSystemFace(size: size, evidence: evidence)
         }
@@ -663,6 +717,12 @@ final class OverlayController: SuggestionOverlayControlling {
             caretRect: context.caretRect,
             inputFrameRect: context.inputFrameRect,
             caretQuality: context.caretQuality,
+            // The host's bundled faces are looked up by bundle: without it this prewarm, which runs
+            // first on every new line, matched without them and its verdict was kept for the line,
+            // so Claude's Anthropic Sans never reached the match (2026-09-10: host_fonts 0 on every
+            // match with enough text, 0.58 to 0.88 for the wrong faces).
+            bundleIdentifier: context.bundleIdentifier,
+            focusedURLString: context.focusedURLString,
             observedCharWidth: context.observedCharWidth,
             isRightToLeft: false,
             focusChangeSequence: context.focusChangeSequence,
@@ -753,7 +813,8 @@ final class OverlayController: SuggestionOverlayControlling {
     /// scaled to a width sample) rather than from the caret box.
     static func sizeIsReported(_ provenance: GhostFontResolver.Provenance) -> Bool {
         switch provenance {
-        case .hostFace, .hostFamily, .hostSizeMatchedFamily, .hostSizeScaledSystem, .hostSizeSystem, .hostFaceScaled, .pixelMatched:
+        case .hostFace, .hostFamily, .hostSizeMatchedFamily, .hostSizeScaledSystem, .hostSizeSystem, .hostFaceScaled, .pixelMatched,
+             .hostRemembered:
             return true
         case .caretDerived, .caretDerivedCalibrated:
             return false
@@ -766,7 +827,7 @@ final class OverlayController: SuggestionOverlayControlling {
         switch provenance {
         case .hostSizeScaledSystem, .hostFaceScaled, .caretDerivedCalibrated:
             return true
-        case .hostFace, .hostFamily, .hostSizeMatchedFamily, .hostSizeSystem, .pixelMatched, .caretDerived:
+        case .hostFace, .hostFamily, .hostSizeMatchedFamily, .hostSizeSystem, .pixelMatched, .caretDerived, .hostRemembered:
             return false
         }
     }
@@ -908,11 +969,20 @@ final class OverlayController: SuggestionOverlayControlling {
     /// only until the field has a second line to measure. A row placed a pixel off beats the card:
     /// measured live, the card at the end of a first line was the single most disliked behavior.
     private func linePitch(for geometry: SuggestionOverlayGeometry) -> CGFloat? {
+        let key = geometry.isWebContentField ? hostStyleKey(for: geometry) : nil
         if let measured = geometry.hostTextMetrics?.linePitch, measured > 0 {
+            if let key {
+                hostFaceMemory.recordPitch(measured, for: key)
+            }
             return measured
         }
         guard geometry.caretRect.height > 0, geometry.caretQuality != .estimated else {
             return nil
+        }
+        // A web engine's caret box is the glyph box, shorter than the line (Claude's composer: 19
+        // for 23); a field of the same style that did measure its pitch knows the line-height.
+        if let key, let remembered = hostFaceMemory.pitch(for: key) {
+            return remembered
         }
         return geometry.caretRect.height
     }
@@ -1126,6 +1196,10 @@ final class OverlayController: SuggestionOverlayControlling {
             "panel_h": .stringConvertible(Double(panelFrame.height)),
             "has_width_sample": .stringConvertible(session.geometry.hostTextMetrics?.sampleWidth != nil),
             "line_pitch": .stringConvertible(Double(session.geometry.hostTextMetrics?.linePitch ?? 0)),
+            // The pitch the rows were actually laid out at (measured, remembered, or the caret box).
+            "row_pitch": .stringConvertible(Double(
+                session.layout.rows.count > 1 ? session.layout.rows[0].baselineY - session.layout.rows[1].baselineY : 0
+            )),
             "line_left": .stringConvertible(Double(session.geometry.hostTextMetrics?.lineRect?.minX ?? 0)),
             "element_x": .stringConvertible(Double(session.geometry.elementFrameRect?.minX ?? 0)),
             "element_w": .stringConvertible(Double(session.geometry.elementFrameRect?.width ?? 0)),

@@ -39,11 +39,14 @@ enum GhostFontResolver {
         /// The face was identified from the host's own pixels (`TypefaceMatcher`) because the host
         /// named none and answered no width query.
         case pixelMatched = "pixel_matched"
+        /// A new field whose host's last field settled its face (`HostFaceMemory`): that face and
+        /// size, until this field's own evidence (a width sample, a pixel match) replaces it.
+        case hostRemembered = "host_remembered"
 
         /// True when the face is a stand-in the host never named; a pixel match may replace it.
         var isFallbackFace: Bool {
             switch self {
-            case .hostSizeSystem, .hostSizeScaledSystem, .caretDerived, .caretDerivedCalibrated:
+            case .hostSizeSystem, .hostSizeScaledSystem, .caretDerived, .caretDerivedCalibrated, .hostRemembered:
                 return true
             case .hostFace, .hostFamily, .hostSizeMatchedFamily, .pixelMatched, .hostFaceScaled:
                 return false

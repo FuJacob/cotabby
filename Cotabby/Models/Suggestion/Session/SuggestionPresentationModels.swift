@@ -25,6 +25,9 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
     let caretQuality: CaretGeometryQuality
     /// Host identity used to resolve presentation that varies by app.
     let bundleIdentifier: String?
+    /// The page URL when the host is a browser (`FocusedInputContext.focusedURLString`), so what the
+    /// overlay remembers about a host's text keeps one site's apart from another's.
+    let focusedURLString: String?
     /// True when the caret is at the end of its line: only whitespace, if anything, precedes the
     /// next line break. When false, real characters follow the caret on this line, so the
     /// render-mode policy promotes the suggestion to the card: inline ghost text would otherwise
@@ -88,6 +91,7 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
         inputFrameRect: CGRect?,
         caretQuality: CaretGeometryQuality,
         bundleIdentifier: String? = nil,
+        focusedURLString: String? = nil,
         isCaretAtEndOfLine: Bool = true,
         observedCharWidth: CGFloat?,
         isRightToLeft: Bool,
@@ -108,6 +112,7 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
         self.inputFrameRect = inputFrameRect
         self.caretQuality = caretQuality
         self.bundleIdentifier = bundleIdentifier
+        self.focusedURLString = focusedURLString
         self.isCaretAtEndOfLine = isCaretAtEndOfLine
         self.observedCharWidth = observedCharWidth
         self.isRightToLeft = isRightToLeft
@@ -133,6 +138,7 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
             inputFrameRect: inputFrameRect,
             caretQuality: caretQuality,
             bundleIdentifier: bundleIdentifier,
+            focusedURLString: focusedURLString,
             isCaretAtEndOfLine: isCaretAtEndOfLine,
             observedCharWidth: observedCharWidth,
             isRightToLeft: isRightToLeft,
@@ -160,6 +166,7 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
             inputFrameRect: inputFrameRect,
             caretQuality: .derived,
             bundleIdentifier: bundleIdentifier,
+            focusedURLString: focusedURLString,
             isCaretAtEndOfLine: isCaretAtEndOfLine,
             observedCharWidth: observedCharWidth,
             isRightToLeft: isRightToLeft,
