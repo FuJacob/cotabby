@@ -155,6 +155,21 @@ final class OverlayController: SuggestionOverlayControlling {
         let token = pixelCaretShowToken
         panelHeldForCapture = false
         var geometry = requestedGeometry
+        // A caret the host has not yet moved for text it has already published (see
+        // `CaretLagPolicy`): the next snapshot brings the real one, and a ghost drawn from this one
+        // would sit over the typed text, sized from an empty line's box.
+        if caretLagsTypedText(requestedGeometry) {
+            CotabbyLogger.suggestion.debug(
+                "Held a presentation whose caret lags the typed text",
+                metadata: [
+                    "stage": .string("caret-lag-hold"),
+                    "caret_x": .stringConvertible(Double(requestedGeometry.caretRect.minX)),
+                    "line_left": .stringConvertible(Double(requestedGeometry.hostTextMetrics?.lineRect?.minX ?? 0)),
+                    "chars": .stringConvertible(requestedGeometry.lineTextBeforeCaret?.count ?? 0)
+                ]
+            )
+            return
+        }
         // A caret inside a union-run paragraph is placed from the host's pixels, not from AX (which
         // has no answer there) and not from a font-metric layout (which put the ghost on top of the
         // host's own glyphs). The first presentation for a given paragraph text waits for the
@@ -391,6 +406,24 @@ final class OverlayController: SuggestionOverlayControlling {
             right = min(right, fieldRight)
         }
         return CGRect(x: run.frame.minX, y: run.frame.minY, width: right - run.frame.minX, height: run.frame.height)
+    }
+
+    /// Whether a web field's caret still sits at its line's start behind text it already published
+    /// (see `CaretLagPolicy`). Only where no pixel read will place the caret instead (a paragraph
+    /// AX exposes as one run, `wrappedRun`, is measured from the host's own pixels), and only with the
+    /// line's box to judge the leading edge by.
+    private func caretLagsTypedText(_ geometry: SuggestionOverlayGeometry) -> Bool {
+        guard geometry.isWebContentField, geometry.wrappedRun == nil,
+              let line = geometry.hostTextMetrics?.lineRect, let text = geometry.lineTextBeforeCaret, !text.isEmpty
+        else { return false }
+        return CaretLagPolicy.caretLagsTypedText(
+            caretX: geometry.caretRect.minX,
+            lineLeft: line.minX,
+            lineWidth: line.width,
+            textBeforeCaretOnLine: text,
+            font: resolveFont(for: geometry, renderer: .webEngine).font,
+            isRightToLeft: geometry.isRightToLeft
+        )
     }
 
     private func pixelCaretRequest(for geometry: SuggestionOverlayGeometry) -> PixelCaretLocator.Request? {
