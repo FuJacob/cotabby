@@ -18,7 +18,17 @@ nonisolated enum SpeculativeAcceptanceContext {
         after snapshot: FocusedInputSnapshot,
         inserting insertionChunk: String
     ) -> FocusedInputSnapshot {
-        let insertedUTF16Count = insertionChunk.utf16.count
+        optimisticSnapshot(after: snapshot, precedingText: snapshot.precedingText + insertionChunk)
+    }
+
+    /// `snapshot` as it will read once the text before the caret is `precedingText`, a known
+    /// insertion the host may not have published yet. The caret moves by the difference in length;
+    /// everything after the caret stays.
+    static func optimisticSnapshot(
+        after snapshot: FocusedInputSnapshot,
+        precedingText: String
+    ) -> FocusedInputSnapshot {
+        let lengthChange = precedingText.utf16.count - snapshot.precedingText.utf16.count
         return FocusedInputSnapshot(
             applicationName: snapshot.applicationName,
             bundleIdentifier: snapshot.bundleIdentifier,
@@ -32,10 +42,10 @@ nonisolated enum SpeculativeAcceptanceContext {
             caretQuality: snapshot.caretQuality,
             observedCharWidth: snapshot.observedCharWidth,
             observedContentEdges: snapshot.observedContentEdges,
-            precedingText: snapshot.precedingText + insertionChunk,
+            precedingText: precedingText,
             trailingText: snapshot.trailingText,
             selection: NSRange(
-                location: snapshot.selection.location + insertedUTF16Count,
+                location: max(0, snapshot.selection.location + lengthChange),
                 length: 0
             ),
             isSecure: snapshot.isSecure,

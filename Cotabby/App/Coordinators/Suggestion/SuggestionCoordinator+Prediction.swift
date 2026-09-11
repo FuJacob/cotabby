@@ -296,10 +296,17 @@ extension SuggestionCoordinator {
     /// never matches.
     func prefetchContinuation(after session: ActiveSuggestionSession, rawContext: FocusedInputSnapshot) {
         guard !userDefaults.bool(forKey: Self.continuationPrefetchDisabledDefaultsKey) else { return }
-        guard !hasPrefetchedContinuation else { return }
+        guard !hasPrefetchedContinuation, case .continuation = session.kind else { return }
         let remaining = session.remainingText
         guard !remaining.isEmpty, remaining.count <= Self.continuationPrefetchRemainingCharacters else { return }
-        let optimistic = SpeculativeAcceptanceContext.optimisticSnapshot(after: rawContext, inserting: remaining)
+        // The field once the ghost is typed through, from the session's own text: not the live
+        // snapshot plus the remaining tail. The typed-through advance runs on the keystroke, before
+        // the host publishes it, so the snapshot can still lack the characters just typed, and the
+        // model was prompted with "The budget" + "is $100," read as "The budgetis $100," (and
+        // "the pilot " + "s $250,00" as "pilot s", 2026-09-11).
+        let optimistic = SpeculativeAcceptanceContext.optimisticSnapshot(
+            after: rawContext, precedingText: session.precedingTextOnceTypedThrough
+        )
         guard SuggestionRequestFactory.shouldGenerateSuggestion(
             for: optimistic.precedingText, trailingText: optimistic.trailingText
         ) else { return }
