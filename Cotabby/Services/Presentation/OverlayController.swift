@@ -73,6 +73,8 @@ final class OverlayController: SuggestionOverlayControlling {
     /// The face each host text style last settled on, for fields that have measured nothing yet
     /// (see `HostFaceMemory`). Lives as long as the controller, which is the app's lifetime.
     private var hostFaceMemory = HostFaceMemory()
+    /// Which zoom ladder each host paints on, for snapping a pixel-matched size (see `HostZoomLadder`).
+    private let hostZoomLadders = HostZoomLadderResolver()
     /// Measures the caret from the host's pixels for paragraphs AX exposes only as one union run
     /// (see `PixelCaretLocator`). Owned here because the measurement is a presentation concern:
     /// it decides where the ghost is drawn and whether it can be drawn inline at all.
@@ -463,9 +465,20 @@ final class OverlayController: SuggestionOverlayControlling {
             match: baselineCalibrator?.cachedTypeface(for: typefaceKey(for: geometry)),
             hostNamesFace: Self.hostNamesFace(geometry),
             widthSample: heldWidthSample(for: geometry),
-            sizeMultiplier: CGFloat(suggestionSettings.ghostTextSizeMultiplier)
+            sizeMultiplier: CGFloat(suggestionSettings.ghostTextSizeMultiplier),
+            reportedSize: zoomStep(for: geometry).reportedSize,
+            zoomKind: zoomStep(for: geometry).kind
         )
         return rememberingHostFace(matched, for: geometry)
+    }
+
+    /// The reported CSS size and zoom ladder a web field's pixel-matched size snaps to (see
+    /// `HostZoomLadder`). Every path that applies a pixel match goes through this, or a fresh
+    /// calibration re-applies the raw fit for a presentation (Georgia 17.892 between 18.0 frames,
+    /// once per streamed word, 2026-09-11).
+    private func zoomStep(for geometry: SuggestionOverlayGeometry) -> (reportedSize: CGFloat?, kind: HostZoomLadder.Kind?) {
+        guard geometry.isWebContentField else { return (nil, nil) }
+        return (geometry.resolvedFieldStyle?.fontPointSize, hostZoomLadders.kind(forBundleIdentifier: geometry.bundleIdentifier))
     }
 
     /// The key `HostFaceMemory` files a field's host text style under.
@@ -682,16 +695,28 @@ final class OverlayController: SuggestionOverlayControlling {
     /// CoreText applies (Obsidian's system face at 16 advanced 1.5% less than CoreText's), and a
     /// ghost whose advances are the host's lands every typed-through and accepted word where the
     /// host puts it, at a glyph size a fraction of a pixel off.
+    ///
+    /// A web host paints its reported CSS size (`reportedSize`) times a factor from its zoom ladder
+    /// (`zoomKind`), and a matched size within a percent of such a product is that product (see
+    /// `HostZoomLadder`): the fit wanders by about half a percent between fields, and Obsidian's
+    /// 16px text matched at 16.10 drifted two device pixels by a line's end where 15.99 held every
+    /// word within one (2026-09-11).
     static func applyingMatchedTypeface(
         _ resolution: GhostFontResolver.Resolution,
         match: HostBaselineCalibrator.TypefaceMatchRecord?,
         hostNamesFace: Bool,
         widthSample: TypefaceEvidence.Sample? = nil,
-        sizeMultiplier: CGFloat
+        sizeMultiplier: CGFloat,
+        reportedSize: CGFloat? = nil,
+        zoomKind: HostZoomLadder.Kind? = nil
     ) -> GhostFontResolver.Resolution {
+        func onLadder(_ size: CGFloat) -> CGFloat {
+            guard let reportedSize, let zoomKind else { return size }
+            return HostZoomLadder.snappedSize(measured: size, reported: reportedSize, kind: zoomKind) ?? size
+        }
         guard let match, !hostNamesFace, Self.acceptsPixelMatch(resolution.provenance),
               let unscaled = GhostFontResolver.font(named: match.fontName, size: match.pointSize),
-              let matched = GhostFontResolver.font(named: match.fontName, size: match.pointSize * max(sizeMultiplier, 0.01))
+              let matched = GhostFontResolver.font(named: match.fontName, size: onLadder(match.pointSize) * max(sizeMultiplier, 0.01))
         else {
             return resolution
         }
@@ -708,7 +733,7 @@ final class OverlayController: SuggestionOverlayControlling {
                 return resolution
             }
             let fitted = GhostFontResolver.scaled(unscaled, toSample: widthSample.text, width: widthSample.width)
-            let sized = GhostFontResolver.resized(fitted, to: fitted.pointSize * max(sizeMultiplier, 0.01))
+            let sized = GhostFontResolver.resized(fitted, to: onLadder(fitted.pointSize) * max(sizeMultiplier, 0.01))
             return GhostFontResolver.Resolution(font: sized, provenance: .pixelMatched, widthAgreement: 1)
         }
         return GhostFontResolver.Resolution(font: matched, provenance: .pixelMatched, widthAgreement: 1)
@@ -891,12 +916,15 @@ final class OverlayController: SuggestionOverlayControlling {
                 session.baselineSource = "calibrated"
                 changed = true
             }
+            let zoom = self.zoomStep(for: geometry)
             let rematched = Self.applyingMatchedTypeface(
                 session.fontResolution,
                 match: calibration.typefaceMatch,
                 hostNamesFace: Self.hostNamesFace(geometry),
                 widthSample: self.heldWidthSample(for: geometry),
-                sizeMultiplier: CGFloat(self.suggestionSettings.ghostTextSizeMultiplier)
+                sizeMultiplier: CGFloat(self.suggestionSettings.ghostTextSizeMultiplier),
+                reportedSize: zoom.reportedSize,
+                zoomKind: zoom.kind
             )
             if rematched.font != session.fontResolution.font {
                 session.fontResolution = rematched
