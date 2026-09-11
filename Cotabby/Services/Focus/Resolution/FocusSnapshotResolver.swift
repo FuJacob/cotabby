@@ -25,6 +25,8 @@ struct FocusSnapshotResolver {
     /// window and may not start at the document start" — laying out a mid-document prefix would
     /// produce meaningless wrap/Y geometry, so that case must be rejected.
     static let focusedTextContextWindowUTF16 = 4096
+    /// The longest value `restoringBlockBreaks` reads to put a web field's paragraph breaks back.
+    static let blockBreakAlignmentMaximumUTF16 = 16_384
 
     /// Carries deep-walk throttle state across the value-typed resolver's non-mutating polls.
     private let deepWalkThrottle = DeepGeometryWalkThrottle()
@@ -967,9 +969,17 @@ struct FocusSnapshotResolver {
         // Prefer the marker-windowed text when we synthesized one so `selection` (window-relative)
         // and `textValue` stay consistent; otherwise use a bounded native text window when the host
         // supports `AXStringForRange`, falling back to the full value for older/native controls.
-        let textSelection = markerSelection.map {
+        let textSelection = (markerSelection.map {
             AXTextSelection(text: $0.text, selection: $0.selection)
-        } ?? nativeTextSelection
+        } ?? nativeTextSelection).map {
+            restoringBlockBreaks(
+                in: $0,
+                on: element,
+                role: role,
+                supportedAttributes: supportedAttributes,
+                supportedParameterizedAttributes: supportedParameterizedAttributes
+            )
+        }
         let selection = textSelection?.selection
         let selectionForGeometry = nativeSelection ?? markerSelection?.selection
         let textValue = textSelection?.text
@@ -1203,6 +1213,58 @@ struct FocusSnapshotResolver {
                 length: (selectedText as NSString).length
             )
         )
+    }
+
+    /// The selection re-read in the field's value where the host's range text runs its blocks
+    /// together (Chromium's contenteditables, see `BlockBreakAlignment`): the paragraph breaks come
+    /// back into the model's text and the caret line's text, and the text after the caret comes from
+    /// the value instead of a range query that overshoots the range text's end. Only a window that
+    /// starts at the field's start can be aligned, and a single-line field has no blocks; anything
+    /// that does not align keeps the range text. Costs one `AXValue` read per poll in a web text
+    /// area, bounded by `blockBreakAlignmentMaximumUTF16`. The document caret (`nativeSelection`)
+    /// stays in the range space, where the host's own offset queries expect it.
+    private func restoringBlockBreaks(
+        in selection: AXTextSelection,
+        on element: AXUIElement,
+        role: String,
+        supportedAttributes: Set<String>,
+        supportedParameterizedAttributes: Set<String>
+    ) -> AXTextSelection {
+        let text = selection.text as NSString
+        guard role != kAXTextFieldRole as String,
+              AXHelper.readsTextMarkers(parameterizedAttributes: supportedParameterizedAttributes),
+              selection.selection.location < min(Self.focusedTextContextWindowUTF16, MarkerSelectionSynthesizer.defaultWindow),
+              NSMaxRange(selection.selection) <= text.length
+        else {
+            return selection
+        }
+        // A window holding the whole field at the value's own length has no break left out (the
+        // range text is the value then), so only the caret's side of a break is left to settle and
+        // the value need not be read: the common case in hosts whose two spaces agree (Obsidian).
+        let value: String
+        if let documentLength = AXHelper.intValue(for: kAXNumberOfCharactersAttribute as CFString, on: element),
+           documentLength == text.length {
+            value = selection.text
+        } else {
+            guard supportedAttributes.contains(kAXValueAttribute as String),
+                  let read = AXHelper.stringValue(for: kAXValueAttribute as CFString, on: element),
+                  (read as NSString).length <= Self.blockBreakAlignmentMaximumUTF16
+            else {
+                return selection
+            }
+            value = read
+        }
+        guard let split = BlockBreakAlignment.split(
+            value: value,
+            rangePrefix: text.substring(to: selection.selection.location),
+            rangeSelected: text.substring(with: selection.selection),
+            caretStartsBlock: {
+                AXHelper.caretStartsTextBlock(on: element, parameterizedAttributes: supportedParameterizedAttributes)
+            }
+        ) else {
+            return selection
+        }
+        return AXTextSelection(text: split.text, selection: split.selection)
     }
 
     /// The value and selection with Chromium's inline address-bar completion removed. The omnibox

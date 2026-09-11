@@ -535,6 +535,32 @@ enum AXHelper {
         return CFEqual(a, b)
     }
 
+    /// Whether the element reads its text through text markers (a WebKit or Chromium web area).
+    static func readsTextMarkers(parameterizedAttributes: Set<String>) -> Bool {
+        parameterizedAttributes.contains(stringForMarkerRangeAttribute as String)
+    }
+
+    /// Whether the caret sits at the start of a text block (a paragraph, a list item) rather than at
+    /// the end of the block before it. Chromium's range offsets count both spots as one (see
+    /// `BlockBreakAlignment`); its text markers keep them apart. Measured 2026-09-11 in a
+    /// ProseMirror replica of Claude's composer: at a paragraph's start the caret's marker names that
+    /// paragraph's text and the marker before it another element; at the end of the paragraph
+    /// before, both name that paragraph's text; in an empty paragraph the caret's marker names the
+    /// paragraph's group. False whenever the markers cannot answer, which leaves the caret where the
+    /// range offset put it.
+    static func caretStartsTextBlock(on element: AXUIElement, parameterizedAttributes: Set<String>) -> Bool {
+        guard parameterizedAttributes.contains(elementForMarkerAttribute as String),
+              let selection = copyOpaqueAttribute(selectedTextMarkerRangeAttribute, on: element),
+              let caret = startMarker(of: selection, on: element, attributes: parameterizedAttributes),
+              let previous = copyOpaqueParameterized(previousMarkerAttribute, parameter: caret, on: element),
+              let caretElement = copyOpaqueParameterized(elementForMarkerAttribute, parameter: caret, on: element),
+              let previousElement = copyOpaqueParameterized(elementForMarkerAttribute, parameter: previous, on: element)
+        else {
+            return false
+        }
+        return !CFEqual(caretElement, previousElement)
+    }
+
     /// Synthesizes an `NSRange` selection plus caret-windowed text for a Chromium/WebKit
     /// `contenteditable` that exposes selection only through the opaque text-marker API and not
     /// through `kAXSelectedTextRangeAttribute`.
