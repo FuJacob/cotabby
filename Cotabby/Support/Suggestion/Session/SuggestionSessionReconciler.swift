@@ -83,7 +83,9 @@ enum SuggestionSessionReconciler {
         }
 
         var nextPendingInsertionConsumedCount = pendingInsertionConsumedCount
-        let consumedSuffix = String(liveContext.precedingText.dropFirst(session.baseContext.precedingText.count))
+        let consumedSuffix = String(
+            Self.spaceNormalized(liveContext.precedingText).dropFirst(session.baseContext.precedingText.count)
+        )
         if let consumedTextReconciliation = reconcileConsumedSuggestionText(
             session: session,
             consumedSuffix: consumedSuffix,
@@ -148,13 +150,23 @@ enum SuggestionSessionReconciler {
         )
     }
 
+    /// Text with every non-breaking space read as a plain space. Chromium's contenteditable stores
+    /// a space typed at the end of a line as U+00A0 and turns it back into U+0020 once the next
+    /// character arrives (measured live in Chrome: typing the space the ghost suggested read as
+    /// "typed text diverged", and the next letter as "text no longer matches the anchor"). Both
+    /// forms are the same keystroke to the user, so every comparison here treats them alike;
+    /// the two are one UTF-16 unit each, so offsets are unchanged.
+    static func spaceNormalized(_ text: String) -> String {
+        text.replacingOccurrences(of: "\u{00A0}", with: " ")
+    }
+
     private static func reconcileTrailingText(
         session: ActiveSuggestionSession,
         liveContext: FocusedInputContext,
         pendingInsertionConsumedCount: Int?,
         isAwaitingInsertedTextSync: Bool
     ) -> SuggestionSessionReconciliation? {
-        guard liveContext.trailingText != session.baseContext.trailingText else {
+        guard spaceNormalized(liveContext.trailingText) != spaceNormalized(session.baseContext.trailingText) else {
             return nil
         }
 
@@ -162,14 +174,16 @@ enum SuggestionSessionReconciler {
         // text snapshot catches up. Right after Tab insertion that makes the trailing-text slice
         // look changed even though the active suggestion tail is still valid.
         if isAwaitingInsertedTextSync,
-           liveContext.precedingText.hasPrefix(session.baseContext.precedingText) {
+           spaceNormalized(liveContext.precedingText).hasPrefix(spaceNormalized(session.baseContext.precedingText)) {
             return tolerateTransientPostInsertionLag(
                 session: session,
                 pendingInsertionConsumedCount: pendingInsertionConsumedCount
             )
         }
 
-        return .invalid("Overlay hidden because text after the caret changed.")
+        let before = (session.baseContext.trailingText as NSString).length
+        let after = (liveContext.trailingText as NSString).length
+        return .invalid("Overlay hidden because text after the caret changed (\(before) -> \(after) chars).")
     }
 
     private static func reconcilePrefixAnchor(
@@ -178,7 +192,7 @@ enum SuggestionSessionReconciler {
         pendingInsertionConsumedCount: Int?,
         isAwaitingInsertedTextSync: Bool
     ) -> SuggestionSessionReconciliation? {
-        guard !liveContext.precedingText.hasPrefix(session.baseContext.precedingText) else {
+        guard !spaceNormalized(liveContext.precedingText).hasPrefix(spaceNormalized(session.baseContext.precedingText)) else {
             return nil
         }
 
@@ -201,7 +215,7 @@ enum SuggestionSessionReconciler {
         pendingInsertionConsumedCount: Int?,
         isAwaitingInsertedTextSync: Bool
     ) -> SuggestionSessionReconciliation? {
-        guard !session.fullText.hasPrefix(consumedSuffix) else {
+        guard !spaceNormalized(session.fullText).hasPrefix(consumedSuffix) else {
             return nil
         }
 
@@ -280,7 +294,40 @@ enum SuggestionSessionReconciler {
             index = wordEnd
         }
 
+        // A token with no word in it (". I'll", ", and") is punctuation the model attached to the
+        // previous word; on its own it is not worth a keypress, so it binds to the word that
+        // follows and one Tab accepts ". I'll". With trailing punctuation set to accept separately
+        // the user has asked for punctuation as its own step, so the token stays alone.
+        if autoAcceptTrailingPunctuation, tokenStart < index,
+           let bound = wordBoundToLeadingPunctuation(in: remainingText, punctuation: tokenStart..<index) {
+            index = bound
+        }
+
         return String(remainingText[..<index])
+    }
+
+    /// The end of the whitespace-delimited word after a punctuation-only token, or nil when the
+    /// token holds a word character, belongs to a space-less script, or nothing word-like follows.
+    private static func wordBoundToLeadingPunctuation(
+        in text: String,
+        punctuation: Range<String.Index>
+    ) -> String.Index? {
+        let first = text[punctuation.lowerBound]
+        guard !text[punctuation].contains(where: \.isAcceptanceWordCharacter),
+              !first.beginsSpacelessScriptWord, !first.bindsToPrecedingSpacelessWord, !first.isCJKOpeningBracket
+        else { return nil }
+        var next = punctuation.upperBound
+        while next < text.endIndex, text[next].isWhitespace {
+            next = text.index(after: next)
+        }
+        let wordStart = next
+        while next < text.endIndex, !text[next].isWhitespace {
+            next = text.index(after: next)
+        }
+        guard wordStart < next, text[wordStart..<next].contains(where: \.isAcceptanceWordCharacter),
+              !text[wordStart].beginsSpacelessScriptWord
+        else { return nil }
+        return next
     }
 
     /// The index just past the first ICU word in `text[from..<limit]`, or nil when segmentation finds

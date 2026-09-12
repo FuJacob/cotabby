@@ -91,6 +91,19 @@ final class SuggestionModelValueTests: XCTestCase {
         XCTAssertTrue(session.isExhausted)
     }
 
+    /// A text field or combo box lays its text out on one line (an HTML input, Chromium's address
+    /// bar, an NSTextField): measured 2026-09-11, a long ghost's second row was drawn under a Chrome
+    /// text input. A text area, or a web area standing in for an editor, may wrap.
+    func test_focusedInputContext_textFieldsAndComboBoxesAreSingleLine() {
+        func context(role: String) -> FocusedInputContext {
+            FocusedInputContext(snapshot: CotabbyTestFixtures.focusedInputSnapshot(role: role), generation: 1)
+        }
+        XCTAssertTrue(context(role: "AXTextField").isSingleLineField)
+        XCTAssertTrue(context(role: "AXComboBox").isSingleLineField)
+        XCTAssertFalse(context(role: "AXTextArea").isSingleLineField)
+        XCTAssertFalse(context(role: "AXWebArea").isSingleLineField)
+    }
+
     func test_overlayStateVisibleExposesRenderMode() {
         let state = OverlayState.visible(
             text: "hello",
@@ -103,44 +116,6 @@ final class SuggestionModelValueTests: XCTestCase {
 
         XCTAssertTrue(state.isVisible)
         XCTAssertEqual(state.visibleMode, .inline)
-    }
-
-    func test_ghostSuggestionLayoutWrapsOverflowToInputLeftEdge() {
-        let geometry = CotabbyTestFixtures.overlayGeometry(
-            caretRect: CGRect(x: 190, y: 80, width: 2, height: 18),
-            inputFrameRect: CGRect(x: 100, y: 70, width: 140, height: 30),
-            observedCharWidth: 7
-        )
-
-        let layout = GhostSuggestionLayout.make(
-            text: " alpha beta gamma delta",
-            geometry: geometry,
-            fontSize: 14,
-            visibleFrame: CGRect(x: 0, y: 0, width: 500, height: 300)
-        )
-
-        XCTAssertGreaterThan(layout.lines.count, 1)
-        XCTAssertEqual(layout.panelOriginX, 108)
-        XCTAssertEqual(layout.lines.last?.leadingIndent, 0)
-        XCTAssertEqual(layout.lines.last?.showsKeycap, true)
-    }
-
-    func test_ghostSuggestionLayoutUsesNextLineWhenCaretHasNoUsefulSpace() {
-        let geometry = CotabbyTestFixtures.overlayGeometry(
-            caretRect: CGRect(x: 232, y: 80, width: 2, height: 18),
-            inputFrameRect: CGRect(x: 100, y: 70, width: 140, height: 30),
-            observedCharWidth: 7
-        )
-
-        let layout = GhostSuggestionLayout.make(
-            text: " next words",
-            geometry: geometry,
-            fontSize: 14,
-            visibleFrame: CGRect(x: 0, y: 0, width: 500, height: 300)
-        )
-
-        XCTAssertEqual(layout.lines.first?.leadingIndent, 0)
-        XCTAssertLessThan(layout.topLineCenterOffsetFromCaret, 0)
     }
 
     func test_suggestionWordRange_compactLabelRendersLowAndHighBounds() {

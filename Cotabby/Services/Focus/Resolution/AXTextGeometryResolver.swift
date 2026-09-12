@@ -81,67 +81,90 @@ struct AXTextGeometryResolver {
         textValue: String? = nil,
         textSelection: NSRange? = nil,
         staticRunThrottle: StaticTextRunWalkThrottle? = nil,
-        focusChangeSequence: UInt64 = 0
+        focusChangeSequence: UInt64 = 0,
+        supportsLineQueries: Bool = false
     ) -> CaretGeometryResult? {
         let selectionInTextValue = textSelection ?? selection
 
-        // Branch 1: Zero-length BoundsForRange at the caret position — ideal case.
-        // Gated on `supportsBoundsForRange` because the API is a synchronous cross-process
-        // call into the focused app's AX implementation. In Chrome that's a round-trip into
-        // the renderer, and the deep-tree walker can touch many leaves per focus poll; calling
-        // BoundsForRange on nodes that don't advertise support stalled the main thread badly
-        // enough to freeze typing. The `rectIsNearAnchor` validator stays as a correctness
-        // guard for supporters that return rects belonging to an unrelated range.
+        // Branch 1 (previous-character trailing edge). Ask the host for the bounds of the character
+        // before the caret and take its trailing edge: for left-to-right text that IS the insertion
+        // point, and its box is the real rendered line. Measured against TextEdit and Chrome, this
+        // answer coincides with the zero-length caret query on x while the zero-length query is the
+        // less trustworthy one: TextKit reports the end-of-document caret one line too high, and
+        // Chrome reports a caret after a trailing newline at the end of the previous line. A previous
+        // character that is itself a line break describes the previous line, so that case defers to
+        // the zero-length query below.
+        // Gated on `supportsBoundsForRange` because the API is a synchronous cross-process call into
+        // the focused app's AX implementation; the `rectIsNearAnchor` validator stays as a
+        // correctness guard for supporters that return rects belonging to an unrelated range.
+        let previousCharacter = Self.character(before: selectionInTextValue.location, in: textValue)
         if supportsBoundsForRange,
+            selection.location > 0,
+            let previousCharacter, !previousCharacter.isNewline,
             let rect = AXHelper.parameterizedRectValue(
                 for: kAXBoundsForRangeParameterizedAttribute as CFString,
-                range: NSRange(location: selection.location, length: 0),
+                range: NSRange(location: selection.location - 1, length: 1),
                 on: element
-            ), !rect.isEmpty {
+            ), rect.width > 0, rect.height > 0, AXHelper.rectHasFiniteComponents(rect) {
             let cocoaRect = AXHelper.validatedCocoaTextRect(
                 fromAccessibilityRect: rect,
                 anchorFrame: cocoaAnchorFrame
             )
             if rectIsNearAnchor(cocoaRect, anchor: cocoaAnchorFrame) {
+                let isRightToLeft = textValue.map(TextDirectionDetector.isRightToLeft) ?? false
                 return CaretGeometryResult(
-                    rect: normalizedCaretRect(fromZeroLengthRangeRect: cocoaRect),
-                    quality: .exact
+                    rect: Self.caretRect(afterCharacterFrame: cocoaRect, rightToLeft: isRightToLeft),
+                    quality: .exact,
+                    sourceDetail: "previous-character"
+                )
+            }
+        }
+
+        // Branch 1.2: zero-length BoundsForRange at the caret. Reached at the start of a field or
+        // right after a line break. Hosts answer this with a zero-WIDTH rect, so the check is on
+        // height, not `isEmpty` (which is true for any zero-width rect and used to discard every
+        // legitimate caret box here).
+        if supportsBoundsForRange,
+            let rect = AXHelper.parameterizedRectValue(
+                for: kAXBoundsForRangeParameterizedAttribute as CFString,
+                range: NSRange(location: selection.location, length: 0),
+                on: element
+            ), rect.height > 0, AXHelper.rectHasFiniteComponents(rect) {
+            let cocoaRect = AXHelper.validatedCocoaTextRect(
+                fromAccessibilityRect: rect,
+                anchorFrame: cocoaAnchorFrame
+            )
+            if rectIsNearAnchor(cocoaRect, anchor: cocoaAnchorFrame) {
+                let normalized = normalizedCaretRect(fromZeroLengthRangeRect: cocoaRect)
+                return zeroLengthCaretResult(
+                    normalized,
+                    context: ZeroLengthCaretContext(
+                        element: element,
+                        caretLocation: selection.location,
+                        supportsLineQueries: supportsLineQueries,
+                        anchorFrame: cocoaAnchorFrame,
+                        isAtTextEndAfterNewline: previousCharacter?.isNewline == true
+                            && selectionInTextValue.location >= ((textValue ?? "") as NSString).length
+                    )
                 )
             }
         }
 
         // Branch 1.5: Chromium / WebKit AXTextMarker fallback.
         // Apps like Discord/Chrome fail NSRange queries but return a correct bounding box
-        // when we ask for the caret via their internal AXTextMarkerRange objects.
-        if let markerRect = AXHelper.textMarkerCaretRect(on: element), !markerRect.isEmpty {
+        // when we ask for the caret via their internal AXTextMarkerRange objects. The caret box is
+        // zero-width, so only its height is checked.
+        if let markerRect = AXHelper.textMarkerCaretRect(on: element),
+            markerRect.height > 0, AXHelper.rectHasFiniteComponents(markerRect) {
             let cocoaRect = AXHelper.validatedCocoaTextRect(
                 fromAccessibilityRect: markerRect,
                 anchorFrame: cocoaAnchorFrame
             )
-            return CaretGeometryResult(
-                rect: normalizedCaretRect(fromZeroLengthRangeRect: cocoaRect),
-                quality: .exact
-            )
-        }
-
-        // Branch 2: BoundsForRange on the character before the caret, then shift to its trailing edge.
-        // Same gate and anchor validation as Branch 1.
-        if supportsBoundsForRange,
-            selection.location > 0,
-            let rect = AXHelper.parameterizedRectValue(
-                for: kAXBoundsForRangeParameterizedAttribute as CFString,
-                range: NSRange(location: selection.location - 1, length: 1),
-                on: element
-            ), !rect.isEmpty {
-            let cocoaRect = AXHelper.validatedCocoaTextRect(
-                fromAccessibilityRect: rect,
-                anchorFrame: cocoaAnchorFrame
-            )
             if rectIsNearAnchor(cocoaRect, anchor: cocoaAnchorFrame) {
                 return CaretGeometryResult(
-                    rect: CGRect(
-                        x: cocoaRect.maxX, y: cocoaRect.minY, width: 2, height: cocoaRect.height),
-                    quality: .derived
+                    rect: normalizedCaretRect(fromZeroLengthRangeRect: cocoaRect),
+                    quality: .exact,
+                    sourceDetail: "text-marker"
                 )
             }
         }
@@ -278,13 +301,19 @@ struct AXTextGeometryResolver {
         // Map the caret offset to a run by aligning run texts inside the parent value (see
         // `caretRunPlacement`). The run frame's Y is a real rendered line position, so a correct
         // run choice is what makes derived geometry trustworthy vertically.
-        guard let placement = Self.caretRunPlacement(
+        guard let placementWithStart = Self.caretRunPlacementWithStart(
             runTexts: textRuns.map(\.text),
             parentText: parentText,
             caretOffset: parentSelection.location
         ) else {
             return nil
         }
+        let placement = placementWithStart.placement
+        // The caret's own run up to the caret (see `runTextBeforeCaret`), from the live parent
+        // value: the run's own text lags while typing.
+        let runTextBeforeCaret = Self.runTextBeforeCaret(
+            in: parentText, runStartOffset: placementWithStart.runStartOffset, caretOffset: parentSelection.location
+        )
 
         // Electron editors may expose one AXStaticText child whose frame is the union of several
         // soft-wrapped lines. A proportional X inside that union has no relationship to the caret,
@@ -292,41 +321,66 @@ struct AXTextGeometryResolver {
         // if the host withholds those too, demote to field-frame geometry so presentation-time
         // TextKit repair can lay out the complete prefix.
         let selectedRun = textRuns[placement.runIndex]
+        let siblingLines = Self.lineGeometry(fromSingleLineRuns: textRuns)
+
+        // Derive metrics only from runs that plausibly describe one visual line. A wrapped union
+        // frame would divide one line's width by several lines' characters, poisoning both the
+        // observed character width and the layout estimator that consumes it. Runs of a few
+        // characters (CodeMirror's single-space spacers) carry more padding than glyph and skip
+        // the width average.
+        let measurableRuns = textRuns.filter(\.allowsProportionalCaretPlacement)
+        var totalChars = 0
+        var totalWidth: CGFloat = 0
+        for run in measurableRuns where (run.text as NSString).length >= 4 {
+            totalChars += (run.text as NSString).length
+            totalWidth += run.frame.width
+        }
+        let charWidth: CGFloat? = totalChars > 0 ? totalWidth / CGFloat(totalChars) : nil
+
         guard selectedRun.allowsProportionalCaretPlacement else {
             return resolveWrappedRunCaret(
                 selectedRun,
                 parentText: parentText,
                 parentSelection: parentSelection,
-                fallbackFrame: fallbackFrame
+                paragraphTextBeforeCaret: runTextBeforeCaret,
+                fallbackFrame: fallbackFrame,
+                siblingLines: siblingLines,
+                observedCharWidth: charWidth
             )
         }
-
-        // Derive metrics only from runs that plausibly describe one visual line. A wrapped union
-        // frame would divide one line's width by several lines' characters, poisoning both the
-        // observed character width and the layout estimator that consumes it.
-        let measurableRuns = textRuns.filter(\.allowsProportionalCaretPlacement)
-        var totalChars = 0
-        var totalWidth: CGFloat = 0
-        for run in measurableRuns {
-            totalChars += (run.text as NSString).length
-            totalWidth += run.frame.width
-        }
-        let charWidth: CGFloat? = totalChars > 0 ? totalWidth / CGFloat(totalChars) : nil
 
         // Measure content edges from the same single-line frames. These reveal the field's real
         // padding without letting a multi-line union frame masquerade as calibrated geometry.
         let cocoaRunFrames = measurableRuns.map {
             AXHelper.cocoaRect(fromAccessibilityRect: $0.frame)
         }
+        let runFrame = AXHelper.cocoaRect(fromAccessibilityRect: selectedRun.frame)
         let contentEdges: ObservedContentEdges?
         if let leftX = cocoaRunFrames.map(\.minX).min(),
             let topY = cocoaRunFrames.map(\.maxY).max() {
-            contentEdges = ObservedContentEdges(leftX: leftX, topY: topY)
+            // The run's frame and the caret's paragraph let the presentation layer read the caret
+            // from the run's own pixels (`PixelCaretLocator`), exactly as for a wrapped union run.
+            // The proportional x below is a fraction of the frame by character count, which in a
+            // proportional face lands several points off (measured 2026-09-10 in Obsidian's
+            // single-line paragraphs: 3 to 3.5pt on a fifty-character line, the ghost's every word
+            // that far from the host's); the pixels put the caret at the last glyph's edge. It is
+            // marked as one line: its frame is already the caret's line box, so only x is read from
+            // the pixels and nothing lays the text out again to find its line.
+            contentEdges = ObservedContentEdges(
+                leftX: leftX,
+                topY: topY,
+                linePitch: siblingLines.pitch,
+                lineBoxHeight: siblingLines.boxHeight,
+                wrappedRun: WrappedRunAnchor(
+                    frame: runFrame,
+                    paragraphTextBeforeCaret: runTextBeforeCaret,
+                    spansOneLine: true
+                )
+            )
         } else {
             contentEdges = nil
         }
 
-        let runFrame = AXHelper.cocoaRect(fromAccessibilityRect: selectedRun.frame)
         var caretX = runFrame.minX + placement.fraction * runFrame.width
         // The parent value extends past the matched runs (text published, frames not yet
         // reflowed): extend the estimate by the measured per-character advance instead of parking
@@ -355,7 +409,10 @@ struct AXTextGeometryResolver {
         _ selectedRun: StaticTextRunWalkThrottle.TextRun,
         parentText: String,
         parentSelection: NSRange,
-        fallbackFrame: CGRect?
+        paragraphTextBeforeCaret: String,
+        fallbackFrame: CGRect?,
+        siblingLines: (pitch: CGFloat?, boxHeight: CGFloat?) = (nil, nil),
+        observedCharWidth: CGFloat? = nil
     ) -> CaretGeometryResult? {
         // Claude's wrapped leaf still exposes the exact previous-character rectangle even though
         // its zero-length caret query fails. The trailing edge is the real caret insertion point.
@@ -387,6 +444,11 @@ struct AXTextGeometryResolver {
             text: parentText,
             selection: parentSelection
         )
+        // The union frame and the caret's paragraph let the presentation layer lay the paragraph
+        // out and find the caret's visual line (see `WrappedRunAnchor`); the rect below is only
+        // the whole-field fallback for when that layout is rejected.
+        let unionFrame = AXHelper.cocoaRect(fromAccessibilityRect: selectedRun.frame)
+        let wrappedRun = WrappedRunAnchor(frame: unionFrame, paragraphTextBeforeCaret: paragraphTextBeforeCaret)
         return CaretGeometryResult(
             rect: CGRect(
                 x: min(estimatedX, fallbackFrame.maxX),
@@ -395,6 +457,14 @@ struct AXTextGeometryResolver {
                 height: fallbackFrame.height
             ),
             quality: .estimated,
+            observedCharWidth: observedCharWidth,
+            observedContentEdges: ObservedContentEdges(
+                leftX: unionFrame.minX,
+                topY: unionFrame.maxY,
+                linePitch: siblingLines.pitch,
+                lineBoxHeight: siblingLines.boxHeight,
+                wrappedRun: wrappedRun
+            ),
             sourceDetail: "wrapped-run",
             // The child walk already found the best descendant and proved its frame ambiguous.
             // Repeating a deep BFS would rediscover the same union rect on every poll.
@@ -457,9 +527,91 @@ struct AXTextGeometryResolver {
     }
 
     /// Converts the measured character immediately before the selection into Cotabby's normalized
-    /// caret shape. The trailing edge—not the character origin—is the insertion point.
-    static func caretRect(afterCharacterFrame frame: CGRect) -> CGRect {
-        CGRect(x: frame.maxX, y: frame.minY, width: 2, height: frame.height)
+    /// caret shape. The trailing edge—not the character origin—is the insertion point: the right
+    /// edge for left-to-right text, the left edge for right-to-left text.
+    static func caretRect(afterCharacterFrame frame: CGRect, rightToLeft: Bool = false) -> CGRect {
+        CGRect(x: rightToLeft ? frame.minX : frame.maxX, y: frame.minY, width: 2, height: frame.height)
+    }
+
+    /// The character immediately before `caretLocation` (a UTF-16 offset into `text`), or nil.
+    static func character(before caretLocation: Int, in text: String?) -> Character? {
+        guard let text, caretLocation > 0 else { return nil }
+        let nsText = text as NSString
+        guard caretLocation <= nsText.length else { return nil }
+        let clusterRange = nsText.rangeOfComposedCharacterSequence(at: caretLocation - 1)
+        return nsText.substring(with: clusterRange).first
+    }
+
+    /// Finishes a zero-length caret answer. Its x is trustworthy in every measured host, but its
+    /// line differs: TextKit reports the caret one line too high at every position (measured in
+    /// TextEdit at line starts, mid-line, and at the end of the document), while Chromium reports a
+    /// caret that follows a trailing line break at the end of the previous line.
+    ///
+    /// TextKit hosts expose `AXLineForIndex`/`AXRangeForLine`, so the caret's real line box is read
+    /// from them: the line containing the caret, or the (still empty) line below it when the caret
+    /// sits past that line's trailing break. Hosts without line queries keep the rect as answered,
+    /// except the trailing-break-at-end case, which is demoted to `.estimated` so the card shows
+    /// rather than an inline ghost on the wrong line.
+    /// What the zero-length caret answer needs to be finished (see `zeroLengthCaretResult`).
+    private struct ZeroLengthCaretContext {
+        let element: AXUIElement
+        let caretLocation: Int
+        let supportsLineQueries: Bool
+        let anchorFrame: CGRect?
+        let isAtTextEndAfterNewline: Bool
+    }
+
+    private func zeroLengthCaretResult(_ rect: CGRect, context: ZeroLengthCaretContext) -> CaretGeometryResult {
+        if context.supportsLineQueries,
+           let lineBox = lineBoxForCaret(
+               element: context.element,
+               caretLocation: context.caretLocation,
+               cocoaAnchorFrame: context.anchorFrame
+           ) {
+            return CaretGeometryResult(
+                rect: CGRect(x: rect.minX, y: lineBox.minY, width: rect.width, height: lineBox.height),
+                quality: .exact,
+                sourceDetail: "zero-length+line"
+            )
+        }
+        if context.isAtTextEndAfterNewline {
+            return CaretGeometryResult(rect: rect, quality: .estimated, sourceDetail: "zero-length-after-break")
+        }
+        return CaretGeometryResult(rect: rect, quality: .exact, sourceDetail: "zero-length")
+    }
+
+    /// The Cocoa box of the visual line the caret is on, from the host's own line queries. When the
+    /// caret sits after the trailing break of the reported line, the caret is on the next (empty)
+    /// line, which the host does not enumerate; that box is the reported one moved down by its
+    /// own height.
+    private func lineBoxForCaret(element: AXUIElement, caretLocation: Int, cocoaAnchorFrame: CGRect?) -> CGRect? {
+        guard let lineIndex = AXHelper.parameterizedIntValue(
+            for: kAXLineForIndexParameterizedAttribute as CFString,
+            parameter: caretLocation,
+            on: element
+        ), lineIndex >= 0, lineIndex < 100_000,
+        let lineRange = AXHelper.parameterizedRangeValue(
+            for: kAXRangeForLineParameterizedAttribute as CFString,
+            parameter: lineIndex,
+            on: element
+        ), lineRange.length > 0,
+        let raw = AXHelper.parameterizedRectValue(
+            for: kAXBoundsForRangeParameterizedAttribute as CFString,
+            range: lineRange,
+            on: element
+        ), raw.height > 0, AXHelper.rectHasFiniteComponents(raw) else {
+            return nil
+        }
+        let lineBox = AXHelper.validatedCocoaTextRect(fromAccessibilityRect: raw, anchorFrame: cocoaAnchorFrame)
+        guard rectIsNearAnchor(lineBox, anchor: cocoaAnchorFrame) else { return nil }
+        let lineText = AXHelper.parameterizedStringValue(
+            for: kAXStringForRangeParameterizedAttribute as CFString,
+            range: lineRange,
+            on: element
+        ) ?? ""
+        let caretPastTrailingBreak = caretLocation >= lineRange.location + lineRange.length
+            && (lineText.last?.isNewline ?? false)
+        return caretPastTrailingBreak ? lineBox.offsetBy(dx: 0, dy: -lineBox.height) : lineBox
     }
 
     struct CaretRunPlacement: Equatable {
@@ -501,6 +653,17 @@ struct AXTextGeometryResolver {
         parentText: String,
         caretOffset: Int
     ) -> CaretRunPlacement? {
+        caretRunPlacementWithStart(runTexts: runTexts, parentText: parentText, caretOffset: caretOffset)?.placement
+    }
+
+    /// `caretRunPlacement` plus where the caret's run begins in the parent value, as a UTF-16
+    /// offset (valid in the original string, since matching normalizes one unit for one). Nil
+    /// when the run was not anchored: the legacy cumulative walk matches no text.
+    static func caretRunPlacementWithStart(
+        runTexts: [String],
+        parentText: String,
+        caretOffset: Int
+    ) -> (placement: CaretRunPlacement, runStartOffset: Int?)? {
         guard !runTexts.isEmpty else {
             return nil
         }
@@ -510,12 +673,30 @@ struct AXTextGeometryResolver {
 
         let anchored = anchoredRunRanges(normalizedRuns: normalizedRuns, parent: parent)
         guard !anchored.isEmpty else {
-            return legacyCumulativePlacement(runTexts: runTexts, caretOffset: caret)
+            return (legacyCumulativePlacement(runTexts: runTexts, caretOffset: caret), nil)
         }
         let mode: CaretRunMappingMode = anchored.count == runTexts.count
             ? .aligned
             : .partiallyAligned
-        return placementAmongAnchors(anchored, caret: caret, mode: mode, parent: parent)
+        let result = placementAmongAnchors(anchored, caret: caret, mode: mode, parent: parent)
+        return (result.placement, result.runStartOffset)
+    }
+
+    /// The caret's run text up to the caret: the parent value from where the run was anchored.
+    /// A paragraph cannot be found by line breaks in every host: CodeMirror's value (Obsidian)
+    /// runs its paragraphs together with nothing between them, so the text after the last line
+    /// break was every paragraph before the caret, and laying that out in one run's frame put the
+    /// caret eight to fourteen lines away, off screen (measured 2026-09-10). Falls back to the text
+    /// after the last line break when the run was not anchored, and never reaches back across one.
+    static func runTextBeforeCaret(in parentText: String, runStartOffset: Int?, caretOffset: Int) -> String {
+        let parent = parentText as NSString
+        let caret = min(max(caretOffset, 0), parent.length)
+        guard let runStartOffset, runStartOffset >= 0 else {
+            return paragraphTextBeforeCaret(in: parentText, caretOffset: caret)
+        }
+        guard runStartOffset < caret else { return "" }
+        let runText = parent.substring(with: NSRange(location: runStartOffset, length: caret - runStartOffset))
+        return paragraphTextBeforeCaret(in: runText, caretOffset: (runText as NSString).length)
     }
 
     /// Anchors each run's text inside the parent value. Pass one accepts only boundary-clean
@@ -528,8 +709,11 @@ struct AXTextGeometryResolver {
     ) -> [(runIndex: Int, range: NSRange)] {
         var matchedRanges = [NSRange?](repeating: nil, count: normalizedRuns.count)
 
+        // A run that is only whitespace (CodeMirror puts a single-space spacer run at the start of
+        // every line) matches at any space in the parent, so anchoring it there pushes every run
+        // after it past its real location; such runs contribute no position and are never anchored.
         var searchLocation = 0
-        for (index, text) in normalizedRuns.enumerated() where !text.isEmpty {
+        for (index, text) in normalizedRuns.enumerated() where !isWhitespaceOnly(text) {
             let found = boundaryCleanRange(of: text as NSString, in: parent, from: searchLocation)
             if found.location != NSNotFound {
                 matchedRanges[index] = found
@@ -546,7 +730,7 @@ struct AXTextGeometryResolver {
             let upperBound = matchedRanges[(index + 1)...]
                 .compactMap { $0 }
                 .first?.location ?? parent.length
-            guard !text.isEmpty, upperBound > lowerBound else {
+            guard !isWhitespaceOnly(text), upperBound > lowerBound else {
                 continue
             }
             let window = NSRange(location: lowerBound, length: upperBound - lowerBound)
@@ -573,14 +757,14 @@ struct AXTextGeometryResolver {
         caret: Int,
         mode: CaretRunMappingMode,
         parent: NSString
-    ) -> CaretRunPlacement {
+    ) -> (placement: CaretRunPlacement, runStartOffset: Int) {
         for (position, entry) in anchored.enumerated() {
             if caret < entry.range.location {
                 if position > 0 {
                     let previous = anchored[position - 1]
                     let previousEnd = previous.range.location + previous.range.length
                     if caret - previousEnd <= entry.range.location - caret {
-                        return CaretRunPlacement(
+                        let placement = CaretRunPlacement(
                             runIndex: previous.runIndex,
                             fraction: 1,
                             mode: mode,
@@ -588,20 +772,21 @@ struct AXTextGeometryResolver {
                                 from: previousEnd, to: caret, in: parent
                             )
                         )
+                        return (placement, previous.range.location)
                     }
                 }
-                return CaretRunPlacement(runIndex: entry.runIndex, fraction: 0, mode: mode)
+                return (CaretRunPlacement(runIndex: entry.runIndex, fraction: 0, mode: mode), entry.range.location)
             }
             if caret <= entry.range.location + entry.range.length {
                 let fraction = entry.range.length > 0
                     ? CGFloat(caret - entry.range.location) / CGFloat(entry.range.length)
                     : 1
-                return CaretRunPlacement(runIndex: entry.runIndex, fraction: fraction, mode: mode)
+                return (CaretRunPlacement(runIndex: entry.runIndex, fraction: fraction, mode: mode), entry.range.location)
             }
         }
 
         let last = anchored[anchored.count - 1]
-        return CaretRunPlacement(
+        let placement = CaretRunPlacement(
             runIndex: last.runIndex,
             fraction: 1,
             mode: mode,
@@ -609,12 +794,61 @@ struct AXTextGeometryResolver {
                 from: last.range.location + last.range.length, to: caret, in: parent
             )
         )
+        return (placement, last.range.location)
     }
 
     /// The number of characters between a run's trailing edge and the caret when extending the
     /// caret estimate by that many measured character widths is credible: a short, same-line gap.
     /// A gap containing a line break renders on another line entirely (the snap is closer to the
     /// truth there), and a huge gap means a reflow-everything edit no linear extension can model.
+    private static func isWhitespaceOnly(_ text: String) -> Bool {
+        text.allSatisfy(\.isWhitespace)
+    }
+
+    /// The distances between two single-line runs' tops that can be one line's pitch, as multiples
+    /// of the runs' line box. Only single-line runs are seen here, so two of them can be lines apart
+    /// with a wrapped paragraph between: in an Obsidian note whose only one-line paragraphs were the
+    /// second and fourth, the pitch came out 72pt for 20pt boxes on 24pt lines (measured 2026-09-11,
+    /// 163 presentations), was remembered for the host, and would have stepped a wrapped ghost's next
+    /// row three lines down. A pitch below the box would overlap the lines.
+    static let plausibleRunPitchRange: ClosedRange<CGFloat> = 0.95...2.2
+
+    /// The host's line pitch and line box from the single-line runs: the median distance between
+    /// consecutive distinct run tops that can be a pitch (see `plausibleRunPitchRange`), and the
+    /// median run height. Nil until two adjacent lines were seen.
+    static func lineGeometry(
+        fromSingleLineRuns runs: [StaticTextRunWalkThrottle.TextRun]
+    ) -> (pitch: CGFloat?, boxHeight: CGFloat?) {
+        let frames = runs.filter(\.allowsProportionalCaretPlacement).map { AXHelper.cocoaRect(fromAccessibilityRect: $0.frame) }
+        guard !frames.isEmpty else { return (nil, nil) }
+        let heights = frames.map(\.height).sorted()
+        let boxHeight = heights[heights.count / 2]
+        var tops = Array(Set(frames.map { ($0.maxY * 2).rounded() / 2 })).sorted(by: >)
+        tops = tops.filter { $0.isFinite }
+        let plausible = (boxHeight * plausibleRunPitchRange.lowerBound)...(boxHeight * plausibleRunPitchRange.upperBound)
+        var deltas: [CGFloat] = []
+        for (upper, lower) in zip(tops, tops.dropFirst()) {
+            let delta = upper - lower
+            if delta >= 6, delta <= 120, plausible.contains(delta) {
+                deltas.append(delta)
+            }
+        }
+        guard !deltas.isEmpty else { return (nil, boxHeight) }
+        deltas.sort()
+        return (deltas[deltas.count / 2], boxHeight)
+    }
+
+    /// The caret's paragraph (parent text between line breaks) up to the caret, in the live parent
+    /// value's coordinates.
+    static func paragraphTextBeforeCaret(in parentText: String, caretOffset: Int) -> String {
+        let parent = parentText as NSString
+        let caret = min(max(caretOffset, 0), parent.length)
+        let before = parent.substring(to: caret)
+        let start = before.rangeOfCharacter(from: .newlines, options: .backwards)
+        guard let start, let index = start.upperBound.samePosition(in: before) else { return before }
+        return String(before[index...])
+    }
+
     private static func extrapolableGapCharacters(from runEnd: Int, to caret: Int, in parent: NSString) -> Int {
         let gap = caret - runEnd
         guard gap > 0, gap <= maximumExtrapolatedGapCharacters else {

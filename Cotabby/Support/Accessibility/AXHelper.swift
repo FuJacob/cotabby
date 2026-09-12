@@ -123,6 +123,15 @@ enum AXHelper {
     /// Converts loosely typed Accessibility values into `AXValue` only after verifying the Core
     /// Foundation type id. This keeps the unsafe CF boundary in one place and avoids force casts in
     /// the higher-level helpers below.
+    /// The `AXUIElement` a Core Foundation value holds, or nil when it holds anything else. The type
+    /// check makes the bit cast safe: `AXUIElement` is a Core Foundation type.
+    private static func axElement(from value: AnyObject?) -> AXUIElement? {
+        guard let value, CFGetTypeID(value) == AXUIElementGetTypeID() else {
+            return nil
+        }
+        return unsafeBitCast(value, to: AXUIElement.self)
+    }
+
     private static func axValue(from value: AnyObject?) -> AXValue? {
         guard let value, CFGetTypeID(value) == AXValueGetTypeID() else {
             return nil
@@ -185,6 +194,37 @@ enum AXHelper {
         }
 
         return rect
+    }
+
+    /// Reads a parameterized attribute that takes an integer (a line index or character offset) and
+    /// returns an integer, such as `AXLineForIndex`. Nil when the host declines or answers with a
+    /// non-numeric value.
+    static func parameterizedIntValue(
+        for attribute: CFString,
+        parameter: Int,
+        on element: AXUIElement
+    ) -> Int? {
+        var value: CFTypeRef?
+        let result = AXUIElementCopyParameterizedAttributeValue(element, attribute, NSNumber(value: parameter), &value)
+        guard result == .success, let number = value as? NSNumber else { return nil }
+        return number.intValue
+    }
+
+    /// Reads a parameterized attribute that takes an integer and returns a range, such as
+    /// `AXRangeForLine`.
+    static func parameterizedRangeValue(
+        for attribute: CFString,
+        parameter: Int,
+        on element: AXUIElement
+    ) -> NSRange? {
+        var value: CFTypeRef?
+        let result = AXUIElementCopyParameterizedAttributeValue(element, attribute, NSNumber(value: parameter), &value)
+        guard result == .success, let axValue = axValue(from: value), AXValueGetType(axValue) == .cfRange else {
+            return nil
+        }
+        var range = CFRange()
+        guard AXValueGetValue(axValue, .cfRange, &range) else { return nil }
+        return NSRange(location: range.location, length: range.length)
     }
 
     /// Reads a parameterized string range without asking the host app to serialize the whole field.
@@ -283,12 +323,17 @@ enum AXHelper {
     /// `.font`/`.foregroundColor` shapes and the AX-specific font dictionary / `CGColor` shapes.
     private static func fieldStyle(from attributes: [NSAttributedString.Key: Any]) -> ResolvedFieldStyle? {
         var fontName: String?
+        var fontFamily: String?
         var fontPointSize: CGFloat?
         if let font = attributes[.font] as? NSFont {
             fontName = font.fontName
+            fontFamily = font.familyName
             fontPointSize = font.pointSize
         } else if let fontInfo = attributes[NSAttributedString.Key("AXFont")] as? [String: Any] {
+            // AppKit hosts vend name, family, and size. Chromium vends only the size (its inline
+            // text boxes carry no face), which is still the single most useful fact for matching.
             fontName = fontInfo["AXFontName"] as? String
+            fontFamily = fontInfo["AXFontFamily"] as? String
             if let size = fontInfo["AXFontSize"] as? NSNumber {
                 fontPointSize = CGFloat(size.doubleValue)
             }
@@ -310,7 +355,12 @@ enum AXHelper {
             }
         }
 
-        let style = ResolvedFieldStyle(fontName: fontName, fontPointSize: fontPointSize, colorHex: colorHex)
+        let style = ResolvedFieldStyle(
+            fontName: fontName,
+            fontFamily: fontFamily,
+            fontPointSize: fontPointSize,
+            colorHex: colorHex
+        )
         return style.isEmpty ? nil : style
     }
 
@@ -360,6 +410,266 @@ enum AXHelper {
     private static let endMarkerForRangeAttribute = "AXEndTextMarkerForTextMarkerRange" as CFString
     private static let markerRangeForMarkersAttribute = "AXTextMarkerRangeForUnorderedTextMarkers" as CFString
     private static let stringForMarkerRangeAttribute = "AXStringForTextMarkerRange" as CFString
+    private static let lineRangeForMarkerAttribute = "AXLineTextMarkerRangeForTextMarker" as CFString
+    private static let previousMarkerAttribute = "AXPreviousTextMarkerForTextMarker" as CFString
+    private static let nextMarkerAttribute = "AXNextTextMarkerForTextMarker" as CFString
+    private static let elementForMarkerAttribute = "AXUIElementForTextMarker" as CFString
+    private static let boundsForMarkerRangeAttribute = "AXBoundsForTextMarkerRange" as CFString
+    /// Characters a rendered bullet-list marker is made of, as it appears in a line's marker text.
+    private static let bulletMarkerCharacters: Set<Character> = ["\u{2022}", "\u{25E6}", "\u{25AA}", "\u{2023}", "\u{2043}"]
+
+    /// The caret's visual line read through the text-marker API.
+    struct MarkerLineGeometry {
+        /// The caret line's box, starting at its first text character, in Accessibility (top-left
+        /// origin) coordinates.
+        let line: CGRect
+        /// The box of the line above, only when it belongs to the same text element: the distance
+        /// between the two is then the paragraph's own line pitch, never a gap between paragraphs.
+        let previousLine: CGRect?
+        /// The glyph box of the caret line's first character (past a list marker), when the line has
+        /// one. A line range's own box can be its paragraph's padded block: Claude's composer
+        /// answered x 84 for text at 95 and 33pt for 20pt glyph lines (2026-09-11), and a two-line
+        /// paragraph's box was taller than any line.
+        let firstCharacter: CGRect?
+        /// The glyph box of the first character of the line above, under the same conditions as
+        /// `previousLine`: with `firstCharacter` it measures the pitch between two glyph boxes.
+        let previousFirstCharacter: CGRect?
+        /// The frame of the element around the caret's text (its paragraph), for a line with text,
+        /// when that element is not the field itself. In a ProseMirror-style editor (a <p> per
+        /// paragraph, no padding) a one-line paragraph's frame is the line box: 21pt around a 17pt
+        /// glyph box in a ProseMirror-style page, 14px at line-height 1.5 (2026-09-11). Whether it is a
+        /// line box is `HostTextMetricsProbe.paragraphLinePitch`'s to judge.
+        var paragraph: CGRect?
+    }
+
+    /// Line ranges a caret line may be split into before the walk back to its start gives up (see
+    /// `textMarkerCaretLine`): a line holds a handful of inline elements, not dozens.
+    static let maximumLineFragments = 8
+
+    /// Whether `range`, the box of the line range just before a line range's start, is an earlier
+    /// part of the same visual line rather than the line above: on the line (its middle within half
+    /// a glyph box of the line's first glyph), starting left of that glyph and ending at it (within
+    /// a glyph box: a column further left is another text), and no taller than two glyph boxes.
+    static func isEarlierFragment(_ range: CGRect, ofLineStartingAt first: CGRect) -> Bool {
+        abs(range.midY - first.midY) < first.height / 2
+            && range.minX < first.minX - 0.5
+            && abs(range.maxX - first.minX) <= first.height
+            && range.height <= first.height * 2
+    }
+
+    /// The caret's visual line for a host whose index-based bounds answer nothing (a Chromium
+    /// contenteditable such as Claude's composer), read through text markers: the caret marker's
+    /// line range and its box, and the box of the line above it.
+    ///
+    /// Why: a wrapped ghost row starts where the host starts its next line. Without this the row
+    /// started at the frame's assumed 4pt inset, 7pt left of Claude's text, and stepped down by the
+    /// 19pt caret box instead of the 23pt line (measured 2026-09-10). Markers stay opaque here as
+    /// everywhere: only passed back to the element that vended them.
+    static func textMarkerCaretLine(on element: AXUIElement, parameterizedAttributes: Set<String>) -> MarkerLineGeometry? {
+        // Only the line query must be advertised: Chromium answers `AXBoundsForTextMarkerRange`
+        // without listing it (the caret itself comes from it), and splits ranges only through
+        // HIServices on some elements (see `startMarker(of:on:attributes:)`).
+        guard parameterizedAttributes.contains(lineRangeForMarkerAttribute as String),
+              let selection = copyOpaqueAttribute(selectedTextMarkerRangeAttribute, on: element),
+              let caret = startMarker(of: selection, on: element, attributes: parameterizedAttributes),
+              let lineRange = copyOpaqueParameterized(lineRangeForMarkerAttribute, parameter: caret, on: element),
+              let lineStart = startMarker(of: lineRange, on: element, attributes: parameterizedAttributes)
+        else {
+            return nil
+        }
+        let lineText = stringForMarkerRange(lineRange, on: element) ?? ""
+        // The line's first glyph, past a list item's marker ("• "): its box is where the line's text
+        // starts and how tall a line of it is, whatever box the host gives the whole range.
+        var firstCharacter = lineText.isEmpty ? nil : characterBox(
+            from: lineStart, advancing: textOffsetPastBullet(lineText) ?? 0, on: element, attributes: parameterizedAttributes
+        )
+        // An empty line has no box of its own; the caret sits at its start, so its box is the edge.
+        guard var line = markerRangeRect(lineRange, on: element, requiresWidth: !lineText.isEmpty)
+            ?? (lineText.isEmpty ? markerRangeRect(selection, on: element, requiresWidth: false) : nil)
+            ?? firstCharacter
+        else {
+            return nil
+        }
+        if let left = firstCharacter?.minX, left > line.minX {
+            line = CGRect(x: left, y: line.minY, width: max(0, line.maxX - left), height: line.height)
+        }
+        // The line above is the line of the character just before this line's start. (Asked for
+        // the previous line start from a line start, Chrome answered this line's own start, 2026-09-10.)
+        // Chromium can also end a line range partway along its visual line, at an inline element's
+        // edge: in Gmail's compose body (2026-09-11) the caret line's range started at x 804, then
+        // 743, on a line whose text starts at 393, and every wrapped ghost row started there. The
+        // range before such a start lies on the same visual line (`isEarlierFragment`); those are
+        // walked back over, and the first range before that is another line is the line above.
+        var start = lineStart
+        var previous: CGRect?
+        var previousFirst: CGRect?
+        var fragments = 0
+        while let before = copyOpaqueParameterized(previousMarkerAttribute, parameter: start, on: element),
+              let previousRange = copyOpaqueParameterized(lineRangeForMarkerAttribute, parameter: before, on: element),
+              let previousStart = startMarker(of: previousRange, on: element, attributes: parameterizedAttributes) {
+            let previousRect = markerRangeRect(previousRange, on: element, requiresWidth: true)
+            let previousText = stringForMarkerRange(previousRange, on: element) ?? ""
+            func previousGlyph() -> CGRect? {
+                previousText.isEmpty ? nil : characterBox(
+                    from: previousStart, advancing: textOffsetPastBullet(previousText) ?? 0,
+                    on: element, attributes: parameterizedAttributes
+                )
+            }
+            if fragments < maximumLineFragments, let first = firstCharacter, let rect = previousRect,
+               isEarlierFragment(rect, ofLineStartingAt: first) {
+                // The line starts at the fragment's first glyph, on the caret line's glyph row.
+                let glyph = previousGlyph()
+                let left = min(glyph?.minX ?? rect.minX, first.minX)
+                line = CGRect(x: left, y: line.minY, width: max(0, line.maxX - left), height: line.height)
+                firstCharacter = CGRect(x: left, y: first.minY, width: glyph?.width ?? first.width, height: first.height)
+                start = previousStart
+                fragments += 1
+                continue
+            }
+            if sameTextElement(start, previousStart, on: element, attributes: parameterizedAttributes) {
+                if let rect = previousRect, rect.minY < line.minY - 1 {
+                    previous = rect
+                }
+                if let first = firstCharacter, let box = previousGlyph(), box.minY < first.minY - 1 {
+                    previousFirst = box
+                }
+            }
+            break
+        }
+        // The paragraph around the caret's text: the parent of the text element the caret marker is
+        // in, unless that parent is the field (text straight inside a contenteditable has no
+        // paragraph of its own, and the field's frame holds its padding).
+        var paragraph: CGRect?
+        if !lineText.isEmpty, parameterizedAttributes.contains(elementForMarkerAttribute as String),
+           let textElement = axElement(from: copyOpaqueParameterized(elementForMarkerAttribute, parameter: caret, on: element)) {
+            var parentRef: CFTypeRef?
+            if AXUIElementCopyAttributeValue(textElement, kAXParentAttribute as CFString, &parentRef) == .success,
+               let parent = axElement(from: parentRef), !CFEqual(parent, element) {
+                paragraph = accessibilityFrame(of: parent)
+            }
+        }
+        return MarkerLineGeometry(
+            line: line, previousLine: previous, firstCharacter: firstCharacter, previousFirstCharacter: previousFirst,
+            paragraph: paragraph
+        )
+    }
+
+    /// An element's frame from its position and size, in Accessibility (top-left origin) coordinates;
+    /// nil when either is missing or the size is empty.
+    private static func accessibilityFrame(of element: AXUIElement) -> CGRect? {
+        var positionRef: CFTypeRef?
+        var sizeRef: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &positionRef) == .success,
+              AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &sizeRef) == .success,
+              let positionValue = axValue(from: positionRef), let sizeValue = axValue(from: sizeRef)
+        else {
+            return nil
+        }
+        var position = CGPoint.zero
+        var size = CGSize.zero
+        // `AXValueGetValue` reports false for a wrong payload type.
+        guard AXValueGetValue(positionValue, .cgPoint, &position),
+              AXValueGetValue(sizeValue, .cgSize, &size),
+              size.width > 0, size.height > 0
+        else {
+            return nil
+        }
+        return CGRect(origin: position, size: size)
+    }
+
+    /// The first marker of an opaque range: through the element's own query when it advertises one,
+    /// else HIServices' splitter, the path `synthesizeMarkerSelection` takes for the same hosts
+    /// (measured 2026-09-10: Chrome's contenteditable answered no `AXStartTextMarkerForTextMarkerRange`,
+    /// so the line box never formed until this fallback).
+    private static func startMarker(of range: CFTypeRef, on element: AXUIElement, attributes: Set<String>) -> CFTypeRef? {
+        if attributes.contains(startMarkerForRangeAttribute as String),
+           let start = copyOpaqueParameterized(startMarkerForRangeAttribute, parameter: range, on: element) {
+            return start
+        }
+        return MarkerRangeSplitter.startMarker(of: range)
+    }
+
+    /// The box `AXBoundsForTextMarkerRange` gives for an opaque marker range, when it is a real one.
+    private static func markerRangeRect(_ range: CFTypeRef, on element: AXUIElement, requiresWidth: Bool) -> CGRect? {
+        guard let value = copyOpaqueParameterized(boundsForMarkerRangeAttribute, parameter: range, on: element),
+              let bounds = axValue(from: value), AXValueGetType(bounds) == .cgRect
+        else {
+            return nil
+        }
+        var rect = CGRect.zero
+        guard AXValueGetValue(bounds, .cgRect, &rect), rectHasFiniteComponents(rect), rect.height > 0 else {
+            return nil
+        }
+        return requiresWidth && rect.width <= 0 ? nil : rect
+    }
+
+    /// Characters to skip past a leading bullet and its spacing, or nil when the line has none.
+    private static func textOffsetPastBullet(_ lineText: String) -> Int? {
+        let characters = Array(lineText)
+        guard let first = characters.first, bulletMarkerCharacters.contains(first) else { return nil }
+        var index = 1
+        guard index < characters.count, characters[index].isWhitespace else { return nil }
+        while index < characters.count, characters[index].isWhitespace { index += 1 }
+        return index < characters.count && index <= 8 ? index : nil
+    }
+
+    /// The glyph box of the character `count` markers after `start`, in Accessibility coordinates.
+    private static func characterBox(
+        from start: CFTypeRef, advancing count: Int, on element: AXUIElement, attributes: Set<String>
+    ) -> CGRect? {
+        guard attributes.contains(nextMarkerAttribute as String) else { return nil }
+        var marker = start
+        for _ in 0..<count {
+            guard let next = copyOpaqueParameterized(nextMarkerAttribute, parameter: marker, on: element) else { return nil }
+            marker = next
+        }
+        guard let after = copyOpaqueParameterized(nextMarkerAttribute, parameter: marker, on: element),
+              let range = markerRange(from: marker, to: after, on: element),
+              let rect = markerRangeRect(range, on: element, requiresWidth: true)
+        else {
+            return nil
+        }
+        return rect
+    }
+
+    /// Whether two markers sit in the same text element (one paragraph's text node).
+    private static func sameTextElement(
+        _ first: CFTypeRef, _ second: CFTypeRef, on element: AXUIElement, attributes: Set<String>
+    ) -> Bool {
+        guard attributes.contains(elementForMarkerAttribute as String),
+              let firstElement = copyOpaqueParameterized(elementForMarkerAttribute, parameter: first, on: element),
+              let secondElement = copyOpaqueParameterized(elementForMarkerAttribute, parameter: second, on: element)
+        else {
+            return false
+        }
+        return CFEqual(firstElement, secondElement)
+    }
+
+    /// Whether the element reads its text through text markers (a WebKit or Chromium web area).
+    static func readsTextMarkers(parameterizedAttributes: Set<String>) -> Bool {
+        parameterizedAttributes.contains(stringForMarkerRangeAttribute as String)
+    }
+
+    /// Whether the caret sits at the start of a text block (a paragraph, a list item) rather than at
+    /// the end of the block before it. Chromium's range offsets count both spots as one (see
+    /// `BlockBreakAlignment`); its text markers keep them apart. Measured 2026-09-11 in a
+    /// ProseMirror page modelled on Claude's composer: at a paragraph's start the caret's marker names that
+    /// paragraph's text and the marker before it another element; at the end of the paragraph
+    /// before, both name that paragraph's text; in an empty paragraph the caret's marker names the
+    /// paragraph's group. False whenever the markers cannot answer, which leaves the caret where the
+    /// range offset put it.
+    static func caretStartsTextBlock(on element: AXUIElement, parameterizedAttributes: Set<String>) -> Bool {
+        guard parameterizedAttributes.contains(elementForMarkerAttribute as String),
+              let selection = copyOpaqueAttribute(selectedTextMarkerRangeAttribute, on: element),
+              let caret = startMarker(of: selection, on: element, attributes: parameterizedAttributes),
+              let previous = copyOpaqueParameterized(previousMarkerAttribute, parameter: caret, on: element),
+              let caretElement = copyOpaqueParameterized(elementForMarkerAttribute, parameter: caret, on: element),
+              let previousElement = copyOpaqueParameterized(elementForMarkerAttribute, parameter: previous, on: element)
+        else {
+            return false
+        }
+        return !CFEqual(caretElement, previousElement)
+    }
 
     /// Synthesizes an `NSRange` selection plus caret-windowed text for a Chromium/WebKit
     /// `contenteditable` that exposes selection only through the opaque text-marker API and not
@@ -379,9 +689,13 @@ enum AXHelper {
         parameterizedAttributes: Set<String>
     ) -> MarkerSelection? {
         // Guard on advertised parameterized attributes so apps without marker support degrade to
-        // nil instead of issuing doomed cross-process AX calls on every poll.
-        guard parameterizedAttributes.contains(startMarkerForRangeAttribute as String),
-            parameterizedAttributes.contains(endMarkerForRangeAttribute as String),
+        // nil instead of issuing doomed cross-process AX calls on every poll. Chromium advertises
+        // the two range-splitting queries; WebKit's web areas answer them with
+        // kAXErrorParameterizedAttributeUnsupported (Mail's compose body, measured 2026-09-10) and
+        // are split with HIServices' own functions instead (`MarkerRangeSplitter`).
+        let splitsRangesItself = parameterizedAttributes.contains(startMarkerForRangeAttribute as String)
+            && parameterizedAttributes.contains(endMarkerForRangeAttribute as String)
+        guard splitsRangesItself || MarkerRangeSplitter.isAvailable,
             parameterizedAttributes.contains(markerRangeForMarkersAttribute as String),
             parameterizedAttributes.contains(stringForMarkerRangeAttribute as String)
         else {
@@ -390,12 +704,22 @@ enum AXHelper {
 
         guard let selectionRange = copyOpaqueAttribute(selectedTextMarkerRangeAttribute, on: element),
             let documentStart = copyOpaqueAttribute(startTextMarkerAttribute, on: element),
-            let documentEnd = copyOpaqueAttribute(endTextMarkerAttribute, on: element),
-            let selectionStart = copyOpaqueParameterized(
-                startMarkerForRangeAttribute, parameter: selectionRange, on: element),
-            let selectionEnd = copyOpaqueParameterized(
-                endMarkerForRangeAttribute, parameter: selectionRange, on: element)
+            let documentEnd = copyOpaqueAttribute(endTextMarkerAttribute, on: element)
         else {
+            return nil
+        }
+        let selectionStart: CFTypeRef
+        let selectionEnd: CFTypeRef
+        if splitsRangesItself,
+            let start = copyOpaqueParameterized(startMarkerForRangeAttribute, parameter: selectionRange, on: element),
+            let end = copyOpaqueParameterized(endMarkerForRangeAttribute, parameter: selectionRange, on: element) {
+            selectionStart = start
+            selectionEnd = end
+        } else if let start = MarkerRangeSplitter.startMarker(of: selectionRange),
+            let end = MarkerRangeSplitter.endMarker(of: selectionRange) {
+            selectionStart = start
+            selectionEnd = end
+        } else {
             return nil
         }
 
@@ -535,6 +859,23 @@ enum AXHelper {
         AXUIElementSetMessagingTimeout(appElement, pollMessagingTimeout)
         let value: CFBoolean = enabled ? kCFBooleanTrue : kCFBooleanFalse
         return AXUIElementSetAttributeValue(appElement, "AXManualAccessibility" as CFString, value)
+    }
+
+    /// Sets `AXEnhancedUserInterface` on an application's process element: the flag VoiceOver sets,
+    /// which Chromium treats as "a screen reader is present" and answers by building its complete
+    /// accessibility tree, inline text boxes included. Returns true when the flag reads back as set,
+    /// because Chrome reports an error code for the write even as it honors it.
+    static func setEnhancedUserInterface(_ enabled: Bool, forApplicationPID pid: pid_t) -> Bool {
+        guard pid > 0 else { return false }
+        let appElement = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(appElement, pollMessagingTimeout)
+        let value: CFBoolean = enabled ? kCFBooleanTrue : kCFBooleanFalse
+        let attribute = "AXEnhancedUserInterface" as CFString
+        let result = AXUIElementSetAttributeValue(appElement, attribute, value)
+        if result == .success {
+            return true
+        }
+        return boolValue(for: attribute, on: appElement) == enabled
     }
 
     /// Hit-tests the Accessibility tree at a Cocoa screen point (bottom-left origin) by converting
@@ -922,5 +1263,43 @@ enum AXHelper {
             width: rect.width,
             height: rect.height
         )
+    }
+}
+
+/// File-local bridge to two HIServices functions that split an `AXTextMarkerRange` into its
+/// markers: `AXTextMarkerRangeCopyStartMarker` and `AXTextMarkerRangeCopyEndMarker`. They ship in
+/// HIServices (VoiceOver uses them) but are not in the public headers, so they are resolved once
+/// with `dlsym` and called through C function types.
+///
+/// Why: WebKit's editable web areas (Mail's compose body) vend the selection only as a marker
+/// range and refuse the parameterized attributes that would split it, while Chromium answers
+/// them. Without the split there is no before-caret text and no caret offset, and the resolver
+/// falls back to whichever header field happens to be capable. The returned markers are +1
+/// retained CF objects (the Copy rule) and are handed straight back to other marker queries; they
+/// are never inspected. On a system without the symbols `isAvailable` is false and the synthesis
+/// declines exactly as it did before.
+enum MarkerRangeSplitter {
+    private typealias CopyMarker = @convention(c) (CFTypeRef) -> Unmanaged<CFTypeRef>?
+
+    private static let copyStart: CopyMarker? = load("AXTextMarkerRangeCopyStartMarker")
+    private static let copyEnd: CopyMarker? = load("AXTextMarkerRangeCopyEndMarker")
+
+    static var isAvailable: Bool { copyStart != nil && copyEnd != nil }
+
+    static func startMarker(of range: CFTypeRef) -> CFTypeRef? {
+        copyStart?(range)?.takeRetainedValue()
+    }
+
+    static func endMarker(of range: CFTypeRef) -> CFTypeRef? {
+        copyEnd?(range)?.takeRetainedValue()
+    }
+
+    /// `dlsym` against the whole process image: HIServices is already loaded through
+    /// ApplicationServices, so no `dlopen` is needed. `unsafeBitCast` reinterprets the raw symbol
+    /// address as the C function type; that is the standard (and only) way to call an unexported
+    /// C function from Swift.
+    private static func load(_ name: String) -> CopyMarker? {
+        guard let handle = dlopen(nil, RTLD_NOW), let symbol = dlsym(handle, name) else { return nil }
+        return unsafeBitCast(symbol, to: CopyMarker.self)
     }
 }

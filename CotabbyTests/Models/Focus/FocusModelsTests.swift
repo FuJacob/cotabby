@@ -16,11 +16,13 @@ final class FocusModelsTests: XCTestCase {
         XCTAssertFalse(colorOnly.isEmpty)
     }
 
-    func test_resolvedFieldStyle_pointSizeAloneIsNotARenderableStyle() {
-        // A bare point size cannot style ghost text without a font or color, so it must still
-        // count as empty and let the overlay fall back to defaults.
-        let sizeOnly = ResolvedFieldStyle(fontName: nil, fontPointSize: 13, colorHex: nil)
-        XCTAssertTrue(sizeOnly.isEmpty)
+    func test_resolvedFieldStyle_pointSizeAloneIsARenderableStyle() {
+        // Chromium reports only the size. That is the single most important fact for matching the
+        // host's rendering, so a size-only style must survive to the font resolver.
+        let style = ResolvedFieldStyle(fontName: nil, fontPointSize: 13, colorHex: nil)
+        XCTAssertFalse(style.isEmpty)
+        XCTAssertTrue(ResolvedFieldStyle(fontName: nil, fontPointSize: nil, colorHex: nil).isEmpty)
+        XCTAssertFalse(ResolvedFieldStyle(fontName: nil, fontFamily: "Georgia", fontPointSize: nil, colorHex: nil).isEmpty)
     }
 
     func test_focusPollingEvent_changeSummaryLabelsReflectFocusChange() {

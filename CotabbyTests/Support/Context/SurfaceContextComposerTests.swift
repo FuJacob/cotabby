@@ -57,7 +57,7 @@ final class SurfaceContextComposerTests: XCTestCase {
         let surface = compose(windowTitle: "Re: Q3 budget review")
         XCTAssertEqual(
             SurfaceContextComposer.prefaceLines(for: try XCTUnwrap(surface)),
-            ["An email being written in Mail.", "The window is titled \"Re: Q3 budget review\"."]
+            ["Email draft.", "Window title: \"Re: Q3 budget review\"."]
         )
     }
 
@@ -69,7 +69,7 @@ final class SurfaceContextComposerTests: XCTestCase {
         )
         XCTAssertEqual(
             SurfaceContextComposer.prefaceLines(for: try XCTUnwrap(surface)),
-            ["A chat message being typed in Slack.", "The text field is labeled \"Message #design\"."]
+            ["Chat message.", "Field label: \"Message #design\"."]
         )
     }
 
@@ -81,7 +81,7 @@ final class SurfaceContextComposerTests: XCTestCase {
         )
         XCTAssertEqual(
             SurfaceContextComposer.prefaceLines(for: try XCTUnwrap(surface)),
-            ["Text being typed on notion.so in Google Chrome."]
+            ["Website: notion.so."]
         )
     }
 

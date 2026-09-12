@@ -63,31 +63,35 @@ nonisolated enum SurfaceContextComposer {
         )
     }
 
-    /// The conditioning sentences for the base-model preface, ready to join into one section.
+    /// The conditioning lines for the base-model preface, ready to join into one section.
+    ///
+    /// Terse metadata, never a sentence about typing: a base model read "Text being typed in Google
+    /// Chrome." as something said to it and answered ("I'm not sure what you mean by…") instead of
+    /// continuing the text. Labels with a colon read as a document header, which is what a base
+    /// model expects to see above prose. The app name adds nothing for a generic app or a browser
+    /// without a domain, so those get no surface line at all.
     static func prefaceLines(for surface: SurfaceContext) -> [String] {
         var lines: [String] = []
         switch surface.surfaceClass {
         case .email:
-            lines.append("An email being written in \(surface.applicationName).")
+            lines.append("Email draft.")
         case .chat:
-            lines.append("A chat message being typed in \(surface.applicationName).")
+            lines.append("Chat message.")
         case .browser:
             if let domain = surface.domain {
-                lines.append("Text being typed on \(domain) in \(surface.applicationName).")
-            } else {
-                lines.append("Text being typed in \(surface.applicationName).")
+                lines.append("Website: \(domain).")
             }
         case .other:
-            lines.append("Text being typed in \(surface.applicationName).")
+            break
         case .codeEditor, .terminal:
             // compose() never produces these; returning nothing keeps the invariant obvious here.
             return []
         }
         if let title = surface.windowTitle {
-            lines.append("The window is titled \"\(title)\".")
+            lines.append("Window title: \"\(title)\".")
         }
         if let placeholder = surface.fieldPlaceholder {
-            lines.append("The text field is labeled \"\(placeholder)\".")
+            lines.append("Field label: \"\(placeholder)\".")
         }
         return lines
     }

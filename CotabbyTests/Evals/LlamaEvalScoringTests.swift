@@ -140,7 +140,60 @@ final class LlamaEvalScoringTests: XCTestCase {
                     evalCase.expectation.forbidden.isEmpty,
                     "\(evalCase.id) is forbidden-kind but lists no forbidden substrings"
                 )
+            case .recall:
+                XCTAssertFalse(
+                    evalCase.expectation.mustContain.isEmpty,
+                    "\(evalCase.id) is recall-kind but lists nothing it must contain"
+                )
             }
+        }
+    }
+
+    // MARK: - Recall dataset invariants
+
+    private func loadRecallDataset() throws -> [LlamaEvalCase] {
+        let url = try XCTUnwrap(
+            Bundle(for: LlamaEvalScoringTests.self)
+                .url(forResource: "llama-recall-cases", withExtension: "json"),
+            "llama-recall-cases.json must ship in the test bundle"
+        )
+        return try LlamaEvalCase.loadDataset(from: url)
+    }
+
+    func testRecallDatasetLoadsAndHasUniqueIDs() throws {
+        let cases = try loadRecallDataset()
+        XCTAssertGreaterThanOrEqual(cases.count, 20)
+        XCTAssertEqual(Set(cases.map(\.id)).count, cases.count, "recall case ids must be unique")
+        XCTAssertTrue(
+            cases.allSatisfy { $0.expectation.kind == .recall },
+            "every case in the recall dataset must use the recall expectation kind"
+        )
+    }
+
+    /// The invariant that makes this suite a recall test rather than a guessing test: whatever the
+    /// completion is required to reproduce has to be present in the context the model is given.
+    /// Without this, a case could silently drift into demanding a fact the model was never told,
+    /// and a "failure" would really be a demand to hallucinate.
+    func testRecallFactsAreActuallyPresentInTheContext() throws {
+        for evalCase in try loadRecallDataset() {
+            let context = [
+                evalCase.precedingText,
+                evalCase.visualContextSummary ?? "",
+                evalCase.clipboardContext ?? ""
+            ].joined(separator: " ")
+            for fact in evalCase.expectation.mustContain {
+                XCTAssertTrue(
+                    LlamaEvalScorer.containsAll(shown: context, required: [fact]),
+                    "\(evalCase.id) requires '\(fact)' but no part of its context contains it"
+                )
+            }
+        }
+    }
+
+    func testRecallDatasetCoversEveryContextSource() throws {
+        let tags = Set(try loadRecallDataset().flatMap(\.tags))
+        for required in ["screen", "field", "field-long", "overflow", "clipboard"] {
+            XCTAssertTrue(tags.contains(required), "recall dataset lost its \(required) coverage")
         }
     }
 

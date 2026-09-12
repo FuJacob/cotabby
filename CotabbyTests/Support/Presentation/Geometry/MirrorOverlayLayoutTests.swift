@@ -52,11 +52,13 @@ final class MirrorOverlayLayoutTests: XCTestCase {
             reason: .userPreference
         )
 
+        // The card's padding (10pt) reaches back past the insertion point, so the suggestion's first
+        // letter sits under the caret's leading edge.
         XCTAssertEqual(
             layout.panelFrame.minX,
-            geometry.caretRect.maxX,
+            geometry.caretRect.minX - 10,
             accuracy: 0.001,
-            "LTR card should begin at the caret's trailing edge"
+            "LTR card text should begin under the insertion point"
         )
     }
 
@@ -77,10 +79,31 @@ final class MirrorOverlayLayoutTests: XCTestCase {
 
         XCTAssertEqual(
             layout.panelFrame.maxX,
-            geometry.caretRect.minX,
+            geometry.caretRect.minX + 10,
             accuracy: 0.001,
-            "RTL card should end at the caret's trailing edge"
+            "RTL card text should end at the insertion point"
         )
+    }
+
+    /// Chromium's text-marker carets (and many AppKit insertion points) are zero points wide, which
+    /// `CGRect.isEmpty` calls empty. Measured 2026-09-11 in Gmail's compose body: every mid-line card
+    /// was anchored under the whole body, 440pt below the caret. A caret with height is a line.
+    func test_make_zeroWidthCaretStillAnchorsUnderItsLine() {
+        let geometry = CotabbyTestFixtures.overlayGeometry(
+            caretRect: CGRect(x: 1117, y: 469, width: 0, height: 15),
+            inputFrameRect: CGRect(x: 1000, y: 70, width: 500, height: 420)
+        )
+
+        let layout = MirrorOverlayLayout.make(
+            suggestion: "hello there",
+            geometry: geometry,
+            visibleFrame: CGRect(x: 0, y: 0, width: 1512, height: 949),
+            showsAcceptanceHint: true,
+            reason: .caretMidLine
+        )
+
+        XCTAssertEqual(layout.panelFrame.maxY, 469 - 1, accuracy: 0.5, "the card sits just under the caret line")
+        XCTAssertEqual(layout.panelFrame.minX, 1117 - 10, accuracy: 0.5, "and its text starts under the caret")
     }
 
     // MARK: - Caret-anchored path (user-forced / per-app-forced popup)

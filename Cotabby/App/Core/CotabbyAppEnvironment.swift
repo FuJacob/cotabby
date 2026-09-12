@@ -164,7 +164,11 @@ final class CotabbyAppEnvironment {
         suggestionInserter.isComposingIMEActiveProvider = { [weak keyboardInputSourceMonitor] in
             keyboardInputSourceMonitor?.isComposingIMEActive ?? false
         }
-        let overlayController = OverlayController(suggestionSettings: suggestionSettings)
+        let overlayController = OverlayController(
+            suggestionSettings: suggestionSettings,
+            baselineCalibrator: HostBaselineCalibrator(),
+            faceMemoryDefaults: .standard
+        )
         let activationIndicatorController = ActivationIndicatorController()
         let clipboardContextProvider = ClipboardContextProvider()
         let clipboardRelevanceFilter = ClipboardRelevanceFilter()
@@ -193,7 +197,7 @@ final class CotabbyAppEnvironment {
         CotabbyLogger.app.info("Foundation model engine unavailable (SDK)")
         #endif
 
-        let suggestionEngine: any SuggestionGenerating = SuggestionEngineRouter(
+        let routedEngine: any SuggestionGenerating = SuggestionEngineRouter(
             suggestionSettings: suggestionSettings,
             foundationModelEngine: foundationModelEngine,
             llamaEngine: LlamaSuggestionEngine(runtimeManager: runtimeManager),
@@ -218,6 +222,11 @@ final class CotabbyAppEnvironment {
                 suggestionSettings?.openAICompatibleModelName.nonEmpty
             }
         )
+        // Under `-cotabby-debug` with `cotabbyDebugForcedSuggestion` set, every request answers with
+        // that fixed text so ghost placement can be measured deterministically without a model.
+        let suggestionEngine: any SuggestionGenerating = DebugForcedSuggestionEngine.isConfigured()
+            ? DebugForcedSuggestionEngine(wrapping: routedEngine)
+            : routedEngine
 
         // Per-user emoji recents/frequency. Built before the settings coordinator so the
         // "Clear History" control can reach it, and before the picker which reads and writes it.

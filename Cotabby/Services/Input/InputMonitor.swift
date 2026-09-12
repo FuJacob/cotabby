@@ -648,6 +648,19 @@ final class InputMonitor {
         // "first look at every keystroke" invariant intact even when a suggestion overlay is showing.
         let recognizesAcceptance = isAcceptTapOwningAcceptKeys && !captureInterceptionActive
         let capturedEvent = classify(keyEvent: keyEvent, recognizesAcceptance: recognizesAcceptance)
+        // Trace-level so it is free at the default floor; under `-cotabby-debug` every observed key
+        // lands in the JSONL stream, which is how a "why did the ghost vanish" report gets answered.
+        if CotabbyLogger.app.logLevel <= .trace {
+            CotabbyLogger.app.trace(
+                "Observed key",
+                metadata: [
+                    "stage": .string("input-event"),
+                    "kind": .string(capturedEvent.kind.rawValue),
+                    "key_code": .stringConvertible(capturedEvent.keyCode),
+                    "chars": .string(capturedEvent.characters)
+                ]
+            )
+        }
         guard !capturedEvent.kind.isAcceptance else {
             // Acceptance is handled by the active default tap, because only that callback can
             // make insertion and "consume the original key" one atomic decision. If the active

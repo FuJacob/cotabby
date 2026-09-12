@@ -107,4 +107,18 @@ final class WebContentFieldDetectorTests: XCTestCase {
             )
         )
     }
+
+    /// Mail's compose body (measured 2026-09-10): a focused AXWebArea with marker selection and an
+    /// IME composition range, and nothing else to focus.
+    func test_focusedEditableWebAreaOutsideABrowserIsATarget() {
+        let mailBody: Set<String> = ["AXSelectedTextMarkerRange", "AXTextInputMarkedRange", "AXStartTextMarker", "AXEndTextMarker", "AXValue"]
+        XCTAssertTrue(WebContentFieldDetector.isEditableWebArea(role: "AXWebArea", isFocusedElement: true, bundleIdentifier: "com.apple.mail", supportedAttributes: mailBody))
+        // Not when it is merely an ancestor of the focused element, not for other roles, not in a
+        // browser (where a page's web area holds focus whenever nothing in it does), and not
+        // without the editing-only attributes.
+        XCTAssertFalse(WebContentFieldDetector.isEditableWebArea(role: "AXWebArea", isFocusedElement: false, bundleIdentifier: "com.apple.mail", supportedAttributes: mailBody))
+        XCTAssertFalse(WebContentFieldDetector.isEditableWebArea(role: "AXGroup", isFocusedElement: true, bundleIdentifier: "com.apple.mail", supportedAttributes: mailBody))
+        XCTAssertFalse(WebContentFieldDetector.isEditableWebArea(role: "AXWebArea", isFocusedElement: true, bundleIdentifier: "com.apple.Safari", supportedAttributes: mailBody))
+        XCTAssertFalse(WebContentFieldDetector.isEditableWebArea(role: "AXWebArea", isFocusedElement: true, bundleIdentifier: "com.apple.mail", supportedAttributes: ["AXSelectedTextMarkerRange"]))
+    }
 }

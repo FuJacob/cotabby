@@ -8,7 +8,11 @@ import Foundation
 /// the ghost text. This renderer treats the model as a pure text continuer: persona, style, language,
 /// and supporting context are folded into a short conditioning preface (a base model conditions on
 /// description, it does not obey commands), and the caret prefix is the LAST thing in the prompt with
-/// trailing whitespace trimmed so generation begins at a clean word boundary.
+/// trailing whitespace trimmed so generation begins at a clean word boundary. The trim applies to
+/// prompts anchored at a word boundary (`WordBoundaryAnchorPolicy`) too, even though the model then
+/// sometimes continues the previous word ("…yesterday. I" → "I've") instead of starting the one the
+/// user began: a prompt that ends in a space is worse, measured live with the shipped model it
+/// answered "1234567890" and stray HTML tags to most requests.
 ///
 /// Sections are character-budgeted via `PromptSectionBudget` so a large glossary, clipboard, or
 /// screen capture can never crowd out the caret text: the prefix gets top priority and a guaranteed
@@ -47,7 +51,7 @@ enum BaseCompletionPromptRenderer {
                 )
             }
         }
-        if let persona = Self.personaLine(userName) {
+        if let persona = Self.personaLine(userName, prefix: trimmedPrefix) {
             sections.append(Self.contextSection("persona", persona, priority: 60, maxChars: 200))
         }
         if let style = Self.styleLine(customRules) {
@@ -98,7 +102,10 @@ enum BaseCompletionPromptRenderer {
         } else {
             kept = PromptSectionBudget.allocate(sections, totalChars: contextBudget)
         }
-        let prefix = kept.first { $0.name == "prefix" }?.content ?? trimmedPrefix
+        // The budget trims every section at both ends; a line break the caret follows belongs to
+        // the prefix (see `trimmingTrailingWhitespace`), so it goes back on.
+        let prefix = kept.first { $0.name == "prefix" }.map { $0.content + Self.trailingWhitespace(of: trimmedPrefix) }
+            ?? trimmedPrefix
         let preface = kept.filter { $0.name != "prefix" }.map(\.content)
 
         guard !preface.isEmpty else {
@@ -119,9 +126,15 @@ enum BaseCompletionPromptRenderer {
         PromptSection(name: name, content: content, priority: priority, minChars: 0, maxChars: maxChars, truncation: .preserveStart)
     }
 
-    /// "Written by <name>." or nil. Conditions the voice via authorship framing.
-    private static func personaLine(_ userName: String?) -> String? {
-        guard let name = Self.nonEmpty(userName) else { return nil }
+    /// "Written by <name>." when the caret follows a valediction (see `SignOffCue`), nil otherwise.
+    ///
+    /// The name is deliberately absent from every other prompt. A base model given a name in its
+    /// preface reaches for it whenever the caret text is thin, and the live logs (2026-09-10,
+    /// 31 of 2844 generations) showed it introducing the writer at message openings, addressing
+    /// them as the recipient, and copying "written by" into the ghost text. At a sign-off the name
+    /// is the one token wanted, and the closing line anchors the model so nothing else leaks.
+    private static func personaLine(_ userName: String?, prefix: String) -> String? {
+        guard let name = Self.nonEmpty(userName), SignOffCue.precedesSignature(prefix) else { return nil }
         return "Written by \(name)."
     }
 
@@ -141,10 +154,20 @@ enum BaseCompletionPromptRenderer {
         return trimmed.isEmpty ? nil : trimmed
     }
 
-    /// Drops trailing spaces, tabs, and newlines so the base-model prompt ends at a word boundary.
+    /// The whitespace `text` ends with: after `trimmingTrailingWhitespace`, only the line breaks the
+    /// caret follows (with any spaces between them).
+    private static func trailingWhitespace(of text: String) -> String {
+        String(text.reversed().prefix { $0.isWhitespace }.reversed())
+    }
+
+    /// Drops trailing spaces and tabs so the base-model prompt ends at a word boundary (a tokenizer
+    /// carries a word's space on the word). A trailing line break stays: it is a token of its own,
+    /// and it is how the model learns that the caret opens a new line or paragraph. An anchored
+    /// request for that line's first word then requires the word without the break (see
+    /// `WordBoundaryAnchorPolicy.requiredCompletionPrefix`).
     static func trimmingTrailingWhitespace(_ text: String) -> String {
         var view = Substring(text)
-        while let last = view.last, last.isWhitespace {
+        while let last = view.last, last.isWhitespace, !last.isNewline {
             view = view.dropLast()
         }
         return String(view)

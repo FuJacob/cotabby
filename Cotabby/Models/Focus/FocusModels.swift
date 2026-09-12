@@ -111,15 +111,79 @@ enum FocusCapability: Equatable {
 /// back to its default styling. Stored as plain value types (no `NSFont`/`NSColor`) so the snapshot
 /// stays `Equatable`/`Sendable` and is cheap to carry across async boundaries.
 nonisolated struct ResolvedFieldStyle: Equatable, Sendable {
-    /// PostScript font name suitable for `NSFont(name:size:)`.
+    /// PostScript font name suitable for `NSFont(name:size:)`. Native AppKit hosts report it
+    /// (`Menlo-Regular`, `Helvetica`, `.AppleSystemUIFont`); web engines usually omit it.
     let fontName: String?
-    /// Host-reported point size, used only as the reference for scale-invariant metric sizing.
+    /// Family name (`AXFontFamily`), kept separately because a host can report the family without
+    /// a PostScript face, and the family alone still selects the right typeface.
+    let fontFamily: String?
+    /// Host-reported point size. This is the ghost font's rendered size whenever it is plausible:
+    /// matching the host's size exactly is what makes ghost glyphs line up with the host's text.
+    /// Chromium reports only this field, so a size-only style is a real, useful style.
     let fontPointSize: CGFloat?
     /// Foreground text color as a 6-digit hex string (see `SuggestionTextColorCodec`).
     let colorHex: String?
 
+    init(fontName: String?, fontFamily: String? = nil, fontPointSize: CGFloat?, colorHex: String?) {
+        self.fontName = fontName
+        self.fontFamily = fontFamily
+        self.fontPointSize = fontPointSize
+        self.colorHex = colorHex
+    }
+
+    /// True when the host exposed nothing usable at all. A size-only style is NOT empty: the point
+    /// size is the single most important fact for matching the host's rendering.
     var isEmpty: Bool {
-        fontName == nil && colorHex == nil
+        fontName == nil && fontFamily == nil && fontPointSize == nil && colorHex == nil
+    }
+}
+
+/// Facts about how the host actually renders the text next to the caret, measured from the host's
+/// own Accessibility geometry rather than guessed from font tables. `GhostFontResolver` uses the
+/// width sample to pick (or scale) a typeface when the host names no family, and the line pitch
+/// lets a wrapped ghost place its second row exactly where the host would place the next line.
+///
+/// Every field is optional: a host that exposes no line or range bounds simply contributes nothing
+/// and the ghost falls back to font-table metrics. Plain value type so it rides along in the
+/// `Equatable`/`Sendable` snapshot.
+nonisolated struct HostTextMetrics: Equatable, Sendable {
+    /// Text immediately before the caret on the caret's line whose rendered width was measured.
+    let sampleText: String?
+    /// Rendered width of `sampleText` in points, from the host's own bounds-for-range answer.
+    let sampleWidth: CGFloat?
+    /// The host's rendered box for the caret's whole visual line, in global Cocoa coordinates.
+    /// Its `minX` is the real content left edge (where a wrapped ghost row starts).
+    let lineRect: CGRect?
+    /// Vertical distance between consecutive visual lines, when the host exposes line geometry.
+    let linePitch: CGFloat?
+    /// True when `lineRect` came from the text-marker API (a Chromium contenteditable, which answers
+    /// no index-based line query). Its left edge places wrapped rows, but the typographic caret
+    /// refinement that trusts an index-based line box is not verified against it.
+    let lineRectIsFromTextMarkers: Bool
+    /// True when `linePitch` is the height of the caret's one-line paragraph rather than a distance
+    /// measured between two lines (see `HostTextMetricsProbe.paragraphLinePitch`). Chromium rounds
+    /// that box out to whole points, 24 for a 23.1pt line at 110% (2026-09-11), so a pitch the host
+    /// style measured between lines outranks it, and it is never remembered in that one's place.
+    let linePitchIsFromParagraphBox: Bool
+
+    init(
+        sampleText: String? = nil,
+        sampleWidth: CGFloat? = nil,
+        lineRect: CGRect? = nil,
+        linePitch: CGFloat? = nil,
+        lineRectIsFromTextMarkers: Bool = false,
+        linePitchIsFromParagraphBox: Bool = false
+    ) {
+        self.sampleText = sampleText
+        self.sampleWidth = sampleWidth
+        self.lineRect = lineRect
+        self.linePitch = linePitch
+        self.lineRectIsFromTextMarkers = lineRectIsFromTextMarkers
+        self.linePitchIsFromParagraphBox = linePitchIsFromParagraphBox
+    }
+
+    var isEmpty: Bool {
+        sampleText == nil && lineRect == nil && linePitch == nil
     }
 }
 
@@ -133,6 +197,34 @@ nonisolated struct ObservedContentEdges: Equatable, Sendable {
     let leftX: CGFloat
     /// Global Cocoa-coordinate top edge (maxY) of the topmost text run.
     let topY: CGFloat
+    /// Vertical distance between consecutive single-line runs, when at least two were seen: the
+    /// host's line pitch for editors whose line APIs give none (CodeMirror in Obsidian).
+    var linePitch: CGFloat?
+    /// Height of a single-line run's box (the rendered line box, which can be shorter than the
+    /// pitch when the host adds leading between lines).
+    var lineBoxHeight: CGFloat?
+    /// Set when the caret sits inside one run whose frame is the union of several wrapped lines;
+    /// the caret's line inside it is found by laying the paragraph out (see `WrappedRunAnchor`).
+    var wrappedRun: WrappedRunAnchor?
+}
+
+/// A caret inside a static-text run that spans several wrapped visual lines as one frame.
+/// CodeMirror (Obsidian) exposes each paragraph as one `AXStaticText` whose frame is the union of
+/// its wrapped lines, with no per-character bounds; proportional placement inside that union is
+/// meaningless, but laying the paragraph out in the union's width with the host's font recovers
+/// the caret's visual line, and the union's top plus the sibling runs' pitch gives that line's
+/// exact position. Measured live: the alternative (mapping the caret against neighbouring runs)
+/// put the ghost two lines away and flapped between lines while typing.
+nonisolated struct WrappedRunAnchor: Equatable, Sendable {
+    /// The run's frame in global Cocoa coordinates.
+    let frame: CGRect
+    /// The caret's run up to the caret, taken from the live parent value (from where the run's
+    /// text was anchored in it) rather than from the run's own text, which lags while typing.
+    let paragraphTextBeforeCaret: String
+    /// True for a run that is one visual line (a short paragraph): its frame is already the
+    /// caret's line box, so the pixel read treats it as a single line and nothing lays its text
+    /// out to find the line. False for a union run whose frame spans wrapped lines.
+    var spansOneLine: Bool = false
 }
 
 /// This snapshot is the future handoff point into suggestion generation.
@@ -146,6 +238,16 @@ nonisolated struct FocusedInputSnapshot: Equatable {
     let subrole: String?
     let caretRect: CGRect
     let inputFrameRect: CGRect?
+    /// The focused element's own `AXFrame` in global Cocoa coordinates, read fresh on every poll and
+    /// never widened. `inputFrameRect` is grown to a parent container or a 500pt minimum for card
+    /// placement, so it cannot say where the host actually wraps; this can.
+    let elementFrameRect: CGRect?
+    /// The host's uncommitted (marked) text range in its own document coordinates, when it has one:
+    /// macOS inline predictive text shown after the caret, or an IME composition before it. The
+    /// host owns that span of the field until the user commits or dismisses it, so Cotabby must
+    /// neither generate against it nor paint a ghost over it (see `HostMarkedTextPolicy`). Marked
+    /// text after the caret is already excluded from `trailingText`.
+    let hostMarkedTextRange: NSRange?
     let caretSource: String
     let caretQuality: CaretGeometryQuality
     /// Average character width in points observed from AX child frame measurements.
@@ -208,6 +310,12 @@ nonisolated struct FocusedInputSnapshot: Equatable {
     /// compiling unchanged.
     let fieldPlaceholder: String?
 
+    /// How the host renders text near the caret (measured widths, line box, line pitch), resolved
+    /// once per field so the ghost can match the host's typeface and wrap geometry. Nil when the
+    /// host exposes no measurable text geometry. The initializer default keeps existing call sites
+    /// compiling unchanged.
+    let hostTextMetrics: HostTextMetrics?
+
     /// Explicit initializer keeps `focusChangeSequence` immutable while preserving the old
     /// memberwise-call ergonomics for tests that do not care about focus identity.
     ///
@@ -237,7 +345,10 @@ nonisolated struct FocusedInputSnapshot: Equatable {
         focusedURLString: String? = nil,
         resolvedFieldStyle: ResolvedFieldStyle? = nil,
         windowTitle: String? = nil,
-        fieldPlaceholder: String? = nil
+        fieldPlaceholder: String? = nil,
+        hostTextMetrics: HostTextMetrics? = nil,
+        elementFrameRect: CGRect? = nil,
+        hostMarkedTextRange: NSRange? = nil
     ) {
         self.applicationName = applicationName
         self.bundleIdentifier = bundleIdentifier
@@ -262,6 +373,9 @@ nonisolated struct FocusedInputSnapshot: Equatable {
         self.resolvedFieldStyle = resolvedFieldStyle
         self.windowTitle = windowTitle
         self.fieldPlaceholder = fieldPlaceholder
+        self.hostTextMetrics = hostTextMetrics
+        self.elementFrameRect = elementFrameRect
+        self.hostMarkedTextRange = hostMarkedTextRange
     }
 
     var identity: FocusedInputIdentity {
@@ -269,6 +383,11 @@ nonisolated struct FocusedInputSnapshot: Equatable {
             elementIdentifier: elementIdentifier,
             focusChangeSequence: focusChangeSequence
         )
+    }
+
+    /// True while the host shows uncommitted text of its own (see `hostMarkedTextRange`).
+    var hasHostMarkedText: Bool {
+        (hostMarkedTextRange?.length ?? 0) > 0
     }
 
     /// The signature lets later pipeline stages detect whether a completion result is stale.

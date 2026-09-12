@@ -25,6 +25,8 @@ struct FocusSnapshotResolver {
     /// window and may not start at the document start" — laying out a mid-document prefix would
     /// produce meaningless wrap/Y geometry, so that case must be rejected.
     static let focusedTextContextWindowUTF16 = 4096
+    /// The longest value `restoringBlockBreaks` reads to put a web field's paragraph breaks back.
+    static let blockBreakAlignmentMaximumUTF16 = 16_384
 
     /// Carries deep-walk throttle state across the value-typed resolver's non-mutating polls.
     private let deepWalkThrottle = DeepGeometryWalkThrottle()
@@ -48,6 +50,14 @@ struct FocusSnapshotResolver {
     /// Caches the per-field surface metadata (window title, placeholder, URL) the same way; see
     /// `SurfaceContextCache` for why the value is frozen for the whole field session.
     private let surfaceContextCache = SurfaceContextCache()
+
+    /// Caches the measured host text geometry (width sample, line box, line pitch) per field, with
+    /// bounded retries for hosts that answer empty until their text boxes load.
+    private let hostTextMetricsCache = HostTextMetricsCache()
+    /// The host's rendered advance measured from the caret's own movement, for fields whose host
+    /// answers no width query (Chromium contenteditables, Electron composers); see
+    /// `CaretAdvanceSampler`. One sampler follows the focused field; a new field starts a new one.
+    private let caretAdvanceSamples = CaretAdvanceSampleStore()
 
     init(geometryResolver: AXTextGeometryResolver? = nil) {
         self.geometryResolver = geometryResolver ?? AXTextGeometryResolver()
@@ -116,7 +126,7 @@ struct FocusSnapshotResolver {
             )
         }
 
-        guard let selection = resolvedCandidate.selection else {
+        guard let rawSelection = resolvedCandidate.selection else {
             return FocusSnapshot(
                 applicationName: applicationName,
                 bundleIdentifier: bundleIdentifier,
@@ -125,7 +135,7 @@ struct FocusSnapshotResolver {
             )
         }
 
-        guard selection.location >= 0, selection.length >= 0 else {
+        guard rawSelection.location >= 0, rawSelection.length >= 0 else {
             return FocusSnapshot(
                 applicationName: applicationName,
                 bundleIdentifier: bundleIdentifier,
@@ -134,7 +144,23 @@ struct FocusSnapshotResolver {
             )
         }
 
-        let value = resolvedCandidate.textValue ?? ""
+        // Chromium's address bar completes what the user types inline and keeps the completion
+        // selected after the caret; that selection is the browser's own provisional text, not a
+        // selection the user made, so it is stripped and the caret stays where the user stopped.
+        let (value, selection) = Self.strippingChromiumInlineAutocomplete(
+            value: resolvedCandidate.textValue ?? "",
+            selection: rawSelection,
+            role: resolvedCandidate.role,
+            bundleIdentifier: bundleIdentifier
+        )
+        // While the browser's own completion is on screen it is, for Cotabby's purposes, the host's
+        // uncommitted text: it occupies the spot a ghost would take and its ink would be read as the
+        // caret line's end by the pixel caret. Treating it as marked text holds the ghost until the
+        // browser commits or drops it, exactly as with the system's inline prediction.
+        let chromiumCompletionRange: NSRange? =
+            value.utf16.count < (resolvedCandidate.textValue ?? "").utf16.count
+            ? NSRange(location: selection.location, length: (resolvedCandidate.textValue ?? "").utf16.count - selection.location)
+            : nil
         // `NSRange` coming from AX is expressed in UTF-16 code units, which is why the code below
         // uses `NSString` instead of slicing a native Swift `String` directly.
         guard selection.location <= value.utf16.count else {
@@ -233,22 +259,29 @@ struct FocusSnapshotResolver {
             }
         }
         let focusedURLString = capturedSurface.urlString
-        // Resolve the host field's own font/color so ghost text can match it. Cached by element
-        // identity (this is a synchronous AX read and the resolver runs on the focus poll), and
-        // skipped for secure fields, which are never styled or assisted.
-        let resolvedFieldStyle: ResolvedFieldStyle?
-        if resolvedCandidate.isSecure {
-            resolvedFieldStyle = nil
-        } else {
-            let styleKey = "\(application.processIdentifier):\(resolvedCandidate.elementIdentifier)"
-            resolvedFieldStyle = fieldStyleCache.style(forKey: styleKey) {
-                AXHelper.resolveFieldStyle(
-                    for: resolvedCandidate.element,
-                    caretLocation: selection.location,
-                    textLength: value.utf16.count
-                )
-            }
-        }
+        // Gmail writes its Smart Compose suggestion and a "tab" hint into the compose body right after
+        // the caret: the host's own prediction, held like the address bar's completion (see
+        // `HostMarkedTextPolicy.smartComposeSuggestionRange`).
+        let smartComposeRange = HostMarkedTextPolicy.smartComposeSuggestionRange(
+            text: value, selection: selection, urlString: focusedURLString
+        )
+        // Resolve the host field's own font/color so ghost text can match it. Cached per style run
+        // (see `FieldStyleCache`) and skipped for secure fields, which are never styled or assisted.
+        let resolvedFieldStyle = resolveFieldStyle(
+            for: resolvedCandidate,
+            processIdentifier: application.processIdentifier,
+            selection: selection,
+            textLength: value.utf16.count,
+            caretHeight: caretRect.height
+        )
+        let hostTextMetrics = resolveHostTextMetrics(
+            for: resolvedCandidate,
+            processIdentifier: application.processIdentifier,
+            text: value,
+            selection: selection,
+            caret: caret,
+            isBrowser: BrowserAppDetector.isBrowser(bundleIdentifier: bundleIdentifier)
+        )
         // Recognize an xterm.js integrated terminal (VS Code / Cursor / web terminal) from the
         // focused element's DOM classes. The terminal, code editor, and Copilot chat all live in one
         // process, so this surface-level signal is the only way to suppress ghost text in the
@@ -297,23 +330,19 @@ struct FocusSnapshotResolver {
             focusedURLString: focusedURLString,
             resolvedFieldStyle: resolvedFieldStyle,
             windowTitle: capturedSurface.windowTitle,
-            fieldPlaceholder: capturedSurface.fieldPlaceholder
+            fieldPlaceholder: capturedSurface.fieldPlaceholder,
+            hostTextMetrics: Self.mergingRunLinePitch(hostTextMetrics, edges: observedContentEdges),
+            elementFrameRect: resolvedCandidate.elementFrameRect,
+            hostMarkedTextRange: resolvedCandidate.markedTextRange ?? chromiumCompletionRange ?? smartComposeRange
         )
 
-        if resolvedCandidate.isSecure {
+        if let reason = Self.blockedReason(
+            for: resolvedCandidate, bundleIdentifier: bundleIdentifier, selection: selection, rawSelection: rawSelection
+        ) {
             return FocusSnapshot(
                 applicationName: applicationName,
                 bundleIdentifier: bundleIdentifier,
-                capability: .blocked("Secure text input is active."),
-                context: context
-            )
-        }
-
-        if selection.length > 0 {
-            return FocusSnapshot(
-                applicationName: applicationName,
-                bundleIdentifier: bundleIdentifier,
-                capability: .blocked("Text is currently selected."),
+                capability: .blocked(reason),
                 context: context
             )
         }
@@ -323,6 +352,186 @@ struct FocusSnapshotResolver {
             bundleIdentifier: bundleIdentifier,
             capability: .supported,
             context: context
+        )
+    }
+
+    /// Why a field Cotabby can read is still one it must not complete in, or nil when it may: a
+    /// secure field, one of Mail's header rows, or a field with text selected.
+    private static func blockedReason(
+        for candidate: AXFocusCandidate,
+        bundleIdentifier: String,
+        selection: NSRange,
+        rawSelection: NSRange
+    ) -> String? {
+        if candidate.isSecure {
+            return "Secure text input is active."
+        }
+
+        // Mail's To/Cc/Bcc/Subject rows: Tab is the writer's way to the next field, not an accept.
+        // The identifier is one extra AX read, made only for Mail's own text fields.
+        if MailHeaderFieldDetector.mightBeHeaderField(bundleIdentifier: bundleIdentifier, role: candidate.role),
+           MailHeaderFieldDetector.isHeaderField(
+               bundleIdentifier: bundleIdentifier,
+               role: candidate.role,
+               accessibilityIdentifier: AXHelper.accessibilityIdentifier(of: candidate.element)
+           ) {
+            return MailHeaderFieldDetector.blockedReason
+        }
+
+        guard selection.length > 0 else { return nil }
+        if BrowserAppDetector.isChromiumBrowser(bundleIdentifier: bundleIdentifier) {
+            CotabbyLogger.focus.debug(
+                "Chromium selection blocks the field",
+                metadata: [
+                    "stage": .string("chromium-selection"),
+                    "role": .string(candidate.role),
+                    "selection": .string("\(rawSelection.location),\(rawSelection.length)"),
+                    "value_length": .stringConvertible((candidate.textValue ?? "").utf16.count),
+                    "element": .string(candidate.elementIdentifier)
+                ]
+            )
+        }
+        return "Text is currently selected."
+    }
+
+    /// Reads the host's font/color at the caret through the style cache: one attributed-string read
+    /// per style run, plus one `AXStyleRangeForIndex` call only when the caret leaves the known run.
+    private func resolveFieldStyle(
+        for candidate: AXFocusCandidate,
+        processIdentifier: pid_t,
+        selection: NSRange,
+        textLength: Int,
+        caretHeight: CGFloat
+    ) -> ResolvedFieldStyle? {
+        guard !candidate.isSecure else {
+            return nil
+        }
+        let styleKey = "\(processIdentifier):\(candidate.elementIdentifier)"
+        let documentCaret = candidate.documentCaretLocation ?? selection.location
+        let supportsStyleRuns = candidate.supportedParameterizedAttributes.contains(
+            kAXStyleRangeForIndexParameterizedAttribute as String
+        )
+        return fieldStyleCache.style(
+            forKey: styleKey,
+            caretLocation: documentCaret,
+            caretHeight: caretHeight,
+            styleRun: {
+                // Hosts without style ranges (Chromium) return nil and fall back to per-field caching
+                // plus the caret-height signal.
+                guard supportsStyleRuns else { return nil }
+                return AXHelper.parameterizedRangeValue(
+                    for: kAXStyleRangeForIndexParameterizedAttribute as CFString,
+                    parameter: max(documentCaret - 1, 0),
+                    on: candidate.element
+                )
+            },
+            resolve: {
+                AXHelper.resolveFieldStyle(
+                    for: candidate.element,
+                    caretLocation: selection.location,
+                    textLength: textLength
+                )
+            }
+        )
+    }
+
+    /// Measures the host's rendered text geometry for the resolved field, once per field and with
+    /// bounded retries (see `HostTextMetricsCache`). Skipped for secure fields and for
+    /// marker-synthesized selections, whose window-relative offsets the NSRange bounds API would
+    /// misread. A host that answers no width query still gets a width sample, measured from how
+    /// far its caret moves as the user types (`CaretAdvanceSampler`).
+    private func resolveHostTextMetrics(
+        for candidate: AXFocusCandidate,
+        processIdentifier: pid_t,
+        text: String,
+        selection: NSRange,
+        caret: CaretGeometrySelector.Selected,
+        isBrowser: Bool = false
+    ) -> HostTextMetrics? {
+        guard !candidate.isSecure, !candidate.usesMarkerSelection else {
+            return nil
+        }
+        let caretRect = caret.rect
+        let caretHeight = caretRect.height
+        let caretAdvanceSample = observeCaretAdvance(
+            for: candidate, processIdentifier: processIdentifier, text: text, selection: selection, caret: caret
+        )
+        // The caret box height changes when the line's font changes, and the measured line box
+        // moves with the element, so a new height or a moved/resized frame re-measures. Without the
+        // frame in the key, a window dragged after focus kept vending the old line edge.
+        let frameKey = candidate.elementFrameRect.map {
+            "\(Int($0.minX.rounded())),\(Int($0.minY.rounded())),\(Int($0.width.rounded())),\(Int($0.height.rounded()))"
+        } ?? "-"
+        let metricsKey = "\(processIdentifier):\(candidate.elementIdentifier):\(Int(caretHeight.rounded())):\(frameKey)"
+        let measured = hostTextMetricsCache.metrics(forKey: metricsKey, caretLocation: selection.location) {
+            HostTextMetricsProbe.measure(
+                HostTextMetricsProbe.Input(
+                    element: candidate.element,
+                    caretLocation: candidate.documentCaretLocation ?? selection.location,
+                    text: text,
+                    caretLocationInText: selection.location,
+                    caretHeight: caretHeight,
+                    supportedParameterizedAttributes: candidate.supportedParameterizedAttributes,
+                    anchorFrame: candidate.elementFrameRect ?? candidate.inputFrameRect,
+                    allowsTextMarkerLine: caret.quality == .exact && caret.sourceDetail == "text-marker",
+                    caretRect: caretRect,
+                    isBrowser: isBrowser
+                )
+            )
+        }
+        return Self.mergingCaretAdvanceSample(measured, sample: caretAdvanceSample)
+    }
+
+    /// Whether this poll's caret is a measured glyph position, the only kind a width sample may be
+    /// made of: an exact caret, or a derived one from real character bounds. A caret placed inside a
+    /// text run by its share of the run's characters is not: its movement is the run frame's width
+    /// spread evenly over the characters, and Obsidian's run frames are wider than their ink.
+    /// Measured 2026-09-10: once such samples were kept, one of "ely long enough that" read 1% wide
+    /// and sized the ghost's face at 16.13 for the host's 16, three device pixels long by a line's end.
+    static func caretMeasuresGlyphs(quality: CaretGeometryQuality, sourceDetail: String?) -> Bool {
+        switch quality {
+        case .exact:
+            return true
+        case .derived:
+            return AXTextGeometryResolver.CaretRunMappingMode(rawValue: sourceDetail ?? "") == nil
+        default:
+            return false
+        }
+    }
+
+    /// Feeds this poll's caret to the field's advance sampler and returns its current sample.
+    private func observeCaretAdvance(
+        for candidate: AXFocusCandidate,
+        processIdentifier: pid_t,
+        text: String,
+        selection: NSRange,
+        caret: CaretGeometrySelector.Selected
+    ) -> CaretAdvanceSampler.Sample? {
+        let nsText = text as NSString
+        let offset = min(max(selection.location, 0), nsText.length)
+        return caretAdvanceSamples.sample(
+            forKey: "\(processIdentifier):\(candidate.elementIdentifier)",
+            observation: CaretAdvanceSampler.Observation(
+                caretX: caret.rect.minX,
+                lineY: caret.rect.maxY,
+                documentCaret: candidate.documentCaretLocation ?? offset,
+                precedingText: nsText.substring(to: offset),
+                isPositioned: Self.caretMeasuresGlyphs(quality: caret.quality, sourceDetail: caret.sourceDetail)
+            )
+        )
+    }
+
+    /// The probe's own width sample outranks the caret's: it is one query of the host's layout.
+    /// Only a host that answered none gets the sample measured from its caret.
+    static func mergingCaretAdvanceSample(_ metrics: HostTextMetrics?, sample: CaretAdvanceSampler.Sample?) -> HostTextMetrics? {
+        guard metrics?.sampleText == nil, let sample else { return metrics }
+        return HostTextMetrics(
+            sampleText: sample.text,
+            sampleWidth: sample.width,
+            lineRect: metrics?.lineRect,
+            linePitch: metrics?.linePitch,
+            lineRectIsFromTextMarkers: metrics?.lineRectIsFromTextMarkers ?? false,
+            linePitchIsFromParagraphBox: metrics?.linePitchIsFromParagraphBox ?? false
         )
     }
 
@@ -365,6 +574,22 @@ struct FocusSnapshotResolver {
                         resolution: FocusCapabilityResolution(
                             selectedEvaluation: evaluation
                         )
+                    )
+                }
+
+                // The focused element itself falling short is the one verdict worth a line: it is
+                // why a neighbour (an ancestor's child, Mail's header row) ends up the target.
+                if CFEqual(element, focusedReading.element) {
+                    CotabbyLogger.focus.debug(
+                        "Focused element lacks capabilities",
+                        metadata: [
+                            "stage": .string("focused-element-partial"),
+                            "role": .string(candidate.role),
+                            "missing": .string(evaluation.missingCapabilities.map { "\($0)" }.joined(separator: ",")),
+                            "has_text": .stringConvertible(candidate.textValue != nil),
+                            "has_selection": .stringConvertible(candidate.selection != nil),
+                            "has_caret": .stringConvertible(candidate.caretRect != nil)
+                        ]
                     )
                 }
 
@@ -705,6 +930,11 @@ struct FocusSnapshotResolver {
         let hasStrongEditabilitySignal = AXHelper.hasStrongEditabilitySignal(
             role: role,
             explicitEditableFlag: explicitEditableFlag
+        ) || WebContentFieldDetector.isEditableWebArea(
+            role: role,
+            isFocusedElement: CFEqual(element, focusedReading.element),
+            bundleIdentifier: bundleIdentifier,
+            supportedAttributes: supportedAttributes
         )
         let isKnownReadOnlyRole = AXHelper.isKnownReadOnlyRole(role)
         let canBeEditableTarget = hasStrongEditabilitySignal && !isKnownReadOnlyRole
@@ -723,20 +953,38 @@ struct FocusSnapshotResolver {
                 on: element, parameterizedAttributes: supportedParameterizedAttributes)
             : nil
 
-        let nativeTextSelection = nativeSelection.flatMap {
+        // Uncommitted host text (system inline prediction, IME composition). Read only from fields
+        // that vend the attribute (NSTextView-backed), one call per poll.
+        let markedTextRange =
+            canBeEditableTarget && supportedAttributes.contains(HostMarkedTextPolicy.markedRangeAttribute)
+            ? AXHelper.rangeValue(for: HostMarkedTextPolicy.markedRangeAttribute as CFString, on: element)
+                .flatMap { $0.length > 0 ? $0 : nil }
+            : nil
+
+        let nativeTextSelection = nativeSelection.flatMap { documentSelection in
             nativeTextWindow(
                 on: element,
-                selection: $0,
+                selection: documentSelection,
                 supportedAttributes: supportedAttributes,
                 supportedParameterizedAttributes: supportedParameterizedAttributes
-            )
+            ).map {
+                Self.withoutHostPrediction($0, documentSelection: documentSelection, markedTextRange: markedTextRange)
+            }
         }
         // Prefer the marker-windowed text when we synthesized one so `selection` (window-relative)
         // and `textValue` stay consistent; otherwise use a bounded native text window when the host
         // supports `AXStringForRange`, falling back to the full value for older/native controls.
-        let textSelection = markerSelection.map {
+        let textSelection = (markerSelection.map {
             AXTextSelection(text: $0.text, selection: $0.selection)
-        } ?? nativeTextSelection
+        } ?? nativeTextSelection).map {
+            restoringBlockBreaks(
+                in: $0,
+                on: element,
+                role: role,
+                supportedAttributes: supportedAttributes,
+                supportedParameterizedAttributes: supportedParameterizedAttributes
+            )
+        }
         let selection = textSelection?.selection
         let selectionForGeometry = nativeSelection ?? markerSelection?.selection
         let textValue = textSelection?.text
@@ -753,6 +1001,7 @@ struct FocusSnapshotResolver {
             supportedAttributes.contains("AXFrame")
             ? geometryResolver.resolveInputFrameRect(for: element)
             : nil
+        let elementFrameRect = inputFrameRect
 
         if let currentFrame = inputFrameRect {
             var finalWidth = currentFrame.width
@@ -802,7 +1051,10 @@ struct FocusSnapshotResolver {
                 staticRunThrottle: CFEqual(element, focusedReading.element)
                     ? staticRunWalkThrottle
                     : nil,
-                focusChangeSequence: focusChangeSequence
+                focusChangeSequence: focusChangeSequence,
+                supportsLineQueries: markerSelection == nil
+                    && supportedParameterizedAttributes.contains(kAXLineForIndexParameterizedAttribute as String)
+                    && supportedParameterizedAttributes.contains(kAXRangeForLineParameterizedAttribute as String)
             )
         }
         let caretRect = caretResult?.rect
@@ -849,10 +1101,35 @@ struct FocusSnapshotResolver {
             caretSourceDetail: caretResult?.sourceDetail,
             caretAllowsDeepSearch: caretResult?.allowsDeepSearch ?? true,
             inputFrameRect: inputFrameRect,
+            elementFrameRect: elementFrameRect,
+            markedTextRange: markedTextRange,
             isSecure: isSecure,
             vendsDOMAttributes: vendsDOMAttributes,
+            usesMarkerSelection: markerSelection != nil,
+            documentCaretLocation: nativeSelection?.location,
+            supportedParameterizedAttributes: supportedParameterizedAttributes,
             resolverCandidate: resolverCandidate
         )
+    }
+
+    /// Drops the host's own inline prediction (marked text after the caret) from a windowed text
+    /// read, translating the document-coordinate marked range into the window's coordinates.
+    private static func withoutHostPrediction(
+        _ window: AXTextSelection,
+        documentSelection: NSRange,
+        markedTextRange: NSRange?
+    ) -> AXTextSelection {
+        guard let markedTextRange else { return window }
+        let documentOffset = documentSelection.location - window.selection.location
+        let windowMarkedRange = NSRange(location: markedTextRange.location - documentOffset, length: markedTextRange.length)
+        guard windowMarkedRange.location >= 0 else { return window }
+        let stripped = HostMarkedTextPolicy.strippingPredictionAfterCaret(
+            text: window.text,
+            selection: window.selection,
+            markedRange: windowMarkedRange
+        )
+        guard stripped != window.text else { return window }
+        return AXTextSelection(text: stripped, selection: window.selection)
     }
 
     /// Reads the smallest native text window the host can provide around the current selection.
@@ -943,6 +1220,96 @@ struct FocusSnapshotResolver {
         )
     }
 
+    /// The selection re-read in the field's value where the host's range text runs its blocks
+    /// together (Chromium's contenteditables, see `BlockBreakAlignment`): the paragraph breaks come
+    /// back into the model's text and the caret line's text, and the text after the caret comes from
+    /// the value instead of a range query that overshoots the range text's end. Only a window that
+    /// starts at the field's start can be aligned, and a single-line field has no blocks; anything
+    /// that does not align keeps the range text. Costs one `AXValue` read per poll in a web text
+    /// area, bounded by `blockBreakAlignmentMaximumUTF16`. The document caret (`nativeSelection`)
+    /// stays in the range space, where the host's own offset queries expect it.
+    private func restoringBlockBreaks(
+        in selection: AXTextSelection,
+        on element: AXUIElement,
+        role: String,
+        supportedAttributes: Set<String>,
+        supportedParameterizedAttributes: Set<String>
+    ) -> AXTextSelection {
+        let text = selection.text as NSString
+        guard role != kAXTextFieldRole as String,
+              AXHelper.readsTextMarkers(parameterizedAttributes: supportedParameterizedAttributes),
+              selection.selection.location < min(Self.focusedTextContextWindowUTF16, MarkerSelectionSynthesizer.defaultWindow),
+              NSMaxRange(selection.selection) <= text.length
+        else {
+            return selection
+        }
+        // A window holding the whole field at the value's own length has no break left out (the
+        // range text is the value then), so only the caret's side of a break is left to settle and
+        // the value need not be read: the common case in hosts whose two spaces agree (Obsidian).
+        let value: String
+        if let documentLength = AXHelper.intValue(for: kAXNumberOfCharactersAttribute as CFString, on: element),
+           documentLength == text.length {
+            value = selection.text
+        } else {
+            guard supportedAttributes.contains(kAXValueAttribute as String),
+                  let read = AXHelper.stringValue(for: kAXValueAttribute as CFString, on: element),
+                  (read as NSString).length <= Self.blockBreakAlignmentMaximumUTF16
+            else {
+                return selection
+            }
+            value = read
+        }
+        guard let split = BlockBreakAlignment.split(
+            value: value,
+            rangePrefix: text.substring(to: selection.selection.location),
+            rangeSelected: text.substring(with: selection.selection),
+            caretStartsBlock: {
+                AXHelper.caretStartsTextBlock(on: element, parameterizedAttributes: supportedParameterizedAttributes)
+            }
+        ) else {
+            return selection
+        }
+        return AXTextSelection(text: split.text, selection: split.selection)
+    }
+
+    /// The value and selection with Chromium's inline address-bar completion removed. The omnibox
+    /// (an `AXTextField` in a Chromium browser) autocompletes a typed prefix and leaves the added
+    /// text selected through to the end of the value; a selection shaped like that, after at least
+    /// one typed character, is the browser's suggestion rather than the user's selection (measured
+    /// live: every keystroke in the address bar arrived as "text is currently selected"). Any other
+    /// selection, and every other host, passes through untouched.
+    static func strippingChromiumInlineAutocomplete(
+        value: String,
+        selection: NSRange,
+        role: String,
+        bundleIdentifier: String
+    ) -> (String, NSRange) {
+        let length = (value as NSString).length
+        guard selection.length > 0,
+              selection.location > 0,
+              selection.location + selection.length == length,
+              role == kAXTextFieldRole as String,
+              BrowserAppDetector.isChromiumBrowser(bundleIdentifier: bundleIdentifier)
+        else {
+            return (value, selection)
+        }
+        let typed = (value as NSString).substring(to: selection.location)
+        return (typed, NSRange(location: selection.location, length: 0))
+    }
+
+    /// A host whose line APIs answered nothing (CodeMirror in Obsidian) still shows its line pitch
+    /// through its sibling text runs; that pitch lets the ghost wrap onto the host's next line.
+    static func mergingRunLinePitch(_ metrics: HostTextMetrics?, edges: ObservedContentEdges?) -> HostTextMetrics? {
+        guard metrics?.linePitch == nil, let pitch = edges?.linePitch, pitch > 0 else { return metrics }
+        return HostTextMetrics(
+            sampleText: metrics?.sampleText,
+            sampleWidth: metrics?.sampleWidth,
+            lineRect: metrics?.lineRect,
+            linePitch: pitch,
+            lineRectIsFromTextMarkers: metrics?.lineRectIsFromTextMarkers ?? false
+        )
+    }
+
     /// Detects secure inputs so Cotabby can intentionally refuse to operate in sensitive fields.
     private func isSecureElement(element: AXUIElement, role: String, subrole: String?) -> Bool {
         // Read the role description too: a native NSSecureTextField announces its sensitivity there
@@ -992,9 +1359,19 @@ private struct AXFocusCandidate {
     let caretSourceDetail: String?
     let caretAllowsDeepSearch: Bool
     let inputFrameRect: CGRect?
+    /// The element's own `AXFrame` before any widening (see `FocusedInputSnapshot.elementFrameRect`).
+    let elementFrameRect: CGRect?
+    /// The host's uncommitted text range in document coordinates (see `HostMarkedTextPolicy`).
+    let markedTextRange: NSRange?
     let isSecure: Bool
     /// Whether the element advertises DOM-reflection attributes, marking it as web-engine
     /// content (see `WebContentFieldDetector`).
     let vendsDOMAttributes: Bool
+    /// True when the selection was synthesized from text markers, so `selection` is window-relative
+    /// and the NSRange geometry APIs cannot be used against it.
+    let usesMarkerSelection: Bool
+    /// The caret offset in the host's document coordinates when a native selection range exists.
+    let documentCaretLocation: Int?
+    let supportedParameterizedAttributes: Set<String>
     let resolverCandidate: FocusCapabilityCandidate
 }

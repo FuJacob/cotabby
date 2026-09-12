@@ -52,8 +52,10 @@ These rules explain most of the structure:
   reconciliation, layout, and low-level bridging helpers.
 - [CotabbyTests](CotabbyTests): unit tests and microbenchmarks, with emphasis on pure Support and
   Models behavior.
-- CotabbyInference: the llama.cpp Swift wrapper consumed from an external SwiftPM package pinned to
-  its main branch; native code is not vendored here.
+- CotabbyInference: the llama.cpp Swift wrapper consumed from an external SwiftPM package; native
+  code is not vendored here. The mid-word anchoring needs a required-prefix constraint that is not in
+  `FuJacob/cotabbyinference` main yet, so the package resolves from the `feat/required-prefix` branch
+  of the `Mason363/cotabbyinference` fork that adds it; the pin returns to main once it lands there.
 
 [SOURCE_LAYOUT.md](SOURCE_LAYOUT.md) expands this map into the canonical nested source and test
 layout. Child folders name stable responsibilities inside a subsystem; they do not create Swift
@@ -139,7 +141,15 @@ and cohesive mutable sub-state to smaller boundaries:
 - [SuggestionAvailabilityEvaluator.swift](Cotabby/Support/Suggestion/Request/SuggestionAvailabilityEvaluator.swift):
   pure permission, settings, focus, and runtime gates.
 - [SuggestionRequestFactory.swift](Cotabby/Support/Suggestion/Request/SuggestionRequestFactory.swift): pure bounded
-  request construction and the selected backend's developer-debug prompt payload.
+  request construction and the selected backend's developer-debug prompt payload. Nothing is generated
+  with the caret inside a token ([CaretTokenPosition.swift](Cotabby/Support/Suggestion/Request/CaretTokenPosition.swift)),
+  and on the llama path a request made mid-word is anchored at the word boundary
+  ([WordBoundaryAnchorPolicy.swift](Cotabby/Support/Suggestion/Request/WordBoundaryAnchorPolicy.swift)): the partial
+  word leaves the prompt (so its last token is a whole word) and the engine is handed the boundary whitespace plus the
+  typed letters as a required prefix it masks every inconsistent token against, so the model finishes the word the
+  user started; the normalizer shows only the untyped remainder. The word-count preset also bounds the result
+  ([SuggestionLengthPolicy.swift](Cotabby/Support/Suggestion/Output/SuggestionLengthPolicy.swift) trims to the
+  preset's upper bound at a clause boundary; the decoder's sentence stop waits for its lower bound).
 - [SuggestionWorkController.swift](Cotabby/Services/Suggestion/State/SuggestionWorkController.swift):
   debounce/generation tasks and monotonically increasing work IDs.
 - [SuggestionInteractionState.swift](Cotabby/Services/Suggestion/State/SuggestionInteractionState.swift):
@@ -151,11 +161,16 @@ and cohesive mutable sub-state to smaller boundaries:
 - [SuggestionSessionReconciler.swift](Cotabby/Support/Suggestion/Session/SuggestionSessionReconciler.swift): type-through,
   acceptance, and live-host reconciliation.
 - [SuggestionTextNormalizer.swift](Cotabby/Support/Suggestion/Output/SuggestionTextNormalizer.swift): backend-independent
-  cleanup, echo removal, whitespace policy, trailing-text deduplication, and unsafe-output rejection.
+  cleanup, echo removal, whitespace policy, trailing-text deduplication, word-boundary reconciliation, and
+  unsafe-output rejection. [CompletionContentPolicy.swift](Cotabby/Support/Suggestion/Output/CompletionContentPolicy.swift)
+  then drops punctuation-only output, closing punctuation after a typed space, forum/chat scaffolding or
+  meta-responses about the prompt, a word sequence looping back to back, and text lifted verbatim from what the
+  user just wrote.
 
 A native correction path runs before model generation. NSSpellChecker and bundled SymSpell indexes
 can suppress completion while a likely typo is forming, offer a green atomic replacement, or apply
-an opt-in automatic fix after Space.
+an opt-in automatic fix after Space. A word the checker can still complete ("apprec") is treated as
+in progress rather than misspelled, so the continuation finishes it.
 
 Engines can stream cumulative partials. SuggestionStreamingState coalesces token-rate callbacks into
 latest-wins UI work, accepts only monotonic extensions, and lets a displayed partial become an active
@@ -184,7 +199,9 @@ across AppKit, browsers, Electron, and custom editors. Activity resets the caden
 state backs it off. Input and acceptance paths may request an explicit fresh capture, but do not trust
 event payloads as complete field state.
 
-FocusSnapshotResolver finds a usable editable candidate, blocks secure/unsupported surfaces, bounds
+FocusSnapshotResolver finds a usable editable candidate, blocks secure/unsupported surfaces (and
+Mail's compose header rows, [MailHeaderFieldDetector.swift](Cotabby/Support/Accessibility/MailHeaderFieldDetector.swift):
+Tab is the way from To to Subject to body there, not an accept), bounds
 text on both sides of the caret, resolves the focused process, and publishes stable domain values.
 Chromium/Electron require accessibility priming, cursor hit-test recovery, and out-of-process iframe
 handling. All fallbacks are revalidated and yield to a valid system-focused element.
@@ -249,12 +266,56 @@ generation loop remains the single owner of the output-token budget.
 
 [BaseCompletionPromptRenderer.swift](Cotabby/Support/Prompting/BaseCompletionPromptRenderer.swift) renders a
 base-model text continuation with optional budgeted context and the caret prefix last. It does not
-wrap a base GGUF in an instruction conversation. [FoundationModelPromptRenderer.swift](Cotabby/Support/Prompting/FoundationModelPromptRenderer.swift)
+wrap a base GGUF in an instruction conversation. The writer's name enters that preface only when
+the caret follows a valediction ([SignOffCue.swift](Cotabby/Support/Prompting/SignOffCue.swift)):
+named in every prompt, a base model introduced the writer at openings ("Hi, I'm Jacob"), addressed
+them as the recipient, and copied the preface wording into the ghost; at a sign-off the name is the
+one token wanted. The first-launch name is the Mac account's full name, never a placeholder. [FoundationModelPromptRenderer.swift](Cotabby/Support/Prompting/FoundationModelPromptRenderer.swift)
 keeps Apple's instruction-shaped prompt separate.
+
+The llama context window is 4096 tokens. `SuggestionConfiguration.derivedLlamaPromptTokenBudget`
+subtracts the output ceiling and a safety margin from it, so the prompt budget (3982 tokens) can never
+silently drift from the KV capacity the model actually has. The prefix caps (14000 characters / 2400
+words) are sized to bind at roughly the same point: raising one without the other does nothing,
+because whichever is smaller truncates the prefix to its tail and drops the early text that carries
+the setup. Both were doubled together after the recall eval showed facts stated more than ~1900
+tokens before the caret were invisible to the model.
 
 Prewarm is opportunistic and goes only to the selected backend. Context reset reaches every backend.
 The local runtime is loaded only for the Open Source engine and is released when switching to Apple
 or endpoint mode so mapped weights and Metal buffers do not stay resident unnecessarily.
+
+Two measurements happen at presentation time rather than in the focus resolver, because they read
+the host's pixels (Screen Recording) and are asynchronous:
+
+- [HostBaselineCalibrator.swift](Cotabby/Services/Presentation/HostBaselineCalibrator.swift) finds
+  the painted baseline on the caret's line. A reading is accepted only if the letter bodies it was
+  read from are the right size to be a line of this font (`describesPlausibleBodies`: body rows
+  within 0.45x-1.35x the font's ascent) and the answer sits within the policy window; otherwise the
+  policy baseline, the font's own metric, stands. Measured in a real session, one field's lines read
+  12.0 and 15.0 for the same font: both passed the policy window, and the 12.0 lines put the ghost
+  three points high. The gate is on the measurement, not a vote across lines: an earlier attempt to
+  let one line's reading speak for the whole field adopted a bad first reading and made every line
+  wrong instead of one.
+- [PixelCaretLocator.swift](Cotabby/Services/Presentation/PixelCaretLocator.swift) places the caret
+  inside a paragraph the host exposes only as one union-framed run with no answer to any bounds
+  query (Obsidian's CodeMirror), and in a single-line field whose caret Accessibility could only
+  estimate (Chrome's address bar answers every bounds query with a zero rect): there the field's
+  frame is the line and the caret is where its ink ends, so the ghost goes inline instead of to the
+  card. A single-line paragraph run gets the same treatment, read in its own line box widened to
+  where its text now ends: its proportional caret landed 3pt off in Obsidian, and the full
+  padding read its neighbours' ink as lines of its own. A capture cannot see the run under
+  Cotabby's own ghost (the excluded window
+  comes back black), so while the ghost is up a re-anchor for text typed since the run's last
+  capture carries that caret forward by the typed advance (`extrapolatedMeasurement`), and
+  anything else takes the ghost down for the read; re-anchoring to the Accessibility estimate
+  instead put the ghost four lines up on every other keystroke.
+  [InkCaretAnalyzer.swift](Cotabby/Support/Presentation/Geometry/InkCaretAnalyzer.swift)
+  finds the inked lines in a capture of the run's frame; the caret is the end of the last line, the
+  pitch is the distance between line tops, and the line box is the frame height less the pitch per
+  extra line. Only a caret at the end of its paragraph is measured; a caret inside one keeps the
+  card. `OverlayController` holds the first presentation for a paragraph text until the capture
+  answers (tens of milliseconds) and reuses it for every later presentation of that text.
 
 ## Context, Privacy, and Permissions
 
@@ -268,6 +329,11 @@ Context sources are independently enabled and bounded: recent AX prefix/trailing
 metadata, user rules/extended context, relevant clipboard content, visual OCR, language, and settings.
 [PromptContextSanitizer.swift](Cotabby/Support/Context/PromptContextSanitizer.swift) sanitizes optional text,
 and prompt renderers apply per-section budgets.
+
+Whether any of that context survives into the completion is measured, not assumed:
+`CotabbyTests/Fixtures/llama-recall-cases.json` hides a fact in each context source (same-field text,
+screen OCR, clipboard) and requires the completion to reproduce it. It is reported separately from the
+continuation suite because averaging the two lets fluent prose hide a total failure to use context.
 
 [ClipboardContextProvider.swift](Cotabby/Services/Context/ClipboardContextProvider.swift) reads a
 fresh bounded value at request time rather than recording clipboard history. Relevance and distillation
@@ -309,6 +375,64 @@ Automatic presentation uses inline ghost text for exact/derived caret geometry a
 estimated/layout-estimated geometry, mid-line editing, or explicit user preference. The overlay can
 match host font/color, render corrections distinctly, respect right-to-left and multiline layout,
 show an acceptance hint, and advance a partial tail without waiting for noisy AX geometry.
+
+Inline ghost text is built to occupy the pixels the accepted text will occupy:
+
+- [GhostFontResolver.swift](Cotabby/Support/Presentation/Style/GhostFontResolver.swift) picks the
+  host's face and size from the field's reported style, from a measured width sample
+  ([HostTextMetricsProbe.swift](Cotabby/Services/Focus/Resolution/HostTextMetricsProbe.swift); a host
+  that answers no width query gets one from how far its caret moves as the user types,
+  [CaretAdvanceSampler.swift](Cotabby/Support/Focus/CaretAdvanceSampler.swift), because a Chromium
+  size is CSS pixels that know nothing of page or Electron zoom: the Claude composer reported 14
+  and painted 15.4), or from the host's own pixels
+  ([TypefaceMatcher.swift](Cotabby/Support/Presentation/Style/TypefaceMatcher.swift))
+  when the host names no face. Every capture is snapped to whole device pixels first: a fractional
+  edge makes ScreenCaptureKit resample the image and the blurred glyphs correlate with nothing. The pixel match searches size as well as face (a caret-box size is
+  a guess: Obsidian's 16px body arrived as 17 and 20, and a face matched at the wrong size is
+  confidently wrong), carries every candidate to its exact size (the correlation drops from 0.95
+  to 0.66 a sixth of a point away, and a wrong face at a lucky size outscores the true face at a
+  grid point), marks down a candidate whose letter bodies are not the height the host
+  painted, prefers the system face on a near tie, and declines on too little ink. The size it
+  keeps is then fitted to the host's glyph positions alone, the chosen face rendered once and
+  stretched about the caret (`advanceFitted`): shape scoring picked Chrome's 18px Georgia at
+  18.054, a ghost two device pixels long by a line's end, while the positions put it at 18. An
+  Electron host's own bundled faces join the candidates
+  ([HostBundledFontRegistry.swift](Cotabby/Services/Presentation/HostBundledFontRegistry.swift)
+  registers its TrueType/OpenType files for this process alone), which is how Claude's composer
+  can be drawn in Anthropic Sans rather than a stand-in. The calibrator
+  keeps one record per field, replaced only when a later strip's winner beats the recorded face on
+  that same strip; scores from different strips are not comparable. A reported size stands when the
+  caret box is shorter than its glyphs (VS Code's hidden textarea reports 8.5pt boxes for 14pt text).
+- [GhostBaselinePolicy.swift](Cotabby/Support/Presentation/Geometry/GhostBaselinePolicy.swift) places
+  the baseline the way TextKit or Blink/WebKit would inside the caret box;
+  [HostBaselineCalibrator.swift](Cotabby/Services/Presentation/HostBaselineCalibrator.swift) measures a
+  web host's painted baseline from a small screen capture (Screen Recording permitting) to recover
+  the sub-point line position Accessibility rounds away.
+- [GhostTextLayout.swift](Cotabby/Support/Presentation/Geometry/GhostTextLayout.swift) lays rows out
+  from the caret with CTTypesetter inside the band
+  [GhostWrapBandPolicy.swift](Cotabby/Support/Presentation/Geometry/GhostWrapBandPolicy.swift) derives
+  from the element's real frame, one row per host line at the measured line pitch (the probe scans
+  single-character bounds for the nearest other line when a host's line APIs give none, as Chromium's
+  do; sibling text runs give it for CodeMirror; the caret box height stands in until a field has a
+  second line). A row is never placed over the host's own text: with the host's lines below the
+  caret the ghost keeps to the caret row and reveals the rest as it is accepted, and a caret with
+  characters after it on its line gets the card under the caret from
+  [CompletionRenderModePolicy.swift](Cotabby/Support/Presentation/Policy/CompletionRenderModePolicy.swift)
+  (an opaque band in the field's background color was tried and read as the suggestion overwriting
+  the user's text). Accepted or typed-through text only advances a consumed offset, so remaining
+  glyphs never move. [GhostTextPanelView.swift](Cotabby/Services/Presentation/GhostTextPanelView.swift)
+  draws the rows with CoreText on a whole-point panel origin.
+- While the host shows uncommitted text of its own (macOS inline predictive text, an IME
+  composition; [HostMarkedTextPolicy.swift](Cotabby/Support/Input/HostMarkedTextPolicy.swift)) the
+  coordinator holds: no generation, no ghost, session kept. Chromium's address bar completes inline
+  and leaves the completion selected; the resolver strips that selection from the text and treats
+  the completion as the host's marked text, so the hold covers it too and its ink is never read as
+  the caret line's end.
+- Editors that expose a whole wrapped paragraph as one text run (CodeMirror in Obsidian) get their
+  caret from a layout of that paragraph inside the run's own frame at the sibling runs' pitch
+  (`WrappedRunAnchor`, laid out by
+  [TextLayoutCaretEstimator.swift](Cotabby/Support/Presentation/Geometry/TextLayoutCaretEstimator.swift)
+  in the coordinator's repair step); whitespace-only spacer runs never anchor the caret mapping.
 
 [ActivationIndicatorController.swift](Cotabby/Services/Presentation/ActivationIndicatorController.swift) owns
 the optional field/caret indicator. [FocusDebugOverlayController.swift](Cotabby/Services/Presentation/FocusDebugOverlayController.swift)

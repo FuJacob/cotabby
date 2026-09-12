@@ -108,6 +108,12 @@ extension SuggestionCoordinator {
             return
         }
 
+        // The host is showing its own inline prediction or composing text: keep any live session,
+        // but neither reconcile against, generate from, nor paint over the host-owned span.
+        if updateHostMarkedTextHold(for: snapshot) {
+            return
+        }
+
         // Start capturing visual context for newly focused input. Gated like the focus-change path
         // (and skipped in fast mode) so this entry point never kicks off screenshot/OCR work that the
         // earlier `shouldCaptureVisualContext` check already declined.
@@ -142,6 +148,12 @@ extension SuggestionCoordinator {
             clearSuggestion(clearDiagnostics: true)
             hideOverlay(reason: "Overlay hidden because the focused field changed.")
             state = .idle
+            // Adopt the new field now. The comparison above reads the context the last generation
+            // materialized, so without this every snapshot in the new process kept reading as a
+            // field change and the cancel above killed each pending generation before it could
+            // run (measured live: switching from Chrome to Obsidian left Cotabby silent until the
+            // next app switch).
+            _ = interactionState.materializeContext(from: focusedContext)
             // The user is now on a new editable surface and is likely to type soon. Prime the
             // selected engine in the background so weight loading and instruction tokenization
             // happen before the first real `respond` instead of inside its critical path. The
@@ -401,6 +413,15 @@ extension SuggestionCoordinator {
                 return false
             }
 
+            CotabbyLogger.suggestion.debug(
+                "Typed text did not match the suggestion",
+                metadata: [
+                    "stage": .string("typed-mismatch"),
+                    "typed": .string(event.characters),
+                    "expected": .string(String(session.remainingText.prefix(24))),
+                    "consumed": .stringConvertible(session.consumedCharacterCount)
+                ]
+            )
             invalidateActiveSuggestion(
                 reason: SuggestionSessionReconciler.overlayHideReason(for: event),
                 clearDiagnostics: false
