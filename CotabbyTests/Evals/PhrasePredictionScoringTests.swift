@@ -14,7 +14,7 @@ final class PhrasePredictionScoringTests: XCTestCase {
             let checkpoints = PhrasePredictionScorer.checkpoints(for: phrase, mode: .word)
             XCTAssertEqual(checkpoints.count, words.count - 1)
             for checkpoint in checkpoints {
-                XCTAssertTrue(phrase.text.hasPrefix(checkpoint.prefix + checkpoint.expectedWord))
+                XCTAssertTrue(((phrase.scenario?.documentPrefix ?? "") + phrase.text).hasPrefix(checkpoint.prefix + checkpoint.expectedWord))
             }
         }
     }
@@ -114,6 +114,35 @@ final class PhrasePredictionScoringTests: XCTestCase {
         XCTAssertEqual(decoded.metadata.mode, .character)
         XCTAssertEqual(decoded.phrases[1].observations.last?.shown, "at")
         XCTAssertTrue(decoded.rendered().contains("25.00%"))
+    }
+
+    func testPairedContextScoresDoNotMixDenominatorsAndRetainRegressions() throws {
+        let other = PhrasePredictionCorpus.Phrase(id: "b", category: "science", text: "The cat sleeps.")
+        let results = [
+            PhrasePredictionReport.PhraseResult(phrase: phrase(), observations: [observation(nil), observation("cat")], condition: .none),
+            PhrasePredictionReport.PhraseResult(phrase: phrase(), observations: [observation("cat"), observation(nil)], condition: .screen),
+            PhrasePredictionReport.PhraseResult(phrase: other, observations: [observation(nil)], condition: .none),
+            PhrasePredictionReport.PhraseResult(phrase: other, observations: [observation("cat")], condition: .screen)
+        ]
+        let report = PhrasePredictionReport(metadata: metadata(), phrases: results)
+        XCTAssertEqual(report.suite.phraseCount, 2)
+        XCTAssertEqual(report.suite.nextWord.checkpoints, 3)
+        XCTAssertEqual(report.suite.nextWord.correct, 2)
+        XCTAssertEqual(report.conditions["none"]?.suite.nextWord.correct, 1)
+        let lift = try XCTUnwrap(report.contextLift)
+        XCTAssertEqual(lift.suiteAccuracyDelta, 1.0 / 3.0, accuracy: 0.0001)
+        XCTAssertEqual(lift.byCategory["science"], 1)
+        XCTAssertEqual(lift.byPhrase["a"], 0)
+        XCTAssertEqual(lift.improvedCheckpoints, 2)
+        XCTAssertEqual(lift.regressedCheckpoints, 1)
+        XCTAssertEqual(report.primaryCondition, .screen)
+    }
+
+    func testUnpairedOrMismatchedCheckpointsHaveNoContextLift() {
+        let none = PhrasePredictionReport.PhraseResult(phrase: phrase(), observations: [observation(nil)], condition: .none)
+        let screen = PhrasePredictionReport.PhraseResult(phrase: phrase(), observations: [observation("at", typed: "c")], condition: .screen)
+        XCTAssertNil(PhrasePredictionReport(metadata: metadata(), phrases: [none]).contextLift)
+        XCTAssertNil(PhrasePredictionReport(metadata: metadata(), phrases: [none, screen]).contextLift)
     }
 
     private func phrase(_ text: String = "The cat naps.") -> PhrasePredictionCorpus.Phrase {

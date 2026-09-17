@@ -26,6 +26,16 @@ class PhraseEvalCLITests(unittest.TestCase):
         _, phrases = eval_cli.read_selection(args)
         self.assertEqual([p['id'] for p in phrases], ['science-001', 'science-002'])
 
+    def test_balanced_scenario_selection_and_distinct_screen_inputs(self):
+        args = argparse.Namespace(category=None, phrase=None, limit=None, per_category=2)
+        _, phrases = eval_cli.read_selection(args)
+        self.assertEqual(len(phrases), 14)
+        self.assertEqual(len({p['scenario']['screenText'] for p in phrases}), 14)
+        self.assertTrue(all(p['scenario']['screenText'] for p in phrases))
+        args.per_category = 0
+        with self.assertRaises(ValueError):
+            eval_cli.read_selection(args)
+
     def test_invalid_selection_does_not_run_a_different_suite(self):
         for phrase, limit in [('nonexistent', None), (None, 0), (None, -1)]:
             args = argparse.Namespace(category=None, phrase=phrase, limit=limit)
@@ -48,7 +58,7 @@ class PhraseEvalCLITests(unittest.TestCase):
         after['metadata']['model'] = 'another.gguf'
         after['metadata']['configuration'] = {'temperature': '0.2'}
         self.assertEqual(len(eval_cli.comparison_rows(before, after)), 3)
-        for field, value in [('mode', 'character'), ('corpusSHA256', 'other'), ('seed', 43)]:
+        for field, value in [('mode', 'character'), ('corpusSHA256', 'other'), ('seed', 43), ('contextMode', 'paired')]:
             after = copy.deepcopy(before)
             after['metadata'][field] = value
             with self.assertRaisesRegex(ValueError, field):
@@ -65,7 +75,7 @@ class PhraseEvalCLITests(unittest.TestCase):
         with self.assertRaises(ValueError):
             eval_cli.comparison_rows(before, after)
         after = copy.deepcopy(before)
-        after['suite']['all']['errors'] = 1
+        after['errorCount'] = 1
         with self.assertRaisesRegex(ValueError, 'errors'):
             eval_cli.comparison_rows(before, after)
 
@@ -84,13 +94,14 @@ class PhraseEvalCLITests(unittest.TestCase):
     def report():
         metrics = {'accuracy': 0.5, 'coverage': 1, 'precisionWhenShown': 0.5, 'errors': 0}
         return {
-            'schemaVersion': 1,
-            'metadata': {'corpusSHA256': 'abc', 'mode': 'word', 'seed': 42, 'model': 'test.gguf', 'configuration': {}},
+            'schemaVersion': 2, 'errorCount': 0,
+            'metadata': {'corpusSHA256': 'abc', 'mode': 'word', 'seed': 42, 'contextMode': 'none', 'model': 'test.gguf', 'configuration': {}},
             'suite': {'nextWord': dict(metrics), 'all': dict(metrics)},
             'categories': {'science': {'nextWord': dict(metrics)}},
+            'conditions': {'none': {'suite': {'nextWord': dict(metrics)}, 'categories': {'science': {'nextWord': dict(metrics)}}}},
             'meanCategoryNextWordAccuracy': 0.5,
             'phrases': [{'phrase': {'id': 'science-001', 'category': 'science', 'text': 'Water freezes here.'},
-                         'observations': [{'checkpoint': {'prefix': 'Water ', 'expectedWord': 'freezes'}}],
+                         'condition': 'none', 'observations': [{'checkpoint': {'prefix': 'Water ', 'expectedWord': 'freezes'}}],
                          'nextWord': dict(metrics)}],
         }
 

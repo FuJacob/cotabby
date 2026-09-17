@@ -1,171 +1,189 @@
-# Next-word phrase benchmark
+# Contextual next-word benchmark
 
-This harness replays **1,337 fixed English phrases** through Cotabby's local llama prediction
-path. It scores each prediction, each phrase, each category, and the whole suite. Use it to compare
-prompt, normalization, suppression, sampling, and model changes against the same intended text.
-
-The original synthetic corpus has **191 individually written phrases per category**:
+The harness replays **1,337 synthetic English writing scenarios**, with **191 per category**:
 conversation, science, entertainment, work, technology, everyday life (`everyday`), and travel.
-It uses familiar English constructions, but is not a frequency-ranked or statistically representative
-sample. No private user text or online source material was used. Provenance lives in the corpus.
+Each scenario pairs a target phrase with individually authored visible screen information. The
+screen includes surrounding interface text and unrelated material, not just a category label.
+
+For example, a lab note records ice forming at a thermometer reading of 0 Celsius while the writer
+types “Water freezes at zero degrees Celsius.” A hotel message gives Friday-to-Sunday dates while
+the writer types “I'd like to book a room for two nights.” Neither screen contains the complete
+reference sentence. Facts and individual answer words can naturally occur on screen: using them
+is the behavior being measured.
+
+These are **synthetic screen-text fixtures**, not screenshots or captured user data. They exercise
+Cotabby's production OCR cleanup, excerpt selection, request construction, prompt budgets, local
+llama generation, normalization, and final display guard. They do not exercise screenshot capture,
+Vision recognition, Accessibility, actual keyboard events, overlay rendering, or typing latency.
 
 ## Run
 
-From the repository root, preview the workload without building or loading a model:
+From the repository root, inspect the workload without loading a model:
 
 ```sh
 python3 scripts/phrase_eval.py plan
-# 1,337 phrases; 7,437 next-word checkpoints
+# 1,337 scenarios; 14,874 predictions across both screen conditions
 
 python3 scripts/phrase_eval.py plan --mode character
-# 35,378 checkpoints, including the same 7,437 word boundaries
+# 70,756 predictions across both screen conditions
 ```
 
-Run the full suite using a downloaded local GGUF:
+Start with a **balanced smoke run** before running the full corpus:
 
 ```sh
+python3 scripts/phrase_eval.py run --model /absolute/path/to/model.gguf \
+  --per-category 2 --label contextual-smoke
+# 14 scenarios; 140 predictions
+
 python3 scripts/phrase_eval.py run --model /absolute/path/to/model.gguf --label baseline
 ```
 
-Omit `--model` to use the app runtime's model selection. The harness does not download models.
-It requires macOS, Xcode, and the normal project dependencies. It currently evaluates the local
-llama backend; it does not use Apple Intelligence or an endpoint.
-
-Start with a small selection when validating a code change:
+The default `--context paired` executes each scenario both with and without screen OCR text.
+Other useful selections:
 
 ```sh
-python3 scripts/phrase_eval.py run --model /absolute/path/to/model.gguf --limit 3 --label smoke
-python3 scripts/phrase_eval.py run --model /absolute/path/to/model.gguf --category science --label science-baseline
-python3 scripts/phrase_eval.py run --model /absolute/path/to/model.gguf --phrase conversation-001 --mode character
+python3 scripts/phrase_eval.py run --model /absolute/path/to/model.gguf --category science
+python3 scripts/phrase_eval.py run --model /absolute/path/to/model.gguf \
+  --phrase travel-001 --mode character
+python3 scripts/phrase_eval.py run --model /absolute/path/to/model.gguf --context screen
+python3 scripts/phrase_eval.py run --model /absolute/path/to/model.gguf --context none
 ```
 
-`--limit` takes the first N phrases **after** filtering; it is for smoke tests, not a balanced sample.
-`--output /absolute/new/directory` chooses a results directory. Existing directories are rejected
-to avoid overwriting baselines. If you use a workspace with a local CotabbyInference checkout, add
-`--workspace build/CotabbyDevelopment.xcworkspace` (create that workspace through the repository's
-existing inference workspace setup first).
+`--per-category N` takes the first N scenarios within each selected category. `--limit N` truncates
+that selection globally; it is not a balanced sample. `--output /absolute/new/directory` selects a
+new results directory. Existing directories are rejected to protect previous runs.
 
-The CLI builds Release with testability and `RUN_LLAMA_EVAL`, then injects the selection and model
-path into a temporary `.xctestrun` file. Exporting arbitrary environment variables before
-`xcodebuild` is insufficient for this app-hosted test. Both the compile flag and the explicit
-`COTABBY_PHRASE_EVAL=1` test-host switch are required, so ordinary tests and the older live evals
-do not accidentally execute the full corpus.
+Omit `--model` to use the app runtime's model selection. Nothing is downloaded automatically.
+This currently evaluates the local llama backend, with a fixed sampling seed of 42 and otherwise
+product generation defaults. It requires macOS, Xcode, and the project's usual dependencies.
+For a workspace with a local CotabbyInference checkout, add
+`--workspace build/CotabbyDevelopment.xcworkspace` after creating that workspace through the
+repository's existing setup tooling.
 
-Builds use `build/DerivedData`. Xcode signing/Team ID restrictions may prevent an unsigned app-hosted
-test from launching on some machines; the command preserves the exact failure in `test.log`.
-After all runs are finished and no other build is using it, remove `build/DerivedData`; results
-remain separately under `build/eval/phrases/`.
+The CLI builds Release with testability and `RUN_LLAMA_EVAL`, then supplies configuration through
+an `.xctestrun` file. Ordinary tests do not run inference: both the compile flag and the explicit
+`COTABBY_PHRASE_EVAL=1` test-host switch are required. All build output goes into
+`build/DerivedData`; remove that directory after the runs finish and no other build needs it.
+Reports remain under `build/eval/phrases/`. Xcode build/launch failures are retained in the run logs.
 
-## What "typing" means
+## Inputs and controls
 
-For `Please send the report.`, word mode asks for predictions after `Please `, `Please send `,
-and `Please send the `. The targets are `send`, `the`, and `report`.
+Each corpus record contains:
 
-Character mode also asks after `Please s`, `Please se`, `Please sen`, and so on. At `Please se`,
-the continuation `nd the report` correctly completes `send`; ` nd` and `nder` do not.
+- A stable ID, category, and reference phrase.
+- A screen kind, application/bundle identity, window title, and focused-field placeholder.
+- `screenText`: a visible chat, email, reference note, support discussion, or travel message,
+  plus interface text and unrelated content.
+- `documentPrefix`: text already present in the focused field for some scenarios.
 
-The first word provides context and is not scored. The harness waits for each final result, then
-advances through the **reference phrase regardless of the prediction**. The next request receives
-only the text typed so far. Future text, phrase IDs, and category labels are never passed to the model.
-This is often called teacher-forced replay: errors cannot change the rest of the test input.
+A checkpoint's input is the existing draft plus the portion of the reference phrase typed so far.
+Future words, the category label, and the reference phrase as a whole are never supplied to the
+request adapter. The first word of the phrase supplies context and is not scored; words in the
+existing draft are not scored either.
 
-Each phrase starts with a reset prompt cache. Within a phrase, one engine retains its cache as the
-prefix grows. The runner uses production request construction, the real local engine, output
-normalization, and the final spelling/seam display guard. Clipboard, screen, profile, custom rules,
-and trailing context are absent. Sampling uses product defaults with a fixed seed of 42. The
-product's default word-count preset determines the generation budget; scoring examines only the
-first resulting word.
+The **none** condition keeps the same existing draft and app/title/field metadata but supplies no
+screen OCR excerpt. The **screen** condition adds synthetic high-confidence OCR lines with fixed
+geometry above the input field. The current typed text is included as an OCR echo so the real
+field-text stripping policy is exercised. Production cleanup, selection, sanitization, and prompt
+budgets still apply. This measures the incremental value of visible screen text beyond the active
+field and surface metadata, rather than comparing unrelated prompts.
 
-This measures final display-eligible prediction quality, not actual keystroke injection, Accessibility,
-overlay pixels, debounce, streaming latency, or acceptance-tail reuse. Keep using
-`LlamaTypingSessionEvalTests` for timing and cancellation scenarios.
+The cache is reset before every scenario-condition replay. Condition order alternates to reduce
+warmup/thermal bias. One engine retains its prompt cache as the phrase grows within a condition.
+The replay waits for final output, then advances through the **reference text regardless of the
+prediction**. A wrong prediction therefore cannot change later checkpoints. Clipboard, profile,
+and custom rules are disabled. Use `LlamaTypingSessionEvalTests` separately for timing, streaming,
+acceptance, and cancellation behavior.
 
-## Scoring
+In word mode, `Please send the report.` produces targets `send`, `the`, and `report` at their word
+boundaries. Character mode additionally tests `Please s`, `Please se`, and `Please sen`. Completing
+`se` with `nd` succeeds; ` nd` or `nder` does not. Partial-word accuracy is reported separately from
+zero-letter next-word accuracy.
 
-At every checkpoint, a correct complete next word earns **1**, anything else earns **0**.
-Suppression, empty text, and inference errors remain in the denominator. A plausible synonym
-still misses the intended word: this is exact prediction accuracy, not a semantic quality judge.
+## Scores
 
-Matching folds case and curly/straight apostrophes and ignores punctuation after the first complete
-word. Internal apostrophes and hyphens remain significant. It never searches later in the output
-for the expected word. `cat` does not match `catalog`, `cats`, `cat's`, or `ca`; `don't` does not
-match `dont`. Whitespace inserted inside a partially typed word is a miss.
+Every correct complete next word earns **1**, every other outcome earns **0**. Empty output,
+suppression, and inference errors remain in the denominator. A plausible synonym is still a miss:
+this measures prediction of the intended wording, not general semantic quality.
+
+Matching ignores case and terminal punctuation and normalizes curly/straight apostrophes. Internal
+apostrophes and hyphens remain significant. `cat` does not match `catalog`, `cats`, `cat's`, or `ca`;
+`don't` does not match `dont`. Leading wrong words or broken spacing at the caret cannot be skipped.
+
+For **each phrase, each category, and the suite**, each condition reports:
 
 | Metric | Meaning |
 | --- | --- |
-| Next-word accuracy | Correct word-boundary predictions / all word-boundary checkpoints. Main score. |
-| Coverage | Nonempty display-eligible predictions / all checkpoints. |
-| Precision when shown | Correct predictions / shown predictions; unavailable when nothing was shown. |
-| All-checkpoint accuracy | Includes partially typed words in character mode. Reported separately. |
-| Mean phrase accuracy | Each phrase receives equal weight, regardless of length. |
-| Mean category accuracy | Each category's pooled next-word accuracy receives equal weight. |
-| Latency p50/p95 | Monotonic time for final generation plus the display guard; excludes gated requests and errors. |
+| Next-word accuracy | Correct zero-letter predictions divided by all word-boundary checkpoints. |
+| Coverage | Nonempty display-eligible predictions divided by all checkpoints. |
+| Precision when shown | Correct predictions divided by shown predictions. |
+| All-checkpoint accuracy | Also includes partially typed words in character mode. |
+| Mean phrase accuracy | Gives each phrase equal weight regardless of length. |
+| Mean category accuracy | Gives each category's pooled next-word accuracy equal weight. |
+| Latency p50/p95 | Final generation plus display guard, excluding gated requests and errors. |
 
-Phrase, category, and suite `nextWord` aggregates use only zero-letter checkpoints. Their `all`
-aggregates include every requested checkpoint. The suite's pooled score weights each target word
-equally. JSON rates are fractions from 0 to 1; console rates are percentages. Missing metrics are
-omitted in JSON and displayed as `n/a`, never replaced with a fabricated zero.
+Paired runs additionally report **screen-context lift**: screen accuracy minus no-screen accuracy,
+at phrase, category, and suite levels. They also count checkpoints that changed from wrong to right
+and from right to wrong. Negative lift is a useful result: the context may be distracting or may
+not be surviving selection/prompting effectively.
 
-No accuracy threshold is imposed yet: establish a baseline first. Inference errors are recorded as
-misses and make the test fail after the report is saved. The comparator refuses errored runs.
+Top-level `suite` and `categories` describe the screen condition when present, otherwise none.
+`conditions` contains separate aggregates for both. `phrases` contains one record per phrase per
+executed condition, tagged by `condition`. Denominators never mix the two conditions.
+`contextLift` is present only for complete matching pairs. JSON accuracy and lift values are
+fractions; printed accuracy is a percentage and printed lift is percentage points. Undefined
+metrics are omitted from JSON and shown as `n/a`, never fabricated as zero.
+
+Inference errors fail the test after the report is written. Accuracy has no hard threshold yet;
+establish baselines before adding a quality gate.
 
 ## Inspect and compare
 
-Each run creates a unique directory containing:
+A run creates:
 
-- `report.json`: complete observations and phrase/category/suite scores, model and corpus hashes,
-  configuration, and measurement scope.
-- `summary.txt`: readable category and suite scores.
-- `phrases.jsonl`: one durable record per completed phrase, useful if a long run is interrupted.
-- `metadata.json`: execution identity written before inference begins.
-- `manifest.json` and `working-tree.patch`: requested selection, git revision/status, and tracked
-  working-tree changes. Untracked file contents are not included in the patch.
-- `build.log` and `test.log`: Xcode output, including per-phrase progress.
-
-The complete `report.json` only appears after the entire requested selection finishes. A partial
-journal cannot masquerade as a full-suite result. Model loading, model hashing, and building are
-outside the checkpoint latency measurements.
+- `report.json`: observations, per-condition scores, paired lifts, corpus/model hashes and settings.
+  Each observation includes expected/predicted words, correctness, raw/display output, suppression,
+  the cleaned screen excerpt, and the final request prompt.
+- `summary.txt`: readable suite/category scores and paired lifts.
+- `phrases.jsonl`: durable records for completed phrase-condition replays. Interrupted runs retain
+  these records, but do not produce a complete `report.json`.
+- `metadata.json`: execution identity written before inference.
+- `manifest.json` and `working-tree.patch`: selection, git revision/status, and tracked code changes.
+  Untracked file contents are not included in the patch.
+- `build.log` and `test.log`: build output and per-phrase progress.
 
 ```sh
-python3 scripts/phrase_eval.py compare \
-  build/eval/phrases/BASELINE/report.json \
-  build/eval/phrases/CANDIDATE/report.json
-```
-
-The comparison prints percentage-point changes for the suite, every category, and every phrase.
-It rejects different corpus hashes, modes, seeds, phrase selections, or checkpoint sequences.
-Model/configuration differences are displayed because those are intentional tuning dimensions.
-Use the same hardware and a quiet machine for latency comparisons. A fixed seed improves
-repeatability but does not promise identical outputs across native runtime/hardware versions.
-
-Inspect an individual miss without running inference again:
-
-```sh
+python3 scripts/phrase_eval.py compare path/to/baseline/report.json path/to/candidate/report.json
 jq '.phrases[] | select(.phrase.id == "science-001")' path/to/report.json
+jq '.contextLift' path/to/report.json
 jq '.phrases[].observations[] | select(.correct == false)' path/to/report.json
 ```
 
-The corpus is a development benchmark. Improvements here should also be checked against separate,
-unseen writing rather than repeatedly tailoring prompts to these exact phrases. If wording or
-grouping changes, treat the changed corpus hash as a new baseline.
+Comparison requires the same corpus hash, checkpoint mode, context mode, seed, and scenario/condition
+selection. It reports changes for each condition and phrase, plus paired lift. Model/configuration
+changes are printed as intentional tuning dimensions. Corpus/report schema version 2 distinguishes
+these contextual results from the earlier context-free prototype.
 
-## Code boundaries
+The corpus is a development fixture, not a frequency-ranked or representative writing sample.
+Context supplies evidence and intent but does not make every next word uniquely determined. Test
+improvements on unseen writing too. A fixed seed improves repeatability without guaranteeing
+identical results across native runtime or hardware versions; use the same quiet machine when
+comparing latency.
 
-- `CotabbyTests/Fixtures/phrase-prediction-1337.json` owns the versioned dataset and stable IDs.
-- `CotabbyTests/Evals/PhrasePredictionScoring.swift` owns corpus validation, prefix checkpoints,
-  exact matching, and hierarchical reports. It has no inference or XCTest dependency.
-- `CotabbyTests/Evals/PhrasePredictionEvalTests.swift` owns the short-lived replay, local runtime,
-  display guard, and artifact writes. It reuses `LlamaEvalRuntime` without changing app preferences.
-- `CotabbyTests/Evals/PhrasePredictionScoringTests.swift` validates measurement rules and the corpus
-  during normal tests, without a model.
-- `scripts/phrase_eval.py` owns launch configuration and comparisons. Scoring stays in Swift so
-  the reporting tool cannot silently implement a different definition of success.
+## Code boundaries and tests
 
-Run scoring tests with the normal Cotabby test target:
+The JSON fixture owns scenarios and references. `PhrasePredictionScoring.swift` owns immutable
+values, checkpoints, matching, aggregates, and lift calculations with no inference dependency.
+`PhrasePredictionScreenContext.swift` adapts fixtures to production OCR selection and request
+construction. `PhrasePredictionEvalTests.swift` owns the temporary runtime and replay lifecycle.
+The Python CLI owns launch configuration and report comparisons; scoring remains in Swift.
+
+The model-free Swift tests validate scoring and pass **all 1,337 scenarios** through request
+construction to check that context reaches the prompt without the complete future answer.
 
 ```sh
 xcodebuild test -project Cotabby.xcodeproj -scheme Cotabby -destination 'platform=macOS' \
   -derivedDataPath build/DerivedData -only-testing:CotabbyTests/PhrasePredictionScoringTests \
-  CODE_SIGNING_ALLOWED=NO
+  -only-testing:CotabbyTests/PhrasePredictionScreenContextTests CODE_SIGNING_ALLOWED=NO
 python3 -m unittest discover -s scripts/tests -p 'test_phrase_eval.py'
 ```

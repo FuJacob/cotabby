@@ -26,6 +26,8 @@ Signing.local.xcconfig
 .venv/
 .venv-*/
 venv/
+__pycache__/
+*.py[cod]
 
 # Personal notes
 launch.txt

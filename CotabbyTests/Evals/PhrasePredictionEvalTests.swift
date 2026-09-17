@@ -33,14 +33,14 @@ final class PhrasePredictionEvalTests: XCTestCase {
         let configuration = LlamaEvalRuntime.configuration
         let settings = CotabbyTestFixtures.settingsSnapshot(
             selectedEngine: .llamaOpenSource, selectedWordCountPreset: configuration.defaultWordCountPreset,
-            isClipboardContextEnabled: false, isSurfaceContextEnabled: false,
+            isClipboardContextEnabled: false, isSurfaceContextEnabled: true,
             userName: "", isMultiLineEnabled: false
         )
         var configurationRecord = Dictionary(uniqueKeysWithValues: Mirror(reflecting: configuration).children.compactMap {
             child -> (String, String)? in
             child.label.map { ($0, String(describing: child.value)) }
         })
-        configurationRecord["settings"] = "single-line; no screen/clipboard/profile/custom rules; product word-count preset"
+        configurationRecord["settings"] = "single-line; surface metadata and prior draft fixed; synthetic OCR varies; no clipboard/profile/custom rules"
         configurationRecord["os"] = ProcessInfo.processInfo.operatingSystemVersionString
         configurationRecord["processors"] = String(ProcessInfo.processInfo.processorCount)
         let modelPath = try XCTUnwrap(manager.diagnostics.modelFilePath)
@@ -48,7 +48,7 @@ final class PhrasePredictionEvalTests: XCTestCase {
         let metadata = PhrasePredictionReport.Metadata(
             corpusSHA256: SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined(),
             corpusVersion: corpus.version, model: modelPath, seed: LlamaEvalRuntime.seed,
-            mode: options.mode, configuration: configurationRecord, runLabel: options.label
+            mode: options.mode, configuration: configurationRecord, runLabel: options.label, contextMode: options.contextMode
         )
         try FileManager.default.createDirectory(at: options.output, withIntermediateDirectories: true)
         let observationsURL = options.output.appendingPathComponent("phrases.jsonl")
@@ -65,22 +65,26 @@ final class PhrasePredictionEvalTests: XCTestCase {
         var results: [PhrasePredictionReport.PhraseResult] = []
         for (index, phrase) in selected.enumerated() {
             try Task.checkCancellation()
-            await engine.resetCachedGenerationContext()
-            var observations: [PhrasePredictionObservation] = []
-            for checkpoint in PhrasePredictionScorer.checkpoints(for: phrase, mode: options.mode) {
-                try Task.checkCancellation()
-                observations.append(try await observe(
-                    checkpoint, engine: engine, spellChecker: spellChecker,
-                    settings: settings, configuration: configuration
-                ))
+            let scenario = try XCTUnwrap(phrase.scenario)
+            // Alternating order reduces systematic warmup/thermal bias. Cache reset prevents a
+            // contextual pass from teaching its answers to the paired no-screen pass.
+            let conditions = index.isMultiple(of: 2) ? options.contextMode.conditions : Array(options.contextMode.conditions.reversed())
+            for condition in conditions {
+                await engine.resetCachedGenerationContext()
+                var observations: [PhrasePredictionObservation] = []
+                for checkpoint in PhrasePredictionScorer.checkpoints(for: phrase, mode: options.mode) {
+                    try Task.checkCancellation()
+                    observations.append(try await observe(
+                        checkpoint, scenario: scenario, condition: condition, engine: engine, spellChecker: spellChecker,
+                        settings: settings, configuration: configuration
+                    ))
+                }
+                let result = PhrasePredictionReport.PhraseResult(phrase: phrase, observations: observations, condition: condition)
+                results.append(result)
+                try journal.write(contentsOf: encoder.encode(result) + Data([0x0A]))
+                try journal.synchronize()
+                print("PHRASE \(index + 1)/\(selected.count) \(phrase.id) [\(condition.rawValue)]: \(result.nextWord.correct)/\(result.nextWord.checkpoints)")
             }
-            let result = PhrasePredictionReport.PhraseResult(phrase: phrase, observations: observations)
-            results.append(result)
-            // One durable record per completed phrase survives an interrupted long run. The
-            // complete report is written only after the requested selection has finished.
-            try journal.write(contentsOf: encoder.encode(result) + Data([0x0A]))
-            try journal.synchronize()
-            print("PHRASE \(index + 1)/\(selected.count) \(phrase.id): \(result.nextWord.correct)/\(result.nextWord.checkpoints)")
         }
         let report = PhrasePredictionReport(metadata: metadata, phrases: results)
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -88,7 +92,8 @@ final class PhrasePredictionEvalTests: XCTestCase {
         try (report.rendered() + "\n").write(to: options.output.appendingPathComponent("summary.txt"), atomically: true, encoding: .utf8)
         print(report.measurementScope)
         print(report.rendered())
-        XCTAssertEqual(report.suite.all.errors, 0, "Inference errors are recorded as misses; inspect report.json")
+        XCTAssertEqual(report.errorCount, 0, "Inference errors are recorded as misses; inspect report.json")
+        if options.contextMode == .paired { XCTAssertNotNil(report.contextLift, "Paired results must have matching checkpoints") }
         #else
         throw XCTSkip("Local phrase benchmark: use python3 scripts/phrase_eval.py run")
         #endif
@@ -96,18 +101,18 @@ final class PhrasePredictionEvalTests: XCTestCase {
 
     #if RUN_LLAMA_EVAL
     private func observe(
-        _ checkpoint: PhrasePredictionScorer.Checkpoint, engine: LlamaSuggestionEngine,
+        _ checkpoint: PhrasePredictionScorer.Checkpoint, scenario: PhrasePredictionCorpus.ScreenScenario,
+        condition: PhrasePredictionScorer.ContextCondition, engine: LlamaSuggestionEngine,
         spellChecker: CurrentWordSpellChecker, settings: SuggestionSettingsSnapshot,
         configuration: SuggestionConfiguration
     ) async throws -> PhrasePredictionObservation {
         guard SuggestionRequestFactory.shouldGenerateSuggestion(for: checkpoint.prefix) else {
             return .init(checkpoint: checkpoint, raw: "", shown: nil, suppression: "pre-generation-gate", latencyMilliseconds: 0, error: nil)
         }
-        let context = CotabbyTestFixtures.focusedInputContext(
-            applicationName: "Phrase Benchmark", bundleIdentifier: "com.cotabby.phrase-benchmark",
-            precedingText: checkpoint.prefix, trailingText: ""
+        let request = PhrasePredictionScreenContext.request(
+            checkpoint: checkpoint, scenario: scenario, condition: condition,
+            settings: settings, configuration: configuration
         )
-        let request = SuggestionRequestFactory.buildRequest(context: context, settings: settings, configuration: configuration).request
         let start = ContinuousClock.now
         func elapsed() -> Double {
             let components = start.duration(to: .now).components
@@ -129,14 +134,15 @@ final class PhrasePredictionEvalTests: XCTestCase {
                 suppression = "seam-guard"
             }
             return .init(checkpoint: checkpoint, raw: result.rawText, shown: shown, suppression: suppression,
-                         latencyMilliseconds: elapsed(), error: nil)
+                         latencyMilliseconds: elapsed(), error: nil, screenExcerpt: request.visualContextSummary, prompt: request.prompt)
         } catch is CancellationError {
             throw CancellationError()
         } catch SuggestionClientError.cancelled {
             throw CancellationError()
         } catch {
             return .init(checkpoint: checkpoint, raw: "", shown: nil, suppression: nil,
-                         latencyMilliseconds: elapsed(), error: error.localizedDescription)
+                         latencyMilliseconds: elapsed(), error: error.localizedDescription,
+                         screenExcerpt: request.visualContextSummary, prompt: request.prompt)
         }
     }
 
@@ -154,9 +160,11 @@ final class PhrasePredictionEvalTests: XCTestCase {
     /// Invalid filters fail loudly instead of silently reporting an empty or different suite.
     private struct Options {
         let mode: PhrasePredictionScorer.Mode
+        let contextMode: PhrasePredictionScorer.ContextMode
         let category: String?
         let phraseID: String?
         let limit: Int?
+        let perCategory: Int?
         let output: URL
         let label: String
 
@@ -165,12 +173,20 @@ final class PhrasePredictionEvalTests: XCTestCase {
                 throw Self.invalid("Mode must be word or character")
             }
             self.mode = mode
+            guard let contextMode = PhrasePredictionScorer.ContextMode(rawValue: environment["COTABBY_PHRASE_CONTEXT"] ?? "paired") else {
+                throw Self.invalid("Context must be none, screen, or paired")
+            }
+            self.contextMode = contextMode
             category = environment["COTABBY_PHRASE_CATEGORY"]
             phraseID = environment["COTABBY_PHRASE_ID"]
             if let raw = environment["COTABBY_PHRASE_LIMIT"] {
                 guard let value = Int(raw), value > 0 else { throw Self.invalid("Limit must be a positive integer") }
                 limit = value
             } else { limit = nil }
+            if let raw = environment["COTABBY_PHRASE_PER_CATEGORY"] {
+                guard let value = Int(raw), value > 0 else { throw Self.invalid("Per-category count must be positive") }
+                perCategory = value
+            } else { perCategory = nil }
             guard let path = environment["COTABBY_PHRASE_OUTPUT"], path.hasPrefix("/") else {
                 throw Self.invalid("An absolute output directory is required")
             }
@@ -179,7 +195,12 @@ final class PhrasePredictionEvalTests: XCTestCase {
         }
 
         func select(_ phrases: [PhrasePredictionCorpus.Phrase]) throws -> [PhrasePredictionCorpus.Phrase] {
-            let filtered = phrases.filter { (category == nil || $0.category == category) && (phraseID == nil || $0.id == phraseID) }
+            var counts: [String: Int] = [:]
+            let filtered = phrases.filter {
+                guard (category == nil || $0.category == category) && (phraseID == nil || $0.id == phraseID) else { return false }
+                counts[$0.category, default: 0] += 1
+                return perCategory == nil || counts[$0.category, default: 0] <= (perCategory ?? 0)
+            }
             guard !filtered.isEmpty else { throw Self.invalid("No phrases matched the selection") }
             return Array(filtered.prefix(limit ?? filtered.count))
         }
