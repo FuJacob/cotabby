@@ -91,7 +91,8 @@ Cotabby/
 │   │   ├── Hardware/                 device capability and resource sampling
 │   │   ├── BundledRuntimeLocator.swift
 │   │   ├── DecodeStopPolicy.swift
-│   │   └── DownloadOutcomeClassifier.swift
+│   │   ├── DownloadOutcomeClassifier.swift
+│   │   └── TokenHealingBuffer.swift  exact byte replay and lossless streamed UTF-8
 │   ├── Settings/                     persistence and settings policies
 │   ├── Spelling/                     extraction, language, SymSpell, and typo rules
 │   ├── Suggestion/
@@ -99,7 +100,7 @@ Cotabby/
 │   │   ├── Output/                   normalization, confidence, and seam cleanup
 │   │   ├── Request/                  availability, debounce, and request construction
 │   │   ├── Session/                  tail reconciliation and exhausted-tail state
-│   │   └── Streaming/                partial coalescing and monotonic text rules
+│   │   └── Streaming/                partial coalescing, monotonic text, presentation timing
 │   └── Utilities/                    small cross-subsystem value helpers
 └── UI/
     ├── Components/                   application-wide reusable views

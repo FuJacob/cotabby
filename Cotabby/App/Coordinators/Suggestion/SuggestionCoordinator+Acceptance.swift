@@ -299,6 +299,7 @@ extension SuggestionCoordinator {
         }
         if heldOverlayQuality != .layoutEstimated,
            overlayController.advanceInline(to: remainingText, insertedText: insertionChunk) {
+            recordSuggestionPresentation(context: liveContext)
             return
         }
 
@@ -422,6 +423,7 @@ extension SuggestionCoordinator {
     /// return tells that tap to pass the original key event through naturally, so no synthetic
     /// replay is needed.
     func passTabThrough(reason: String) -> Bool {
+        suggestionPresentationTiming.clear()
         let generation = latestGenerationNumber
         cancelPredictionWork()
         clearSuggestion(clearDiagnostics: true)
@@ -551,6 +553,8 @@ extension SuggestionCoordinator {
                 at: session.baseContext.caretRect,
                 context: session.baseContext
             )
+        } else {
+            recordSuggestionPresentation(context: session.baseContext)
         }
         logStage(
             "typed-match-advanced",
@@ -747,11 +751,38 @@ extension SuggestionCoordinator {
             isCorrection: isCorrection,
             resolvedFieldStyle: context.resolvedFieldStyle
         )
-        _ = overlayPresenter.present(
+        let presentationMessage = overlayPresenter.present(
             text: text,
             geometry: geometry,
             previousState: overlayState
         )
+        // An identical text/geometry update is a no-op: an old visible panel must not satisfy a
+        // new input's timing measurement. Inline advances record through the same helper below.
+        if presentationMessage != nil {
+            recordSuggestionPresentation(context: context, isCorrection: isCorrection)
+        }
+    }
+
+    /// Records an accepted presentation state update, including the cheap inline-tail path. The
+    /// controller publishes state synchronously, before any optional opacity animation completes;
+    /// this is submission latency, not a compositor timestamp or a judgment of useful text.
+    private func recordSuggestionPresentation(context: FocusedInputContext, isCorrection: Bool = false) {
+        if CotabbyDebugOptions.isEnabled, overlayState.isVisible,
+           let measurement = suggestionPresentationTiming.presented(
+               identity: FocusedInputIdentity(
+                   elementIdentifier: context.elementIdentifier,
+                   focusChangeSequence: context.focusChangeSequence
+               ),
+               at: ProcessInfo.processInfo.systemUptime
+           ) {
+            CotabbyLogger.suggestion.debug("First suggestion presentation submitted after input", metadata: [
+                "stage": "first-presentation",
+                "request_id": .string(latestRequestID ?? "req_none"),
+                "input_kind": .string(measurement.inputKind),
+                "input_to_first_presentation_ms": .stringConvertible(measurement.milliseconds),
+                "is_correction": .stringConvertible(isCorrection)
+            ])
+        }
     }
 
     /// Repairs untrustworthy caret anchors with a hidden-text-layout estimate before presentation.

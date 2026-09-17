@@ -95,6 +95,9 @@ final class SuggestionCoordinator: ObservableObject {
     /// and presentation; the value owns the stream's pure state transitions.
     var suggestionStreamingState = SuggestionStreamingState()
 
+    /// Debug-only, text-free input-to-presentation timing; no separate persistent metrics store.
+    var suggestionPresentationTiming = SuggestionPresentationTiming()
+
     /// Monotonic cancellation token for the "wait until the host publishes typed text to AX" loop.
     ///
     /// Keystrokes can arrive faster than Chromium publishes contenteditable updates. Without this

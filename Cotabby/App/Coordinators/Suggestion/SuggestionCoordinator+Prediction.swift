@@ -1039,6 +1039,7 @@ extension SuggestionCoordinator {
 
     /// Fully disables prediction, clears cached context, and updates UI messaging with the cause.
     func disablePredictions(reason: String) {
+        suggestionPresentationTiming.clear()
         // In a field that stays blocked (capability, per-app, per-domain), every keystroke routes
         // here. Once the pipeline is already torn down for this exact reason there is nothing
         // left to cancel or hide; re-running the teardown only spawns a redundant engine-reset
@@ -1064,6 +1065,7 @@ extension SuggestionCoordinator {
     /// session is field-scoped and outlives individual prediction cycles; destroying it here would
     /// force a redundant re-capture when the user starts typing again.
     func disablePredictionsPreservingVisualContext(reason: String) {
+        suggestionPresentationTiming.clear()
         if isAlreadyDisabled(for: reason) {
             return
         }

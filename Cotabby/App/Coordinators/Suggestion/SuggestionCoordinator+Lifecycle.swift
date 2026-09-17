@@ -16,6 +16,7 @@ extension SuggestionCoordinator {
     /// Cancels any pending work and detaches long-lived callbacks during shutdown.
     func stop() {
         CotabbyLogger.suggestion.info("Suggestion coordinator stopping")
+        suggestionPresentationTiming.clear()
         cancelPredictionWork()
         resetCachedGenerationContext()
         visualContextCoordinator.cancel(resetState: true)
@@ -31,6 +32,7 @@ extension SuggestionCoordinator {
     /// This prevents stale completions from the previous model from surviving the switch.
     func prepareForRuntimeModelSwitch() {
         CotabbyLogger.suggestion.info("Preparing for runtime model switch, clearing active state")
+        suggestionPresentationTiming.clear()
         cancelPredictionWork()
         resetCachedGenerationContext()
         interactionState.resetAll()

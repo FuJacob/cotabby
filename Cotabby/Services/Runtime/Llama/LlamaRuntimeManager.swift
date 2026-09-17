@@ -120,6 +120,7 @@ final class LlamaRuntimeManager: ObservableObject {
         _ = try await preparedRuntime()
 
         let core = self.core
+        let operationID = UUID()
         do {
             // `Task.detached` does not inherit the caller's cancellation, so an outer cancel
             // would otherwise leave `core.generate` running to its full prediction budget while
@@ -130,13 +131,15 @@ final class LlamaRuntimeManager: ObservableObject {
                     prompt: prompt,
                     cachedPrefixBytes: cachedPrefixBytes,
                     options: options,
+                    operationID: operationID,
                     onPartialRawText: onPartialRawText
                 )
             }
             return try await withTaskCancellationHandler {
                 // `core.generate` cooperates with cancellation by returning the partial buffer it
                 // accumulated instead of throwing, which is the right behavior for the inference
-                // layer (the KV-cache trim and lock release still need to run on the way out).
+                // layer (the abort target must clear and the lock must release on the way out;
+                // cache restoration waits until the next request's prefix is known).
                 // The manager surfaces the cancellation as a thrown `CancellationError` so the
                 // `catch` below stays reachable and so callers see the same vocabulary as a
                 // throwing path. The outer task is the one that was cancelled (that is why
@@ -149,8 +152,8 @@ final class LlamaRuntimeManager: ObservableObject {
                 // Task cancellation is only polled between sampled tokens, so an in-flight prompt
                 // prefill would otherwise run to completion while holding the autocomplete lock,
                 // making the superseding request wait out the whole stale decode. The engine-level
-                // abort interrupts the decode at its next batch chunk.
-                core.abortInFlightGeneration()
+                // flag stops before the next prompt batch; an already-submitted batch finishes.
+                core.abortInFlightGeneration(operationID: operationID)
             }
         } catch is CancellationError {
             CotabbyLogger.runtime.debug("Generation cancelled")
@@ -184,11 +187,13 @@ final class LlamaRuntimeManager: ObservableObject {
         _ = try await preparedRuntime()
 
         let core = self.core
+        let operationID = UUID()
         let task = Task.detached {
             try core.prefill(
                 prompt: prompt,
                 cachedPrefixBytes: cachedPrefixBytes,
-                options: options
+                options: options,
+                operationID: operationID
             )
         }
         try await withTaskCancellationHandler {
@@ -197,8 +202,8 @@ final class LlamaRuntimeManager: ObservableObject {
         } onCancel: {
             task.cancel()
             // A prefill is superseded the moment a real generation arrives; abort its native
-            // decode so the generation does not queue behind a warmup for a stale prompt.
-            core.abortInFlightGeneration()
+            // work between batches so generation need not wait for the entire stale prompt.
+            core.abortInFlightGeneration(operationID: operationID)
         }
     }
 

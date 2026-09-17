@@ -7,8 +7,8 @@ import Foundation
 /// "Task:" line as if it were the document, so an instruction-blob prompt would leak scaffolding into
 /// the ghost text. This renderer treats the model as a pure text continuer: persona, style, language,
 /// and supporting context are folded into a short conditioning preface (a base model conditions on
-/// description, it does not obey commands), and the caret prefix is the LAST thing in the prompt with
-/// trailing whitespace trimmed so generation begins at a clean word boundary.
+/// description, it does not obey commands), and the exact caret prefix is the LAST thing in the
+/// prompt. Spaces, line breaks, and indentation remain part of the text the model continues.
 ///
 /// Sections are character-budgeted via `PromptSectionBudget` so a large glossary, clipboard, or
 /// screen capture can never crowd out the caret text: the prefix gets top priority and a guaranteed
@@ -22,6 +22,8 @@ enum BaseCompletionPromptRenderer {
         prefixText: String,
         applicationName: String,
         userName: String?,
+        trailingText: String = "",
+        maxSuffixCharacters: Int = 192,
         customRules: [String] = [],
         extendedContext: String? = nil,
         languageInstruction: String? = nil,
@@ -31,8 +33,6 @@ enum BaseCompletionPromptRenderer {
         contextBudget: Int = defaultContextBudget,
         tokenBudget: Int? = nil
     ) -> String {
-        let trimmedPrefix = Self.trimmingTrailingWhitespace(prefixText)
-
         var sections: [PromptSection] = []
         // The surface description leads the preface: knowing the writing surface (email in Mail,
         // a chat in Slack, a document title) is the strongest situational cue a base model gets,
@@ -70,6 +70,24 @@ enum BaseCompletionPromptRenderer {
         if let screen = Self.nonEmpty(visualContextSummary) {
             sections.append(Self.contextSection("screen", "Nearby on screen: \(screen)", priority: 30, maxChars: 500))
         }
+        let followingText = String(trailingText.prefix(max(0, maxSuffixCharacters)))
+        if !followingText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            // Base models do not share a universal fill-in-the-middle token format. Describe the
+            // existing ending as quoted reference material, then leave the actual caret prefix
+            // last. Keep this changing field context after the stable preface to retain cache reuse.
+            // The whole bounded section is optional: dropping it under pressure keeps the quote
+            // delimiters intact and prevents an unfinished label from becoming completion text.
+            let followingSection = "Later in the same passage:\n“\(followingText)”"
+            sections.append(PromptSection(
+                name: "following",
+                content: followingSection,
+                priority: 80,
+                minChars: followingSection.count,
+                maxChars: followingSection.count,
+                truncation: .preserveStart,
+                preservesWhitespace: true
+            ))
+        }
         // The caret prefix: top priority so it is never starved, kept by its END (the text nearest
         // the caret), and rendered last with no label so the model continues from where the user
         // stopped. `applicationName` is intentionally not stated; app/window metadata biases a base
@@ -77,11 +95,12 @@ enum BaseCompletionPromptRenderer {
         sections.append(
             PromptSection(
                 name: "prefix",
-                content: trimmedPrefix,
+                content: prefixText,
                 priority: 100,
                 minChars: 1,
-                maxChars: max(1, trimmedPrefix.count),
-                truncation: .preserveEnd
+                maxChars: max(1, prefixText.count),
+                truncation: .preserveEnd,
+                preservesWhitespace: true
             )
         )
 
@@ -98,7 +117,7 @@ enum BaseCompletionPromptRenderer {
         } else {
             kept = PromptSectionBudget.allocate(sections, totalChars: contextBudget)
         }
-        let prefix = kept.first { $0.name == "prefix" }?.content ?? trimmedPrefix
+        let prefix = kept.first { $0.name == "prefix" }?.content ?? ""
         let preface = kept.filter { $0.name != "prefix" }.map(\.content)
 
         guard !preface.isEmpty else {
@@ -139,14 +158,5 @@ enum BaseCompletionPromptRenderer {
     private static func nonEmpty(_ text: String?) -> String? {
         let trimmed = (text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
-    }
-
-    /// Drops trailing spaces, tabs, and newlines so the base-model prompt ends at a word boundary.
-    static func trimmingTrailingWhitespace(_ text: String) -> String {
-        var view = Substring(text)
-        while let last = view.last, last.isWhitespace {
-            view = view.dropLast()
-        }
-        return String(view)
     }
 }

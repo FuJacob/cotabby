@@ -31,13 +31,17 @@ struct PromptSection: Equatable, Sendable {
     let minChars: Int
     let maxChars: Int
     let truncation: Truncation
+    /// Live editor text must retain its exact caret boundary. Reference notes normally trim their
+    /// edges, but opting in keeps spaces and newlines meaningful and counts them against the budget.
+    var preservesWhitespace = false
 }
 
 enum PromptSectionBudget {
     /// Fills sections by priority (descending, ties broken by original order for determinism) within
     /// `totalChars`. Each section is capped at `min(maxChars, contentLength, remainingBudget)`, gets
-    /// dropped if that is below its `minChars`, and gets dropped if it trims to empty. Surviving
-    /// sections are returned in their ORIGINAL order so the caller keeps control of render order
+    /// dropped if that is below its `minChars`, and gets dropped if it becomes empty. Edge whitespace
+    /// is trimmed unless the section explicitly preserves it. Surviving sections are returned in
+    /// their ORIGINAL order so the caller keeps control of render order
     /// independently of fill priority.
     static func allocate(_ sections: [PromptSection], totalChars: Int) -> [PromptSection] {
         var remaining = max(0, totalChars)
@@ -55,8 +59,7 @@ enum PromptSectionBudget {
             if cap < section.minChars {
                 continue
             }
-            let truncated = truncate(section.content, toChars: cap, mode: section.truncation)
-                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let truncated = allocatedContent(for: section, characterCap: cap)
             guard !truncated.isEmpty else {
                 continue
             }
@@ -98,8 +101,7 @@ enum PromptSectionBudget {
             if cap < section.minChars {
                 continue
             }
-            let truncated = truncate(section.content, toChars: cap, mode: section.truncation)
-                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let truncated = allocatedContent(for: section, characterCap: cap)
             guard !truncated.isEmpty else {
                 continue
             }
@@ -113,6 +115,11 @@ enum PromptSectionBudget {
         }
 
         return sections.indices.compactMap { kept[$0] }
+    }
+
+    private static func allocatedContent(for section: PromptSection, characterCap: Int) -> String {
+        let text = truncate(section.content, toChars: characterCap, mode: section.truncation)
+        return section.preservesWhitespace ? text : text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// Truncates `text` to at most `chars`, keeping the start or the end per `mode`. Returns the

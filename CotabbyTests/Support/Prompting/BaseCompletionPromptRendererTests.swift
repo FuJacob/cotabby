@@ -2,17 +2,17 @@ import XCTest
 @testable import Cotabby
 
 /// Pure-function tests for the experimental base-model prompt. The contract: no instruction
-/// preamble or standalone labels, the prefix is always the final bytes, trailing whitespace is
-/// trimmed (mid-word prefixes preserved), and persona/style/context only appear when supplied.
+/// instruction preamble, the exact caret prefix is always the final bytes, and descriptive context
+/// only appears when supplied. These tests protect the inputs to generation, not model quality.
 final class BaseCompletionPromptRendererTests: XCTestCase {
 
-    func test_bareField_returnsTrimmedPrefixOnly() {
+    func test_bareField_returnsExactPrefixOnly() {
         let prompt = BaseCompletionPromptRenderer.prompt(
             prefixText: "I am writing to ",
             applicationName: "Mail",
             userName: nil
         )
-        XCTAssertEqual(prompt, "I am writing to")
+        XCTAssertEqual(prompt, "I am writing to ")
     }
 
     func test_noInstructionPreambleOrScaffoldingLabels() {
@@ -72,14 +72,76 @@ final class BaseCompletionPromptRendererTests: XCTestCase {
         XCTAssertTrue(prompt.hasSuffix("Hi team,"))
     }
 
-    func test_trailingWhitespaceTrimmedButMidWordPreserved() {
+    func test_trailingWhitespaceAndMidWordArePreserved() {
         XCTAssertEqual(
             BaseCompletionPromptRenderer.prompt(prefixText: "doing my aft", applicationName: "X", userName: nil),
             "doing my aft"
         )
         XCTAssertEqual(
             BaseCompletionPromptRenderer.prompt(prefixText: "see you   \n", applicationName: "X", userName: nil),
-            "see you"
+            "see you   \n"
+        )
+    }
+
+    func test_budgetingPreservesParagraphBreaksAndCaretIndentation() {
+        let prefix = "Hi team,\n\nAgenda:\n\t- "
+        for tokenBudget in [nil, 100] as [Int?] {
+            let prompt = BaseCompletionPromptRenderer.prompt(
+                prefixText: prefix,
+                applicationName: "Notes",
+                userName: "Casey",
+                tokenBudget: tokenBudget
+            )
+            XCTAssertTrue(prompt.hasSuffix(prefix))
+        }
+    }
+
+    func test_followingTextIsBoundedQuotedContextBeforeExactPrefix() {
+        let prefix = "We are meeting "
+        let prompt = BaseCompletionPromptRenderer.prompt(
+            prefixText: prefix,
+            applicationName: "Mail",
+            userName: nil,
+            trailingText: " on Friday.\n\nAlready written.",
+            maxSuffixCharacters: 11
+        )
+        XCTAssertEqual(prompt, "Later in the same passage:\n“ on Friday.”\n\n" + prefix)
+        XCTAssertFalse(prompt.contains("Already written."))
+    }
+
+    func test_followingTextDropsAsAWholeWhenOnlyThePrefixFits() {
+        let prefix = "We are meeting "
+        let prompt = BaseCompletionPromptRenderer.prompt(
+            prefixText: prefix,
+            applicationName: "Mail",
+            userName: nil,
+            trailingText: " on Friday.",
+            contextBudget: prefix.count + 10
+        )
+        XCTAssertEqual(prompt, prefix, "a tight budget must not leave an incomplete context label or quote")
+    }
+
+    func test_emptyOrWhitespaceFollowingTextAddsNoPreface() {
+        for trailing in ["", "  \n\t"] {
+            let prompt = BaseCompletionPromptRenderer.prompt(
+                prefixText: "A new thought ",
+                applicationName: "Notes",
+                userName: nil,
+                trailingText: trailing
+            )
+            XCTAssertEqual(prompt, "A new thought ")
+        }
+    }
+
+    func test_zeroBudgetDoesNotRestoreAnUnboundedPrefix() {
+        XCTAssertEqual(
+            BaseCompletionPromptRenderer.prompt(
+                prefixText: "This must not escape the budget.",
+                applicationName: "Notes",
+                userName: nil,
+                contextBudget: 0
+            ),
+            ""
         )
     }
 

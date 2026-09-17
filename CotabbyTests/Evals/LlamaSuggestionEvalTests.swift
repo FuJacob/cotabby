@@ -33,15 +33,17 @@ import XCTest
 final class LlamaSuggestionEvalTests: XCTestCase {
     func test_reportEvalSuite() async throws {
         #if RUN_LLAMA_EVAL
-        let manager = LlamaRuntimeManager()
+        let manager = try LlamaEvalRuntime.makeManager()
         do {
             try await manager.prepare()
         } catch {
+            if ProcessInfo.processInfo.environment["COTABBY_EVAL_MODEL_PATH"] != nil { throw error }
             throw XCTSkip(
                 "No llama runtime available (\(error)). Download a model in the app first; " +
                 "the eval loads it from ~/Library/Application Support/Cotabby/LlamaRuntime/."
             )
         }
+        defer { manager.shutdownSync(timeoutSeconds: 5) }
         let engine = LlamaSuggestionEngine(runtimeManager: manager)
         let spellChecker = CurrentWordSpellChecker()
         let cases = try Self.loadCases()
@@ -56,7 +58,11 @@ final class LlamaSuggestionEvalTests: XCTestCase {
             results.append(result)
         }
 
-        let report = LlamaEvalReport(modelLabel: Self.modelLabel(), results: results)
+        let report = LlamaEvalReport(
+            modelLabel: manager.diagnostics.modelFilePath.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "unknown-model",
+            results: results
+        )
+        print("Sampler seed: \(LlamaEvalRuntime.seed)")
         print(report.rendered())
         try Self.writeArtifact(report)
 
@@ -104,7 +110,7 @@ final class LlamaSuggestionEvalTests: XCTestCase {
         let request = SuggestionRequestFactory.buildRequest(
             context: context,
             settings: settings,
-            configuration: .standard
+            configuration: LlamaEvalRuntime.configuration
         ).request
 
         let start = Date()
@@ -152,19 +158,6 @@ final class LlamaSuggestionEvalTests: XCTestCase {
         return try LlamaEvalCase.loadDataset(from: url)
     }
 
-    /// The model file the runtime locator would pick, for the report header. Mirrors the
-    /// preferred-name-first resolution without reaching into the manager's internals.
-    private static func modelLabel() -> String {
-        let directory = BundledRuntimeLocator.userRuntimeDirectoryURL()
-        let discovered = BundledRuntimeLocator.discoverGGUFModelURLs(in: directory)
-            .map(\.lastPathComponent)
-        for preferred in LlamaRuntimeConfiguration.default.preferredModelNames
-        where discovered.contains(preferred) {
-            return preferred
-        }
-        return discovered.first ?? "unknown-model"
-    }
-
     /// Repo-relative artifact path derived from this source file so the output lands in the
     /// gitignored build/ directory regardless of the test process working directory or this
     /// test file's nesting depth.
@@ -194,3 +187,54 @@ final class LlamaSuggestionEvalTests: XCTestCase {
     }
     #endif
 }
+
+#if RUN_LLAMA_EVAL
+/// Both real-model suites use the same explicit override. Supplying this environment variable in
+/// an xctestrun's EnvironmentVariables permits repo-local models without changing app preferences
+/// or copying assets into the user's Library. Xcode does not forward arbitrary shell variables to
+/// the app-hosted runner, so merely exporting the variable before xcodebuild is insufficient.
+@MainActor
+enum LlamaEvalRuntime {
+    static let seed: UInt32 = 42
+
+    /// Copy product tuning while fixing only the sampling seed. Both eval suites share this so
+    /// an A/B run compares prompt/cache changes without a different random sequence per case.
+    static var configuration: SuggestionConfiguration {
+        let defaults = SuggestionConfiguration.standard
+        return SuggestionConfiguration(
+            maxPredictionTokens: defaults.maxPredictionTokens, debounceMilliseconds: defaults.debounceMilliseconds,
+            temperature: defaults.temperature, topK: defaults.topK, topP: defaults.topP, minP: defaults.minP,
+            repetitionPenalty: defaults.repetitionPenalty, randomSeed: seed,
+            maxPrefixWords: defaults.maxPrefixWords, maxPrefixCharacters: defaults.maxPrefixCharacters,
+            maxPrefixWordsFoundationModel: defaults.maxPrefixWordsFoundationModel,
+            maxPrefixCharactersFoundationModel: defaults.maxPrefixCharactersFoundationModel,
+            maxSuffixCharacters: defaults.maxSuffixCharacters, llamaPromptTokenBudget: defaults.llamaPromptTokenBudget,
+            defaultUserName: defaults.defaultUserName, defaultWordCountPreset: defaults.defaultWordCountPreset,
+            focusPollIntervalMilliseconds: defaults.focusPollIntervalMilliseconds
+        )
+    }
+
+    static func makeManager() throws -> LlamaRuntimeManager {
+        guard let path = ProcessInfo.processInfo.environment["COTABBY_EVAL_MODEL_PATH"], !path.isEmpty else {
+            return LlamaRuntimeManager()
+        }
+        guard path.hasPrefix("/"), FileManager.default.fileExists(atPath: path) else {
+            throw NSError(domain: "LlamaEvalRuntime", code: 1, userInfo: [
+                NSLocalizedDescriptionKey: "COTABBY_EVAL_MODEL_PATH must name an existing absolute GGUF path: \(path)"
+            ])
+        }
+        let url = URL(fileURLWithPath: path)
+        let defaults = LlamaRuntimeConfiguration.default
+        return LlamaRuntimeManager(
+            configuration: LlamaRuntimeConfiguration(
+                runtimeDirectoryPath: url.deletingLastPathComponent().path,
+                preferredModelNames: [url.lastPathComponent],
+                contextWindowTokens: defaults.contextWindowTokens,
+                batchSize: defaults.batchSize,
+                gpuLayerCount: defaults.gpuLayerCount
+            ),
+            runtimeLocator: BundledRuntimeLocator()
+        )
+    }
+}
+#endif

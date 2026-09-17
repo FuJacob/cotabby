@@ -67,6 +67,36 @@ final class PromptSectionBudgetTests: XCTestCase {
         XCTAssertEqual(kept.map(\.name), ["real"])
     }
 
+    func test_allocate_countsPreservedCaretWhitespaceAgainstTheBudget() {
+        let prefix = PromptSection(
+            name: "prefix",
+            content: "Hello \n  ",
+            priority: 100,
+            minChars: 1,
+            maxChars: 100,
+            truncation: .preserveEnd,
+            preservesWhitespace: true
+        )
+        let sections = [prefix, section("notes", "extra", priority: 10)]
+        let kept = PromptSectionBudget.allocate(sections, totalChars: prefix.content.count)
+        XCTAssertEqual(kept, [prefix])
+        XCTAssertEqual(kept.first?.content, "Hello \n  ")
+    }
+
+    func test_allocate_preservesCaretSideWhitespaceWhenTruncating() {
+        let prefix = PromptSection(
+            name: "prefix",
+            content: "Hello \n  ",
+            priority: 100,
+            minChars: 1,
+            maxChars: 100,
+            truncation: .preserveEnd,
+            preservesWhitespace: true
+        )
+        let kept = PromptSectionBudget.allocate([prefix], totalChars: 3)
+        XCTAssertEqual(kept.first?.content, "\n  ")
+    }
+
     func test_truncate_preserveEndKeepsCaretSide() {
         XCTAssertEqual(PromptSectionBudget.truncate("abcdefgh", toChars: 3, mode: .preserveEnd), "fgh")
     }
@@ -112,5 +142,26 @@ final class PromptSectionBudgetTests: XCTestCase {
         )
         let used = kept.reduce(0) { $0 + TokenCountEstimator.estimate($1.content) }
         XCTAssertLessThanOrEqual(used, 25)
+    }
+
+    func test_tokenAllocate_preservesWhitespaceAndChargesItsEstimate() {
+        let prefix = PromptSection(
+            name: "prefix",
+            content: "word  \n\t",
+            priority: 100,
+            minChars: 1,
+            maxChars: 100,
+            truncation: .preserveEnd,
+            preservesWhitespace: true
+        )
+        // One character per token makes this accounting test independent of the production
+        // heuristic. Whitespace must be included in the content handed to any estimator.
+        let kept = PromptSectionBudget.allocate(
+            [prefix, section("notes", "extra", priority: 10)],
+            totalTokens: prefix.content.count,
+            estimate: { $0.count }
+        )
+        XCTAssertEqual(kept.map(\.name), ["prefix"])
+        XCTAssertEqual(kept.first?.content, prefix.content)
     }
 }

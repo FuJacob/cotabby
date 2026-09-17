@@ -247,10 +247,36 @@ The app and CotabbyInference intentionally expose one live autocomplete sequence
 one llama.cpp sequence slot and a changing external ID to reject stale work after a reset; the Swift
 generation loop remains the single owner of the output-token budget.
 
+Autocomplete heals the final prompt token when its printable bytes exactly match the text at the
+caret. The native sampler replays those bytes under a vocabulary-prefix constraint, allowing a
+longer token to finish an unfinished word without forcing every complete word to continue.
+[TokenHealingBuffer.swift](Cotabby/Support/Runtime/TokenHealingBuffer.swift) removes replay bytes and
+holds incomplete UTF-8 until it can publish lossless cumulative text. The extra replay allowance is
+bounded separately from visible generation. Special tokens and oversized pieces take the ordinary
+continuation path; no model weights or tokenizer files are modified.
+
+Cache reuse is based on actual native restoration, not a permanent model-family blacklist. Ordinary
+attention can trim its suffix; recurrent/hybrid or sliding-window memory uses one bounded partial
+state checkpoint near the prompt tail, with at most eight tokens replayed. A miss falls back to a
+cold prompt. Checkpoints live only in memory, are size-capped, and are cleared with the sequence.
+Sampler history is rebuilt from the current prompt so discarded suggestions do not affect the next
+request. Native memory may retain a generated tail between requests; the app tracks only the
+validated prompt prefix and restores exactly the shared prefix before the next decode. Deferring
+restoration avoids replaying the same tail both after generation and again on the next keystroke.
+Cancellation targets a request identity as well as the native sequence, preventing a late
+cancel from aborting a later request that reused the same sequence.
+
 [BaseCompletionPromptRenderer.swift](Cotabby/Support/Prompting/BaseCompletionPromptRenderer.swift) renders a
 base-model text continuation with optional budgeted context and the caret prefix last. It does not
 wrap a base GGUF in an instruction conversation. [FoundationModelPromptRenderer.swift](Cotabby/Support/Prompting/FoundationModelPromptRenderer.swift)
 keeps Apple's instruction-shaped prompt separate.
+
+The request window and section allocator preserve the prefix's spaces, line breaks, and indentation.
+Multiline output cleanup also preserves the leading space needed to join a new word at the caret.
+Bounded right-of-caret text is descriptive reference material before the prefix, not invented
+fill-in-the-middle control tokens. This added suffix section is local-only: the endpoint renderer
+does not receive it. Optional user-authored notes retain their existing budgets and settings; no
+automatic writing-history collection is introduced.
 
 Prewarm is opportunistic and goes only to the selected backend. Context reset reaches every backend.
 The local runtime is loaded only for the Open Source engine and is released when switching to Apple

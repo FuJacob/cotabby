@@ -463,10 +463,10 @@ enum SuggestionSessionReconciler {
     /// separating space themselves after the ghost appeared, or because AX reported the prefix before
     /// that space landed.
     ///
-    /// We deliberately do NOT synthesize a word boundary. The base-model prompt ends at a clean
-    /// boundary (`BaseCompletionPromptRenderer` trims trailing whitespace), so the model's first token
-    /// already encodes intent: a leading space means "new word", none means "continue the current
-    /// word". Honoring that is what makes a mid-word completion like "after" + "noon" land as
+    /// We deliberately do NOT synthesize a word boundary. The base-model prompt preserves the exact
+    /// caret prefix, so generation continues from the boundary the user actually typed. When that
+    /// prefix has no trailing whitespace, a leading model space means "new word", while its absence
+    /// means "continue the current word". Honoring that makes "after" + "noon" land as
     /// "afternoon" instead of "after noon", while a genuine new word arrives with the model's own
     /// leading space already attached to the first acceptance chunk (`nextAcceptanceChunk` keeps it).
     /// The cost of trusting the model is that when it omits a space it should have emitted, the words

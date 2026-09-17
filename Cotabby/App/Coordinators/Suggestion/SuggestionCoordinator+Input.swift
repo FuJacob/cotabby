@@ -182,11 +182,24 @@ extension SuggestionCoordinator {
     }
 
     func handleInputEvent(_ event: CapturedInputEvent) -> Bool {
+        if CotabbyDebugOptions.isEnabled {
+            if (event.shouldSchedulePrediction || event.kind == .acceptance || event.kind == .fullAcceptance),
+               let context = focusModel.snapshot.context {
+                suggestionPresentationTiming.begin(
+                    identity: context.identity,
+                    kind: event.kind.rawValue,
+                    at: ProcessInfo.processInfo.systemUptime
+                )
+            } else if event.shouldClearSuggestion || event.kind == .acceptance || event.kind == .fullAcceptance {
+                suggestionPresentationTiming.clear()
+            }
+        }
         // Give the emoji picker first look at every keystroke so it can drive its trigger state
         // machine. When a capture is involved, the picker owns the interaction: the suggestion
         // pipeline stands down and any lingering ghost text is cleared so it does not show behind the
         // panel. Consumption still happens through the active tap's `emojiCaptureKeyDecider`.
         if emojiInputObserver?(event) == true {
+            suggestionPresentationTiming.clear()
             if overlayState.isVisible || interactionState.activeSession != nil {
                 cancelPredictionWork()
                 clearSuggestion(clearDiagnostics: true)
