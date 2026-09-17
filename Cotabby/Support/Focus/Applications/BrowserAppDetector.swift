@@ -51,6 +51,9 @@ nonisolated enum BrowserAppDetector {
     /// here without a broad `com.todesktop.` prefix that would also prime unrelated ToDesktop apps.
     private static let electronEditorBundleIdentifiers: Set<String> = [
         "com.clickup.desktop-app",
+        // The Chromium-based ChatGPT/Codex desktop build identifies as com.openai.codex.
+        // Match its bundle identity, not its display name, so focus recovery can reach its composer.
+        "com.openai.codex",
         "com.microsoft.vscode",          // Visual Studio Code
         "com.microsoft.vscodeinsiders",  // VS Code - Insiders
         "com.vscodium"                   // VSCodium (FOSS VS Code build)
