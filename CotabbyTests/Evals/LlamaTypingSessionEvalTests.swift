@@ -85,31 +85,18 @@ private final class TypingSessionProbe {
             guard spellChecker.isTypo(word) else { return .known }
             return spellChecker.bestCorrection(for: word) == nil ? .uncorrectableTypo : .correctableTypo
         }
-        if final {
-            guard !result.text.isEmpty, CompletionSeamGuard.verdict(
-                precedingText: prefix, completion: result.text, spellingAssessment: spelling
-            ) == .allow else {
-                measurement.recordHidden()
-                return
-            }
-        } else {
-            guard streaming.canRender(result.text),
-                  CompletionSeamGuard.allowsStreamedPartial(precedingText: prefix, completion: result.text) else { return }
-            if streaming.leadingWordGateState == .pending {
-                switch CompletionSeamGuard.streamedLeadingWordVerdict(
-                    precedingText: prefix, completion: result.text, spellingAssessment: spelling
-                ) {
-                case .wait: return
-                case .allow: streaming.resolveLeadingWordGate(.allowed)
-                case .suppress: streaming.resolveLeadingWordGate(.suppressed)
-                }
-            }
-            guard streaming.leadingWordGateState == .allowed else { return }
+        switch CompletionSeamGuard.presentation(precedingText: prefix, completion: result.text,
+                                               isFinal: final, spellingAssessment: spelling) {
+        case .wait: return
+        case .suppress:
+            if final { measurement.recordHidden() }
+            return
+        case let .show(text, _):
+            guard final || streaming.canRender(text) else { return }
+            if final { measurement.finalVisibleMilliseconds = milliseconds }
+            streaming.recordRendered(text)
+            measurement.recordVisible(text, at: milliseconds)
         }
-        guard !result.text.isEmpty else { return }
-        if final { measurement.finalVisibleMilliseconds = milliseconds }
-        streaming.recordRendered(result.text)
-        measurement.recordVisible(result.text, at: milliseconds)
     }
 }
 

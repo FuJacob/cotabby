@@ -21,6 +21,7 @@ import subprocess
 import sys
 import time
 import uuid
+import xml.etree.ElementTree as ET
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 CORPUS = ROOT / "CotabbyTests/Fixtures/phrase-prediction-1337.json"
@@ -28,6 +29,65 @@ DERIVED = ROOT / "build/DerivedData"
 BASELINES = ROOT / "benchmarks/phrase-prediction"
 CATEGORIES = ("conversation", "science", "entertainment", "work", "technology", "everyday", "travel")
 WORD = re.compile(r"[^\W_]+(?:['’\-][^\W_]+)*", re.UNICODE)
+SAMPLING_FIELDS = {
+    "temperature": ("temperature", "COTABBY_PHRASE_TEMPERATURE"),
+    "repetition_penalty": ("repetitionPenalty", "COTABBY_PHRASE_REPETITION_PENALTY"),
+    "top_k": ("topK", "COTABBY_PHRASE_TOP_K"),
+    "top_p": ("topP", "COTABBY_PHRASE_TOP_P"),
+    "min_p": ("minP", "COTABBY_PHRASE_MIN_P"),
+}
+
+
+def sampling_overrides(args):
+    """Validate test-only knobs before building; native Options validates them independently.
+
+    An omitted knob inherits the current product default. Explicit values are saved separately
+    from the native report's effective configuration, so a stale test build cannot silently ignore
+    an experiment. Nonzero seeds avoid the wrapper's randomized-seed sentinel.
+    """
+    values = {field: getattr(args, field, None) for field in SAMPLING_FIELDS}
+    values["seed"] = getattr(args, "seed", None)
+    bounds = {"temperature": (0, 100), "repetition_penalty": (0, 100),
+              "top_k": (0, 2**31 - 1), "top_p": (0, 1), "min_p": (0, 1),
+              "seed": (1, 2**32 - 2)}
+    for field, value in values.items():
+        if value is None:
+            continue
+        low, high = bounds[field]
+        if not math.isfinite(value) or not low <= value <= high or (field == "repetition_penalty" and value == 0):
+            raise ValueError(f"Invalid --{field.replace('_', '-')}: {value}")
+        if field in ("top_k", "seed") and not isinstance(value, int):
+            raise ValueError(f"--{field.replace('_', '-')} must be an integer")
+    return {field: value for field, value in values.items() if value is not None}
+
+
+def partition_phrases(phrases, args):
+    """Choose a balanced, result-independent split using the same SHA-256 recipe as Swift.
+
+    The partition is made from the complete corpus before category/ID filters. Hash order also
+    determines any per-category cap within a partition; returned replay order remains corpus order.
+    This lets a small held-out run grow later without changing its existing members.
+    """
+    split = getattr(args, "split", "all")
+    seed = getattr(args, "split_seed", 1337)
+    count = getattr(args, "screen_per_category", 20)
+    if split not in ("all", "screen", "heldout"):
+        raise ValueError("--split must be all, screen, or heldout")
+    if not isinstance(seed, int) or not 0 <= seed <= 2**32 - 1:
+        raise ValueError("--split-seed must be an unsigned 32-bit integer")
+    if not isinstance(count, int) or not 1 <= count < 191:
+        raise ValueError("--screen-per-category must be between 1 and 190")
+    if split == "all":
+        return phrases
+    ranked = sorted(phrases, key=lambda p: (hashlib.sha256(f"{seed}:{p['id']}".encode()).hexdigest(), p["id"]))
+    counts = collections.Counter()
+    selected = []
+    for phrase in ranked:
+        counts[phrase["category"]] += 1
+        in_screen = counts[phrase["category"]] <= count
+        if in_screen == (split == "screen"):
+            selected.append(phrase)
+    return selected
 
 
 def read_selection(args):
@@ -48,7 +108,7 @@ def read_selection(args):
         scene = phrase["scenario"]
         if folded(phrase["text"]) in folded(scene["screenText"] + " " + scene["documentPrefix"]):
             raise ValueError(f"Reference sentence leaked into screen context: {phrase['id']}")
-    selected = [p for p in phrases if (not args.category or p["category"] == args.category)
+    selected = [p for p in partition_phrases(phrases, args) if (not args.category or p["category"] == args.category)
                 and (not args.phrase or p["id"] == args.phrase)]
     per_category = getattr(args, "per_category", None)
     if per_category is not None:
@@ -61,6 +121,8 @@ def read_selection(args):
             if counts[phrase["category"]] <= per_category:
                 balanced.append(phrase)
         selected = balanced
+    selected_ids = {p["id"] for p in selected}
+    selected = [p for p in phrases if p["id"] in selected_ids]
     if args.limit is not None:
         if args.limit < 1:
             raise ValueError("--limit must be positive")
@@ -80,6 +142,7 @@ def checkpoint_counts(phrases, mode, context):
 
 
 def show_plan(args):
+    overrides = sampling_overrides(args)
     _, phrases = read_selection(args)
     context = getattr(args, "context", "paired")
     workers = min(getattr(args, "workers", 3), len(phrases))
@@ -88,7 +151,23 @@ def show_plan(args):
     for category, count in sorted(counts.items()):
         print(f"  {category}: {count:,} checkpoints")
     print("Primary score: exact next word before its first letter; suppressed output is a miss.")
+    print(f"Selection: split={getattr(args, 'split', 'all')}; split seed={getattr(args, 'split_seed', 1337)}; screen phrases/category={getattr(args, 'screen_per_category', 20)}")
+    if overrides:
+        print("Sampling overrides:", json.dumps(overrides, sort_keys=True))
     return phrases
+
+
+def validate_sampling_report(report, overrides):
+    """Reject effective settings that differ from the requested experimental settings."""
+    metadata = report["metadata"]
+    for field, requested in overrides.items():
+        actual = metadata.get("seed") if field == "seed" else metadata["configuration"].get(SAMPLING_FIELDS[field][0])
+        try:
+            matches = math.isclose(float(actual), requested, rel_tol=1e-12, abs_tol=1e-12)
+        except (TypeError, ValueError):
+            matches = False
+        if not matches:
+            raise RuntimeError(f"Executed sampling {field}={actual} does not match requested {requested}; rebuild the test bundle")
 
 
 def git_output(*arguments):
@@ -213,8 +292,126 @@ def logged_command(command, log, progress=None):
         raise RuntimeError(f"Command failed ({process.returncode}); see {log}")
 
 
+def build_input_snapshot(workspace=None):
+    """Separate resolver-owned locks from app/test/native/config inputs in one source snapshot.
+
+    Only repository source inputs are enumerated: ignored model files, caches and generated native
+    build trees cannot invalidate a sampler-only run or make hashing scale with model size. Local
+    package references must be Git checkouts so their tracked/untracked source list is auditable.
+    Only canonical package lock paths may change during explicit dependency resolution. A file
+    merely named Package.resolved inside app/test fixtures is still an ordinary protected input.
+    """
+    roots = [(ROOT, ["Cotabby", "CotabbyTests", "Cotabby.xcodeproj", "project.yml", "CotabbyInfo.plist", "Config"])]
+    inputs = set((ROOT / "Config").glob("*.xcconfig"))
+    package_locks = {ROOT / "Cotabby.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"}
+    if workspace:
+        workspace = workspace.resolve()
+        document = workspace / "contents.xcworkspacedata"
+        inputs.add(document)
+        package_locks.add(workspace / "xcshareddata/swiftpm/Package.resolved")
+        for reference in ET.parse(document).iter("FileRef"):
+            location = reference.attrib.get("location", "")
+            kind, _, value = location.partition(":")
+            if kind == "absolute":
+                path = pathlib.Path(value)
+            elif kind in ("group", "container"):
+                path = workspace.parent / value
+            else:
+                raise ValueError(f"Unsupported workspace reference for build reuse: {location}")
+            path = path.resolve()
+            if (path / "Package.swift").is_file():
+                roots.append((path, []))
+                package_locks.add(path / "Package.resolved")
+    # Signing.local.xcconfig is intentionally gitignored but still changes the built app host.
+    # Resolved package versions can also live in a generated, ignored workspace directory.
+    for repository, paths in roots:
+        names = subprocess.check_output(["git", "ls-files", "-co", "--exclude-standard", "-z", "--", *paths],
+                                        cwd=repository).decode().split("\0")
+        for name in sorted(set(filter(None, names))):
+            path = repository / name
+            if not path.is_file() or any(part in ("xcuserdata", ".build", "build") for part in pathlib.Path(name).parts):
+                continue
+            # Package source dependencies can contain checked-in release binaries. Their build
+            # selection is covered by Package.swift; source builds are covered by the files below.
+            if repository != ROOT and path.suffix.lower() not in (".swift", ".c", ".cc", ".cpp", ".h", ".hh", ".hpp", ".m", ".mm", ".metal", ".cmake", ".txt", ".json", ".modulemap", ".sh"):
+                continue
+            inputs.add(path)
+    full_digest, source_digest = hashlib.sha256(), hashlib.sha256()
+    locks = {}
+    for path in sorted(inputs | package_locks):
+        file_digest = None
+        if path.is_file():
+            digest = hashlib.sha256()
+            with path.open("rb") as stream:
+                while chunk := stream.read(1_048_576):
+                    digest.update(chunk)
+            file_digest = digest.hexdigest()
+        record = str(path).encode() + b"\0" + (file_digest or "missing").encode() + b"\0"
+        full_digest.update(record)
+        if path in package_locks:
+            locks[str(path)] = file_digest
+        else:
+            source_digest.update(record)
+    return {"sourceSHA256": full_digest.hexdigest(), "nonLockSourceSHA256": source_digest.hexdigest(),
+            "packageLocks": locks}
+
+
+def build_input_fingerprint(workspace=None):
+    return build_input_snapshot(workspace)["sourceSHA256"]
+
+
+def prepare_build_inputs(workspace, project, output, *, skip_build):
+    """Resolve before freezing compilation inputs, rejecting concurrent non-lock source edits.
+
+    A first Xcode workspace resolution legitimately creates Package.resolved. Record that change
+    separately rather than weakening the compilation guard. Build reuse never invokes resolution:
+    even lock-only changes must invalidate an existing build instead of silently changing its inputs.
+    """
+    before = build_input_snapshot(workspace)
+    if skip_build:
+        return before
+    record_path = output / "resolution-inputs.json"
+    record = {"before": before, "status": "resolving"}
+    record_path.write_text(json.dumps(record, indent=2) + "\n")
+    try:
+        logged_command([
+            "xcodebuild", "-resolvePackageDependencies", *project, "-scheme", "Cotabby", "-configuration", "Release",
+            "-destination", "platform=macOS", "-derivedDataPath", DERIVED, "-skipPackageUpdates",
+        ], output / "resolution.log")
+        # Resolving is not complete until its resulting inputs can be captured. A concurrent
+        # malformed workspace edit or failed file read must not leave durable evidence "resolving".
+        after = build_input_snapshot(workspace)
+    except BaseException as error:
+        record.update(status="failed", error={"type": type(error).__name__, "message": str(error)})
+        record_path.write_text(json.dumps(record, indent=2) + "\n")
+        raise
+    stable = before["nonLockSourceSHA256"] == after["nonLockSourceSHA256"]
+    record.update(after=after, status="resolved" if stable else "rejected-source-change")
+    record_path.write_text(json.dumps(record, indent=2) + "\n")
+    if not stable:
+        raise RuntimeError("App, test, native, or configuration inputs changed during dependency resolution; retry with a stable checkout")
+    return after
+
+
+def build_product_fingerprint(source):
+    """Detect replacement of the app-hosted test binaries after the recorded successful build."""
+    products = source.parent
+    binaries = sorted(p for p in products.glob("Release/**/*.app/Contents/MacOS/*") if p.is_file())
+    binaries += sorted(p for p in products.glob("Release/**/*.xctest/Contents/MacOS/*") if p.is_file())
+    if not binaries:
+        raise RuntimeError("No Release app/test binaries found for build fingerprint")
+    digest = hashlib.sha256(source.read_bytes())
+    for path in binaries:
+        digest.update(str(path.relative_to(products)).encode() + b"\0")
+        with path.open("rb") as stream:
+            while chunk := stream.read(1_048_576):
+                digest.update(chunk)
+    return digest.hexdigest()
+
+
 def run(args):
     phrases = show_plan(args)
+    overrides = sampling_overrides(args)
     workers = min(args.workers, len(phrases))
     if platform.system() != "Darwin":
         raise ValueError("Live evaluation requires macOS and Xcode")
@@ -232,28 +429,69 @@ def run(args):
         "phraseIDs": [p["id"] for p in phrases], "platform": platform.platform(),
         "modelPath": str(args.model.resolve()) if args.model else "app runtime default",
         "workerCount": workers,
+        "samplingOverrides": overrides,
+        "selection": {"split": args.split, "splitSeed": args.split_seed, "screenPerCategory": args.screen_per_category,
+                      "perCategory": args.per_category, "limit": args.limit},
     }
     (output / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
-    (output / "working-tree.patch").write_text(git_output("diff", "HEAD", "--", "Cotabby", "CotabbyTests", "project.yml", "scripts"))
+    patch_arguments = ("diff", "HEAD", "--", "Cotabby", "CotabbyTests", "Cotabby.xcodeproj", "CotabbyInfo.plist", "Config", "project.yml", "scripts")
+    (output / "working-tree.patch").write_text(git_output(*patch_arguments))
     print(f"Results: {output}", flush=True)
     project = ["-workspace", args.workspace.resolve()] if args.workspace else ["-project", ROOT / "Cotabby.xcodeproj"]
-    logged_command([
-        "xcodebuild", "build-for-testing", *project, "-scheme", "Cotabby", "-configuration", "Release",
-        "-destination", "platform=macOS", "-derivedDataPath", DERIVED,
-        "CODE_SIGNING_ALLOWED=NO", "ENABLE_TESTABILITY=YES", "ONLY_ACTIVE_ARCH=YES",
-        "SWIFT_ACTIVE_COMPILATION_CONDITIONS=$(inherited) RUN_LLAMA_EVAL", "-skipPackageUpdates",
-    ], output / "build.log")
+    build_marker = DERIVED / "phrase-eval-build.json"
+    initial_git = {key: manifest[key] for key in ("gitCommit", "gitStatus")}
+    prepared_inputs = prepare_build_inputs(args.workspace, project, output, skip_build=args.skip_build)
+    source_fingerprint = prepared_inputs["sourceSHA256"]
+    if hashlib.sha256(CORPUS.read_bytes()).hexdigest() != manifest["corpusSHA256"]:
+        raise RuntimeError("Corpus changed after phrase selection; retry with a stable checkout")
+    # The manifest/patch now describe the inputs about to compile, including newly generated pins.
+    # Keep launch provenance as well; a rejected setup never masquerades as a completed benchmark.
+    manifest["gitAtStart"] = initial_git
+    manifest["gitCommit"] = git_output("rev-parse", "HEAD").strip()
+    manifest["gitStatus"] = git_output("status", "--short")
+    manifest["buildInputs"] = prepared_inputs
+    (output / "working-tree.patch").write_text(git_output(*patch_arguments))
+    (output / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    if build_input_fingerprint(args.workspace) != source_fingerprint:
+        raise RuntimeError("Source inputs changed while recording build provenance; retry with a stable checkout")
+    prior_build = json.loads(build_marker.read_text()) if args.skip_build and build_marker.exists() else None
+    if args.skip_build and (not prior_build or prior_build.get("sourceSHA256") != source_fingerprint):
+        raise RuntimeError("--skip-build requires a recorded successful build with unchanged source inputs; run once without it")
+    if not args.skip_build:
+        logged_command([
+            "xcodebuild", "build-for-testing", *project, "-scheme", "Cotabby", "-configuration", "Release",
+            "-destination", "platform=macOS", "-derivedDataPath", DERIVED,
+            "CODE_SIGNING_ALLOWED=NO", "ENABLE_TESTABILITY=YES", "ONLY_ACTIVE_ARCH=YES",
+            "SWIFT_ACTIVE_COMPILATION_CONDITIONS=$(inherited) RUN_LLAMA_EVAL", "-skipPackageUpdates",
+        ], output / "build.log")
     products = DERIVED / "Build/Products"
     candidates = [p for p in products.glob("Cotabby_*.xctestrun") if "phrase-eval-" not in p.name]
     if not candidates:
         raise RuntimeError("Build produced no Cotabby xctestrun file")
     source = max(candidates, key=lambda p: p.stat().st_mtime_ns)
+    product_fingerprint = build_product_fingerprint(source)
+    if args.skip_build and prior_build.get("productSHA256") != product_fingerprint:
+        raise RuntimeError("--skip-build found changed app/test binaries; rebuild before evaluating")
+    if build_input_fingerprint(args.workspace) != source_fingerprint:
+        raise RuntimeError("Source inputs changed during build setup; retry with a stable checkout")
+    build_record = {"sourceSHA256": source_fingerprint, "productSHA256": product_fingerprint,
+                    "xctestrun": str(source), "reused": args.skip_build}
+    if not args.skip_build:
+        build_marker.write_text(json.dumps(build_record, indent=2) + "\n")
+    else:
+        print("Reusing verified app/test build; source inputs and binary fingerprints match.", flush=True)
+    manifest["build"] = build_record
+    (output / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     configuration = plistlib.loads(source.read_bytes())
     environment = {
         "COTABBY_PHRASE_EVAL": "1", "COTABBY_PHRASE_MODE": args.mode, "COTABBY_PHRASE_CONTEXT": args.context,
         "COTABBY_PHRASE_OUTPUT": str(output), "COTABBY_PHRASE_LABEL": args.label,
         "COTABBY_PHRASE_WORKERS": str(workers),
+        "COTABBY_PHRASE_SPLIT": args.split, "COTABBY_PHRASE_SPLIT_SEED": str(args.split_seed),
+        "COTABBY_PHRASE_SCREEN_PER_CATEGORY": str(args.screen_per_category),
     }
+    for field, value in overrides.items():
+        environment["COTABBY_PHRASE_SEED" if field == "seed" else SAMPLING_FIELDS[field][1]] = str(value)
     for key, value in (("COTABBY_PHRASE_CATEGORY", args.category), ("COTABBY_PHRASE_ID", args.phrase),
                        ("COTABBY_PHRASE_LIMIT", args.limit), ("COTABBY_PHRASE_PER_CATEGORY", args.per_category), ("COTABBY_EVAL_MODEL_PATH", args.model)):
         if value is not None:
@@ -276,6 +514,7 @@ def run(args):
     if not report_path.exists():
         raise RuntimeError("No report was produced; check test.log for a skipped or interrupted benchmark")
     report = json.loads(report_path.read_text())
+    validate_sampling_report(report, overrides)
     if report["metadata"].get("workerCount", 1) != workers:
         raise RuntimeError("Executed worker count does not match the requested worker count")
     conditions = ["none", "screen"] if args.context == "paired" else [args.context]
@@ -411,15 +650,27 @@ def main():
         command.add_argument("--context", choices=("none", "screen", "paired"), default="paired")
         command.add_argument("--workers", type=int, choices=(1, 2, 3), default=3,
                              help="Independent inference workers (default: 3); use 1 for uncontended latency")
-        command.add_argument("--per-category", type=int, help="First N scenarios in each selected category; useful for balanced smoke tests")
+        command.add_argument("--per-category", type=int, help="N scenarios per selected category; corpus order for all, hash order within a split")
+        command.add_argument("--split", choices=("all", "screen", "heldout"), default="all",
+                             help="Deterministic balanced screen or its disjoint held-out complement")
+        command.add_argument("--split-seed", type=int, default=1337, help="Unsigned 32-bit SHA-256 partition seed, independent of sampling")
+        command.add_argument("--screen-per-category", type=int, default=20, help="Screen partition size per category (1–190; default: 20)")
         command.add_argument("--category", choices=CATEGORIES)
         command.add_argument("--phrase", help="Stable phrase ID, e.g. conversation-001")
         command.add_argument("--limit", type=int, help="First N phrases after filtering (smoke tests only)")
+        command.add_argument("--temperature", type=float, help="Test-only temperature override (0 enables native greedy decoding)")
+        command.add_argument("--repetition-penalty", type=float, help="Test-only repetition penalty; 1 disables the penalty")
+        command.add_argument("--top-k", type=int, help="Test-only top-k; 0 disables top-k filtering")
+        command.add_argument("--top-p", type=float, help="Test-only nucleus sampling probability (0–1)")
+        command.add_argument("--min-p", type=float, help="Test-only relative probability cutoff (0–1)")
+        command.add_argument("--seed", type=int, help="Fixed test sampling seed (1–4294967294); default: 42")
         if name == "run":
             command.add_argument("--model", type=pathlib.Path, help="Local GGUF; defaults to app runtime model")
             command.add_argument("--workspace", type=pathlib.Path, help="Optional workspace for a local CotabbyInference checkout")
             command.add_argument("--output", type=pathlib.Path, help="New results directory; never overwrites a previous run")
             command.add_argument("--label", default="baseline")
+            command.add_argument("--skip-build", action="store_true",
+                                 help="Reuse a successful CLI build only if source and app/test fingerprints still match")
     command = commands.add_parser("compare")
     command.add_argument("before", type=pathlib.Path)
     command.add_argument("after", type=pathlib.Path)

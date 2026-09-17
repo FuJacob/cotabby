@@ -10,10 +10,12 @@ Prerequisites: Xcode, Developer ID certificate/private key for team `8RN882MNR5`
 xcrun notarytool store-credentials McHamster --apple-id YOUR_APPLE_ID --team-id 8RN882MNR5
 ```
 
+Write the corresponding `releases/mchamster-<version>.md` notes before building; the script selects them from the version argument and fails if they are missing.
+
 Build and notarize:
 
 ```sh
-NOTARY_PROFILE=McHamster scripts/release_mchamster.sh 0.6.2-mchamster.1 2026091701
+NOTARY_PROFILE=McHamster scripts/release_mchamster.sh 0.6.2-mchamster.2 2026091702
 ```
 
 Without `NOTARY_PROFILE`, the script produces only a signed candidate. Do not publish it until Apple accepts notarization, stapling validates, and Gatekeeper accepts the DMG. Keep the output and checksum from `build/mchamster-release/`; remove `build/DerivedData` after validation.

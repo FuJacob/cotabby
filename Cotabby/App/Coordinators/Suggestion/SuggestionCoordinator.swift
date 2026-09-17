@@ -98,6 +98,12 @@ final class SuggestionCoordinator: ObservableObject {
     /// Debug-only, text-free input-to-presentation timing; no separate persistent metrics store.
     var suggestionPresentationTiming = SuggestionPresentationTiming()
 
+    /// Pure interaction policies live for the coordinator's lifetime; the only extra task owns a
+    /// delayed stream presentation. Work IDs and cancellation protect it when typing resumes.
+    var typingCadence = TypingCadence()
+    var dismissalMemory = SuggestionDismissalMemory()
+    var delayedStreamPresentation: Task<Void, Never>?
+
     /// Monotonic cancellation token for the "wait until the host publishes typed text to AX" loop.
     ///
     /// Keystrokes can arrive faster than Chromium publishes contenteditable updates. Without this

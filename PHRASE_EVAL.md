@@ -257,6 +257,64 @@ use matching one-worker runs for interactive latency comparisons. More workers a
 model/context memory and do not guarantee proportional speedup. The production autocomplete
 runtime remains single-sequence; these independent engines exist only inside the opt-in test.
 
+## Bounded improvement experiments
+
+`IMPROVEMENT_BRAINSTORMING.md` records the current experiment hypotheses, checklist, time window,
+and adoption criteria. Keep the model and corpus fixed while comparing sampling configurations.
+The CLI supports explicit test-only overrides without changing product defaults or saved settings:
+
+```sh
+python3 scripts/phrase_eval.py run \
+  --model build/models/Qwen3.5-0.8B-Base.i1-Q6_K.gguf \
+  --workspace build/CotabbyDevelopment.xcworkspace \
+  --split screen --screen-per-category 20 --split-seed 1337 \
+  --temperature 0 --repetition-penalty 1.0 --seed 42 --label greedy-screen
+```
+
+Other sampling controls are `--top-k`, `--top-p`, and `--min-p`. Omitted values inherit product
+defaults, except the benchmark's fixed default seed of 42. Temperature zero selects the native
+greedy sampler; probability filters do not affect that path. The native configuration is recorded
+in the report and checked against every requested override after replay.
+
+`--split screen` ranks stable phrase IDs by SHA-256 of `split-seed:phrase-id` and chooses the first
+N within each category. With the default 20, screening contains 140 scenarios. `--split heldout`
+selects the disjoint remaining 1,197 scenarios; `--split all` preserves the original full suite.
+Membership is chosen before category/phrase filters, independent of answers or model results.
+When a split is active, `--per-category` caps that partition in hash order; replay still follows
+corpus order. This allows a balanced small validation run without taking just the first written
+phrases. Keep the split seed and size identical across baseline/candidate comparisons.
+
+After one successful build, sampler-only experiments can use `--skip-build`. The runner refuses
+reuse when app/test source, referenced local package source, or app/test binary fingerprints differ.
+Code changes require a new build. Manifests retain the build fingerprints and whether reuse occurred;
+the checked-in source configuration alone is not evidence that an old binary ran the new code.
+Fresh builds resolve dependencies before freezing compilation inputs. `resolution-inputs.json`
+records package-lock changes from that setup step; app, test, native, or configuration changes
+still abort the run. Compilation then guards all inputs, including locks. `--skip-build` never
+resolves packages or silently updates the recorded build.
+
+The offline analysis tool reports condition/category deltas, paired gains/losses, suppression
+diagnostics, and category-stratified phrase-bootstrap intervals:
+
+```sh
+python3 scripts/analyze_phrase_experiments.py \
+  path/to/baseline/report.json path/to/candidate/report.json --markdown
+# For character-mode overall accuracy, also pass --metric all.
+```
+
+Its input is the Swift report; it never replaces the benchmark scorer. It resamples whole phrases
+because checkpoints in one sentence are correlated, and keeps baseline/candidate and both context
+conditions paired. Output is aggregate-only by default, so reviewing screening results does not
+require exposing held-out text. The intervals describe stability across these synthetic fixtures,
+not a representative population of user writing. Freeze a finalist before held-out validation;
+repeatedly choosing new candidates based on held-out misses turns that set into development data.
+
+`scripts/analyze_completion_prefixes.py` adds a separate lexical-tail diagnostic for two reports.
+It keeps the Swift scorer's first-word decision, then counts consecutive reference-word matches.
+Two- and three-word rates include only checkpoints with that many reference words remaining;
+text beyond the reference ending is unknown. These diagnostics do not measure semantic quality
+or accepted keystrokes and must not replace the primary score.
+
 ## Code boundaries and tests
 
 The JSON fixture owns scenarios and references. `PhrasePredictionScoring.swift` owns immutable

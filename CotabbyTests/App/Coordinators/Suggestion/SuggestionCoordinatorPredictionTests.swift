@@ -179,7 +179,7 @@ final class SuggestionCoordinatorPredictionTests: XCTestCase {
 
     func test_typoGate_suppressesGenerationForAMisspelledCurrentWord() async {
         let rig = retained(makeCoordinatorRig(
-            snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "I typed qzxkvjw"),
+            snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "I typed qzxkvjw "),
             settingsSnapshot: CotabbyTestFixtures.settingsSnapshot(
                 debounceMilliseconds: 1,
                 suppressCompletionsOnTypo: true
@@ -197,7 +197,7 @@ final class SuggestionCoordinatorPredictionTests: XCTestCase {
 
     func test_typoGate_offersACorrectionSessionInsteadOfGenerating() async {
         let rig = retained(makeCoordinatorRig(
-            snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "I typed recieve"),
+            snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "I typed recieve "),
             settingsSnapshot: CotabbyTestFixtures.settingsSnapshot(
                 debounceMilliseconds: 1,
                 suppressCompletionsOnTypo: true,
@@ -305,7 +305,7 @@ final class SuggestionCoordinatorPredictionTests: XCTestCase {
 
     func test_reconcileActiveSession_correctionSurvivesUnchangedFieldAndDropsOnEdit() {
         let rig = retained(makeCoordinatorRig(
-            snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "I typed recieve")
+            snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "I typed recieve ")
         ))
         let context = FocusedInputContext(snapshot: rig.focusProvider.snapshot.context!, generation: 1)
         _ = rig.interactionState.startSession(

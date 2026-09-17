@@ -429,9 +429,9 @@ final class SuggestionRequestFactoryTests: XCTestCase {
         )
 
         XCTAssertEqual(result.request.surfaceContext?.surfaceClass, .email)
-        XCTAssertTrue(result.request.prompt.contains("An email being written in Mail."))
+        XCTAssertTrue(result.request.prompt.contains("Format: email; App: Mail;"))
         XCTAssertTrue(
-            result.request.prompt.contains("The window is titled \"Re: Q3 budget\"."),
+            result.request.prompt.contains("Title: Re: Q3 budget."),
             "the app-name suffix is stripped from the title before it reaches the prompt"
         )
         XCTAssertTrue(result.request.prompt.hasSuffix("Thanks again for"))
@@ -452,7 +452,7 @@ final class SuggestionRequestFactoryTests: XCTestCase {
         )
 
         XCTAssertNil(result.request.surfaceContext)
-        XCTAssertFalse(result.request.prompt.contains("An email being written"))
+        XCTAssertFalse(result.request.prompt.contains("Format:"))
         XCTAssertFalse(result.request.prompt.contains("Re: Q3 budget"))
     }
 

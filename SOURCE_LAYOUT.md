@@ -143,6 +143,32 @@ CotabbyTests/App/Coordinators/Suggestion/SuggestionCoordinatorPredictionTests.sw
 Tests that exercise several production values may stay at the nearest shared subsystem root. Evals
 remain under `CotabbyTests/Evals`, and shared fixtures remain under `CotabbyTests/TestSupport`.
 
+## Unfinished-Word Interaction
+
+- `Support/Suggestion/Request/CaretWordContext.swift` distinguishes a still-typed token from a
+  delimiter-committed word. `TypoGate` and the correction replacement planner consume this value;
+  pausing alone never makes correction eligible.
+- `Support/Suggestion/Output/CompletionSeamGuard.swift` returns the same presentation decision for
+  streamed and final output: wait for the first word, reject a malformed join, show a word ending,
+  or show a phrase. Dictionary membership is evidence, not a requirement for names and jargon.
+- `Support/Spelling/WordPrefixIndex.swift` supplies immutable exact-prefix candidates and bounded
+  document/glossary vocabulary. `SymSpellCorrector` builds its index on the existing background
+  dictionary queue; fallback never uses spelling edit distance or changes typed letters.
+- `Support/Suggestion/Streaming/TypingCadence.swift` measures recent inter-letter intervals and
+  controls presentation timing independently of generation debounce. `SuggestionStreamingState`
+  memoizes exact-word checks and closes the stream when a final result arrives.
+- `Support/Suggestion/Session/SuggestionDismissalMemory.swift` remembers explicit dismissal for at
+  most 15 seconds in the same field and text context. It is bounded and never persisted.
+- `App/Coordinators/Suggestion/SuggestionCoordinator+WordCompletion.swift` adapts these pure values
+  to the existing spell checker, dictionaries, settings, and cancellable presentation work.
+
+Direct tests mirror those folders. `SuggestionCoordinatorWordCompletionTests` replays pauses after
+individual letters, malformed streams, fallback acceptance, dismissal/cache behavior, and cancellation
+against the actual coordinator with synthetic OS and engine boundaries. The phrase accuracy replay
+uses the committed typo gate and final display policy, but deliberately excludes local fallback so
+its score remains attributable to the model. Timing replay and coordinator interaction tests cover
+presentation and acceptance separately; model-only scores do not represent the complete experience.
+
 ## Adding Or Moving A File
 
 1. Identify its single dominant responsibility using the map above.

@@ -1,0 +1,1050 @@
+diff --git a/Cotabby/Support/Context/SurfaceContextComposer.swift b/Cotabby/Support/Context/SurfaceContextComposer.swift
+index 619f804..cfa0d2d 100644
+--- a/Cotabby/Support/Context/SurfaceContextComposer.swift
++++ b/Cotabby/Support/Context/SurfaceContextComposer.swift
+@@ -1,7 +1,8 @@
+ import Foundation
+ 
+-/// The surface description that conditions a prompt: what kind of app the user is writing in,
+-/// plus the sanitized window title, web domain, and field placeholder when available.
++/// Immutable writing-surface facts carried by a suggestion request: the app class/name plus the
++/// sanitized title, URL host, and field placeholder. Keeping facts separate from their rendered
++/// labels lets the base-model and Foundation Models renderers use their own prompt formats.
+ nonisolated struct SurfaceContext: Equatable, Sendable {
+     let surfaceClass: AppSurfaceClass
+     let applicationName: String
+@@ -10,8 +11,9 @@ nonisolated struct SurfaceContext: Equatable, Sendable {
+     let fieldPlaceholder: String?
+ }
+ 
+-/// Builds the surface description from raw focus-capture metadata and renders it as the short
+-/// declarative preface the base model conditions on.
++/// Converts focus-capture metadata into bounded surface facts for `SuggestionRequestFactory`,
++/// then renders compact labels for `BaseCompletionPromptRenderer`. This deterministic boundary
++/// owns sanitization and formatting, with no service lifetime, model access, or mutable state.
+ ///
+ /// Two invariants matter here:
+ ///
+@@ -19,9 +21,9 @@ nonisolated struct SurfaceContext: Equatable, Sendable {
+ ///   metadata biases a small base model toward code/numbers over prose, which is exactly wrong in
+ ///   the one class of app where the text itself already screams "code". An unrecognized app with
+ ///   nothing else to say is also omitted, preserving the old bare-prefix behavior.
+-/// - **Declaratives, not instructions.** A base model has no instruction channel; like the persona
+-///   and style lines around it, the section describes the document ("An email being written in
+-///   Mail.") rather than commanding the model.
++/// - **Compact document facts.** Labels such as `Format: email; App: Mail` keep situational cues
++///   together without turning them into another prose passage. The base renderer budgets this
++///   optional section independently and leaves the writer's exact caret prefix last.
+ nonisolated enum SurfaceContextComposer {
+     /// Window titles are capped hard: they exist to carry the subject/document/channel cue, and a
+     /// runaway title would crowd the budgeted preface.
+@@ -63,40 +65,31 @@ nonisolated enum SurfaceContextComposer {
+         )
+     }
+ 
+-    /// The conditioning sentences for the base-model preface, ready to join into one section.
++    /// Renders one optional preface line in stable order: format, app, browser host, title, and field.
++    /// A compact representation reduces prose about the UI for the model to imitate. The renderer
++    /// still owns the section's final budget and its separation from the writer's actual draft.
+     static func prefaceLines(for surface: SurfaceContext) -> [String] {
+-        var lines: [String] = []
++        let format: String
+         switch surface.surfaceClass {
+-        case .email:
+-            lines.append("An email being written in \(surface.applicationName).")
+-        case .chat:
+-            lines.append("A chat message being typed in \(surface.applicationName).")
+-        case .browser:
+-            if let domain = surface.domain {
+-                lines.append("Text being typed on \(domain) in \(surface.applicationName).")
+-            } else {
+-                lines.append("Text being typed in \(surface.applicationName).")
+-            }
+-        case .other:
+-            lines.append("Text being typed in \(surface.applicationName).")
+-        case .codeEditor, .terminal:
+-            // compose() never produces these; returning nothing keeps the invariant obvious here.
+-            return []
+-        }
+-        if let title = surface.windowTitle {
+-            lines.append("The window is titled \"\(title)\".")
+-        }
+-        if let placeholder = surface.fieldPlaceholder {
+-            lines.append("The text field is labeled \"\(placeholder)\".")
++        case .email: format = "email"
++        case .chat: format = "chat"
++        case .browser: format = "web text"
++        case .other: format = "text"
++        case .codeEditor, .terminal: return []
+         }
+-        return lines
++        var fields = ["Format: \(format)", "App: \(surface.applicationName)"]
++        // Preserve the base preface's existing input scope: only browsers contribute a domain.
++        if surface.surfaceClass == .browser, let domain = surface.domain { fields.append("Domain: \(domain)") }
++        if let title = surface.windowTitle { fields.append("Title: \(title)") }
++        if let placeholder = surface.fieldPlaceholder { fields.append("Field: \(placeholder)") }
++        return [fields.joined(separator: "; ") + "."]
+     }
+ 
+     // MARK: - Sanitization
+ 
+     /// Strips the app-name suffix browsers and many apps append (`Inbox - Google Chrome`,
+-    /// `Notes — Pages`), collapses whitespace, drops control characters and quotes (they would
+-    /// corrupt the quoted prompt line), and caps the length.
++    /// `Notes — Pages`), collapses whitespace, and caps the length. Existing quote/control cleanup
++    /// is retained so compact labels receive the same sanitized facts as the other renderers.
+     static func sanitizedTitle(_ rawTitle: String?, applicationName: String) -> String? {
+         guard var title = nonEmptyCleaned(rawTitle) else { return nil }
+         for separator in [" - ", " — ", " – "] {
+@@ -122,8 +115,9 @@ nonisolated enum SurfaceContextComposer {
+         return String(placeholder.prefix(maxPlaceholderLength))
+     }
+ 
+-    /// The registrable host of the page URL with a leading `www.` dropped: enough to say which
+-    /// site the user is on without leaking the path or query, which can carry identifiers.
++    /// The page URL's host with a leading `www.` dropped. Subdomains remain useful site cues;
++    /// paths and queries stay out of the prompt because they can carry identifiers. The method
++    /// name is historical: this extracts a host, not a public-suffix-based registrable domain.
+     static func registrableDomain(from urlString: String?) -> String? {
+         guard let urlString, !urlString.isEmpty,
+               let host = URL(string: urlString)?.host?.lowercased(), !host.isEmpty
+diff --git a/CotabbyTests/Evals/PhrasePredictionEvalTests.swift b/CotabbyTests/Evals/PhrasePredictionEvalTests.swift
+index 8a810c0..63e8e1b 100644
+--- a/CotabbyTests/Evals/PhrasePredictionEvalTests.swift
++++ b/CotabbyTests/Evals/PhrasePredictionEvalTests.swift
+@@ -18,6 +18,17 @@ final class PhrasePredictionEvalTests: XCTestCase {
+         // opt-in suites. A second runtime switch is set only by the phrase-eval CLI.
+         try XCTSkipUnless(environment["COTABBY_PHRASE_EVAL"] == "1", "Use scripts/phrase_eval.py run")
+         let options = try Options(environment)
++        // Developer dogfood overrides live in the app's UserDefaults domain. Pin the shipped
++        // values in this test process's higher-priority, in-memory argument domain so a personal
++        // preference cannot change the experiment. Restore the old domain when this test exits;
++        // no set(_:forKey:) call writes to the user's persistent app preferences.
++        let defaults = UserDefaults.standard
++        let previousArgumentDomain = defaults.volatileDomain(forName: UserDefaults.argumentDomain)
++        var replayArgumentDomain = previousArgumentDomain
++        replayArgumentDomain[LlamaSuggestionEngine.confidenceFloorOverrideKey] = NSNumber(value: LlamaSuggestionEngine.defaultConfidenceFloor)
++        replayArgumentDomain[LlamaSuggestionEngine.argmaxStopDisabledKey] = false
++        defaults.setVolatileDomain(replayArgumentDomain, forName: UserDefaults.argumentDomain)
++        defer { defaults.setVolatileDomain(previousArgumentDomain, forName: UserDefaults.argumentDomain) }
+         let corpusURL = try XCTUnwrap(Bundle(for: Self.self).url(forResource: "phrase-prediction-1337", withExtension: "json"))
+         let data = try Data(contentsOf: corpusURL)
+         let corpus = try JSONDecoder().decode(PhrasePredictionCorpus.self, from: data)
+@@ -36,7 +47,7 @@ final class PhrasePredictionEvalTests: XCTestCase {
+             try Task.checkCancellation()
+             try await manager.prepare()
+         }
+-        let configuration = LlamaEvalRuntime.configuration
++        let configuration = options.configuration
+         let settings = CotabbyTestFixtures.settingsSnapshot(
+             selectedEngine: .llamaOpenSource, selectedWordCountPreset: configuration.defaultWordCountPreset,
+             isClipboardContextEnabled: false, isSurfaceContextEnabled: true,
+@@ -49,6 +60,12 @@ final class PhrasePredictionEvalTests: XCTestCase {
+         configurationRecord["settings"] = "single-line; surface metadata and prior draft fixed; synthetic OCR varies; no clipboard/profile/custom rules"
+         configurationRecord["os"] = ProcessInfo.processInfo.operatingSystemVersionString
+         configurationRecord["processors"] = String(ProcessInfo.processInfo.processorCount)
++        configurationRecord["confidenceFloor"] = String(LlamaSuggestionEngine.resolvedConfidenceFloor())
++        configurationRecord["stopAtArgmaxEOG"] = String(LlamaSuggestionEngine.resolvedStopAtArgmaxEOG())
++        configurationRecord["enginePreferenceSource"] = "test-process argument domain; product defaults"
++        configurationRecord["selectionSplit"] = options.split
++        configurationRecord["selectionSplitSeed"] = String(options.splitSeed)
++        configurationRecord["selectionScreenPerCategory"] = String(options.screenPerCategory)
+         let modelPath = try XCTUnwrap(managers.first?.diagnostics.modelFilePath)
+         guard managers.allSatisfy({ $0.diagnostics.modelFilePath == modelPath }) else {
+             throw Options.invalid("All workers must evaluate the same model")
+@@ -56,7 +73,7 @@ final class PhrasePredictionEvalTests: XCTestCase {
+         configurationRecord["modelSHA256"] = try Self.fileSHA256(URL(fileURLWithPath: modelPath))
+         let metadata = PhrasePredictionReport.Metadata(
+             corpusSHA256: SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined(),
+-            corpusVersion: corpus.version, model: modelPath, seed: LlamaEvalRuntime.seed,
++            corpusVersion: corpus.version, model: modelPath, seed: try XCTUnwrap(configuration.randomSeed),
+             mode: options.mode, configuration: configurationRecord, runLabel: options.label,
+             contextMode: options.contextMode, workerCount: managers.count
+         )
+@@ -104,6 +121,12 @@ final class PhrasePredictionEvalTests: XCTestCase {
+             journal.results, phrases: selected, mode: options.mode, context: options.contextMode
+         )
+         let report = PhrasePredictionReport(metadata: metadata, phrases: results)
++        // These developer escape hatches are read by the engine on every generation. Record and
++        // verify their effective values without writing to the user's persisted preferences.
++        guard configurationRecord["confidenceFloor"] == String(LlamaSuggestionEngine.resolvedConfidenceFloor()),
++              configurationRecord["stopAtArgmaxEOG"] == String(LlamaSuggestionEngine.resolvedStopAtArgmaxEOG()) else {
++            throw Options.invalid("Generation preferences changed during replay; rerun with stable settings")
++        }
+         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+         try encoder.encode(report).write(to: options.output.appendingPathComponent("report.json"), options: .atomic)
+         try (report.rendered() + "\n").write(to: options.output.appendingPathComponent("summary.txt"), atomically: true, encoding: .utf8)
+@@ -117,6 +140,46 @@ final class PhrasePredictionEvalTests: XCTestCase {
+     }
+ 
+     #if RUN_LLAMA_EVAL
++    /// Exercise the CLI/native contract without loading a model. The expected IDs are also
++    /// asserted by the Python tests, catching a hash recipe or filter-order mismatch early.
++    func testBenchmarkOptionsPreserveSplitAndSamplingIdentity() throws {
++        var environment = ["COTABBY_PHRASE_OUTPUT": "/tmp/cotabby-options-test"]
++        let defaults = try Options(environment)
++        XCTAssertEqual(defaults.configuration, LlamaEvalRuntime.configuration)
++        environment.merge([
++            "COTABBY_PHRASE_SPLIT": "screen", "COTABBY_PHRASE_CATEGORY": "science",
++            "COTABBY_PHRASE_PER_CATEGORY": "3", "COTABBY_PHRASE_TEMPERATURE": "0",
++            "COTABBY_PHRASE_REPETITION_PENALTY": "1.025", "COTABBY_PHRASE_TOP_K": "0",
++            "COTABBY_PHRASE_TOP_P": "1", "COTABBY_PHRASE_MIN_P": "0", "COTABBY_PHRASE_SEED": "12648430"
++        ]) { _, new in new }
++        let options = try Options(environment)
++        let url = try XCTUnwrap(Bundle(for: Self.self).url(forResource: "phrase-prediction-1337", withExtension: "json"))
++        let corpus = try JSONDecoder().decode(PhrasePredictionCorpus.self, from: Data(contentsOf: url))
++        let selected = try options.select(corpus.phrases)
++        XCTAssertEqual(selected.map(\.id), ["science-008", "science-127", "science-164"])
++        environment["COTABBY_PHRASE_SPLIT"] = "heldout"
++        XCTAssertEqual(try Options(environment).select(corpus.phrases).map(\.id), ["science-101", "science-135", "science-163"])
++        let phrase = try XCTUnwrap(selected.first)
++        let checkpoint = try XCTUnwrap(PhrasePredictionScorer.checkpoints(for: phrase, mode: .word).first)
++        let request = PhrasePredictionScreenContext.request(
++            checkpoint: checkpoint, scenario: try XCTUnwrap(phrase.scenario), condition: .none,
++            settings: CotabbyTestFixtures.settingsSnapshot(selectedEngine: .llamaOpenSource),
++            configuration: options.configuration
++        )
++        XCTAssertEqual(request.temperature, 0)
++        XCTAssertEqual(request.repetitionPenalty, 1.025)
++        XCTAssertEqual(request.topK, 0)
++        XCTAssertEqual(request.topP, 1)
++        XCTAssertEqual(request.minP, 0)
++        XCTAssertEqual(request.randomSeed, 12648430)
++        for (key, value) in [("SEED", "0"), ("SEED", "4294967295"), ("TOP_K", "-1"),
++                             ("TOP_K", "2147483648"), ("TEMPERATURE", "nan"), ("REPETITION_PENALTY", "0")] {
++            var invalid = environment
++            invalid["COTABBY_PHRASE_\(key)"] = value
++            XCTAssertThrowsError(try Options(invalid), "Should reject \(key)=\(value)")
++        }
++    }
++
+     /// The test owns one journal for the entire replay. Actor isolation makes each append atomic
+     /// with respect to other workers; the Python progress reader sees only complete JSONL lines.
+     /// Results stay in completion order here and are validated/reordered before final scoring.
+@@ -203,6 +266,7 @@ final class PhrasePredictionEvalTests: XCTestCase {
+ 
+     /// Test-host configuration is a short-lived value, separate from the app's saved settings.
+     /// Invalid filters fail loudly instead of silently reporting an empty or different suite.
++    @MainActor
+     private struct Options {
+         let mode: PhrasePredictionScorer.Mode
+         let contextMode: PhrasePredictionScorer.ContextMode
+@@ -210,6 +274,10 @@ final class PhrasePredictionEvalTests: XCTestCase {
+         let phraseID: String?
+         let limit: Int?
+         let perCategory: Int?
++        let split: String
++        let splitSeed: UInt32
++        let screenPerCategory: Int
++        let configuration: SuggestionConfiguration
+         let workers: Int
+         let output: URL
+         let label: String
+@@ -227,6 +295,20 @@ final class PhrasePredictionEvalTests: XCTestCase {
+                 throw Self.invalid("Workers must be 1, 2, or 3")
+             }
+             self.workers = workers
++            split = environment["COTABBY_PHRASE_SPLIT"] ?? "all"
++            guard ["all", "screen", "heldout"].contains(split) else {
++                throw Self.invalid("Split must be all, screen, or heldout")
++            }
++            guard let splitSeed = UInt32(environment["COTABBY_PHRASE_SPLIT_SEED"] ?? "1337") else {
++                throw Self.invalid("Split seed must be an unsigned 32-bit integer")
++            }
++            self.splitSeed = splitSeed
++            guard let screenCount = Int(environment["COTABBY_PHRASE_SCREEN_PER_CATEGORY"] ?? "20"),
++                  (1..<191).contains(screenCount) else {
++                throw Self.invalid("Screen per-category count must be between 1 and 190")
++            }
++            screenPerCategory = screenCount
++            configuration = try Self.samplingConfiguration(environment)
+             category = environment["COTABBY_PHRASE_CATEGORY"]
+             phraseID = environment["COTABBY_PHRASE_ID"]
+             if let raw = environment["COTABBY_PHRASE_LIMIT"] {
+@@ -245,14 +327,77 @@ final class PhrasePredictionEvalTests: XCTestCase {
+         }
+ 
+         func select(_ phrases: [PhrasePredictionCorpus.Phrase]) throws -> [PhrasePredictionCorpus.Phrase] {
++            // SHA-256 over an explicitly encoded seed/ID pair has the same ordering in Python
++            // and Swift. Swift's Hasher intentionally changes across processes and cannot define
++            // an experimental split. Membership is fixed before filters, so heldout stays disjoint.
++            let candidates: [PhrasePredictionCorpus.Phrase]
++            if split == "all" {
++                candidates = phrases
++            } else {
++                var ranked: [(phrase: PhrasePredictionCorpus.Phrase, digest: String)] = []
++                for phrase in phrases {
++                    let key = String(splitSeed) + ":" + phrase.id
++                    let bytes = Data(key.utf8)
++                    let digest = SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined()
++                    ranked.append((phrase: phrase, digest: digest))
++                }
++                ranked.sort { lhs, rhs in
++                    if lhs.digest == rhs.digest { return lhs.phrase.id < rhs.phrase.id }
++                    return lhs.digest < rhs.digest
++                }
++                var ranks: [String: Int] = [:]
++                candidates = ranked.compactMap { item in
++                    ranks[item.phrase.category, default: 0] += 1
++                    let inScreen = ranks[item.phrase.category, default: 0] <= screenPerCategory
++                    return inScreen == (split == "screen") ? item.phrase : nil
++                }
++            }
+             var counts: [String: Int] = [:]
+-            let filtered = phrases.filter {
++            let filtered = candidates.filter {
+                 guard (category == nil || $0.category == category) && (phraseID == nil || $0.id == phraseID) else { return false }
+                 counts[$0.category, default: 0] += 1
+                 return perCategory == nil || counts[$0.category, default: 0] <= (perCategory ?? 0)
+             }
+             guard !filtered.isEmpty else { throw Self.invalid("No phrases matched the selection") }
+-            return Array(filtered.prefix(limit ?? filtered.count))
++            // Replay remains in corpus order even when hash order selected a capped partition.
++            // This preserves worker sharding and alternating context order across paired runs.
++            let ids = Set(filtered.map(\.id))
++            let ordered = phrases.filter { ids.contains($0.id) }
++            return Array(ordered.prefix(limit ?? ordered.count))
++        }
++
++        /// Each replay owns one immutable configuration snapshot, copied from the shared eval
++        /// defaults and modified only by explicit test-host variables. Passing this value through
++        /// request construction reaches the native sampler without changing the app's settings.
++        private static func samplingConfiguration(_ environment: [String: String]) throws -> SuggestionConfiguration {
++            func number(_ name: String, default value: Double, range: ClosedRange<Double>) throws -> Double {
++                guard let raw = environment["COTABBY_PHRASE_\(name)"] else { return value }
++                guard let parsed = Double(raw), parsed.isFinite, range.contains(parsed) else {
++                    throw invalid("Invalid sampling \(name): \(raw)")
++                }
++                return parsed
++            }
++            let defaults = LlamaEvalRuntime.configuration
++            let temperature = try number("TEMPERATURE", default: defaults.temperature, range: 0...100)
++            let penalty = try number("REPETITION_PENALTY", default: defaults.repetitionPenalty, range: 0...100)
++            guard penalty > 0 else { throw invalid("Repetition penalty must be positive") }
++            let topP = try number("TOP_P", default: defaults.topP, range: 0...1)
++            let minP = try number("MIN_P", default: defaults.minP, range: 0...1)
++            guard let topK = Int(environment["COTABBY_PHRASE_TOP_K"] ?? String(defaults.topK)),
++                  (0...Int(Int32.max)).contains(topK) else { throw invalid("Top-k must be a nonnegative Int32") }
++            guard let seed = UInt32(environment["COTABBY_PHRASE_SEED"] ?? String(LlamaEvalRuntime.seed)),
++                  seed > 0, seed < UInt32.max else { throw invalid("Seed must be a fixed integer between 1 and 4294967294") }
++            return SuggestionConfiguration(
++                maxPredictionTokens: defaults.maxPredictionTokens, debounceMilliseconds: defaults.debounceMilliseconds,
++                temperature: temperature, topK: topK, topP: topP, minP: minP,
++                repetitionPenalty: penalty, randomSeed: seed,
++                maxPrefixWords: defaults.maxPrefixWords, maxPrefixCharacters: defaults.maxPrefixCharacters,
++                maxPrefixWordsFoundationModel: defaults.maxPrefixWordsFoundationModel,
++                maxPrefixCharactersFoundationModel: defaults.maxPrefixCharactersFoundationModel,
++                maxSuffixCharacters: defaults.maxSuffixCharacters, llamaPromptTokenBudget: defaults.llamaPromptTokenBudget,
++                defaultUserName: defaults.defaultUserName, defaultWordCountPreset: defaults.defaultWordCountPreset,
++                focusPollIntervalMilliseconds: defaults.focusPollIntervalMilliseconds
++            )
+         }
+ 
+         static func invalid(_ message: String) -> Error { PhrasePredictionCorpus.ValidationError.invalid(message) }
+diff --git a/CotabbyTests/Services/Runtime/Llama/LlamaRuntimeCoreIntegrationTests.swift b/CotabbyTests/Services/Runtime/Llama/LlamaRuntimeCoreIntegrationTests.swift
+index 1ca50fb..fb0c528 100644
+--- a/CotabbyTests/Services/Runtime/Llama/LlamaRuntimeCoreIntegrationTests.swift
++++ b/CotabbyTests/Services/Runtime/Llama/LlamaRuntimeCoreIntegrationTests.swift
+@@ -17,6 +17,58 @@ final class LlamaRuntimeCoreIntegrationTests: XCTestCase {
+         XCTAssertEqual(warm.suppressedByLowConfidence, cold.suppressedByLowConfidence)
+     }
+ 
++    /// Cache reuse must reset the distribution sampler as well as native KV. A fixed seed belongs
++    /// to each request, so repeatedly discarding a sampled suggestion cannot advance the next
++    /// request's random stream or leave generated words in its repetition history.
++    func testSampledRestoredRequestResetsRandomStreamAndRepetitionHistory() throws {
++        let core = try makeCore()
++        defer { core.shutdown() }
++        let prompt = "Hi Alex, thanks for sending the project update. I will review the schedule and send you my"
++
++        for configuration in sampledConfigurations {
++            core.resetPromptCache()
++            let cold = try core.generate(prompt: prompt, options: configuration.options)
++            XCTAssertFalse(cold.text.isEmpty, configuration.label)
++            for repetition in 1...2 {
++                let reused = try core.generate(
++                    prompt: prompt, cachedPrefixBytes: prompt.utf8.count, options: configuration.options
++                )
++                XCTAssertEqual(
++                    reused.text, cold.text,
++                    "\(configuration.label), discarded tail \(repetition): sampler state must restart from the writer's prompt"
++                )
++            }
++        }
++    }
++
++    /// Changing the writer's prompt exercises restoration beyond an identical-request shortcut.
++    /// The same edited prompt must produce the same sampled continuation with retained native
++    /// state or a freshly reset cache; neither the discarded tail nor its RNG draws are context.
++    func testSampledEditedPromptMatchesFreshStateAfterDiscardedGeneration() throws {
++        let core = try makeCore()
++        defer { core.shutdown() }
++        let original = "Hi Alex, thanks for sending the project update. I will review the schedule and send you my"
++        let editedPrompts = [original + " feedback", String(original.dropLast(2)) + "our feedback"]
++
++        for configuration in sampledConfigurations {
++            for edited in editedPrompts {
++                core.resetPromptCache()
++                _ = try core.generate(prompt: original, options: configuration.options)
++                let hint = zip(original.utf8, edited.utf8).prefix { $0.0 == $0.1 }.count
++                let reused = try core.generate(
++                    prompt: edited, cachedPrefixBytes: hint, options: configuration.options
++                )
++                core.resetPromptCache()
++                let fresh = try core.generate(prompt: edited, options: configuration.options)
++                XCTAssertFalse(fresh.text.isEmpty, configuration.label)
++                XCTAssertEqual(
++                    reused.text, fresh.text,
++                    "\(configuration.label): retained generation changed the sampled result for \(edited)"
++                )
++            }
++        }
++    }
++
+     func testHealingStreamsOnlyValidCumulativeContinuation() throws {
+         let core = try makeCore()
+         defer { core.shutdown() }
+@@ -93,6 +145,29 @@ final class LlamaRuntimeCoreIntegrationTests: XCTestCase {
+         )
+     }
+ 
++    /// The first two entries cover the production sampler and this round's no-penalty candidate.
++    /// Their low temperature can collapse to one allowed token, so the final diagnostic entry
++    /// deliberately leaves more choices available and makes a missing RNG reset observable.
++    /// These are per-test values; they never change app preferences or the benchmark defaults.
++    private var sampledConfigurations: [(label: String, options: LlamaGenerationOptions)] {
++        [
++            ("sampled baseline", 0.1, 20, 0.7, 0.08, 1.05),
++            ("sampled without repetition penalty", 0.1, 20, 0.7, 0.08, 1.0),
++            ("RNG diagnostic", 0.8, 0, 1.0, 0.0, 1.0)
++        ].map { label, temperature, topK, topP, minP, repetitionPenalty in
++            (label, LlamaGenerationOptions(
++                maxPredictionTokens: 12,
++                temperature: temperature,
++                topK: topK,
++                topP: topP,
++                minP: minP,
++                repetitionPenalty: repetitionPenalty,
++                seed: 42,
++                stopAtArgmaxEOG: false
++            ))
++        }
++    }
++
+     private func makeCore() throws -> LlamaRuntimeCore {
+         let environment = ProcessInfo.processInfo.environment
+         guard let path = environment["COTABBY_TEST_MODEL_PATH"] ?? environment["COTABBY_EVAL_MODEL_PATH"],
+diff --git a/CotabbyTests/Support/Context/SurfaceContextComposerTests.swift b/CotabbyTests/Support/Context/SurfaceContextComposerTests.swift
+index 2625f6e..5b5e228 100644
+--- a/CotabbyTests/Support/Context/SurfaceContextComposerTests.swift
++++ b/CotabbyTests/Support/Context/SurfaceContextComposerTests.swift
+@@ -3,7 +3,8 @@ import XCTest
+ 
+ /// Locks in the two invariants of surface conditioning: omission beats noise (code editors,
+ /// terminals, and anonymous generic apps get no section at all), and everything user-derived
+-/// (titles, placeholders, URLs) is sanitized before it can reach a prompt.
++/// (titles, placeholders, URLs) is sanitized before it can reach a prompt. Compact labels must
++/// preserve the available facts and stable field order without adding absent metadata.
+ final class SurfaceContextComposerTests: XCTestCase {
+     private func compose(
+         applicationName: String = "Mail",
+@@ -41,7 +42,7 @@ final class SurfaceContextComposerTests: XCTestCase {
+         XCTAssertNil(compose(applicationName: "SomeApp", bundleIdentifier: "com.example.someapp"))
+     }
+ 
+-    func testGenericAppWithTitleIsIncluded() {
++    func testGenericAppWithTitleIsIncluded() throws {
+         let surface = compose(
+             applicationName: "Bear",
+             bundleIdentifier: "net.shinyfrog.bear",
+@@ -49,6 +50,10 @@ final class SurfaceContextComposerTests: XCTestCase {
+         )
+         XCTAssertEqual(surface?.surfaceClass, .other)
+         XCTAssertEqual(surface?.windowTitle, "Travel plans")
++        XCTAssertEqual(
++            SurfaceContextComposer.prefaceLines(for: try XCTUnwrap(surface)),
++            ["Format: text; App: Bear; Title: Travel plans."]
++        )
+     }
+ 
+     // MARK: - Preface lines
+@@ -57,7 +62,7 @@ final class SurfaceContextComposerTests: XCTestCase {
+         let surface = compose(windowTitle: "Re: Q3 budget review")
+         XCTAssertEqual(
+             SurfaceContextComposer.prefaceLines(for: try XCTUnwrap(surface)),
+-            ["An email being written in Mail.", "The window is titled \"Re: Q3 budget review\"."]
++            ["Format: email; App: Mail; Title: Re: Q3 budget review."]
+         )
+     }
+ 
+@@ -69,7 +74,7 @@ final class SurfaceContextComposerTests: XCTestCase {
+         )
+         XCTAssertEqual(
+             SurfaceContextComposer.prefaceLines(for: try XCTUnwrap(surface)),
+-            ["A chat message being typed in Slack.", "The text field is labeled \"Message #design\"."]
++            ["Format: chat; App: Slack; Field: Message #design."]
+         )
+     }
+ 
+@@ -81,10 +86,58 @@ final class SurfaceContextComposerTests: XCTestCase {
+         )
+         XCTAssertEqual(
+             SurfaceContextComposer.prefaceLines(for: try XCTUnwrap(surface)),
+-            ["Text being typed on notion.so in Google Chrome."]
++            ["Format: web text; App: Google Chrome; Domain: notion.so."]
++        )
++    }
++
++    func testCompactPrefacePreservesAllSanitizedBrowserFacts() throws {
++        let surface = try XCTUnwrap(compose(
++            applicationName: "  Google   Chrome  ",
++            bundleIdentifier: "com.google.Chrome",
++            windowTitle: "Planning \"notes\" - Google Chrome",
++            focusedURLString: "https://www.docs.example.com/private-draft?token=secret#section",
++            fieldPlaceholder: "  Add   a comment  "
++        ))
++        XCTAssertEqual(
++            SurfaceContextComposer.prefaceLines(for: surface),
++            ["Format: web text; App: Google Chrome; Domain: docs.example.com; Title: Planning notes; Field: Add a comment."]
+         )
+     }
+ 
++    func testBrowserWithoutOptionalFactsKeepsOnlyFormatAndApp() throws {
++        let surface = try XCTUnwrap(compose(
++            applicationName: "Safari", bundleIdentifier: "com.apple.Safari"
++        ))
++        XCTAssertEqual(SurfaceContextComposer.prefaceLines(for: surface), ["Format: web text; App: Safari."])
++    }
++
++    func testNonBrowserSurfacesKeepOriginalDomainOmission() {
++        // SurfaceContext is shared with the Foundation Models renderer and may carry a host for
++        // any app. Compact formatting must preserve the base preface's browser-only domain scope.
++        for surfaceClass in [AppSurfaceClass.email, .chat, .other] {
++            let surface = SurfaceContext(
++                surfaceClass: surfaceClass, applicationName: "SomeApp", windowTitle: "Draft",
++                domain: "private.example.com", fieldPlaceholder: "Message"
++            )
++            let preface = SurfaceContextComposer.prefaceLines(for: surface).joined(separator: " ")
++            XCTAssertFalse(preface.contains("Domain:"))
++            XCTAssertFalse(preface.contains("private.example.com"))
++            XCTAssertTrue(preface.contains("App: SomeApp; Title: Draft; Field: Message."))
++        }
++    }
++
++    func testExcludedSurfaceValuesCannotRenderMetadata() {
++        // The value type is shared across renderers and can be constructed without compose().
++        // Protect omission at this rendering boundary as well as at focus metadata composition.
++        for surfaceClass in [AppSurfaceClass.codeEditor, .terminal] {
++            let surface = SurfaceContext(
++                surfaceClass: surfaceClass, applicationName: "Editor", windowTitle: "Project",
++                domain: "example.com", fieldPlaceholder: "Command"
++            )
++            XCTAssertEqual(SurfaceContextComposer.prefaceLines(for: surface), [])
++        }
++    }
++
+     // MARK: - Sanitization
+ 
+     func testTitleAppNameSuffixIsStripped() {
+diff --git a/CotabbyTests/Support/Prompting/BaseCompletionPromptRendererTests.swift b/CotabbyTests/Support/Prompting/BaseCompletionPromptRendererTests.swift
+index 0facb96..d1bec40 100644
+--- a/CotabbyTests/Support/Prompting/BaseCompletionPromptRendererTests.swift
++++ b/CotabbyTests/Support/Prompting/BaseCompletionPromptRendererTests.swift
+@@ -1,9 +1,9 @@
+ import XCTest
+ @testable import Cotabby
+ 
+-/// Pure-function tests for the experimental base-model prompt. The contract: no instruction
+-/// instruction preamble, the exact caret prefix is always the final bytes, and descriptive context
+-/// only appears when supplied. These tests protect the inputs to generation, not model quality.
++/// Pure-function tests for the base-model prompt. The contract: no instruction preamble, the
++/// exact caret prefix is always the final bytes, and supplied context stays inside its budget.
++/// These tests protect the inputs to generation; model quality belongs to the inference benchmark.
+ final class BaseCompletionPromptRendererTests: XCTestCase {
+ 
+     func test_bareField_returnsExactPrefixOnly() {
+@@ -37,7 +37,11 @@ final class BaseCompletionPromptRendererTests: XCTestCase {
+             extendedContext: "Project Matcha ships in June.",
+             languageInstruction: "Write in English.",
+             clipboardContext: "zoom link",
+-            visualContextSummary: "Calendar: Q3 planning 3pm"
++            visualContextSummary: "Calendar: Q3 planning 3pm",
++            surfaceContext: SurfaceContext(
++                surfaceClass: .chat, applicationName: "Slack", windowTitle: "Q3 planning",
++                domain: nil, fieldPlaceholder: "Message #planning"
++            )
+         )
+         XCTAssertTrue(prompt.hasSuffix("the meeting is at"))
+     }
+@@ -53,6 +57,10 @@ final class BaseCompletionPromptRendererTests: XCTestCase {
+             extendedContext: "Project Matcha ships in June with a great many additional notes kept here.",
+             clipboardContext: "zoom link",
+             visualContextSummary: "Calendar: Q3 planning 3pm",
++            surfaceContext: SurfaceContext(
++                surfaceClass: .chat, applicationName: "Slack", windowTitle: "Q3 planning",
++                domain: nil, fieldPlaceholder: "Message #planning"
++            ),
+             tokenBudget: 8
+         )
+         XCTAssertTrue(prompt.hasSuffix("the meeting is at"), "the caret prefix is never starved under a token budget")
+@@ -170,11 +178,33 @@ final class BaseCompletionPromptRendererTests: XCTestCase {
+             userName: "Jacob",
+             surfaceContext: surface
+         )
+-        XCTAssertTrue(prompt.hasPrefix("An email being written in Mail. The window is titled \"Re: Q3 budget review\"."))
++        XCTAssertTrue(prompt.hasPrefix("Format: email; App: Mail; Title: Re: Q3 budget review."))
+         XCTAssertTrue(prompt.contains("Written by Jacob"))
+         XCTAssertTrue(prompt.hasSuffix("Thanks again for"))
+     }
+ 
++    func test_compactSurfaceSectionStaysBoundedWithoutChangingCaretWhitespace() {
++        let prefix = "Hi team,\n\nNext step:\n\t- "
++        // A long host and title can exceed the optional surface section's 240-character ceiling.
++        // Metadata must yield to the caret prefix under both a normal and a tight total budget.
++        let surface = SurfaceContext(
++            surfaceClass: .browser,
++            applicationName: "Google Chrome",
++            windowTitle: String(repeating: "t", count: 80),
++            domain: String(repeating: "subdomain.", count: 20) + "example.com",
++            fieldPlaceholder: String(repeating: "f", count: 60)
++        )
++        for availableSurfaceCharacters in [24, 240] {
++            let prompt = BaseCompletionPromptRenderer.prompt(
++                prefixText: prefix, applicationName: "Google Chrome", userName: nil,
++                surfaceContext: surface, contextBudget: prefix.count + availableSurfaceCharacters
++            )
++            XCTAssertTrue(prompt.hasSuffix(prefix), "metadata must not displace or normalize the caret prefix")
++            // Section allocation counts content; the renderer adds its two newline separators.
++            XCTAssertLessThanOrEqual(prompt.count, prefix.count + availableSurfaceCharacters + 2)
++        }
++    }
++
+     func test_noSurfaceContextMeansPromptIsUnchanged() {
+         let without = BaseCompletionPromptRenderer.prompt(
+             prefixText: "Once upon",
+diff --git a/CotabbyTests/Support/Suggestion/Request/SuggestionRequestFactoryTests.swift b/CotabbyTests/Support/Suggestion/Request/SuggestionRequestFactoryTests.swift
+index 4b75fe1..29334ba 100644
+--- a/CotabbyTests/Support/Suggestion/Request/SuggestionRequestFactoryTests.swift
++++ b/CotabbyTests/Support/Suggestion/Request/SuggestionRequestFactoryTests.swift
+@@ -429,9 +429,9 @@ final class SuggestionRequestFactoryTests: XCTestCase {
+         )
+ 
+         XCTAssertEqual(result.request.surfaceContext?.surfaceClass, .email)
+-        XCTAssertTrue(result.request.prompt.contains("An email being written in Mail."))
++        XCTAssertTrue(result.request.prompt.contains("Format: email; App: Mail;"))
+         XCTAssertTrue(
+-            result.request.prompt.contains("The window is titled \"Re: Q3 budget\"."),
++            result.request.prompt.contains("Title: Re: Q3 budget."),
+             "the app-name suffix is stripped from the title before it reaches the prompt"
+         )
+         XCTAssertTrue(result.request.prompt.hasSuffix("Thanks again for"))
+@@ -452,7 +452,7 @@ final class SuggestionRequestFactoryTests: XCTestCase {
+         )
+ 
+         XCTAssertNil(result.request.surfaceContext)
+-        XCTAssertFalse(result.request.prompt.contains("An email being written"))
++        XCTAssertFalse(result.request.prompt.contains("Format:"))
+         XCTAssertFalse(result.request.prompt.contains("Re: Q3 budget"))
+     }
+ 
+diff --git a/scripts/phrase_eval.py b/scripts/phrase_eval.py
+index a5b24b6..e88af6e 100644
+--- a/scripts/phrase_eval.py
++++ b/scripts/phrase_eval.py
+@@ -21,6 +21,7 @@ import subprocess
+ import sys
+ import time
+ import uuid
++import xml.etree.ElementTree as ET
+ 
+ ROOT = pathlib.Path(__file__).resolve().parents[1]
+ CORPUS = ROOT / "CotabbyTests/Fixtures/phrase-prediction-1337.json"
+@@ -28,6 +29,65 @@ DERIVED = ROOT / "build/DerivedData"
+ BASELINES = ROOT / "benchmarks/phrase-prediction"
+ CATEGORIES = ("conversation", "science", "entertainment", "work", "technology", "everyday", "travel")
+ WORD = re.compile(r"[^\W_]+(?:['’\-][^\W_]+)*", re.UNICODE)
++SAMPLING_FIELDS = {
++    "temperature": ("temperature", "COTABBY_PHRASE_TEMPERATURE"),
++    "repetition_penalty": ("repetitionPenalty", "COTABBY_PHRASE_REPETITION_PENALTY"),
++    "top_k": ("topK", "COTABBY_PHRASE_TOP_K"),
++    "top_p": ("topP", "COTABBY_PHRASE_TOP_P"),
++    "min_p": ("minP", "COTABBY_PHRASE_MIN_P"),
++}
++
++
++def sampling_overrides(args):
++    """Validate test-only knobs before building; native Options validates them independently.
++
++    An omitted knob inherits the current product default. Explicit values are saved separately
++    from the native report's effective configuration, so a stale test build cannot silently ignore
++    an experiment. Nonzero seeds avoid the wrapper's randomized-seed sentinel.
++    """
++    values = {field: getattr(args, field, None) for field in SAMPLING_FIELDS}
++    values["seed"] = getattr(args, "seed", None)
++    bounds = {"temperature": (0, 100), "repetition_penalty": (0, 100),
++              "top_k": (0, 2**31 - 1), "top_p": (0, 1), "min_p": (0, 1),
++              "seed": (1, 2**32 - 2)}
++    for field, value in values.items():
++        if value is None:
++            continue
++        low, high = bounds[field]
++        if not math.isfinite(value) or not low <= value <= high or (field == "repetition_penalty" and value == 0):
++            raise ValueError(f"Invalid --{field.replace('_', '-')}: {value}")
++        if field in ("top_k", "seed") and not isinstance(value, int):
++            raise ValueError(f"--{field.replace('_', '-')} must be an integer")
++    return {field: value for field, value in values.items() if value is not None}
++
++
++def partition_phrases(phrases, args):
++    """Choose a balanced, result-independent split using the same SHA-256 recipe as Swift.
++
++    The partition is made from the complete corpus before category/ID filters. Hash order also
++    determines any per-category cap within a partition; returned replay order remains corpus order.
++    This lets a small held-out run grow later without changing its existing members.
++    """
++    split = getattr(args, "split", "all")
++    seed = getattr(args, "split_seed", 1337)
++    count = getattr(args, "screen_per_category", 20)
++    if split not in ("all", "screen", "heldout"):
++        raise ValueError("--split must be all, screen, or heldout")
++    if not isinstance(seed, int) or not 0 <= seed <= 2**32 - 1:
++        raise ValueError("--split-seed must be an unsigned 32-bit integer")
++    if not isinstance(count, int) or not 1 <= count < 191:
++        raise ValueError("--screen-per-category must be between 1 and 190")
++    if split == "all":
++        return phrases
++    ranked = sorted(phrases, key=lambda p: (hashlib.sha256(f"{seed}:{p['id']}".encode()).hexdigest(), p["id"]))
++    counts = collections.Counter()
++    selected = []
++    for phrase in ranked:
++        counts[phrase["category"]] += 1
++        in_screen = counts[phrase["category"]] <= count
++        if in_screen == (split == "screen"):
++            selected.append(phrase)
++    return selected
+ 
+ 
+ def read_selection(args):
+@@ -48,7 +108,7 @@ def read_selection(args):
+         scene = phrase["scenario"]
+         if folded(phrase["text"]) in folded(scene["screenText"] + " " + scene["documentPrefix"]):
+             raise ValueError(f"Reference sentence leaked into screen context: {phrase['id']}")
+-    selected = [p for p in phrases if (not args.category or p["category"] == args.category)
++    selected = [p for p in partition_phrases(phrases, args) if (not args.category or p["category"] == args.category)
+                 and (not args.phrase or p["id"] == args.phrase)]
+     per_category = getattr(args, "per_category", None)
+     if per_category is not None:
+@@ -61,6 +121,8 @@ def read_selection(args):
+             if counts[phrase["category"]] <= per_category:
+                 balanced.append(phrase)
+         selected = balanced
++    selected_ids = {p["id"] for p in selected}
++    selected = [p for p in phrases if p["id"] in selected_ids]
+     if args.limit is not None:
+         if args.limit < 1:
+             raise ValueError("--limit must be positive")
+@@ -80,6 +142,7 @@ def checkpoint_counts(phrases, mode, context):
+ 
+ 
+ def show_plan(args):
++    overrides = sampling_overrides(args)
+     _, phrases = read_selection(args)
+     context = getattr(args, "context", "paired")
+     workers = min(getattr(args, "workers", 3), len(phrases))
+@@ -88,9 +151,25 @@ def show_plan(args):
+     for category, count in sorted(counts.items()):
+         print(f"  {category}: {count:,} checkpoints")
+     print("Primary score: exact next word before its first letter; suppressed output is a miss.")
++    print(f"Selection: split={getattr(args, 'split', 'all')}; split seed={getattr(args, 'split_seed', 1337)}; screen phrases/category={getattr(args, 'screen_per_category', 20)}")
++    if overrides:
++        print("Sampling overrides:", json.dumps(overrides, sort_keys=True))
+     return phrases
+ 
+ 
++def validate_sampling_report(report, overrides):
++    """Reject effective settings that differ from the requested experimental settings."""
++    metadata = report["metadata"]
++    for field, requested in overrides.items():
++        actual = metadata.get("seed") if field == "seed" else metadata["configuration"].get(SAMPLING_FIELDS[field][0])
++        try:
++            matches = math.isclose(float(actual), requested, rel_tol=1e-12, abs_tol=1e-12)
++        except (TypeError, ValueError):
++            matches = False
++        if not matches:
++            raise RuntimeError(f"Executed sampling {field}={actual} does not match requested {requested}; rebuild the test bundle")
++
++
+ def git_output(*arguments):
+     return subprocess.check_output(["git", *arguments], cwd=ROOT, text=True)
+ 
+@@ -213,8 +292,77 @@ def logged_command(command, log, progress=None):
+         raise RuntimeError(f"Command failed ({process.returncode}); see {log}")
+ 
+ 
++def build_input_fingerprint(workspace=None):
++    """Fingerprint source inputs before an explicit build reuse, including local workspace packages.
++
++    Only repository source inputs are enumerated: ignored model files, caches and generated native
++    build trees cannot invalidate a sampler-only run or make hashing scale with model size. Local
++    package references must be Git checkouts so their tracked/untracked source list is auditable.
++    """
++    roots = [(ROOT, ["Cotabby", "CotabbyTests", "Cotabby.xcodeproj", "project.yml", "CotabbyInfo.plist", "Config"])]
++    digest = hashlib.sha256()
++    extra_inputs = list((ROOT / "Config").glob("*.xcconfig"))
++    if workspace:
++        workspace = workspace.resolve()
++        document = workspace / "contents.xcworkspacedata"
++        digest.update(str(workspace).encode() + b"\0" + document.read_bytes())
++        extra_inputs.extend((workspace / "xcshareddata").rglob("Package.resolved"))
++        for reference in ET.parse(document).iter("FileRef"):
++            location = reference.attrib.get("location", "")
++            kind, _, value = location.partition(":")
++            if kind == "absolute":
++                path = pathlib.Path(value)
++            elif kind in ("group", "container"):
++                path = workspace.parent / value
++            else:
++                raise ValueError(f"Unsupported workspace reference for build reuse: {location}")
++            path = path.resolve()
++            if (path / "Package.swift").is_file():
++                roots.append((path, []))
++    # Signing.local.xcconfig is intentionally gitignored but still changes the built app host.
++    # Resolved package versions can also live in a generated, ignored workspace directory.
++    for path in sorted(set(extra_inputs)):
++        if path.is_file():
++            digest.update(str(path).encode() + b"\0" + path.read_bytes() + b"\0")
++    for repository, paths in roots:
++        digest.update(str(repository).encode() + b"\0")
++        names = subprocess.check_output(["git", "ls-files", "-co", "--exclude-standard", "-z", "--", *paths],
++                                        cwd=repository).decode().split("\0")
++        for name in sorted(set(filter(None, names))):
++            path = repository / name
++            if not path.is_file() or any(part in ("xcuserdata", ".build", "build") for part in pathlib.Path(name).parts):
++                continue
++            # Package source dependencies can contain checked-in release binaries. Their build
++            # selection is covered by Package.swift; source builds are covered by the files below.
++            if repository != ROOT and path.suffix.lower() not in (".swift", ".c", ".cc", ".cpp", ".h", ".hh", ".hpp", ".m", ".mm", ".metal", ".cmake", ".txt", ".json", ".modulemap", ".sh"):
++                continue
++            digest.update(name.encode() + b"\0")
++            with path.open("rb") as stream:
++                while chunk := stream.read(1_048_576):
++                    digest.update(chunk)
++            digest.update(b"\0")
++    return digest.hexdigest()
++
++
++def build_product_fingerprint(source):
++    """Detect replacement of the app-hosted test binaries after the recorded successful build."""
++    products = source.parent
++    binaries = sorted(p for p in products.glob("Release/**/*.app/Contents/MacOS/*") if p.is_file())
++    binaries += sorted(p for p in products.glob("Release/**/*.xctest/Contents/MacOS/*") if p.is_file())
++    if not binaries:
++        raise RuntimeError("No Release app/test binaries found for build fingerprint")
++    digest = hashlib.sha256(source.read_bytes())
++    for path in binaries:
++        digest.update(str(path.relative_to(products)).encode() + b"\0")
++        with path.open("rb") as stream:
++            while chunk := stream.read(1_048_576):
++                digest.update(chunk)
++    return digest.hexdigest()
++
++
+ def run(args):
+     phrases = show_plan(args)
++    overrides = sampling_overrides(args)
+     workers = min(args.workers, len(phrases))
+     if platform.system() != "Darwin":
+         raise ValueError("Live evaluation requires macOS and Xcode")
+@@ -232,28 +380,54 @@ def run(args):
+         "phraseIDs": [p["id"] for p in phrases], "platform": platform.platform(),
+         "modelPath": str(args.model.resolve()) if args.model else "app runtime default",
+         "workerCount": workers,
++        "samplingOverrides": overrides,
++        "selection": {"split": args.split, "splitSeed": args.split_seed, "screenPerCategory": args.screen_per_category,
++                      "perCategory": args.per_category, "limit": args.limit},
+     }
+     (output / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+     (output / "working-tree.patch").write_text(git_output("diff", "HEAD", "--", "Cotabby", "CotabbyTests", "project.yml", "scripts"))
+     print(f"Results: {output}", flush=True)
+     project = ["-workspace", args.workspace.resolve()] if args.workspace else ["-project", ROOT / "Cotabby.xcodeproj"]
+-    logged_command([
++    build_marker = DERIVED / "phrase-eval-build.json"
++    source_fingerprint = build_input_fingerprint(args.workspace)
++    prior_build = json.loads(build_marker.read_text()) if args.skip_build and build_marker.exists() else None
++    if args.skip_build and (not prior_build or prior_build.get("sourceSHA256") != source_fingerprint):
++        raise RuntimeError("--skip-build requires a recorded successful build with unchanged source inputs; run once without it")
++    if not args.skip_build:
++        logged_command([
+         "xcodebuild", "build-for-testing", *project, "-scheme", "Cotabby", "-configuration", "Release",
+         "-destination", "platform=macOS", "-derivedDataPath", DERIVED,
+         "CODE_SIGNING_ALLOWED=NO", "ENABLE_TESTABILITY=YES", "ONLY_ACTIVE_ARCH=YES",
+         "SWIFT_ACTIVE_COMPILATION_CONDITIONS=$(inherited) RUN_LLAMA_EVAL", "-skipPackageUpdates",
+-    ], output / "build.log")
++        ], output / "build.log")
+     products = DERIVED / "Build/Products"
+     candidates = [p for p in products.glob("Cotabby_*.xctestrun") if "phrase-eval-" not in p.name]
+     if not candidates:
+         raise RuntimeError("Build produced no Cotabby xctestrun file")
+     source = max(candidates, key=lambda p: p.stat().st_mtime_ns)
++    product_fingerprint = build_product_fingerprint(source)
++    if args.skip_build and prior_build.get("productSHA256") != product_fingerprint:
++        raise RuntimeError("--skip-build found changed app/test binaries; rebuild before evaluating")
++    if build_input_fingerprint(args.workspace) != source_fingerprint:
++        raise RuntimeError("Source inputs changed during build setup; retry with a stable checkout")
++    build_record = {"sourceSHA256": source_fingerprint, "productSHA256": product_fingerprint,
++                    "xctestrun": str(source), "reused": args.skip_build}
++    if not args.skip_build:
++        build_marker.write_text(json.dumps(build_record, indent=2) + "\n")
++    else:
++        print("Reusing verified app/test build; source inputs and binary fingerprints match.", flush=True)
++    manifest["build"] = build_record
++    (output / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+     configuration = plistlib.loads(source.read_bytes())
+     environment = {
+         "COTABBY_PHRASE_EVAL": "1", "COTABBY_PHRASE_MODE": args.mode, "COTABBY_PHRASE_CONTEXT": args.context,
+         "COTABBY_PHRASE_OUTPUT": str(output), "COTABBY_PHRASE_LABEL": args.label,
+         "COTABBY_PHRASE_WORKERS": str(workers),
++        "COTABBY_PHRASE_SPLIT": args.split, "COTABBY_PHRASE_SPLIT_SEED": str(args.split_seed),
++        "COTABBY_PHRASE_SCREEN_PER_CATEGORY": str(args.screen_per_category),
+     }
++    for field, value in overrides.items():
++        environment["COTABBY_PHRASE_SEED" if field == "seed" else SAMPLING_FIELDS[field][1]] = str(value)
+     for key, value in (("COTABBY_PHRASE_CATEGORY", args.category), ("COTABBY_PHRASE_ID", args.phrase),
+                        ("COTABBY_PHRASE_LIMIT", args.limit), ("COTABBY_PHRASE_PER_CATEGORY", args.per_category), ("COTABBY_EVAL_MODEL_PATH", args.model)):
+         if value is not None:
+@@ -276,6 +450,7 @@ def run(args):
+     if not report_path.exists():
+         raise RuntimeError("No report was produced; check test.log for a skipped or interrupted benchmark")
+     report = json.loads(report_path.read_text())
++    validate_sampling_report(report, overrides)
+     if report["metadata"].get("workerCount", 1) != workers:
+         raise RuntimeError("Executed worker count does not match the requested worker count")
+     conditions = ["none", "screen"] if args.context == "paired" else [args.context]
+@@ -411,15 +586,27 @@ def main():
+         command.add_argument("--context", choices=("none", "screen", "paired"), default="paired")
+         command.add_argument("--workers", type=int, choices=(1, 2, 3), default=3,
+                              help="Independent inference workers (default: 3); use 1 for uncontended latency")
+-        command.add_argument("--per-category", type=int, help="First N scenarios in each selected category; useful for balanced smoke tests")
++        command.add_argument("--per-category", type=int, help="N scenarios per selected category; corpus order for all, hash order within a split")
++        command.add_argument("--split", choices=("all", "screen", "heldout"), default="all",
++                             help="Deterministic balanced screen or its disjoint held-out complement")
++        command.add_argument("--split-seed", type=int, default=1337, help="Unsigned 32-bit SHA-256 partition seed, independent of sampling")
++        command.add_argument("--screen-per-category", type=int, default=20, help="Screen partition size per category (1–190; default: 20)")
+         command.add_argument("--category", choices=CATEGORIES)
+         command.add_argument("--phrase", help="Stable phrase ID, e.g. conversation-001")
+         command.add_argument("--limit", type=int, help="First N phrases after filtering (smoke tests only)")
++        command.add_argument("--temperature", type=float, help="Test-only temperature override (0 enables native greedy decoding)")
++        command.add_argument("--repetition-penalty", type=float, help="Test-only repetition penalty; 1 disables the penalty")
++        command.add_argument("--top-k", type=int, help="Test-only top-k; 0 disables top-k filtering")
++        command.add_argument("--top-p", type=float, help="Test-only nucleus sampling probability (0–1)")
++        command.add_argument("--min-p", type=float, help="Test-only relative probability cutoff (0–1)")
++        command.add_argument("--seed", type=int, help="Fixed test sampling seed (1–4294967294); default: 42")
+         if name == "run":
+             command.add_argument("--model", type=pathlib.Path, help="Local GGUF; defaults to app runtime model")
+             command.add_argument("--workspace", type=pathlib.Path, help="Optional workspace for a local CotabbyInference checkout")
+             command.add_argument("--output", type=pathlib.Path, help="New results directory; never overwrites a previous run")
+             command.add_argument("--label", default="baseline")
++            command.add_argument("--skip-build", action="store_true",
++                                 help="Reuse a successful CLI build only if source and app/test fingerprints still match")
+     command = commands.add_parser("compare")
+     command.add_argument("before", type=pathlib.Path)
+     command.add_argument("after", type=pathlib.Path)
+diff --git a/scripts/tests/test_phrase_eval.py b/scripts/tests/test_phrase_eval.py
+index 9eadf20..a747489 100644
+--- a/scripts/tests/test_phrase_eval.py
++++ b/scripts/tests/test_phrase_eval.py
+@@ -18,6 +18,94 @@ SPEC.loader.exec_module(eval_cli)
+ 
+ 
+ class PhraseEvalCLITests(unittest.TestCase):
++    def test_hash_partitions_are_balanced_disjoint_and_result_independent(self):
++        args = argparse.Namespace(category=None, phrase=None, limit=None, split='screen', split_seed=1337,
++                                  screen_per_category=20, per_category=None)
++        corpus, screen = eval_cli.read_selection(args)
++        args.split = 'heldout'
++        _, heldout = eval_cli.read_selection(args)
++        screen_ids, heldout_ids = {p['id'] for p in screen}, {p['id'] for p in heldout}
++        self.assertEqual(len(screen_ids), 140)
++        self.assertEqual(len(heldout_ids), 1197)
++        self.assertFalse(screen_ids & heldout_ids)
++        self.assertEqual(screen_ids | heldout_ids, {p['id'] for p in corpus['phrases']})
++        self.assertEqual(eval_cli.collections.Counter(p['category'] for p in screen), dict.fromkeys(eval_cli.CATEGORIES, 20))
++        args.split = 'screen'
++        self.assertEqual({p['id'] for p in eval_cli.partition_phrases(list(reversed(corpus['phrases'])), args)}, screen_ids)
++        args.split_seed = 1338
++        self.assertNotEqual({p['id'] for p in eval_cli.read_selection(args)[1]}, screen_ids)
++
++    def test_partition_caps_use_hash_order_and_match_native_fixture(self):
++        args = argparse.Namespace(category='science', phrase=None, limit=None, per_category=3, split='screen')
++        _, phrases = eval_cli.read_selection(args)
++        self.assertEqual([p['id'] for p in phrases], ['science-008', 'science-127', 'science-164'])
++        args.per_category = 5
++        self.assertTrue({p['id'] for p in phrases} < {p['id'] for p in eval_cli.read_selection(args)[1]})
++        args.per_category, args.split = 3, 'heldout'
++        self.assertEqual([p['id'] for p in eval_cli.read_selection(args)[1]], ['science-101', 'science-135', 'science-163'])
++        args.phrase = 'science-008'
++        with self.assertRaisesRegex(ValueError, 'No phrases'):
++            eval_cli.read_selection(args)
++
++    def test_invalid_partition_controls_fail_before_selection(self):
++        for field, value in [('split', 'bad'), ('split_seed', -1), ('split_seed', 2**32),
++                             ('screen_per_category', 0), ('screen_per_category', 191)]:
++            args = argparse.Namespace(category=None, phrase=None, limit=None)
++            setattr(args, field, value)
++            with self.assertRaises(ValueError):
++                eval_cli.read_selection(args)
++
++    def test_sampler_overrides_preserve_omitted_defaults_and_reject_random_seeds(self):
++        self.assertEqual(eval_cli.sampling_overrides(argparse.Namespace()), {})
++        accepted = dict(temperature=0, repetition_penalty=1.025, top_k=0, top_p=1, min_p=0, seed=12648430)
++        self.assertEqual(eval_cli.sampling_overrides(argparse.Namespace(**accepted)), accepted)
++        for field, value in [('temperature', float('nan')), ('temperature', float('inf')), ('temperature', -1),
++                             ('repetition_penalty', 0), ('top_k', -1), ('top_k', 2**31), ('top_k', 1.5),
++                             ('top_p', 1.1), ('min_p', -0.1), ('seed', 0), ('seed', 2**32 - 1), ('seed', 1.2)]:
++            with self.assertRaises(ValueError):
++                eval_cli.sampling_overrides(argparse.Namespace(**{field: value}))
++
++    def test_effective_sampling_must_match_request_including_seed(self):
++        report = self.report()
++        report['metadata']['configuration'] = {'temperature': '0.0', 'repetitionPenalty': '1.025'}
++        eval_cli.validate_sampling_report(report, {'temperature': 0, 'repetition_penalty': 1.025, 'seed': 42})
++        for overrides in ({'seed': 43}, {'temperature': 0.1}, {'top_k': 20}):
++            with self.assertRaisesRegex(RuntimeError, 'does not match'):
++                eval_cli.validate_sampling_report(report, overrides)
++
++    def test_build_fingerprint_includes_local_native_sources_and_ignores_run_output(self):
++        with tempfile.TemporaryDirectory() as directory:
++            root = pathlib.Path(directory)
++            (root / 'Cotabby').mkdir()
++            (root / 'Cotabby/app.swift').write_text('app source')
++            native = root / 'native'
++            native.mkdir()
++            (native / 'Package.swift').write_text('package')
++            (native / 'TokenHealing.cpp').write_text('native source')
++            workspace = root / 'dev.xcworkspace'
++            workspace.mkdir()
++            (workspace / 'contents.xcworkspacedata').write_text(f'<Workspace><FileRef location="absolute:{native}" /></Workspace>')
++            def names(command, cwd):
++                return b'Cotabby/app.swift\0' if cwd == root else b'Package.swift\0TokenHealing.cpp\0'
++            with mock.patch.object(eval_cli, 'ROOT', root), mock.patch.object(eval_cli.subprocess, 'check_output', side_effect=names):
++                first = eval_cli.build_input_fingerprint(workspace)
++                (root / 'run-output.json').write_text('does not affect build')
++                self.assertEqual(first, eval_cli.build_input_fingerprint(workspace))
++                (native / 'TokenHealing.cpp').write_text('edited native source')
++                self.assertNotEqual(first, eval_cli.build_input_fingerprint(workspace))
++
++    def test_build_product_fingerprint_rejects_replaced_test_bundle(self):
++        with tempfile.TemporaryDirectory() as directory:
++            root = pathlib.Path(directory)
++            source = root / 'Cotabby.xctestrun'
++            source.write_bytes(b'configuration')
++            executable = root / 'Release/Cotabby.app/Contents/PlugIns/CotabbyTests.xctest/Contents/MacOS/CotabbyTests'
++            executable.parent.mkdir(parents=True)
++            executable.write_bytes(b'original test code')
++            first = eval_cli.build_product_fingerprint(source)
++            executable.write_bytes(b'changed test code')
++            self.assertNotEqual(first, eval_cli.build_product_fingerprint(source))
++
+     def test_three_worker_progress_combines_out_of_order_results(self):
+         with tempfile.TemporaryDirectory() as directory:
+             output = pathlib.Path(directory)

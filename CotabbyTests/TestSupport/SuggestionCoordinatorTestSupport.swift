@@ -145,6 +145,8 @@ final class RigSuggestionEngine: SuggestionGenerating {
     var resultProvider: (SuggestionRequest) async throws -> SuggestionResult = { request in
         SuggestionResult(generation: request.generation, rawText: " world", text: " world", latency: 0.01)
     }
+    /// Cumulative synthetic engine snapshots exercise real coordinator streaming and acceptance.
+    var partialTexts: [String] = []
     private(set) var requests: [SuggestionRequest] = []
     private(set) var resetCount = 0
     private(set) var prewarmedRequests: [SuggestionRequest] = []
@@ -152,6 +154,14 @@ final class RigSuggestionEngine: SuggestionGenerating {
     func generateSuggestion(for request: SuggestionRequest) async throws -> SuggestionResult {
         requests.append(request)
         return try await resultProvider(request)
+    }
+
+    func generateSuggestion(for request: SuggestionRequest, onPartial: (@MainActor (SuggestionResult) -> Void)?) async throws -> SuggestionResult {
+        for text in partialTexts {
+            onPartial?(SuggestionResult(generation: request.generation, rawText: text, text: text, latency: 0.01))
+            await Task.yield()
+        }
+        return try await generateSuggestion(for: request)
     }
 
     func resetCachedGenerationContext() async {

@@ -55,8 +55,16 @@ final class SuggestionQualityMetricsStore: ObservableObject {
         mutate { $0.generated += 1 }
     }
 
-    func recordShown() {
-        mutate { $0.shown += 1 }
+    /// A local word ending can recover an engine-suppressed request. Reclassify that same request
+    /// instead of counting it as both hidden and shown; the raw engine outcome remains in logs.
+    func recordShown(recoveringSuppression reason: String? = nil) {
+        mutate {
+            if let reason, let count = $0.suppressedByReason[reason], count > 0 {
+                if count == 1 { $0.suppressedByReason.removeValue(forKey: reason) }
+                else { $0.suppressedByReason[reason] = count - 1 }
+            }
+            $0.shown += 1
+        }
     }
 
     func recordAcceptedSuggestion() {

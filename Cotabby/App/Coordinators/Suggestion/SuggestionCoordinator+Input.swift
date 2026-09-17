@@ -217,6 +217,19 @@ extension SuggestionCoordinator {
             return false
         }
 
+        if event.kind == .textMutation, let raw = focusModel.snapshot.context {
+            let context = interactionState.materializeContext(from: raw)
+            typingCadence.record(identityKey: context.focusedInputIdentityKey, characters: event.characters,
+                                 at: ProcessInfo.processInfo.systemUptime)
+        }
+        if event.kind == .dismissal, let session = interactionState.activeSession,
+           let raw = focusModel.snapshot.context {
+            let context = interactionState.materializeContext(from: raw)
+            dismissalMemory.record(identityKey: context.focusedInputIdentityKey,
+                                   precedingText: context.precedingText, trailingText: context.trailingText,
+                                   completion: session.remainingText, at: ProcessInfo.processInfo.systemUptime)
+        }
+
         if event.kind == .acceptance {
             return acceptCurrentSuggestion()
         }

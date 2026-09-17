@@ -1,0 +1,8 @@
+{
+  "CotabbyTests/Evals/PhrasePredictionEvalTests.swift": "be6d856fc893836abb7bccac58578837081706e925c26285e7a8488ad987a123",
+  "CotabbyTests/Services/Runtime/Llama/LlamaRuntimeCoreIntegrationTests.swift": "70312794ab575e9ca6bb18371c15a39acfe4691237d0c9062082540117db457e",
+  "scripts/analyze_phrase_experiments.py": "f1e1154dd457919bc80acdaed423c35f51fc61bd44f0e1536ee5633adec7049d",
+  "scripts/phrase_eval.py": "e5a800e63a9cec30a9f9fdc39eba3ad096a887c8daad0fbde50869842b9348f7",
+  "scripts/tests/test_analyze_phrase_experiments.py": "898bd833c282d9769b3f450ba8522fd4dca974ddbafe7cec47f15d54a0fad34a",
+  "scripts/tests/test_phrase_eval.py": "c56901c55461765c7ea9bce57df803a6dae13cd6667bd473fe7288380b97a854"
+}

@@ -3,8 +3,11 @@
 # Credentials stay in Keychain. Publication is separate so a failed notarization cannot ship a DMG.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-version="${1:-0.6.2-mchamster.1}"
-build_number="${2:-2026091701}"
+version="${1:-0.6.2-mchamster.2}"
+build_number="${2:-2026091702}"
+# Each DMG must carry notes for its own version, never the first release's hardcoded file.
+release_notes="releases/mchamster-${version/-mchamster./.}.md"
+[[ -f "$release_notes" ]] || { echo "Missing release notes: $release_notes" >&2; exit 1; }
 identity='Developer ID Application: Jorge Miguel Casler (8RN882MNR5)'
 app_name='Cotabby McHamster'
 release_dir="$PWD/build/mchamster-release"
@@ -45,7 +48,7 @@ ditto --norsrc --noextattr "$archive_app" "$app"
 xattr -cr "$app"
 cp LICENSE "$stage/Licenses/Cotabby-AGPL-3.0.txt"
 cp "$native_dir/LICENSE" "$stage/Licenses/CotabbyInference-MIT.txt"
-cp releases/mchamster-0.6.2.1.md "$stage/Release Notes.md"
+cp "$release_notes" "$stage/Release Notes.md"
 # Re-sign Sparkle's nested helpers inside-out. Xcode may leave them signed by the vendor.
 for nested in \
     Contents/Frameworks/Sparkle.framework/Versions/B/Autoupdate \

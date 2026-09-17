@@ -1,9 +1,9 @@
 import XCTest
 @testable import Cotabby
 
-/// Pure-function tests for the experimental base-model prompt. The contract: no instruction
-/// instruction preamble, the exact caret prefix is always the final bytes, and descriptive context
-/// only appears when supplied. These tests protect the inputs to generation, not model quality.
+/// Pure-function tests for the base-model prompt. The contract: no instruction preamble, the
+/// exact caret prefix is always the final bytes, and supplied context stays inside its budget.
+/// These tests protect the inputs to generation; model quality belongs to the inference benchmark.
 final class BaseCompletionPromptRendererTests: XCTestCase {
 
     func test_bareField_returnsExactPrefixOnly() {
@@ -37,7 +37,11 @@ final class BaseCompletionPromptRendererTests: XCTestCase {
             extendedContext: "Project Matcha ships in June.",
             languageInstruction: "Write in English.",
             clipboardContext: "zoom link",
-            visualContextSummary: "Calendar: Q3 planning 3pm"
+            visualContextSummary: "Calendar: Q3 planning 3pm",
+            surfaceContext: SurfaceContext(
+                surfaceClass: .chat, applicationName: "Slack", windowTitle: "Q3 planning",
+                domain: nil, fieldPlaceholder: "Message #planning"
+            )
         )
         XCTAssertTrue(prompt.hasSuffix("the meeting is at"))
     }
@@ -53,6 +57,10 @@ final class BaseCompletionPromptRendererTests: XCTestCase {
             extendedContext: "Project Matcha ships in June with a great many additional notes kept here.",
             clipboardContext: "zoom link",
             visualContextSummary: "Calendar: Q3 planning 3pm",
+            surfaceContext: SurfaceContext(
+                surfaceClass: .chat, applicationName: "Slack", windowTitle: "Q3 planning",
+                domain: nil, fieldPlaceholder: "Message #planning"
+            ),
             tokenBudget: 8
         )
         XCTAssertTrue(prompt.hasSuffix("the meeting is at"), "the caret prefix is never starved under a token budget")
@@ -170,9 +178,31 @@ final class BaseCompletionPromptRendererTests: XCTestCase {
             userName: "Jacob",
             surfaceContext: surface
         )
-        XCTAssertTrue(prompt.hasPrefix("An email being written in Mail. The window is titled \"Re: Q3 budget review\"."))
+        XCTAssertTrue(prompt.hasPrefix("Format: email; App: Mail; Title: Re: Q3 budget review."))
         XCTAssertTrue(prompt.contains("Written by Jacob"))
         XCTAssertTrue(prompt.hasSuffix("Thanks again for"))
+    }
+
+    func test_compactSurfaceSectionStaysBoundedWithoutChangingCaretWhitespace() {
+        let prefix = "Hi team,\n\nNext step:\n\t- "
+        // A long host and title can exceed the optional surface section's 240-character ceiling.
+        // Metadata must yield to the caret prefix under both a normal and a tight total budget.
+        let surface = SurfaceContext(
+            surfaceClass: .browser,
+            applicationName: "Google Chrome",
+            windowTitle: String(repeating: "t", count: 80),
+            domain: String(repeating: "subdomain.", count: 20) + "example.com",
+            fieldPlaceholder: String(repeating: "f", count: 60)
+        )
+        for availableSurfaceCharacters in [24, 240] {
+            let prompt = BaseCompletionPromptRenderer.prompt(
+                prefixText: prefix, applicationName: "Google Chrome", userName: nil,
+                surfaceContext: surface, contextBudget: prefix.count + availableSurfaceCharacters
+            )
+            XCTAssertTrue(prompt.hasSuffix(prefix), "metadata must not displace or normalize the caret prefix")
+            // Section allocation counts content; the renderer adds its two newline separators.
+            XCTAssertLessThanOrEqual(prompt.count, prefix.count + availableSurfaceCharacters + 2)
+        }
     }
 
     func test_noSurfaceContextMeansPromptIsUnchanged() {

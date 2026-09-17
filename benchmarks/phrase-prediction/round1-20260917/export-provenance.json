@@ -1,0 +1,114 @@
+{
+  "analyze_character_subsets.py": {
+    "localPath": "/Users/jmcasler/Documents/GitHub/mchamster/cotabby/build/eval/round1-20260917/analyze_character_subsets.py",
+    "sha256": "1fe9556d51fe40cb4459d1568f0ed76bcd9d240d53a56b022cd8f08e04386c73"
+  },
+  "character-boundary-identity-plan.md": {
+    "localPath": "/Users/jmcasler/Documents/GitHub/mchamster/cotabby/build/eval/round1-20260917/character-boundary-identity-plan.md",
+    "sha256": "12cdc18862aa7cfa0eac84418d6a0000fbb2c86d32350422742cc8b28f167b98"
+  },
+  "character-diagnostics.md": {
+    "localPath": "/Users/jmcasler/Documents/GitHub/mchamster/cotabby/benchmarks/phrase-prediction/round1-20260917/character-diagnostics.md",
+    "sha256": "492f2282fd98eb78be0b136499a2500df85c4e66ef433b5b483303e85fd57d77"
+  },
+  "character150-plan.json": {
+    "localPath": "/Users/jmcasler/Documents/GitHub/mchamster/cotabby/build/eval/round1-20260917/character150-plan.json",
+    "sha256": "e5516620e213add35a9e56a6562dba9ecb224da5e3bb35ce82805fa287b7c1d1"
+  },
+  "character150-subsets.json": {
+    "localPath": "/Users/jmcasler/Documents/GitHub/mchamster/cotabby/build/eval/round1-20260917/character150-subsets.json",
+    "sha256": "07a80e4e8b7e234068a1905cc909dce95b5403764e62ddcce37b1d9c84272536"
+  },
+  "character150-subsets.md": {
+    "localPath": "/Users/jmcasler/Documents/GitHub/mchamster/cotabby/build/eval/round1-20260917/character150-subsets.md",
+    "sha256": "84494079aceca2459555caf8ba112909c688f7d3bec2076701362acf87ea9f80"
+  },
+  "cleanup.json": {
+    "localPath": "/Users/jmcasler/Documents/GitHub/mchamster/cotabby/build/eval/round1-20260917/cleanup.json",
+    "sha256": "7129b137ba068055f327feec06ea54c49ea7b3618cd4e999af46668e1cc5ceea"
+  },
+  "criteria-snapshot.json": {
+    "localPath": "/Users/jmcasler/Documents/GitHub/mchamster/cotabby/build/eval/round1-20260917/criteria-snapshot.json",
+    "sha256": "0de2d6c36d5a30c974c8d5ada16041ed40067406e3e7ce8397a97f486e5b82d3"
+  },
+  "final-source-verification.json": {
+    "localPath": "/Users/jmcasler/Documents/GitHub/mchamster/cotabby/build/eval/round1-20260917/final-source-verification.json",
+    "sha256": "f562cac5d17762d58141fd7d07225f7b0056518b8cdbb13ece4f309bc6e27fa9"
+  },
+  "finalist.json": {
+    "localPath": "/Users/jmcasler/Documents/GitHub/mchamster/cotabby/build/eval/round1-20260917/finalist.json",
+    "sha256": "4916b45d02d5eb23dc28499e77fc5aafb42cd356ea55a9ae9b71cec9d8c319e1"
+  },
+  "heldout-baseline-repeatability.json": {
+    "localPath": "/Users/jmcasler/Documents/GitHub/mchamster/cotabby/build/eval/round1-20260917/heldout-baseline-repeatability.json",
+    "sha256": "53a72d9eb9a28e3fbb923f2a0032f06e774898484ee91da7b3410ef67d1a9a09"
+  },
+  "integrated-default-confirmation.json": {
+    "localPath": "/Users/jmcasler/Documents/GitHub/mchamster/cotabby/build/eval/round1-20260917/integrated-default-confirmation.json",
+    "sha256": "043971796407e98d8c3a9bcfcc9a504b532ddd88d2f39e614a497adea9f4c081"
+  },
+  "integration-frozen-parity.json": {
+    "localPath": "/Users/jmcasler/Documents/GitHub/mchamster/cotabby/build/eval/round1-20260917/integration-frozen-parity.json",
+    "sha256": "a4e0320dea1e40d49e94f07f7cf07204ff86be69da816778a687152e446b744c"
+  },
+  "integration-frozen-parity.md": {
+    "localPath": "/Users/jmcasler/Documents/GitHub/mchamster/cotabby/build/eval/round1-20260917/integration-frozen-parity.md",
+    "sha256": "e72cc9f0259a89298fce3204fab7bc0b3e7d798c5d5304dbd54a3060f7b9a9f6"
+  },
+  "isolation-source-manifest.json": {
+    "localPath": "/Users/jmcasler/Documents/GitHub/mchamster/cotabby/build/eval/round1-20260917/isolation-source-manifest.json",
+    "sha256": "13c800eb168f363336a9e60dd48b0169d5231a92b05b993cee1caad16d92b9b6"
+  },
+  "local-execution-migration.json": {
+    "localPath": "/Users/jmcasler/Documents/GitHub/mchamster/cotabby/build/eval/round1-20260917/local-execution-migration.json",
+    "sha256": "243580f6350bb485fe4fe67de585226cc195912058860829f743d0115481fdb2"
+  },
+  "local-path-repeatability.json": {
+    "localPath": "/Users/jmcasler/Documents/GitHub/mchamster/cotabby/build/eval/round1-20260917/local-path-repeatability.json",
+    "sha256": "8dd42f760f110410050f6984e0e000cbcbd0a8e0bfe824e3047f79689dcd899d"
+  },
+  "main-adoption-summary.json": {
+    "localPath": "/Users/jmcasler/Documents/GitHub/mchamster/cotabby/build/eval/round1-20260917/main-adoption.json",
+    "sha256": "6f9910cf1c47fee783983ebcacf386e5b4b17723d24beea3b476cbbbbfedec6a"
+  },
+  "native-frozen-manifest.json": {
+    "localPath": "/Users/jmcasler/Documents/GitHub/mchamster/cotabby/build/eval/round1-20260917/native-frozen-manifest.json",
+    "sha256": "07f9f0b22a89dccb3e264cb90514e1d63faaf3c41bed7126098915ef4815afe0"
+  },
+  "p2-prompt-delta-audit.json": {
+    "localPath": "/Users/jmcasler/Documents/GitHub/mchamster/cotabby/build/eval/round1-20260917/p2-prompt-delta-audit.json",
+    "sha256": "dba705f65d5db5f8af0b10c326e8cf67b8e60f90b497db7aa8a70143271b2b9e"
+  },
+  "registered-decision-criteria.md": {
+    "localPath": "/Users/jmcasler/Documents/GitHub/mchamster/cotabby/build/eval/round1-20260917/registered-decision-criteria.md",
+    "sha256": "502a8f369e4fa80c28d11f643570e8c3cd86afb92fdd32e65de9e9df356e81e3"
+  },
+  "reportWriter": {
+    "localPath": "/Users/jmcasler/Documents/GitHub/mchamster/cotabby/build/eval/round1-20260917/write_round_report.py",
+    "sha256": "f5252d2ab4b6d0ff472955934e547e6d483ad7aaca8d8a493c6ca68dbc9c3d86"
+  },
+  "reproduction.md": {
+    "localPath": "/Users/jmcasler/Documents/GitHub/mchamster/cotabby/benchmarks/phrase-prediction/round1-20260917/reproduction.md",
+    "sha256": "804deb3be7ca27ded9ad1cf3bdfcbad91540d8609c23f8ca3b8d8aed3ad8447e"
+  },
+  "round-completion.json": {
+    "localPath": "/Users/jmcasler/Documents/GitHub/mchamster/cotabby/build/eval/round1-20260917/round-completion.json",
+    "sha256": "97254ec8458102249c26515a8cf7f68a7134b891a761fc1578771fe710604a10"
+  },
+  "round.json": {
+    "localPath": "/Users/jmcasler/Documents/GitHub/mchamster/cotabby/build/eval/round1-20260917/round.json",
+    "sha256": "45a27e42a14697abbd6bd957d0b7c13996158272e9554f02b56ac2764f1f5a6f"
+  },
+  "screening-ranking.json": {
+    "localPath": "/Users/jmcasler/Documents/GitHub/mchamster/cotabby/build/eval/round1-20260917/screening-ranking.json",
+    "sha256": "2cf0565cb35370aa40f7cef9a74b6783fca105dd7a6cba040350521e0bc5f257"
+  },
+  "source-prerequisites/manifest.json": {
+    "localPath": "/Users/jmcasler/Documents/GitHub/mchamster/cotabby/benchmarks/phrase-prediction/round1-20260917/source-prerequisites/manifest.json",
+    "sha256": "ade4347d279b6024419cdf6ce2d52d2acea54ad0d43086815783c7e5e2dcda49"
+  },
+  "validation-window-plan.json": {
+    "localPath": "/Users/jmcasler/Documents/GitHub/mchamster/cotabby/build/eval/round1-20260917/validation-window-plan.json",
+    "sha256": "e8cb1fdcf8ed503cd679f6186c07359ed3379762a7f9742b2a0534897770ef21"
+  }
+}

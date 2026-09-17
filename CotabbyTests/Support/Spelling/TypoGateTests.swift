@@ -22,6 +22,16 @@ final class TypoGateTests: XCTestCase {
         )
     }
 
+    func test_pausedPrefixNeverCallsSpellingOrCorrection() {
+        for prefix in ["wri", "becau", "recomm", "car"] {
+            let decision = TypoGate.resolve(precedingText: "I typed " + prefix,
+                settings: .init(suppressCompletionsOnTypo: true, offerTypoCorrections: true, automaticallyFixTypos: true),
+                isTypo: { _ in XCTFail("Unfinished words must not be spell-checked"); return true },
+                bestCorrection: { _ in XCTFail("Unfinished words must not be corrected"); return "wrong" })
+            XCTAssertEqual(decision, .proceed)
+        }
+    }
+
     func test_proceedsWhenSuppressionDisabled() {
         let decision = resolve(precedingText: "hi nmae", suppress: false, offer: true, typos: ["nmae"])
         XCTAssertEqual(decision, .proceed)
@@ -41,19 +51,19 @@ final class TypoGateTests: XCTestCase {
     }
 
     func test_suppressesWhenTypoAndCorrectionsOff() {
-        let decision = resolve(precedingText: "hi nmae", suppress: true, offer: false, typos: ["nmae"])
+        let decision = resolve(precedingText: "hi nmae ", suppress: true, offer: false, typos: ["nmae"])
         XCTAssertEqual(decision, .suppress)
     }
 
     func test_suppressesWhenTypoButNoCorrectionAvailable() {
         // Corrections enabled, but the checker offered nothing usable: fall back to suppression.
-        let decision = resolve(precedingText: "hi nmae", suppress: true, offer: true, typos: ["nmae"])
+        let decision = resolve(precedingText: "hi nmae ", suppress: true, offer: true, typos: ["nmae"])
         XCTAssertEqual(decision, .suppress)
     }
 
     func test_correctsWhenTypoAndCorrectionAvailable() {
         let decision = resolve(
-            precedingText: "hi my nmae",
+            precedingText: "hi my nmae ",
             suppress: true,
             offer: true,
             typos: ["nmae"],
@@ -107,6 +117,6 @@ final class TypoGateTests: XCTestCase {
             typos: ["nmae"],
             corrections: ["nmae": "name"]
         )
-        XCTAssertEqual(decision, .offerCorrection(word: "nmae", correctedWord: "name"))
+        XCTAssertEqual(decision, .proceed)
     }
 }

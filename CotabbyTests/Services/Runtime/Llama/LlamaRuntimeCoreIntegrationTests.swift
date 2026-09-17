@@ -17,6 +17,58 @@ final class LlamaRuntimeCoreIntegrationTests: XCTestCase {
         XCTAssertEqual(warm.suppressedByLowConfidence, cold.suppressedByLowConfidence)
     }
 
+    /// Cache reuse must reset the distribution sampler as well as native KV. A fixed seed belongs
+    /// to each request, so repeatedly discarding a sampled suggestion cannot advance the next
+    /// request's random stream or leave generated words in its repetition history.
+    func testSampledRestoredRequestResetsRandomStreamAndRepetitionHistory() throws {
+        let core = try makeCore()
+        defer { core.shutdown() }
+        let prompt = "Hi Alex, thanks for sending the project update. I will review the schedule and send you my"
+
+        for configuration in sampledConfigurations {
+            core.resetPromptCache()
+            let cold = try core.generate(prompt: prompt, options: configuration.options)
+            XCTAssertFalse(cold.text.isEmpty, configuration.label)
+            for repetition in 1...2 {
+                let reused = try core.generate(
+                    prompt: prompt, cachedPrefixBytes: prompt.utf8.count, options: configuration.options
+                )
+                XCTAssertEqual(
+                    reused.text, cold.text,
+                    "\(configuration.label), discarded tail \(repetition): sampler state must restart from the writer's prompt"
+                )
+            }
+        }
+    }
+
+    /// Changing the writer's prompt exercises restoration beyond an identical-request shortcut.
+    /// The same edited prompt must produce the same sampled continuation with retained native
+    /// state or a freshly reset cache; neither the discarded tail nor its RNG draws are context.
+    func testSampledEditedPromptMatchesFreshStateAfterDiscardedGeneration() throws {
+        let core = try makeCore()
+        defer { core.shutdown() }
+        let original = "Hi Alex, thanks for sending the project update. I will review the schedule and send you my"
+        let editedPrompts = [original + " feedback", String(original.dropLast(2)) + "our feedback"]
+
+        for configuration in sampledConfigurations {
+            for edited in editedPrompts {
+                core.resetPromptCache()
+                _ = try core.generate(prompt: original, options: configuration.options)
+                let hint = zip(original.utf8, edited.utf8).prefix { $0.0 == $0.1 }.count
+                let reused = try core.generate(
+                    prompt: edited, cachedPrefixBytes: hint, options: configuration.options
+                )
+                core.resetPromptCache()
+                let fresh = try core.generate(prompt: edited, options: configuration.options)
+                XCTAssertFalse(fresh.text.isEmpty, configuration.label)
+                XCTAssertEqual(
+                    reused.text, fresh.text,
+                    "\(configuration.label): retained generation changed the sampled result for \(edited)"
+                )
+            }
+        }
+    }
+
     func testHealingStreamsOnlyValidCumulativeContinuation() throws {
         let core = try makeCore()
         defer { core.shutdown() }
@@ -91,6 +143,29 @@ final class LlamaRuntimeCoreIntegrationTests: XCTestCase {
             seed: 42,
             stopAtArgmaxEOG: false
         )
+    }
+
+    /// The first two entries cover the production sampler and this round's no-penalty candidate.
+    /// Their low temperature can collapse to one allowed token, so the final diagnostic entry
+    /// deliberately leaves more choices available and makes a missing RNG reset observable.
+    /// These are per-test values; they never change app preferences or the benchmark defaults.
+    private var sampledConfigurations: [(label: String, options: LlamaGenerationOptions)] {
+        [
+            ("sampled baseline", 0.1, 20, 0.7, 0.08, 1.05),
+            ("sampled without repetition penalty", 0.1, 20, 0.7, 0.08, 1.0),
+            ("RNG diagnostic", 0.8, 0, 1.0, 0.0, 1.0)
+        ].map { label, temperature, topK, topP, minP, repetitionPenalty in
+            (label, LlamaGenerationOptions(
+                maxPredictionTokens: 12,
+                temperature: temperature,
+                topK: topK,
+                topP: topP,
+                minP: minP,
+                repetitionPenalty: repetitionPenalty,
+                seed: 42,
+                stopAtArgmaxEOG: false
+            ))
+        }
     }
 
     private func makeCore() throws -> LlamaRuntimeCore {

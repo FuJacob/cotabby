@@ -163,7 +163,7 @@ struct SuggestionSettingsSnapshot: Equatable, Sendable {
     /// How much of the buffered suggestion the primary accept key takes per press. Read once per
     /// accept call so a mid-press setting change can't strand a partially-handled press.
     let acceptanceGranularity: AcceptanceGranularity
-    /// When true, Cotabby checks the current word with `NSSpellChecker` and hides the normal
+    /// When true, Cotabby checks the committed word with `NSSpellChecker` and hides the normal
     /// continuation when it looks misspelled. Travels in the snapshot so the prediction gate reads
     /// the live value without subscribing to the settings model directly.
     let suppressCompletionsOnTypo: Bool

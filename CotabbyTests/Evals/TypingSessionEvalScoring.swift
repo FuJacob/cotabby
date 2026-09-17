@@ -149,7 +149,7 @@ struct TypingSessionEvalReport: Codable {
     let seed: UInt32
     let debounceMilliseconds: Int
     let sessions: [Session]
-    var measurementScope = "Scripted input to display-eligible text; excludes AX, overlay layout, and coordinator tail reuse. " +
+    var measurementScope = "Scripted input to display-eligible text; excludes AX, overlay layout, typing-cadence delay, local fallback, dismissal, and coordinator tail reuse. " +
         "Tab counts are opportunities, not observed user accepts. " +
         "Fixed settings: multiline=true, surface context=false, word-count preset=12–20; clipboard context disabled."
 

@@ -1,4 +1,4 @@
-> **McHamster’s build of Cotabby** — an independent experimental fork, not an official upstream release. Download from [McHamster Releases](https://github.com/mc-hamster/cotabby/releases). It installs as **Cotabby McHamster** with its own permissions, settings, model storage, and manual update channel. See [fork changes](releases/mchamster-0.6.2.1.md) and [release process](releases/README.md). Quit upstream Cotabby before enabling this build.
+> **McHamster’s build of Cotabby** — an independent experimental fork, not an official upstream release. Download from [McHamster Releases](https://github.com/mc-hamster/cotabby/releases). It installs as **Cotabby McHamster** with its own permissions, settings, model storage, and manual update channel. See [fork changes](releases/mchamster-0.6.2.2.md) and [release process](releases/README.md). Quit upstream Cotabby before enabling this build.
 
 
 <p align="center">

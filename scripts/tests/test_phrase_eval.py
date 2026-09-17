@@ -18,6 +18,252 @@ SPEC.loader.exec_module(eval_cli)
 
 
 class PhraseEvalCLITests(unittest.TestCase):
+    @contextlib.contextmanager
+    def resolution_fixture(self):
+        """A tiny app/native workspace with filesystem changes and a stubbed Git file listing."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            paths = ['Cotabby/app.swift', 'CotabbyTests/test.swift', 'Config/Signing.local.xcconfig', 'CotabbyInfo.plist',
+                     'native/Package.swift', 'native/source.cpp']
+            for name in paths:
+                path = root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(name)
+            workspace = root / 'dev.xcworkspace'
+            workspace.mkdir()
+            (workspace / 'contents.xcworkspacedata').write_text(
+                f'<Workspace><FileRef location="absolute:{root / "native"}" /></Workspace>')
+            output = root / 'output'
+            output.mkdir()
+            def names(command, cwd):
+                return ('\0'.join(paths[:4] if cwd == root else ['Package.swift', 'source.cpp']) + '\0').encode()
+            with mock.patch.object(eval_cli, 'ROOT', root), mock.patch.object(eval_cli, 'DERIVED', root / 'build/DerivedData'), \
+                    mock.patch.object(eval_cli.subprocess, 'check_output', side_effect=names):
+                yield root, workspace, output
+
+    def test_resolution_accepts_only_generated_or_updated_canonical_locks(self):
+        for initial_lock in (None, 'old pins'):
+            with self.subTest(initial_lock=initial_lock), self.resolution_fixture() as (root, workspace, output):
+                lock = workspace / 'xcshareddata/swiftpm/Package.resolved'
+                lock.parent.mkdir(parents=True)
+                if initial_lock:
+                    lock.write_text(initial_lock)
+                before = eval_cli.build_input_snapshot(workspace)
+                def resolve(command, log):
+                    self.assertIn('-resolvePackageDependencies', command)
+                    self.assertEqual(command[command.index('-derivedDataPath') + 1], root / 'build/DerivedData')
+                    self.assertEqual(log, output / 'resolution.log')
+                    lock.write_text('resolved pins')
+                    log.write_text('Resolved source packages')
+                with mock.patch.object(eval_cli, 'logged_command', side_effect=resolve):
+                    after = eval_cli.prepare_build_inputs(workspace, ['-workspace', workspace], output, skip_build=False)
+                self.assertNotEqual(before['sourceSHA256'], after['sourceSHA256'])
+                self.assertEqual(before['nonLockSourceSHA256'], after['nonLockSourceSHA256'])
+                evidence = json.loads((output / 'resolution-inputs.json').read_text())
+                self.assertEqual(evidence, {'before': before, 'after': after, 'status': 'resolved'})
+                self.assertEqual(after['sourceSHA256'], eval_cli.build_input_fingerprint(workspace))
+                # Lock-only changes are tolerated during resolution, but still invalidate a build.
+                lock.write_text('changed after resolution')
+                self.assertNotEqual(after['sourceSHA256'], eval_cli.build_input_fingerprint(workspace))
+
+    def test_resolution_rejects_app_test_native_and_config_changes(self):
+        for name in ('Cotabby/app.swift', 'CotabbyTests/test.swift', 'native/source.cpp', 'native/Package.swift',
+                     'Config/Signing.local.xcconfig', 'CotabbyInfo.plist', 'dev.xcworkspace/contents.xcworkspacedata'):
+            with self.subTest(name=name), self.resolution_fixture() as (root, workspace, output):
+                def resolve(command, log):
+                    with (root / name).open('a') as stream:
+                        stream.write('\n<!-- changed -->' if name.endswith('xcworkspacedata') else '\nchanged')
+                with mock.patch.object(eval_cli, 'logged_command', side_effect=resolve), \
+                        self.assertRaisesRegex(RuntimeError, 'changed during dependency resolution'):
+                    eval_cli.prepare_build_inputs(workspace, ['-workspace', workspace], output, skip_build=False)
+                self.assertEqual(json.loads((output / 'resolution-inputs.json').read_text())['status'], 'rejected-source-change')
+
+    def test_skip_build_never_resolves_or_changes_dependencies(self):
+        with self.resolution_fixture() as (_, workspace, output), mock.patch.object(eval_cli, 'logged_command') as command:
+            before = eval_cli.build_input_snapshot(workspace)
+            self.assertEqual(eval_cli.prepare_build_inputs(workspace, ['-workspace', workspace], output, skip_build=True), before)
+            command.assert_not_called()
+            self.assertFalse((output / 'resolution-inputs.json').exists())
+
+    def test_failed_resolution_keeps_evidence_and_does_not_return_compilation_inputs(self):
+        with self.resolution_fixture() as (_, workspace, output), \
+                mock.patch.object(eval_cli, 'logged_command', side_effect=RuntimeError('resolver failed')):
+            with self.assertRaisesRegex(RuntimeError, 'resolver failed'):
+                eval_cli.prepare_build_inputs(workspace, ['-workspace', workspace], output, skip_build=False)
+            record = json.loads((output / 'resolution-inputs.json').read_text())
+            self.assertEqual(record['status'], 'failed')
+            self.assertNotIn('after', record)
+
+    def test_failed_post_resolution_snapshot_is_recorded_instead_of_left_resolving(self):
+        with self.resolution_fixture() as (_, workspace, output):
+            before = eval_cli.build_input_snapshot(workspace)
+            def resolve(command, log):
+                log.write_text('Resolver exited successfully')
+                (workspace / 'contents.xcworkspacedata').write_text('<Workspace>')
+            with mock.patch.object(eval_cli, 'logged_command', side_effect=resolve), \
+                    self.assertRaises(eval_cli.ET.ParseError):
+                eval_cli.prepare_build_inputs(workspace, ['-workspace', workspace], output, skip_build=False)
+            record = json.loads((output / 'resolution-inputs.json').read_text())
+            self.assertEqual(record['status'], 'failed')
+            self.assertEqual(record['before'], before)
+            self.assertEqual(record['error']['type'], 'ParseError')
+            self.assertTrue(record['error']['message'])
+            self.assertNotIn('after', record)
+
+    def test_lock_named_fixture_is_not_exempt_from_source_guard(self):
+        with self.resolution_fixture() as (root, workspace, _):
+            fixture = root / 'CotabbyTests/Package.resolved'
+            fixture.write_text('fixture content')
+            def names(command, cwd):
+                return b'CotabbyTests/Package.resolved\0' if cwd == root else b'Package.swift\0source.cpp\0'
+            with mock.patch.object(eval_cli.subprocess, 'check_output', side_effect=names):
+                before = eval_cli.build_input_snapshot(workspace)
+                fixture.write_text('edited fixture')
+                after = eval_cli.build_input_snapshot(workspace)
+                self.assertNotEqual(before['nonLockSourceSHA256'], after['nonLockSourceSHA256'])
+
+    def test_run_records_resolved_inputs_and_still_rejects_changes_during_compilation(self):
+        for mutate_build_input in (None, 'source', 'lock'):
+            with self.subTest(mutate_build_input=mutate_build_input), self.resolution_fixture() as (root, workspace, _):
+                args = argparse.Namespace(mode='word', context='none', workers=1, model=None, workspace=workspace,
+                    output=root / 'run', label='test', split='all', split_seed=1337, screen_per_category=20,
+                    per_category=None, category=None, phrase=None, limit=None, skip_build=False)
+                phrase = {'id': 'science-001', 'category': 'science', 'text': 'Water freezes here.'}
+                corpus = root / 'corpus.json'
+                corpus.write_text(json.dumps({'phrases': [phrase]}))
+                lock = workspace / 'xcshareddata/swiftpm/Package.resolved'
+                calls = []
+                def command(arguments, log, progress=None):
+                    calls.append(arguments[1])
+                    log.write_text('Synthetic successful tool output')
+                    if arguments[1] == '-resolvePackageDependencies':
+                        lock.parent.mkdir(parents=True)
+                        lock.write_text('resolved pins')
+                    elif arguments[1] == 'build-for-testing':
+                        products = eval_cli.DERIVED / 'Build/Products'
+                        binary = products / 'Release/Cotabby.app/Contents/MacOS/Cotabby'
+                        binary.parent.mkdir(parents=True)
+                        binary.write_bytes(b'built app')
+                        (products / 'Cotabby_test.xctestrun').write_bytes(eval_cli.plistlib.dumps(
+                            {'TestBundlePath': '__TESTROOT__/CotabbyTests.xctest'}))
+                        if mutate_build_input:
+                            path = root / 'Cotabby/app.swift' if mutate_build_input == 'source' else lock
+                            path.write_text('changed during compilation')
+                    else:
+                        self.assertEqual(arguments[1], 'test-without-building')
+                        (args.output / 'report.json').write_text(json.dumps({'metadata': {'workerCount': 1},
+                            'phrases': [{'phrase': phrase, 'condition': 'none'}], 'errorCount': 0}))
+                        (args.output / 'summary.txt').write_text('Synthetic summary')
+                def git_output(*arguments):
+                    return ('resolved' if lock.exists() else 'initial') + (' patch' if arguments[0] == 'diff' else '')
+                with mock.patch.object(eval_cli, 'CORPUS', corpus), mock.patch.object(eval_cli, 'show_plan', return_value=[phrase]), \
+                        mock.patch.object(eval_cli.platform, 'system', return_value='Darwin'), \
+                        mock.patch.object(eval_cli.platform, 'platform', return_value='Synthetic macOS'), \
+                        mock.patch.object(eval_cli, 'git_output', side_effect=git_output), \
+                        mock.patch.object(eval_cli, 'logged_command', side_effect=command), contextlib.redirect_stdout(io.StringIO()):
+                    if mutate_build_input:
+                        with self.assertRaisesRegex(RuntimeError, 'Source inputs changed during build setup'):
+                            eval_cli.run(args)
+                        self.assertNotIn('test-without-building', calls)
+                        self.assertFalse((eval_cli.DERIVED / 'phrase-eval-build.json').exists())
+                    else:
+                        eval_cli.run(args)
+                        manifest = json.loads((args.output / 'manifest.json').read_text())
+                        self.assertEqual(manifest['gitAtStart']['gitCommit'], 'initial')
+                        self.assertEqual(manifest['gitCommit'], 'resolved')
+                        self.assertEqual((args.output / 'working-tree.patch').read_text(), 'resolved patch')
+                        self.assertEqual(manifest['buildInputs']['sourceSHA256'], manifest['build']['sourceSHA256'])
+                        self.assertEqual(manifest['build']['sourceSHA256'], eval_cli.build_input_fingerprint(workspace))
+                        self.assertEqual(calls, ['-resolvePackageDependencies', 'build-for-testing', 'test-without-building'])
+
+    def test_hash_partitions_are_balanced_disjoint_and_result_independent(self):
+        args = argparse.Namespace(category=None, phrase=None, limit=None, split='screen', split_seed=1337,
+                                  screen_per_category=20, per_category=None)
+        corpus, screen = eval_cli.read_selection(args)
+        args.split = 'heldout'
+        _, heldout = eval_cli.read_selection(args)
+        screen_ids, heldout_ids = {p['id'] for p in screen}, {p['id'] for p in heldout}
+        self.assertEqual(len(screen_ids), 140)
+        self.assertEqual(len(heldout_ids), 1197)
+        self.assertFalse(screen_ids & heldout_ids)
+        self.assertEqual(screen_ids | heldout_ids, {p['id'] for p in corpus['phrases']})
+        self.assertEqual(eval_cli.collections.Counter(p['category'] for p in screen), dict.fromkeys(eval_cli.CATEGORIES, 20))
+        args.split = 'screen'
+        self.assertEqual({p['id'] for p in eval_cli.partition_phrases(list(reversed(corpus['phrases'])), args)}, screen_ids)
+        args.split_seed = 1338
+        self.assertNotEqual({p['id'] for p in eval_cli.read_selection(args)[1]}, screen_ids)
+
+    def test_partition_caps_use_hash_order_and_match_native_fixture(self):
+        args = argparse.Namespace(category='science', phrase=None, limit=None, per_category=3, split='screen')
+        _, phrases = eval_cli.read_selection(args)
+        self.assertEqual([p['id'] for p in phrases], ['science-008', 'science-127', 'science-164'])
+        args.per_category = 5
+        self.assertTrue({p['id'] for p in phrases} < {p['id'] for p in eval_cli.read_selection(args)[1]})
+        args.per_category, args.split = 3, 'heldout'
+        self.assertEqual([p['id'] for p in eval_cli.read_selection(args)[1]], ['science-101', 'science-135', 'science-163'])
+        args.phrase = 'science-008'
+        with self.assertRaisesRegex(ValueError, 'No phrases'):
+            eval_cli.read_selection(args)
+
+    def test_invalid_partition_controls_fail_before_selection(self):
+        for field, value in [('split', 'bad'), ('split_seed', -1), ('split_seed', 2**32),
+                             ('screen_per_category', 0), ('screen_per_category', 191)]:
+            args = argparse.Namespace(category=None, phrase=None, limit=None)
+            setattr(args, field, value)
+            with self.assertRaises(ValueError):
+                eval_cli.read_selection(args)
+
+    def test_sampler_overrides_preserve_omitted_defaults_and_reject_random_seeds(self):
+        self.assertEqual(eval_cli.sampling_overrides(argparse.Namespace()), {})
+        accepted = dict(temperature=0, repetition_penalty=1.025, top_k=0, top_p=1, min_p=0, seed=12648430)
+        self.assertEqual(eval_cli.sampling_overrides(argparse.Namespace(**accepted)), accepted)
+        for field, value in [('temperature', float('nan')), ('temperature', float('inf')), ('temperature', -1),
+                             ('repetition_penalty', 0), ('top_k', -1), ('top_k', 2**31), ('top_k', 1.5),
+                             ('top_p', 1.1), ('min_p', -0.1), ('seed', 0), ('seed', 2**32 - 1), ('seed', 1.2)]:
+            with self.assertRaises(ValueError):
+                eval_cli.sampling_overrides(argparse.Namespace(**{field: value}))
+
+    def test_effective_sampling_must_match_request_including_seed(self):
+        report = self.report()
+        report['metadata']['configuration'] = {'temperature': '0.0', 'repetitionPenalty': '1.025'}
+        eval_cli.validate_sampling_report(report, {'temperature': 0, 'repetition_penalty': 1.025, 'seed': 42})
+        for overrides in ({'seed': 43}, {'temperature': 0.1}, {'top_k': 20}):
+            with self.assertRaisesRegex(RuntimeError, 'does not match'):
+                eval_cli.validate_sampling_report(report, overrides)
+
+    def test_build_fingerprint_includes_local_native_sources_and_ignores_run_output(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            (root / 'Cotabby').mkdir()
+            (root / 'Cotabby/app.swift').write_text('app source')
+            native = root / 'native'
+            native.mkdir()
+            (native / 'Package.swift').write_text('package')
+            (native / 'TokenHealing.cpp').write_text('native source')
+            workspace = root / 'dev.xcworkspace'
+            workspace.mkdir()
+            (workspace / 'contents.xcworkspacedata').write_text(f'<Workspace><FileRef location="absolute:{native}" /></Workspace>')
+            def names(command, cwd):
+                return b'Cotabby/app.swift\0' if cwd == root else b'Package.swift\0TokenHealing.cpp\0'
+            with mock.patch.object(eval_cli, 'ROOT', root), mock.patch.object(eval_cli.subprocess, 'check_output', side_effect=names):
+                first = eval_cli.build_input_fingerprint(workspace)
+                (root / 'run-output.json').write_text('does not affect build')
+                self.assertEqual(first, eval_cli.build_input_fingerprint(workspace))
+                (native / 'TokenHealing.cpp').write_text('edited native source')
+                self.assertNotEqual(first, eval_cli.build_input_fingerprint(workspace))
+
+    def test_build_product_fingerprint_rejects_replaced_test_bundle(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            source = root / 'Cotabby.xctestrun'
+            source.write_bytes(b'configuration')
+            executable = root / 'Release/Cotabby.app/Contents/PlugIns/CotabbyTests.xctest/Contents/MacOS/CotabbyTests'
+            executable.parent.mkdir(parents=True)
+            executable.write_bytes(b'original test code')
+            first = eval_cli.build_product_fingerprint(source)
+            executable.write_bytes(b'changed test code')
+            self.assertNotEqual(first, eval_cli.build_product_fingerprint(source))
+
     def test_three_worker_progress_combines_out_of_order_results(self):
         with tempfile.TemporaryDirectory() as directory:
             output = pathlib.Path(directory)

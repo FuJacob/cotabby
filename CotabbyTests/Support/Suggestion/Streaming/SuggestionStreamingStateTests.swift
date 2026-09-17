@@ -25,12 +25,12 @@ final class SuggestionStreamingStateTests: XCTestCase {
         XCTAssertTrue(state.enqueue(result(text: " old"), workID: 1))
 
         state.recordRendered(" old")
-        state.resolveLeadingWordGate(.allowed)
+        state.spellingAssessments["world"] = .known
         state.beginGeneration()
 
         XCTAssertNil(state.renderedText)
         XCTAssertNil(state.pendingPartial)
-        XCTAssertEqual(state.leadingWordGateState, .pending)
+        XCTAssertTrue(state.spellingAssessments.isEmpty)
         XCTAssertTrue(state.isDrainScheduled)
         XCTAssertFalse(state.enqueue(result(text: " new"), workID: 2))
 
@@ -43,13 +43,13 @@ final class SuggestionStreamingStateTests: XCTestCase {
         var state = SuggestionStreamingState()
         state.enqueue(result(text: " pending"), workID: 4)
         state.recordRendered(" pending")
-        state.resolveLeadingWordGate(.suppressed)
+        state.spellingAssessments["wrold"] = .correctableTypo
 
         state.clearSession()
 
         XCTAssertNil(state.renderedText)
         XCTAssertNil(state.pendingPartial)
-        XCTAssertEqual(state.leadingWordGateState, .pending)
+        XCTAssertTrue(state.spellingAssessments.isEmpty)
         XCTAssertTrue(state.isDrainScheduled)
         XCTAssertNil(state.drain())
         XCTAssertFalse(state.isDrainScheduled)
@@ -69,9 +69,19 @@ final class SuggestionStreamingStateTests: XCTestCase {
     func test_leadingWordGateCachesATerminalDecisionForTheGeneration() {
         var state = SuggestionStreamingState()
 
-        XCTAssertEqual(state.leadingWordGateState, .pending)
-        state.resolveLeadingWordGate(.allowed)
-        XCTAssertEqual(state.leadingWordGateState, .allowed)
+        XCTAssertTrue(state.spellingAssessments.isEmpty)
+        state.spellingAssessments["world"] = .known
+        XCTAssertEqual(state.spellingAssessments["world"], .known)
+    }
+
+    func testFinalResultRejectsLatePartialsUntilTheNextGeneration() {
+        var state = SuggestionStreamingState()
+        state.enqueue(result(text: "late"), workID: 4)
+        state.finishGeneration()
+        XCTAssertNil(state.drain())
+        XCTAssertFalse(state.enqueue(result(text: "later"), workID: 4))
+        state.beginGeneration()
+        XCTAssertTrue(state.enqueue(result(text: "new"), workID: 5))
     }
 
     private func result(text: String) -> SuggestionResult {

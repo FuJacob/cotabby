@@ -70,9 +70,9 @@ final class SuggestionSettingsModel: ObservableObject {
     /// typing in. See `SurfaceContextComposer` for what is actually rendered.
     @Published private(set) var isSurfaceContextEnabled: Bool
     @Published private(set) var isFastModeEnabled: Bool
-    /// When on, a misspelled current word hides the normal continuation (see the typo gate).
+    /// When on, a misspelled committed word hides the normal continuation (see the typo gate).
     @Published private(set) var suppressCompletionsOnTypo: Bool
-    /// When on (and `suppressCompletionsOnTypo` is also on), a misspelled current word is offered a
+    /// When on (and `suppressCompletionsOnTypo` is also on), a misspelled committed word is offered a
     /// green spell-checker correction the user can accept to replace the typo.
     @Published private(set) var offerTypoCorrections: Bool
     /// Bundled SymSpell languages eligible for frequency-ranked corrections. This remains separate

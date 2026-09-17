@@ -6,12 +6,6 @@
 /// monotonically. It does not schedule work or render UI; the coordinator remains responsible for
 /// those side effects.
 struct SuggestionStreamingState {
-    enum LeadingWordGateState: Equatable {
-        case pending
-        case allowed
-        case suppressed
-    }
-
     /// One partial paired with the replaceable-work identity that produced it.
     struct PendingPartial {
         let result: SuggestionResult
@@ -21,7 +15,10 @@ struct SuggestionStreamingState {
     private(set) var pendingPartial: PendingPartial?
     private(set) var isDrainScheduled = false
     private(set) var renderedText: String?
-    private(set) var leadingWordGateState: LeadingWordGateState = .pending
+    private(set) var isFinalized = false
+    /// Spell decisions are memoized per exact word, including the assembled caret word. A growing
+    /// partial never reuses the verdict for different letters, unlike a single allowed/suppressed flag.
+    var spellingAssessments: [String: CompletionSeamGuard.SpellingAssessment] = [:]
 
     /// Starts a new stream without clearing an already-enqueued drain callback.
     ///
@@ -29,14 +26,16 @@ struct SuggestionStreamingState {
     /// callback drain a replacement partial from the new generation; clearing it here could enqueue
     /// two drains for the same runloop turn.
     mutating func beginGeneration() {
+        isFinalized = false
+        spellingAssessments.removeAll()
         renderedText = nil
         pendingPartial = nil
-        leadingWordGateState = .pending
     }
 
     /// Stores the newest partial and returns whether the coordinator must schedule a drain.
     @discardableResult
     mutating func enqueue(_ result: SuggestionResult, workID: UInt64) -> Bool {
+        guard !isFinalized else { return false }
         pendingPartial = PendingPartial(result: result, workID: workID)
         guard !isDrainScheduled else {
             return false
@@ -66,11 +65,11 @@ struct SuggestionStreamingState {
         renderedText = text
     }
 
-    /// Caches the first-word spelling decision so an allowed stream does not repeat an AppKit/XPC
-    /// lookup for every subsequent token. Suppression is likewise terminal for this generation.
-    mutating func resolveLeadingWordGate(_ state: LeadingWordGateState) {
-        precondition(state != .pending, "The leading-word gate can only resolve to a terminal state")
-        leadingWordGateState = state
+    /// A final result can arrive before already-enqueued main-actor callbacks drain. Those late
+    /// partials must not resurrect a rejected or dismissed result under the still-current work ID.
+    mutating func finishGeneration() {
+        isFinalized = true
+        pendingPartial = nil
     }
 
     /// Drops state associated with a torn-down suggestion session.
@@ -78,8 +77,9 @@ struct SuggestionStreamingState {
     /// As with `beginGeneration`, a scheduled callback remains responsible for clearing the drain
     /// flag when it eventually runs.
     mutating func clearSession() {
+        finishGeneration()
+        spellingAssessments.removeAll()
         renderedText = nil
         pendingPartial = nil
-        leadingWordGateState = .pending
     }
 }

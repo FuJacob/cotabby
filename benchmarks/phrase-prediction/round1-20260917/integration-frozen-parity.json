@@ -1,0 +1,1103 @@
+{
+  "analyzer": {
+    "localPath": "/Users/jmcasler/Documents/GitHub/mchamster/cotabby/scripts/analyze_phrase_experiments.py",
+    "sha256": "f1e1154dd457919bc80acdaed423c35f51fc61bd44f0e1536ee5633adec7049d"
+  },
+  "comparedFields": [
+    "checkpoint",
+    "prompt",
+    "screenExcerpt",
+    "raw",
+    "shown",
+    "wasShown",
+    "predictedWord",
+    "correct",
+    "suppression"
+  ],
+  "contextMode": "paired",
+  "corpusSHA256": "b41c8089a58ae1e0ee84b95ac9283cf71db4e713e25bd8fed47220be69d8b0f6",
+  "excludedFields": [
+    "latencyMilliseconds"
+  ],
+  "generatedUTC": "2026-09-17T10:31:45.613289+00:00",
+  "method": "Existing analyzer validates phrase definitions and ordered checkpoint identity; explicit full counts, model, seed, effective sampler, selection, and observation-to-suite sums are verified before exact field-value and optional-field-presence comparisons. No inference, rescoring, bootstrap, or raw text export.",
+  "mode": "word",
+  "modelSHA256": "febd85051361ccb34d0925744c819f9ae0724117e8f946a2852dd0edfa90a5a1",
+  "pairs": [
+    {
+      "categories": {
+        "none": {
+          "conversation": {
+            "anyComparedFieldMismatch": 0,
+            "checkpoints": 937,
+            "fieldMismatch": {
+              "checkpoint": 0,
+              "correct": 0,
+              "predictedWord": 0,
+              "prompt": 0,
+              "raw": 0,
+              "screenExcerpt": 0,
+              "shown": 0,
+              "suppression": 0,
+              "wasShown": 0
+            },
+            "integrationCorrectGains": 0,
+            "integrationCorrectLosses": 0,
+            "optionalPresenceMismatch": {
+              "predictedWord": 0,
+              "screenExcerpt": 0,
+              "shown": 0,
+              "suppression": 0
+            },
+            "rawMismatchWithSameRecordedInput": 0,
+            "shownMismatchWithSameRecordedInputAndRaw": 0
+          },
+          "entertainment": {
+            "anyComparedFieldMismatch": 0,
+            "checkpoints": 1065,
+            "fieldMismatch": {
+              "checkpoint": 0,
+              "correct": 0,
+              "predictedWord": 0,
+              "prompt": 0,
+              "raw": 0,
+              "screenExcerpt": 0,
+              "shown": 0,
+              "suppression": 0,
+              "wasShown": 0
+            },
+            "integrationCorrectGains": 0,
+            "integrationCorrectLosses": 0,
+            "optionalPresenceMismatch": {
+              "predictedWord": 0,
+              "screenExcerpt": 0,
+              "shown": 0,
+              "suppression": 0
+            },
+            "rawMismatchWithSameRecordedInput": 0,
+            "shownMismatchWithSameRecordedInputAndRaw": 0
+          },
+          "everyday": {
+            "anyComparedFieldMismatch": 0,
+            "checkpoints": 1036,
+            "fieldMismatch": {
+              "checkpoint": 0,
+              "correct": 0,
+              "predictedWord": 0,
+              "prompt": 0,
+              "raw": 0,
+              "screenExcerpt": 0,
+              "shown": 0,
+              "suppression": 0,
+              "wasShown": 0
+            },
+            "integrationCorrectGains": 0,
+            "integrationCorrectLosses": 0,
+            "optionalPresenceMismatch": {
+              "predictedWord": 0,
+              "screenExcerpt": 0,
+              "shown": 0,
+              "suppression": 0
+            },
+            "rawMismatchWithSameRecordedInput": 0,
+            "shownMismatchWithSameRecordedInputAndRaw": 0
+          },
+          "science": {
+            "anyComparedFieldMismatch": 0,
+            "checkpoints": 1052,
+            "fieldMismatch": {
+              "checkpoint": 0,
+              "correct": 0,
+              "predictedWord": 0,
+              "prompt": 0,
+              "raw": 0,
+              "screenExcerpt": 0,
+              "shown": 0,
+              "suppression": 0,
+              "wasShown": 0
+            },
+            "integrationCorrectGains": 0,
+            "integrationCorrectLosses": 0,
+            "optionalPresenceMismatch": {
+              "predictedWord": 0,
+              "screenExcerpt": 0,
+              "shown": 0,
+              "suppression": 0
+            },
+            "rawMismatchWithSameRecordedInput": 0,
+            "shownMismatchWithSameRecordedInputAndRaw": 0
+          },
+          "technology": {
+            "anyComparedFieldMismatch": 0,
+            "checkpoints": 1131,
+            "fieldMismatch": {
+              "checkpoint": 0,
+              "correct": 0,
+              "predictedWord": 0,
+              "prompt": 0,
+              "raw": 0,
+              "screenExcerpt": 0,
+              "shown": 0,
+              "suppression": 0,
+              "wasShown": 0
+            },
+            "integrationCorrectGains": 0,
+            "integrationCorrectLosses": 0,
+            "optionalPresenceMismatch": {
+              "predictedWord": 0,
+              "screenExcerpt": 0,
+              "shown": 0,
+              "suppression": 0
+            },
+            "rawMismatchWithSameRecordedInput": 0,
+            "shownMismatchWithSameRecordedInputAndRaw": 0
+          },
+          "travel": {
+            "anyComparedFieldMismatch": 0,
+            "checkpoints": 1103,
+            "fieldMismatch": {
+              "checkpoint": 0,
+              "correct": 0,
+              "predictedWord": 0,
+              "prompt": 0,
+              "raw": 0,
+              "screenExcerpt": 0,
+              "shown": 0,
+              "suppression": 0,
+              "wasShown": 0
+            },
+            "integrationCorrectGains": 0,
+            "integrationCorrectLosses": 0,
+            "optionalPresenceMismatch": {
+              "predictedWord": 0,
+              "screenExcerpt": 0,
+              "shown": 0,
+              "suppression": 0
+            },
+            "rawMismatchWithSameRecordedInput": 0,
+            "shownMismatchWithSameRecordedInputAndRaw": 0
+          },
+          "work": {
+            "anyComparedFieldMismatch": 0,
+            "checkpoints": 1113,
+            "fieldMismatch": {
+              "checkpoint": 0,
+              "correct": 0,
+              "predictedWord": 0,
+              "prompt": 0,
+              "raw": 0,
+              "screenExcerpt": 0,
+              "shown": 0,
+              "suppression": 0,
+              "wasShown": 0
+            },
+            "integrationCorrectGains": 0,
+            "integrationCorrectLosses": 0,
+            "optionalPresenceMismatch": {
+              "predictedWord": 0,
+              "screenExcerpt": 0,
+              "shown": 0,
+              "suppression": 0
+            },
+            "rawMismatchWithSameRecordedInput": 0,
+            "shownMismatchWithSameRecordedInputAndRaw": 0
+          }
+        },
+        "screen": {
+          "conversation": {
+            "anyComparedFieldMismatch": 0,
+            "checkpoints": 937,
+            "fieldMismatch": {
+              "checkpoint": 0,
+              "correct": 0,
+              "predictedWord": 0,
+              "prompt": 0,
+              "raw": 0,
+              "screenExcerpt": 0,
+              "shown": 0,
+              "suppression": 0,
+              "wasShown": 0
+            },
+            "integrationCorrectGains": 0,
+            "integrationCorrectLosses": 0,
+            "optionalPresenceMismatch": {
+              "predictedWord": 0,
+              "screenExcerpt": 0,
+              "shown": 0,
+              "suppression": 0
+            },
+            "rawMismatchWithSameRecordedInput": 0,
+            "shownMismatchWithSameRecordedInputAndRaw": 0
+          },
+          "entertainment": {
+            "anyComparedFieldMismatch": 0,
+            "checkpoints": 1065,
+            "fieldMismatch": {
+              "checkpoint": 0,
+              "correct": 0,
+              "predictedWord": 0,
+              "prompt": 0,
+              "raw": 0,
+              "screenExcerpt": 0,
+              "shown": 0,
+              "suppression": 0,
+              "wasShown": 0
+            },
+            "integrationCorrectGains": 0,
+            "integrationCorrectLosses": 0,
+            "optionalPresenceMismatch": {
+              "predictedWord": 0,
+              "screenExcerpt": 0,
+              "shown": 0,
+              "suppression": 0
+            },
+            "rawMismatchWithSameRecordedInput": 0,
+            "shownMismatchWithSameRecordedInputAndRaw": 0
+          },
+          "everyday": {
+            "anyComparedFieldMismatch": 0,
+            "checkpoints": 1036,
+            "fieldMismatch": {
+              "checkpoint": 0,
+              "correct": 0,
+              "predictedWord": 0,
+              "prompt": 0,
+              "raw": 0,
+              "screenExcerpt": 0,
+              "shown": 0,
+              "suppression": 0,
+              "wasShown": 0
+            },
+            "integrationCorrectGains": 0,
+            "integrationCorrectLosses": 0,
+            "optionalPresenceMismatch": {
+              "predictedWord": 0,
+              "screenExcerpt": 0,
+              "shown": 0,
+              "suppression": 0
+            },
+            "rawMismatchWithSameRecordedInput": 0,
+            "shownMismatchWithSameRecordedInputAndRaw": 0
+          },
+          "science": {
+            "anyComparedFieldMismatch": 0,
+            "checkpoints": 1052,
+            "fieldMismatch": {
+              "checkpoint": 0,
+              "correct": 0,
+              "predictedWord": 0,
+              "prompt": 0,
+              "raw": 0,
+              "screenExcerpt": 0,
+              "shown": 0,
+              "suppression": 0,
+              "wasShown": 0
+            },
+            "integrationCorrectGains": 0,
+            "integrationCorrectLosses": 0,
+            "optionalPresenceMismatch": {
+              "predictedWord": 0,
+              "screenExcerpt": 0,
+              "shown": 0,
+              "suppression": 0
+            },
+            "rawMismatchWithSameRecordedInput": 0,
+            "shownMismatchWithSameRecordedInputAndRaw": 0
+          },
+          "technology": {
+            "anyComparedFieldMismatch": 0,
+            "checkpoints": 1131,
+            "fieldMismatch": {
+              "checkpoint": 0,
+              "correct": 0,
+              "predictedWord": 0,
+              "prompt": 0,
+              "raw": 0,
+              "screenExcerpt": 0,
+              "shown": 0,
+              "suppression": 0,
+              "wasShown": 0
+            },
+            "integrationCorrectGains": 0,
+            "integrationCorrectLosses": 0,
+            "optionalPresenceMismatch": {
+              "predictedWord": 0,
+              "screenExcerpt": 0,
+              "shown": 0,
+              "suppression": 0
+            },
+            "rawMismatchWithSameRecordedInput": 0,
+            "shownMismatchWithSameRecordedInputAndRaw": 0
+          },
+          "travel": {
+            "anyComparedFieldMismatch": 0,
+            "checkpoints": 1103,
+            "fieldMismatch": {
+              "checkpoint": 0,
+              "correct": 0,
+              "predictedWord": 0,
+              "prompt": 0,
+              "raw": 0,
+              "screenExcerpt": 0,
+              "shown": 0,
+              "suppression": 0,
+              "wasShown": 0
+            },
+            "integrationCorrectGains": 0,
+            "integrationCorrectLosses": 0,
+            "optionalPresenceMismatch": {
+              "predictedWord": 0,
+              "screenExcerpt": 0,
+              "shown": 0,
+              "suppression": 0
+            },
+            "rawMismatchWithSameRecordedInput": 0,
+            "shownMismatchWithSameRecordedInputAndRaw": 0
+          },
+          "work": {
+            "anyComparedFieldMismatch": 0,
+            "checkpoints": 1113,
+            "fieldMismatch": {
+              "checkpoint": 0,
+              "correct": 0,
+              "predictedWord": 0,
+              "prompt": 0,
+              "raw": 0,
+              "screenExcerpt": 0,
+              "shown": 0,
+              "suppression": 0,
+              "wasShown": 0
+            },
+            "integrationCorrectGains": 0,
+            "integrationCorrectLosses": 0,
+            "optionalPresenceMismatch": {
+              "predictedWord": 0,
+              "screenExcerpt": 0,
+              "shown": 0,
+              "suppression": 0
+            },
+            "rawMismatchWithSameRecordedInput": 0,
+            "shownMismatchWithSameRecordedInputAndRaw": 0
+          }
+        }
+      },
+      "conditions": {
+        "none": {
+          "anyComparedFieldMismatch": 0,
+          "checkpoints": 7437,
+          "fieldMismatch": {
+            "checkpoint": 0,
+            "correct": 0,
+            "predictedWord": 0,
+            "prompt": 0,
+            "raw": 0,
+            "screenExcerpt": 0,
+            "shown": 0,
+            "suppression": 0,
+            "wasShown": 0
+          },
+          "integrationCorrectGains": 0,
+          "integrationCorrectLosses": 0,
+          "optionalPresenceMismatch": {
+            "predictedWord": 0,
+            "screenExcerpt": 0,
+            "shown": 0,
+            "suppression": 0
+          },
+          "rawMismatchWithSameRecordedInput": 0,
+          "shownMismatchWithSameRecordedInputAndRaw": 0
+        },
+        "screen": {
+          "anyComparedFieldMismatch": 0,
+          "checkpoints": 7437,
+          "fieldMismatch": {
+            "checkpoint": 0,
+            "correct": 0,
+            "predictedWord": 0,
+            "prompt": 0,
+            "raw": 0,
+            "screenExcerpt": 0,
+            "shown": 0,
+            "suppression": 0,
+            "wasShown": 0
+          },
+          "integrationCorrectGains": 0,
+          "integrationCorrectLosses": 0,
+          "optionalPresenceMismatch": {
+            "predictedWord": 0,
+            "screenExcerpt": 0,
+            "shown": 0,
+            "suppression": 0
+          },
+          "rawMismatchWithSameRecordedInput": 0,
+          "shownMismatchWithSameRecordedInputAndRaw": 0
+        }
+      },
+      "configurationDifferences": {
+        "wordPolicy": {
+          "frozen": null,
+          "integration": "committed typo gate; unified first-word display; no local fallback in model-only accuracy replay"
+        }
+      },
+      "frozen": {
+        "build": {
+          "productSHA256": "524e0ac5a96982b7b77169a6270d4cd8acaf6d55101ec0abcee18d73d3d4669d",
+          "reused": false,
+          "sourceSHA256": "443b85f732f2b450a09a295b61cd520cff5a156e3b358d2e52f0633cec8109be",
+          "xctestrun": "/Users/jmcasler/.codex/experiments/cotabby-1337-20260917/cotabby/build/DerivedData/Build/Products/Cotabby_macosx27.0-arm64.xctestrun"
+        },
+        "configuration": {
+          "confidenceFloor": "-inf",
+          "debounceMilliseconds": "20",
+          "defaultUserName": "Optional(\"Jacob\")",
+          "defaultWordCountPreset": "twelveToTwenty",
+          "enginePreferenceSource": "test-process argument domain; product defaults",
+          "focusPollIntervalMilliseconds": "50",
+          "llamaPromptTokenBudget": "1934",
+          "maxPredictionTokens": "5",
+          "maxPrefixCharacters": "2500",
+          "maxPrefixCharactersFoundationModel": "2500",
+          "maxPrefixWords": "150",
+          "maxPrefixWordsFoundationModel": "150",
+          "maxSuffixCharacters": "192",
+          "minP": "0.08",
+          "modelSHA256": "febd85051361ccb34d0925744c819f9ae0724117e8f946a2852dd0edfa90a5a1",
+          "os": "Version 27.0 (Build 26A428)",
+          "processors": "10",
+          "randomSeed": "Optional(12648430)",
+          "repetitionPenalty": "1.05",
+          "selectionScreenPerCategory": "20",
+          "selectionSplit": "all",
+          "selectionSplitSeed": "1337",
+          "settings": "single-line; surface metadata and prior draft fixed; synthetic OCR varies; no clipboard/profile/custom rules",
+          "stopAtArgmaxEOG": "true",
+          "temperature": "0.1",
+          "topK": "20",
+          "topP": "0.7"
+        },
+        "label": "productionseed-baseline",
+        "manifest": {
+          "localPath": "/Users/jmcasler/Documents/GitHub/mchamster/cotabby/build/eval/round1-20260917/productionseed-baseline/manifest.json",
+          "sha256": "7199df546858302b59bfc66231673b65268812fe97e4e7bd5c27cf710c7b73f0"
+        },
+        "report": {
+          "localPath": "/Users/jmcasler/Documents/GitHub/mchamster/cotabby/build/eval/round1-20260917/productionseed-baseline/report.json",
+          "sha256": "441b2c994f208e933ad8de1cf4de1152a8add90af0f0b7b2978121464d17dee6"
+        },
+        "samplingOverrides": {
+          "min_p": 0.08,
+          "repetition_penalty": 1.05,
+          "seed": 12648430,
+          "temperature": 0.1,
+          "top_k": 20,
+          "top_p": 0.7
+        }
+      },
+      "integration": {
+        "build": {
+          "productSHA256": "50990a9eff5e95f781f92f7d909a84d7cc0648508dc42b91b237defc51fd68c8",
+          "reused": false,
+          "sourceSHA256": "2d51d3e711cfa840cfa7afe0fabd1ea7e47b8b975cb73e6c75ae7473f355e4ed",
+          "xctestrun": "/Users/jmcasler/.codex/experiments/cotabby-1337-20260917/integration/cotabby/build/DerivedData/Build/Products/Cotabby_macosx27.0-arm64.xctestrun"
+        },
+        "configuration": {
+          "confidenceFloor": "-inf",
+          "debounceMilliseconds": "20",
+          "defaultUserName": "Optional(\"Jacob\")",
+          "defaultWordCountPreset": "twelveToTwenty",
+          "enginePreferenceSource": "test-process argument domain; product defaults",
+          "focusPollIntervalMilliseconds": "50",
+          "llamaPromptTokenBudget": "1934",
+          "maxPredictionTokens": "5",
+          "maxPrefixCharacters": "2500",
+          "maxPrefixCharactersFoundationModel": "2500",
+          "maxPrefixWords": "150",
+          "maxPrefixWordsFoundationModel": "150",
+          "maxSuffixCharacters": "192",
+          "minP": "0.08",
+          "modelSHA256": "febd85051361ccb34d0925744c819f9ae0724117e8f946a2852dd0edfa90a5a1",
+          "os": "Version 27.0 (Build 26A428)",
+          "processors": "10",
+          "randomSeed": "Optional(12648430)",
+          "repetitionPenalty": "1.05",
+          "selectionScreenPerCategory": "20",
+          "selectionSplit": "all",
+          "selectionSplitSeed": "1337",
+          "settings": "single-line; surface metadata and prior draft fixed; synthetic OCR varies; no clipboard/profile/custom rules",
+          "stopAtArgmaxEOG": "true",
+          "temperature": "0.1",
+          "topK": "20",
+          "topP": "0.7",
+          "wordPolicy": "committed typo gate; unified first-word display; no local fallback in model-only accuracy replay"
+        },
+        "label": "integration-baseline",
+        "manifest": {
+          "localPath": "/Users/jmcasler/Documents/GitHub/mchamster/cotabby/build/eval/round1-20260917/integration-baseline/manifest.json",
+          "sha256": "edc18702fbc2a7b2c4d695f999777a8965418addee37b2a3bf294fcaec9547fe"
+        },
+        "report": {
+          "localPath": "/Users/jmcasler/Documents/GitHub/mchamster/cotabby/build/eval/round1-20260917/integration-baseline/report.json",
+          "sha256": "101267f4c56ee5f5021cdcf34b4a3adb104eb8957699bca8ff44435a90c797bb"
+        },
+        "samplingOverrides": {
+          "seed": 12648430
+        }
+      },
+      "phraseCountPerCondition": 1337,
+      "scores": {
+        "none": {
+          "checkpoints": 7437,
+          "frozenCorrect": 2120,
+          "integrationCorrect": 2120
+        },
+        "screen": {
+          "checkpoints": 7437,
+          "frozenCorrect": 2586,
+          "integrationCorrect": 2586
+        }
+      },
+      "stage": "baseline"
+    },
+    {
+      "categories": {
+        "none": {
+          "conversation": {
+            "anyComparedFieldMismatch": 0,
+            "checkpoints": 937,
+            "fieldMismatch": {
+              "checkpoint": 0,
+              "correct": 0,
+              "predictedWord": 0,
+              "prompt": 0,
+              "raw": 0,
+              "screenExcerpt": 0,
+              "shown": 0,
+              "suppression": 0,
+              "wasShown": 0
+            },
+            "integrationCorrectGains": 0,
+            "integrationCorrectLosses": 0,
+            "optionalPresenceMismatch": {
+              "predictedWord": 0,
+              "screenExcerpt": 0,
+              "shown": 0,
+              "suppression": 0
+            },
+            "rawMismatchWithSameRecordedInput": 0,
+            "shownMismatchWithSameRecordedInputAndRaw": 0
+          },
+          "entertainment": {
+            "anyComparedFieldMismatch": 0,
+            "checkpoints": 1065,
+            "fieldMismatch": {
+              "checkpoint": 0,
+              "correct": 0,
+              "predictedWord": 0,
+              "prompt": 0,
+              "raw": 0,
+              "screenExcerpt": 0,
+              "shown": 0,
+              "suppression": 0,
+              "wasShown": 0
+            },
+            "integrationCorrectGains": 0,
+            "integrationCorrectLosses": 0,
+            "optionalPresenceMismatch": {
+              "predictedWord": 0,
+              "screenExcerpt": 0,
+              "shown": 0,
+              "suppression": 0
+            },
+            "rawMismatchWithSameRecordedInput": 0,
+            "shownMismatchWithSameRecordedInputAndRaw": 0
+          },
+          "everyday": {
+            "anyComparedFieldMismatch": 0,
+            "checkpoints": 1036,
+            "fieldMismatch": {
+              "checkpoint": 0,
+              "correct": 0,
+              "predictedWord": 0,
+              "prompt": 0,
+              "raw": 0,
+              "screenExcerpt": 0,
+              "shown": 0,
+              "suppression": 0,
+              "wasShown": 0
+            },
+            "integrationCorrectGains": 0,
+            "integrationCorrectLosses": 0,
+            "optionalPresenceMismatch": {
+              "predictedWord": 0,
+              "screenExcerpt": 0,
+              "shown": 0,
+              "suppression": 0
+            },
+            "rawMismatchWithSameRecordedInput": 0,
+            "shownMismatchWithSameRecordedInputAndRaw": 0
+          },
+          "science": {
+            "anyComparedFieldMismatch": 0,
+            "checkpoints": 1052,
+            "fieldMismatch": {
+              "checkpoint": 0,
+              "correct": 0,
+              "predictedWord": 0,
+              "prompt": 0,
+              "raw": 0,
+              "screenExcerpt": 0,
+              "shown": 0,
+              "suppression": 0,
+              "wasShown": 0
+            },
+            "integrationCorrectGains": 0,
+            "integrationCorrectLosses": 0,
+            "optionalPresenceMismatch": {
+              "predictedWord": 0,
+              "screenExcerpt": 0,
+              "shown": 0,
+              "suppression": 0
+            },
+            "rawMismatchWithSameRecordedInput": 0,
+            "shownMismatchWithSameRecordedInputAndRaw": 0
+          },
+          "technology": {
+            "anyComparedFieldMismatch": 0,
+            "checkpoints": 1131,
+            "fieldMismatch": {
+              "checkpoint": 0,
+              "correct": 0,
+              "predictedWord": 0,
+              "prompt": 0,
+              "raw": 0,
+              "screenExcerpt": 0,
+              "shown": 0,
+              "suppression": 0,
+              "wasShown": 0
+            },
+            "integrationCorrectGains": 0,
+            "integrationCorrectLosses": 0,
+            "optionalPresenceMismatch": {
+              "predictedWord": 0,
+              "screenExcerpt": 0,
+              "shown": 0,
+              "suppression": 0
+            },
+            "rawMismatchWithSameRecordedInput": 0,
+            "shownMismatchWithSameRecordedInputAndRaw": 0
+          },
+          "travel": {
+            "anyComparedFieldMismatch": 0,
+            "checkpoints": 1103,
+            "fieldMismatch": {
+              "checkpoint": 0,
+              "correct": 0,
+              "predictedWord": 0,
+              "prompt": 0,
+              "raw": 0,
+              "screenExcerpt": 0,
+              "shown": 0,
+              "suppression": 0,
+              "wasShown": 0
+            },
+            "integrationCorrectGains": 0,
+            "integrationCorrectLosses": 0,
+            "optionalPresenceMismatch": {
+              "predictedWord": 0,
+              "screenExcerpt": 0,
+              "shown": 0,
+              "suppression": 0
+            },
+            "rawMismatchWithSameRecordedInput": 0,
+            "shownMismatchWithSameRecordedInputAndRaw": 0
+          },
+          "work": {
+            "anyComparedFieldMismatch": 0,
+            "checkpoints": 1113,
+            "fieldMismatch": {
+              "checkpoint": 0,
+              "correct": 0,
+              "predictedWord": 0,
+              "prompt": 0,
+              "raw": 0,
+              "screenExcerpt": 0,
+              "shown": 0,
+              "suppression": 0,
+              "wasShown": 0
+            },
+            "integrationCorrectGains": 0,
+            "integrationCorrectLosses": 0,
+            "optionalPresenceMismatch": {
+              "predictedWord": 0,
+              "screenExcerpt": 0,
+              "shown": 0,
+              "suppression": 0
+            },
+            "rawMismatchWithSameRecordedInput": 0,
+            "shownMismatchWithSameRecordedInputAndRaw": 0
+          }
+        },
+        "screen": {
+          "conversation": {
+            "anyComparedFieldMismatch": 0,
+            "checkpoints": 937,
+            "fieldMismatch": {
+              "checkpoint": 0,
+              "correct": 0,
+              "predictedWord": 0,
+              "prompt": 0,
+              "raw": 0,
+              "screenExcerpt": 0,
+              "shown": 0,
+              "suppression": 0,
+              "wasShown": 0
+            },
+            "integrationCorrectGains": 0,
+            "integrationCorrectLosses": 0,
+            "optionalPresenceMismatch": {
+              "predictedWord": 0,
+              "screenExcerpt": 0,
+              "shown": 0,
+              "suppression": 0
+            },
+            "rawMismatchWithSameRecordedInput": 0,
+            "shownMismatchWithSameRecordedInputAndRaw": 0
+          },
+          "entertainment": {
+            "anyComparedFieldMismatch": 0,
+            "checkpoints": 1065,
+            "fieldMismatch": {
+              "checkpoint": 0,
+              "correct": 0,
+              "predictedWord": 0,
+              "prompt": 0,
+              "raw": 0,
+              "screenExcerpt": 0,
+              "shown": 0,
+              "suppression": 0,
+              "wasShown": 0
+            },
+            "integrationCorrectGains": 0,
+            "integrationCorrectLosses": 0,
+            "optionalPresenceMismatch": {
+              "predictedWord": 0,
+              "screenExcerpt": 0,
+              "shown": 0,
+              "suppression": 0
+            },
+            "rawMismatchWithSameRecordedInput": 0,
+            "shownMismatchWithSameRecordedInputAndRaw": 0
+          },
+          "everyday": {
+            "anyComparedFieldMismatch": 0,
+            "checkpoints": 1036,
+            "fieldMismatch": {
+              "checkpoint": 0,
+              "correct": 0,
+              "predictedWord": 0,
+              "prompt": 0,
+              "raw": 0,
+              "screenExcerpt": 0,
+              "shown": 0,
+              "suppression": 0,
+              "wasShown": 0
+            },
+            "integrationCorrectGains": 0,
+            "integrationCorrectLosses": 0,
+            "optionalPresenceMismatch": {
+              "predictedWord": 0,
+              "screenExcerpt": 0,
+              "shown": 0,
+              "suppression": 0
+            },
+            "rawMismatchWithSameRecordedInput": 0,
+            "shownMismatchWithSameRecordedInputAndRaw": 0
+          },
+          "science": {
+            "anyComparedFieldMismatch": 0,
+            "checkpoints": 1052,
+            "fieldMismatch": {
+              "checkpoint": 0,
+              "correct": 0,
+              "predictedWord": 0,
+              "prompt": 0,
+              "raw": 0,
+              "screenExcerpt": 0,
+              "shown": 0,
+              "suppression": 0,
+              "wasShown": 0
+            },
+            "integrationCorrectGains": 0,
+            "integrationCorrectLosses": 0,
+            "optionalPresenceMismatch": {
+              "predictedWord": 0,
+              "screenExcerpt": 0,
+              "shown": 0,
+              "suppression": 0
+            },
+            "rawMismatchWithSameRecordedInput": 0,
+            "shownMismatchWithSameRecordedInputAndRaw": 0
+          },
+          "technology": {
+            "anyComparedFieldMismatch": 0,
+            "checkpoints": 1131,
+            "fieldMismatch": {
+              "checkpoint": 0,
+              "correct": 0,
+              "predictedWord": 0,
+              "prompt": 0,
+              "raw": 0,
+              "screenExcerpt": 0,
+              "shown": 0,
+              "suppression": 0,
+              "wasShown": 0
+            },
+            "integrationCorrectGains": 0,
+            "integrationCorrectLosses": 0,
+            "optionalPresenceMismatch": {
+              "predictedWord": 0,
+              "screenExcerpt": 0,
+              "shown": 0,
+              "suppression": 0
+            },
+            "rawMismatchWithSameRecordedInput": 0,
+            "shownMismatchWithSameRecordedInputAndRaw": 0
+          },
+          "travel": {
+            "anyComparedFieldMismatch": 0,
+            "checkpoints": 1103,
+            "fieldMismatch": {
+              "checkpoint": 0,
+              "correct": 0,
+              "predictedWord": 0,
+              "prompt": 0,
+              "raw": 0,
+              "screenExcerpt": 0,
+              "shown": 0,
+              "suppression": 0,
+              "wasShown": 0
+            },
+            "integrationCorrectGains": 0,
+            "integrationCorrectLosses": 0,
+            "optionalPresenceMismatch": {
+              "predictedWord": 0,
+              "screenExcerpt": 0,
+              "shown": 0,
+              "suppression": 0
+            },
+            "rawMismatchWithSameRecordedInput": 0,
+            "shownMismatchWithSameRecordedInputAndRaw": 0
+          },
+          "work": {
+            "anyComparedFieldMismatch": 0,
+            "checkpoints": 1113,
+            "fieldMismatch": {
+              "checkpoint": 0,
+              "correct": 0,
+              "predictedWord": 0,
+              "prompt": 0,
+              "raw": 0,
+              "screenExcerpt": 0,
+              "shown": 0,
+              "suppression": 0,
+              "wasShown": 0
+            },
+            "integrationCorrectGains": 0,
+            "integrationCorrectLosses": 0,
+            "optionalPresenceMismatch": {
+              "predictedWord": 0,
+              "screenExcerpt": 0,
+              "shown": 0,
+              "suppression": 0
+            },
+            "rawMismatchWithSameRecordedInput": 0,
+            "shownMismatchWithSameRecordedInputAndRaw": 0
+          }
+        }
+      },
+      "conditions": {
+        "none": {
+          "anyComparedFieldMismatch": 0,
+          "checkpoints": 7437,
+          "fieldMismatch": {
+            "checkpoint": 0,
+            "correct": 0,
+            "predictedWord": 0,
+            "prompt": 0,
+            "raw": 0,
+            "screenExcerpt": 0,
+            "shown": 0,
+            "suppression": 0,
+            "wasShown": 0
+          },
+          "integrationCorrectGains": 0,
+          "integrationCorrectLosses": 0,
+          "optionalPresenceMismatch": {
+            "predictedWord": 0,
+            "screenExcerpt": 0,
+            "shown": 0,
+            "suppression": 0
+          },
+          "rawMismatchWithSameRecordedInput": 0,
+          "shownMismatchWithSameRecordedInputAndRaw": 0
+        },
+        "screen": {
+          "anyComparedFieldMismatch": 0,
+          "checkpoints": 7437,
+          "fieldMismatch": {
+            "checkpoint": 0,
+            "correct": 0,
+            "predictedWord": 0,
+            "prompt": 0,
+            "raw": 0,
+            "screenExcerpt": 0,
+            "shown": 0,
+            "suppression": 0,
+            "wasShown": 0
+          },
+          "integrationCorrectGains": 0,
+          "integrationCorrectLosses": 0,
+          "optionalPresenceMismatch": {
+            "predictedWord": 0,
+            "screenExcerpt": 0,
+            "shown": 0,
+            "suppression": 0
+          },
+          "rawMismatchWithSameRecordedInput": 0,
+          "shownMismatchWithSameRecordedInputAndRaw": 0
+        }
+      },
+      "configurationDifferences": {
+        "wordPolicy": {
+          "frozen": null,
+          "integration": "committed typo gate; unified first-word display; no local fallback in model-only accuracy replay"
+        }
+      },
+      "frozen": {
+        "build": {
+          "productSHA256": "6cb3c0f1ce70ab605b8e39ac4c426c4af9800633278c7617b23fd4316d984f12",
+          "reused": false,
+          "sourceSHA256": "298df18a01ac97578cfad1d0a2f04a12d6f9fd0f0e9084573d8702d129ffe89f",
+          "xctestrun": "/Users/jmcasler/.codex/experiments/cotabby-1337-20260917/cotabby/build/DerivedData/Build/Products/Cotabby_macosx27.0-arm64.xctestrun"
+        },
+        "configuration": {
+          "confidenceFloor": "-inf",
+          "debounceMilliseconds": "20",
+          "defaultUserName": "Optional(\"Jacob\")",
+          "defaultWordCountPreset": "twelveToTwenty",
+          "enginePreferenceSource": "test-process argument domain; product defaults",
+          "focusPollIntervalMilliseconds": "50",
+          "llamaPromptTokenBudget": "1934",
+          "maxPredictionTokens": "5",
+          "maxPrefixCharacters": "2500",
+          "maxPrefixCharactersFoundationModel": "2500",
+          "maxPrefixWords": "150",
+          "maxPrefixWordsFoundationModel": "150",
+          "maxSuffixCharacters": "192",
+          "minP": "0.08",
+          "modelSHA256": "febd85051361ccb34d0925744c819f9ae0724117e8f946a2852dd0edfa90a5a1",
+          "os": "Version 27.0 (Build 26A428)",
+          "processors": "10",
+          "randomSeed": "Optional(12648430)",
+          "repetitionPenalty": "1.025",
+          "selectionScreenPerCategory": "20",
+          "selectionSplit": "all",
+          "selectionSplitSeed": "1337",
+          "settings": "single-line; surface metadata and prior draft fixed; synthetic OCR varies; no clipboard/profile/custom rules",
+          "stopAtArgmaxEOG": "true",
+          "temperature": "0.1",
+          "topK": "20",
+          "topP": "0.7"
+        },
+        "label": "productionseed-finalist",
+        "manifest": {
+          "localPath": "/Users/jmcasler/Documents/GitHub/mchamster/cotabby/build/eval/round1-20260917/productionseed-finalist/manifest.json",
+          "sha256": "f8bf7bad9ba42b42069b083a74fbc85c8873e34da79de1f6bc074daddce363bc"
+        },
+        "report": {
+          "localPath": "/Users/jmcasler/Documents/GitHub/mchamster/cotabby/build/eval/round1-20260917/productionseed-finalist/report.json",
+          "sha256": "fa1860448c800b59f9283d59a56f4de004c8af8b6f00bbe680b0b597a71b2094"
+        },
+        "samplingOverrides": {
+          "min_p": 0.08,
+          "repetition_penalty": 1.025,
+          "seed": 12648430,
+          "temperature": 0.1,
+          "top_k": 20,
+          "top_p": 0.7
+        }
+      },
+      "integration": {
+        "build": {
+          "productSHA256": "91cef434fa13e5f264e81e4d7931f1aed0adf9632c98f4db6a813c11b640ce15",
+          "reused": false,
+          "sourceSHA256": "01aae86ddc456bbc5e1cd2285abaa8a1fd7b1bfbc9fdf56588373f738f9d70d9",
+          "xctestrun": "/Users/jmcasler/.codex/experiments/cotabby-1337-20260917/integration/cotabby/build/DerivedData/Build/Products/Cotabby_macosx27.0-arm64.xctestrun"
+        },
+        "configuration": {
+          "confidenceFloor": "-inf",
+          "debounceMilliseconds": "20",
+          "defaultUserName": "Optional(\"Jacob\")",
+          "defaultWordCountPreset": "twelveToTwenty",
+          "enginePreferenceSource": "test-process argument domain; product defaults",
+          "focusPollIntervalMilliseconds": "50",
+          "llamaPromptTokenBudget": "1934",
+          "maxPredictionTokens": "5",
+          "maxPrefixCharacters": "2500",
+          "maxPrefixCharactersFoundationModel": "2500",
+          "maxPrefixWords": "150",
+          "maxPrefixWordsFoundationModel": "150",
+          "maxSuffixCharacters": "192",
+          "minP": "0.08",
+          "modelSHA256": "febd85051361ccb34d0925744c819f9ae0724117e8f946a2852dd0edfa90a5a1",
+          "os": "Version 27.0 (Build 26A428)",
+          "processors": "10",
+          "randomSeed": "Optional(12648430)",
+          "repetitionPenalty": "1.025",
+          "selectionScreenPerCategory": "20",
+          "selectionSplit": "all",
+          "selectionSplitSeed": "1337",
+          "settings": "single-line; surface metadata and prior draft fixed; synthetic OCR varies; no clipboard/profile/custom rules",
+          "stopAtArgmaxEOG": "true",
+          "temperature": "0.1",
+          "topK": "20",
+          "topP": "0.7",
+          "wordPolicy": "committed typo gate; unified first-word display; no local fallback in model-only accuracy replay"
+        },
+        "label": "integration-candidate",
+        "manifest": {
+          "localPath": "/Users/jmcasler/Documents/GitHub/mchamster/cotabby/build/eval/round1-20260917/integration-candidate/manifest.json",
+          "sha256": "0af980a1eeb531979e1533d2aeefc681c308b8e9f0458197857c2eb0d5eb240f"
+        },
+        "report": {
+          "localPath": "/Users/jmcasler/Documents/GitHub/mchamster/cotabby/build/eval/round1-20260917/integration-candidate/report.json",
+          "sha256": "227221e74c8e18a79a989e2af9204b24d44dda153cd662e12974fc26b5969585"
+        },
+        "samplingOverrides": {
+          "seed": 12648430
+        }
+      },
+      "phraseCountPerCondition": 1337,
+      "scores": {
+        "none": {
+          "checkpoints": 7437,
+          "frozenCorrect": 2322,
+          "integrationCorrect": 2322
+        },
+        "screen": {
+          "checkpoints": 7437,
+          "frozenCorrect": 2813,
+          "integrationCorrect": 2813
+        }
+      },
+      "stage": "candidate"
+    }
+  ],
+  "schemaVersion": 1,
+  "scope": "Descriptive parity of recorded fields on the full synthetic corpus and fixed native-default seed, across distinct frozen and current-main integration builds; no general source-policy, live-interaction, other-seed/model, endpoint/Apple-runtime, or timing equivalence claim.",
+  "seed": 12648430,
+  "status": "complete",
+  "totalAnyComparedFieldMismatch": 0,
+  "totalMatchedCheckpoints": 29748,
+  "workerCount": 3
+}

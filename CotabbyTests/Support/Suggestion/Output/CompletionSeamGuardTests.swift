@@ -67,15 +67,11 @@ final class CompletionSeamGuardTests: XCTestCase {
         )
     }
 
-    func testStreamedPartialVariantAppliesOnlyTheJunkRule() {
-        XCTAssertFalse(
-            CompletionSeamGuard.allowsStreamedPartial(precedingText: "Wait", completion: " what....")
-        )
-        // A mid-word splice passes the streamed check; the spell half runs only on the final
-        // apply, which replaces or suppresses whatever streamed.
-        XCTAssertTrue(
-            CompletionSeamGuard.allowsStreamedPartial(precedingText: "gre", completion: "atful and kind")
-        )
+    func testStreamedPresentationRejectsJunkAndMalformedJoins() {
+        XCTAssertEqual(CompletionSeamGuard.presentation(precedingText: "Wait", completion: " what....", isFinal: false,
+            spellingAssessment: knowsEverything), .suppress(.junkPunctuationRun))
+        XCTAssertEqual(CompletionSeamGuard.presentation(precedingText: "gre", completion: "atful and kind", isFinal: false,
+            spellingAssessment: { _ in .correctableTypo }), .suppress(.seamMisspelling(word: "greatful")))
     }
 
     func testContinuingAnExistingDividerIsAllowed() {
@@ -119,7 +115,7 @@ final class CompletionSeamGuardTests: XCTestCase {
             CompletionSeamGuard.verdict(
                 precedingText: "I am so gre",
                 completion: "atful for this",
-                spellingAssessment: knowing(["great", "grateful"])
+                spellingAssessment: { _ in .correctableTypo }
             ),
             .seamMisspelling(word: "greatful")
         )
@@ -337,9 +333,9 @@ final class CompletionSeamGuardTests: XCTestCase {
             CompletionSeamGuard.verdict(
                 precedingText: "I don",
                 completion: "'t know",
-                spellingAssessment: { _ in
-                    XCTFail("a connector continuation must not be assessed as a leading word")
-                    return .correctableTypo
+                spellingAssessment: { word in
+                    XCTAssertEqual(word, "don't")
+                    return .known
                 }
             ),
             .allow
@@ -446,5 +442,32 @@ final class CompletionSeamGuardTests: XCTestCase {
             ),
             .allow
         )
+    }
+
+    func testAbandonedFragmentIsSuppressedEvenIfNativeDictionaryRecognizesIt() {
+        for isFinal in [false, true] {
+            XCTAssertEqual(CompletionSeamGuard.presentation(precedingText: "book a roo", completion: " room for two guests",
+                isFinal: isFinal, spellingAssessment: knowsEverything), .suppress(.abandonedWord(word: "roo")))
+        }
+        XCTAssertEqual(CompletionSeamGuard.presentation(precedingText: "a car", completion: " is parked", isFinal: true,
+            spellingAssessment: knowsEverything), .show(text: " is parked", wordOnly: false))
+    }
+
+    func testBadJoinedWordNeverAppearsDuringStreaming() {
+        XCTAssertEqual(CompletionSeamGuard.presentation(precedingText: "so gre", completion: "atf", isFinal: false,
+            spellingAssessment: { _ in XCTFail("Wait for the full word"); return .known }), .wait)
+        for isFinal in [false, true] {
+            XCTAssertEqual(CompletionSeamGuard.presentation(precedingText: "so gre", completion: "atful for this", isFinal: isFinal,
+                spellingAssessment: { _ in .correctableTypo }), .suppress(.seamMisspelling(word: "greatful")))
+        }
+    }
+
+    func testShortOrUnknownWordOnlyShowsItsEnding() {
+        XCTAssertEqual(CompletionSeamGuard.presentation(precedingText: "like to b", completion: "uild a spaceship", isFinal: true,
+            spellingAssessment: knowsEverything), .show(text: "uild", wordOnly: true))
+        XCTAssertEqual(CompletionSeamGuard.presentation(precedingText: "Use Cota", completion: "bby for everything", isFinal: true,
+            spellingAssessment: knowsNothing), .show(text: "bby", wordOnly: true))
+        XCTAssertEqual(CompletionSeamGuard.presentation(precedingText: "book a roo", completion: "m for two guests", isFinal: true,
+            spellingAssessment: knowsEverything), .show(text: "m for two guests", wordOnly: false))
     }
 }
