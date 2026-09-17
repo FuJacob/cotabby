@@ -66,6 +66,73 @@ an `.xctestrun` file. Ordinary tests do not run inference: both the compile flag
 `build/DerivedData`; remove that directory after the runs finish and no other build needs it.
 Reports remain under `build/eval/phrases/`. Xcode build/launch failures are retained in the run logs.
 
+## Store baselines in GitHub and compare a change
+
+From the repository root, this uses the local model and development workspace already available
+in this checkout. It runs all **1,337 scenarios / 14,874 predictions**, including both screen
+conditions. Detailed run artifacts remain local; export the completed scores into the repository:
+
+```sh
+python3 scripts/phrase_eval.py run \
+  --model build/models/Qwen3.5-0.8B-Base.i1-Q6_K.gguf \
+  --workspace build/CotabbyDevelopment.xcworkspace \
+  --label baseline-v1 \
+  --output build/eval/phrases/baseline-v1
+
+python3 scripts/phrase_eval.py save-baseline build/eval/phrases/baseline-v1 \
+  --name baseline-v1
+
+git add benchmarks/phrase-prediction/baseline-v1
+git commit -m "Record phrase prediction baseline v1"
+git push
+```
+
+After tweaking Cotabby, run the same command with a new label and directory:
+
+```sh
+python3 scripts/phrase_eval.py run \
+  --model build/models/Qwen3.5-0.8B-Base.i1-Q6_K.gguf \
+  --workspace build/CotabbyDevelopment.xcworkspace \
+  --label candidate-v1 \
+  --output build/eval/phrases/candidate-v1
+
+python3 scripts/phrase_eval.py compare \
+  benchmarks/phrase-prediction/baseline-v1/report.json \
+  build/eval/phrases/candidate-v1/report.json \
+  > build/eval/phrases/candidate-v1/comparison.txt
+```
+
+`save-baseline` works with any completed run directory, including the previously suggested
+`$HOME/Documents/CotabbyBenchmarks/baseline-v1`. It writes three Git-trackable files under
+`benchmarks/phrase-prediction/<name>/`: `report.json`, `summary.txt`, and `manifest.json`.
+The report preserves all phrase/category/suite scores, both context conditions, context lift,
+latency metrics, fixture/checkpoint identities, model/corpus hashes, and generation settings.
+The manifest records the original run's revision, working-tree status, platform, and report hash.
+Model paths are reduced to filenames. Full prompts, completions, journals, patches, and Xcode logs
+stay in the local run directory; model weights remain gitignored.
+
+Exports carry `baselineFormatVersion: 1` and are intended for score comparison, not replay or
+per-prediction debugging. Failed, incomplete, or duplicate runs are rejected. Existing baseline
+folders cannot be overwritten: give each accepted baseline a new name. Commit the evaluated code
+before collecting a release baseline; exporting results does not commit, push, or snapshot dirty
+source files. Export a candidate the same way when you want to preserve it in GitHub too.
+
+During a run, the terminal displays progress such as:
+
+```text
+Building | elapsed 00:00:25 | replay ETA available after predictions begin
+Replay  42.0% | 6,247/14,874 predictions | elapsed 00:08:00 | ETA 00:11:03 | science-083 [screen]
+```
+
+Progress counts completed predictions, updating as each phrase-condition record is saved.
+The ETA estimates **remaining replay time** from elapsed replay time and the completed checkpoint
+count; it excludes build/model-loading time and cannot predict final report/test teardown time.
+It starts as `estimating`, then adapts as predictions finish. Percentages update about once per
+second in a terminal or every five seconds when redirected/piped. At 100%, the runner still checks
+the test result and report before printing `Complete: replay and report validation passed.`
+Ctrl-C stops the child command and preserves completed records; an interrupted run is not a
+complete baseline and cannot be resumed. Raw Xcode output remains in `build.log` and `test.log`.
+
 ## Inputs and controls
 
 Each corpus record contains:

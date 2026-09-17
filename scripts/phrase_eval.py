@@ -6,6 +6,7 @@ app-hosted test with explicit environment settings, and compares its versioned J
 """
 import argparse
 import collections
+import copy
 import datetime
 import hashlib
 import json
@@ -24,6 +25,7 @@ import uuid
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 CORPUS = ROOT / "CotabbyTests/Fixtures/phrase-prediction-1337.json"
 DERIVED = ROOT / "build/DerivedData"
+BASELINES = ROOT / "benchmarks/phrase-prediction"
 CATEGORIES = ("conversation", "science", "entertainment", "work", "technology", "everyday", "travel")
 WORD = re.compile(r"[^\W_]+(?:['’\-][^\W_]+)*", re.UNICODE)
 
@@ -188,7 +190,10 @@ def logged_command(command, log, progress=None):
             display()
         except BaseException:
             # Ctrl-C must stop the child build/test too; leave its durable journal for diagnosis.
-            os.killpg(process.pid, signal.SIGTERM)
+            try:
+                os.killpg(process.pid, signal.SIGTERM)
+            except ProcessLookupError:
+                pass
             try:
                 process.wait(timeout=5)
             except subprocess.TimeoutExpired:
@@ -279,6 +284,61 @@ def percent(value):
     return "n/a" if value is None else f"{value * 100:.2f}%"
 
 
+def save_baseline(args):
+    """Export one completed run for Git; local journals remain the detailed diagnostic record.
+
+    Preserve comparison inputs and every aggregate, but discard bulky per-prediction output.
+    This separate export boundary prevents a failed or partial run from becoming a baseline.
+    """
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,99}", args.name):
+        raise ValueError("Baseline name must use 1–100 letters, digits, dots, underscores or hyphens, starting with a letter or digit")
+    source = args.run.resolve()
+    report = json.loads((source / "report.json").read_text())
+    manifest = json.loads((source / "manifest.json").read_text())
+    comparison_rows(report, report)  # Reject unsupported reports and inference errors first.
+    if report.get("baselineFormatVersion"):
+        raise ValueError("Export from the original completed run, not another baseline")
+    metadata = report["metadata"]
+    for field in ("mode", "contextMode", "corpusSHA256"):
+        if metadata[field] != manifest[field]:
+            raise ValueError(f"Run manifest and report disagree on {field}")
+    if metadata["mode"] not in ("word", "character") or metadata["contextMode"] not in ("none", "screen", "paired"):
+        raise ValueError("Unsupported checkpoint or context mode")
+    conditions = ("none", "screen") if metadata["contextMode"] == "paired" else (metadata["contextMode"],)
+    expected = [(phrase_id, condition) for phrase_id in manifest["phraseIDs"] for condition in conditions]
+    actual = [(result["phrase"]["id"], result["condition"]) for result in report["phrases"]]
+    if not expected or len(set(expected)) != len(expected) or sorted(actual) != sorted(expected):
+        raise ValueError("Cannot save an incomplete or duplicate phrase selection")
+    for result in report["phrases"]:
+        expected_count = sum(checkpoint_counts([result["phrase"]], metadata["mode"], "none").values())
+        if len(result["observations"]) != expected_count or result["all"]["checkpoints"] != expected_count:
+            raise ValueError(f"Incomplete checkpoints for {result['phrase']['id']}")
+    summary = (source / "summary.txt").read_text()
+    compact = copy.deepcopy(report)
+    compact["baselineFormatVersion"] = 1
+    # Checkpoints and fixture scenarios are the comparator's exact input identity. Retaining them
+    # means a compact baseline can be compared directly with an ordinary full report.
+    for result in compact["phrases"]:
+        result["observations"] = [{"checkpoint": item["checkpoint"]} for item in result["observations"]]
+    compact["metadata"]["model"] = pathlib.Path(metadata["model"]).name
+    provenance = {key: manifest[key] for key in (
+        "startedUTC", "label", "gitCommit", "gitStatus", "mode", "contextMode", "corpusSHA256", "phraseIDs", "platform"
+    )}
+    provenance["modelFile"] = compact["metadata"]["model"]
+    provenance["sourceReportSHA256"] = hashlib.sha256((source / "report.json").read_bytes()).hexdigest()
+    provenance["baselineName"] = args.name
+    # Encode before creating the immutable destination, so invalid inputs leave no baseline folder.
+    encoded = json.dumps(compact, indent=2, sort_keys=True) + "\n"
+    encoded_provenance = json.dumps(provenance, indent=2, sort_keys=True) + "\n"
+    destination = BASELINES / args.name
+    destination.mkdir(parents=True, exist_ok=False)
+    (destination / "report.json").write_text(encoded)
+    (destination / "manifest.json").write_text(encoded_provenance)
+    (destination / "summary.txt").write_text(summary)
+    print(f"Saved baseline: {destination} ({len(manifest['phraseIDs'])} phrases, context={metadata['contextMode']})")
+    print("Ready for git add / commit / push. Full observations and logs remain in the original run directory.")
+
+
 def comparison_rows(before, after):
     """Reject mismatched inputs; model/config differences are intentional tuning dimensions."""
     for key in ("schemaVersion",):
@@ -309,7 +369,9 @@ def compare(args):
     after = json.loads(args.after.read_text())
     rows = comparison_rows(before, after)
     for field in ("model", "configuration"):
-        if before["metadata"][field] != after["metadata"][field]:
+        old, new = before["metadata"][field], after["metadata"][field]
+        changed = pathlib.Path(old).name != pathlib.Path(new).name if field == "model" else old != new
+        if changed:
             print(f"Changed {field}: {before['metadata'][field]} -> {after['metadata'][field]}")
     print("Next-word accuracy (percentage-point change):")
     for name, old, new in rows:
@@ -345,9 +407,12 @@ def main():
     command = commands.add_parser("compare")
     command.add_argument("before", type=pathlib.Path)
     command.add_argument("after", type=pathlib.Path)
+    command = commands.add_parser("save-baseline", help="Export a completed run to the versioned benchmarks folder")
+    command.add_argument("run", type=pathlib.Path, help="Completed run directory containing report.json, manifest.json and summary.txt")
+    command.add_argument("--name", required=True, help="New immutable baseline folder name")
     args = parser.parse_args()
     try:
-        {"plan": show_plan, "run": run, "compare": compare}[args.command](args)
+        {"plan": show_plan, "run": run, "compare": compare, "save-baseline": save_baseline}[args.command](args)
     except KeyboardInterrupt:
         parser.exit(130, "Interrupted; completed phrase records and logs remain in the results directory.\n")
     except (OSError, ValueError, RuntimeError, subprocess.CalledProcessError) as error:

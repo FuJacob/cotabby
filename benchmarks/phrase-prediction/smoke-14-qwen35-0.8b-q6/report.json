@@ -1,0 +1,3116 @@
+{
+  "baselineFormatVersion": 1,
+  "categories": {
+    "conversation": {
+      "all": {
+        "accuracy": 0.7777777777777778,
+        "checkpoints": 9,
+        "correct": 7,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 33.760875,
+        "latencyP95Milliseconds": 109.3155,
+        "precisionWhenShown": 0.7777777777777778,
+        "shown": 9
+      },
+      "meanPhraseNextWordAccuracy": 0.775,
+      "nextWord": {
+        "accuracy": 0.7777777777777778,
+        "checkpoints": 9,
+        "correct": 7,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 33.760875,
+        "latencyP95Milliseconds": 109.3155,
+        "precisionWhenShown": 0.7777777777777778,
+        "shown": 9
+      },
+      "phraseCount": 2
+    },
+    "entertainment": {
+      "all": {
+        "accuracy": 0.125,
+        "checkpoints": 8,
+        "correct": 1,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 49.444834,
+        "latencyP95Milliseconds": 110.230584,
+        "precisionWhenShown": 0.125,
+        "shown": 8
+      },
+      "meanPhraseNextWordAccuracy": 0.125,
+      "nextWord": {
+        "accuracy": 0.125,
+        "checkpoints": 8,
+        "correct": 1,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 49.444834,
+        "latencyP95Milliseconds": 110.230584,
+        "precisionWhenShown": 0.125,
+        "shown": 8
+      },
+      "phraseCount": 2
+    },
+    "everyday": {
+      "all": {
+        "accuracy": 0.4,
+        "checkpoints": 10,
+        "correct": 4,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 64.736333,
+        "latencyP95Milliseconds": 127.596167,
+        "precisionWhenShown": 0.4,
+        "shown": 10
+      },
+      "meanPhraseNextWordAccuracy": 0.41666666666666663,
+      "nextWord": {
+        "accuracy": 0.4,
+        "checkpoints": 10,
+        "correct": 4,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 64.736333,
+        "latencyP95Milliseconds": 127.596167,
+        "precisionWhenShown": 0.4,
+        "shown": 10
+      },
+      "phraseCount": 2
+    },
+    "science": {
+      "all": {
+        "accuracy": 0.7,
+        "checkpoints": 10,
+        "correct": 7,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 83.092666,
+        "latencyP95Milliseconds": 145.339625,
+        "precisionWhenShown": 0.7,
+        "shown": 10
+      },
+      "meanPhraseNextWordAccuracy": 0.7,
+      "nextWord": {
+        "accuracy": 0.7,
+        "checkpoints": 10,
+        "correct": 7,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 83.092666,
+        "latencyP95Milliseconds": 145.339625,
+        "precisionWhenShown": 0.7,
+        "shown": 10
+      },
+      "phraseCount": 2
+    },
+    "technology": {
+      "all": {
+        "accuracy": 0.4444444444444444,
+        "checkpoints": 9,
+        "correct": 4,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 69.722167,
+        "latencyP95Milliseconds": 125.657792,
+        "precisionWhenShown": 0.4444444444444444,
+        "shown": 9
+      },
+      "meanPhraseNextWordAccuracy": 0.45,
+      "nextWord": {
+        "accuracy": 0.4444444444444444,
+        "checkpoints": 9,
+        "correct": 4,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 69.722167,
+        "latencyP95Milliseconds": 125.657792,
+        "precisionWhenShown": 0.4444444444444444,
+        "shown": 9
+      },
+      "phraseCount": 2
+    },
+    "travel": {
+      "all": {
+        "accuracy": 0.8461538461538461,
+        "checkpoints": 13,
+        "correct": 11,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 47.327416,
+        "latencyP95Milliseconds": 117.052125,
+        "precisionWhenShown": 0.8461538461538461,
+        "shown": 13
+      },
+      "meanPhraseNextWordAccuracy": 0.8375,
+      "nextWord": {
+        "accuracy": 0.8461538461538461,
+        "checkpoints": 13,
+        "correct": 11,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 47.327416,
+        "latencyP95Milliseconds": 117.052125,
+        "precisionWhenShown": 0.8461538461538461,
+        "shown": 13
+      },
+      "phraseCount": 2
+    },
+    "work": {
+      "all": {
+        "accuracy": 0.8181818181818182,
+        "checkpoints": 11,
+        "correct": 9,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 48.328541,
+        "latencyP95Milliseconds": 109.112458,
+        "precisionWhenShown": 0.8181818181818182,
+        "shown": 11
+      },
+      "meanPhraseNextWordAccuracy": 0.75,
+      "nextWord": {
+        "accuracy": 0.8181818181818182,
+        "checkpoints": 11,
+        "correct": 9,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 48.328541,
+        "latencyP95Milliseconds": 109.112458,
+        "precisionWhenShown": 0.8181818181818182,
+        "shown": 11
+      },
+      "phraseCount": 2
+    }
+  },
+  "conditions": {
+    "none": {
+      "categories": {
+        "conversation": {
+          "all": {
+            "accuracy": 0.4444444444444444,
+            "checkpoints": 9,
+            "correct": 4,
+            "coverage": 1,
+            "errors": 0,
+            "latencyP50Milliseconds": 47.697833,
+            "latencyP95Milliseconds": 254.281166,
+            "precisionWhenShown": 0.4444444444444444,
+            "shown": 9
+          },
+          "meanPhraseNextWordAccuracy": 0.45,
+          "nextWord": {
+            "accuracy": 0.4444444444444444,
+            "checkpoints": 9,
+            "correct": 4,
+            "coverage": 1,
+            "errors": 0,
+            "latencyP50Milliseconds": 47.697833,
+            "latencyP95Milliseconds": 254.281166,
+            "precisionWhenShown": 0.4444444444444444,
+            "shown": 9
+          },
+          "phraseCount": 2
+        },
+        "entertainment": {
+          "all": {
+            "accuracy": 0,
+            "checkpoints": 8,
+            "correct": 0,
+            "coverage": 1,
+            "errors": 0,
+            "latencyP50Milliseconds": 88.991375,
+            "latencyP95Milliseconds": 210.3265,
+            "precisionWhenShown": 0,
+            "shown": 8
+          },
+          "meanPhraseNextWordAccuracy": 0,
+          "nextWord": {
+            "accuracy": 0,
+            "checkpoints": 8,
+            "correct": 0,
+            "coverage": 1,
+            "errors": 0,
+            "latencyP50Milliseconds": 88.991375,
+            "latencyP95Milliseconds": 210.3265,
+            "precisionWhenShown": 0,
+            "shown": 8
+          },
+          "phraseCount": 2
+        },
+        "everyday": {
+          "all": {
+            "accuracy": 0.4,
+            "checkpoints": 10,
+            "correct": 4,
+            "coverage": 1,
+            "errors": 0,
+            "latencyP50Milliseconds": 126.966833,
+            "latencyP95Milliseconds": 229.211125,
+            "precisionWhenShown": 0.4,
+            "shown": 10
+          },
+          "meanPhraseNextWordAccuracy": 0.375,
+          "nextWord": {
+            "accuracy": 0.4,
+            "checkpoints": 10,
+            "correct": 4,
+            "coverage": 1,
+            "errors": 0,
+            "latencyP50Milliseconds": 126.966833,
+            "latencyP95Milliseconds": 229.211125,
+            "precisionWhenShown": 0.4,
+            "shown": 10
+          },
+          "phraseCount": 2
+        },
+        "science": {
+          "all": {
+            "accuracy": 0.6,
+            "checkpoints": 10,
+            "correct": 6,
+            "coverage": 1,
+            "errors": 0,
+            "latencyP50Milliseconds": 40.913958,
+            "latencyP95Milliseconds": 221.86325,
+            "precisionWhenShown": 0.6,
+            "shown": 10
+          },
+          "meanPhraseNextWordAccuracy": 0.6,
+          "nextWord": {
+            "accuracy": 0.6,
+            "checkpoints": 10,
+            "correct": 6,
+            "coverage": 1,
+            "errors": 0,
+            "latencyP50Milliseconds": 40.913958,
+            "latencyP95Milliseconds": 221.86325,
+            "precisionWhenShown": 0.6,
+            "shown": 10
+          },
+          "phraseCount": 2
+        },
+        "technology": {
+          "all": {
+            "accuracy": 0.3333333333333333,
+            "checkpoints": 9,
+            "correct": 3,
+            "coverage": 1,
+            "errors": 0,
+            "latencyP50Milliseconds": 55.39525,
+            "latencyP95Milliseconds": 193.222542,
+            "precisionWhenShown": 0.3333333333333333,
+            "shown": 9
+          },
+          "meanPhraseNextWordAccuracy": 0.325,
+          "nextWord": {
+            "accuracy": 0.3333333333333333,
+            "checkpoints": 9,
+            "correct": 3,
+            "coverage": 1,
+            "errors": 0,
+            "latencyP50Milliseconds": 55.39525,
+            "latencyP95Milliseconds": 193.222542,
+            "precisionWhenShown": 0.3333333333333333,
+            "shown": 9
+          },
+          "phraseCount": 2
+        },
+        "travel": {
+          "all": {
+            "accuracy": 0.38461538461538464,
+            "checkpoints": 13,
+            "correct": 5,
+            "coverage": 1,
+            "errors": 0,
+            "latencyP50Milliseconds": 96.093041,
+            "latencyP95Milliseconds": 219.626458,
+            "precisionWhenShown": 0.38461538461538464,
+            "shown": 13
+          },
+          "meanPhraseNextWordAccuracy": 0.3875,
+          "nextWord": {
+            "accuracy": 0.38461538461538464,
+            "checkpoints": 13,
+            "correct": 5,
+            "coverage": 1,
+            "errors": 0,
+            "latencyP50Milliseconds": 96.093041,
+            "latencyP95Milliseconds": 219.626458,
+            "precisionWhenShown": 0.38461538461538464,
+            "shown": 13
+          },
+          "phraseCount": 2
+        },
+        "work": {
+          "all": {
+            "accuracy": 0.8181818181818182,
+            "checkpoints": 11,
+            "correct": 9,
+            "coverage": 1,
+            "errors": 0,
+            "latencyP50Milliseconds": 56.122542,
+            "latencyP95Milliseconds": 102.025166,
+            "precisionWhenShown": 0.8181818181818182,
+            "shown": 11
+          },
+          "meanPhraseNextWordAccuracy": 0.8035714285714286,
+          "nextWord": {
+            "accuracy": 0.8181818181818182,
+            "checkpoints": 11,
+            "correct": 9,
+            "coverage": 1,
+            "errors": 0,
+            "latencyP50Milliseconds": 56.122542,
+            "latencyP95Milliseconds": 102.025166,
+            "precisionWhenShown": 0.8181818181818182,
+            "shown": 11
+          },
+          "phraseCount": 2
+        }
+      },
+      "suite": {
+        "all": {
+          "accuracy": 0.44285714285714284,
+          "checkpoints": 70,
+          "correct": 31,
+          "coverage": 1,
+          "errors": 0,
+          "latencyP50Milliseconds": 62.437166,
+          "latencyP95Milliseconds": 219.626458,
+          "precisionWhenShown": 0.44285714285714284,
+          "shown": 70
+        },
+        "meanPhraseNextWordAccuracy": 0.42015306122448987,
+        "nextWord": {
+          "accuracy": 0.44285714285714284,
+          "checkpoints": 70,
+          "correct": 31,
+          "coverage": 1,
+          "errors": 0,
+          "latencyP50Milliseconds": 62.437166,
+          "latencyP95Milliseconds": 219.626458,
+          "precisionWhenShown": 0.44285714285714284,
+          "shown": 70
+        },
+        "phraseCount": 14
+      }
+    },
+    "screen": {
+      "categories": {
+        "conversation": {
+          "all": {
+            "accuracy": 0.7777777777777778,
+            "checkpoints": 9,
+            "correct": 7,
+            "coverage": 1,
+            "errors": 0,
+            "latencyP50Milliseconds": 33.760875,
+            "latencyP95Milliseconds": 109.3155,
+            "precisionWhenShown": 0.7777777777777778,
+            "shown": 9
+          },
+          "meanPhraseNextWordAccuracy": 0.775,
+          "nextWord": {
+            "accuracy": 0.7777777777777778,
+            "checkpoints": 9,
+            "correct": 7,
+            "coverage": 1,
+            "errors": 0,
+            "latencyP50Milliseconds": 33.760875,
+            "latencyP95Milliseconds": 109.3155,
+            "precisionWhenShown": 0.7777777777777778,
+            "shown": 9
+          },
+          "phraseCount": 2
+        },
+        "entertainment": {
+          "all": {
+            "accuracy": 0.125,
+            "checkpoints": 8,
+            "correct": 1,
+            "coverage": 1,
+            "errors": 0,
+            "latencyP50Milliseconds": 49.444834,
+            "latencyP95Milliseconds": 110.230584,
+            "precisionWhenShown": 0.125,
+            "shown": 8
+          },
+          "meanPhraseNextWordAccuracy": 0.125,
+          "nextWord": {
+            "accuracy": 0.125,
+            "checkpoints": 8,
+            "correct": 1,
+            "coverage": 1,
+            "errors": 0,
+            "latencyP50Milliseconds": 49.444834,
+            "latencyP95Milliseconds": 110.230584,
+            "precisionWhenShown": 0.125,
+            "shown": 8
+          },
+          "phraseCount": 2
+        },
+        "everyday": {
+          "all": {
+            "accuracy": 0.4,
+            "checkpoints": 10,
+            "correct": 4,
+            "coverage": 1,
+            "errors": 0,
+            "latencyP50Milliseconds": 64.736333,
+            "latencyP95Milliseconds": 127.596167,
+            "precisionWhenShown": 0.4,
+            "shown": 10
+          },
+          "meanPhraseNextWordAccuracy": 0.41666666666666663,
+          "nextWord": {
+            "accuracy": 0.4,
+            "checkpoints": 10,
+            "correct": 4,
+            "coverage": 1,
+            "errors": 0,
+            "latencyP50Milliseconds": 64.736333,
+            "latencyP95Milliseconds": 127.596167,
+            "precisionWhenShown": 0.4,
+            "shown": 10
+          },
+          "phraseCount": 2
+        },
+        "science": {
+          "all": {
+            "accuracy": 0.7,
+            "checkpoints": 10,
+            "correct": 7,
+            "coverage": 1,
+            "errors": 0,
+            "latencyP50Milliseconds": 83.092666,
+            "latencyP95Milliseconds": 145.339625,
+            "precisionWhenShown": 0.7,
+            "shown": 10
+          },
+          "meanPhraseNextWordAccuracy": 0.7,
+          "nextWord": {
+            "accuracy": 0.7,
+            "checkpoints": 10,
+            "correct": 7,
+            "coverage": 1,
+            "errors": 0,
+            "latencyP50Milliseconds": 83.092666,
+            "latencyP95Milliseconds": 145.339625,
+            "precisionWhenShown": 0.7,
+            "shown": 10
+          },
+          "phraseCount": 2
+        },
+        "technology": {
+          "all": {
+            "accuracy": 0.4444444444444444,
+            "checkpoints": 9,
+            "correct": 4,
+            "coverage": 1,
+            "errors": 0,
+            "latencyP50Milliseconds": 69.722167,
+            "latencyP95Milliseconds": 125.657792,
+            "precisionWhenShown": 0.4444444444444444,
+            "shown": 9
+          },
+          "meanPhraseNextWordAccuracy": 0.45,
+          "nextWord": {
+            "accuracy": 0.4444444444444444,
+            "checkpoints": 9,
+            "correct": 4,
+            "coverage": 1,
+            "errors": 0,
+            "latencyP50Milliseconds": 69.722167,
+            "latencyP95Milliseconds": 125.657792,
+            "precisionWhenShown": 0.4444444444444444,
+            "shown": 9
+          },
+          "phraseCount": 2
+        },
+        "travel": {
+          "all": {
+            "accuracy": 0.8461538461538461,
+            "checkpoints": 13,
+            "correct": 11,
+            "coverage": 1,
+            "errors": 0,
+            "latencyP50Milliseconds": 47.327416,
+            "latencyP95Milliseconds": 117.052125,
+            "precisionWhenShown": 0.8461538461538461,
+            "shown": 13
+          },
+          "meanPhraseNextWordAccuracy": 0.8375,
+          "nextWord": {
+            "accuracy": 0.8461538461538461,
+            "checkpoints": 13,
+            "correct": 11,
+            "coverage": 1,
+            "errors": 0,
+            "latencyP50Milliseconds": 47.327416,
+            "latencyP95Milliseconds": 117.052125,
+            "precisionWhenShown": 0.8461538461538461,
+            "shown": 13
+          },
+          "phraseCount": 2
+        },
+        "work": {
+          "all": {
+            "accuracy": 0.8181818181818182,
+            "checkpoints": 11,
+            "correct": 9,
+            "coverage": 1,
+            "errors": 0,
+            "latencyP50Milliseconds": 48.328541,
+            "latencyP95Milliseconds": 109.112458,
+            "precisionWhenShown": 0.8181818181818182,
+            "shown": 11
+          },
+          "meanPhraseNextWordAccuracy": 0.75,
+          "nextWord": {
+            "accuracy": 0.8181818181818182,
+            "checkpoints": 11,
+            "correct": 9,
+            "coverage": 1,
+            "errors": 0,
+            "latencyP50Milliseconds": 48.328541,
+            "latencyP95Milliseconds": 109.112458,
+            "precisionWhenShown": 0.8181818181818182,
+            "shown": 11
+          },
+          "phraseCount": 2
+        }
+      },
+      "suite": {
+        "all": {
+          "accuracy": 0.6142857142857143,
+          "checkpoints": 70,
+          "correct": 43,
+          "coverage": 1,
+          "errors": 0,
+          "latencyP50Milliseconds": 56.190334,
+          "latencyP95Milliseconds": 127.596167,
+          "precisionWhenShown": 0.6142857142857143,
+          "shown": 70
+        },
+        "meanPhraseNextWordAccuracy": 0.5791666666666667,
+        "nextWord": {
+          "accuracy": 0.6142857142857143,
+          "checkpoints": 70,
+          "correct": 43,
+          "coverage": 1,
+          "errors": 0,
+          "latencyP50Milliseconds": 56.190334,
+          "latencyP95Milliseconds": 127.596167,
+          "precisionWhenShown": 0.6142857142857143,
+          "shown": 70
+        },
+        "phraseCount": 14
+      }
+    }
+  },
+  "contextLift": {
+    "byCategory": {
+      "conversation": 0.33333333333333337,
+      "entertainment": 0.125,
+      "everyday": 0,
+      "science": 0.09999999999999998,
+      "technology": 0.1111111111111111,
+      "travel": 0.4615384615384615,
+      "work": 0
+    },
+    "byPhrase": {
+      "conversation-001": 0.25,
+      "conversation-002": 0.4,
+      "entertainment-001": 0,
+      "entertainment-002": 0.25,
+      "everyday-001": -0.16666666666666669,
+      "everyday-002": 0.25,
+      "science-001": 0,
+      "science-002": 0.20000000000000007,
+      "technology-001": 0,
+      "technology-002": 0.25,
+      "travel-001": 0.5,
+      "travel-002": 0.4,
+      "work-001": -0.25,
+      "work-002": 0.1428571428571429
+    },
+    "improvedCheckpoints": 14,
+    "regressedCheckpoints": 2,
+    "suiteAccuracyDelta": 0.17142857142857149
+  },
+  "errorCount": 0,
+  "meanCategoryNextWordAccuracy": 0.5873654123654123,
+  "measurementScope": "Sequential prefix replay through local llama, request factory, normalization and final seam guard. Synthetic OCR text uses production cleanup, selection and prompt budgeting; no screenshots or Vision recognition. Prior draft and surface metadata are held fixed across conditions. No future answer, clipboard, real keystrokes, debounce, streaming or acceptance-tail reuse. Cache reset between conditions; fixed seed; teacher-forced typing.",
+  "metadata": {
+    "configuration": {
+      "debounceMilliseconds": "20",
+      "defaultUserName": "Optional(\"Jacob\")",
+      "defaultWordCountPreset": "twelveToTwenty",
+      "focusPollIntervalMilliseconds": "50",
+      "llamaPromptTokenBudget": "1934",
+      "maxPredictionTokens": "5",
+      "maxPrefixCharacters": "2500",
+      "maxPrefixCharactersFoundationModel": "2500",
+      "maxPrefixWords": "150",
+      "maxPrefixWordsFoundationModel": "150",
+      "maxSuffixCharacters": "192",
+      "minP": "0.08",
+      "modelSHA256": "febd85051361ccb34d0925744c819f9ae0724117e8f946a2852dd0edfa90a5a1",
+      "os": "Version 27.0 (Build 26A428)",
+      "processors": "10",
+      "randomSeed": "Optional(42)",
+      "repetitionPenalty": "1.05",
+      "settings": "single-line; surface metadata and prior draft fixed; synthetic OCR varies; no clipboard/profile/custom rules",
+      "temperature": "0.1",
+      "topK": "20",
+      "topP": "0.7"
+    },
+    "contextMode": "paired",
+    "corpusSHA256": "b41c8089a58ae1e0ee84b95ac9283cf71db4e713e25bd8fed47220be69d8b0f6",
+    "corpusVersion": 2,
+    "mode": "word",
+    "model": "Qwen3.5-0.8B-Base.i1-Q6_K.gguf",
+    "runLabel": "progress-smoke",
+    "seed": 42
+  },
+  "phrases": [
+    {
+      "all": {
+        "accuracy": 0.5,
+        "checkpoints": 4,
+        "correct": 2,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 38.792417,
+        "latencyP95Milliseconds": 254.281166,
+        "precisionWhenShown": 0.5,
+        "shown": 4
+      },
+      "condition": "none",
+      "nextWord": {
+        "accuracy": 0.5,
+        "checkpoints": 4,
+        "correct": 2,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 38.792417,
+        "latencyP95Milliseconds": 254.281166,
+        "precisionWhenShown": 0.5,
+        "shown": 4
+      },
+      "observations": [
+        {
+          "checkpoint": {
+            "expectedWord": "are",
+            "prefix": "How ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 1
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "you",
+            "prefix": "How are ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 2
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "doing",
+            "prefix": "How are you ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 3
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "today",
+            "prefix": "How are you doing ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 4
+          }
+        }
+      ],
+      "phrase": {
+        "category": "conversation",
+        "id": "conversation-001",
+        "scenario": {
+          "applicationName": "Messages",
+          "bundleIdentifier": "com.apple.MobileSMS",
+          "documentPrefix": "",
+          "fieldPlaceholder": "Message",
+          "kind": "chat",
+          "screenText": "Messages\nPinned conversations\nWeekend photos \u2014 2 unread\nMaya \u2014 direct message\nMaya: Finally home after a difficult week. Still a bit tired.\nDelivered\nMessage",
+          "windowTitle": "Maya \u2014 direct message"
+        },
+        "text": "How are you doing today?"
+      }
+    },
+    {
+      "all": {
+        "accuracy": 0.75,
+        "checkpoints": 4,
+        "correct": 3,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 29.296916,
+        "latencyP95Milliseconds": 109.3155,
+        "precisionWhenShown": 0.75,
+        "shown": 4
+      },
+      "condition": "screen",
+      "nextWord": {
+        "accuracy": 0.75,
+        "checkpoints": 4,
+        "correct": 3,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 29.296916,
+        "latencyP95Milliseconds": 109.3155,
+        "precisionWhenShown": 0.75,
+        "shown": 4
+      },
+      "observations": [
+        {
+          "checkpoint": {
+            "expectedWord": "are",
+            "prefix": "How ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 1
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "you",
+            "prefix": "How are ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 2
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "doing",
+            "prefix": "How are you ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 3
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "today",
+            "prefix": "How are you doing ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 4
+          }
+        }
+      ],
+      "phrase": {
+        "category": "conversation",
+        "id": "conversation-001",
+        "scenario": {
+          "applicationName": "Messages",
+          "bundleIdentifier": "com.apple.MobileSMS",
+          "documentPrefix": "",
+          "fieldPlaceholder": "Message",
+          "kind": "chat",
+          "screenText": "Messages\nPinned conversations\nWeekend photos \u2014 2 unread\nMaya \u2014 direct message\nMaya: Finally home after a difficult week. Still a bit tired.\nDelivered\nMessage",
+          "windowTitle": "Maya \u2014 direct message"
+        },
+        "text": "How are you doing today?"
+      }
+    },
+    {
+      "all": {
+        "accuracy": 0.8,
+        "checkpoints": 5,
+        "correct": 4,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 43.611458,
+        "latencyP95Milliseconds": 93.175167,
+        "precisionWhenShown": 0.8,
+        "shown": 5
+      },
+      "condition": "screen",
+      "nextWord": {
+        "accuracy": 0.8,
+        "checkpoints": 5,
+        "correct": 4,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 43.611458,
+        "latencyP95Milliseconds": 93.175167,
+        "precisionWhenShown": 0.8,
+        "shown": 5
+      },
+      "observations": [
+        {
+          "checkpoint": {
+            "expectedWord": "was",
+            "prefix": "It ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 1
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "nice",
+            "prefix": "It was ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 2
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "to",
+            "prefix": "It was nice ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 3
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "meet",
+            "prefix": "It was nice to ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 4
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "you",
+            "prefix": "It was nice to meet ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 5
+          }
+        }
+      ],
+      "phrase": {
+        "category": "conversation",
+        "id": "conversation-002",
+        "scenario": {
+          "applicationName": "Messages",
+          "bundleIdentifier": "com.apple.MobileSMS",
+          "documentPrefix": "",
+          "fieldPlaceholder": "Message",
+          "kind": "chat",
+          "screenText": "Messages\nPinned conversations\nWeekend photos \u2014 2 unread\nJordan \u2014 direct message\nJordan: We met at the community workshop this afternoon. Here's my number.\nDelivered\nMessage",
+          "windowTitle": "Jordan \u2014 direct message"
+        },
+        "text": "It was nice to meet you."
+      }
+    },
+    {
+      "all": {
+        "accuracy": 0.4,
+        "checkpoints": 5,
+        "correct": 2,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 47.697833,
+        "latencyP95Milliseconds": 156.383584,
+        "precisionWhenShown": 0.4,
+        "shown": 5
+      },
+      "condition": "none",
+      "nextWord": {
+        "accuracy": 0.4,
+        "checkpoints": 5,
+        "correct": 2,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 47.697833,
+        "latencyP95Milliseconds": 156.383584,
+        "precisionWhenShown": 0.4,
+        "shown": 5
+      },
+      "observations": [
+        {
+          "checkpoint": {
+            "expectedWord": "was",
+            "prefix": "It ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 1
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "nice",
+            "prefix": "It was ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 2
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "to",
+            "prefix": "It was nice ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 3
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "meet",
+            "prefix": "It was nice to ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 4
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "you",
+            "prefix": "It was nice to meet ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 5
+          }
+        }
+      ],
+      "phrase": {
+        "category": "conversation",
+        "id": "conversation-002",
+        "scenario": {
+          "applicationName": "Messages",
+          "bundleIdentifier": "com.apple.MobileSMS",
+          "documentPrefix": "",
+          "fieldPlaceholder": "Message",
+          "kind": "chat",
+          "screenText": "Messages\nPinned conversations\nWeekend photos \u2014 2 unread\nJordan \u2014 direct message\nJordan: We met at the community workshop this afternoon. Here's my number.\nDelivered\nMessage",
+          "windowTitle": "Jordan \u2014 direct message"
+        },
+        "text": "It was nice to meet you."
+      }
+    },
+    {
+      "all": {
+        "accuracy": 0.6,
+        "checkpoints": 5,
+        "correct": 3,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 72.39675,
+        "latencyP95Milliseconds": 221.86325,
+        "precisionWhenShown": 0.6,
+        "shown": 5
+      },
+      "condition": "none",
+      "nextWord": {
+        "accuracy": 0.6,
+        "checkpoints": 5,
+        "correct": 3,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 72.39675,
+        "latencyP95Milliseconds": 221.86325,
+        "precisionWhenShown": 0.6,
+        "shown": 5
+      },
+      "observations": [
+        {
+          "checkpoint": {
+            "expectedWord": "freezes",
+            "prefix": "My notes from the session:\n\nWater ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 1
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "at",
+            "prefix": "My notes from the session:\n\nWater freezes ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 2
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "zero",
+            "prefix": "My notes from the session:\n\nWater freezes at ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 3
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "degrees",
+            "prefix": "My notes from the session:\n\nWater freezes at zero ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 4
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "Celsius",
+            "prefix": "My notes from the session:\n\nWater freezes at zero degrees ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 5
+          }
+        }
+      ],
+      "phrase": {
+        "category": "science",
+        "id": "science-001",
+        "scenario": {
+          "applicationName": "Notes",
+          "bundleIdentifier": "com.apple.Notes",
+          "documentPrefix": "My notes from the session:\n\n",
+          "fieldPlaceholder": "Write a summary",
+          "kind": "reference",
+          "screenText": "Notes\nFolders\nPersonal\nClass notebook\nLab log\nSource observations\nWater sample forms ice while the thermometer reads 0 Celsius.\nOther note: Room booking at 14:00\nSummary draft",
+          "windowTitle": "Lab log"
+        },
+        "text": "Water freezes at zero degrees Celsius."
+      }
+    },
+    {
+      "all": {
+        "accuracy": 0.6,
+        "checkpoints": 5,
+        "correct": 3,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 131.391333,
+        "latencyP95Milliseconds": 145.339625,
+        "precisionWhenShown": 0.6,
+        "shown": 5
+      },
+      "condition": "screen",
+      "nextWord": {
+        "accuracy": 0.6,
+        "checkpoints": 5,
+        "correct": 3,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 131.391333,
+        "latencyP95Milliseconds": 145.339625,
+        "precisionWhenShown": 0.6,
+        "shown": 5
+      },
+      "observations": [
+        {
+          "checkpoint": {
+            "expectedWord": "freezes",
+            "prefix": "My notes from the session:\n\nWater ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 1
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "at",
+            "prefix": "My notes from the session:\n\nWater freezes ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 2
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "zero",
+            "prefix": "My notes from the session:\n\nWater freezes at ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 3
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "degrees",
+            "prefix": "My notes from the session:\n\nWater freezes at zero ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 4
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "Celsius",
+            "prefix": "My notes from the session:\n\nWater freezes at zero degrees ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 5
+          }
+        }
+      ],
+      "phrase": {
+        "category": "science",
+        "id": "science-001",
+        "scenario": {
+          "applicationName": "Notes",
+          "bundleIdentifier": "com.apple.Notes",
+          "documentPrefix": "My notes from the session:\n\n",
+          "fieldPlaceholder": "Write a summary",
+          "kind": "reference",
+          "screenText": "Notes\nFolders\nPersonal\nClass notebook\nLab log\nSource observations\nWater sample forms ice while the thermometer reads 0 Celsius.\nOther note: Room booking at 14:00\nSummary draft",
+          "windowTitle": "Lab log"
+        },
+        "text": "Water freezes at zero degrees Celsius."
+      }
+    },
+    {
+      "all": {
+        "accuracy": 0.8,
+        "checkpoints": 5,
+        "correct": 4,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 83.092666,
+        "latencyP95Milliseconds": 124.011583,
+        "precisionWhenShown": 0.8,
+        "shown": 5
+      },
+      "condition": "screen",
+      "nextWord": {
+        "accuracy": 0.8,
+        "checkpoints": 5,
+        "correct": 4,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 83.092666,
+        "latencyP95Milliseconds": 124.011583,
+        "precisionWhenShown": 0.8,
+        "shown": 5
+      },
+      "observations": [
+        {
+          "checkpoint": {
+            "expectedWord": "Earth",
+            "prefix": "The ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 1
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "revolves",
+            "prefix": "The Earth ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 2
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "around",
+            "prefix": "The Earth revolves ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 3
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "the",
+            "prefix": "The Earth revolves around ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 4
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "Sun",
+            "prefix": "The Earth revolves around the ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 5
+          }
+        }
+      ],
+      "phrase": {
+        "category": "science",
+        "id": "science-002",
+        "scenario": {
+          "applicationName": "Notes",
+          "bundleIdentifier": "com.apple.Notes",
+          "documentPrefix": "",
+          "fieldPlaceholder": "Write a summary",
+          "kind": "reference",
+          "screenText": "Notes\nFolders\nPersonal\nClass notebook\nOrbit diagram\nSource observations\nEarth's path loops around the central solar body.\nOther note: Room booking at 14:00\nSummary draft",
+          "windowTitle": "Orbit diagram"
+        },
+        "text": "The Earth revolves around the Sun."
+      }
+    },
+    {
+      "all": {
+        "accuracy": 0.6,
+        "checkpoints": 5,
+        "correct": 3,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 40.913958,
+        "latencyP95Milliseconds": 95.0855,
+        "precisionWhenShown": 0.6,
+        "shown": 5
+      },
+      "condition": "none",
+      "nextWord": {
+        "accuracy": 0.6,
+        "checkpoints": 5,
+        "correct": 3,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 40.913958,
+        "latencyP95Milliseconds": 95.0855,
+        "precisionWhenShown": 0.6,
+        "shown": 5
+      },
+      "observations": [
+        {
+          "checkpoint": {
+            "expectedWord": "Earth",
+            "prefix": "The ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 1
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "revolves",
+            "prefix": "The Earth ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 2
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "around",
+            "prefix": "The Earth revolves ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 3
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "the",
+            "prefix": "The Earth revolves around ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 4
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "Sun",
+            "prefix": "The Earth revolves around the ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 5
+          }
+        }
+      ],
+      "phrase": {
+        "category": "science",
+        "id": "science-002",
+        "scenario": {
+          "applicationName": "Notes",
+          "bundleIdentifier": "com.apple.Notes",
+          "documentPrefix": "",
+          "fieldPlaceholder": "Write a summary",
+          "kind": "reference",
+          "screenText": "Notes\nFolders\nPersonal\nClass notebook\nOrbit diagram\nSource observations\nEarth's path loops around the central solar body.\nOther note: Room booking at 14:00\nSummary draft",
+          "windowTitle": "Orbit diagram"
+        },
+        "text": "The Earth revolves around the Sun."
+      }
+    },
+    {
+      "all": {
+        "accuracy": 0,
+        "checkpoints": 4,
+        "correct": 0,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 48.388334,
+        "latencyP95Milliseconds": 88.991375,
+        "precisionWhenShown": 0,
+        "shown": 4
+      },
+      "condition": "none",
+      "nextWord": {
+        "accuracy": 0,
+        "checkpoints": 4,
+        "correct": 0,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 48.388334,
+        "latencyP95Milliseconds": 88.991375,
+        "precisionWhenShown": 0,
+        "shown": 4
+      },
+      "observations": [
+        {
+          "checkpoint": {
+            "expectedWord": "should",
+            "prefix": "What ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 1
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "we",
+            "prefix": "What should ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 2
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "watch",
+            "prefix": "What should we ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 3
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "tonight",
+            "prefix": "What should we watch ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 4
+          }
+        }
+      ],
+      "phrase": {
+        "category": "entertainment",
+        "id": "entertainment-001",
+        "scenario": {
+          "applicationName": "Messages",
+          "bundleIdentifier": "com.apple.MobileSMS",
+          "documentPrefix": "",
+          "fieldPlaceholder": "Message",
+          "kind": "chat",
+          "screenText": "Messages\nPinned: Family, Friends\nGrocery pickup \u2014 Yesterday\nStreaming chat\nJamie 10:42\nWe have a free evening and nobody has picked a title.\nMessage",
+          "windowTitle": "Streaming chat"
+        },
+        "text": "What should we watch tonight?"
+      }
+    },
+    {
+      "all": {
+        "accuracy": 0,
+        "checkpoints": 4,
+        "correct": 0,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 49.444834,
+        "latencyP95Milliseconds": 110.230584,
+        "precisionWhenShown": 0,
+        "shown": 4
+      },
+      "condition": "screen",
+      "nextWord": {
+        "accuracy": 0,
+        "checkpoints": 4,
+        "correct": 0,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 49.444834,
+        "latencyP95Milliseconds": 110.230584,
+        "precisionWhenShown": 0,
+        "shown": 4
+      },
+      "observations": [
+        {
+          "checkpoint": {
+            "expectedWord": "should",
+            "prefix": "What ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 1
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "we",
+            "prefix": "What should ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 2
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "watch",
+            "prefix": "What should we ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 3
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "tonight",
+            "prefix": "What should we watch ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 4
+          }
+        }
+      ],
+      "phrase": {
+        "category": "entertainment",
+        "id": "entertainment-001",
+        "scenario": {
+          "applicationName": "Messages",
+          "bundleIdentifier": "com.apple.MobileSMS",
+          "documentPrefix": "",
+          "fieldPlaceholder": "Message",
+          "kind": "chat",
+          "screenText": "Messages\nPinned: Family, Friends\nGrocery pickup \u2014 Yesterday\nStreaming chat\nJamie 10:42\nWe have a free evening and nobody has picked a title.\nMessage",
+          "windowTitle": "Streaming chat"
+        },
+        "text": "What should we watch tonight?"
+      }
+    },
+    {
+      "all": {
+        "accuracy": 0.25,
+        "checkpoints": 4,
+        "correct": 1,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 24.852458,
+        "latencyP95Milliseconds": 95.660458,
+        "precisionWhenShown": 0.25,
+        "shown": 4
+      },
+      "condition": "screen",
+      "nextWord": {
+        "accuracy": 0.25,
+        "checkpoints": 4,
+        "correct": 1,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 24.852458,
+        "latencyP95Milliseconds": 95.660458,
+        "precisionWhenShown": 0.25,
+        "shown": 4
+      },
+      "observations": [
+        {
+          "checkpoint": {
+            "expectedWord": "already",
+            "prefix": "I've ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 1
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "seen",
+            "prefix": "I've already ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 2
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "that",
+            "prefix": "I've already seen ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 3
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "movie",
+            "prefix": "I've already seen that ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 4
+          }
+        }
+      ],
+      "phrase": {
+        "category": "entertainment",
+        "id": "entertainment-002",
+        "scenario": {
+          "applicationName": "Messages",
+          "bundleIdentifier": "com.apple.MobileSMS",
+          "documentPrefix": "",
+          "fieldPlaceholder": "Message",
+          "kind": "chat",
+          "screenText": "Messages\nPinned: Family, Friends\nGrocery pickup \u2014 Yesterday\nMovie invitation\nJamie 10:42\nWant to come see the film we watched together last month?\nMessage",
+          "windowTitle": "Movie invitation"
+        },
+        "text": "I've already seen that movie."
+      }
+    },
+    {
+      "all": {
+        "accuracy": 0,
+        "checkpoints": 4,
+        "correct": 0,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 202.795208,
+        "latencyP95Milliseconds": 210.3265,
+        "precisionWhenShown": 0,
+        "shown": 4
+      },
+      "condition": "none",
+      "nextWord": {
+        "accuracy": 0,
+        "checkpoints": 4,
+        "correct": 0,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 202.795208,
+        "latencyP95Milliseconds": 210.3265,
+        "precisionWhenShown": 0,
+        "shown": 4
+      },
+      "observations": [
+        {
+          "checkpoint": {
+            "expectedWord": "already",
+            "prefix": "I've ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 1
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "seen",
+            "prefix": "I've already ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 2
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "that",
+            "prefix": "I've already seen ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 3
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "movie",
+            "prefix": "I've already seen that ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 4
+          }
+        }
+      ],
+      "phrase": {
+        "category": "entertainment",
+        "id": "entertainment-002",
+        "scenario": {
+          "applicationName": "Messages",
+          "bundleIdentifier": "com.apple.MobileSMS",
+          "documentPrefix": "",
+          "fieldPlaceholder": "Message",
+          "kind": "chat",
+          "screenText": "Messages\nPinned: Family, Friends\nGrocery pickup \u2014 Yesterday\nMovie invitation\nJamie 10:42\nWant to come see the film we watched together last month?\nMessage",
+          "windowTitle": "Movie invitation"
+        },
+        "text": "I've already seen that movie."
+      }
+    },
+    {
+      "all": {
+        "accuracy": 0.75,
+        "checkpoints": 4,
+        "correct": 3,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 55.382459,
+        "latencyP95Milliseconds": 98.842625,
+        "precisionWhenShown": 0.75,
+        "shown": 4
+      },
+      "condition": "none",
+      "nextWord": {
+        "accuracy": 0.75,
+        "checkpoints": 4,
+        "correct": 3,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 55.382459,
+        "latencyP95Milliseconds": 98.842625,
+        "precisionWhenShown": 0.75,
+        "shown": 4
+      },
+      "observations": [
+        {
+          "checkpoint": {
+            "expectedWord": "find",
+            "prefix": "Hi Morgan,\n\nPlease ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 1
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "the",
+            "prefix": "Hi Morgan,\n\nPlease find ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 2
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "report",
+            "prefix": "Hi Morgan,\n\nPlease find the ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 3
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "attached",
+            "prefix": "Hi Morgan,\n\nPlease find the report ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 4
+          }
+        }
+      ],
+      "phrase": {
+        "category": "work",
+        "id": "work-001",
+        "scenario": {
+          "applicationName": "Mail",
+          "bundleIdentifier": "com.apple.mail",
+          "documentPrefix": "Hi Morgan,\n\n",
+          "fieldPlaceholder": "Reply",
+          "kind": "email",
+          "screenText": "Mail\nInbox 12\nReceipts\nSubject: Client email\nFrom: Morgan Lee\nTo: Project team\nCould you send the finished analysis document today?\nEarlier thread: Office coffee supplies \u2014 resolved\nReply",
+          "windowTitle": "Client email"
+        },
+        "text": "Please find the report attached."
+      }
+    },
+    {
+      "all": {
+        "accuracy": 0.5,
+        "checkpoints": 4,
+        "correct": 2,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 32.240125,
+        "latencyP95Milliseconds": 101.206584,
+        "precisionWhenShown": 0.5,
+        "shown": 4
+      },
+      "condition": "screen",
+      "nextWord": {
+        "accuracy": 0.5,
+        "checkpoints": 4,
+        "correct": 2,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 32.240125,
+        "latencyP95Milliseconds": 101.206584,
+        "precisionWhenShown": 0.5,
+        "shown": 4
+      },
+      "observations": [
+        {
+          "checkpoint": {
+            "expectedWord": "find",
+            "prefix": "Hi Morgan,\n\nPlease ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 1
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "the",
+            "prefix": "Hi Morgan,\n\nPlease find ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 2
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "report",
+            "prefix": "Hi Morgan,\n\nPlease find the ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 3
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "attached",
+            "prefix": "Hi Morgan,\n\nPlease find the report ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 4
+          }
+        }
+      ],
+      "phrase": {
+        "category": "work",
+        "id": "work-001",
+        "scenario": {
+          "applicationName": "Mail",
+          "bundleIdentifier": "com.apple.mail",
+          "documentPrefix": "Hi Morgan,\n\n",
+          "fieldPlaceholder": "Reply",
+          "kind": "email",
+          "screenText": "Mail\nInbox 12\nReceipts\nSubject: Client email\nFrom: Morgan Lee\nTo: Project team\nCould you send the finished analysis document today?\nEarlier thread: Office coffee supplies \u2014 resolved\nReply",
+          "windowTitle": "Client email"
+        },
+        "text": "Please find the report attached."
+      }
+    },
+    {
+      "all": {
+        "accuracy": 1,
+        "checkpoints": 7,
+        "correct": 7,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 48.328541,
+        "latencyP95Milliseconds": 109.112458,
+        "precisionWhenShown": 1,
+        "shown": 7
+      },
+      "condition": "screen",
+      "nextWord": {
+        "accuracy": 1,
+        "checkpoints": 7,
+        "correct": 7,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 48.328541,
+        "latencyP95Milliseconds": 109.112458,
+        "precisionWhenShown": 1,
+        "shown": 7
+      },
+      "observations": [
+        {
+          "checkpoint": {
+            "expectedWord": "me",
+            "prefix": "Let ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 1
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "know",
+            "prefix": "Let me ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 2
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "if",
+            "prefix": "Let me know ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 3
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "you",
+            "prefix": "Let me know if ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 4
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "have",
+            "prefix": "Let me know if you ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 5
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "any",
+            "prefix": "Let me know if you have ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 6
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "questions",
+            "prefix": "Let me know if you have any ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 7
+          }
+        }
+      ],
+      "phrase": {
+        "category": "work",
+        "id": "work-002",
+        "scenario": {
+          "applicationName": "Mail",
+          "bundleIdentifier": "com.apple.mail",
+          "documentPrefix": "",
+          "fieldPlaceholder": "Reply",
+          "kind": "email",
+          "screenText": "Mail\nInbox 12\nReceipts\nSubject: Project email\nFrom: Morgan Lee\nTo: Project team\nThe instructions are attached; some details may need clarification.\nEarlier thread: Office coffee supplies \u2014 resolved\nReply",
+          "windowTitle": "Project email"
+        },
+        "text": "Let me know if you have any questions."
+      }
+    },
+    {
+      "all": {
+        "accuracy": 0.8571428571428571,
+        "checkpoints": 7,
+        "correct": 6,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 56.122542,
+        "latencyP95Milliseconds": 102.025166,
+        "precisionWhenShown": 0.8571428571428571,
+        "shown": 7
+      },
+      "condition": "none",
+      "nextWord": {
+        "accuracy": 0.8571428571428571,
+        "checkpoints": 7,
+        "correct": 6,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 56.122542,
+        "latencyP95Milliseconds": 102.025166,
+        "precisionWhenShown": 0.8571428571428571,
+        "shown": 7
+      },
+      "observations": [
+        {
+          "checkpoint": {
+            "expectedWord": "me",
+            "prefix": "Let ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 1
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "know",
+            "prefix": "Let me ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 2
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "if",
+            "prefix": "Let me know ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 3
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "you",
+            "prefix": "Let me know if ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 4
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "have",
+            "prefix": "Let me know if you ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 5
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "any",
+            "prefix": "Let me know if you have ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 6
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "questions",
+            "prefix": "Let me know if you have any ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 7
+          }
+        }
+      ],
+      "phrase": {
+        "category": "work",
+        "id": "work-002",
+        "scenario": {
+          "applicationName": "Mail",
+          "bundleIdentifier": "com.apple.mail",
+          "documentPrefix": "",
+          "fieldPlaceholder": "Reply",
+          "kind": "email",
+          "screenText": "Mail\nInbox 12\nReceipts\nSubject: Project email\nFrom: Morgan Lee\nTo: Project team\nThe instructions are attached; some details may need clarification.\nEarlier thread: Office coffee supplies \u2014 resolved\nReply",
+          "windowTitle": "Project email"
+        },
+        "text": "Let me know if you have any questions."
+      }
+    },
+    {
+      "all": {
+        "accuracy": 0.4,
+        "checkpoints": 5,
+        "correct": 2,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 47.505416,
+        "latencyP95Milliseconds": 166.362625,
+        "precisionWhenShown": 0.4,
+        "shown": 5
+      },
+      "condition": "none",
+      "nextWord": {
+        "accuracy": 0.4,
+        "checkpoints": 5,
+        "correct": 2,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 47.505416,
+        "latencyP95Milliseconds": 166.362625,
+        "precisionWhenShown": 0.4,
+        "shown": 5
+      },
+      "observations": [
+        {
+          "checkpoint": {
+            "expectedWord": "laptop",
+            "prefix": "Thanks for the details.\n\nMy ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 1
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "needs",
+            "prefix": "Thanks for the details.\n\nMy laptop ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 2
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "to",
+            "prefix": "Thanks for the details.\n\nMy laptop needs ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 3
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "be",
+            "prefix": "Thanks for the details.\n\nMy laptop needs to ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 4
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "charged",
+            "prefix": "Thanks for the details.\n\nMy laptop needs to be ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 5
+          }
+        }
+      ],
+      "phrase": {
+        "category": "technology",
+        "id": "technology-001",
+        "scenario": {
+          "applicationName": "Safari",
+          "bundleIdentifier": "com.apple.Safari",
+          "documentPrefix": "Thanks for the details.\n\n",
+          "fieldPlaceholder": "Write a comment",
+          "kind": "support",
+          "screenText": "Safari\nProject discussion\nOpen issues\nStatus message\nReporter: Jordan\nMy computer is nearly out of power before the meeting.\nUnrelated issue: Update the project icon\nWrite a comment",
+          "windowTitle": "Status message"
+        },
+        "text": "My laptop needs to be charged."
+      }
+    },
+    {
+      "all": {
+        "accuracy": 0.4,
+        "checkpoints": 5,
+        "correct": 2,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 69.722167,
+        "latencyP95Milliseconds": 125.657792,
+        "precisionWhenShown": 0.4,
+        "shown": 5
+      },
+      "condition": "screen",
+      "nextWord": {
+        "accuracy": 0.4,
+        "checkpoints": 5,
+        "correct": 2,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 69.722167,
+        "latencyP95Milliseconds": 125.657792,
+        "precisionWhenShown": 0.4,
+        "shown": 5
+      },
+      "observations": [
+        {
+          "checkpoint": {
+            "expectedWord": "laptop",
+            "prefix": "Thanks for the details.\n\nMy ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 1
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "needs",
+            "prefix": "Thanks for the details.\n\nMy laptop ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 2
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "to",
+            "prefix": "Thanks for the details.\n\nMy laptop needs ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 3
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "be",
+            "prefix": "Thanks for the details.\n\nMy laptop needs to ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 4
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "charged",
+            "prefix": "Thanks for the details.\n\nMy laptop needs to be ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 5
+          }
+        }
+      ],
+      "phrase": {
+        "category": "technology",
+        "id": "technology-001",
+        "scenario": {
+          "applicationName": "Safari",
+          "bundleIdentifier": "com.apple.Safari",
+          "documentPrefix": "Thanks for the details.\n\n",
+          "fieldPlaceholder": "Write a comment",
+          "kind": "support",
+          "screenText": "Safari\nProject discussion\nOpen issues\nStatus message\nReporter: Jordan\nMy computer is nearly out of power before the meeting.\nUnrelated issue: Update the project icon\nWrite a comment",
+          "windowTitle": "Status message"
+        },
+        "text": "My laptop needs to be charged."
+      }
+    },
+    {
+      "all": {
+        "accuracy": 0.5,
+        "checkpoints": 4,
+        "correct": 2,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 68.102125,
+        "latencyP95Milliseconds": 111.021125,
+        "precisionWhenShown": 0.5,
+        "shown": 4
+      },
+      "condition": "screen",
+      "nextWord": {
+        "accuracy": 0.5,
+        "checkpoints": 4,
+        "correct": 2,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 68.102125,
+        "latencyP95Milliseconds": 111.021125,
+        "precisionWhenShown": 0.5,
+        "shown": 4
+      },
+      "observations": [
+        {
+          "checkpoint": {
+            "expectedWord": "battery",
+            "prefix": "The ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 1
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "is",
+            "prefix": "The battery ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 2
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "almost",
+            "prefix": "The battery is ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 3
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "empty",
+            "prefix": "The battery is almost ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 4
+          }
+        }
+      ],
+      "phrase": {
+        "category": "technology",
+        "id": "technology-002",
+        "scenario": {
+          "applicationName": "Safari",
+          "bundleIdentifier": "com.apple.Safari",
+          "documentPrefix": "",
+          "fieldPlaceholder": "Write a comment",
+          "kind": "support",
+          "screenText": "Safari\nProject discussion\nOpen issues\nBattery panel\nReporter: Jordan\nRemaining charge is at two percent.\nUnrelated issue: Update the project icon\nWrite a comment",
+          "windowTitle": "Battery panel"
+        },
+        "text": "The battery is almost empty."
+      }
+    },
+    {
+      "all": {
+        "accuracy": 0.25,
+        "checkpoints": 4,
+        "correct": 1,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 55.39525,
+        "latencyP95Milliseconds": 193.222542,
+        "precisionWhenShown": 0.25,
+        "shown": 4
+      },
+      "condition": "none",
+      "nextWord": {
+        "accuracy": 0.25,
+        "checkpoints": 4,
+        "correct": 1,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 55.39525,
+        "latencyP95Milliseconds": 193.222542,
+        "precisionWhenShown": 0.25,
+        "shown": 4
+      },
+      "observations": [
+        {
+          "checkpoint": {
+            "expectedWord": "battery",
+            "prefix": "The ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 1
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "is",
+            "prefix": "The battery ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 2
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "almost",
+            "prefix": "The battery is ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 3
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "empty",
+            "prefix": "The battery is almost ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 4
+          }
+        }
+      ],
+      "phrase": {
+        "category": "technology",
+        "id": "technology-002",
+        "scenario": {
+          "applicationName": "Safari",
+          "bundleIdentifier": "com.apple.Safari",
+          "documentPrefix": "",
+          "fieldPlaceholder": "Write a comment",
+          "kind": "support",
+          "screenText": "Safari\nProject discussion\nOpen issues\nBattery panel\nReporter: Jordan\nRemaining charge is at two percent.\nUnrelated issue: Update the project icon\nWrite a comment",
+          "windowTitle": "Battery panel"
+        },
+        "text": "The battery is almost empty."
+      }
+    },
+    {
+      "all": {
+        "accuracy": 0.5,
+        "checkpoints": 6,
+        "correct": 3,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 131.697167,
+        "latencyP95Milliseconds": 206.822,
+        "precisionWhenShown": 0.5,
+        "shown": 6
+      },
+      "condition": "none",
+      "nextWord": {
+        "accuracy": 0.5,
+        "checkpoints": 6,
+        "correct": 3,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 131.697167,
+        "latencyP95Milliseconds": 206.822,
+        "precisionWhenShown": 0.5,
+        "shown": 6
+      },
+      "observations": [
+        {
+          "checkpoint": {
+            "expectedWord": "need",
+            "prefix": "I ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 1
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "to",
+            "prefix": "I need ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 2
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "make",
+            "prefix": "I need to ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 3
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "a",
+            "prefix": "I need to make ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 4
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "grocery",
+            "prefix": "I need to make a ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 5
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "list",
+            "prefix": "I need to make a grocery ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 6
+          }
+        }
+      ],
+      "phrase": {
+        "category": "everyday",
+        "id": "everyday-001",
+        "scenario": {
+          "applicationName": "Messages",
+          "bundleIdentifier": "com.apple.MobileSMS",
+          "documentPrefix": "",
+          "fieldPlaceholder": "Message",
+          "kind": "chat",
+          "screenText": "Messages\nPinned: Family, Friends\nGrocery pickup \u2014 Yesterday\nHousehold chat\nJamie 10:42\nBefore shopping, we should write down what we need.\nMessage",
+          "windowTitle": "Household chat"
+        },
+        "text": "I need to make a grocery list."
+      }
+    },
+    {
+      "all": {
+        "accuracy": 0.3333333333333333,
+        "checkpoints": 6,
+        "correct": 2,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 100.843292,
+        "latencyP95Milliseconds": 127.596167,
+        "precisionWhenShown": 0.3333333333333333,
+        "shown": 6
+      },
+      "condition": "screen",
+      "nextWord": {
+        "accuracy": 0.3333333333333333,
+        "checkpoints": 6,
+        "correct": 2,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 100.843292,
+        "latencyP95Milliseconds": 127.596167,
+        "precisionWhenShown": 0.3333333333333333,
+        "shown": 6
+      },
+      "observations": [
+        {
+          "checkpoint": {
+            "expectedWord": "need",
+            "prefix": "I ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 1
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "to",
+            "prefix": "I need ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 2
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "make",
+            "prefix": "I need to ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 3
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "a",
+            "prefix": "I need to make ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 4
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "grocery",
+            "prefix": "I need to make a ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 5
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "list",
+            "prefix": "I need to make a grocery ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 6
+          }
+        }
+      ],
+      "phrase": {
+        "category": "everyday",
+        "id": "everyday-001",
+        "scenario": {
+          "applicationName": "Messages",
+          "bundleIdentifier": "com.apple.MobileSMS",
+          "documentPrefix": "",
+          "fieldPlaceholder": "Message",
+          "kind": "chat",
+          "screenText": "Messages\nPinned: Family, Friends\nGrocery pickup \u2014 Yesterday\nHousehold chat\nJamie 10:42\nBefore shopping, we should write down what we need.\nMessage",
+          "windowTitle": "Household chat"
+        },
+        "text": "I need to make a grocery list."
+      }
+    },
+    {
+      "all": {
+        "accuracy": 0.5,
+        "checkpoints": 4,
+        "correct": 2,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 32.583708,
+        "latencyP95Milliseconds": 88.222375,
+        "precisionWhenShown": 0.5,
+        "shown": 4
+      },
+      "condition": "screen",
+      "nextWord": {
+        "accuracy": 0.5,
+        "checkpoints": 4,
+        "correct": 2,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 32.583708,
+        "latencyP95Milliseconds": 88.222375,
+        "precisionWhenShown": 0.5,
+        "shown": 4
+      },
+      "observations": [
+        {
+          "checkpoint": {
+            "expectedWord": "almost",
+            "prefix": "We're ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 1
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "out",
+            "prefix": "We're almost ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 2
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "of",
+            "prefix": "We're almost out ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 3
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "milk",
+            "prefix": "We're almost out of ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 4
+          }
+        }
+      ],
+      "phrase": {
+        "category": "everyday",
+        "id": "everyday-002",
+        "scenario": {
+          "applicationName": "Messages",
+          "bundleIdentifier": "com.apple.MobileSMS",
+          "documentPrefix": "",
+          "fieldPlaceholder": "Message",
+          "kind": "chat",
+          "screenText": "Messages\nPinned: Family, Friends\nGrocery pickup \u2014 Yesterday\nFridge note\nJamie 10:42\nOnly a small splash remains in the milk carton.\nMessage",
+          "windowTitle": "Fridge note"
+        },
+        "text": "We're almost out of milk."
+      }
+    },
+    {
+      "all": {
+        "accuracy": 0.25,
+        "checkpoints": 4,
+        "correct": 1,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 31.708583,
+        "latencyP95Milliseconds": 229.211125,
+        "precisionWhenShown": 0.25,
+        "shown": 4
+      },
+      "condition": "none",
+      "nextWord": {
+        "accuracy": 0.25,
+        "checkpoints": 4,
+        "correct": 1,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 31.708583,
+        "latencyP95Milliseconds": 229.211125,
+        "precisionWhenShown": 0.25,
+        "shown": 4
+      },
+      "observations": [
+        {
+          "checkpoint": {
+            "expectedWord": "almost",
+            "prefix": "We're ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 1
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "out",
+            "prefix": "We're almost ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 2
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "of",
+            "prefix": "We're almost out ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 3
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "milk",
+            "prefix": "We're almost out of ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 4
+          }
+        }
+      ],
+      "phrase": {
+        "category": "everyday",
+        "id": "everyday-002",
+        "scenario": {
+          "applicationName": "Messages",
+          "bundleIdentifier": "com.apple.MobileSMS",
+          "documentPrefix": "",
+          "fieldPlaceholder": "Message",
+          "kind": "chat",
+          "screenText": "Messages\nPinned: Family, Friends\nGrocery pickup \u2014 Yesterday\nFridge note\nJamie 10:42\nOnly a small splash remains in the milk carton.\nMessage",
+          "windowTitle": "Fridge note"
+        },
+        "text": "We're almost out of milk."
+      }
+    },
+    {
+      "all": {
+        "accuracy": 0.375,
+        "checkpoints": 8,
+        "correct": 3,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 96.093041,
+        "latencyP95Milliseconds": 219.626458,
+        "precisionWhenShown": 0.375,
+        "shown": 8
+      },
+      "condition": "none",
+      "nextWord": {
+        "accuracy": 0.375,
+        "checkpoints": 8,
+        "correct": 3,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 96.093041,
+        "latencyP95Milliseconds": 219.626458,
+        "precisionWhenShown": 0.375,
+        "shown": 8
+      },
+      "observations": [
+        {
+          "checkpoint": {
+            "expectedWord": "like",
+            "prefix": "Hello,\n\nI'd ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 1
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "to",
+            "prefix": "Hello,\n\nI'd like ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 2
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "book",
+            "prefix": "Hello,\n\nI'd like to ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 3
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "a",
+            "prefix": "Hello,\n\nI'd like to book ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 4
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "room",
+            "prefix": "Hello,\n\nI'd like to book a ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 5
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "for",
+            "prefix": "Hello,\n\nI'd like to book a room ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 6
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "two",
+            "prefix": "Hello,\n\nI'd like to book a room for ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 7
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "nights",
+            "prefix": "Hello,\n\nI'd like to book a room for two ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 8
+          }
+        }
+      ],
+      "phrase": {
+        "category": "travel",
+        "id": "travel-001",
+        "scenario": {
+          "applicationName": "Safari",
+          "bundleIdentifier": "com.apple.Safari",
+          "documentPrefix": "Hello,\n\n",
+          "fieldPlaceholder": "Write a message",
+          "kind": "itinerary",
+          "screenText": "Safari\nTravel messages\nSaved places\nHotel booking\nHost message / local information\nTwo guests need accommodation from Friday until Sunday.\nOther conversation: Souvenir receipt\nWrite a message",
+          "windowTitle": "Hotel booking"
+        },
+        "text": "I'd like to book a room for two nights."
+      }
+    },
+    {
+      "all": {
+        "accuracy": 0.875,
+        "checkpoints": 8,
+        "correct": 7,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 47.327416,
+        "latencyP95Milliseconds": 117.052125,
+        "precisionWhenShown": 0.875,
+        "shown": 8
+      },
+      "condition": "screen",
+      "nextWord": {
+        "accuracy": 0.875,
+        "checkpoints": 8,
+        "correct": 7,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 47.327416,
+        "latencyP95Milliseconds": 117.052125,
+        "precisionWhenShown": 0.875,
+        "shown": 8
+      },
+      "observations": [
+        {
+          "checkpoint": {
+            "expectedWord": "like",
+            "prefix": "Hello,\n\nI'd ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 1
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "to",
+            "prefix": "Hello,\n\nI'd like ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 2
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "book",
+            "prefix": "Hello,\n\nI'd like to ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 3
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "a",
+            "prefix": "Hello,\n\nI'd like to book ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 4
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "room",
+            "prefix": "Hello,\n\nI'd like to book a ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 5
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "for",
+            "prefix": "Hello,\n\nI'd like to book a room ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 6
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "two",
+            "prefix": "Hello,\n\nI'd like to book a room for ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 7
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "nights",
+            "prefix": "Hello,\n\nI'd like to book a room for two ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 8
+          }
+        }
+      ],
+      "phrase": {
+        "category": "travel",
+        "id": "travel-001",
+        "scenario": {
+          "applicationName": "Safari",
+          "bundleIdentifier": "com.apple.Safari",
+          "documentPrefix": "Hello,\n\n",
+          "fieldPlaceholder": "Write a message",
+          "kind": "itinerary",
+          "screenText": "Safari\nTravel messages\nSaved places\nHotel booking\nHost message / local information\nTwo guests need accommodation from Friday until Sunday.\nOther conversation: Souvenir receipt\nWrite a message",
+          "windowTitle": "Hotel booking"
+        },
+        "text": "I'd like to book a room for two nights."
+      }
+    },
+    {
+      "all": {
+        "accuracy": 0.8,
+        "checkpoints": 5,
+        "correct": 4,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 35.634792,
+        "latencyP95Milliseconds": 80.801083,
+        "precisionWhenShown": 0.8,
+        "shown": 5
+      },
+      "condition": "screen",
+      "nextWord": {
+        "accuracy": 0.8,
+        "checkpoints": 5,
+        "correct": 4,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 35.634792,
+        "latencyP95Milliseconds": 80.801083,
+        "precisionWhenShown": 0.8,
+        "shown": 5
+      },
+      "observations": [
+        {
+          "checkpoint": {
+            "expectedWord": "you",
+            "prefix": "Do ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 1
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "have",
+            "prefix": "Do you ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 2
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "any",
+            "prefix": "Do you have ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 3
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "rooms",
+            "prefix": "Do you have any ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 4
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "available",
+            "prefix": "Do you have any rooms ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 5
+          }
+        }
+      ],
+      "phrase": {
+        "category": "travel",
+        "id": "travel-002",
+        "scenario": {
+          "applicationName": "Safari",
+          "bundleIdentifier": "com.apple.Safari",
+          "documentPrefix": "",
+          "fieldPlaceholder": "Write a message",
+          "kind": "itinerary",
+          "screenText": "Safari\nTravel messages\nSaved places\nHotel search\nHost message / local information\nWe haven't reserved accommodation for tonight yet.\nOther conversation: Souvenir receipt\nWrite a message",
+          "windowTitle": "Hotel search"
+        },
+        "text": "Do you have any rooms available?"
+      }
+    },
+    {
+      "all": {
+        "accuracy": 0.4,
+        "checkpoints": 5,
+        "correct": 2,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 63.711542,
+        "latencyP95Milliseconds": 139.614167,
+        "precisionWhenShown": 0.4,
+        "shown": 5
+      },
+      "condition": "none",
+      "nextWord": {
+        "accuracy": 0.4,
+        "checkpoints": 5,
+        "correct": 2,
+        "coverage": 1,
+        "errors": 0,
+        "latencyP50Milliseconds": 63.711542,
+        "latencyP95Milliseconds": 139.614167,
+        "precisionWhenShown": 0.4,
+        "shown": 5
+      },
+      "observations": [
+        {
+          "checkpoint": {
+            "expectedWord": "you",
+            "prefix": "Do ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 1
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "have",
+            "prefix": "Do you ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 2
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "any",
+            "prefix": "Do you have ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 3
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "rooms",
+            "prefix": "Do you have any ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 4
+          }
+        },
+        {
+          "checkpoint": {
+            "expectedWord": "available",
+            "prefix": "Do you have any rooms ",
+            "typedCharacters": 0,
+            "typedWordPrefix": "",
+            "wordIndex": 5
+          }
+        }
+      ],
+      "phrase": {
+        "category": "travel",
+        "id": "travel-002",
+        "scenario": {
+          "applicationName": "Safari",
+          "bundleIdentifier": "com.apple.Safari",
+          "documentPrefix": "",
+          "fieldPlaceholder": "Write a message",
+          "kind": "itinerary",
+          "screenText": "Safari\nTravel messages\nSaved places\nHotel search\nHost message / local information\nWe haven't reserved accommodation for tonight yet.\nOther conversation: Souvenir receipt\nWrite a message",
+          "windowTitle": "Hotel search"
+        },
+        "text": "Do you have any rooms available?"
+      }
+    }
+  ],
+  "primaryCondition": "screen",
+  "schemaVersion": 2,
+  "suite": {
+    "all": {
+      "accuracy": 0.6142857142857143,
+      "checkpoints": 70,
+      "correct": 43,
+      "coverage": 1,
+      "errors": 0,
+      "latencyP50Milliseconds": 56.190334,
+      "latencyP95Milliseconds": 127.596167,
+      "precisionWhenShown": 0.6142857142857143,
+      "shown": 70
+    },
+    "meanPhraseNextWordAccuracy": 0.5791666666666667,
+    "nextWord": {
+      "accuracy": 0.6142857142857143,
+      "checkpoints": 70,
+      "correct": 43,
+      "coverage": 1,
+      "errors": 0,
+      "latencyP50Milliseconds": 56.190334,
+      "latencyP95Milliseconds": 127.596167,
+      "precisionWhenShown": 0.6142857142857143,
+      "shown": 70
+    },
+    "phraseCount": 14
+  }
+}
