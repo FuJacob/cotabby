@@ -32,7 +32,7 @@ struct AboutPaneView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("Cotabby")
+                Text(Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String ?? "Cotabby")
                     .font(.system(size: 16, weight: .semibold, design: .rounded))
 
                 Text("Local macOS AI Autocomplete")
@@ -90,7 +90,12 @@ struct AboutPaneView: View {
     /// search can scroll to and pulse individually.
     @ViewBuilder
     private var resourceRows: some View {
-        if let repoURL = URL(string: "https://github.com/FuJacob/Cotabby") {
+        #if COTABBY_MCHAMSTER
+        let repository = "https://github.com/mc-hamster/cotabby"
+        #else
+        let repository = "https://github.com/FuJacob/Cotabby"
+        #endif
+        if let repoURL = URL(string: repository) {
             Link(destination: repoURL) {
                 Label("GitHub Repository", systemImage: "chevron.left.forwardslash.chevron.right")
             }

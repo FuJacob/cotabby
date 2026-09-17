@@ -56,6 +56,8 @@ jobs:
   # for the notarize job.
   # ---------------------------------------------------------------------------
   build:
+    # Upstream signing, Pages domain, and Homebrew dispatch must never run in a fork.
+    if: github.repository == 'FuJacob/cotabby'
     name: Build, sign, and package DMG
     runs-on: macos-26
     timeout-minutes: 120

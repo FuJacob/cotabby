@@ -14,6 +14,7 @@ import xml.etree.ElementTree as ET
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("inference_checkout", type=Path, help="local CotabbyInference checkout")
+    parser.add_argument("--output", type=Path, help="workspace destination (defaults to the development workspace)")
     args = parser.parse_args()
     checkout = args.inference_checkout.expanduser().resolve()
     if not (checkout / "Package.swift").is_file():
@@ -24,7 +25,7 @@ def main() -> None:
     if not project.is_dir():
         parser.error("Generate Cotabby.xcodeproj with XcodeGen first")
 
-    destination = root / "build" / "CotabbyDevelopment.xcworkspace"
+    destination = args.output.resolve() if args.output else root / "build" / "CotabbyDevelopment.xcworkspace"
     destination.mkdir(parents=True, exist_ok=True)
     workspace = ET.Element("Workspace", version="1.0")
     for path in (project, checkout):

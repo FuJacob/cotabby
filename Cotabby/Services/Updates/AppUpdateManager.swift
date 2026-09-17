@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Logging
 import Sparkle
@@ -49,7 +50,7 @@ final class AppUpdateManager {
             // run here: the prod appcast points at the Developer ID-signed release, and letting it
             // install would swap that bundle in over the dev app, collapsing the separate identity
             // this build exists to preserve.
-            log("Sparkle disabled for dev build.")
+            log("Sparkle disabled for this build identity.")
             return
         }
 
@@ -85,19 +86,29 @@ final class AppUpdateManager {
     /// Future UI surfaces, such as Settings, should call this method instead of touching Sparkle
     /// directly. That keeps the rest of the codebase decoupled from Sparkle APIs.
     func checkForUpdates() {
+        #if COTABBY_MCHAMSTER
+        // Fork releases have a separate signing identity and no Sparkle feed. A manual check
+        // opens only the fork, so upstream can never replace this app or inherit its TCC grants.
+        if let url = URL(string: "https://github.com/mc-hamster/cotabby/releases") {
+            NSWorkspace.shared.open(url)
+        }
+        return
+        #else
         guard isStarted else {
             log("Ignoring manual update check because the updater has not started.")
             return
         }
 
         updaterController.checkForUpdates(nil)
+        #endif
     }
 
     /// Whether Sparkle should run for this build. Compiled out to `false` in the dev configuration
-    /// (the `COTABBY_DEV` flag), which ships under a distinct bundle identifier that the prod appcast
-    /// must never replace. Released builds resolve to `true` and follow the normal update path.
+    /// (`COTABBY_DEV`) and independent McHamster distribution (`COTABBY_MCHAMSTER`). Each has
+    /// its own bundle identifier that the upstream appcast must never replace. Upstream release
+    /// builds continue to use Sparkle; McHamster manual checks open the fork release page.
     private static var isUpdaterEnabledForThisBuild: Bool {
-        #if COTABBY_DEV
+        #if COTABBY_DEV || COTABBY_MCHAMSTER
         false
         #else
         true

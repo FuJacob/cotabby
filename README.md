@@ -1,3 +1,5 @@
+> **McHamster’s build of Cotabby** — an independent experimental fork, not an official upstream release. Download from [McHamster Releases](https://github.com/mc-hamster/cotabby/releases). It installs as **Cotabby McHamster** with its own permissions, settings, model storage, and manual update channel. See [fork changes](releases/mchamster-0.6.2.1.md) and [release process](releases/README.md). Quit upstream Cotabby before enabling this build.
+
 
 <p align="center">
   <a href="https://cotabby.app" target="_blank">
@@ -14,7 +16,7 @@
   <img width="200" alt="landing-page" src="https://github.com/user-attachments/assets/c28fbb4b-6dfb-4403-a040-1df61daf4df2" /></a>
   
 
-<a href="https://github.com/FuJacob/cotabby/releases/latest/download/Cotabby.dmg">
+<a href="https://github.com/mc-hamster/cotabby/releases">
 <img width="200" alt="download" src="https://github.com/user-attachments/assets/d5cb4454-d2ab-41d3-9d36-171d44ebfc52" /></a>
 
 

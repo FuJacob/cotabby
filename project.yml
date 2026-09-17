@@ -149,6 +149,16 @@ targetTemplates:
         SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY: YES
         SWIFT_VERSION: "5.0"
 targets:
+  "Cotabby McHamster":
+    templates:
+      - CotabbyApp
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: org.mchamster.cotabby
+        PRODUCT_MODULE_NAME: Cotabby
+        DEVELOPMENT_TEAM: 8RN882MNR5
+        INFOPLIST_FILE: Config/McHamsterInfo.plist
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: COTABBY_MCHAMSTER $(inherited)
   Cotabby:
     templates:
       - CotabbyApp
@@ -202,6 +212,14 @@ targets:
         SWIFT_VERSION: "5.0"
         TEST_HOST: $(BUILT_PRODUCTS_DIR)/Cotabby.app/Contents/MacOS/Cotabby
 schemes:
+  "Cotabby McHamster":
+    build:
+      targets:
+        "Cotabby McHamster": all
+    run:
+      config: Debug
+    archive:
+      config: Release
   Cotabby:
     build:
       targets:

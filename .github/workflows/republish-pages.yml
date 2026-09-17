@@ -26,6 +26,8 @@ concurrency:
 
 jobs:
   republish:
+    # Upstream signing, Pages domain, and Homebrew dispatch must never run in a fork.
+    if: github.repository == 'FuJacob/cotabby'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
