@@ -4,6 +4,62 @@ import XCTest
 /// small counterexamples: a benchmark that accepts partial words or ignores suppressed results
 /// can claim an improvement even when the user's actual next word gets harder to predict.
 final class PhrasePredictionScoringTests: XCTestCase {
+    func testWorkerShardsCoverTheSelectionExactlyOnceWithoutEmptyWorkers() throws {
+        for count in [1, 2, 14, 1337] {
+            for workers in 1...3 {
+                let shards = try PhrasePredictionReplayPlan.shards(phraseCount: count, workers: workers)
+                XCTAssertEqual(shards.count, min(count, workers))
+                XCTAssertTrue(shards.allSatisfy { !$0.isEmpty })
+                XCTAssertEqual(shards.flatMap { $0 }.sorted(), Array(0..<count))
+                XCTAssertLessThanOrEqual((shards.map(\.count).max() ?? 0) - (shards.map(\.count).min() ?? 0), 1)
+            }
+        }
+        XCTAssertThrowsError(try PhrasePredictionReplayPlan.shards(phraseCount: 0, workers: 3))
+        XCTAssertThrowsError(try PhrasePredictionReplayPlan.shards(phraseCount: 1337, workers: 0))
+        XCTAssertThrowsError(try PhrasePredictionReplayPlan.shards(phraseCount: 1337, workers: 4))
+        // Phrase 3 is the second item in worker 0's shard. Its global parity must stay odd.
+        XCTAssertEqual(PhrasePredictionReplayPlan.conditions(at: 3, mode: .paired), [.screen, .none])
+    }
+
+    func testParallelCompletionOrderRestoresSerialIdentityInBothCheckpointModes() throws {
+        let phrases = (0..<5).map {
+            PhrasePredictionCorpus.Phrase(id: "conversation-\($0)", category: "conversation", text: "Please send it.")
+        }
+        for mode in [PhrasePredictionScorer.Mode.word, .character] {
+            for context in [PhrasePredictionScorer.ContextMode.paired, .none, .screen] {
+                let serial = phrases.enumerated().flatMap { index, phrase in
+                    PhrasePredictionReplayPlan.conditions(at: index, mode: context).map { condition in
+                        PhrasePredictionReport.PhraseResult(
+                            phrase: phrase, observations: PhrasePredictionScorer.checkpoints(for: phrase, mode: mode).map {
+                                PhrasePredictionObservation(checkpoint: $0, raw: "", shown: nil, suppression: "test",
+                                                            latencyMilliseconds: 0, error: nil)
+                            }, condition: condition
+                        )
+                    }
+                }
+                let restored = try PhrasePredictionReplayPlan.orderedResults(
+                    Array(serial.reversed()), phrases: phrases, mode: mode, context: context
+                )
+                let encoder = JSONEncoder()
+                encoder.outputFormatting = [.sortedKeys]
+                XCTAssertEqual(try encoder.encode(restored), try encoder.encode(serial))
+                XCTAssertThrowsError(try PhrasePredictionReplayPlan.orderedResults(
+                    Array(serial.dropLast()), phrases: phrases, mode: mode, context: context
+                ))
+                var duplicate = serial
+                duplicate[duplicate.count - 1] = serial[0]
+                XCTAssertThrowsError(try PhrasePredictionReplayPlan.orderedResults(
+                    duplicate, phrases: phrases, mode: mode, context: context
+                ))
+                var partial = serial
+                partial[0] = .init(phrase: phrases[0], observations: [], condition: serial[0].condition)
+                XCTAssertThrowsError(try PhrasePredictionReplayPlan.orderedResults(
+                    partial, phrases: phrases, mode: mode, context: context
+                ))
+            }
+        }
+    }
+
     func testCorpusHas1337UniqueBalancedPhrases() throws {
         let url = try XCTUnwrap(Bundle(for: Self.self).url(forResource: "phrase-prediction-1337", withExtension: "json"))
         let corpus = try JSONDecoder().decode(PhrasePredictionCorpus.self, from: Data(contentsOf: url))

@@ -39,6 +39,10 @@ python3 scripts/phrase_eval.py run --model /absolute/path/to/model.gguf --label 
 ```
 
 The default `--context paired` executes each scenario both with and without screen OCR text.
+The default **`--workers 3`** runs three independent inference engines in one test host. There is
+one build, one combined progress percentage/ETA, and one final report. Use `--workers 1` for
+uncontended latency measurements; `--workers 2` is also available for throughput comparisons.
+Selections smaller than three phrases use only as many workers as there are phrases.
 Other useful selections:
 
 ```sh
@@ -47,6 +51,7 @@ python3 scripts/phrase_eval.py run --model /absolute/path/to/model.gguf \
   --phrase travel-001 --mode character
 python3 scripts/phrase_eval.py run --model /absolute/path/to/model.gguf --context screen
 python3 scripts/phrase_eval.py run --model /absolute/path/to/model.gguf --context none
+python3 scripts/phrase_eval.py run --model /absolute/path/to/model.gguf --workers 1
 ```
 
 `--per-category N` takes the first N scenarios within each selected category. `--limit N` truncates
@@ -108,6 +113,8 @@ python3 scripts/phrase_eval.py compare \
 The report preserves all phrase/category/suite scores, both context conditions, context lift,
 latency metrics, fixture/checkpoint identities, model/corpus hashes, and generation settings.
 The manifest records the original run's revision, working-tree status, platform, and report hash.
+Both the run metadata and exported manifest record the effective worker count. Older baselines
+without this field are treated as one-worker runs.
 Model paths are reduced to filenames. Full prompts, completions, journals, patches, and Xcode logs
 stay in the local run directory; model weights remain gitignored.
 
@@ -125,6 +132,8 @@ Replay  42.0% | 6,247/14,874 predictions | elapsed 00:08:00 | ETA 00:11:03 | sci
 ```
 
 Progress counts completed predictions, updating as each phrase-condition record is saved.
+The journal receives results from all workers in completion order; progress counts each result
+once. The final report restores the original phrase/condition order for baseline comparisons.
 The ETA estimates **remaining replay time** from elapsed replay time and the completed checkpoint
 count; it excludes build/model-loading time and cannot predict final report/test teardown time.
 It starts as `estimating`, then adapts as predictions finish. Percentages update about once per
@@ -156,7 +165,12 @@ budgets still apply. This measures the incremental value of visible screen text 
 field and surface metadata, rather than comparing unrelated prompts.
 
 The cache is reset before every scenario-condition replay. Condition order alternates to reduce
-warmup/thermal bias. One engine retains its prompt cache as the phrase grows within a condition.
+warmup/thermal bias. Phrases are distributed round-robin across workers using their original
+selection indices, so condition order does not change when worker count changes. Each worker owns
+its own model context, sampler, cache, and spell checker for the run. Model initialization finishes
+before concurrent replay begins. A worker retains its prompt cache as the phrase grows within a
+condition, and all checkpoints and both conditions of a phrase stay on that worker. In-flight
+native generations run off the main actor; journal writes and spell checking remain serialized.
 The replay waits for final output, then advances through the **reference text regardless of the
 prediction**. A wrong prediction therefore cannot change later checkpoints. Clipboard, profile,
 and custom rules are disabled. Use `LlamaTypingSessionEvalTests` separately for timing, streaming,
@@ -237,12 +251,20 @@ improvements on unseen writing too. A fixed seed improves repeatability without 
 identical results across native runtime or hardware versions; use the same quiet machine when
 comparing latency.
 
+Parallel replay shares the GPU and memory bandwidth, so its per-request latency includes worker
+contention. Accuracy comparisons across worker counts are allowed and the CLI prints the counts;
+use matching one-worker runs for interactive latency comparisons. More workers also require more
+model/context memory and do not guarantee proportional speedup. The production autocomplete
+runtime remains single-sequence; these independent engines exist only inside the opt-in test.
+
 ## Code boundaries and tests
 
 The JSON fixture owns scenarios and references. `PhrasePredictionScoring.swift` owns immutable
 values, checkpoints, matching, aggregates, and lift calculations with no inference dependency.
-`PhrasePredictionScreenContext.swift` adapts fixtures to production OCR selection and request
-construction. `PhrasePredictionEvalTests.swift` owns the temporary runtime and replay lifecycle.
+`PhrasePredictionReplayPlan` in the scoring file owns deterministic partitioning, completeness
+checks, and report ordering. `PhrasePredictionScreenContext.swift` adapts fixtures to production
+OCR selection and request construction. `PhrasePredictionEvalTests.swift` owns the temporary
+runtime pool, structured worker tasks, and the main-actor `ReplayJournal` that combines results.
 The Python CLI owns launch configuration and report comparisons; scoring remains in Swift.
 
 The model-free Swift tests validate scoring and pass **all 1,337 scenarios** through request

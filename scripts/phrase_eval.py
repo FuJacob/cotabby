@@ -82,8 +82,9 @@ def checkpoint_counts(phrases, mode, context):
 def show_plan(args):
     _, phrases = read_selection(args)
     context = getattr(args, "context", "paired")
+    workers = min(getattr(args, "workers", 3), len(phrases))
     counts = checkpoint_counts(phrases, args.mode, context)
-    print(f"{len(phrases)} phrases; {sum(counts.values()):,} prediction checkpoints; mode={args.mode}; context={context}")
+    print(f"{len(phrases)} phrases; {sum(counts.values()):,} prediction checkpoints; mode={args.mode}; context={context}; workers={workers}")
     for category, count in sorted(counts.items()):
         print(f"  {category}: {count:,} checkpoints")
     print("Primary score: exact next word before its first letter; suppressed output is a miss.")
@@ -129,6 +130,7 @@ class ReplayProgress:
         self.seen = set()
         self.started = None
         self.latest = ""
+        self.workers = None
 
     def status(self):
         now = time.monotonic()
@@ -137,6 +139,7 @@ class ReplayProgress:
             # Metadata is written after model loading, just before replay. Translate its fixed
             # timestamp once; use a monotonic clock thereafter so clock adjustments cannot skew ETA.
             self.started = now - max(0, time.time() - metadata.stat().st_mtime)
+            self.workers = json.loads(metadata.read_text()).get("workerCount", 1)
         journal = self.output / "phrases.jsonl"
         if journal.exists():
             with journal.open("rb") as stream:
@@ -155,6 +158,8 @@ class ReplayProgress:
         if self.completed > self.total:
             raise ValueError("Replay exceeded the planned checkpoint count")
         base = f"Replay {100 * self.completed / self.total:5.1f}% | {self.completed:,}/{self.total:,} predictions"
+        if self.workers is not None:
+            base += f" | workers {self.workers}"
         if self.started is None:
             return base + " | ETA estimating (launching test / loading model)"
         elapsed = max(0, now - self.started)
@@ -210,6 +215,7 @@ def logged_command(command, log, progress=None):
 
 def run(args):
     phrases = show_plan(args)
+    workers = min(args.workers, len(phrases))
     if platform.system() != "Darwin":
         raise ValueError("Live evaluation requires macOS and Xcode")
     if args.model and (not args.model.is_file() or args.model.suffix.lower() != ".gguf"):
@@ -225,6 +231,7 @@ def run(args):
         "corpusSHA256": hashlib.sha256(CORPUS.read_bytes()).hexdigest(),
         "phraseIDs": [p["id"] for p in phrases], "platform": platform.platform(),
         "modelPath": str(args.model.resolve()) if args.model else "app runtime default",
+        "workerCount": workers,
     }
     (output / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     (output / "working-tree.patch").write_text(git_output("diff", "HEAD", "--", "Cotabby", "CotabbyTests", "project.yml", "scripts"))
@@ -245,6 +252,7 @@ def run(args):
     environment = {
         "COTABBY_PHRASE_EVAL": "1", "COTABBY_PHRASE_MODE": args.mode, "COTABBY_PHRASE_CONTEXT": args.context,
         "COTABBY_PHRASE_OUTPUT": str(output), "COTABBY_PHRASE_LABEL": args.label,
+        "COTABBY_PHRASE_WORKERS": str(workers),
     }
     for key, value in (("COTABBY_PHRASE_CATEGORY", args.category), ("COTABBY_PHRASE_ID", args.phrase),
                        ("COTABBY_PHRASE_LIMIT", args.limit), ("COTABBY_PHRASE_PER_CATEGORY", args.per_category), ("COTABBY_EVAL_MODEL_PATH", args.model)):
@@ -268,6 +276,8 @@ def run(args):
     if not report_path.exists():
         raise RuntimeError("No report was produced; check test.log for a skipped or interrupted benchmark")
     report = json.loads(report_path.read_text())
+    if report["metadata"].get("workerCount", 1) != workers:
+        raise RuntimeError("Executed worker count does not match the requested worker count")
     conditions = ["none", "screen"] if args.context == "paired" else [args.context]
     expected = [(phrase["id"], condition) for phrase in phrases for condition in conditions]
     actual = [(p["phrase"]["id"], p["condition"]) for p in report["phrases"]]
@@ -327,6 +337,7 @@ def save_baseline(args):
     provenance["modelFile"] = compact["metadata"]["model"]
     provenance["sourceReportSHA256"] = hashlib.sha256((source / "report.json").read_bytes()).hexdigest()
     provenance["baselineName"] = args.name
+    provenance["workerCount"] = metadata.get("workerCount", 1)
     # Encode before creating the immutable destination, so invalid inputs leave no baseline folder.
     encoded = json.dumps(compact, indent=2, sort_keys=True) + "\n"
     encoded_provenance = json.dumps(provenance, indent=2, sort_keys=True) + "\n"
@@ -368,6 +379,9 @@ def compare(args):
     before = json.loads(args.before.read_text())
     after = json.loads(args.after.read_text())
     rows = comparison_rows(before, after)
+    old_workers = before["metadata"].get("workerCount", 1)
+    new_workers = after["metadata"].get("workerCount", 1)
+    print(f"Workers: {old_workers} -> {new_workers}. Parallel latency includes contention; use one worker for interactive latency measurements.")
     for field in ("model", "configuration"):
         old, new = before["metadata"][field], after["metadata"][field]
         changed = pathlib.Path(old).name != pathlib.Path(new).name if field == "model" else old != new
@@ -395,6 +409,8 @@ def main():
         command = commands.add_parser(name)
         command.add_argument("--mode", choices=("word", "character"), default="word")
         command.add_argument("--context", choices=("none", "screen", "paired"), default="paired")
+        command.add_argument("--workers", type=int, choices=(1, 2, 3), default=3,
+                             help="Independent inference workers (default: 3); use 1 for uncontended latency")
         command.add_argument("--per-category", type=int, help="First N scenarios in each selected category; useful for balanced smoke tests")
         command.add_argument("--category", choices=CATEGORIES)
         command.add_argument("--phrase", help="Stable phrase ID, e.g. conversation-001")

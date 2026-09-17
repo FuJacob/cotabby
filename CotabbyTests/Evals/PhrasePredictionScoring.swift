@@ -216,6 +216,45 @@ struct PhrasePredictionMetrics: Codable {
     }
 }
 
+/// Pure scheduling rules keep parallel execution from changing the benchmark's input identity.
+/// The test host owns the actual workers; this namespace only partitions phrase indices and
+/// restores serial report order after those workers finish in an arbitrary order.
+enum PhrasePredictionReplayPlan {
+    static func shards(phraseCount: Int, workers: Int) throws -> [[Int]] {
+        guard phraseCount > 0, (1...3).contains(workers) else {
+            throw PhrasePredictionCorpus.ValidationError.invalid("Replay needs phrases and 1, 2, or 3 workers")
+        }
+        let count = min(workers, phraseCount)
+        return (0..<count).map { worker in Array(stride(from: worker, to: phraseCount, by: count)) }
+    }
+
+    static func conditions(at index: Int, mode: PhrasePredictionScorer.ContextMode) -> [PhrasePredictionScorer.ContextCondition] {
+        // Use the selected phrase's original index, not its position inside a worker's shard.
+        index.isMultiple(of: 2) ? mode.conditions : Array(mode.conditions.reversed())
+    }
+
+    static func orderedResults(
+        _ results: [PhrasePredictionReport.PhraseResult], phrases: [PhrasePredictionCorpus.Phrase],
+        mode: PhrasePredictionScorer.Mode, context: PhrasePredictionScorer.ContextMode
+    ) throws -> [PhrasePredictionReport.PhraseResult] {
+        let grouped = Dictionary(grouping: results, by: { $0.phrase.id })
+        guard results.count == phrases.count * context.conditions.count,
+              Set(grouped.keys) == Set(phrases.map(\.id)) else {
+            throw PhrasePredictionCorpus.ValidationError.invalid("Incomplete parallel replay selection")
+        }
+        return try phrases.enumerated().flatMap { index, phrase in
+            try conditions(at: index, mode: context).map { condition in
+                let matches = (grouped[phrase.id] ?? []).filter { $0.condition == condition }
+                guard matches.count == 1, let result = matches.first, result.phrase == phrase,
+                      result.observations.map(\.checkpoint) == PhrasePredictionScorer.checkpoints(for: phrase, mode: mode) else {
+                    throw PhrasePredictionCorpus.ValidationError.invalid("Missing, duplicate, or incomplete replay: \(phrase.id)")
+                }
+                return result
+            }
+        }
+    }
+}
+
 /// Report structure is deliberately independent of XCTest and inference. The runner produces
 /// observations; this value derives all aggregates once, making JSON and printed scores agree.
 struct PhrasePredictionReport: Codable {
@@ -230,6 +269,8 @@ struct PhrasePredictionReport: Codable {
         let configuration: [String: String]
         let runLabel: String
         var contextMode: PhrasePredictionScorer.ContextMode = .none
+        // Optional for decoding reports created before parallel replay; absent means one worker.
+        var workerCount: Int? = nil
     }
 
     struct PhraseResult: Codable {

@@ -18,12 +18,36 @@ SPEC.loader.exec_module(eval_cli)
 
 
 class PhraseEvalCLITests(unittest.TestCase):
+    def test_three_worker_progress_combines_out_of_order_results(self):
+        with tempfile.TemporaryDirectory() as directory:
+            output = pathlib.Path(directory)
+            (output / 'metadata.json').write_text(json.dumps({'workerCount': 3}))
+            progress = eval_cli.ReplayProgress(output, 6)
+            journal = output / 'phrases.jsonl'
+            for index, (phrase, condition) in enumerate([
+                ('science-003', 'none'), ('science-001', 'none'), ('science-002', 'screen'),
+                ('science-001', 'screen'), ('science-003', 'screen'), ('science-002', 'none')
+            ]):
+                with journal.open('a') as stream:
+                    stream.write(json.dumps({'phrase': {'id': phrase}, 'condition': condition, 'observations': [{}]}) + '\n')
+                status = progress.status()
+                self.assertEqual(progress.completed, index + 1)
+                self.assertIn('workers 3', status)
+            self.assertIn('100.0%', status)
+
+    def test_worker_count_is_retained_in_baselines_and_does_not_block_accuracy_comparisons(self):
+        before = self.report()
+        after = copy.deepcopy(before)
+        after['metadata']['workerCount'] = 3
+        self.assertEqual(len(eval_cli.comparison_rows(before, after)), 3)
+
     def test_baseline_export_preserves_comparison_without_diagnostic_payload(self):
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
             source = root / 'run'
             source.mkdir()
             report, manifest = self.baseline_run()
+            report['metadata']['workerCount'] = 3
             (source / 'report.json').write_text(json.dumps(report))
             (source / 'manifest.json').write_text(json.dumps(manifest))
             (source / 'summary.txt').write_text('Scores\n')
@@ -38,6 +62,8 @@ class PhraseEvalCLITests(unittest.TestCase):
                 self.assertEqual(saved['phrases'][0]['nextWord'], report['phrases'][0]['nextWord'])
                 self.assertEqual(set(saved['phrases'][0]['observations'][0]), {'checkpoint'})
                 self.assertEqual(saved['metadata']['model'], 'test.gguf')
+                self.assertEqual(saved['metadata']['workerCount'], 3)
+                self.assertEqual(json.loads((destination / 'manifest.json').read_text())['workerCount'], 3)
                 self.assertEqual({p.name for p in destination.iterdir()}, {'report.json', 'manifest.json', 'summary.txt'})
                 with self.assertRaises(FileExistsError):
                     eval_cli.save_baseline(args)

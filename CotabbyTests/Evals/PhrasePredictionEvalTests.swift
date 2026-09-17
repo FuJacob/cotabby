@@ -2,8 +2,8 @@ import CryptoKit
 import XCTest
 @testable import Cotabby
 
-/// Opt-in accuracy replay. One runner owns one local engine for the suite, resets its prompt
-/// cache at phrase boundaries, and advances only through the reference text. Waiting for final
+/// Opt-in accuracy replay. One runner owns a bounded pool of independent local engines, resets
+/// their prompt caches at phrase boundaries, and advances only through reference text. Waiting for final
 /// output at each checkpoint isolates prediction quality from typing speed and cancellation;
 /// LlamaTypingSessionEvalTests remains the separate timing/interruption benchmark.
 ///
@@ -23,13 +23,19 @@ final class PhrasePredictionEvalTests: XCTestCase {
         let corpus = try JSONDecoder().decode(PhrasePredictionCorpus.self, from: data)
         try corpus.validate()
         let selected = try options.select(corpus.phrases)
-        let manager = try LlamaEvalRuntime.makeManager()
+        let shards = try PhrasePredictionReplayPlan.shards(phraseCount: selected.count, workers: options.workers)
+        let managers = try shards.map { _ in try LlamaEvalRuntime.makeManager() }
+        // Keep every context alive until the task group has drained, including on cancellation.
+        // Each manager owns a separate native core, sampler and KV cache: sharing a manager would
+        // serialize all workers on that core's autocomplete lock.
+        defer { managers.forEach { $0.shutdownSync(timeoutSeconds: 5) } }
         // Missing models and failed loads are errors for an explicitly requested benchmark, not
         // a successful-looking skip. Do not download or select a different model automatically.
-        try await manager.prepare()
-        defer { manager.shutdownSync(timeoutSeconds: 5) }
-        let engine = LlamaSuggestionEngine(runtimeManager: manager)
-        let spellChecker = CurrentWordSpellChecker()
+        // Initialize the native backends sequentially before concurrent generation starts.
+        for manager in managers {
+            try Task.checkCancellation()
+            try await manager.prepare()
+        }
         let configuration = LlamaEvalRuntime.configuration
         let settings = CotabbyTestFixtures.settingsSnapshot(
             selectedEngine: .llamaOpenSource, selectedWordCountPreset: configuration.defaultWordCountPreset,
@@ -43,49 +49,60 @@ final class PhrasePredictionEvalTests: XCTestCase {
         configurationRecord["settings"] = "single-line; surface metadata and prior draft fixed; synthetic OCR varies; no clipboard/profile/custom rules"
         configurationRecord["os"] = ProcessInfo.processInfo.operatingSystemVersionString
         configurationRecord["processors"] = String(ProcessInfo.processInfo.processorCount)
-        let modelPath = try XCTUnwrap(manager.diagnostics.modelFilePath)
+        let modelPath = try XCTUnwrap(managers.first?.diagnostics.modelFilePath)
+        guard managers.allSatisfy({ $0.diagnostics.modelFilePath == modelPath }) else {
+            throw Options.invalid("All workers must evaluate the same model")
+        }
         configurationRecord["modelSHA256"] = try Self.fileSHA256(URL(fileURLWithPath: modelPath))
         let metadata = PhrasePredictionReport.Metadata(
             corpusSHA256: SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined(),
             corpusVersion: corpus.version, model: modelPath, seed: LlamaEvalRuntime.seed,
-            mode: options.mode, configuration: configurationRecord, runLabel: options.label, contextMode: options.contextMode
+            mode: options.mode, configuration: configurationRecord, runLabel: options.label,
+            contextMode: options.contextMode, workerCount: managers.count
         )
         try FileManager.default.createDirectory(at: options.output, withIntermediateDirectories: true)
-        let observationsURL = options.output.appendingPathComponent("phrases.jsonl")
-        guard !FileManager.default.fileExists(atPath: observationsURL.path) else {
-            throw Options.invalid("Output already contains phrase results; choose a new output directory")
-        }
-        FileManager.default.createFile(atPath: observationsURL.path, contents: nil)
-        let journal = try FileHandle(forWritingTo: observationsURL)
-        defer { try? journal.close() }
+        let journal = try ReplayJournal(output: options.output)
+        defer { journal.close() }
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
         // Persist identity before inference, so interrupted journals can still be interpreted.
         try encoder.encode(metadata).write(to: options.output.appendingPathComponent("metadata.json"), options: .atomic)
-        var results: [PhrasePredictionReport.PhraseResult] = []
-        for (index, phrase) in selected.enumerated() {
-            try Task.checkCancellation()
-            let scenario = try XCTUnwrap(phrase.scenario)
-            // Alternating order reduces systematic warmup/thermal bias. Cache reset prevents a
-            // contextual pass from teaching its answers to the paired no-screen pass.
-            let conditions = index.isMultiple(of: 2) ? options.contextMode.conditions : Array(options.contextMode.conditions.reversed())
-            for condition in conditions {
-                await engine.resetCachedGenerationContext()
-                var observations: [PhrasePredictionObservation] = []
-                for checkpoint in PhrasePredictionScorer.checkpoints(for: phrase, mode: options.mode) {
-                    try Task.checkCancellation()
-                    observations.append(try await observe(
-                        checkpoint, scenario: scenario, condition: condition, engine: engine, spellChecker: spellChecker,
-                        settings: settings, configuration: configuration
-                    ))
+        print("REPLAY workers=\(managers.count); independent native contexts; latency includes worker contention")
+        // MainActor isolates the journal and AppKit spell checker. Each awaited generation runs
+        // on its manager's detached native task, allowing all three cores to compute concurrently.
+        // A throwing task group cancels its siblings and waits for their cleanup before returning.
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            for (workerIndex, indices) in shards.enumerated() {
+                let manager = managers[workerIndex]
+                group.addTask { @MainActor in
+                    let engine = LlamaSuggestionEngine(runtimeManager: manager)
+                    let spellChecker = CurrentWordSpellChecker()
+                    for index in indices {
+                        try Task.checkCancellation()
+                        let phrase = selected[index]
+                        let scenario = try XCTUnwrap(phrase.scenario)
+                        for condition in PhrasePredictionReplayPlan.conditions(at: index, mode: options.contextMode) {
+                            await engine.resetCachedGenerationContext()
+                            var observations: [PhrasePredictionObservation] = []
+                            for checkpoint in PhrasePredictionScorer.checkpoints(for: phrase, mode: options.mode) {
+                                try Task.checkCancellation()
+                                observations.append(try await self.observe(
+                                    checkpoint, scenario: scenario, condition: condition, engine: engine, spellChecker: spellChecker,
+                                    settings: settings, configuration: configuration
+                                ))
+                            }
+                            let result = PhrasePredictionReport.PhraseResult(phrase: phrase, observations: observations, condition: condition)
+                            try journal.append(result)
+                            print("PHRASE \(index + 1)/\(selected.count) \(phrase.id) [\(condition.rawValue)] worker=\(workerIndex + 1): \(result.nextWord.correct)/\(result.nextWord.checkpoints)")
+                        }
+                    }
                 }
-                let result = PhrasePredictionReport.PhraseResult(phrase: phrase, observations: observations, condition: condition)
-                results.append(result)
-                try journal.write(contentsOf: encoder.encode(result) + Data([0x0A]))
-                try journal.synchronize()
-                print("PHRASE \(index + 1)/\(selected.count) \(phrase.id) [\(condition.rawValue)]: \(result.nextWord.correct)/\(result.nextWord.checkpoints)")
             }
+            for try await _ in group { }
         }
+        let results = try PhrasePredictionReplayPlan.orderedResults(
+            journal.results, phrases: selected, mode: options.mode, context: options.contextMode
+        )
         let report = PhrasePredictionReport(metadata: metadata, phrases: results)
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         try encoder.encode(report).write(to: options.output.appendingPathComponent("report.json"), options: .atomic)
@@ -100,6 +117,34 @@ final class PhrasePredictionEvalTests: XCTestCase {
     }
 
     #if RUN_LLAMA_EVAL
+    /// The test owns one journal for the entire replay. Actor isolation makes each append atomic
+    /// with respect to other workers; the Python progress reader sees only complete JSONL lines.
+    /// Results stay in completion order here and are validated/reordered before final scoring.
+    @MainActor
+    private final class ReplayJournal {
+        private let handle: FileHandle
+        private let encoder = JSONEncoder()
+        private(set) var results: [PhrasePredictionReport.PhraseResult] = []
+
+        init(output: URL) throws {
+            let url = output.appendingPathComponent("phrases.jsonl")
+            guard !FileManager.default.fileExists(atPath: url.path) else {
+                throw Options.invalid("Output already contains phrase results; choose a new output directory")
+            }
+            FileManager.default.createFile(atPath: url.path, contents: nil)
+            handle = try FileHandle(forWritingTo: url)
+            encoder.outputFormatting = [.sortedKeys]
+        }
+
+        func append(_ result: PhrasePredictionReport.PhraseResult) throws {
+            try handle.write(contentsOf: encoder.encode(result) + Data([0x0A]))
+            try handle.synchronize()
+            results.append(result)
+        }
+
+        func close() { try? handle.close() }
+    }
+
     private func observe(
         _ checkpoint: PhrasePredictionScorer.Checkpoint, scenario: PhrasePredictionCorpus.ScreenScenario,
         condition: PhrasePredictionScorer.ContextCondition, engine: LlamaSuggestionEngine,
@@ -165,6 +210,7 @@ final class PhrasePredictionEvalTests: XCTestCase {
         let phraseID: String?
         let limit: Int?
         let perCategory: Int?
+        let workers: Int
         let output: URL
         let label: String
 
@@ -177,6 +223,10 @@ final class PhrasePredictionEvalTests: XCTestCase {
                 throw Self.invalid("Context must be none, screen, or paired")
             }
             self.contextMode = contextMode
+            guard let workers = Int(environment["COTABBY_PHRASE_WORKERS"] ?? "3"), (1...3).contains(workers) else {
+                throw Self.invalid("Workers must be 1, 2, or 3")
+            }
+            self.workers = workers
             category = environment["COTABBY_PHRASE_CATEGORY"]
             phraseID = environment["COTABBY_PHRASE_ID"]
             if let raw = environment["COTABBY_PHRASE_LIMIT"] {
