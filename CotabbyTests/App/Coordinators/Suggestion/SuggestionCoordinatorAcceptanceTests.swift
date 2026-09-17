@@ -663,8 +663,9 @@ private final class StubVisualContextCoordinator: VisualContextCoordinating {
     var latestExcerpt: String?
     var onStateChange: ((VisualContextStatus, String?) -> Void)?
     var onInjectedContextReady: ((FocusedInputIdentity) -> Void)?
+    var refreshContextProvider: (() -> FocusedInputSnapshot?)?
 
-    func startSessionIfNeeded(for snapshotContext: FocusedInputSnapshot) {}
+    func startSessionIfNeeded(for snapshotContext: FocusedInputSnapshot, configuration: VisualContextConfiguration) {}
 
     func cancel(resetState: Bool) {}
 

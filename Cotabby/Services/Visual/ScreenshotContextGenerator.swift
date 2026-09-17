@@ -5,8 +5,8 @@ import Logging
 import UniformTypeIdentifiers
 
 /// File overview:
-/// Converts a newly focused input's surrounding screenshot into OCR text for prompt injection.
-/// The pipeline is: focused snapshot -> screenshot crop -> Apple OCR -> cleanup -> bounded
+/// Converts the focused input's window or surrounding crop into OCR text for prompt injection.
+/// The pipeline is: focused snapshot -> screenshot -> Apple OCR -> cleanup/selection -> bounded
 /// visible-context excerpt.
 ///
 /// Keeping capture and OCR cleanup at this boundary gives the suggestion coordinator a small
@@ -24,14 +24,24 @@ enum ScreenshotContextGenerationError: LocalizedError {
     }
 }
 
+/// Async seam for field-scoped refresh tests; implementations own capture/OCR, not scheduling.
 @MainActor
-final class ScreenshotContextGenerator {
+protocol ScreenshotContextGenerating {
+    func generateContext(
+        for context: FocusedInputSnapshot,
+        configuration: VisualContextConfiguration?,
+        onStatusChange: (@MainActor @Sendable (VisualContextStatus) -> Void)?
+    ) async throws -> VisualContextExcerpt
+}
+
+@MainActor
+final class ScreenshotContextGenerator: ScreenshotContextGenerating {
     private enum ContextSource: String {
         case ocrFallback = "ocr_fallback"
     }
 
     private let screenshotService: any WindowScreenshotCapturing
-    private let textExtractor: any ScreenTextExtracting
+    private let textExtractor: (any ScreenTextExtracting)?
     private let configuration: VisualContextConfiguration
 
     /// Recent OCR extractions keyed by a pixel hash of the captured crop, so refocusing a window
@@ -39,7 +49,7 @@ final class ScreenshotContextGenerator {
     /// Only the raw extraction is cached: hygiene and bounding still rerun against the live field
     /// text below, so a cache hit stays byte-identical to re-OCRing identical pixels. Bounded to a
     /// few entries so alt-tabbing between two or three windows keeps hitting.
-    private var extractionCache: [(hash: UInt64, extracted: ExtractedScreenText)] = []
+    private var extractionCache: [(hash: UInt64, configuration: VisualContextConfiguration, extracted: ExtractedScreenText)] = []
     private static let extractionCacheLimit = 4
 
     init(
@@ -49,33 +59,37 @@ final class ScreenshotContextGenerator {
     ) {
         let actualConfig = configuration ?? .default
         self.screenshotService = screenshotService ?? WindowScreenshotService()
-        self.textExtractor =
-            textExtractor
-            ?? ScreenTextExtractor(
-                maxImageDimension: actualConfig.maxImageDimension,
-                maxRecognizedCharacters: actualConfig.maxRecognizedCharacters
-            )
+        self.textExtractor = textExtractor
         self.configuration = actualConfig
     }
 
-    /// Captures a compact region around the focused input and returns a bounded text excerpt that
-    /// can be injected into the completion prompt.
+    /// Captures according to the selected engine's privacy profile and returns bounded text.
+    /// An override lives only for this call; switching engines cannot reuse a mutable configuration.
     func generateContext(
         for context: FocusedInputSnapshot,
-        onStatusChange: (@Sendable (VisualContextStatus) async -> Void)? = nil
+        configuration override: VisualContextConfiguration? = nil,
+        onStatusChange: (@MainActor @Sendable (VisualContextStatus) -> Void)? = nil
     ) async throws -> VisualContextExcerpt {
-        let screenshot = try await captureScreenshot(for: context, onStatusChange: onStatusChange)
+        let configuration = override ?? self.configuration
+        let screenshot = try await captureScreenshot(for: context, configuration: configuration, onStatusChange: onStatusChange)
+        try Task.checkCancellation()
 
-        await onStatusChange?(.extractingText)
+        onStatusChange?(.extractingText)
 
-        let pixelHash = Self.pixelHash(of: screenshot.image)
-        if let pixelHash, let cached = cachedExtraction(for: pixelHash) {
-            return try finishedExcerpt(from: cached, context: context, image: screenshot.image)
+        let pixelHash = await Task.detached(priority: .utility) { Self.pixelHash(of: screenshot.image) }.value
+        try Task.checkCancellation()
+        if let pixelHash, let cached = cachedExtraction(for: pixelHash, configuration: configuration) {
+            return try await finishedExcerpt(from: cached, context: context, screenshot: screenshot, configuration: configuration)
         }
 
         let extracted: ExtractedScreenText
         do {
-            extracted = try await textExtractor.extractText(from: screenshot.image)
+            let extractor = textExtractor ?? ScreenTextExtractor(
+                maxImageDimension: configuration.maxImageDimension,
+                maxRecognizedCharacters: configuration.maxRecognizedCharacters
+            )
+            extracted = try await extractor.extractText(from: screenshot.image)
+            try Task.checkCancellation()
         } catch ScreenTextExtractionError.noRecognizedText {
             guard let windowTitle = screenshot.windowTitle else {
                 throw ScreenshotContextGenerationError.unavailable(
@@ -83,27 +97,29 @@ final class ScreenshotContextGenerator {
                 )
             }
 
-            let normalizedTitle = normalizeRecognizedText(windowTitle)
-            guard hasMeaningfulSignal(normalizedTitle)
+            let normalizedTitle = normalizeRecognizedText(windowTitle, configuration: configuration)
+            guard hasMeaningfulSignal(normalizedTitle, configuration: configuration)
             else {
                 throw ScreenshotContextGenerationError.unavailable(
                     "The screenshot did not contain enough visible text to build prompt context."
                 )
             }
 
-            let finalTitleContext = boundedSummaryText(normalizedTitle)
+            let finalTitleContext = boundedSummaryText(normalizedTitle, configuration: configuration)
             CotabbyLogger.app.debug(
                 "Visual context ready source=\(ContextSource.ocrFallback.rawValue) chars=\(finalTitleContext.count)"
             )
             return VisualContextExcerpt(text: finalTitleContext)
+        } catch is CancellationError {
+            throw CancellationError()
         } catch let error as ScreenTextExtractionError {
             throw ScreenshotContextGenerationError.unavailable(error.localizedDescription)
         } catch {
             throw ScreenshotContextGenerationError.failed(error.localizedDescription)
         }
 
-        storeExtraction(extracted, for: pixelHash)
-        return try finishedExcerpt(from: extracted, context: context, image: screenshot.image)
+        storeExtraction(extracted, for: pixelHash, configuration: configuration)
+        return try await finishedExcerpt(from: extracted, context: context, screenshot: screenshot, configuration: configuration)
     }
 
     /// Hygiene, normalization, bounding, and the meaningful-signal gate, shared by the fresh and
@@ -113,29 +129,40 @@ final class ScreenshotContextGenerator {
     private func finishedExcerpt(
         from extracted: ExtractedScreenText,
         context: FocusedInputSnapshot,
-        image: CGImage
-    ) throws -> VisualContextExcerpt {
+        screenshot: CapturedWindowScreenshot,
+        configuration: VisualContextConfiguration
+    ) async throws -> VisualContextExcerpt {
         // Filter OCR corruption (garbled / symbol-noise / digit-substituted lines) and strip any
         // line that merely echoes the user's own field text, then sanitize for prompt-injection
         // safety. No model summarization: a base model conditions fine on cleaned raw context, and
         // the old summary step cost an extra generation per refresh and could hallucinate.
-        let cleanedOCR = OCRTextHygiene.clean(
-            lines: extracted.lines,
-            fieldText: context.precedingText + " " + context.trailingText,
-            maxChars: configuration.maxRecognizedCharacters
-        )
-        let normalizedText = normalizeRecognizedText(cleanedOCR)
+        let normalizedText = await Task.detached(priority: .utility) {
+            let cleanedOCR = configuration.capturesEntireWindow ? VisualContextExcerptSelector.select(
+                lines: extracted.lines,
+                fieldText: context.precedingText + " " + context.trailingText,
+                focusBounds: screenshot.focusBounds,
+                maxCharacters: configuration.maxSummaryCharacters
+            ) : OCRTextHygiene.clean(
+                lines: extracted.lines,
+                fieldText: context.precedingText + " " + context.trailingText,
+                maxChars: configuration.maxRecognizedCharacters
+            )
+            return configuration.capturesEntireWindow
+                ? PromptContextSanitizer.sanitize(cleanedOCR, maxCharacters: configuration.maxRecognizedCharacters)
+                : PromptContextSanitizer.sanitizeOCR(cleanedOCR, maxCharacters: configuration.maxRecognizedCharacters)
+        }.value
+        try Task.checkCancellation()
 
         if CotabbyDebugOptions.isEnabled {
             saveDebugScreenshot(
-                image,
+                screenshot.image,
                 text: extracted.text,
                 name: sanitizedDebugName(from: context.applicationName)
             )
         }
 
-        let finalContextText = boundedSummaryText(normalizedText)
-        guard hasMeaningfulSignal(finalContextText) else {
+        let finalContextText = boundedSummaryText(normalizedText, configuration: configuration)
+        guard hasMeaningfulSignal(finalContextText, configuration: configuration) else {
             throw ScreenshotContextGenerationError.unavailable(
                 "The screenshot did not contain enough visible text to build prompt context."
             )
@@ -155,7 +182,7 @@ final class ScreenshotContextGenerator {
     /// any real content change moves enough antialiased pixels that a stride collision is
     /// vanishingly unlikely, and the worst case of one is reusing OCR text for a window whose
     /// pixels barely changed. `nil` (no readable backing data) simply disables caching.
-    private static func pixelHash(of image: CGImage) -> UInt64? {
+    nonisolated private static func pixelHash(of image: CGImage) -> UInt64? {
         guard let data = image.dataProvider?.data,
               let bytes = CFDataGetBytePtr(data) else {
             return nil
@@ -177,17 +204,17 @@ final class ScreenshotContextGenerator {
         return hash
     }
 
-    private func cachedExtraction(for hash: UInt64) -> ExtractedScreenText? {
-        extractionCache.first(where: { $0.hash == hash })?.extracted
+    private func cachedExtraction(for hash: UInt64, configuration: VisualContextConfiguration) -> ExtractedScreenText? {
+        extractionCache.first(where: { $0.hash == hash && $0.configuration == configuration })?.extracted
     }
 
-    private func storeExtraction(_ extracted: ExtractedScreenText, for hash: UInt64?) {
+    private func storeExtraction(_ extracted: ExtractedScreenText, for hash: UInt64?, configuration: VisualContextConfiguration) {
         guard let hash else {
             return
         }
 
         extractionCache.removeAll { $0.hash == hash }
-        extractionCache.append((hash, extracted))
+        extractionCache.append((hash, configuration, extracted))
         if extractionCache.count > Self.extractionCacheLimit {
             extractionCache.removeFirst(extractionCache.count - Self.extractionCacheLimit)
         }
@@ -195,13 +222,15 @@ final class ScreenshotContextGenerator {
 
     private func captureScreenshot(
         for context: FocusedInputSnapshot,
-        onStatusChange: (@Sendable (VisualContextStatus) async -> Void)?
+        configuration: VisualContextConfiguration,
+        onStatusChange: (@MainActor @Sendable (VisualContextStatus) -> Void)?
     ) async throws -> CapturedWindowScreenshot {
-        await onStatusChange?(.capturing)
+        onStatusChange?(.capturing)
         do {
             return try await screenshotService.captureSnapshot(
                 around: context,
-                snapshotDimension: configuration.snapshotDimension
+                snapshotDimension: configuration.snapshotDimension,
+                capturesEntireWindow: configuration.capturesEntireWindow
             )
         } catch let error as WindowScreenshotError {
             throw ScreenshotContextGenerationError.unavailable(error.localizedDescription)
@@ -212,7 +241,7 @@ final class ScreenshotContextGenerator {
 
     /// OCR is noisy by nature. We normalize line whitespace, strip short-token noise from UI
     /// chrome, and keep only a bounded excerpt so the prompt receives meaningful text.
-    private func normalizeRecognizedText(_ rawText: String) -> String {
+    private func normalizeRecognizedText(_ rawText: String, configuration: VisualContextConfiguration) -> String {
         PromptContextSanitizer.sanitizeOCR(
             rawText,
             maxCharacters: configuration.maxRecognizedCharacters
@@ -223,7 +252,7 @@ final class ScreenshotContextGenerator {
     ///
     /// `maxRecognizedCharacters` bounds OCR cleanup input. This separate cap protects the
     /// autocomplete prompt from a verbose recognized-text result.
-    private func boundedSummaryText(_ text: String) -> String {
+    private func boundedSummaryText(_ text: String, configuration: VisualContextConfiguration) -> String {
         PromptContextSanitizer.sanitize(
             text,
             maxCharacters: configuration.maxSummaryCharacters
@@ -232,7 +261,7 @@ final class ScreenshotContextGenerator {
 
     /// We reject OCR text that is mostly punctuation or numeric noise because that would hurt
     /// the completion prompt more than help it.
-    private func hasMeaningfulSignal(_ text: String) -> Bool {
+    private func hasMeaningfulSignal(_ text: String, configuration: VisualContextConfiguration) -> Bool {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.count >= configuration.minRecognizedCharacterCount else {
             return false

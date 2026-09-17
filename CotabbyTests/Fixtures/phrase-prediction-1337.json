@@ -1,0 +1,6692 @@
+{
+  "version": 1,
+  "language": "en",
+  "provenance": "Original synthetic English phrases authored for Cotabby in September 2026. Individually written examples of familiar everyday constructions across seven domains; not scraped, frequency-ranked, or collected from user text. Fixed benchmark for development comparisons, not a representative sample of all writing.",
+  "phrases": [
+    {
+      "id": "conversation-001",
+      "category": "conversation",
+      "text": "How are you doing today?"
+    },
+    {
+      "id": "conversation-002",
+      "category": "conversation",
+      "text": "It was nice to meet you."
+    },
+    {
+      "id": "conversation-003",
+      "category": "conversation",
+      "text": "I hope you have a good day."
+    },
+    {
+      "id": "conversation-004",
+      "category": "conversation",
+      "text": "Thank you for your help."
+    },
+    {
+      "id": "conversation-005",
+      "category": "conversation",
+      "text": "I'll see you later tonight."
+    },
+    {
+      "id": "conversation-006",
+      "category": "conversation",
+      "text": "What are you up to this weekend?"
+    },
+    {
+      "id": "conversation-007",
+      "category": "conversation",
+      "text": "Let me know when you get home."
+    },
+    {
+      "id": "conversation-008",
+      "category": "conversation",
+      "text": "I'm glad you could make it."
+    },
+    {
+      "id": "conversation-009",
+      "category": "conversation",
+      "text": "Sorry to keep you waiting."
+    },
+    {
+      "id": "conversation-010",
+      "category": "conversation",
+      "text": "That sounds like a great idea."
+    },
+    {
+      "id": "conversation-011",
+      "category": "conversation",
+      "text": "Could you say that again?"
+    },
+    {
+      "id": "conversation-012",
+      "category": "conversation",
+      "text": "I didn't catch your name."
+    },
+    {
+      "id": "conversation-013",
+      "category": "conversation",
+      "text": "It's been a long time."
+    },
+    {
+      "id": "conversation-014",
+      "category": "conversation",
+      "text": "How has your week been?"
+    },
+    {
+      "id": "conversation-015",
+      "category": "conversation",
+      "text": "I was just thinking about you."
+    },
+    {
+      "id": "conversation-016",
+      "category": "conversation",
+      "text": "Do you have a minute to talk?"
+    },
+    {
+      "id": "conversation-017",
+      "category": "conversation",
+      "text": "I'll call you when I'm free."
+    },
+    {
+      "id": "conversation-018",
+      "category": "conversation",
+      "text": "Thanks for getting back to me."
+    },
+    {
+      "id": "conversation-019",
+      "category": "conversation",
+      "text": "You don't have to apologize."
+    },
+    {
+      "id": "conversation-020",
+      "category": "conversation",
+      "text": "I'm happy to hear that."
+    },
+    {
+      "id": "conversation-021",
+      "category": "conversation",
+      "text": "What do you think about it?"
+    },
+    {
+      "id": "conversation-022",
+      "category": "conversation",
+      "text": "I'm not sure what you mean."
+    },
+    {
+      "id": "conversation-023",
+      "category": "conversation",
+      "text": "Can you give me an example?"
+    },
+    {
+      "id": "conversation-024",
+      "category": "conversation",
+      "text": "That makes a lot of sense."
+    },
+    {
+      "id": "conversation-025",
+      "category": "conversation",
+      "text": "I hadn't thought of it that way."
+    },
+    {
+      "id": "conversation-026",
+      "category": "conversation",
+      "text": "Let's talk about it tomorrow."
+    },
+    {
+      "id": "conversation-027",
+      "category": "conversation",
+      "text": "I agree with you on that."
+    },
+    {
+      "id": "conversation-028",
+      "category": "conversation",
+      "text": "We can figure it out together."
+    },
+    {
+      "id": "conversation-029",
+      "category": "conversation",
+      "text": "There's no need to rush."
+    },
+    {
+      "id": "conversation-030",
+      "category": "conversation",
+      "text": "Take as much time as you need."
+    },
+    {
+      "id": "conversation-031",
+      "category": "conversation",
+      "text": "I'll be there in a few minutes."
+    },
+    {
+      "id": "conversation-032",
+      "category": "conversation",
+      "text": "I'm running a little late."
+    },
+    {
+      "id": "conversation-033",
+      "category": "conversation",
+      "text": "Are you still on your way?"
+    },
+    {
+      "id": "conversation-034",
+      "category": "conversation",
+      "text": "I'll meet you outside the building."
+    },
+    {
+      "id": "conversation-035",
+      "category": "conversation",
+      "text": "Save me a seat if you can."
+    },
+    {
+      "id": "conversation-036",
+      "category": "conversation",
+      "text": "Is this a good time to call?"
+    },
+    {
+      "id": "conversation-037",
+      "category": "conversation",
+      "text": "I can barely hear you."
+    },
+    {
+      "id": "conversation-038",
+      "category": "conversation",
+      "text": "The connection keeps cutting out."
+    },
+    {
+      "id": "conversation-039",
+      "category": "conversation",
+      "text": "I'll send you a message instead."
+    },
+    {
+      "id": "conversation-040",
+      "category": "conversation",
+      "text": "Let me check and get back to you."
+    },
+    {
+      "id": "conversation-041",
+      "category": "conversation",
+      "text": "What happened after I left?"
+    },
+    {
+      "id": "conversation-042",
+      "category": "conversation",
+      "text": "Tell me more about your trip."
+    },
+    {
+      "id": "conversation-043",
+      "category": "conversation",
+      "text": "That must have been exciting."
+    },
+    {
+      "id": "conversation-044",
+      "category": "conversation",
+      "text": "I wish I could have been there."
+    },
+    {
+      "id": "conversation-045",
+      "category": "conversation",
+      "text": "Did you take any pictures?"
+    },
+    {
+      "id": "conversation-046",
+      "category": "conversation",
+      "text": "You look like you've had a busy day."
+    },
+    {
+      "id": "conversation-047",
+      "category": "conversation",
+      "text": "I could really use a break."
+    },
+    {
+      "id": "conversation-048",
+      "category": "conversation",
+      "text": "Let's get some fresh air."
+    },
+    {
+      "id": "conversation-049",
+      "category": "conversation",
+      "text": "Do you want to grab a coffee?"
+    },
+    {
+      "id": "conversation-050",
+      "category": "conversation",
+      "text": "The next round is on me."
+    },
+    {
+      "id": "conversation-051",
+      "category": "conversation",
+      "text": "I didn't mean to interrupt."
+    },
+    {
+      "id": "conversation-052",
+      "category": "conversation",
+      "text": "Please go ahead and finish."
+    },
+    {
+      "id": "conversation-053",
+      "category": "conversation",
+      "text": "I have a quick question."
+    },
+    {
+      "id": "conversation-054",
+      "category": "conversation",
+      "text": "Can I ask you a favor?"
+    },
+    {
+      "id": "conversation-055",
+      "category": "conversation",
+      "text": "Would you mind helping me with this?"
+    },
+    {
+      "id": "conversation-056",
+      "category": "conversation",
+      "text": "I owe you one for that."
+    },
+    {
+      "id": "conversation-057",
+      "category": "conversation",
+      "text": "You really made my day."
+    },
+    {
+      "id": "conversation-058",
+      "category": "conversation",
+      "text": "I'm lucky to have you around."
+    },
+    {
+      "id": "conversation-059",
+      "category": "conversation",
+      "text": "It means a lot to me."
+    },
+    {
+      "id": "conversation-060",
+      "category": "conversation",
+      "text": "Thanks for being so understanding."
+    },
+    {
+      "id": "conversation-061",
+      "category": "conversation",
+      "text": "I don't know what to say."
+    },
+    {
+      "id": "conversation-062",
+      "category": "conversation",
+      "text": "I'm sorry to hear about that."
+    },
+    {
+      "id": "conversation-063",
+      "category": "conversation",
+      "text": "Is there anything I can do?"
+    },
+    {
+      "id": "conversation-064",
+      "category": "conversation",
+      "text": "You can talk to me anytime."
+    },
+    {
+      "id": "conversation-065",
+      "category": "conversation",
+      "text": "I'm here if you need me."
+    },
+    {
+      "id": "conversation-066",
+      "category": "conversation",
+      "text": "That sounds really frustrating."
+    },
+    {
+      "id": "conversation-067",
+      "category": "conversation",
+      "text": "I can understand why you're upset."
+    },
+    {
+      "id": "conversation-068",
+      "category": "conversation",
+      "text": "Let's take a step back."
+    },
+    {
+      "id": "conversation-069",
+      "category": "conversation",
+      "text": "Maybe we should start over."
+    },
+    {
+      "id": "conversation-070",
+      "category": "conversation",
+      "text": "I think there was a misunderstanding."
+    },
+    {
+      "id": "conversation-071",
+      "category": "conversation",
+      "text": "That's not what I meant."
+    },
+    {
+      "id": "conversation-072",
+      "category": "conversation",
+      "text": "I could have said that better."
+    },
+    {
+      "id": "conversation-073",
+      "category": "conversation",
+      "text": "Thank you for telling me."
+    },
+    {
+      "id": "conversation-074",
+      "category": "conversation",
+      "text": "I'll keep that in mind."
+    },
+    {
+      "id": "conversation-075",
+      "category": "conversation",
+      "text": "Let's agree to disagree for now."
+    },
+    {
+      "id": "conversation-076",
+      "category": "conversation",
+      "text": "We don't have to decide today."
+    },
+    {
+      "id": "conversation-077",
+      "category": "conversation",
+      "text": "I need some time to think."
+    },
+    {
+      "id": "conversation-078",
+      "category": "conversation",
+      "text": "What would you do in my place?"
+    },
+    {
+      "id": "conversation-079",
+      "category": "conversation",
+      "text": "I'll give it another try."
+    },
+    {
+      "id": "conversation-080",
+      "category": "conversation",
+      "text": "It's worth a shot at least."
+    },
+    {
+      "id": "conversation-081",
+      "category": "conversation",
+      "text": "How did it go yesterday?"
+    },
+    {
+      "id": "conversation-082",
+      "category": "conversation",
+      "text": "I'm so proud of you."
+    },
+    {
+      "id": "conversation-083",
+      "category": "conversation",
+      "text": "You worked really hard for this."
+    },
+    {
+      "id": "conversation-084",
+      "category": "conversation",
+      "text": "Congratulations on the good news."
+    },
+    {
+      "id": "conversation-085",
+      "category": "conversation",
+      "text": "Let's celebrate this weekend."
+    },
+    {
+      "id": "conversation-086",
+      "category": "conversation",
+      "text": "I knew you could do it."
+    },
+    {
+      "id": "conversation-087",
+      "category": "conversation",
+      "text": "That took a lot of courage."
+    },
+    {
+      "id": "conversation-088",
+      "category": "conversation",
+      "text": "You should give yourself some credit."
+    },
+    {
+      "id": "conversation-089",
+      "category": "conversation",
+      "text": "I'm sure you'll do great."
+    },
+    {
+      "id": "conversation-090",
+      "category": "conversation",
+      "text": "Good luck with everything tomorrow."
+    },
+    {
+      "id": "conversation-091",
+      "category": "conversation",
+      "text": "Have you heard from her lately?"
+    },
+    {
+      "id": "conversation-092",
+      "category": "conversation",
+      "text": "Please give everyone my regards."
+    },
+    {
+      "id": "conversation-093",
+      "category": "conversation",
+      "text": "How is your family doing?"
+    },
+    {
+      "id": "conversation-094",
+      "category": "conversation",
+      "text": "The kids are growing up so fast."
+    },
+    {
+      "id": "conversation-095",
+      "category": "conversation",
+      "text": "Your dog seems happy to see me."
+    },
+    {
+      "id": "conversation-096",
+      "category": "conversation",
+      "text": "I remember when we first met."
+    },
+    {
+      "id": "conversation-097",
+      "category": "conversation",
+      "text": "That brings back a lot of memories."
+    },
+    {
+      "id": "conversation-098",
+      "category": "conversation",
+      "text": "We used to come here all the time."
+    },
+    {
+      "id": "conversation-099",
+      "category": "conversation",
+      "text": "Some things never seem to change."
+    },
+    {
+      "id": "conversation-100",
+      "category": "conversation",
+      "text": "We should do this more often."
+    },
+    {
+      "id": "conversation-101",
+      "category": "conversation",
+      "text": "Are you hungry yet?"
+    },
+    {
+      "id": "conversation-102",
+      "category": "conversation",
+      "text": "What would you like to eat?"
+    },
+    {
+      "id": "conversation-103",
+      "category": "conversation",
+      "text": "I'm fine with whatever you choose."
+    },
+    {
+      "id": "conversation-104",
+      "category": "conversation",
+      "text": "Do you have any food allergies?"
+    },
+    {
+      "id": "conversation-105",
+      "category": "conversation",
+      "text": "Let's split something to share."
+    },
+    {
+      "id": "conversation-106",
+      "category": "conversation",
+      "text": "I already had a late lunch."
+    },
+    {
+      "id": "conversation-107",
+      "category": "conversation",
+      "text": "This tastes better than I expected."
+    },
+    {
+      "id": "conversation-108",
+      "category": "conversation",
+      "text": "Would you like some more water?"
+    },
+    {
+      "id": "conversation-109",
+      "category": "conversation",
+      "text": "I'll help you clear the table."
+    },
+    {
+      "id": "conversation-110",
+      "category": "conversation",
+      "text": "Thanks for having me over."
+    },
+    {
+      "id": "conversation-111",
+      "category": "conversation",
+      "text": "Make yourself at home."
+    },
+    {
+      "id": "conversation-112",
+      "category": "conversation",
+      "text": "You can leave your shoes by the door."
+    },
+    {
+      "id": "conversation-113",
+      "category": "conversation",
+      "text": "Let me take your coat."
+    },
+    {
+      "id": "conversation-114",
+      "category": "conversation",
+      "text": "Would you like to sit down?"
+    },
+    {
+      "id": "conversation-115",
+      "category": "conversation",
+      "text": "I hope you found the place easily."
+    },
+    {
+      "id": "conversation-116",
+      "category": "conversation",
+      "text": "The weather is lovely today."
+    },
+    {
+      "id": "conversation-117",
+      "category": "conversation",
+      "text": "It looks like it might rain."
+    },
+    {
+      "id": "conversation-118",
+      "category": "conversation",
+      "text": "Don't forget to bring a jacket."
+    },
+    {
+      "id": "conversation-119",
+      "category": "conversation",
+      "text": "It's much colder than yesterday."
+    },
+    {
+      "id": "conversation-120",
+      "category": "conversation",
+      "text": "I can't wait for the weekend."
+    },
+    {
+      "id": "conversation-121",
+      "category": "conversation",
+      "text": "How do you know each other?"
+    },
+    {
+      "id": "conversation-122",
+      "category": "conversation",
+      "text": "What kind of music do you like?"
+    },
+    {
+      "id": "conversation-123",
+      "category": "conversation",
+      "text": "Have you lived here long?"
+    },
+    {
+      "id": "conversation-124",
+      "category": "conversation",
+      "text": "What do you do in your spare time?"
+    },
+    {
+      "id": "conversation-125",
+      "category": "conversation",
+      "text": "I've heard good things about that."
+    },
+    {
+      "id": "conversation-126",
+      "category": "conversation",
+      "text": "You should give it a try sometime."
+    },
+    {
+      "id": "conversation-127",
+      "category": "conversation",
+      "text": "I'd love to hear your story."
+    },
+    {
+      "id": "conversation-128",
+      "category": "conversation",
+      "text": "That reminds me of something funny."
+    },
+    {
+      "id": "conversation-129",
+      "category": "conversation",
+      "text": "I couldn't stop laughing."
+    },
+    {
+      "id": "conversation-130",
+      "category": "conversation",
+      "text": "You had to be there to understand."
+    },
+    {
+      "id": "conversation-131",
+      "category": "conversation",
+      "text": "I'm only joking with you."
+    },
+    {
+      "id": "conversation-132",
+      "category": "conversation",
+      "text": "Please don't take it the wrong way."
+    },
+    {
+      "id": "conversation-133",
+      "category": "conversation",
+      "text": "I didn't realize it was so late."
+    },
+    {
+      "id": "conversation-134",
+      "category": "conversation",
+      "text": "I should probably get going."
+    },
+    {
+      "id": "conversation-135",
+      "category": "conversation",
+      "text": "Let me walk you to the door."
+    },
+    {
+      "id": "conversation-136",
+      "category": "conversation",
+      "text": "Have a safe trip home."
+    },
+    {
+      "id": "conversation-137",
+      "category": "conversation",
+      "text": "Text me when you arrive."
+    },
+    {
+      "id": "conversation-138",
+      "category": "conversation",
+      "text": "Let's keep in touch after this."
+    },
+    {
+      "id": "conversation-139",
+      "category": "conversation",
+      "text": "I'm looking forward to seeing you again."
+    },
+    {
+      "id": "conversation-140",
+      "category": "conversation",
+      "text": "Take care of yourself out there."
+    },
+    {
+      "id": "conversation-141",
+      "category": "conversation",
+      "text": "Can we change the subject?"
+    },
+    {
+      "id": "conversation-142",
+      "category": "conversation",
+      "text": "I'd rather not talk about that."
+    },
+    {
+      "id": "conversation-143",
+      "category": "conversation",
+      "text": "I appreciate you asking first."
+    },
+    {
+      "id": "conversation-144",
+      "category": "conversation",
+      "text": "You don't need to explain yourself."
+    },
+    {
+      "id": "conversation-145",
+      "category": "conversation",
+      "text": "That's entirely up to you."
+    },
+    {
+      "id": "conversation-146",
+      "category": "conversation",
+      "text": "Whatever works best for you is fine."
+    },
+    {
+      "id": "conversation-147",
+      "category": "conversation",
+      "text": "I can work around your schedule."
+    },
+    {
+      "id": "conversation-148",
+      "category": "conversation",
+      "text": "Would another day be better?"
+    },
+    {
+      "id": "conversation-149",
+      "category": "conversation",
+      "text": "Let's find a time that suits everyone."
+    },
+    {
+      "id": "conversation-150",
+      "category": "conversation",
+      "text": "I'll put it on my calendar."
+    },
+    {
+      "id": "conversation-151",
+      "category": "conversation",
+      "text": "Did I miss anything important?"
+    },
+    {
+      "id": "conversation-152",
+      "category": "conversation",
+      "text": "You're just in time for the fun."
+    },
+    {
+      "id": "conversation-153",
+      "category": "conversation",
+      "text": "We were wondering where you were."
+    },
+    {
+      "id": "conversation-154",
+      "category": "conversation",
+      "text": "I got caught in traffic again."
+    },
+    {
+      "id": "conversation-155",
+      "category": "conversation",
+      "text": "It happens to the best of us."
+    },
+    {
+      "id": "conversation-156",
+      "category": "conversation",
+      "text": "Don't worry about it at all."
+    },
+    {
+      "id": "conversation-157",
+      "category": "conversation",
+      "text": "There's always a next time."
+    },
+    {
+      "id": "conversation-158",
+      "category": "conversation",
+      "text": "We'll have plenty of other chances."
+    },
+    {
+      "id": "conversation-159",
+      "category": "conversation",
+      "text": "I'm glad we sorted that out."
+    },
+    {
+      "id": "conversation-160",
+      "category": "conversation",
+      "text": "Everything seems to be going well."
+    },
+    {
+      "id": "conversation-161",
+      "category": "conversation",
+      "text": "Do you remember what I told you?"
+    },
+    {
+      "id": "conversation-162",
+      "category": "conversation",
+      "text": "I almost forgot to mention it."
+    },
+    {
+      "id": "conversation-163",
+      "category": "conversation",
+      "text": "There's something I wanted to ask."
+    },
+    {
+      "id": "conversation-164",
+      "category": "conversation",
+      "text": "I'm curious to know your opinion."
+    },
+    {
+      "id": "conversation-165",
+      "category": "conversation",
+      "text": "That's a good point actually."
+    },
+    {
+      "id": "conversation-166",
+      "category": "conversation",
+      "text": "I see where you're coming from."
+    },
+    {
+      "id": "conversation-167",
+      "category": "conversation",
+      "text": "Could we try a different approach?"
+    },
+    {
+      "id": "conversation-168",
+      "category": "conversation",
+      "text": "Let's see how things turn out."
+    },
+    {
+      "id": "conversation-169",
+      "category": "conversation",
+      "text": "I'll let you know if anything changes."
+    },
+    {
+      "id": "conversation-170",
+      "category": "conversation",
+      "text": "Thanks for checking in on me."
+    },
+    {
+      "id": "conversation-171",
+      "category": "conversation",
+      "text": "I feel much better now."
+    },
+    {
+      "id": "conversation-172",
+      "category": "conversation",
+      "text": "I'm still getting used to it."
+    },
+    {
+      "id": "conversation-173",
+      "category": "conversation",
+      "text": "It's been a bit of an adjustment."
+    },
+    {
+      "id": "conversation-174",
+      "category": "conversation",
+      "text": "One thing at a time is enough."
+    },
+    {
+      "id": "conversation-175",
+      "category": "conversation",
+      "text": "You deserve a little rest."
+    },
+    {
+      "id": "conversation-176",
+      "category": "conversation",
+      "text": "I hope things get easier soon."
+    },
+    {
+      "id": "conversation-177",
+      "category": "conversation",
+      "text": "Please don't be too hard on yourself."
+    },
+    {
+      "id": "conversation-178",
+      "category": "conversation",
+      "text": "You've got a lot on your plate."
+    },
+    {
+      "id": "conversation-179",
+      "category": "conversation",
+      "text": "I'm glad you told me how you feel."
+    },
+    {
+      "id": "conversation-180",
+      "category": "conversation",
+      "text": "We can pick this up another time."
+    },
+    {
+      "id": "conversation-181",
+      "category": "conversation",
+      "text": "I think we're on the same page."
+    },
+    {
+      "id": "conversation-182",
+      "category": "conversation",
+      "text": "That's exactly what I was thinking."
+    },
+    {
+      "id": "conversation-183",
+      "category": "conversation",
+      "text": "I couldn't have said it better."
+    },
+    {
+      "id": "conversation-184",
+      "category": "conversation",
+      "text": "It was lovely catching up with you."
+    },
+    {
+      "id": "conversation-185",
+      "category": "conversation",
+      "text": "Thanks again for making the time."
+    },
+    {
+      "id": "conversation-186",
+      "category": "conversation",
+      "text": "I'll pass your message along."
+    },
+    {
+      "id": "conversation-187",
+      "category": "conversation",
+      "text": "Say hello to your brother for me."
+    },
+    {
+      "id": "conversation-188",
+      "category": "conversation",
+      "text": "Have fun at the party tonight."
+    },
+    {
+      "id": "conversation-189",
+      "category": "conversation",
+      "text": "Enjoy the rest of your evening."
+    },
+    {
+      "id": "conversation-190",
+      "category": "conversation",
+      "text": "I'll talk to you soon."
+    },
+    {
+      "id": "conversation-191",
+      "category": "conversation",
+      "text": "You're welcome to join us anytime."
+    },
+    {
+      "id": "science-001",
+      "category": "science",
+      "text": "Water freezes at zero degrees Celsius."
+    },
+    {
+      "id": "science-002",
+      "category": "science",
+      "text": "The Earth revolves around the Sun."
+    },
+    {
+      "id": "science-003",
+      "category": "science",
+      "text": "Plants use sunlight to make food."
+    },
+    {
+      "id": "science-004",
+      "category": "science",
+      "text": "Gravity pulls objects toward the ground."
+    },
+    {
+      "id": "science-005",
+      "category": "science",
+      "text": "Sound travels through air as waves."
+    },
+    {
+      "id": "science-006",
+      "category": "science",
+      "text": "Light travels faster than sound."
+    },
+    {
+      "id": "science-007",
+      "category": "science",
+      "text": "The Moon reflects light from the Sun."
+    },
+    {
+      "id": "science-008",
+      "category": "science",
+      "text": "A magnet has two opposite poles."
+    },
+    {
+      "id": "science-009",
+      "category": "science",
+      "text": "Atoms are made of smaller particles."
+    },
+    {
+      "id": "science-010",
+      "category": "science",
+      "text": "The heart pumps blood around the body."
+    },
+    {
+      "id": "science-011",
+      "category": "science",
+      "text": "Oxygen is essential for human respiration."
+    },
+    {
+      "id": "science-012",
+      "category": "science",
+      "text": "Carbon dioxide is a greenhouse gas."
+    },
+    {
+      "id": "science-013",
+      "category": "science",
+      "text": "Ice is less dense than liquid water."
+    },
+    {
+      "id": "science-014",
+      "category": "science",
+      "text": "The ocean covers most of Earth's surface."
+    },
+    {
+      "id": "science-015",
+      "category": "science",
+      "text": "An eclipse occurs when one object blocks another."
+    },
+    {
+      "id": "science-016",
+      "category": "science",
+      "text": "The experiment needs a control group."
+    },
+    {
+      "id": "science-017",
+      "category": "science",
+      "text": "We should repeat the measurement several times."
+    },
+    {
+      "id": "science-018",
+      "category": "science",
+      "text": "The results support the original hypothesis."
+    },
+    {
+      "id": "science-019",
+      "category": "science",
+      "text": "A larger sample reduces sampling uncertainty."
+    },
+    {
+      "id": "science-020",
+      "category": "science",
+      "text": "Correlation does not necessarily imply causation."
+    },
+    {
+      "id": "science-021",
+      "category": "science",
+      "text": "The temperature increased during the reaction."
+    },
+    {
+      "id": "science-022",
+      "category": "science",
+      "text": "Heat flows from warmer objects to cooler ones."
+    },
+    {
+      "id": "science-023",
+      "category": "science",
+      "text": "Metals tend to conduct heat well."
+    },
+    {
+      "id": "science-024",
+      "category": "science",
+      "text": "Insulation slows the transfer of heat."
+    },
+    {
+      "id": "science-025",
+      "category": "science",
+      "text": "Energy can change from one form to another."
+    },
+    {
+      "id": "science-026",
+      "category": "science",
+      "text": "Friction converts motion into thermal energy."
+    },
+    {
+      "id": "science-027",
+      "category": "science",
+      "text": "A force can change an object's motion."
+    },
+    {
+      "id": "science-028",
+      "category": "science",
+      "text": "Mass and weight are different quantities."
+    },
+    {
+      "id": "science-029",
+      "category": "science",
+      "text": "Velocity includes both speed and direction."
+    },
+    {
+      "id": "science-030",
+      "category": "science",
+      "text": "Acceleration describes a change in velocity."
+    },
+    {
+      "id": "science-031",
+      "category": "science",
+      "text": "The battery stores chemical energy."
+    },
+    {
+      "id": "science-032",
+      "category": "science",
+      "text": "An electric current flows through the circuit."
+    },
+    {
+      "id": "science-033",
+      "category": "science",
+      "text": "A closed switch completes the circuit."
+    },
+    {
+      "id": "science-034",
+      "category": "science",
+      "text": "Resistance limits the flow of electric current."
+    },
+    {
+      "id": "science-035",
+      "category": "science",
+      "text": "Solar panels convert sunlight into electricity."
+    },
+    {
+      "id": "science-036",
+      "category": "science",
+      "text": "Wind turbines use moving air to generate power."
+    },
+    {
+      "id": "science-037",
+      "category": "science",
+      "text": "A prism separates white light into colors."
+    },
+    {
+      "id": "science-038",
+      "category": "science",
+      "text": "A lens can focus light onto a surface."
+    },
+    {
+      "id": "science-039",
+      "category": "science",
+      "text": "The mirror reflects the incoming light."
+    },
+    {
+      "id": "science-040",
+      "category": "science",
+      "text": "Refraction bends light between different materials."
+    },
+    {
+      "id": "science-041",
+      "category": "science",
+      "text": "A wave carries energy through space."
+    },
+    {
+      "id": "science-042",
+      "category": "science",
+      "text": "The wavelength is the distance between peaks."
+    },
+    {
+      "id": "science-043",
+      "category": "science",
+      "text": "Higher frequency means more cycles per second."
+    },
+    {
+      "id": "science-044",
+      "category": "science",
+      "text": "Sound cannot travel through a vacuum."
+    },
+    {
+      "id": "science-045",
+      "category": "science",
+      "text": "The pitch rises as the frequency increases."
+    },
+    {
+      "id": "science-046",
+      "category": "science",
+      "text": "The volume depends on the wave's amplitude."
+    },
+    {
+      "id": "science-047",
+      "category": "science",
+      "text": "A vacuum contains very little matter."
+    },
+    {
+      "id": "science-048",
+      "category": "science",
+      "text": "Pressure is force divided by area."
+    },
+    {
+      "id": "science-049",
+      "category": "science",
+      "text": "Air pressure decreases at higher altitudes."
+    },
+    {
+      "id": "science-050",
+      "category": "science",
+      "text": "The balloon expands as the gas warms."
+    },
+    {
+      "id": "science-051",
+      "category": "science",
+      "text": "A solid has a definite shape."
+    },
+    {
+      "id": "science-052",
+      "category": "science",
+      "text": "A liquid takes the shape of its container."
+    },
+    {
+      "id": "science-053",
+      "category": "science",
+      "text": "A gas expands to fill available space."
+    },
+    {
+      "id": "science-054",
+      "category": "science",
+      "text": "Melting changes a solid into a liquid."
+    },
+    {
+      "id": "science-055",
+      "category": "science",
+      "text": "Evaporation happens at the surface of a liquid."
+    },
+    {
+      "id": "science-056",
+      "category": "science",
+      "text": "Condensation turns water vapor into droplets."
+    },
+    {
+      "id": "science-057",
+      "category": "science",
+      "text": "Water vapor forms clouds in the atmosphere."
+    },
+    {
+      "id": "science-058",
+      "category": "science",
+      "text": "Rain returns water to the ground."
+    },
+    {
+      "id": "science-059",
+      "category": "science",
+      "text": "Rivers carry water toward the sea."
+    },
+    {
+      "id": "science-060",
+      "category": "science",
+      "text": "Groundwater collects beneath the Earth's surface."
+    },
+    {
+      "id": "science-061",
+      "category": "science",
+      "text": "The water cycle moves water between reservoirs."
+    },
+    {
+      "id": "science-062",
+      "category": "science",
+      "text": "Erosion wears away rock and soil."
+    },
+    {
+      "id": "science-063",
+      "category": "science",
+      "text": "Sediment settles at the bottom of the river."
+    },
+    {
+      "id": "science-064",
+      "category": "science",
+      "text": "Glaciers slowly reshape the landscape."
+    },
+    {
+      "id": "science-065",
+      "category": "science",
+      "text": "Volcanoes release molten rock and gases."
+    },
+    {
+      "id": "science-066",
+      "category": "science",
+      "text": "Earthquakes occur when rocks suddenly slip."
+    },
+    {
+      "id": "science-067",
+      "category": "science",
+      "text": "Tectonic plates move over geological time."
+    },
+    {
+      "id": "science-068",
+      "category": "science",
+      "text": "Mountains can form where plates collide."
+    },
+    {
+      "id": "science-069",
+      "category": "science",
+      "text": "Fossils preserve evidence of ancient life."
+    },
+    {
+      "id": "science-070",
+      "category": "science",
+      "text": "Layers of sediment record changes over time."
+    },
+    {
+      "id": "science-071",
+      "category": "science",
+      "text": "The soil contains minerals and organic matter."
+    },
+    {
+      "id": "science-072",
+      "category": "science",
+      "text": "Roots absorb water from the soil."
+    },
+    {
+      "id": "science-073",
+      "category": "science",
+      "text": "Leaves exchange gases through small openings."
+    },
+    {
+      "id": "science-074",
+      "category": "science",
+      "text": "Chlorophyll absorbs light for photosynthesis."
+    },
+    {
+      "id": "science-075",
+      "category": "science",
+      "text": "Flowers attract insects that carry pollen."
+    },
+    {
+      "id": "science-076",
+      "category": "science",
+      "text": "Seeds can spread by wind or animals."
+    },
+    {
+      "id": "science-077",
+      "category": "science",
+      "text": "A seed needs suitable conditions to germinate."
+    },
+    {
+      "id": "science-078",
+      "category": "science",
+      "text": "Fungi help break down dead material."
+    },
+    {
+      "id": "science-079",
+      "category": "science",
+      "text": "Decomposers recycle nutrients in an ecosystem."
+    },
+    {
+      "id": "science-080",
+      "category": "science",
+      "text": "A food chain shows who eats whom."
+    },
+    {
+      "id": "science-081",
+      "category": "science",
+      "text": "Predators hunt other animals for food."
+    },
+    {
+      "id": "science-082",
+      "category": "science",
+      "text": "Prey species have defenses against predators."
+    },
+    {
+      "id": "science-083",
+      "category": "science",
+      "text": "Biodiversity describes the variety of living things."
+    },
+    {
+      "id": "science-084",
+      "category": "science",
+      "text": "Habitats provide resources that organisms need."
+    },
+    {
+      "id": "science-085",
+      "category": "science",
+      "text": "An ecosystem includes living and nonliving components."
+    },
+    {
+      "id": "science-086",
+      "category": "science",
+      "text": "Species compete for limited resources."
+    },
+    {
+      "id": "science-087",
+      "category": "science",
+      "text": "Adaptations can improve survival in an environment."
+    },
+    {
+      "id": "science-088",
+      "category": "science",
+      "text": "Natural selection acts on inherited variation."
+    },
+    {
+      "id": "science-089",
+      "category": "science",
+      "text": "Evolution occurs across many generations."
+    },
+    {
+      "id": "science-090",
+      "category": "science",
+      "text": "DNA carries instructions used by cells."
+    },
+    {
+      "id": "science-091",
+      "category": "science",
+      "text": "Genes are sections of DNA."
+    },
+    {
+      "id": "science-092",
+      "category": "science",
+      "text": "Chromosomes contain many different genes."
+    },
+    {
+      "id": "science-093",
+      "category": "science",
+      "text": "Cells divide to produce new cells."
+    },
+    {
+      "id": "science-094",
+      "category": "science",
+      "text": "The cell membrane controls what enters and leaves."
+    },
+    {
+      "id": "science-095",
+      "category": "science",
+      "text": "The nucleus contains most of a human cell's DNA."
+    },
+    {
+      "id": "science-096",
+      "category": "science",
+      "text": "Mitochondria release usable energy from nutrients."
+    },
+    {
+      "id": "science-097",
+      "category": "science",
+      "text": "Proteins perform many functions in living organisms."
+    },
+    {
+      "id": "science-098",
+      "category": "science",
+      "text": "Enzymes speed up chemical reactions."
+    },
+    {
+      "id": "science-099",
+      "category": "science",
+      "text": "Bacteria are single-celled organisms."
+    },
+    {
+      "id": "science-100",
+      "category": "science",
+      "text": "Viruses need host cells to reproduce."
+    },
+    {
+      "id": "science-101",
+      "category": "science",
+      "text": "The immune system responds to invading pathogens."
+    },
+    {
+      "id": "science-102",
+      "category": "science",
+      "text": "White blood cells help defend the body."
+    },
+    {
+      "id": "science-103",
+      "category": "science",
+      "text": "Red blood cells transport oxygen."
+    },
+    {
+      "id": "science-104",
+      "category": "science",
+      "text": "The lungs exchange oxygen and carbon dioxide."
+    },
+    {
+      "id": "science-105",
+      "category": "science",
+      "text": "The diaphragm helps move air into the lungs."
+    },
+    {
+      "id": "science-106",
+      "category": "science",
+      "text": "Arteries carry blood away from the heart."
+    },
+    {
+      "id": "science-107",
+      "category": "science",
+      "text": "Veins carry blood back toward the heart."
+    },
+    {
+      "id": "science-108",
+      "category": "science",
+      "text": "Capillaries connect small arteries and veins."
+    },
+    {
+      "id": "science-109",
+      "category": "science",
+      "text": "The stomach helps break down food."
+    },
+    {
+      "id": "science-110",
+      "category": "science",
+      "text": "The small intestine absorbs many nutrients."
+    },
+    {
+      "id": "science-111",
+      "category": "science",
+      "text": "The kidneys filter waste from the blood."
+    },
+    {
+      "id": "science-112",
+      "category": "science",
+      "text": "The liver processes many substances in the body."
+    },
+    {
+      "id": "science-113",
+      "category": "science",
+      "text": "Bones support and protect the body."
+    },
+    {
+      "id": "science-114",
+      "category": "science",
+      "text": "Muscles contract to produce movement."
+    },
+    {
+      "id": "science-115",
+      "category": "science",
+      "text": "Tendons connect muscles to bones."
+    },
+    {
+      "id": "science-116",
+      "category": "science",
+      "text": "Ligaments connect bones to other bones."
+    },
+    {
+      "id": "science-117",
+      "category": "science",
+      "text": "Nerves carry signals throughout the body."
+    },
+    {
+      "id": "science-118",
+      "category": "science",
+      "text": "The brain processes information from the senses."
+    },
+    {
+      "id": "science-119",
+      "category": "science",
+      "text": "The retina detects light in the eye."
+    },
+    {
+      "id": "science-120",
+      "category": "science",
+      "text": "The inner ear helps maintain balance."
+    },
+    {
+      "id": "science-121",
+      "category": "science",
+      "text": "A chemical reaction produces new substances."
+    },
+    {
+      "id": "science-122",
+      "category": "science",
+      "text": "The reactants combine to form products."
+    },
+    {
+      "id": "science-123",
+      "category": "science",
+      "text": "An element contains one kind of atom."
+    },
+    {
+      "id": "science-124",
+      "category": "science",
+      "text": "A compound contains chemically bonded elements."
+    },
+    {
+      "id": "science-125",
+      "category": "science",
+      "text": "A mixture can contain several different substances."
+    },
+    {
+      "id": "science-126",
+      "category": "science",
+      "text": "Dissolving salt creates a saltwater solution."
+    },
+    {
+      "id": "science-127",
+      "category": "science",
+      "text": "The solvent dissolves the solute."
+    },
+    {
+      "id": "science-128",
+      "category": "science",
+      "text": "Acids and bases can react with each other."
+    },
+    {
+      "id": "science-129",
+      "category": "science",
+      "text": "The pH scale describes acidity and alkalinity."
+    },
+    {
+      "id": "science-130",
+      "category": "science",
+      "text": "A catalyst speeds up a reaction without being consumed."
+    },
+    {
+      "id": "science-131",
+      "category": "science",
+      "text": "Electrons carry a negative electric charge."
+    },
+    {
+      "id": "science-132",
+      "category": "science",
+      "text": "Protons carry a positive electric charge."
+    },
+    {
+      "id": "science-133",
+      "category": "science",
+      "text": "Neutrons have no net electric charge."
+    },
+    {
+      "id": "science-134",
+      "category": "science",
+      "text": "The atomic number counts the protons."
+    },
+    {
+      "id": "science-135",
+      "category": "science",
+      "text": "Isotopes have different numbers of neutrons."
+    },
+    {
+      "id": "science-136",
+      "category": "science",
+      "text": "Molecules consist of atoms bonded together."
+    },
+    {
+      "id": "science-137",
+      "category": "science",
+      "text": "The periodic table organizes chemical elements."
+    },
+    {
+      "id": "science-138",
+      "category": "science",
+      "text": "Rust forms when iron reacts with oxygen and water."
+    },
+    {
+      "id": "science-139",
+      "category": "science",
+      "text": "Combustion releases energy as heat and light."
+    },
+    {
+      "id": "science-140",
+      "category": "science",
+      "text": "Conservation of mass applies to ordinary chemical reactions."
+    },
+    {
+      "id": "science-141",
+      "category": "science",
+      "text": "The telescope collects light from distant objects."
+    },
+    {
+      "id": "science-142",
+      "category": "science",
+      "text": "The stars appear to move across the sky."
+    },
+    {
+      "id": "science-143",
+      "category": "science",
+      "text": "Earth's rotation produces day and night."
+    },
+    {
+      "id": "science-144",
+      "category": "science",
+      "text": "Earth's tilted axis causes the seasons."
+    },
+    {
+      "id": "science-145",
+      "category": "science",
+      "text": "The Moon orbits Earth roughly once a month."
+    },
+    {
+      "id": "science-146",
+      "category": "science",
+      "text": "The planets follow elliptical paths around the Sun."
+    },
+    {
+      "id": "science-147",
+      "category": "science",
+      "text": "Jupiter is the largest planet in our solar system."
+    },
+    {
+      "id": "science-148",
+      "category": "science",
+      "text": "Saturn is known for its prominent rings."
+    },
+    {
+      "id": "science-149",
+      "category": "science",
+      "text": "Mars has a thin atmosphere."
+    },
+    {
+      "id": "science-150",
+      "category": "science",
+      "text": "Venus has a very thick atmosphere."
+    },
+    {
+      "id": "science-151",
+      "category": "science",
+      "text": "The Sun is a star in the Milky Way."
+    },
+    {
+      "id": "science-152",
+      "category": "science",
+      "text": "Galaxies contain stars, gas, and dust."
+    },
+    {
+      "id": "science-153",
+      "category": "science",
+      "text": "A light-year measures distance rather than time."
+    },
+    {
+      "id": "science-154",
+      "category": "science",
+      "text": "Space expands on very large scales."
+    },
+    {
+      "id": "science-155",
+      "category": "science",
+      "text": "A black hole has an event horizon."
+    },
+    {
+      "id": "science-156",
+      "category": "science",
+      "text": "Comets can develop tails near the Sun."
+    },
+    {
+      "id": "science-157",
+      "category": "science",
+      "text": "Asteroids are rocky objects orbiting the Sun."
+    },
+    {
+      "id": "science-158",
+      "category": "science",
+      "text": "A meteor produces a streak of light."
+    },
+    {
+      "id": "science-159",
+      "category": "science",
+      "text": "The tides respond to gravitational forces."
+    },
+    {
+      "id": "science-160",
+      "category": "science",
+      "text": "Satellites can monitor changes in Earth's climate."
+    },
+    {
+      "id": "science-161",
+      "category": "science",
+      "text": "Weather describes short-term atmospheric conditions."
+    },
+    {
+      "id": "science-162",
+      "category": "science",
+      "text": "Climate describes patterns over longer periods."
+    },
+    {
+      "id": "science-163",
+      "category": "science",
+      "text": "Humidity measures the amount of water vapor."
+    },
+    {
+      "id": "science-164",
+      "category": "science",
+      "text": "Warm air can hold more water vapor."
+    },
+    {
+      "id": "science-165",
+      "category": "science",
+      "text": "Clouds form when moist air cools."
+    },
+    {
+      "id": "science-166",
+      "category": "science",
+      "text": "Lightning is a powerful electrical discharge."
+    },
+    {
+      "id": "science-167",
+      "category": "science",
+      "text": "Thunder is the sound associated with lightning."
+    },
+    {
+      "id": "science-168",
+      "category": "science",
+      "text": "A thermometer measures temperature."
+    },
+    {
+      "id": "science-169",
+      "category": "science",
+      "text": "A barometer measures atmospheric pressure."
+    },
+    {
+      "id": "science-170",
+      "category": "science",
+      "text": "A microscope reveals structures too small to see directly."
+    },
+    {
+      "id": "science-171",
+      "category": "science",
+      "text": "The scale must be calibrated before use."
+    },
+    {
+      "id": "science-172",
+      "category": "science",
+      "text": "Record the units alongside every measurement."
+    },
+    {
+      "id": "science-173",
+      "category": "science",
+      "text": "The graph shows a steady upward trend."
+    },
+    {
+      "id": "science-174",
+      "category": "science",
+      "text": "The horizontal axis represents elapsed time."
+    },
+    {
+      "id": "science-175",
+      "category": "science",
+      "text": "Error bars indicate uncertainty in the estimates."
+    },
+    {
+      "id": "science-176",
+      "category": "science",
+      "text": "The observations do not match our prediction."
+    },
+    {
+      "id": "science-177",
+      "category": "science",
+      "text": "We need more data before drawing conclusions."
+    },
+    {
+      "id": "science-178",
+      "category": "science",
+      "text": "The procedure should be described in detail."
+    },
+    {
+      "id": "science-179",
+      "category": "science",
+      "text": "Independent researchers should be able to repeat it."
+    },
+    {
+      "id": "science-180",
+      "category": "science",
+      "text": "Peer review helps identify weaknesses in research."
+    },
+    {
+      "id": "science-181",
+      "category": "science",
+      "text": "A model simplifies a more complicated system."
+    },
+    {
+      "id": "science-182",
+      "category": "science",
+      "text": "The simulation depends on its initial conditions."
+    },
+    {
+      "id": "science-183",
+      "category": "science",
+      "text": "Changing one variable makes comparisons easier."
+    },
+    {
+      "id": "science-184",
+      "category": "science",
+      "text": "Keep the other conditions the same."
+    },
+    {
+      "id": "science-185",
+      "category": "science",
+      "text": "Random assignment helps reduce systematic bias."
+    },
+    {
+      "id": "science-186",
+      "category": "science",
+      "text": "The median is the middle value."
+    },
+    {
+      "id": "science-187",
+      "category": "science",
+      "text": "The mean can be affected by extreme values."
+    },
+    {
+      "id": "science-188",
+      "category": "science",
+      "text": "Probability describes how likely an event is."
+    },
+    {
+      "id": "science-189",
+      "category": "science",
+      "text": "The evidence points to several possible explanations."
+    },
+    {
+      "id": "science-190",
+      "category": "science",
+      "text": "Scientific explanations can change with new evidence."
+    },
+    {
+      "id": "science-191",
+      "category": "science",
+      "text": "The next study will test that prediction."
+    },
+    {
+      "id": "entertainment-001",
+      "category": "entertainment",
+      "text": "What should we watch tonight?"
+    },
+    {
+      "id": "entertainment-002",
+      "category": "entertainment",
+      "text": "I've already seen that movie."
+    },
+    {
+      "id": "entertainment-003",
+      "category": "entertainment",
+      "text": "The new season starts next week."
+    },
+    {
+      "id": "entertainment-004",
+      "category": "entertainment",
+      "text": "Please don't spoil the ending."
+    },
+    {
+      "id": "entertainment-005",
+      "category": "entertainment",
+      "text": "I missed the first few minutes."
+    },
+    {
+      "id": "entertainment-006",
+      "category": "entertainment",
+      "text": "Can you turn on the subtitles?"
+    },
+    {
+      "id": "entertainment-007",
+      "category": "entertainment",
+      "text": "The remote is under the couch."
+    },
+    {
+      "id": "entertainment-008",
+      "category": "entertainment",
+      "text": "Let's pause it while I get popcorn."
+    },
+    {
+      "id": "entertainment-009",
+      "category": "entertainment",
+      "text": "This episode is longer than usual."
+    },
+    {
+      "id": "entertainment-010",
+      "category": "entertainment",
+      "text": "I didn't expect that plot twist."
+    },
+    {
+      "id": "entertainment-011",
+      "category": "entertainment",
+      "text": "The main character changes a lot."
+    },
+    {
+      "id": "entertainment-012",
+      "category": "entertainment",
+      "text": "The story is based on a novel."
+    },
+    {
+      "id": "entertainment-013",
+      "category": "entertainment",
+      "text": "I liked the book more than the film."
+    },
+    {
+      "id": "entertainment-014",
+      "category": "entertainment",
+      "text": "The sequel wasn't as good as the original."
+    },
+    {
+      "id": "entertainment-015",
+      "category": "entertainment",
+      "text": "The ending left several questions unanswered."
+    },
+    {
+      "id": "entertainment-016",
+      "category": "entertainment",
+      "text": "That scene made me laugh out loud."
+    },
+    {
+      "id": "entertainment-017",
+      "category": "entertainment",
+      "text": "The opening credits are beautifully animated."
+    },
+    {
+      "id": "entertainment-018",
+      "category": "entertainment",
+      "text": "The special effects look surprisingly realistic."
+    },
+    {
+      "id": "entertainment-019",
+      "category": "entertainment",
+      "text": "The dialogue feels natural and believable."
+    },
+    {
+      "id": "entertainment-020",
+      "category": "entertainment",
+      "text": "The soundtrack fits the mood perfectly."
+    },
+    {
+      "id": "entertainment-021",
+      "category": "entertainment",
+      "text": "Who's playing the lead role?"
+    },
+    {
+      "id": "entertainment-022",
+      "category": "entertainment",
+      "text": "I recognize that actor from somewhere."
+    },
+    {
+      "id": "entertainment-023",
+      "category": "entertainment",
+      "text": "The director also wrote the screenplay."
+    },
+    {
+      "id": "entertainment-024",
+      "category": "entertainment",
+      "text": "They filmed most of it on location."
+    },
+    {
+      "id": "entertainment-025",
+      "category": "entertainment",
+      "text": "The cast has great chemistry together."
+    },
+    {
+      "id": "entertainment-026",
+      "category": "entertainment",
+      "text": "The villain is more interesting than the hero."
+    },
+    {
+      "id": "entertainment-027",
+      "category": "entertainment",
+      "text": "The story takes place in a small town."
+    },
+    {
+      "id": "entertainment-028",
+      "category": "entertainment",
+      "text": "The film jumps between different time periods."
+    },
+    {
+      "id": "entertainment-029",
+      "category": "entertainment",
+      "text": "The final scene brings everything together."
+    },
+    {
+      "id": "entertainment-030",
+      "category": "entertainment",
+      "text": "I'd happily watch that again."
+    },
+    {
+      "id": "entertainment-031",
+      "category": "entertainment",
+      "text": "Are there any tickets left?"
+    },
+    {
+      "id": "entertainment-032",
+      "category": "entertainment",
+      "text": "The show starts at eight tonight."
+    },
+    {
+      "id": "entertainment-033",
+      "category": "entertainment",
+      "text": "We should get there before the doors open."
+    },
+    {
+      "id": "entertainment-034",
+      "category": "entertainment",
+      "text": "Our seats are near the front."
+    },
+    {
+      "id": "entertainment-035",
+      "category": "entertainment",
+      "text": "The theater is almost full already."
+    },
+    {
+      "id": "entertainment-036",
+      "category": "entertainment",
+      "text": "Please silence your phone during the performance."
+    },
+    {
+      "id": "entertainment-037",
+      "category": "entertainment",
+      "text": "The curtain rises after the lights dim."
+    },
+    {
+      "id": "entertainment-038",
+      "category": "entertainment",
+      "text": "There's a short break between acts."
+    },
+    {
+      "id": "entertainment-039",
+      "category": "entertainment",
+      "text": "The audience gave them a standing ovation."
+    },
+    {
+      "id": "entertainment-040",
+      "category": "entertainment",
+      "text": "The actors returned for one final bow."
+    },
+    {
+      "id": "entertainment-041",
+      "category": "entertainment",
+      "text": "I love going to live concerts."
+    },
+    {
+      "id": "entertainment-042",
+      "category": "entertainment",
+      "text": "This band sounds even better in person."
+    },
+    {
+      "id": "entertainment-043",
+      "category": "entertainment",
+      "text": "The opening act was really good."
+    },
+    {
+      "id": "entertainment-044",
+      "category": "entertainment",
+      "text": "They played all my favorite songs."
+    },
+    {
+      "id": "entertainment-045",
+      "category": "entertainment",
+      "text": "The crowd sang along with the chorus."
+    },
+    {
+      "id": "entertainment-046",
+      "category": "entertainment",
+      "text": "The drummer kept a steady beat."
+    },
+    {
+      "id": "entertainment-047",
+      "category": "entertainment",
+      "text": "The guitar solo was the best part."
+    },
+    {
+      "id": "entertainment-048",
+      "category": "entertainment",
+      "text": "The singer has an incredible voice."
+    },
+    {
+      "id": "entertainment-049",
+      "category": "entertainment",
+      "text": "The bass is a little too loud."
+    },
+    {
+      "id": "entertainment-050",
+      "category": "entertainment",
+      "text": "I hope they come back for an encore."
+    },
+    {
+      "id": "entertainment-051",
+      "category": "entertainment",
+      "text": "Have you heard their latest album?"
+    },
+    {
+      "id": "entertainment-052",
+      "category": "entertainment",
+      "text": "This song has been stuck in my head."
+    },
+    {
+      "id": "entertainment-053",
+      "category": "entertainment",
+      "text": "I made a playlist for the drive."
+    },
+    {
+      "id": "entertainment-054",
+      "category": "entertainment",
+      "text": "Can you send me the name of that song?"
+    },
+    {
+      "id": "entertainment-055",
+      "category": "entertainment",
+      "text": "I usually listen to music while cooking."
+    },
+    {
+      "id": "entertainment-056",
+      "category": "entertainment",
+      "text": "The melody sounds familiar to me."
+    },
+    {
+      "id": "entertainment-057",
+      "category": "entertainment",
+      "text": "The lyrics tell a sad story."
+    },
+    {
+      "id": "entertainment-058",
+      "category": "entertainment",
+      "text": "The rhythm makes you want to dance."
+    },
+    {
+      "id": "entertainment-059",
+      "category": "entertainment",
+      "text": "The acoustic version feels more intimate."
+    },
+    {
+      "id": "entertainment-060",
+      "category": "entertainment",
+      "text": "The live recording captures the crowd's energy."
+    },
+    {
+      "id": "entertainment-061",
+      "category": "entertainment",
+      "text": "I'm learning to play the piano."
+    },
+    {
+      "id": "entertainment-062",
+      "category": "entertainment",
+      "text": "Practice the difficult section a little slower."
+    },
+    {
+      "id": "entertainment-063",
+      "category": "entertainment",
+      "text": "The song is in a different key."
+    },
+    {
+      "id": "entertainment-064",
+      "category": "entertainment",
+      "text": "Let's start again from the beginning."
+    },
+    {
+      "id": "entertainment-065",
+      "category": "entertainment",
+      "text": "The chorus repeats after the second verse."
+    },
+    {
+      "id": "entertainment-066",
+      "category": "entertainment",
+      "text": "You need to tune the guitar first."
+    },
+    {
+      "id": "entertainment-067",
+      "category": "entertainment",
+      "text": "The sheet music is on the stand."
+    },
+    {
+      "id": "entertainment-068",
+      "category": "entertainment",
+      "text": "The orchestra follows the conductor's movements."
+    },
+    {
+      "id": "entertainment-069",
+      "category": "entertainment",
+      "text": "The violin carries the main melody."
+    },
+    {
+      "id": "entertainment-070",
+      "category": "entertainment",
+      "text": "The final note fades into silence."
+    },
+    {
+      "id": "entertainment-071",
+      "category": "entertainment",
+      "text": "What are you reading at the moment?"
+    },
+    {
+      "id": "entertainment-072",
+      "category": "entertainment",
+      "text": "I couldn't put that book down."
+    },
+    {
+      "id": "entertainment-073",
+      "category": "entertainment",
+      "text": "The first chapter pulled me right in."
+    },
+    {
+      "id": "entertainment-074",
+      "category": "entertainment",
+      "text": "I'm about halfway through the novel."
+    },
+    {
+      "id": "entertainment-075",
+      "category": "entertainment",
+      "text": "The narrator isn't entirely reliable."
+    },
+    {
+      "id": "entertainment-076",
+      "category": "entertainment",
+      "text": "The author has a wonderful sense of humor."
+    },
+    {
+      "id": "entertainment-077",
+      "category": "entertainment",
+      "text": "Each chapter follows a different character."
+    },
+    {
+      "id": "entertainment-078",
+      "category": "entertainment",
+      "text": "The mystery unfolds at a steady pace."
+    },
+    {
+      "id": "entertainment-079",
+      "category": "entertainment",
+      "text": "The ending was worth the wait."
+    },
+    {
+      "id": "entertainment-080",
+      "category": "entertainment",
+      "text": "I'll lend you my copy when I'm finished."
+    },
+    {
+      "id": "entertainment-081",
+      "category": "entertainment",
+      "text": "The library has a waiting list for it."
+    },
+    {
+      "id": "entertainment-082",
+      "category": "entertainment",
+      "text": "The paperback edition comes out soon."
+    },
+    {
+      "id": "entertainment-083",
+      "category": "entertainment",
+      "text": "I prefer reading before going to bed."
+    },
+    {
+      "id": "entertainment-084",
+      "category": "entertainment",
+      "text": "The audiobook is narrated by the author."
+    },
+    {
+      "id": "entertainment-085",
+      "category": "entertainment",
+      "text": "The short stories share a common theme."
+    },
+    {
+      "id": "entertainment-086",
+      "category": "entertainment",
+      "text": "The poem uses a simple rhyme scheme."
+    },
+    {
+      "id": "entertainment-087",
+      "category": "entertainment",
+      "text": "The characters feel like real people."
+    },
+    {
+      "id": "entertainment-088",
+      "category": "entertainment",
+      "text": "The setting is described in vivid detail."
+    },
+    {
+      "id": "entertainment-089",
+      "category": "entertainment",
+      "text": "I marked a passage I wanted to remember."
+    },
+    {
+      "id": "entertainment-090",
+      "category": "entertainment",
+      "text": "Our book club meets once a month."
+    },
+    {
+      "id": "entertainment-091",
+      "category": "entertainment",
+      "text": "Do you want to play a game?"
+    },
+    {
+      "id": "entertainment-092",
+      "category": "entertainment",
+      "text": "It's your turn to roll the dice."
+    },
+    {
+      "id": "entertainment-093",
+      "category": "entertainment",
+      "text": "You need three more points to win."
+    },
+    {
+      "id": "entertainment-094",
+      "category": "entertainment",
+      "text": "Let's read the rules before we start."
+    },
+    {
+      "id": "entertainment-095",
+      "category": "entertainment",
+      "text": "I'll shuffle the cards this time."
+    },
+    {
+      "id": "entertainment-096",
+      "category": "entertainment",
+      "text": "Deal five cards to each player."
+    },
+    {
+      "id": "entertainment-097",
+      "category": "entertainment",
+      "text": "Keep your cards hidden from everyone else."
+    },
+    {
+      "id": "entertainment-098",
+      "category": "entertainment",
+      "text": "We can play another round after dinner."
+    },
+    {
+      "id": "entertainment-099",
+      "category": "entertainment",
+      "text": "That was a really close game."
+    },
+    {
+      "id": "entertainment-100",
+      "category": "entertainment",
+      "text": "I think we should call it a draw."
+    },
+    {
+      "id": "entertainment-101",
+      "category": "entertainment",
+      "text": "The puzzle is missing a piece."
+    },
+    {
+      "id": "entertainment-102",
+      "category": "entertainment",
+      "text": "Start with the pieces around the edge."
+    },
+    {
+      "id": "entertainment-103",
+      "category": "entertainment",
+      "text": "This clue has more than one meaning."
+    },
+    {
+      "id": "entertainment-104",
+      "category": "entertainment",
+      "text": "I finally solved the last question."
+    },
+    {
+      "id": "entertainment-105",
+      "category": "entertainment",
+      "text": "The board folds up for easy storage."
+    },
+    {
+      "id": "entertainment-106",
+      "category": "entertainment",
+      "text": "We need an even number of players."
+    },
+    {
+      "id": "entertainment-107",
+      "category": "entertainment",
+      "text": "You can join our team for this round."
+    },
+    {
+      "id": "entertainment-108",
+      "category": "entertainment",
+      "text": "Let's keep score on a piece of paper."
+    },
+    {
+      "id": "entertainment-109",
+      "category": "entertainment",
+      "text": "The winner gets to choose the next game."
+    },
+    {
+      "id": "entertainment-110",
+      "category": "entertainment",
+      "text": "It's more fun when everyone joins in."
+    },
+    {
+      "id": "entertainment-111",
+      "category": "entertainment",
+      "text": "The game is still downloading."
+    },
+    {
+      "id": "entertainment-112",
+      "category": "entertainment",
+      "text": "I need to charge the controller."
+    },
+    {
+      "id": "entertainment-113",
+      "category": "entertainment",
+      "text": "Save your progress before you quit."
+    },
+    {
+      "id": "entertainment-114",
+      "category": "entertainment",
+      "text": "The next level is much harder."
+    },
+    {
+      "id": "entertainment-115",
+      "category": "entertainment",
+      "text": "I found a shortcut through the forest."
+    },
+    {
+      "id": "entertainment-116",
+      "category": "entertainment",
+      "text": "The boss has a second phase."
+    },
+    {
+      "id": "entertainment-117",
+      "category": "entertainment",
+      "text": "You can change the difficulty in settings."
+    },
+    {
+      "id": "entertainment-118",
+      "category": "entertainment",
+      "text": "Let's try playing together online."
+    },
+    {
+      "id": "entertainment-119",
+      "category": "entertainment",
+      "text": "My character needs better equipment."
+    },
+    {
+      "id": "entertainment-120",
+      "category": "entertainment",
+      "text": "The update adds a new map."
+    },
+    {
+      "id": "entertainment-121",
+      "category": "entertainment",
+      "text": "The server is full right now."
+    },
+    {
+      "id": "entertainment-122",
+      "category": "entertainment",
+      "text": "I'll invite you when there's space."
+    },
+    {
+      "id": "entertainment-123",
+      "category": "entertainment",
+      "text": "We almost beat our previous record."
+    },
+    {
+      "id": "entertainment-124",
+      "category": "entertainment",
+      "text": "The tutorial explains the basic controls."
+    },
+    {
+      "id": "entertainment-125",
+      "category": "entertainment",
+      "text": "You unlock that ability later in the story."
+    },
+    {
+      "id": "entertainment-126",
+      "category": "entertainment",
+      "text": "The graphics look great on this screen."
+    },
+    {
+      "id": "entertainment-127",
+      "category": "entertainment",
+      "text": "The game runs smoothly on my laptop."
+    },
+    {
+      "id": "entertainment-128",
+      "category": "entertainment",
+      "text": "I prefer games with a strong story."
+    },
+    {
+      "id": "entertainment-129",
+      "category": "entertainment",
+      "text": "The side quests are surprisingly interesting."
+    },
+    {
+      "id": "entertainment-130",
+      "category": "entertainment",
+      "text": "Let's take a break after this match."
+    },
+    {
+      "id": "entertainment-131",
+      "category": "entertainment",
+      "text": "Did you watch the game last night?"
+    },
+    {
+      "id": "entertainment-132",
+      "category": "entertainment",
+      "text": "The score was tied at halftime."
+    },
+    {
+      "id": "entertainment-133",
+      "category": "entertainment",
+      "text": "Our team scored in the final minute."
+    },
+    {
+      "id": "entertainment-134",
+      "category": "entertainment",
+      "text": "The referee called a foul."
+    },
+    {
+      "id": "entertainment-135",
+      "category": "entertainment",
+      "text": "That was an amazing save."
+    },
+    {
+      "id": "entertainment-136",
+      "category": "entertainment",
+      "text": "The crowd cheered as the players returned."
+    },
+    {
+      "id": "entertainment-137",
+      "category": "entertainment",
+      "text": "The match went into extra time."
+    },
+    {
+      "id": "entertainment-138",
+      "category": "entertainment",
+      "text": "The coach made a late substitution."
+    },
+    {
+      "id": "entertainment-139",
+      "category": "entertainment",
+      "text": "They won three games in a row."
+    },
+    {
+      "id": "entertainment-140",
+      "category": "entertainment",
+      "text": "The final will be played on Sunday."
+    },
+    {
+      "id": "entertainment-141",
+      "category": "entertainment",
+      "text": "I bought a ticket for the festival."
+    },
+    {
+      "id": "entertainment-142",
+      "category": "entertainment",
+      "text": "There are three stages in the park."
+    },
+    {
+      "id": "entertainment-143",
+      "category": "entertainment",
+      "text": "The schedule is posted near the entrance."
+    },
+    {
+      "id": "entertainment-144",
+      "category": "entertainment",
+      "text": "Let's meet by the food stalls."
+    },
+    {
+      "id": "entertainment-145",
+      "category": "entertainment",
+      "text": "The fireworks start after sunset."
+    },
+    {
+      "id": "entertainment-146",
+      "category": "entertainment",
+      "text": "Bring a blanket to sit on."
+    },
+    {
+      "id": "entertainment-147",
+      "category": "entertainment",
+      "text": "The parade goes through the town center."
+    },
+    {
+      "id": "entertainment-148",
+      "category": "entertainment",
+      "text": "The costumes are bright and colorful."
+    },
+    {
+      "id": "entertainment-149",
+      "category": "entertainment",
+      "text": "The street performers drew a large crowd."
+    },
+    {
+      "id": "entertainment-150",
+      "category": "entertainment",
+      "text": "The whole neighborhood joined the celebration."
+    },
+    {
+      "id": "entertainment-151",
+      "category": "entertainment",
+      "text": "There's a new exhibition at the museum."
+    },
+    {
+      "id": "entertainment-152",
+      "category": "entertainment",
+      "text": "The gallery is free on certain days."
+    },
+    {
+      "id": "entertainment-153",
+      "category": "entertainment",
+      "text": "This painting looks different up close."
+    },
+    {
+      "id": "entertainment-154",
+      "category": "entertainment",
+      "text": "The artist uses light and shadow beautifully."
+    },
+    {
+      "id": "entertainment-155",
+      "category": "entertainment",
+      "text": "The sculpture is made from recycled materials."
+    },
+    {
+      "id": "entertainment-156",
+      "category": "entertainment",
+      "text": "The audio guide explains the historical context."
+    },
+    {
+      "id": "entertainment-157",
+      "category": "entertainment",
+      "text": "Please don't touch the artwork."
+    },
+    {
+      "id": "entertainment-158",
+      "category": "entertainment",
+      "text": "The photographs tell a powerful story."
+    },
+    {
+      "id": "entertainment-159",
+      "category": "entertainment",
+      "text": "I bought a postcard from the gift shop."
+    },
+    {
+      "id": "entertainment-160",
+      "category": "entertainment",
+      "text": "Let's spend a little longer in this room."
+    },
+    {
+      "id": "entertainment-161",
+      "category": "entertainment",
+      "text": "I'm taking a beginner's drawing class."
+    },
+    {
+      "id": "entertainment-162",
+      "category": "entertainment",
+      "text": "The sketch needs a stronger outline."
+    },
+    {
+      "id": "entertainment-163",
+      "category": "entertainment",
+      "text": "Mix the colors on the palette first."
+    },
+    {
+      "id": "entertainment-164",
+      "category": "entertainment",
+      "text": "Wait for the paint to dry."
+    },
+    {
+      "id": "entertainment-165",
+      "category": "entertainment",
+      "text": "The light is better near the window."
+    },
+    {
+      "id": "entertainment-166",
+      "category": "entertainment",
+      "text": "I brought my camera to the park."
+    },
+    {
+      "id": "entertainment-167",
+      "category": "entertainment",
+      "text": "Try taking the picture from another angle."
+    },
+    {
+      "id": "entertainment-168",
+      "category": "entertainment",
+      "text": "The background is slightly out of focus."
+    },
+    {
+      "id": "entertainment-169",
+      "category": "entertainment",
+      "text": "That would make a lovely portrait."
+    },
+    {
+      "id": "entertainment-170",
+      "category": "entertainment",
+      "text": "I'll print a copy for you."
+    },
+    {
+      "id": "entertainment-171",
+      "category": "entertainment",
+      "text": "The podcast episode came out this morning."
+    },
+    {
+      "id": "entertainment-172",
+      "category": "entertainment",
+      "text": "The host asks some thoughtful questions."
+    },
+    {
+      "id": "entertainment-173",
+      "category": "entertainment",
+      "text": "I listen to it on my commute."
+    },
+    {
+      "id": "entertainment-174",
+      "category": "entertainment",
+      "text": "The interview runs for almost an hour."
+    },
+    {
+      "id": "entertainment-175",
+      "category": "entertainment",
+      "text": "They explain the topic without much jargon."
+    },
+    {
+      "id": "entertainment-176",
+      "category": "entertainment",
+      "text": "You can skip the introduction if you want."
+    },
+    {
+      "id": "entertainment-177",
+      "category": "entertainment",
+      "text": "The next episode continues the story."
+    },
+    {
+      "id": "entertainment-178",
+      "category": "entertainment",
+      "text": "I sent you a link to the recording."
+    },
+    {
+      "id": "entertainment-179",
+      "category": "entertainment",
+      "text": "The comedian had excellent timing."
+    },
+    {
+      "id": "entertainment-180",
+      "category": "entertainment",
+      "text": "The joke landed better than I expected."
+    },
+    {
+      "id": "entertainment-181",
+      "category": "entertainment",
+      "text": "The audience was laughing the whole time."
+    },
+    {
+      "id": "entertainment-182",
+      "category": "entertainment",
+      "text": "The magic trick looked impossible."
+    },
+    {
+      "id": "entertainment-183",
+      "category": "entertainment",
+      "text": "I have no idea how they did that."
+    },
+    {
+      "id": "entertainment-184",
+      "category": "entertainment",
+      "text": "The talent show had some impressive performances."
+    },
+    {
+      "id": "entertainment-185",
+      "category": "entertainment",
+      "text": "The dance routine took weeks to rehearse."
+    },
+    {
+      "id": "entertainment-186",
+      "category": "entertainment",
+      "text": "Everyone clapped along to the music."
+    },
+    {
+      "id": "entertainment-187",
+      "category": "entertainment",
+      "text": "The final performance was the highlight."
+    },
+    {
+      "id": "entertainment-188",
+      "category": "entertainment",
+      "text": "Let's check the reviews before booking."
+    },
+    {
+      "id": "entertainment-189",
+      "category": "entertainment",
+      "text": "I'd recommend it to anyone who likes mysteries."
+    },
+    {
+      "id": "entertainment-190",
+      "category": "entertainment",
+      "text": "That was a fun way to spend an evening."
+    },
+    {
+      "id": "entertainment-191",
+      "category": "entertainment",
+      "text": "We should come back here sometime."
+    },
+    {
+      "id": "work-001",
+      "category": "work",
+      "text": "Please find the report attached."
+    },
+    {
+      "id": "work-002",
+      "category": "work",
+      "text": "Let me know if you have any questions."
+    },
+    {
+      "id": "work-003",
+      "category": "work",
+      "text": "Thank you for your quick response."
+    },
+    {
+      "id": "work-004",
+      "category": "work",
+      "text": "I'm following up on our earlier conversation."
+    },
+    {
+      "id": "work-005",
+      "category": "work",
+      "text": "Could we schedule a meeting this week?"
+    },
+    {
+      "id": "work-006",
+      "category": "work",
+      "text": "I'll send a calendar invitation shortly."
+    },
+    {
+      "id": "work-007",
+      "category": "work",
+      "text": "The agenda is in the shared folder."
+    },
+    {
+      "id": "work-008",
+      "category": "work",
+      "text": "Let's start with the most urgent item."
+    },
+    {
+      "id": "work-009",
+      "category": "work",
+      "text": "We have a lot to cover today."
+    },
+    {
+      "id": "work-010",
+      "category": "work",
+      "text": "Please keep your updates brief."
+    },
+    {
+      "id": "work-011",
+      "category": "work",
+      "text": "Can everyone see my screen?"
+    },
+    {
+      "id": "work-012",
+      "category": "work",
+      "text": "Your microphone is still muted."
+    },
+    {
+      "id": "work-013",
+      "category": "work",
+      "text": "I'll share the slides after the call."
+    },
+    {
+      "id": "work-014",
+      "category": "work",
+      "text": "We lost you for a moment."
+    },
+    {
+      "id": "work-015",
+      "category": "work",
+      "text": "Could you repeat the last point?"
+    },
+    {
+      "id": "work-016",
+      "category": "work",
+      "text": "Let's move on to the next topic."
+    },
+    {
+      "id": "work-017",
+      "category": "work",
+      "text": "I'll make a note of that."
+    },
+    {
+      "id": "work-018",
+      "category": "work",
+      "text": "Who will take the meeting minutes?"
+    },
+    {
+      "id": "work-019",
+      "category": "work",
+      "text": "We should leave time for questions."
+    },
+    {
+      "id": "work-020",
+      "category": "work",
+      "text": "Thanks everyone for joining today."
+    },
+    {
+      "id": "work-021",
+      "category": "work",
+      "text": "The deadline has moved to Friday."
+    },
+    {
+      "id": "work-022",
+      "category": "work",
+      "text": "We need a realistic delivery date."
+    },
+    {
+      "id": "work-023",
+      "category": "work",
+      "text": "The project is running ahead of schedule."
+    },
+    {
+      "id": "work-024",
+      "category": "work",
+      "text": "We're waiting for feedback from the client."
+    },
+    {
+      "id": "work-025",
+      "category": "work",
+      "text": "I'll check with the rest of the team."
+    },
+    {
+      "id": "work-026",
+      "category": "work",
+      "text": "This task depends on the previous one."
+    },
+    {
+      "id": "work-027",
+      "category": "work",
+      "text": "Let's break it into smaller steps."
+    },
+    {
+      "id": "work-028",
+      "category": "work",
+      "text": "We should clarify the requirements first."
+    },
+    {
+      "id": "work-029",
+      "category": "work",
+      "text": "The scope has changed since our last meeting."
+    },
+    {
+      "id": "work-030",
+      "category": "work",
+      "text": "Please flag any risks as soon as possible."
+    },
+    {
+      "id": "work-031",
+      "category": "work",
+      "text": "I need your approval before proceeding."
+    },
+    {
+      "id": "work-032",
+      "category": "work",
+      "text": "The budget includes a small contingency."
+    },
+    {
+      "id": "work-033",
+      "category": "work",
+      "text": "We should review the estimated costs."
+    },
+    {
+      "id": "work-034",
+      "category": "work",
+      "text": "The invoice is due at the end of the month."
+    },
+    {
+      "id": "work-035",
+      "category": "work",
+      "text": "Please confirm that you received the payment."
+    },
+    {
+      "id": "work-036",
+      "category": "work",
+      "text": "The purchase order needs a signature."
+    },
+    {
+      "id": "work-037",
+      "category": "work",
+      "text": "I'll forward this to the finance team."
+    },
+    {
+      "id": "work-038",
+      "category": "work",
+      "text": "We need to keep a copy for our records."
+    },
+    {
+      "id": "work-039",
+      "category": "work",
+      "text": "The expense report is ready for review."
+    },
+    {
+      "id": "work-040",
+      "category": "work",
+      "text": "The totals don't match the previous version."
+    },
+    {
+      "id": "work-041",
+      "category": "work",
+      "text": "Can you take a look at this draft?"
+    },
+    {
+      "id": "work-042",
+      "category": "work",
+      "text": "I'd appreciate your feedback on the proposal."
+    },
+    {
+      "id": "work-043",
+      "category": "work",
+      "text": "The introduction could be a little shorter."
+    },
+    {
+      "id": "work-044",
+      "category": "work",
+      "text": "Please double-check the figures in the table."
+    },
+    {
+      "id": "work-045",
+      "category": "work",
+      "text": "The document needs one more revision."
+    },
+    {
+      "id": "work-046",
+      "category": "work",
+      "text": "I've highlighted the sections that changed."
+    },
+    {
+      "id": "work-047",
+      "category": "work",
+      "text": "Let's use the same format throughout."
+    },
+    {
+      "id": "work-048",
+      "category": "work",
+      "text": "The latest version is in the shared drive."
+    },
+    {
+      "id": "work-049",
+      "category": "work",
+      "text": "Please add your comments by tomorrow afternoon."
+    },
+    {
+      "id": "work-050",
+      "category": "work",
+      "text": "I'll incorporate the feedback before sending it."
+    },
+    {
+      "id": "work-051",
+      "category": "work",
+      "text": "We should confirm the customer's expectations."
+    },
+    {
+      "id": "work-052",
+      "category": "work",
+      "text": "The client asked for a simpler explanation."
+    },
+    {
+      "id": "work-053",
+      "category": "work",
+      "text": "I think we can offer an alternative."
+    },
+    {
+      "id": "work-054",
+      "category": "work",
+      "text": "Let's discuss the available options with them."
+    },
+    {
+      "id": "work-055",
+      "category": "work",
+      "text": "The customer has already approved the design."
+    },
+    {
+      "id": "work-056",
+      "category": "work",
+      "text": "We're still waiting on the final details."
+    },
+    {
+      "id": "work-057",
+      "category": "work",
+      "text": "Please keep me copied on the conversation."
+    },
+    {
+      "id": "work-058",
+      "category": "work",
+      "text": "I'll arrange a follow-up call next week."
+    },
+    {
+      "id": "work-059",
+      "category": "work",
+      "text": "Thanks for your patience while we resolve this."
+    },
+    {
+      "id": "work-060",
+      "category": "work",
+      "text": "We appreciate the opportunity to work together."
+    },
+    {
+      "id": "work-061",
+      "category": "work",
+      "text": "I'm working from home today."
+    },
+    {
+      "id": "work-062",
+      "category": "work",
+      "text": "I'll be in the office tomorrow morning."
+    },
+    {
+      "id": "work-063",
+      "category": "work",
+      "text": "My afternoon is fully booked."
+    },
+    {
+      "id": "work-064",
+      "category": "work",
+      "text": "I'm available after three o'clock."
+    },
+    {
+      "id": "work-065",
+      "category": "work",
+      "text": "Could we move the meeting back an hour?"
+    },
+    {
+      "id": "work-066",
+      "category": "work",
+      "text": "That time works well for me."
+    },
+    {
+      "id": "work-067",
+      "category": "work",
+      "text": "I'll be out of the office next week."
+    },
+    {
+      "id": "work-068",
+      "category": "work",
+      "text": "Please contact my colleague while I'm away."
+    },
+    {
+      "id": "work-069",
+      "category": "work",
+      "text": "I'll reply when I return on Monday."
+    },
+    {
+      "id": "work-070",
+      "category": "work",
+      "text": "There's an automatic reply on my email."
+    },
+    {
+      "id": "work-071",
+      "category": "work",
+      "text": "The team has made good progress."
+    },
+    {
+      "id": "work-072",
+      "category": "work",
+      "text": "We reached an important milestone today."
+    },
+    {
+      "id": "work-073",
+      "category": "work",
+      "text": "There's still some work left to do."
+    },
+    {
+      "id": "work-074",
+      "category": "work",
+      "text": "Let's focus on the highest priority first."
+    },
+    {
+      "id": "work-075",
+      "category": "work",
+      "text": "We need to agree on the next steps."
+    },
+    {
+      "id": "work-076",
+      "category": "work",
+      "text": "I'll take responsibility for that part."
+    },
+    {
+      "id": "work-077",
+      "category": "work",
+      "text": "Who owns the final decision?"
+    },
+    {
+      "id": "work-078",
+      "category": "work",
+      "text": "Let's make sure nothing falls through the cracks."
+    },
+    {
+      "id": "work-079",
+      "category": "work",
+      "text": "I'll send a summary of our discussion."
+    },
+    {
+      "id": "work-080",
+      "category": "work",
+      "text": "Please update the task when it's finished."
+    },
+    {
+      "id": "work-081",
+      "category": "work",
+      "text": "We need someone to cover the morning shift."
+    },
+    {
+      "id": "work-082",
+      "category": "work",
+      "text": "The new schedule starts next Monday."
+    },
+    {
+      "id": "work-083",
+      "category": "work",
+      "text": "Please submit your timesheet before leaving."
+    },
+    {
+      "id": "work-084",
+      "category": "work",
+      "text": "The training session is mandatory for new staff."
+    },
+    {
+      "id": "work-085",
+      "category": "work",
+      "text": "Your badge should open the main entrance."
+    },
+    {
+      "id": "work-086",
+      "category": "work",
+      "text": "The meeting room is on the second floor."
+    },
+    {
+      "id": "work-087",
+      "category": "work",
+      "text": "You can reserve a desk through the calendar."
+    },
+    {
+      "id": "work-088",
+      "category": "work",
+      "text": "Office supplies are in the storage cupboard."
+    },
+    {
+      "id": "work-089",
+      "category": "work",
+      "text": "Please leave the room tidy for the next group."
+    },
+    {
+      "id": "work-090",
+      "category": "work",
+      "text": "The printer is out of paper again."
+    },
+    {
+      "id": "work-091",
+      "category": "work",
+      "text": "Welcome to the team."
+    },
+    {
+      "id": "work-092",
+      "category": "work",
+      "text": "We're glad to have you here."
+    },
+    {
+      "id": "work-093",
+      "category": "work",
+      "text": "I'll introduce you to your coworkers."
+    },
+    {
+      "id": "work-094",
+      "category": "work",
+      "text": "Your manager will explain the onboarding plan."
+    },
+    {
+      "id": "work-095",
+      "category": "work",
+      "text": "Let me know if you need any equipment."
+    },
+    {
+      "id": "work-096",
+      "category": "work",
+      "text": "The handbook answers many common questions."
+    },
+    {
+      "id": "work-097",
+      "category": "work",
+      "text": "You should receive your login details soon."
+    },
+    {
+      "id": "work-098",
+      "category": "work",
+      "text": "We'll arrange some time to walk through everything."
+    },
+    {
+      "id": "work-099",
+      "category": "work",
+      "text": "Don't hesitate to ask for help."
+    },
+    {
+      "id": "work-100",
+      "category": "work",
+      "text": "It takes time to learn a new role."
+    },
+    {
+      "id": "work-101",
+      "category": "work",
+      "text": "The job description lists the required skills."
+    },
+    {
+      "id": "work-102",
+      "category": "work",
+      "text": "We received several strong applications."
+    },
+    {
+      "id": "work-103",
+      "category": "work",
+      "text": "The interviews will take place next week."
+    },
+    {
+      "id": "work-104",
+      "category": "work",
+      "text": "Please prepare a few questions for the candidate."
+    },
+    {
+      "id": "work-105",
+      "category": "work",
+      "text": "We should use consistent evaluation criteria."
+    },
+    {
+      "id": "work-106",
+      "category": "work",
+      "text": "The hiring manager will make the final decision."
+    },
+    {
+      "id": "work-107",
+      "category": "work",
+      "text": "We'd like to invite you for another interview."
+    },
+    {
+      "id": "work-108",
+      "category": "work",
+      "text": "Thank you for your interest in the position."
+    },
+    {
+      "id": "work-109",
+      "category": "work",
+      "text": "Could you provide two professional references?"
+    },
+    {
+      "id": "work-110",
+      "category": "work",
+      "text": "We look forward to hearing from you."
+    },
+    {
+      "id": "work-111",
+      "category": "work",
+      "text": "Let's review what went well this quarter."
+    },
+    {
+      "id": "work-112",
+      "category": "work",
+      "text": "We should also discuss what could improve."
+    },
+    {
+      "id": "work-113",
+      "category": "work",
+      "text": "The results were better than expected."
+    },
+    {
+      "id": "work-114",
+      "category": "work",
+      "text": "We fell short of our original target."
+    },
+    {
+      "id": "work-115",
+      "category": "work",
+      "text": "What did we learn from this project?"
+    },
+    {
+      "id": "work-116",
+      "category": "work",
+      "text": "The process could be more efficient."
+    },
+    {
+      "id": "work-117",
+      "category": "work",
+      "text": "Let's remove the steps that add little value."
+    },
+    {
+      "id": "work-118",
+      "category": "work",
+      "text": "We need a clearer way to track progress."
+    },
+    {
+      "id": "work-119",
+      "category": "work",
+      "text": "Regular check-ins would help us stay aligned."
+    },
+    {
+      "id": "work-120",
+      "category": "work",
+      "text": "I'll document the agreed changes."
+    },
+    {
+      "id": "work-121",
+      "category": "work",
+      "text": "The presentation needs a stronger opening."
+    },
+    {
+      "id": "work-122",
+      "category": "work",
+      "text": "Keep the main message on the first slide."
+    },
+    {
+      "id": "work-123",
+      "category": "work",
+      "text": "We should include a concrete example."
+    },
+    {
+      "id": "work-124",
+      "category": "work",
+      "text": "The chart is difficult to read at this size."
+    },
+    {
+      "id": "work-125",
+      "category": "work",
+      "text": "Let's avoid putting too much text on screen."
+    },
+    {
+      "id": "work-126",
+      "category": "work",
+      "text": "I'll rehearse the timing before the meeting."
+    },
+    {
+      "id": "work-127",
+      "category": "work",
+      "text": "Please introduce yourself before asking a question."
+    },
+    {
+      "id": "work-128",
+      "category": "work",
+      "text": "We can discuss the details afterward."
+    },
+    {
+      "id": "work-129",
+      "category": "work",
+      "text": "The audience may need more background information."
+    },
+    {
+      "id": "work-130",
+      "category": "work",
+      "text": "Let's end with a clear recommendation."
+    },
+    {
+      "id": "work-131",
+      "category": "work",
+      "text": "Could you confirm the delivery address?"
+    },
+    {
+      "id": "work-132",
+      "category": "work",
+      "text": "The shipment has been delayed in transit."
+    },
+    {
+      "id": "work-133",
+      "category": "work",
+      "text": "We're checking with the supplier for an update."
+    },
+    {
+      "id": "work-134",
+      "category": "work",
+      "text": "The replacement should arrive early next week."
+    },
+    {
+      "id": "work-135",
+      "category": "work",
+      "text": "Please inspect the items when they arrive."
+    },
+    {
+      "id": "work-136",
+      "category": "work",
+      "text": "One of the boxes was damaged."
+    },
+    {
+      "id": "work-137",
+      "category": "work",
+      "text": "The order number is on the receipt."
+    },
+    {
+      "id": "work-138",
+      "category": "work",
+      "text": "I'll arrange for the missing item to be sent."
+    },
+    {
+      "id": "work-139",
+      "category": "work",
+      "text": "We need to update the inventory records."
+    },
+    {
+      "id": "work-140",
+      "category": "work",
+      "text": "The warehouse closes at five today."
+    },
+    {
+      "id": "work-141",
+      "category": "work",
+      "text": "Please treat this information as confidential."
+    },
+    {
+      "id": "work-142",
+      "category": "work",
+      "text": "We should check the policy before sharing it."
+    },
+    {
+      "id": "work-143",
+      "category": "work",
+      "text": "The contract is still under review."
+    },
+    {
+      "id": "work-144",
+      "category": "work",
+      "text": "Legal has asked for a few changes."
+    },
+    {
+      "id": "work-145",
+      "category": "work",
+      "text": "We need to keep the original signed copy."
+    },
+    {
+      "id": "work-146",
+      "category": "work",
+      "text": "The renewal date is approaching."
+    },
+    {
+      "id": "work-147",
+      "category": "work",
+      "text": "Let's compare the terms with the previous agreement."
+    },
+    {
+      "id": "work-148",
+      "category": "work",
+      "text": "The vendor has confirmed the new pricing."
+    },
+    {
+      "id": "work-149",
+      "category": "work",
+      "text": "I'll ask whether a discount is available."
+    },
+    {
+      "id": "work-150",
+      "category": "work",
+      "text": "We should get the agreement in writing."
+    },
+    {
+      "id": "work-151",
+      "category": "work",
+      "text": "I have a conflict at that time."
+    },
+    {
+      "id": "work-152",
+      "category": "work",
+      "text": "Can someone else lead the discussion?"
+    },
+    {
+      "id": "work-153",
+      "category": "work",
+      "text": "I'll read the notes afterward."
+    },
+    {
+      "id": "work-154",
+      "category": "work",
+      "text": "Please send any urgent issues directly to me."
+    },
+    {
+      "id": "work-155",
+      "category": "work",
+      "text": "That request is outside the current scope."
+    },
+    {
+      "id": "work-156",
+      "category": "work",
+      "text": "We can consider it for the next phase."
+    },
+    {
+      "id": "work-157",
+      "category": "work",
+      "text": "Let's estimate the effort before committing."
+    },
+    {
+      "id": "work-158",
+      "category": "work",
+      "text": "The change may affect the launch date."
+    },
+    {
+      "id": "work-159",
+      "category": "work",
+      "text": "We should explain the tradeoff to the client."
+    },
+    {
+      "id": "work-160",
+      "category": "work",
+      "text": "I'll prepare a revised timeline."
+    },
+    {
+      "id": "work-161",
+      "category": "work",
+      "text": "The survey responses are anonymous."
+    },
+    {
+      "id": "work-162",
+      "category": "work",
+      "text": "We want honest feedback from the team."
+    },
+    {
+      "id": "work-163",
+      "category": "work",
+      "text": "The most common concern was workload."
+    },
+    {
+      "id": "work-164",
+      "category": "work",
+      "text": "We need to distribute the tasks more evenly."
+    },
+    {
+      "id": "work-165",
+      "category": "work",
+      "text": "Please tell your manager if you're overloaded."
+    },
+    {
+      "id": "work-166",
+      "category": "work",
+      "text": "Taking regular breaks can help you stay focused."
+    },
+    {
+      "id": "work-167",
+      "category": "work",
+      "text": "Let's avoid scheduling meetings over lunch."
+    },
+    {
+      "id": "work-168",
+      "category": "work",
+      "text": "We should respect each other's working hours."
+    },
+    {
+      "id": "work-169",
+      "category": "work",
+      "text": "There's no expectation to reply tonight."
+    },
+    {
+      "id": "work-170",
+      "category": "work",
+      "text": "This can wait until tomorrow morning."
+    },
+    {
+      "id": "work-171",
+      "category": "work",
+      "text": "Thanks for taking the initiative on this."
+    },
+    {
+      "id": "work-172",
+      "category": "work",
+      "text": "Your attention to detail made a difference."
+    },
+    {
+      "id": "work-173",
+      "category": "work",
+      "text": "I appreciate the extra effort you put in."
+    },
+    {
+      "id": "work-174",
+      "category": "work",
+      "text": "The whole team contributed to this result."
+    },
+    {
+      "id": "work-175",
+      "category": "work",
+      "text": "Let's recognize everyone who helped."
+    },
+    {
+      "id": "work-176",
+      "category": "work",
+      "text": "That was a useful suggestion."
+    },
+    {
+      "id": "work-177",
+      "category": "work",
+      "text": "We should share this approach with other teams."
+    },
+    {
+      "id": "work-178",
+      "category": "work",
+      "text": "I'll add it to our internal guide."
+    },
+    {
+      "id": "work-179",
+      "category": "work",
+      "text": "The handover notes are almost complete."
+    },
+    {
+      "id": "work-180",
+      "category": "work",
+      "text": "Please check that you have access to everything."
+    },
+    {
+      "id": "work-181",
+      "category": "work",
+      "text": "We're ready to begin the next phase."
+    },
+    {
+      "id": "work-182",
+      "category": "work",
+      "text": "The launch checklist still has two open items."
+    },
+    {
+      "id": "work-183",
+      "category": "work",
+      "text": "I'll confirm once the final checks are done."
+    },
+    {
+      "id": "work-184",
+      "category": "work",
+      "text": "Let's keep the rollout small at first."
+    },
+    {
+      "id": "work-185",
+      "category": "work",
+      "text": "We can expand it after reviewing the feedback."
+    },
+    {
+      "id": "work-186",
+      "category": "work",
+      "text": "The support team needs a copy of the announcement."
+    },
+    {
+      "id": "work-187",
+      "category": "work",
+      "text": "Please send the update to the project channel."
+    },
+    {
+      "id": "work-188",
+      "category": "work",
+      "text": "I'll archive the old files after approval."
+    },
+    {
+      "id": "work-189",
+      "category": "work",
+      "text": "We should schedule a retrospective next week."
+    },
+    {
+      "id": "work-190",
+      "category": "work",
+      "text": "Thank you all for your hard work."
+    },
+    {
+      "id": "work-191",
+      "category": "work",
+      "text": "Let's close the meeting here."
+    },
+    {
+      "id": "technology-001",
+      "category": "technology",
+      "text": "My laptop needs to be charged."
+    },
+    {
+      "id": "technology-002",
+      "category": "technology",
+      "text": "The battery is almost empty."
+    },
+    {
+      "id": "technology-003",
+      "category": "technology",
+      "text": "Plug the charger into the wall."
+    },
+    {
+      "id": "technology-004",
+      "category": "technology",
+      "text": "The power button is on the side."
+    },
+    {
+      "id": "technology-005",
+      "category": "technology",
+      "text": "The screen went dark for a moment."
+    },
+    {
+      "id": "technology-006",
+      "category": "technology",
+      "text": "Try turning the device off and on."
+    },
+    {
+      "id": "technology-007",
+      "category": "technology",
+      "text": "The computer is taking a while to start."
+    },
+    {
+      "id": "technology-008",
+      "category": "technology",
+      "text": "I forgot my login password."
+    },
+    {
+      "id": "technology-009",
+      "category": "technology",
+      "text": "The keyboard isn't responding anymore."
+    },
+    {
+      "id": "technology-010",
+      "category": "technology",
+      "text": "The mouse works on another computer."
+    },
+    {
+      "id": "technology-011",
+      "category": "technology",
+      "text": "Check that the cable is firmly connected."
+    },
+    {
+      "id": "technology-012",
+      "category": "technology",
+      "text": "The monitor has a different input selected."
+    },
+    {
+      "id": "technology-013",
+      "category": "technology",
+      "text": "The printer is connected to the network."
+    },
+    {
+      "id": "technology-014",
+      "category": "technology",
+      "text": "There's a paper jam inside the tray."
+    },
+    {
+      "id": "technology-015",
+      "category": "technology",
+      "text": "The camera is covered by a small shutter."
+    },
+    {
+      "id": "technology-016",
+      "category": "technology",
+      "text": "The microphone level is too low."
+    },
+    {
+      "id": "technology-017",
+      "category": "technology",
+      "text": "I can hear an echo on the call."
+    },
+    {
+      "id": "technology-018",
+      "category": "technology",
+      "text": "The speakers are connected by Bluetooth."
+    },
+    {
+      "id": "technology-019",
+      "category": "technology",
+      "text": "My headphones need to be paired again."
+    },
+    {
+      "id": "technology-020",
+      "category": "technology",
+      "text": "The volume is controlled from the menu bar."
+    },
+    {
+      "id": "technology-021",
+      "category": "technology",
+      "text": "The internet connection is very slow."
+    },
+    {
+      "id": "technology-022",
+      "category": "technology",
+      "text": "Try moving closer to the router."
+    },
+    {
+      "id": "technology-023",
+      "category": "technology",
+      "text": "The wireless network requires a password."
+    },
+    {
+      "id": "technology-024",
+      "category": "technology",
+      "text": "The signal is stronger in this room."
+    },
+    {
+      "id": "technology-025",
+      "category": "technology",
+      "text": "We lost the connection during the upload."
+    },
+    {
+      "id": "technology-026",
+      "category": "technology",
+      "text": "The download is almost complete."
+    },
+    {
+      "id": "technology-027",
+      "category": "technology",
+      "text": "The file is too large to attach."
+    },
+    {
+      "id": "technology-028",
+      "category": "technology",
+      "text": "I'll share a link instead."
+    },
+    {
+      "id": "technology-029",
+      "category": "technology",
+      "text": "The browser has too many tabs open."
+    },
+    {
+      "id": "technology-030",
+      "category": "technology",
+      "text": "Refresh the page and try again."
+    },
+    {
+      "id": "technology-031",
+      "category": "technology",
+      "text": "The website isn't loading properly."
+    },
+    {
+      "id": "technology-032",
+      "category": "technology",
+      "text": "Check whether the address is spelled correctly."
+    },
+    {
+      "id": "technology-033",
+      "category": "technology",
+      "text": "The server returned an error message."
+    },
+    {
+      "id": "technology-034",
+      "category": "technology",
+      "text": "The page may have moved to another location."
+    },
+    {
+      "id": "technology-035",
+      "category": "technology",
+      "text": "Clear the cache if the problem continues."
+    },
+    {
+      "id": "technology-036",
+      "category": "technology",
+      "text": "The browser extension is blocking the request."
+    },
+    {
+      "id": "technology-037",
+      "category": "technology",
+      "text": "You can disable notifications in settings."
+    },
+    {
+      "id": "technology-038",
+      "category": "technology",
+      "text": "The pop-up asks for permission to continue."
+    },
+    {
+      "id": "technology-039",
+      "category": "technology",
+      "text": "I closed the tab by mistake."
+    },
+    {
+      "id": "technology-040",
+      "category": "technology",
+      "text": "You can reopen it from the history menu."
+    },
+    {
+      "id": "technology-041",
+      "category": "technology",
+      "text": "Save the document before closing the window."
+    },
+    {
+      "id": "technology-042",
+      "category": "technology",
+      "text": "The file was saved in the wrong folder."
+    },
+    {
+      "id": "technology-043",
+      "category": "technology",
+      "text": "Use a descriptive name for the backup."
+    },
+    {
+      "id": "technology-044",
+      "category": "technology",
+      "text": "I accidentally deleted the original copy."
+    },
+    {
+      "id": "technology-045",
+      "category": "technology",
+      "text": "Check the trash before restoring the backup."
+    },
+    {
+      "id": "technology-046",
+      "category": "technology",
+      "text": "The folder contains several duplicate files."
+    },
+    {
+      "id": "technology-047",
+      "category": "technology",
+      "text": "Sort the list by modification date."
+    },
+    {
+      "id": "technology-048",
+      "category": "technology",
+      "text": "The newest version is at the top."
+    },
+    {
+      "id": "technology-049",
+      "category": "technology",
+      "text": "You can drag the file onto the icon."
+    },
+    {
+      "id": "technology-050",
+      "category": "technology",
+      "text": "The application doesn't support that format."
+    },
+    {
+      "id": "technology-051",
+      "category": "technology",
+      "text": "Install the update when you have time."
+    },
+    {
+      "id": "technology-052",
+      "category": "technology",
+      "text": "The new version fixes several bugs."
+    },
+    {
+      "id": "technology-053",
+      "category": "technology",
+      "text": "The installation requires a restart."
+    },
+    {
+      "id": "technology-054",
+      "category": "technology",
+      "text": "There's not enough space on the drive."
+    },
+    {
+      "id": "technology-055",
+      "category": "technology",
+      "text": "Remove files you no longer need."
+    },
+    {
+      "id": "technology-056",
+      "category": "technology",
+      "text": "The operating system manages hardware resources."
+    },
+    {
+      "id": "technology-057",
+      "category": "technology",
+      "text": "An application runs as one or more processes."
+    },
+    {
+      "id": "technology-058",
+      "category": "technology",
+      "text": "Memory holds data that programs are using."
+    },
+    {
+      "id": "technology-059",
+      "category": "technology",
+      "text": "Storage keeps files after the power is off."
+    },
+    {
+      "id": "technology-060",
+      "category": "technology",
+      "text": "The processor executes instructions."
+    },
+    {
+      "id": "technology-061",
+      "category": "technology",
+      "text": "The code doesn't compile yet."
+    },
+    {
+      "id": "technology-062",
+      "category": "technology",
+      "text": "There's a missing bracket near the end."
+    },
+    {
+      "id": "technology-063",
+      "category": "technology",
+      "text": "The variable is declared outside the function."
+    },
+    {
+      "id": "technology-064",
+      "category": "technology",
+      "text": "This function returns a list of names."
+    },
+    {
+      "id": "technology-065",
+      "category": "technology",
+      "text": "The loop stops when the condition becomes false."
+    },
+    {
+      "id": "technology-066",
+      "category": "technology",
+      "text": "We should handle the empty input case."
+    },
+    {
+      "id": "technology-067",
+      "category": "technology",
+      "text": "The array index is out of bounds."
+    },
+    {
+      "id": "technology-068",
+      "category": "technology",
+      "text": "The value can be absent in this case."
+    },
+    {
+      "id": "technology-069",
+      "category": "technology",
+      "text": "Check for an error before using the result."
+    },
+    {
+      "id": "technology-070",
+      "category": "technology",
+      "text": "The caller is responsible for closing the file."
+    },
+    {
+      "id": "technology-071",
+      "category": "technology",
+      "text": "This class owns the shared state."
+    },
+    {
+      "id": "technology-072",
+      "category": "technology",
+      "text": "The interface hides the implementation details."
+    },
+    {
+      "id": "technology-073",
+      "category": "technology",
+      "text": "Keep the parsing logic separate from the display."
+    },
+    {
+      "id": "technology-074",
+      "category": "technology",
+      "text": "A small helper would make this easier to read."
+    },
+    {
+      "id": "technology-075",
+      "category": "technology",
+      "text": "The comment should explain why this is necessary."
+    },
+    {
+      "id": "technology-076",
+      "category": "technology",
+      "text": "The name doesn't describe what the function does."
+    },
+    {
+      "id": "technology-077",
+      "category": "technology",
+      "text": "Let's remove the unused parameter."
+    },
+    {
+      "id": "technology-078",
+      "category": "technology",
+      "text": "The default value is defined in one place."
+    },
+    {
+      "id": "technology-079",
+      "category": "technology",
+      "text": "This constant should not change during execution."
+    },
+    {
+      "id": "technology-080",
+      "category": "technology",
+      "text": "The configuration is loaded at startup."
+    },
+    {
+      "id": "technology-081",
+      "category": "technology",
+      "text": "We need a test for that edge case."
+    },
+    {
+      "id": "technology-082",
+      "category": "technology",
+      "text": "The test passes on my machine."
+    },
+    {
+      "id": "technology-083",
+      "category": "technology",
+      "text": "The failure happens only in the full suite."
+    },
+    {
+      "id": "technology-084",
+      "category": "technology",
+      "text": "A shared fixture is leaking state between tests."
+    },
+    {
+      "id": "technology-085",
+      "category": "technology",
+      "text": "Use a fixed seed for reproducible results."
+    },
+    {
+      "id": "technology-086",
+      "category": "technology",
+      "text": "The expected output differs by one character."
+    },
+    {
+      "id": "technology-087",
+      "category": "technology",
+      "text": "We should compare the entire response."
+    },
+    {
+      "id": "technology-088",
+      "category": "technology",
+      "text": "The assertion message needs more context."
+    },
+    {
+      "id": "technology-089",
+      "category": "technology",
+      "text": "The regression test reproduces the original bug."
+    },
+    {
+      "id": "technology-090",
+      "category": "technology",
+      "text": "Run the targeted tests before the full build."
+    },
+    {
+      "id": "technology-091",
+      "category": "technology",
+      "text": "The branch contains three new commits."
+    },
+    {
+      "id": "technology-092",
+      "category": "technology",
+      "text": "Pull the latest changes before starting."
+    },
+    {
+      "id": "technology-093",
+      "category": "technology",
+      "text": "There are conflicts in the configuration file."
+    },
+    {
+      "id": "technology-094",
+      "category": "technology",
+      "text": "Review the diff before staging the changes."
+    },
+    {
+      "id": "technology-095",
+      "category": "technology",
+      "text": "Keep unrelated edits out of this commit."
+    },
+    {
+      "id": "technology-096",
+      "category": "technology",
+      "text": "The commit message explains the behavior change."
+    },
+    {
+      "id": "technology-097",
+      "category": "technology",
+      "text": "I'll open a pull request for review."
+    },
+    {
+      "id": "technology-098",
+      "category": "technology",
+      "text": "The reviewer suggested a simpler approach."
+    },
+    {
+      "id": "technology-099",
+      "category": "technology",
+      "text": "We need to address the remaining comments."
+    },
+    {
+      "id": "technology-100",
+      "category": "technology",
+      "text": "The checks passed on the latest revision."
+    },
+    {
+      "id": "technology-101",
+      "category": "technology",
+      "text": "The request timed out after several seconds."
+    },
+    {
+      "id": "technology-102",
+      "category": "technology",
+      "text": "Retrying too often can overload the server."
+    },
+    {
+      "id": "technology-103",
+      "category": "technology",
+      "text": "The client should use a bounded retry policy."
+    },
+    {
+      "id": "technology-104",
+      "category": "technology",
+      "text": "The response contains a list of records."
+    },
+    {
+      "id": "technology-105",
+      "category": "technology",
+      "text": "Validate the input before sending the request."
+    },
+    {
+      "id": "technology-106",
+      "category": "technology",
+      "text": "The endpoint requires an authentication token."
+    },
+    {
+      "id": "technology-107",
+      "category": "technology",
+      "text": "Don't include secrets in the log output."
+    },
+    {
+      "id": "technology-108",
+      "category": "technology",
+      "text": "The connection uses encrypted transport."
+    },
+    {
+      "id": "technology-109",
+      "category": "technology",
+      "text": "The access token has expired."
+    },
+    {
+      "id": "technology-110",
+      "category": "technology",
+      "text": "The user needs to sign in again."
+    },
+    {
+      "id": "technology-111",
+      "category": "technology",
+      "text": "The database query is taking too long."
+    },
+    {
+      "id": "technology-112",
+      "category": "technology",
+      "text": "An index can speed up certain lookups."
+    },
+    {
+      "id": "technology-113",
+      "category": "technology",
+      "text": "The table has a unique identifier for each row."
+    },
+    {
+      "id": "technology-114",
+      "category": "technology",
+      "text": "The transaction should either succeed or roll back."
+    },
+    {
+      "id": "technology-115",
+      "category": "technology",
+      "text": "Two updates arrived at the same time."
+    },
+    {
+      "id": "technology-116",
+      "category": "technology",
+      "text": "We need to avoid losing the earlier change."
+    },
+    {
+      "id": "technology-117",
+      "category": "technology",
+      "text": "The migration adds a new column."
+    },
+    {
+      "id": "technology-118",
+      "category": "technology",
+      "text": "Back up the data before changing the schema."
+    },
+    {
+      "id": "technology-119",
+      "category": "technology",
+      "text": "The query returns more rows than expected."
+    },
+    {
+      "id": "technology-120",
+      "category": "technology",
+      "text": "Add a filter for the requested date range."
+    },
+    {
+      "id": "technology-121",
+      "category": "technology",
+      "text": "The task runs in the background."
+    },
+    {
+      "id": "technology-122",
+      "category": "technology",
+      "text": "Keep expensive work off the main thread."
+    },
+    {
+      "id": "technology-123",
+      "category": "technology",
+      "text": "Cancel the previous request when new input arrives."
+    },
+    {
+      "id": "technology-124",
+      "category": "technology",
+      "text": "The result may be stale by the time it returns."
+    },
+    {
+      "id": "technology-125",
+      "category": "technology",
+      "text": "Check that the selected item is still the same."
+    },
+    {
+      "id": "technology-126",
+      "category": "technology",
+      "text": "The lock protects shared mutable state."
+    },
+    {
+      "id": "technology-127",
+      "category": "technology",
+      "text": "Release the lock before invoking the callback."
+    },
+    {
+      "id": "technology-128",
+      "category": "technology",
+      "text": "This operation can suspend while waiting."
+    },
+    {
+      "id": "technology-129",
+      "category": "technology",
+      "text": "The completion handler runs after the work finishes."
+    },
+    {
+      "id": "technology-130",
+      "category": "technology",
+      "text": "The interface should remain responsive throughout."
+    },
+    {
+      "id": "technology-131",
+      "category": "technology",
+      "text": "The log shows when the failure began."
+    },
+    {
+      "id": "technology-132",
+      "category": "technology",
+      "text": "Add the request identifier to each event."
+    },
+    {
+      "id": "technology-133",
+      "category": "technology",
+      "text": "The error message is missing useful details."
+    },
+    {
+      "id": "technology-134",
+      "category": "technology",
+      "text": "We should measure before optimizing this path."
+    },
+    {
+      "id": "technology-135",
+      "category": "technology",
+      "text": "The profiler points to repeated allocation."
+    },
+    {
+      "id": "technology-136",
+      "category": "technology",
+      "text": "Caching avoids repeating the same calculation."
+    },
+    {
+      "id": "technology-137",
+      "category": "technology",
+      "text": "The cache must be invalidated when inputs change."
+    },
+    {
+      "id": "technology-138",
+      "category": "technology",
+      "text": "The memory usage grows with each request."
+    },
+    {
+      "id": "technology-139",
+      "category": "technology",
+      "text": "An object is being retained longer than intended."
+    },
+    {
+      "id": "technology-140",
+      "category": "technology",
+      "text": "The fix reduces the number of copies."
+    },
+    {
+      "id": "technology-141",
+      "category": "technology",
+      "text": "The settings are stored locally on the device."
+    },
+    {
+      "id": "technology-142",
+      "category": "technology",
+      "text": "The app asks for permission before recording."
+    },
+    {
+      "id": "technology-143",
+      "category": "technology",
+      "text": "You can revoke access in system settings."
+    },
+    {
+      "id": "technology-144",
+      "category": "technology",
+      "text": "The feature works without an internet connection."
+    },
+    {
+      "id": "technology-145",
+      "category": "technology",
+      "text": "The model runs directly on the computer."
+    },
+    {
+      "id": "technology-146",
+      "category": "technology",
+      "text": "Only the selected text is sent to the service."
+    },
+    {
+      "id": "technology-147",
+      "category": "technology",
+      "text": "The upload should show visible progress."
+    },
+    {
+      "id": "technology-148",
+      "category": "technology",
+      "text": "The user can cancel before it finishes."
+    },
+    {
+      "id": "technology-149",
+      "category": "technology",
+      "text": "An unavailable service should have a clear fallback."
+    },
+    {
+      "id": "technology-150",
+      "category": "technology",
+      "text": "The interface needs an accessible label."
+    },
+    {
+      "id": "technology-151",
+      "category": "technology",
+      "text": "The text is too small to read comfortably."
+    },
+    {
+      "id": "technology-152",
+      "category": "technology",
+      "text": "The button should work with the keyboard."
+    },
+    {
+      "id": "technology-153",
+      "category": "technology",
+      "text": "The focus indicator needs more contrast."
+    },
+    {
+      "id": "technology-154",
+      "category": "technology",
+      "text": "The dialog opens in the center of the window."
+    },
+    {
+      "id": "technology-155",
+      "category": "technology",
+      "text": "Press Escape to close the menu."
+    },
+    {
+      "id": "technology-156",
+      "category": "technology",
+      "text": "Use the arrow keys to move between items."
+    },
+    {
+      "id": "technology-157",
+      "category": "technology",
+      "text": "The shortcut conflicts with another application."
+    },
+    {
+      "id": "technology-158",
+      "category": "technology",
+      "text": "The layout adapts to the window size."
+    },
+    {
+      "id": "technology-159",
+      "category": "technology",
+      "text": "The content should scroll when it overflows."
+    },
+    {
+      "id": "technology-160",
+      "category": "technology",
+      "text": "The empty state explains what to do next."
+    },
+    {
+      "id": "technology-161",
+      "category": "technology",
+      "text": "The model predicts the next word."
+    },
+    {
+      "id": "technology-162",
+      "category": "technology",
+      "text": "The prompt contains only the preceding text."
+    },
+    {
+      "id": "technology-163",
+      "category": "technology",
+      "text": "The tokenizer splits text into smaller units."
+    },
+    {
+      "id": "technology-164",
+      "category": "technology",
+      "text": "The output is shorter than the requested limit."
+    },
+    {
+      "id": "technology-165",
+      "category": "technology",
+      "text": "The score is averaged across all examples."
+    },
+    {
+      "id": "technology-166",
+      "category": "technology",
+      "text": "The benchmark uses a fixed set of inputs."
+    },
+    {
+      "id": "technology-167",
+      "category": "technology",
+      "text": "Compare the results under the same conditions."
+    },
+    {
+      "id": "technology-168",
+      "category": "technology",
+      "text": "A faster response isn't always more accurate."
+    },
+    {
+      "id": "technology-169",
+      "category": "technology",
+      "text": "The change improves one category but hurts another."
+    },
+    {
+      "id": "technology-170",
+      "category": "technology",
+      "text": "We need to inspect the individual failures."
+    },
+    {
+      "id": "technology-171",
+      "category": "technology",
+      "text": "The release notes summarize the changes."
+    },
+    {
+      "id": "technology-172",
+      "category": "technology",
+      "text": "The package includes the required dependencies."
+    },
+    {
+      "id": "technology-173",
+      "category": "technology",
+      "text": "The build failed because a dependency was missing."
+    },
+    {
+      "id": "technology-174",
+      "category": "technology",
+      "text": "The version number must be updated before release."
+    },
+    {
+      "id": "technology-175",
+      "category": "technology",
+      "text": "The signature verifies the publisher's identity."
+    },
+    {
+      "id": "technology-176",
+      "category": "technology",
+      "text": "The installer should preserve existing preferences."
+    },
+    {
+      "id": "technology-177",
+      "category": "technology",
+      "text": "We can roll back if the update causes problems."
+    },
+    {
+      "id": "technology-178",
+      "category": "technology",
+      "text": "Monitor the error rate after deployment."
+    },
+    {
+      "id": "technology-179",
+      "category": "technology",
+      "text": "The dashboard shows a sudden increase in latency."
+    },
+    {
+      "id": "technology-180",
+      "category": "technology",
+      "text": "The service recovered after the restart."
+    },
+    {
+      "id": "technology-181",
+      "category": "technology",
+      "text": "The backup completed successfully overnight."
+    },
+    {
+      "id": "technology-182",
+      "category": "technology",
+      "text": "Test the restore process before relying on it."
+    },
+    {
+      "id": "technology-183",
+      "category": "technology",
+      "text": "The archive contains both data and metadata."
+    },
+    {
+      "id": "technology-184",
+      "category": "technology",
+      "text": "The checksum changed after the file was modified."
+    },
+    {
+      "id": "technology-185",
+      "category": "technology",
+      "text": "The script accepts the path as an argument."
+    },
+    {
+      "id": "technology-186",
+      "category": "technology",
+      "text": "Quote filenames that contain spaces."
+    },
+    {
+      "id": "technology-187",
+      "category": "technology",
+      "text": "The command exited with a nonzero status."
+    },
+    {
+      "id": "technology-188",
+      "category": "technology",
+      "text": "The output is written to a local file."
+    },
+    {
+      "id": "technology-189",
+      "category": "technology",
+      "text": "The tool prints a summary when it finishes."
+    },
+    {
+      "id": "technology-190",
+      "category": "technology",
+      "text": "Read the documentation before changing the defaults."
+    },
+    {
+      "id": "technology-191",
+      "category": "technology",
+      "text": "The example shows the simplest supported configuration."
+    },
+    {
+      "id": "everyday-001",
+      "category": "everyday",
+      "text": "I need to make a grocery list."
+    },
+    {
+      "id": "everyday-002",
+      "category": "everyday",
+      "text": "We're almost out of milk."
+    },
+    {
+      "id": "everyday-003",
+      "category": "everyday",
+      "text": "Could you pick up some bread?"
+    },
+    {
+      "id": "everyday-004",
+      "category": "everyday",
+      "text": "The eggs are in the refrigerator."
+    },
+    {
+      "id": "everyday-005",
+      "category": "everyday",
+      "text": "I forgot to buy coffee again."
+    },
+    {
+      "id": "everyday-006",
+      "category": "everyday",
+      "text": "Check the cupboard before we go shopping."
+    },
+    {
+      "id": "everyday-007",
+      "category": "everyday",
+      "text": "The store closes early on Sunday."
+    },
+    {
+      "id": "everyday-008",
+      "category": "everyday",
+      "text": "Bring the reusable bags with you."
+    },
+    {
+      "id": "everyday-009",
+      "category": "everyday",
+      "text": "The checkout line is moving slowly."
+    },
+    {
+      "id": "everyday-010",
+      "category": "everyday",
+      "text": "Do you have a receipt for that?"
+    },
+    {
+      "id": "everyday-011",
+      "category": "everyday",
+      "text": "The apples look fresh today."
+    },
+    {
+      "id": "everyday-012",
+      "category": "everyday",
+      "text": "These bananas need a few more days."
+    },
+    {
+      "id": "everyday-013",
+      "category": "everyday",
+      "text": "The vegetables are in the bottom drawer."
+    },
+    {
+      "id": "everyday-014",
+      "category": "everyday",
+      "text": "Rinse the berries before eating them."
+    },
+    {
+      "id": "everyday-015",
+      "category": "everyday",
+      "text": "Put the frozen food away first."
+    },
+    {
+      "id": "everyday-016",
+      "category": "everyday",
+      "text": "The soup is still too hot."
+    },
+    {
+      "id": "everyday-017",
+      "category": "everyday",
+      "text": "Let it cool for a minute."
+    },
+    {
+      "id": "everyday-018",
+      "category": "everyday",
+      "text": "I added a little too much salt."
+    },
+    {
+      "id": "everyday-019",
+      "category": "everyday",
+      "text": "This needs another pinch of pepper."
+    },
+    {
+      "id": "everyday-020",
+      "category": "everyday",
+      "text": "The recipe serves four people."
+    },
+    {
+      "id": "everyday-021",
+      "category": "everyday",
+      "text": "Preheat the oven before you start."
+    },
+    {
+      "id": "everyday-022",
+      "category": "everyday",
+      "text": "Chop the onions into small pieces."
+    },
+    {
+      "id": "everyday-023",
+      "category": "everyday",
+      "text": "Heat the oil in a large pan."
+    },
+    {
+      "id": "everyday-024",
+      "category": "everyday",
+      "text": "Stir the mixture until it becomes smooth."
+    },
+    {
+      "id": "everyday-025",
+      "category": "everyday",
+      "text": "Bring the water to a boil."
+    },
+    {
+      "id": "everyday-026",
+      "category": "everyday",
+      "text": "Turn down the heat and let it simmer."
+    },
+    {
+      "id": "everyday-027",
+      "category": "everyday",
+      "text": "Cover the pot with a lid."
+    },
+    {
+      "id": "everyday-028",
+      "category": "everyday",
+      "text": "Bake until the top is golden brown."
+    },
+    {
+      "id": "everyday-029",
+      "category": "everyday",
+      "text": "Use oven gloves to remove the tray."
+    },
+    {
+      "id": "everyday-030",
+      "category": "everyday",
+      "text": "Let the cake cool before cutting it."
+    },
+    {
+      "id": "everyday-031",
+      "category": "everyday",
+      "text": "I'm making pasta for dinner."
+    },
+    {
+      "id": "everyday-032",
+      "category": "everyday",
+      "text": "Would you prefer rice or potatoes?"
+    },
+    {
+      "id": "everyday-033",
+      "category": "everyday",
+      "text": "There's enough left for tomorrow's lunch."
+    },
+    {
+      "id": "everyday-034",
+      "category": "everyday",
+      "text": "Put the leftovers in a sealed container."
+    },
+    {
+      "id": "everyday-035",
+      "category": "everyday",
+      "text": "The dishwasher needs to be emptied."
+    },
+    {
+      "id": "everyday-036",
+      "category": "everyday",
+      "text": "I'll wash the dishes after dinner."
+    },
+    {
+      "id": "everyday-037",
+      "category": "everyday",
+      "text": "Please wipe down the kitchen counter."
+    },
+    {
+      "id": "everyday-038",
+      "category": "everyday",
+      "text": "The sink is draining very slowly."
+    },
+    {
+      "id": "everyday-039",
+      "category": "everyday",
+      "text": "We need a new dish sponge."
+    },
+    {
+      "id": "everyday-040",
+      "category": "everyday",
+      "text": "Take the rubbish out before it gets dark."
+    },
+    {
+      "id": "everyday-041",
+      "category": "everyday",
+      "text": "The laundry basket is full."
+    },
+    {
+      "id": "everyday-042",
+      "category": "everyday",
+      "text": "Separate the dark clothes from the whites."
+    },
+    {
+      "id": "everyday-043",
+      "category": "everyday",
+      "text": "Check the pockets before washing anything."
+    },
+    {
+      "id": "everyday-044",
+      "category": "everyday",
+      "text": "This sweater should be washed by hand."
+    },
+    {
+      "id": "everyday-045",
+      "category": "everyday",
+      "text": "The label says to use cold water."
+    },
+    {
+      "id": "everyday-046",
+      "category": "everyday",
+      "text": "Hang the towels outside to dry."
+    },
+    {
+      "id": "everyday-047",
+      "category": "everyday",
+      "text": "The dryer has finished its cycle."
+    },
+    {
+      "id": "everyday-048",
+      "category": "everyday",
+      "text": "Fold the shirts while they're still warm."
+    },
+    {
+      "id": "everyday-049",
+      "category": "everyday",
+      "text": "I can't find the matching sock."
+    },
+    {
+      "id": "everyday-050",
+      "category": "everyday",
+      "text": "The ironing board is behind the door."
+    },
+    {
+      "id": "everyday-051",
+      "category": "everyday",
+      "text": "We should vacuum the living room."
+    },
+    {
+      "id": "everyday-052",
+      "category": "everyday",
+      "text": "The floor needs a good sweep."
+    },
+    {
+      "id": "everyday-053",
+      "category": "everyday",
+      "text": "Dust the shelves before you mop."
+    },
+    {
+      "id": "everyday-054",
+      "category": "everyday",
+      "text": "Open the windows to let fresh air in."
+    },
+    {
+      "id": "everyday-055",
+      "category": "everyday",
+      "text": "The bathroom mirror needs cleaning."
+    },
+    {
+      "id": "everyday-056",
+      "category": "everyday",
+      "text": "We're running low on soap."
+    },
+    {
+      "id": "everyday-057",
+      "category": "everyday",
+      "text": "Replace the empty toilet paper roll."
+    },
+    {
+      "id": "everyday-058",
+      "category": "everyday",
+      "text": "The shower curtain needs to dry."
+    },
+    {
+      "id": "everyday-059",
+      "category": "everyday",
+      "text": "I changed the sheets this morning."
+    },
+    {
+      "id": "everyday-060",
+      "category": "everyday",
+      "text": "The spare blanket is in the closet."
+    },
+    {
+      "id": "everyday-061",
+      "category": "everyday",
+      "text": "Where did I put my keys?"
+    },
+    {
+      "id": "everyday-062",
+      "category": "everyday",
+      "text": "Your wallet is on the kitchen table."
+    },
+    {
+      "id": "everyday-063",
+      "category": "everyday",
+      "text": "I left my phone upstairs."
+    },
+    {
+      "id": "everyday-064",
+      "category": "everyday",
+      "text": "The door is locked from the inside."
+    },
+    {
+      "id": "everyday-065",
+      "category": "everyday",
+      "text": "Please turn off the lights when you leave."
+    },
+    {
+      "id": "everyday-066",
+      "category": "everyday",
+      "text": "The porch light isn't working."
+    },
+    {
+      "id": "everyday-067",
+      "category": "everyday",
+      "text": "We need to replace the bulb."
+    },
+    {
+      "id": "everyday-068",
+      "category": "everyday",
+      "text": "The smoke alarm is making a noise."
+    },
+    {
+      "id": "everyday-069",
+      "category": "everyday",
+      "text": "Check the batteries in the remote."
+    },
+    {
+      "id": "everyday-070",
+      "category": "everyday",
+      "text": "The clock is a few minutes slow."
+    },
+    {
+      "id": "everyday-071",
+      "category": "everyday",
+      "text": "I'm going for a short walk."
+    },
+    {
+      "id": "everyday-072",
+      "category": "everyday",
+      "text": "Would you like to come with me?"
+    },
+    {
+      "id": "everyday-073",
+      "category": "everyday",
+      "text": "The park is just around the corner."
+    },
+    {
+      "id": "everyday-074",
+      "category": "everyday",
+      "text": "Let's take the path along the river."
+    },
+    {
+      "id": "everyday-075",
+      "category": "everyday",
+      "text": "The flowers are starting to bloom."
+    },
+    {
+      "id": "everyday-076",
+      "category": "everyday",
+      "text": "The grass needs to be cut."
+    },
+    {
+      "id": "everyday-077",
+      "category": "everyday",
+      "text": "Water the plants before it gets hot."
+    },
+    {
+      "id": "everyday-078",
+      "category": "everyday",
+      "text": "The soil feels dry near the surface."
+    },
+    {
+      "id": "everyday-079",
+      "category": "everyday",
+      "text": "The leaves are turning yellow."
+    },
+    {
+      "id": "everyday-080",
+      "category": "everyday",
+      "text": "This plant needs more sunlight."
+    },
+    {
+      "id": "everyday-081",
+      "category": "everyday",
+      "text": "The dog needs to go outside."
+    },
+    {
+      "id": "everyday-082",
+      "category": "everyday",
+      "text": "I'll feed the cat before leaving."
+    },
+    {
+      "id": "everyday-083",
+      "category": "everyday",
+      "text": "The pet food is on the lower shelf."
+    },
+    {
+      "id": "everyday-084",
+      "category": "everyday",
+      "text": "Don't forget the leash for our walk."
+    },
+    {
+      "id": "everyday-085",
+      "category": "everyday",
+      "text": "The puppy is learning to sit."
+    },
+    {
+      "id": "everyday-086",
+      "category": "everyday",
+      "text": "The cat is sleeping on the windowsill."
+    },
+    {
+      "id": "everyday-087",
+      "category": "everyday",
+      "text": "We should clean the water bowl."
+    },
+    {
+      "id": "everyday-088",
+      "category": "everyday",
+      "text": "The vet appointment is next Tuesday."
+    },
+    {
+      "id": "everyday-089",
+      "category": "everyday",
+      "text": "The neighbor offered to look after them."
+    },
+    {
+      "id": "everyday-090",
+      "category": "everyday",
+      "text": "They get excited when the doorbell rings."
+    },
+    {
+      "id": "everyday-091",
+      "category": "everyday",
+      "text": "I have an appointment this afternoon."
+    },
+    {
+      "id": "everyday-092",
+      "category": "everyday",
+      "text": "I should leave a little earlier."
+    },
+    {
+      "id": "everyday-093",
+      "category": "everyday",
+      "text": "The waiting room is quite busy."
+    },
+    {
+      "id": "everyday-094",
+      "category": "everyday",
+      "text": "Please fill out this short form."
+    },
+    {
+      "id": "everyday-095",
+      "category": "everyday",
+      "text": "I'll let them know you've arrived."
+    },
+    {
+      "id": "everyday-096",
+      "category": "everyday",
+      "text": "The next available slot is tomorrow morning."
+    },
+    {
+      "id": "everyday-097",
+      "category": "everyday",
+      "text": "Could I reschedule for another day?"
+    },
+    {
+      "id": "everyday-098",
+      "category": "everyday",
+      "text": "I'll check my calendar before confirming."
+    },
+    {
+      "id": "everyday-099",
+      "category": "everyday",
+      "text": "Set a reminder so we don't forget."
+    },
+    {
+      "id": "everyday-100",
+      "category": "everyday",
+      "text": "I wrote the date on the fridge."
+    },
+    {
+      "id": "everyday-101",
+      "category": "everyday",
+      "text": "The rent is due next week."
+    },
+    {
+      "id": "everyday-102",
+      "category": "everyday",
+      "text": "The electricity bill arrived this morning."
+    },
+    {
+      "id": "everyday-103",
+      "category": "everyday",
+      "text": "We should check how much we used."
+    },
+    {
+      "id": "everyday-104",
+      "category": "everyday",
+      "text": "The payment has already gone through."
+    },
+    {
+      "id": "everyday-105",
+      "category": "everyday",
+      "text": "Keep the receipt in the folder."
+    },
+    {
+      "id": "everyday-106",
+      "category": "everyday",
+      "text": "I'm trying to stick to a budget."
+    },
+    {
+      "id": "everyday-107",
+      "category": "everyday",
+      "text": "That costs more than I expected."
+    },
+    {
+      "id": "everyday-108",
+      "category": "everyday",
+      "text": "Let's compare prices before buying it."
+    },
+    {
+      "id": "everyday-109",
+      "category": "everyday",
+      "text": "We can wait until it's on sale."
+    },
+    {
+      "id": "everyday-110",
+      "category": "everyday",
+      "text": "I don't think we need another one."
+    },
+    {
+      "id": "everyday-111",
+      "category": "everyday",
+      "text": "The package arrived while I was out."
+    },
+    {
+      "id": "everyday-112",
+      "category": "everyday",
+      "text": "The delivery driver left it with a neighbor."
+    },
+    {
+      "id": "everyday-113",
+      "category": "everyday",
+      "text": "The box is heavier than it looks."
+    },
+    {
+      "id": "everyday-114",
+      "category": "everyday",
+      "text": "Be careful when you open it."
+    },
+    {
+      "id": "everyday-115",
+      "category": "everyday",
+      "text": "The instructions are inside the packaging."
+    },
+    {
+      "id": "everyday-116",
+      "category": "everyday",
+      "text": "We need a screwdriver to assemble this."
+    },
+    {
+      "id": "everyday-117",
+      "category": "everyday",
+      "text": "One of the screws is missing."
+    },
+    {
+      "id": "everyday-118",
+      "category": "everyday",
+      "text": "The shelf doesn't sit quite level."
+    },
+    {
+      "id": "everyday-119",
+      "category": "everyday",
+      "text": "Let's measure the space before moving it."
+    },
+    {
+      "id": "everyday-120",
+      "category": "everyday",
+      "text": "The table fits better by the window."
+    },
+    {
+      "id": "everyday-121",
+      "category": "everyday",
+      "text": "I need to get ready for work."
+    },
+    {
+      "id": "everyday-122",
+      "category": "everyday",
+      "text": "The alarm didn't go off this morning."
+    },
+    {
+      "id": "everyday-123",
+      "category": "everyday",
+      "text": "I stayed up later than I intended."
+    },
+    {
+      "id": "everyday-124",
+      "category": "everyday",
+      "text": "There's time for a quick breakfast."
+    },
+    {
+      "id": "everyday-125",
+      "category": "everyday",
+      "text": "My shoes are still wet from yesterday."
+    },
+    {
+      "id": "everyday-126",
+      "category": "everyday",
+      "text": "I can't find a clean shirt."
+    },
+    {
+      "id": "everyday-127",
+      "category": "everyday",
+      "text": "The bus will be here soon."
+    },
+    {
+      "id": "everyday-128",
+      "category": "everyday",
+      "text": "I'll take my lunch with me."
+    },
+    {
+      "id": "everyday-129",
+      "category": "everyday",
+      "text": "Have you seen my umbrella anywhere?"
+    },
+    {
+      "id": "everyday-130",
+      "category": "everyday",
+      "text": "It's supposed to rain this afternoon."
+    },
+    {
+      "id": "everyday-131",
+      "category": "everyday",
+      "text": "The neighbors are having a party."
+    },
+    {
+      "id": "everyday-132",
+      "category": "everyday",
+      "text": "The music is a little loud."
+    },
+    {
+      "id": "everyday-133",
+      "category": "everyday",
+      "text": "I'll ask them to turn it down."
+    },
+    {
+      "id": "everyday-134",
+      "category": "everyday",
+      "text": "Someone left a note under the door."
+    },
+    {
+      "id": "everyday-135",
+      "category": "everyday",
+      "text": "The lift is out of order."
+    },
+    {
+      "id": "everyday-136",
+      "category": "everyday",
+      "text": "We'll have to take the stairs."
+    },
+    {
+      "id": "everyday-137",
+      "category": "everyday",
+      "text": "The hallway light comes on automatically."
+    },
+    {
+      "id": "everyday-138",
+      "category": "everyday",
+      "text": "Please don't block the entrance."
+    },
+    {
+      "id": "everyday-139",
+      "category": "everyday",
+      "text": "The building manager has a spare key."
+    },
+    {
+      "id": "everyday-140",
+      "category": "everyday",
+      "text": "They're repairing the roof this week."
+    },
+    {
+      "id": "everyday-141",
+      "category": "everyday",
+      "text": "It's time to put the toys away."
+    },
+    {
+      "id": "everyday-142",
+      "category": "everyday",
+      "text": "Let's tidy up before our guests arrive."
+    },
+    {
+      "id": "everyday-143",
+      "category": "everyday",
+      "text": "The children are playing in the garden."
+    },
+    {
+      "id": "everyday-144",
+      "category": "everyday",
+      "text": "We have to leave for school soon."
+    },
+    {
+      "id": "everyday-145",
+      "category": "everyday",
+      "text": "Have you packed your school bag?"
+    },
+    {
+      "id": "everyday-146",
+      "category": "everyday",
+      "text": "Your lunch box is on the counter."
+    },
+    {
+      "id": "everyday-147",
+      "category": "everyday",
+      "text": "I'll pick you up after class."
+    },
+    {
+      "id": "everyday-148",
+      "category": "everyday",
+      "text": "Don't forget your homework folder."
+    },
+    {
+      "id": "everyday-149",
+      "category": "everyday",
+      "text": "Let's read a story before bed."
+    },
+    {
+      "id": "everyday-150",
+      "category": "everyday",
+      "text": "It's getting late and you need some sleep."
+    },
+    {
+      "id": "everyday-151",
+      "category": "everyday",
+      "text": "I want to start exercising more regularly."
+    },
+    {
+      "id": "everyday-152",
+      "category": "everyday",
+      "text": "Let's stretch before we begin."
+    },
+    {
+      "id": "everyday-153",
+      "category": "everyday",
+      "text": "The gym is quieter in the morning."
+    },
+    {
+      "id": "everyday-154",
+      "category": "everyday",
+      "text": "I brought a bottle of water."
+    },
+    {
+      "id": "everyday-155",
+      "category": "everyday",
+      "text": "We can take a break whenever you need."
+    },
+    {
+      "id": "everyday-156",
+      "category": "everyday",
+      "text": "The walk was longer than I expected."
+    },
+    {
+      "id": "everyday-157",
+      "category": "everyday",
+      "text": "My legs are tired from the hills."
+    },
+    {
+      "id": "everyday-158",
+      "category": "everyday",
+      "text": "I'll rest for a few minutes."
+    },
+    {
+      "id": "everyday-159",
+      "category": "everyday",
+      "text": "It feels good to spend time outside."
+    },
+    {
+      "id": "everyday-160",
+      "category": "everyday",
+      "text": "Let's try a different route tomorrow."
+    },
+    {
+      "id": "everyday-161",
+      "category": "everyday",
+      "text": "The birthday card is on the desk."
+    },
+    {
+      "id": "everyday-162",
+      "category": "everyday",
+      "text": "I still need to wrap the present."
+    },
+    {
+      "id": "everyday-163",
+      "category": "everyday",
+      "text": "Do we have any wrapping paper left?"
+    },
+    {
+      "id": "everyday-164",
+      "category": "everyday",
+      "text": "The scissors are in the top drawer."
+    },
+    {
+      "id": "everyday-165",
+      "category": "everyday",
+      "text": "I'll write a message inside the card."
+    },
+    {
+      "id": "everyday-166",
+      "category": "everyday",
+      "text": "The cake should arrive before the guests."
+    },
+    {
+      "id": "everyday-167",
+      "category": "everyday",
+      "text": "We need a few more chairs."
+    },
+    {
+      "id": "everyday-168",
+      "category": "everyday",
+      "text": "Could you help me set the table?"
+    },
+    {
+      "id": "everyday-169",
+      "category": "everyday",
+      "text": "I'll put some extra plates out."
+    },
+    {
+      "id": "everyday-170",
+      "category": "everyday",
+      "text": "The candles are next to the matches."
+    },
+    {
+      "id": "everyday-171",
+      "category": "everyday",
+      "text": "The tap keeps dripping at night."
+    },
+    {
+      "id": "everyday-172",
+      "category": "everyday",
+      "text": "I'll call someone to fix the leak."
+    },
+    {
+      "id": "everyday-173",
+      "category": "everyday",
+      "text": "The heating isn't working properly."
+    },
+    {
+      "id": "everyday-174",
+      "category": "everyday",
+      "text": "Try adjusting the thermostat a little."
+    },
+    {
+      "id": "everyday-175",
+      "category": "everyday",
+      "text": "The room feels warmer already."
+    },
+    {
+      "id": "everyday-176",
+      "category": "everyday",
+      "text": "We should close the curtains before dark."
+    },
+    {
+      "id": "everyday-177",
+      "category": "everyday",
+      "text": "The window is difficult to open."
+    },
+    {
+      "id": "everyday-178",
+      "category": "everyday",
+      "text": "The handle has come loose again."
+    },
+    {
+      "id": "everyday-179",
+      "category": "everyday",
+      "text": "I'll put the tools back in the garage."
+    },
+    {
+      "id": "everyday-180",
+      "category": "everyday",
+      "text": "We can finish the repairs this weekend."
+    },
+    {
+      "id": "everyday-181",
+      "category": "everyday",
+      "text": "Let's make a plan for tomorrow."
+    },
+    {
+      "id": "everyday-182",
+      "category": "everyday",
+      "text": "I have a few errands to run."
+    },
+    {
+      "id": "everyday-183",
+      "category": "everyday",
+      "text": "The post office opens at nine."
+    },
+    {
+      "id": "everyday-184",
+      "category": "everyday",
+      "text": "I need to return a library book."
+    },
+    {
+      "id": "everyday-185",
+      "category": "everyday",
+      "text": "We can stop at the bakery on the way."
+    },
+    {
+      "id": "everyday-186",
+      "category": "everyday",
+      "text": "I'll be back before lunch."
+    },
+    {
+      "id": "everyday-187",
+      "category": "everyday",
+      "text": "There's a message for you on the table."
+    },
+    {
+      "id": "everyday-188",
+      "category": "everyday",
+      "text": "Please remind me to call later."
+    },
+    {
+      "id": "everyday-189",
+      "category": "everyday",
+      "text": "I've crossed everything off the list."
+    },
+    {
+      "id": "everyday-190",
+      "category": "everyday",
+      "text": "It's nice to have a quiet evening."
+    },
+    {
+      "id": "everyday-191",
+      "category": "everyday",
+      "text": "I'm ready to put my feet up."
+    },
+    {
+      "id": "travel-001",
+      "category": "travel",
+      "text": "I'd like to book a room for two nights."
+    },
+    {
+      "id": "travel-002",
+      "category": "travel",
+      "text": "Do you have any rooms available?"
+    },
+    {
+      "id": "travel-003",
+      "category": "travel",
+      "text": "Is breakfast included in the price?"
+    },
+    {
+      "id": "travel-004",
+      "category": "travel",
+      "text": "What time can we check in?"
+    },
+    {
+      "id": "travel-005",
+      "category": "travel",
+      "text": "We arrived earlier than expected."
+    },
+    {
+      "id": "travel-006",
+      "category": "travel",
+      "text": "Can we leave our bags here?"
+    },
+    {
+      "id": "travel-007",
+      "category": "travel",
+      "text": "The reservation is under my name."
+    },
+    {
+      "id": "travel-008",
+      "category": "travel",
+      "text": "Could I see your passport please?"
+    },
+    {
+      "id": "travel-009",
+      "category": "travel",
+      "text": "Your room is on the third floor."
+    },
+    {
+      "id": "travel-010",
+      "category": "travel",
+      "text": "The lift is at the end of the hall."
+    },
+    {
+      "id": "travel-011",
+      "category": "travel",
+      "text": "What time is checkout tomorrow?"
+    },
+    {
+      "id": "travel-012",
+      "category": "travel",
+      "text": "Could we request a late checkout?"
+    },
+    {
+      "id": "travel-013",
+      "category": "travel",
+      "text": "The key card doesn't open the door."
+    },
+    {
+      "id": "travel-014",
+      "category": "travel",
+      "text": "There's no hot water in the shower."
+    },
+    {
+      "id": "travel-015",
+      "category": "travel",
+      "text": "Could we have some extra towels?"
+    },
+    {
+      "id": "travel-016",
+      "category": "travel",
+      "text": "The room overlooks the main street."
+    },
+    {
+      "id": "travel-017",
+      "category": "travel",
+      "text": "Is there a quieter room available?"
+    },
+    {
+      "id": "travel-018",
+      "category": "travel",
+      "text": "The wireless password is on the desk."
+    },
+    {
+      "id": "travel-019",
+      "category": "travel",
+      "text": "Where is the nearest place to eat?"
+    },
+    {
+      "id": "travel-020",
+      "category": "travel",
+      "text": "Thank you for helping us settle in."
+    },
+    {
+      "id": "travel-021",
+      "category": "travel",
+      "text": "Our flight leaves early tomorrow morning."
+    },
+    {
+      "id": "travel-022",
+      "category": "travel",
+      "text": "We should get to the airport with time to spare."
+    },
+    {
+      "id": "travel-023",
+      "category": "travel",
+      "text": "Have you checked in online yet?"
+    },
+    {
+      "id": "travel-024",
+      "category": "travel",
+      "text": "The boarding pass is on my phone."
+    },
+    {
+      "id": "travel-025",
+      "category": "travel",
+      "text": "I need to check one suitcase."
+    },
+    {
+      "id": "travel-026",
+      "category": "travel",
+      "text": "Is this bag within the weight limit?"
+    },
+    {
+      "id": "travel-027",
+      "category": "travel",
+      "text": "The security line is moving quickly."
+    },
+    {
+      "id": "travel-028",
+      "category": "travel",
+      "text": "Take your laptop out of the bag."
+    },
+    {
+      "id": "travel-029",
+      "category": "travel",
+      "text": "The departure gate has changed."
+    },
+    {
+      "id": "travel-030",
+      "category": "travel",
+      "text": "We need to go to the other terminal."
+    },
+    {
+      "id": "travel-031",
+      "category": "travel",
+      "text": "Boarding starts in about twenty minutes."
+    },
+    {
+      "id": "travel-032",
+      "category": "travel",
+      "text": "The flight has been delayed by an hour."
+    },
+    {
+      "id": "travel-033",
+      "category": "travel",
+      "text": "Please have your documents ready."
+    },
+    {
+      "id": "travel-034",
+      "category": "travel",
+      "text": "I'd prefer a seat by the window."
+    },
+    {
+      "id": "travel-035",
+      "category": "travel",
+      "text": "Is there space in the overhead compartment?"
+    },
+    {
+      "id": "travel-036",
+      "category": "travel",
+      "text": "Please fasten your seat belt."
+    },
+    {
+      "id": "travel-037",
+      "category": "travel",
+      "text": "The plane is preparing to take off."
+    },
+    {
+      "id": "travel-038",
+      "category": "travel",
+      "text": "We should land just after noon."
+    },
+    {
+      "id": "travel-039",
+      "category": "travel",
+      "text": "There's a connecting flight to catch."
+    },
+    {
+      "id": "travel-040",
+      "category": "travel",
+      "text": "Which way is baggage claim?"
+    },
+    {
+      "id": "travel-041",
+      "category": "travel",
+      "text": "My suitcase hasn't arrived on the belt."
+    },
+    {
+      "id": "travel-042",
+      "category": "travel",
+      "text": "I need to report a missing bag."
+    },
+    {
+      "id": "travel-043",
+      "category": "travel",
+      "text": "The customs form asks for our address."
+    },
+    {
+      "id": "travel-044",
+      "category": "travel",
+      "text": "We're visiting for a short holiday."
+    },
+    {
+      "id": "travel-045",
+      "category": "travel",
+      "text": "We'll be staying with some friends."
+    },
+    {
+      "id": "travel-046",
+      "category": "travel",
+      "text": "The return ticket is in this email."
+    },
+    {
+      "id": "travel-047",
+      "category": "travel",
+      "text": "Is there an airport shuttle to the city?"
+    },
+    {
+      "id": "travel-048",
+      "category": "travel",
+      "text": "Where can I find the taxi stand?"
+    },
+    {
+      "id": "travel-049",
+      "category": "travel",
+      "text": "How much is the fare to the station?"
+    },
+    {
+      "id": "travel-050",
+      "category": "travel",
+      "text": "Can I pay by card?"
+    },
+    {
+      "id": "travel-051",
+      "category": "travel",
+      "text": "I'd like a return ticket please."
+    },
+    {
+      "id": "travel-052",
+      "category": "travel",
+      "text": "Which platform does the train leave from?"
+    },
+    {
+      "id": "travel-053",
+      "category": "travel",
+      "text": "The next train arrives in ten minutes."
+    },
+    {
+      "id": "travel-054",
+      "category": "travel",
+      "text": "Do we need to change trains anywhere?"
+    },
+    {
+      "id": "travel-055",
+      "category": "travel",
+      "text": "This seat has already been reserved."
+    },
+    {
+      "id": "travel-056",
+      "category": "travel",
+      "text": "Keep your ticket until you leave the station."
+    },
+    {
+      "id": "travel-057",
+      "category": "travel",
+      "text": "The train stops at every town along the route."
+    },
+    {
+      "id": "travel-058",
+      "category": "travel",
+      "text": "The express service is much faster."
+    },
+    {
+      "id": "travel-059",
+      "category": "travel",
+      "text": "We missed the last train home."
+    },
+    {
+      "id": "travel-060",
+      "category": "travel",
+      "text": "Let's check the timetable for another option."
+    },
+    {
+      "id": "travel-061",
+      "category": "travel",
+      "text": "Does this bus go to the city center?"
+    },
+    {
+      "id": "travel-062",
+      "category": "travel",
+      "text": "Where should we get off?"
+    },
+    {
+      "id": "travel-063",
+      "category": "travel",
+      "text": "The stop is across the road."
+    },
+    {
+      "id": "travel-064",
+      "category": "travel",
+      "text": "You need to buy a ticket before boarding."
+    },
+    {
+      "id": "travel-065",
+      "category": "travel",
+      "text": "Can you tell me when we get there?"
+    },
+    {
+      "id": "travel-066",
+      "category": "travel",
+      "text": "The bus is crowded this morning."
+    },
+    {
+      "id": "travel-067",
+      "category": "travel",
+      "text": "There's an empty seat at the back."
+    },
+    {
+      "id": "travel-068",
+      "category": "travel",
+      "text": "Our stop is the next one."
+    },
+    {
+      "id": "travel-069",
+      "category": "travel",
+      "text": "Press the button to request a stop."
+    },
+    {
+      "id": "travel-070",
+      "category": "travel",
+      "text": "We can walk the rest of the way."
+    },
+    {
+      "id": "travel-071",
+      "category": "travel",
+      "text": "Excuse me, how do I get to the museum?"
+    },
+    {
+      "id": "travel-072",
+      "category": "travel",
+      "text": "Go straight until you reach the traffic lights."
+    },
+    {
+      "id": "travel-073",
+      "category": "travel",
+      "text": "Turn left at the next intersection."
+    },
+    {
+      "id": "travel-074",
+      "category": "travel",
+      "text": "The station is on your right."
+    },
+    {
+      "id": "travel-075",
+      "category": "travel",
+      "text": "It's about a ten-minute walk from here."
+    },
+    {
+      "id": "travel-076",
+      "category": "travel",
+      "text": "Follow the signs toward the main square."
+    },
+    {
+      "id": "travel-077",
+      "category": "travel",
+      "text": "The entrance is around the other side."
+    },
+    {
+      "id": "travel-078",
+      "category": "travel",
+      "text": "We seem to be going the wrong way."
+    },
+    {
+      "id": "travel-079",
+      "category": "travel",
+      "text": "Let's check the map again."
+    },
+    {
+      "id": "travel-080",
+      "category": "travel",
+      "text": "I think we passed it a minute ago."
+    },
+    {
+      "id": "travel-081",
+      "category": "travel",
+      "text": "The road is closed for repairs."
+    },
+    {
+      "id": "travel-082",
+      "category": "travel",
+      "text": "We need to take a different route."
+    },
+    {
+      "id": "travel-083",
+      "category": "travel",
+      "text": "The navigation app suggests a detour."
+    },
+    {
+      "id": "travel-084",
+      "category": "travel",
+      "text": "There's heavy traffic near the bridge."
+    },
+    {
+      "id": "travel-085",
+      "category": "travel",
+      "text": "Let's stop for fuel before leaving town."
+    },
+    {
+      "id": "travel-086",
+      "category": "travel",
+      "text": "The next service station is far away."
+    },
+    {
+      "id": "travel-087",
+      "category": "travel",
+      "text": "We should take turns driving."
+    },
+    {
+      "id": "travel-088",
+      "category": "travel",
+      "text": "I'll drive the first part of the journey."
+    },
+    {
+      "id": "travel-089",
+      "category": "travel",
+      "text": "Pull over somewhere safe if you're tired."
+    },
+    {
+      "id": "travel-090",
+      "category": "travel",
+      "text": "We can stop for lunch along the way."
+    },
+    {
+      "id": "travel-091",
+      "category": "travel",
+      "text": "I'd like to rent a small car."
+    },
+    {
+      "id": "travel-092",
+      "category": "travel",
+      "text": "Does the price include insurance?"
+    },
+    {
+      "id": "travel-093",
+      "category": "travel",
+      "text": "Where do we return the vehicle?"
+    },
+    {
+      "id": "travel-094",
+      "category": "travel",
+      "text": "Please check the fuel level before leaving."
+    },
+    {
+      "id": "travel-095",
+      "category": "travel",
+      "text": "There is a scratch on the passenger door."
+    },
+    {
+      "id": "travel-096",
+      "category": "travel",
+      "text": "We should take a photo of the damage."
+    },
+    {
+      "id": "travel-097",
+      "category": "travel",
+      "text": "The parking meter accepts coins and cards."
+    },
+    {
+      "id": "travel-098",
+      "category": "travel",
+      "text": "How long can we park here?"
+    },
+    {
+      "id": "travel-099",
+      "category": "travel",
+      "text": "This space is reserved for residents."
+    },
+    {
+      "id": "travel-100",
+      "category": "travel",
+      "text": "The car park closes at midnight."
+    },
+    {
+      "id": "travel-101",
+      "category": "travel",
+      "text": "We packed too much for this trip."
+    },
+    {
+      "id": "travel-102",
+      "category": "travel",
+      "text": "Leave some room for souvenirs."
+    },
+    {
+      "id": "travel-103",
+      "category": "travel",
+      "text": "Don't forget your travel adapter."
+    },
+    {
+      "id": "travel-104",
+      "category": "travel",
+      "text": "I put the tickets in the front pocket."
+    },
+    {
+      "id": "travel-105",
+      "category": "travel",
+      "text": "Keep a copy of your important documents."
+    },
+    {
+      "id": "travel-106",
+      "category": "travel",
+      "text": "The forecast looks good for the weekend."
+    },
+    {
+      "id": "travel-107",
+      "category": "travel",
+      "text": "Bring layers in case the weather changes."
+    },
+    {
+      "id": "travel-108",
+      "category": "travel",
+      "text": "Comfortable shoes will be useful for walking."
+    },
+    {
+      "id": "travel-109",
+      "category": "travel",
+      "text": "We should pack some snacks for the journey."
+    },
+    {
+      "id": "travel-110",
+      "category": "travel",
+      "text": "I'll bring a refillable water bottle."
+    },
+    {
+      "id": "travel-111",
+      "category": "travel",
+      "text": "What would you recommend seeing nearby?"
+    },
+    {
+      "id": "travel-112",
+      "category": "travel",
+      "text": "The old town is worth exploring."
+    },
+    {
+      "id": "travel-113",
+      "category": "travel",
+      "text": "The market opens early in the morning."
+    },
+    {
+      "id": "travel-114",
+      "category": "travel",
+      "text": "We booked a guided tour for tomorrow."
+    },
+    {
+      "id": "travel-115",
+      "category": "travel",
+      "text": "The tour lasts about two hours."
+    },
+    {
+      "id": "travel-116",
+      "category": "travel",
+      "text": "Our guide knows a lot about the area."
+    },
+    {
+      "id": "travel-117",
+      "category": "travel",
+      "text": "The view from the tower is beautiful."
+    },
+    {
+      "id": "travel-118",
+      "category": "travel",
+      "text": "Let's take a picture before we leave."
+    },
+    {
+      "id": "travel-119",
+      "category": "travel",
+      "text": "There are fewer crowds early in the day."
+    },
+    {
+      "id": "travel-120",
+      "category": "travel",
+      "text": "We should reserve tickets in advance."
+    },
+    {
+      "id": "travel-121",
+      "category": "travel",
+      "text": "Is photography allowed inside the building?"
+    },
+    {
+      "id": "travel-122",
+      "category": "travel",
+      "text": "Please stay with the rest of the group."
+    },
+    {
+      "id": "travel-123",
+      "category": "travel",
+      "text": "We'll meet back here in half an hour."
+    },
+    {
+      "id": "travel-124",
+      "category": "travel",
+      "text": "The visitor center has maps and information."
+    },
+    {
+      "id": "travel-125",
+      "category": "travel",
+      "text": "The walking route is clearly marked."
+    },
+    {
+      "id": "travel-126",
+      "category": "travel",
+      "text": "Some sections of the path are steep."
+    },
+    {
+      "id": "travel-127",
+      "category": "travel",
+      "text": "The bridge leads to the other side."
+    },
+    {
+      "id": "travel-128",
+      "category": "travel",
+      "text": "There's a lovely viewpoint just ahead."
+    },
+    {
+      "id": "travel-129",
+      "category": "travel",
+      "text": "Let's stop here and enjoy the scenery."
+    },
+    {
+      "id": "travel-130",
+      "category": "travel",
+      "text": "I could spend all afternoon in this place."
+    },
+    {
+      "id": "travel-131",
+      "category": "travel",
+      "text": "Do you have a table for two?"
+    },
+    {
+      "id": "travel-132",
+      "category": "travel",
+      "text": "We'd like to sit outside if possible."
+    },
+    {
+      "id": "travel-133",
+      "category": "travel",
+      "text": "Could we see the menu please?"
+    },
+    {
+      "id": "travel-134",
+      "category": "travel",
+      "text": "Is there an English version available?"
+    },
+    {
+      "id": "travel-135",
+      "category": "travel",
+      "text": "What is the local specialty?"
+    },
+    {
+      "id": "travel-136",
+      "category": "travel",
+      "text": "Does this dish contain any nuts?"
+    },
+    {
+      "id": "travel-137",
+      "category": "travel",
+      "text": "I'd like the sauce on the side."
+    },
+    {
+      "id": "travel-138",
+      "category": "travel",
+      "text": "Could we have some drinking water?"
+    },
+    {
+      "id": "travel-139",
+      "category": "travel",
+      "text": "The food smells wonderful."
+    },
+    {
+      "id": "travel-140",
+      "category": "travel",
+      "text": "May we have the bill please?"
+    },
+    {
+      "id": "travel-141",
+      "category": "travel",
+      "text": "Where can I exchange some currency?"
+    },
+    {
+      "id": "travel-142",
+      "category": "travel",
+      "text": "Is there a cash machine nearby?"
+    },
+    {
+      "id": "travel-143",
+      "category": "travel",
+      "text": "The exchange rate is displayed on the board."
+    },
+    {
+      "id": "travel-144",
+      "category": "travel",
+      "text": "I only have a large note."
+    },
+    {
+      "id": "travel-145",
+      "category": "travel",
+      "text": "Can you give me smaller change?"
+    },
+    {
+      "id": "travel-146",
+      "category": "travel",
+      "text": "The price includes the entrance fee."
+    },
+    {
+      "id": "travel-147",
+      "category": "travel",
+      "text": "Is there a discount for children?"
+    },
+    {
+      "id": "travel-148",
+      "category": "travel",
+      "text": "I'd like to buy two of these."
+    },
+    {
+      "id": "travel-149",
+      "category": "travel",
+      "text": "Could you wrap this for travel?"
+    },
+    {
+      "id": "travel-150",
+      "category": "travel",
+      "text": "I'll keep the receipt in my wallet."
+    },
+    {
+      "id": "travel-151",
+      "category": "travel",
+      "text": "The beach is a short walk away."
+    },
+    {
+      "id": "travel-152",
+      "category": "travel",
+      "text": "We should find some shade before lunch."
+    },
+    {
+      "id": "travel-153",
+      "category": "travel",
+      "text": "The water is colder than it looks."
+    },
+    {
+      "id": "travel-154",
+      "category": "travel",
+      "text": "The lifeguard is near the main entrance."
+    },
+    {
+      "id": "travel-155",
+      "category": "travel",
+      "text": "Pay attention to the warning flags."
+    },
+    {
+      "id": "travel-156",
+      "category": "travel",
+      "text": "The tide has come in since this morning."
+    },
+    {
+      "id": "travel-157",
+      "category": "travel",
+      "text": "Let's walk along the shore for a while."
+    },
+    {
+      "id": "travel-158",
+      "category": "travel",
+      "text": "The sunset should be lovely from here."
+    },
+    {
+      "id": "travel-159",
+      "category": "travel",
+      "text": "We can hear the waves from our room."
+    },
+    {
+      "id": "travel-160",
+      "category": "travel",
+      "text": "I'm glad we chose this quiet spot."
+    },
+    {
+      "id": "travel-161",
+      "category": "travel",
+      "text": "The campsite is surrounded by trees."
+    },
+    {
+      "id": "travel-162",
+      "category": "travel",
+      "text": "We need a level place for the tent."
+    },
+    {
+      "id": "travel-163",
+      "category": "travel",
+      "text": "The ground is still wet from the rain."
+    },
+    {
+      "id": "travel-164",
+      "category": "travel",
+      "text": "Let's set everything up before dark."
+    },
+    {
+      "id": "travel-165",
+      "category": "travel",
+      "text": "The cooking area is near the shelter."
+    },
+    {
+      "id": "travel-166",
+      "category": "travel",
+      "text": "Keep the food stored securely overnight."
+    },
+    {
+      "id": "travel-167",
+      "category": "travel",
+      "text": "The trail starts behind the visitor center."
+    },
+    {
+      "id": "travel-168",
+      "category": "travel",
+      "text": "Bring enough water for the whole walk."
+    },
+    {
+      "id": "travel-169",
+      "category": "travel",
+      "text": "The path gets narrower near the ridge."
+    },
+    {
+      "id": "travel-170",
+      "category": "travel",
+      "text": "We should turn back before the weather worsens."
+    },
+    {
+      "id": "travel-171",
+      "category": "travel",
+      "text": "I can't find my passport anywhere."
+    },
+    {
+      "id": "travel-172",
+      "category": "travel",
+      "text": "I last saw it at the hotel."
+    },
+    {
+      "id": "travel-173",
+      "category": "travel",
+      "text": "Could you help me contact the reception desk?"
+    },
+    {
+      "id": "travel-174",
+      "category": "travel",
+      "text": "I need to call my travel insurer."
+    },
+    {
+      "id": "travel-175",
+      "category": "travel",
+      "text": "The nearest pharmacy is across the square."
+    },
+    {
+      "id": "travel-176",
+      "category": "travel",
+      "text": "Can you write down the address for me?"
+    },
+    {
+      "id": "travel-177",
+      "category": "travel",
+      "text": "I don't speak the language very well."
+    },
+    {
+      "id": "travel-178",
+      "category": "travel",
+      "text": "Could you speak a little more slowly?"
+    },
+    {
+      "id": "travel-179",
+      "category": "travel",
+      "text": "Thank you for being so patient."
+    },
+    {
+      "id": "travel-180",
+      "category": "travel",
+      "text": "That was very kind of you."
+    },
+    {
+      "id": "travel-181",
+      "category": "travel",
+      "text": "Our holiday is coming to an end."
+    },
+    {
+      "id": "travel-182",
+      "category": "travel",
+      "text": "We should reconfirm the transfer to the airport."
+    },
+    {
+      "id": "travel-183",
+      "category": "travel",
+      "text": "Let's pack tonight so the morning is easier."
+    },
+    {
+      "id": "travel-184",
+      "category": "travel",
+      "text": "Check the room before handing back the keys."
+    },
+    {
+      "id": "travel-185",
+      "category": "travel",
+      "text": "I nearly left my charger behind."
+    },
+    {
+      "id": "travel-186",
+      "category": "travel",
+      "text": "The journey home should take about four hours."
+    },
+    {
+      "id": "travel-187",
+      "category": "travel",
+      "text": "We had a wonderful time here."
+    },
+    {
+      "id": "travel-188",
+      "category": "travel",
+      "text": "I'd love to visit again in the spring."
+    },
+    {
+      "id": "travel-189",
+      "category": "travel",
+      "text": "Next time we should stay a little longer."
+    },
+    {
+      "id": "travel-190",
+      "category": "travel",
+      "text": "I'll send you the photos when we're home."
+    },
+    {
+      "id": "travel-191",
+      "category": "travel",
+      "text": "It's good to be back after a long trip."
+    }
+  ]
+}

@@ -303,9 +303,10 @@ Visual context is one field-scoped session:
 
 ~~~text
 VisualContextCoordinator
-  -> WindowScreenshotService (ScreenCaptureKit crop)
+  -> WindowScreenshotService (local: focused window; endpoint: original field crop)
   -> ScreenTextExtractor (Vision OCR + line confidence)
   -> OCRTextHygiene
+  -> VisualContextExcerptSelector (local: proximity, deduplication, reading order)
   -> bounded sanitized excerpt
 ~~~
 
@@ -313,17 +314,22 @@ There is no model summarization step and raw screenshots do not enter prompts. M
 produces an explicit unavailable state without disabling text-only autocomplete. Debug screenshot/OCR
 artifacts exist only under the explicit debug launch mode.
 
-Secure fields cannot schedule generation, show a suggestion, accept text, or open an inline command,
-so their context cannot flow into an engine request. The acquisition boundary is currently broader
-than that guarantee: FocusSnapshotResolver still creates a bounded context for a secure field before
-marking its capability blocked, and visual-capture eligibility deliberately ignores capability so
-screenshot/OCR can warm for that field. The excerpt cannot be consumed by prediction, but explicit
-debug mode can persist visual captures. Treat this as privacy debt; current architecture guarantees
-no secure-field generation, not no secure-field acquisition.
+Local engines refresh context three seconds after the previous capture finishes, while generation
+continues using the last ready excerpt. Every refresh rechecks focus, permissions and eligibility;
+unchanged pixels reuse OCR and unchanged excerpts do not trigger generation. Local selection admits
+up to 4,000 characters, additionally constrained by estimated-token budgets and caret-prefix priority.
+The endpoint retains its original crop, focus-only lifecycle, 1,500-character excerpt and 500-character
+prompt section. Increasing local context does not opt users into broader network transmission.
+Local excerpts use confidence/line hygiene without the legacy English token whitelist, preserving
+recognized names, ordinary words, dates and amounts instead of silently stripping them.
 
-Endpoint credentials are stored in Keychain. A remote endpoint receives the same bounded request that
-would otherwise be used locally, so its privacy scope must remain visible in settings and
-documentation.
+Secure fields cannot schedule generation, show a suggestion, accept text, or open an inline command,
+so their context cannot flow into an engine request. VisualContextCoordinator also rejects secure
+fields before starting screenshot/OCR work. FocusSnapshotResolver still creates a bounded AX context
+before marking a secure field blocked; that lower-level acquisition remains separate privacy debt.
+
+Endpoint credentials are stored in Keychain. A remote endpoint receives its bounded, legacy-scope
+request; its privacy scope must remain visible in settings and documentation.
 
 ## Presentation and Sibling Features
 

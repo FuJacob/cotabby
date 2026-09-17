@@ -75,8 +75,8 @@ extension SuggestionCoordinator {
             "Focus snapshot changed: app=\(snapshot.applicationName) capability=\(snapshot.capability.shortLabel) detail=\(changedDetail)"
         )
         // Start capturing visual context for a newly focused input even when predictions are
-        // temporarily disabled by transient field states (e.g., "text is selected" or "secure
-        // field"). Skip capture entirely when the subsystem is hard-disabled (globally off,
+        // temporarily disabled by transient field states (e.g., "text is selected"). The visual
+        // service rejects secure fields. Skip capture when the subsystem is hard-disabled (globally off,
         // per-app disabled, terminal apps, or missing permissions) to avoid wasted compute.
         if let context = snapshot.context,
            SuggestionAvailabilityEvaluator.shouldCaptureVisualContext(
@@ -92,7 +92,9 @@ extension SuggestionCoordinator {
                focusSnapshot: snapshot,
                isFastModeEnabled: settingsSnapshot.isFastModeEnabled
            ) {
-            visualContextCoordinator.startSessionIfNeeded(for: context)
+            visualContextCoordinator.startSessionIfNeeded(
+                for: context, configuration: .forEngine(settingsSnapshot.selectedEngine)
+            )
         }
 
         if let disabledReason = currentDisabledReason(focusSnapshot: snapshot) {
@@ -124,7 +126,9 @@ extension SuggestionCoordinator {
             focusSnapshot: snapshot,
             isFastModeEnabled: settingsSnapshot.isFastModeEnabled
         ) {
-            visualContextCoordinator.startSessionIfNeeded(for: focusedContext)
+            visualContextCoordinator.startSessionIfNeeded(
+                for: focusedContext, configuration: .forEngine(settingsSnapshot.selectedEngine)
+            )
         }
 
         if case .disabled = state {

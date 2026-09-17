@@ -16,7 +16,7 @@ import Foundation
 enum BaseCompletionPromptRenderer {
     /// Total character budget for the preface plus caret prefix. The prefix arrives already windowed
     /// by `SuggestionRequestFactory`, so this mainly caps how much optional context rides along.
-    static let defaultContextBudget = 2400
+    static let defaultContextBudget = 6400
 
     static func prompt(
         prefixText: String,
@@ -31,6 +31,8 @@ enum BaseCompletionPromptRenderer {
         visualContextSummary: String? = nil,
         surfaceContext: SurfaceContext? = nil,
         contextBudget: Int = defaultContextBudget,
+        maxScreenCharacters: Int = 4000,
+        screenPriority: Int = 45,
         tokenBudget: Int? = nil
     ) -> String {
         var sections: [PromptSection] = []
@@ -59,7 +61,7 @@ enum BaseCompletionPromptRenderer {
         if let notes = Self.nonEmpty(extendedContext) {
             // `maxChars` must stay at or above `SuggestionSettingsModel.maximumExtendedContextCharacters`
             // plus this label (~32 chars) so the full user-entered Extended Context survives here instead
-            // of being silently clipped far under the advertised cap. It still competes for the 2400-char
+            // of being silently clipped far under the advertised cap. It still competes for the total
             // total budget below (priority 40), so an unusually long prefix can trim it, but in normal use
             // the whole blob lands.
             sections.append(Self.contextSection("notes", "Notes the writer keeps in mind: \(notes)", priority: 40, maxChars: 1300))
@@ -68,7 +70,9 @@ enum BaseCompletionPromptRenderer {
             sections.append(Self.contextSection("clipboard", "On the clipboard: \(clip)", priority: 35, maxChars: 400))
         }
         if let screen = Self.nonEmpty(visualContextSummary) {
-            sections.append(Self.contextSection("screen", "Nearby on screen: \(screen)", priority: 30, maxChars: 500))
+            sections.append(Self.contextSection(
+                "screen", "Nearby on screen: \(screen)", priority: screenPriority, maxChars: maxScreenCharacters
+            ))
         }
         let followingText = String(trailingText.prefix(max(0, maxSuffixCharacters)))
         if !followingText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {

@@ -5,7 +5,7 @@ import Logging
 import ScreenCaptureKit
 
 /// File overview:
-/// Captures a compact screenshot around the currently focused input using ScreenCaptureKit.
+/// Captures the focused window (local engines) or a field crop (endpoint) using ScreenCaptureKit.
 /// This is the screenshot boundary for prompt augmentation: raw pixels enter here, and the rest
 /// of the app never has to know about window discovery, crop math, or coordinate conversion APIs.
 ///
@@ -15,6 +15,7 @@ import ScreenCaptureKit
 struct CapturedWindowScreenshot {
     let image: CGImage
     let windowTitle: String?
+    var focusBounds: CGRect? = nil
 }
 
 /// Test seam for screen capture.
@@ -25,7 +26,8 @@ struct CapturedWindowScreenshot {
 protocol WindowScreenshotCapturing {
     func captureSnapshot(
         around context: FocusedInputSnapshot,
-        snapshotDimension: Int
+        snapshotDimension: Int,
+        capturesEntireWindow: Bool
     ) async throws -> CapturedWindowScreenshot
 }
 
@@ -62,7 +64,8 @@ struct WindowScreenshotService: WindowScreenshotCapturing {
     /// caller does not need to know anything about ScreenCaptureKit's capture coordinate system.
     func captureSnapshot(
         around context: FocusedInputSnapshot,
-        snapshotDimension: Int
+        snapshotDimension: Int,
+        capturesEntireWindow: Bool = false
     ) async throws -> CapturedWindowScreenshot {
         let processIdentifier = pid_t(context.processIdentifier)
 
@@ -72,8 +75,14 @@ struct WindowScreenshotService: WindowScreenshotCapturing {
         }
 
         let shareableContent = try await currentShareableContent()
+        try Task.checkCancellation()
+        let caretCG = convertBetweenAppKitAndCG(rect: context.caretRect)
+        let focusedWindow = capturesEntireWindow ? shareableContent.windows.first(where: {
+            $0.owningApplication?.processID == processIdentifier && $0.isOnScreen
+                && $0.frame.contains(CGPoint(x: caretCG.midX, y: caretCG.midY)) && $0.isActive
+        }) : nil
         let matchingWindow =
-            shareableContent.windows.first(where: {
+            focusedWindow ?? shareableContent.windows.first(where: {
                 $0.owningApplication?.processID == processIdentifier && $0.isActive && $0.isOnScreen
             })
             ?? shareableContent.windows.first(where: {
@@ -89,11 +98,14 @@ struct WindowScreenshotService: WindowScreenshotCapturing {
         let windowHeight = Int(matchingWindow.frame.height)
         CotabbyLogger.app.trace("Capturing window: \(windowTitle) (\(windowWidth)x\(windowHeight))")
 
-        let sourceRect = snapshotRect(
+        let sourceRect = capturesEntireWindow ? matchingWindow.frame : snapshotRect(
             around: context,
             windowFrame: matchingWindow.frame,
             snapshotDimension: CGFloat(snapshotDimension)
         )
+        guard !sourceRect.isEmpty, !sourceRect.isInfinite, !sourceRect.isNull else {
+            throw WindowScreenshotError.captureFailed("The focused window has no captureable bounds.")
+        }
         let outputScale = backingScaleFactor(for: sourceRect)
 
         let filter = SCContentFilter(desktopIndependentWindow: matchingWindow)
@@ -112,7 +124,18 @@ struct WindowScreenshotService: WindowScreenshotCapturing {
         configuration.showsCursor = false
 
         let image = try await captureImage(filter: filter, configuration: configuration)
-        return CapturedWindowScreenshot(image: image, windowTitle: matchingWindow.title)
+        try Task.checkCancellation()
+        let field = convertBetweenAppKitAndCG(rect: context.inputFrameRect ?? context.caretRect)
+        let caret = convertBetweenAppKitAndCG(rect: context.caretRect)
+        // Vision uses bottom-left unit coordinates; AX/SCK use display points. Carry only this
+        // small geometric value into selection, never the AX element or window itself.
+        let focusBounds = CGRect(
+            x: (field.minX - sourceRect.minX) / sourceRect.width,
+            y: 1 - (caret.maxY - sourceRect.minY) / sourceRect.height,
+            width: field.width / sourceRect.width,
+            height: caret.height / sourceRect.height
+        )
+        return CapturedWindowScreenshot(image: image, windowTitle: matchingWindow.title, focusBounds: focusBounds)
     }
 
     private func snapshotRect(

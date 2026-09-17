@@ -49,6 +49,9 @@ jobs:
           xcodebuild -version
           swift --version
 
+      - name: Validate phrase benchmark tooling
+        run: python3 -m unittest discover -s scripts/tests -p 'test_phrase_eval.py'
+
       # CODE_SIGNING_ALLOWED=NO because CI runners don't have the dev cert,
       # and the test bundle's project settings already mirror this. Without
       # it, xcodebuild would refuse to embed the test xctest bundle into the

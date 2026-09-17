@@ -1060,7 +1060,7 @@ extension SuggestionCoordinator {
 
     /// Disables predictions without tearing down the visual context session.
     ///
-    /// Transient disabled states — "text is selected", "secure field", brief "no focused element"
+    /// Transient disabled states — "text is selected", brief "no focused element"
     /// between field switches — should not cancel an in-progress OCR pipeline. The visual context
     /// session is field-scoped and outlives individual prediction cycles; destroying it here would
     /// force a redundant re-capture when the user starts typing again.

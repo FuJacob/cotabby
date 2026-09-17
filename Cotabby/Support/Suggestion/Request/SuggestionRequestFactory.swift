@@ -64,7 +64,8 @@ enum SuggestionRequestFactory {
             prefixText: prefixText
         )
         let boundedVisualContextSummary = activeVisualContextSummary(
-            rawSummary: visualContextSummary
+            rawSummary: visualContextSummary,
+            engine: settings.selectedEngine
         )
         // The composed surface description; nil when the user disabled it or the surface class
         // suppresses it (code editors, terminals, anonymous generic apps). The composer sanitizes
@@ -101,6 +102,9 @@ enum SuggestionRequestFactory {
             clipboardContext: boundedClipboardContext,
             visualContextSummary: boundedVisualContextSummary,
             surfaceContext: surfaceContext,
+            contextBudget: settings.selectedEngine == .openAICompatible ? 2400 : BaseCompletionPromptRenderer.defaultContextBudget,
+            maxScreenCharacters: settings.selectedEngine == .openAICompatible ? 500 : 4000,
+            screenPriority: settings.selectedEngine == .openAICompatible ? 30 : 45,
             tokenBudget: configuration.llamaPromptTokenBudget
         )
 
@@ -209,12 +213,22 @@ enum SuggestionRequestFactory {
         return clippedText(distilled, maxCharacters: maxClipboardContextCharacters)
     }
 
-    private static func activeVisualContextSummary(rawSummary: String?) -> String? {
+    private static func activeVisualContextSummary(rawSummary: String?, engine: SuggestionEngineKind) -> String? {
         guard let rawSummary else {
             return nil
         }
 
-        let sanitizedSummary = PromptContextSanitizer.sanitize(rawSummary)
+        let limit = VisualContextConfiguration.forEngine(engine).maxSummaryCharacters
+        var sanitizedSummary = PromptContextSanitizer.sanitize(rawSummary, maxCharacters: limit)
+        // CJK and code can cost far more tokens per character than English. Reserve space for
+        // Apple's instructions, caret text and clipboard instead of filling its shared 4K window
+        // with screen text alone. Native llama additionally allocates the complete prompt by token.
+        if engine != .openAICompatible {
+            while TokenCountEstimator.estimate(sanitizedSummary)
+                + sanitizedSummary.unicodeScalars.filter({ !$0.isASCII }).count * 2 > 1200 {
+                sanitizedSummary = String(sanitizedSummary.prefix(sanitizedSummary.count * 9 / 10))
+            }
+        }
         guard !sanitizedSummary.isEmpty,
               PromptContextSanitizer.containsAlphanumericSignal(sanitizedSummary)
         else {

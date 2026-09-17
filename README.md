@@ -160,6 +160,8 @@ Cotabby blocks generation, presentation, and insertion in password and other sec
 
 Requires Xcode and Command Line Tools. Apple Silicon is strongly recommended for local model performance. For setup, build, test, and contribution workflow details, start with [CONTRIBUTING.md](CONTRIBUTING.md).
 
+For autocomplete tuning, the [phrase prediction benchmark](PHRASE_EVAL.md) replays 1,337 fixed phrases and reports next-word accuracy per phrase, category, and suite, with commands for comparing runs.
+
 ```bash
 git clone https://github.com/FuJacob/cotabby.git Cotabby
 cd Cotabby

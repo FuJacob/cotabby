@@ -9,6 +9,37 @@ import XCTest
 /// that adds "one more guard, just in case" doesn't silently remove
 /// completions that used to work.
 final class SuggestionRequestFactoryTests: XCTestCase {
+    func test_localScreenContextExceedsOldCapButEndpointKeepsLegacyPrompt() {
+        let screen = String(repeating: "Project discussion and meeting agenda. ", count: 120)
+        for engine in [SuggestionEngineKind.llamaOpenSource, .appleIntelligence, .openAICompatible] {
+            let result = SuggestionRequestFactory.buildRequest(
+                context: CotabbyTestFixtures.focusedInputContext(precedingText: "Please send "),
+                settings: CotabbyTestFixtures.settingsSnapshot(selectedEngine: engine),
+                configuration: .standard, visualContextSummary: screen
+            )
+            let limit = engine == .openAICompatible ? 1500 : 4000
+            XCTAssertLessThanOrEqual(result.request.visualContextSummary?.count ?? 0, limit)
+            if engine == .openAICompatible {
+                XCTAssertLessThan(result.request.prompt.count, 800)
+                XCTAssertFalse(VisualContextConfiguration.forEngine(engine).capturesEntireWindow)
+            } else {
+                XCTAssertGreaterThan(result.request.visualContextSummary?.count ?? 0, 1500)
+                XCTAssertGreaterThan(result.request.prompt.count, 1000)
+                XCTAssertTrue(VisualContextConfiguration.forEngine(engine).capturesEntireWindow)
+            }
+            XCTAssertTrue(result.request.prompt.hasSuffix("Please send "))
+        }
+    }
+
+    func test_denseUnicodeScreenTextLeavesRoomForLocalInstructionsAndCaret() {
+        let result = SuggestionRequestFactory.buildRequest(
+            context: CotabbyTestFixtures.focusedInputContext(precedingText: "今天"),
+            settings: CotabbyTestFixtures.settingsSnapshot(selectedEngine: .appleIntelligence),
+            configuration: .standard, visualContextSummary: String(repeating: "请在周五之前发送项目报告", count: 500)
+        )
+        XCTAssertLessThan(result.request.visualContextSummary?.count ?? 0, 600)
+        XCTAssertTrue(result.request.prompt.hasSuffix("今天"))
+    }
 
     // MARK: - degenerate inputs
 

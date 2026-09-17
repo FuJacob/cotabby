@@ -271,7 +271,20 @@ final class SuggestionCoordinator: ObservableObject {
         }
 
         visualContextCoordinator.onInjectedContextReady = { [weak self] identity in
-            self?.schedulePredictionForCurrentFocusIfPossible(matching: identity)
+            guard let self else { return }
+            // Previously cached continuations were conditioned on different screen text. Do not
+            // restore them after a refresh, but leave an already visible/accepting tail stable.
+            self.suggestionAnchorCache = SuggestionAnchorCache()
+            guard self.interactionState.activeSession == nil else {
+                // An in-flight continuation used the old screen context and could refill the
+                // anchor cache after this clear. Cancel the work, not the visible/accepting tail.
+                self.cancelPredictionWork()
+                return
+            }
+            self.schedulePredictionForCurrentFocusIfPossible(matching: identity)
+        }
+        visualContextCoordinator.refreshContextProvider = { [weak self] in
+            self?.currentVisualRefreshContext()
         }
 
         suggestionSettings.snapshotPublisher

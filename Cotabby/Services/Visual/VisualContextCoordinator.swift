@@ -11,9 +11,13 @@ final class VisualContextCoordinator {
     /// without taking back ownership of the visual-context task lifecycle.
     var onStateChange: ((VisualContextStatus, String?) -> Void)?
     var onInjectedContextReady: ((FocusedInputIdentity) -> Void)?
+    var refreshContextProvider: (() -> FocusedInputSnapshot?)?
 
-    private let screenshotContextGenerator: ScreenshotContextGenerator
+    private let screenshotContextGenerator: any ScreenshotContextGenerating
     private let screenRecordingPermissionProvider: @MainActor () -> Bool
+    private let refreshIntervalNanoseconds: UInt64
+    private var configuration = VisualContextConfiguration.default
+    private var refreshTask: Task<Void, Never>?
 
     private(set) var status: VisualContextStatus = .idle
     private(set) var latestExcerpt: String?
@@ -32,11 +36,13 @@ final class VisualContextCoordinator {
         "Screen Recording permission is required for screenshot-derived prompt context."
 
     init(
-        screenshotContextGenerator: ScreenshotContextGenerator,
-        screenRecordingPermissionProvider: @escaping @MainActor () -> Bool
+        screenshotContextGenerator: any ScreenshotContextGenerating,
+        screenRecordingPermissionProvider: @escaping @MainActor () -> Bool,
+        refreshIntervalNanoseconds: UInt64 = 3_000_000_000
     ) {
         self.screenshotContextGenerator = screenshotContextGenerator
         self.screenRecordingPermissionProvider = screenRecordingPermissionProvider
+        self.refreshIntervalNanoseconds = refreshIntervalNanoseconds
     }
 
     /// Starts one screenshot-derived augmentation session per focused field.
@@ -47,7 +53,18 @@ final class VisualContextCoordinator {
     /// `elementIdentifier` alone is unreliable because macOS can recycle `CFHash` values
     /// across unrelated AX elements. The monotonic `focusChangeSequence` counter provides a
     /// guaranteed-unique signal that the focus tracker actually observed a new element.
-    func startSessionIfNeeded(for snapshotContext: FocusedInputSnapshot) {
+    func startSessionIfNeeded(
+        for snapshotContext: FocusedInputSnapshot,
+        configuration: VisualContextConfiguration = .default
+    ) {
+        guard !snapshotContext.isSecure else {
+            cancel(resetState: true)
+            return
+        }
+        if self.configuration != configuration {
+            cancel(resetState: true)
+            self.configuration = configuration
+        }
         // Coalesce repeated calls for the same field (active or already pending) so a flapping focus
         // can't restart the pipeline. The decision is pure so the invariants stay unit-testable.
         let incoming = VisualContextFieldIdentity(
@@ -133,6 +150,23 @@ final class VisualContextCoordinator {
             return
         }
 
+        var captureContext = snapshotContext
+        if configuration.capturesEntireWindow, let provider = refreshContextProvider {
+            let currentContext = provider()
+            guard !Task.isCancelled, activeAugmentationSession?.sessionID == session.sessionID else { return }
+            guard screenRecordingPermissionProvider(), let currentContext,
+                  currentContext.identity == snapshotContext.identity, !currentContext.isSecure else {
+                cancel(resetState: true)
+                return
+            }
+            captureContext = currentContext
+        }
+        capture(context: captureContext, session: session)
+    }
+
+    /// Keep the last ready excerpt usable during refresh. Capture and OCR never gate generation;
+    /// only a completed, still-current result can replace the context used by subsequent requests.
+    private func capture(context snapshotContext: FocusedInputSnapshot, session: FocusedInputAugmentationSession) {
         visualContextTask = Task { [weak self] in
             guard let self else {
                 return
@@ -141,12 +175,21 @@ final class VisualContextCoordinator {
             do {
                 let excerpt = try await screenshotContextGenerator.generateContext(
                     for: snapshotContext,
+                    configuration: configuration,
                     onStatusChange: { [weak self] status in
-                        await self?.setStatus(status, for: session.sessionID)
+                        self?.setStatus(status, for: session.sessionID)
                     }
                 )
                 guard !Task.isCancelled else {
                     return
+                }
+                if configuration.capturesEntireWindow, let provider = refreshContextProvider {
+                    let liveContext = provider()
+                    guard activeAugmentationSession?.sessionID == session.sessionID else { return }
+                    guard screenRecordingPermissionProvider(), liveContext?.identity == snapshotContext.identity else {
+                        cancel(resetState: true)
+                        return
+                    }
                 }
 
                 applyExcerpt(
@@ -164,6 +207,34 @@ final class VisualContextCoordinator {
                 CotabbyLogger.app.error("Visual context generation failed: \(error.localizedDescription)")
                 setStatus(.failed(error.localizedDescription), for: session.sessionID)
             }
+            guard !Task.isCancelled, activeAugmentationSession?.sessionID == session.sessionID else { return }
+            visualContextTask = nil
+            scheduleRefresh(sessionID: session.sessionID)
+        }
+    }
+
+    /// One timer per field, rearmed only after capture completes: slow OCR cannot accumulate jobs.
+    /// The endpoint keeps its original focus-only lifecycle as well as its original capture scope.
+    private func scheduleRefresh(sessionID: UUID) {
+        guard configuration.capturesEntireWindow, refreshContextProvider != nil else { return }
+        let delay = refreshIntervalNanoseconds
+        refreshTask = Task { [weak self] in
+            do { try await Task.sleep(nanoseconds: delay) } catch { return }
+            guard let self, !Task.isCancelled,
+                  let session = self.activeAugmentationSession, session.sessionID == sessionID else { return }
+            let liveContext = self.refreshContextProvider?()
+            // Refreshing AX can synchronously publish a different field and start its session.
+            // Never cancel that replacement on behalf of this old timer.
+            guard self.activeAugmentationSession?.sessionID == sessionID else { return }
+            guard self.screenRecordingPermissionProvider(),
+                  let context = liveContext,
+                  context.elementIdentifier == session.elementIdentifier,
+                  context.focusChangeSequence == session.focusChangeSequence,
+                  !context.isSecure else {
+                self.cancel(resetState: true)
+                return
+            }
+            self.capture(context: context, session: session)
         }
     }
 
@@ -172,6 +243,8 @@ final class VisualContextCoordinator {
     /// 1. Fully returning the service to `.idle`
     /// 2. Silently tearing down a prior session because a replacement session is about to start
     func cancel(resetState: Bool) {
+        refreshTask?.cancel()
+        refreshTask = nil
         pendingStartTask?.cancel()
         pendingStartTask = nil
         pendingStartContext = nil
@@ -207,6 +280,17 @@ final class VisualContextCoordinator {
             return
         }
 
+        if activeAugmentationSession?.excerpt != nil, status == .capturing || status == .extractingText {
+            return
+        }
+        // Failed/blank captures must not leave an old conversation masquerading as current context.
+        if case .unavailable = status {
+            activeAugmentationSession?.excerpt = nil
+            latestExcerpt = nil
+        } else if case .failed = status {
+            activeAugmentationSession?.excerpt = nil
+            latestExcerpt = nil
+        }
         activeAugmentationSession?.status = status
         self.status = status
         publishState()
@@ -225,13 +309,14 @@ final class VisualContextCoordinator {
             return
         }
 
+        let changed = activeAugmentationSession?.excerpt?.text != excerpt.text
         activeAugmentationSession?.status = .ready
         activeAugmentationSession?.excerpt = excerpt
         status = .ready
         latestExcerpt = excerpt.text
         CotabbyLogger.app.debug("Visual context ready: \(excerpt.text.count) chars")
         publishState()
-        onInjectedContextReady?(identity)
+        if changed { onInjectedContextReady?(identity) }
     }
 
     private func errorStatus(for error: ScreenshotContextGenerationError) -> VisualContextStatus {
