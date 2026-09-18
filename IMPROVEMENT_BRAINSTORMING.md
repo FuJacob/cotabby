@@ -179,6 +179,119 @@ scope is added; Apple Intelligence's own renderer is unaffected.
 - [x] Review diff, finish this document, and remove `build/DerivedData` after all testing ends.
 - [x] Complete the full six-hour window and report results and remaining limitations.
 
+## Proposed six-hour round 2 — brainstorming only
+
+Status: proposed; no second run, goal, or product change has started. This section records a
+bounded follow-up to round 1. The experiment would start from the adopted P2-H configuration,
+with a newly frozen snapshot of current app/native inputs and matching fresh baseline runs.
+
+**Question:** Does changing which tokens receive repetition penalties, and which context facts
+the model sees, improve word choice without losing partial-word correctness or responsiveness?
+
+Round 1 motivates this question: in the full production-seed comparison, screen context helped
+815 checkpoints and harmed 324. Most remaining misses were generated first-word reference
+mismatches; the approximate raw-correct/display-wrong count was zero. A plausible alternative
+continuation can still be a reference mismatch, so exact-match gains remain distinct from
+real-user usefulness. See the retained [failure review](benchmarks/phrase-prediction/round1-20260917/failure-review.md).
+
+### Proposed finite candidate list
+
+Keep the model, temperature 0.1, penalty strength 1.025, probability filters, output budget,
+seed policy, and scoring fixed. Benchmark each candidate against the same round-two baseline.
+
+| IDs | Four alternatives | Reason to test |
+| --- | --- | --- |
+| H1–H4 | Repetition history of 16, 32, or 128 tokens instead of 64; penalties on generated tokens only | Reusing a word from the draft or reference context may be useful, even though the current sampler penalizes recent prompt words. |
+| F1–F4 | Screen label `Context:`; label `Screen context:`; a quoted bounded screen block; screen section before surface metadata | Measure wording, provenance boundaries, and section order while preserving facts and the exact caret prefix at the end. |
+| M1–M4 | Independently omit App, Format, Title, or Field metadata | Identify the contribution of each fact within P2 instead of removing the whole surface section. Preserve existing browser-domain scope. |
+
+Target 12 individual alternatives, then at most four combinations. Choose combinations by a
+rule registered before results: the best nonbaseline candidate in each of the three families,
+three pairwise combinations, and their triple combination. Run a combination only if its
+components show screening benefit, its source changes compose cleanly, and its full comparison
+fits before the freeze deadline. No additional adaptive tuning cycle follows.
+
+Prompt-only variants must change actual rendered screening inputs before they count as an
+experiment. If a metadata field is absent throughout screening, use one predefined replacement:
+render the existing metadata one field per line. Otherwise record a skipped no-op, not an
+additional tested alternative. Native history membership also needs an effective-change audit.
+
+Important implementation constraints:
+
+- Generated-only penalties have no repetition history at the first sampled token, like penalty
+  1.0 at that moment; subsequent tokens can differ. Preserve prompt acceptance needed by other
+  sampler components, and preserve token healing, cache restoration, and cancellation behavior.
+- Validate cold/reused prompts, edits after discarded generation, repeated contextual words, and
+  partial-word token healing before using a native-history candidate in the quality comparison.
+- Existing screen excerpts are only 117–207 characters and prefixes at most 74 characters in the
+  inspected first-round reports. Larger prefix windows or screen caps of 512/1024 are no-ops there.
+  The request supplies a token budget, so changing only the renderer's character budget also has
+  no effect. Long/noisy-context behavior needs separately designed inputs.
+- Renderer formatting is shared with configured endpoint requests, whose quality would remain
+  unmeasured. Keep the existing metadata and transmission scope unchanged.
+
+### Proposed six-hour allocation
+
+| Elapsed time | Work and completion condition |
+| --- | --- |
+| 0:00–0:45 | Freeze baseline; establish fresh validation fixture support and data; verify candidate feasibility and measure initial run time. |
+| 0:45–2:30 | Implement, check, and screen the 12 bounded alternatives. Record benefits, losses, errors, and actual input changes. |
+| 2:30–3:00 | Run up to four eligible combinations; freeze one candidate before opening validation results. Aim to freeze earlier if possible. |
+| 3:00–4:00 | Run fresh baseline/finalist validation first, then the unchanged 1337 regression pair if it fits. |
+| 4:00–5:00 | Balanced character replay (initial estimate: 50 scenarios/category), controlled context stress cases, and one-worker latency. |
+| 5:00–6:00 | Current-main integration, focused tests/build, adoption decision, report, and cleanup; reserve the last 20 minutes for closure. |
+
+Measured first-round costs make this plausible: screening alternatives took approximately
+1.5–3.3 minutes; a full matched word pair took 29–32 minutes; the character150/category pair
+took about 96 minutes. Character50/category therefore projects to roughly 32 minutes before
+new build overhead. Re-estimate from the first run; admit new work only when the complete pair
+plus the protected reserve fits. Run inference comparisons sequentially, with matched worker
+counts; one-worker latency must not overlap other builds/inference.
+
+### Fresh evidence and adoption decision
+
+All 1,337 old scenarios have now contributed to inspected evidence. Keep their scores as a
+historical regression measure; reshuffling them does not create a fresh validation set.
+Prepare approximately 600–700 newly authored held-out scenarios, balanced by category, and
+freeze them before tuning. Keep authorship/source/template families together and cluster
+uncertainty at that level. Check duplication against the old corpus and prevent reference
+answers from entering candidate rules. Newly authored synthetic data still supports only a
+synthetic-data claim; independent real writing remains a later evaluation need.
+
+The current runner and corpus validator assume exactly 1,337 scenarios, so a supplementary
+fixture pathway is real setup work. Preserve the existing corpus and scorer, identify the new
+fixture separately, and record its hash and denominators. If that pathway and adequately checked
+fresh data are not ready by minute 45, treat the round as exploratory and retain P2-H defaults.
+Do not weaken the old corpus contract or call its reshuffle unseen validation.
+
+Proposed adoption gates, to register before candidate scores:
+
+- Fresh screen next-word improvement at least +0.50 percentage points, with paired 95% interval
+  lower bound above zero; no-screen change at least -0.50 pp and interval lower bound above -1 pp.
+- No predefined screen category loss greater than 3 pp. Report partial-word, useful-context,
+  distracting-context, and neutral-context outcomes separately; investigate regressions.
+- Overall partial-word accuracy must not decline in either context condition on the registered
+  character subset. Keep its category intervals visible rather than hiding losses in the average.
+- Require nonnegative overall word-score changes in both conditions on the unchanged 1337
+  regression pair. This is a development/regression check, not independent confirmation.
+- Zero inference errors, complete evidence, focused tests/build passing, and matching current-main
+  integration. Investigate one-worker p95 regression above the larger of 10% or 20 ms before adoption.
+- Check the frozen candidate against a matching production-seed baseline if the primary pair uses
+  benchmark seed 42. Prefer scheduling this within the integration block; additional seeds are optional.
+- Failed or inconclusive protected validation means keeping P2-H. Do not choose a different finalist
+  after viewing those results. A complete negative result still satisfies the round's learning goal.
+
+The achievable deliverable is a finite comparison, an explained adoption/retention decision,
+reproduction artifacts, and a clearer next hypothesis—not a guaranteed new high score.
+If setup or native correctness takes longer than budgeted, reduce the candidate count and mark
+unrun alternatives explicitly; protect validation, integration, and cleanup time.
+
+- [ ] Register final round-two matrix, timing, and criteria before execution.
+- [ ] Prepare and protect fresh validation data with a separate fixture identity.
+- [ ] Screen feasible alternatives and eligible combinations; freeze one candidate.
+- [ ] Complete fresh, historical, partial-word, latency, and integration checks.
+- [ ] Record the decision and clean experiment build products.
+
 ## Broader brainstorming backlog
 
 For a future iteration, define completion as a finite comparison and a recorded decision, rather

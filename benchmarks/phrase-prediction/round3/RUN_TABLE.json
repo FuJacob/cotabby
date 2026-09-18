@@ -1,0 +1,27 @@
+{
+  "round": "round3-20260917",
+  "appBaseRevision": "cd99305b169c714074c6ea1fda33f21e6cd0beda",
+  "nativeRevision": "7574a21516c65fc31f5cf8ef7380a03412eed480",
+  "model": "Qwen3.5-0.8B-Base.i1-Q6_K.gguf",
+  "modelSHA256": "febd85051361ccb34d0925744c819f9ae0724117e8f946a2852dd0edfa90a5a1",
+  "corpusSHA256": "b41c8089a58ae1e0ee84b95ac9283cf71db4e713e25bd8fed47220be69d8b0f6",
+  "sampling": {
+    "temperature": 0.1,
+    "repetitionPenalty": 1.025,
+    "topK": 20,
+    "topP": 0.7,
+    "minP": 0.08,
+    "seedScreen": 42,
+    "workers": 3
+  },
+  "runs": [
+    {"label": "baseline-screen42", "scope": "screen", "screenCorrect": 288, "noneCorrect": 235, "status": "CONTROL"},
+    {"label": "A-screen42", "scope": "screen", "screenCorrect": 294, "noneCorrect": 235, "status": "PASS"},
+    {"label": "B-screen42", "scope": "screen", "screenCorrect": 288, "noneCorrect": 241, "status": "PASS"},
+    {"label": "AB-screen42", "scope": "screen", "screenCorrect": 294, "noneCorrect": 241, "status": "PASS"},
+    {"label": "baseline-full42", "scope": "all", "screenCorrect": 2789, "noneCorrect": 2306, "status": "CONTROL"},
+    {"label": "AB-full42", "scope": "all", "screenCorrect": 2790, "noneCorrect": 2348, "status": "REJECT_SCREEN_GATE"}
+  ],
+  "skippedAfterRejection": ["full-production-seed", "partial-word", "latency", "integration"],
+  "productionAdopted": false
+}

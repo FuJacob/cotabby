@@ -1,0 +1,174 @@
+{
+  "updatedUTC": "2026-09-17T13:25:05.229833+00:00",
+  "rows": [
+    {
+      "label": "screen-M2",
+      "candidate": "M2",
+      "components": [
+        "M2"
+      ],
+      "screenCorrect": 294,
+      "noneCorrect": 225,
+      "checkpointsPerCondition": 770,
+      "reportSHA256": "2ea9ef90c3e7910461c12ad27b679b7a6443163bfaab57a42fb4058c98ffa645",
+      "registrationSHA256": "4d6a6b8ba6c9444d8c9a1cbcecf926341ddbd864b7584179a9f0e421c94cd008",
+      "replayWallSeconds": 108.2513997554779
+    },
+    {
+      "label": "screen-baseline",
+      "candidate": "baseline",
+      "components": [],
+      "screenCorrect": 288,
+      "noneCorrect": 235,
+      "checkpointsPerCondition": 770,
+      "reportSHA256": "43b1da1f43108a36c0bc572d7f13361e67b8b95f87bd2e5c434d6795b5937ea6",
+      "registrationSHA256": "f39923879fc7ac7a2641da91672e3dd09e396eac20230efced9065890fd58938",
+      "replayWallSeconds": 135.6235809326172
+    },
+    {
+      "label": "screen-H3",
+      "candidate": "H3",
+      "components": [
+        "H3"
+      ],
+      "screenCorrect": 288,
+      "noneCorrect": 235,
+      "checkpointsPerCondition": 770,
+      "reportSHA256": "9fd3af094bdc955a6ddcc854bf59ef9ac80cc592752308e709fb91d9935b1992",
+      "registrationSHA256": "7538d0207bd6d9d87682ad68efba51975d905d8229aae5525e8e09695ffc6dba",
+      "replayWallSeconds": 130.63744187355042
+    },
+    {
+      "label": "screen-H2",
+      "candidate": "H2",
+      "components": [
+        "H2"
+      ],
+      "screenCorrect": 286,
+      "noneCorrect": 235,
+      "checkpointsPerCondition": 770,
+      "reportSHA256": "626bf2f8e63a1cd645b62755fe649ae9c0b0b8eee22e61febfc5052611ff02dd",
+      "registrationSHA256": "2a5caf341c8468e0b33dd844237dbb4c5c16f75dbe50956c9b0fd17afff72094",
+      "replayWallSeconds": 112.41437196731567
+    },
+    {
+      "label": "screen-F1",
+      "candidate": "F1",
+      "components": [
+        "F1"
+      ],
+      "screenCorrect": 285,
+      "noneCorrect": 235,
+      "checkpointsPerCondition": 770,
+      "reportSHA256": "3d902e72679911e75d2d40b64531c8bd0013562eb366f2126b6080487b77f721",
+      "registrationSHA256": "c2de43cc2b9388b3c64ba60637722dfb1578ea007c27dbd9c1a1b2cfce45d4b3",
+      "replayWallSeconds": 118.53177404403687
+    },
+    {
+      "label": "screen-H1",
+      "candidate": "H1",
+      "components": [
+        "H1"
+      ],
+      "screenCorrect": 284,
+      "noneCorrect": 235,
+      "checkpointsPerCondition": 770,
+      "reportSHA256": "0be26e70550230751cd1fb1bd9d4b3b03251c688e51876f22e370f97579d165b",
+      "registrationSHA256": "8adef78332dfd2201a4936d3d33f6c8a761fe5bceb9cee144bbbebbcda676c3d",
+      "replayWallSeconds": 97.44354772567749
+    },
+    {
+      "label": "screen-F2",
+      "candidate": "F2",
+      "components": [
+        "F2"
+      ],
+      "screenCorrect": 284,
+      "noneCorrect": 235,
+      "checkpointsPerCondition": 770,
+      "reportSHA256": "b9f802754283188ecd501a803bf51aa22cf1bbab78f4328f55801881d6f5a768",
+      "registrationSHA256": "49c0604b972044f8391d127993000fd29f19b3514fe4506d5a51e8aa52f6fcab",
+      "replayWallSeconds": 109.73240780830383
+    },
+    {
+      "label": "screen-M4",
+      "candidate": "M4",
+      "components": [
+        "M4"
+      ],
+      "screenCorrect": 282,
+      "noneCorrect": 241,
+      "checkpointsPerCondition": 770,
+      "reportSHA256": "4b67509f5715ccff12e30a40f7afcdaea51f2dac6656b0a605f4c2f0f871d268",
+      "registrationSHA256": "a9afc55a1efb6418ba83db4addef7f15d79d7806e6bb94a3355ebd34b137ed12",
+      "replayWallSeconds": 109.47136211395264
+    },
+    {
+      "label": "screen-M1",
+      "candidate": "M1",
+      "components": [
+        "M1"
+      ],
+      "screenCorrect": 281,
+      "noneCorrect": 237,
+      "checkpointsPerCondition": 770,
+      "reportSHA256": "85d4d6b092d8cb1e3443525c00f7e70c5b76403c69de2fc32a4f4920073d443b",
+      "registrationSHA256": "9b7d32a956735578600788ee3b1a582f61edc8d764872ee177ebbfd93bd72c2d",
+      "replayWallSeconds": 101.59301710128784
+    },
+    {
+      "label": "screen-H4",
+      "candidate": "H4",
+      "components": [
+        "H4"
+      ],
+      "screenCorrect": 280,
+      "noneCorrect": 236,
+      "checkpointsPerCondition": 770,
+      "reportSHA256": "022d8c4a9f0a5cea1926d7c54055d6078793ce9d861f4937f11ea1be1d89b15f",
+      "registrationSHA256": "a1ada585b4574fabd497dd73b8e0b3cde14479db6d70c123d0a5ef7009fc4d67",
+      "replayWallSeconds": 123.56315898895264
+    },
+    {
+      "label": "screen-F3",
+      "candidate": "F3",
+      "components": [
+        "F3"
+      ],
+      "screenCorrect": 280,
+      "noneCorrect": 235,
+      "checkpointsPerCondition": 770,
+      "reportSHA256": "4bf5004cf6f1a1bca22be355c0ed02b80a4ad055f422b8fabeee917d69591793",
+      "registrationSHA256": "90f7179be55964172be0897538a899f38a14f0b531c7c520792c2a6388eef7a1",
+      "replayWallSeconds": 103.56117916107178
+    },
+    {
+      "label": "screen-F4",
+      "candidate": "F4",
+      "components": [
+        "F4"
+      ],
+      "screenCorrect": 274,
+      "noneCorrect": 235,
+      "checkpointsPerCondition": 770,
+      "reportSHA256": "bde42dc6631f817045c76a63b2eb7fe94361d5809f83a8da3dab4b296c2d70bf",
+      "registrationSHA256": "926a2da65653c882d7c33835a16bdd8fc8581c1021616e012989fda579fcaf86",
+      "replayWallSeconds": 105.80972599983215
+    },
+    {
+      "label": "screen-M3",
+      "candidate": "M3",
+      "components": [
+        "M3"
+      ],
+      "screenCorrect": 264,
+      "noneCorrect": 210,
+      "checkpointsPerCondition": 770,
+      "reportSHA256": "077ac61526b6f7657b44321f29fe710217edf1b888e1e7ef596d874677504655",
+      "registrationSHA256": "628286ceee758d2402703890131a82efd9a3450194a42c1a0b5f781375ebcef4",
+      "replayWallSeconds": 108.41921210289001
+    }
+  ],
+  "completedAlternatives": 12,
+  "scope": "Development screening; this ranking is not protected validation or an adoption decision."
+}
