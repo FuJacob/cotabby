@@ -20,6 +20,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     case includeAppContext
     case allowMultiLine
     case suggestWithinWords
+    case predictAheadWhileTyping
     case showFollowingWords
     case inlineMacros
     case onboarding
@@ -107,6 +108,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .includeClipboardContext: return "Include Clipboard Context"
         case .includeAppContext: return "Include App Context"
         case .allowMultiLine: return "Allow Multi-line Suggestions"
+        case .predictAheadWhileTyping: return "Predict Ahead While Typing"
         case .suggestWithinWords: return "Suggest while typing a word"
         case .showFollowingWords: return "Show following words"
         case .acceptPunctuation: return "Accept Punctuation With Word"
@@ -185,6 +187,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .includeClipboardContext: return "doc.on.clipboard"
         case .includeAppContext: return "macwindow"
         case .allowMultiLine: return "text.alignleft"
+        case .predictAheadWhileTyping: return "bolt.horizontal.circle"
         case .suggestWithinWords: return "text.cursor"
         case .showFollowingWords: return "text.word.spacing"
         case .acceptPunctuation: return "textformat.abc"
@@ -258,7 +261,8 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     var category: SettingsCategory {
         switch self {
         case .enableGlobally, .fastMode, .openAtLogin, .includeClipboardContext, .includeAppContext,
-             .allowMultiLine, .suggestWithinWords, .showFollowingWords, .inlineMacros, .onboarding, .resetAllSettings:
+             .allowMultiLine, .suggestWithinWords, .predictAheadWhileTyping, .showFollowingWords,
+             .inlineMacros, .onboarding, .resetAllSettings:
             return .general
         case .suggestionDisplay, .streamWhileGenerating, .fadeInSuggestions, .showFieldIndicator,
              .showWordCount, .showMenuBarIcon, .showKeyHint, .ghostTextColor,
@@ -300,6 +304,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .includeClipboardContext: return "Let suggestions reference what you last copied."
         case .includeAppContext: return "Tell the model which app and window you are typing in."
         case .allowMultiLine: return "Allow continuations that span more than one line."
+        case .predictAheadWhileTyping: return "Keep on-device predictions ready through matching typing for a faster pause."
         case .suggestWithinWords: return "Show new suggestions inside a word, or wait for a space or punctuation."
         case .showFollowingWords: return "Preview the following phrase, or reveal one word at a time as you type or accept."
         case .acceptPunctuation: return "Also accept trailing commas and periods with a word."
@@ -395,6 +400,9 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .acceptPunctuation:
             return ["punctuation", "comma", "period", "accept", "trailing", "auto accept",
                     "auto-accept", "space"]
+        case .predictAheadWhileTyping:
+            return ["predict", "predictive", "ahead", "background", "typing", "latency", "faster", "pause",
+                    "speculative", "reuse", "local", "on device", "power"]
         case .suggestWithinWords:
             return ["typing", "mid word", "midword", "unfinished", "word boundary", "space", "pause",
                     "wait", "complete word", "word ending", "autocomplete"]

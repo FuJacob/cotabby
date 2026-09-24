@@ -3,8 +3,8 @@
 # Credentials stay in Keychain. Publication is separate so a failed notarization cannot ship a DMG.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-version="${1:-0.6.3}"
-build_number="${2:-2026092401}"
+version="${1:-0.6.4}"
+build_number="${2:-2026092402}"
 # Each DMG must carry notes for its own version, never the first release's hardcoded file.
 release_notes="releases/cohamster-${version}.md"
 [[ -f "$release_notes" ]] || { echo "Missing release notes: $release_notes" >&2; exit 1; }

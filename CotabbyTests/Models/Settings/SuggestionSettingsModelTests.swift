@@ -31,6 +31,29 @@ final class SuggestionSettingsModelTests: XCTestCase {
         SuggestionSettingsModel(configuration: .standard, userDefaults: defaults)
     }
 
+    /// @Published sends before the facade setter returns. Observing the emitted snapshot catches
+    /// accidentally reading the old property value instead of carrying the publisher's input.
+    func test_predictAheadDefaultsOnAndPublishesPersistsAndResetsTheLiveChoice() {
+        let model = makeModel()
+        var values: [Bool] = []
+        let subscription = model.snapshotPublisher.sink { values.append($0.predictAheadWhileTyping) }
+        defer { subscription.cancel() }
+        XCTAssertTrue(model.predictAheadWhileTyping)
+        XCTAssertEqual(values, [true])
+
+        model.setPredictAheadWhileTyping(false)
+        model.setPredictAheadWhileTyping(false)
+        XCTAssertEqual(values, [true, false])
+        XCTAssertFalse(model.domainSettings.completion.predictAheadWhileTyping)
+        XCTAssertFalse(model.snapshot.predictAheadWhileTyping)
+        XCTAssertFalse(makeModel().predictAheadWhileTyping)
+
+        model.resetToDefaults()
+        XCTAssertEqual(values.last, true)
+        XCTAssertTrue(model.predictAheadWhileTyping)
+        XCTAssertTrue(makeModel().predictAheadWhileTyping)
+    }
+
     // MARK: - Setter persistence round-trip
 
     func test_setters_persistThroughStoreAndReloadInAFreshModel() {
@@ -186,6 +209,7 @@ final class SuggestionSettingsModelTests: XCTestCase {
         model.setAutoAcceptTrailingPunctuation(false)
         model.setAddSpaceAfterAccept(true)
         model.setStreamSuggestionsWhileGenerating(true)
+        model.setPredictAheadWhileTyping(false)
         model.setAcceptanceGranularity(.phrase)
         model.setSuggestInIntegratedTerminals(true)
         model.setShowIndicator(false)
@@ -242,6 +266,7 @@ final class SuggestionSettingsModelTests: XCTestCase {
         XCTAssertEqual(model.autoAcceptTrailingPunctuation, pristine.autoAcceptTrailingPunctuation)
         XCTAssertEqual(model.addSpaceAfterAccept, pristine.addSpaceAfterAccept)
         XCTAssertEqual(model.streamSuggestionsWhileGenerating, pristine.streamSuggestionsWhileGenerating)
+        XCTAssertEqual(model.predictAheadWhileTyping, pristine.predictAheadWhileTyping)
         XCTAssertEqual(model.acceptanceGranularity, pristine.acceptanceGranularity)
         XCTAssertEqual(model.suggestInIntegratedTerminals, pristine.suggestInIntegratedTerminals)
         XCTAssertEqual(model.showIndicator, pristine.showIndicator)
@@ -562,7 +587,7 @@ final class SuggestionSettingsModelTests: XCTestCase {
     func test_shortcutActionDisplayNames_coverAllActions() {
         XCTAssertEqual(ShortcutAction.acceptWord.displayName, "Accept Word")
         XCTAssertEqual(ShortcutAction.acceptEntireSuggestion.displayName, "Accept Entire Suggestion")
-        XCTAssertEqual(ShortcutAction.toggleTabby.displayName, "Toggle Tabby")
+        XCTAssertEqual(ShortcutAction.toggleTabby.displayName, "Toggle CoHamster")
     }
 
     // MARK: - Normalization funnels

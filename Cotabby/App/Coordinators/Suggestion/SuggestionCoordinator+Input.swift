@@ -143,6 +143,13 @@ extension SuggestionCoordinator {
             state = .idle
         }
 
+        // Lookahead has stricter field identity than an already visible tail: an unrelated AX
+        // edit or focus change must retire the request even before its first result arrives.
+        if let candidate = typingPrediction, !candidate.accepts(focusedContext) {
+            restartTypingPrediction(reason: "Focus or surrounding text invalidated the typing prediction.")
+            return
+        }
+
         if interactionState.activeSession != nil {
             reconcileActiveSession(with: snapshot)
             return
@@ -212,7 +219,7 @@ extension SuggestionCoordinator {
         // panel. Consumption still happens through the active tap's `emojiCaptureKeyDecider`.
         if emojiInputObserver?(event) == true {
             suggestionPresentationTiming.clear()
-            if overlayState.isVisible || interactionState.activeSession != nil || preparedContinuation != nil {
+            if overlayState.isVisible || interactionState.activeSession != nil || preparedContinuation != nil || typingPrediction != nil {
                 cancelPredictionWork()
                 clearSuggestion(clearDiagnostics: true)
                 hideOverlay(reason: "Overlay hidden because the emoji picker is active.")
@@ -248,6 +255,11 @@ extension SuggestionCoordinator {
 
         if let activeSession = interactionState.activeSession {
             return handleInputEvent(event, with: activeSession)
+        }
+
+        if event.kind == .textMutation, event.shouldSchedulePrediction,
+           retainTypingPrediction(typing: event.characters) {
+            return false
         }
 
         if event.shouldClearSuggestion {
@@ -370,6 +382,7 @@ extension SuggestionCoordinator {
         let currentContext = focusModel.snapshot.context
 
         if usePreparedContinuationIfPossible() { return }
+        if keepTypingPredictionAfterHostPublish() { return }
 
         // No focus context at all means the user moved away from any editable field — let
         // `schedulePrediction` and its downstream guards handle the disabled / unsupported state.

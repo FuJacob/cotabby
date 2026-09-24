@@ -137,6 +137,7 @@ struct SuggestionSettingsStore {
     private static let preferredEmojiGenderDefaultsKey = "cotabbyPreferredEmojiGender"
     private static let autoAcceptTrailingPunctuationDefaultsKey = "cotabbyAutoAcceptTrailingPunctuation"
     private static let addSpaceAfterAcceptDefaultsKey = "cotabbyAddSpaceAfterAccept"
+    private static let predictAheadWhileTypingDefaultsKey = "cotabbyPredictAheadWhileTyping"
     private static let streamWhileGeneratingDefaultsKey = "cotabbyStreamSuggestionsWhileGenerating"
     private static let fadeInSuggestionsDefaultsKey = "cotabbyFadeInSuggestions"
     private static let fadeInDurationSecondsDefaultsKey = "cotabbyFadeInDurationSeconds"
@@ -215,6 +216,7 @@ struct SuggestionSettingsStore {
         autoAcceptTrailingPunctuationDefaultsKey,
         addSpaceAfterAcceptDefaultsKey,
         streamWhileGeneratingDefaultsKey,
+        predictAheadWhileTypingDefaultsKey,
         fadeInSuggestionsDefaultsKey,
         fadeInDurationSecondsDefaultsKey,
         fadeInDurationDefaultRevisionDefaultsKey,
@@ -433,8 +435,10 @@ struct SuggestionSettingsStore {
         // trailing space is opt-in from Settings.
         let resolvedAddSpaceAfterAccept =
             userDefaults.object(forKey: Self.addSpaceAfterAcceptDefaultsKey) as? Bool ?? false
-        // Defaults to false so the suggestion appears once, fully formed; token-by-token streaming
-        // is opt-in from Settings.
+        // Missing keys opt existing installations into prediction reuse; an explicit false survives reload.
+        let resolvedPredictAheadWhileTyping =
+            userDefaults.object(forKey: Self.predictAheadWhileTypingDefaultsKey) as? Bool ?? true
+        // Streaming is opt-in; prediction reuse works independently when a user hides partials.
         let resolvedStreamSuggestionsWhileGenerating =
             userDefaults.object(forKey: Self.streamWhileGeneratingDefaultsKey) as? Bool ?? false
         // Defaults to true: the gentle fade-in is the intended out-of-box feel. Users who prefer
@@ -550,6 +554,7 @@ struct SuggestionSettingsStore {
                 autoAcceptTrailingPunctuation: resolvedAutoAcceptTrailingPunctuation,
                 addSpaceAfterAccept: resolvedAddSpaceAfterAccept,
                 streamSuggestionsWhileGenerating: resolvedStreamSuggestionsWhileGenerating,
+                predictAheadWhileTyping: resolvedPredictAheadWhileTyping,
                 acceptanceGranularity: resolvedAcceptanceGranularity
             ),
             context: SuggestionContextSettings(
@@ -651,6 +656,7 @@ struct SuggestionSettingsStore {
         saveAutoAcceptTrailingPunctuation(data.autoAcceptTrailingPunctuation)
         saveAddSpaceAfterAccept(data.addSpaceAfterAccept)
         saveStreamSuggestionsWhileGenerating(data.streamSuggestionsWhileGenerating)
+        savePredictAheadWhileTyping(data.predictAheadWhileTyping)
         saveFadeInSuggestions(data.fadeInSuggestions)
         saveFadeInDurationSeconds(data.fadeInDurationSeconds)
         saveAcceptanceKey(
@@ -941,6 +947,10 @@ struct SuggestionSettingsStore {
 
     func saveAddSpaceAfterAccept(_ enabled: Bool) {
         userDefaults.set(enabled, forKey: Self.addSpaceAfterAcceptDefaultsKey)
+    }
+
+    func savePredictAheadWhileTyping(_ enabled: Bool) {
+        userDefaults.set(enabled, forKey: Self.predictAheadWhileTypingDefaultsKey)
     }
 
     func saveStreamSuggestionsWhileGenerating(_ enabled: Bool) {

@@ -46,6 +46,8 @@ struct SuggestionCompletionSettings: Equatable {
     var autoAcceptTrailingPunctuation: Bool
     var addSpaceAfterAccept: Bool
     var streamSuggestionsWhileGenerating: Bool
+    /// Keeps an on-device request alive through matching typing, independently of partial display.
+    var predictAheadWhileTyping: Bool
     var acceptanceGranularity: AcceptanceGranularity
 }
 
@@ -261,6 +263,11 @@ extension SuggestionSettingsData {
     var addSpaceAfterAccept: Bool {
         get { completion.addSpaceAfterAccept }
         set { completion.addSpaceAfterAccept = newValue }
+    }
+
+    var predictAheadWhileTyping: Bool {
+        get { completion.predictAheadWhileTyping }
+        set { completion.predictAheadWhileTyping = newValue }
     }
 
     var streamSuggestionsWhileGenerating: Bool {

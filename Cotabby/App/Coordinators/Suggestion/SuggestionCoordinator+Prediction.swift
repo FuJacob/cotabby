@@ -17,6 +17,7 @@ extension SuggestionCoordinator {
     func schedulePrediction(consumedDelayMilliseconds: Int = 0) {
         if usePreparedContinuationIfPossible() { return }
         cancelPreparedContinuation()
+        clearTypingPrediction()
         // Any normal reschedule supersedes an outstanding speculative bet (its work id retires the
         // in-flight task; this retires the signature exemption so a late result cannot sneak in).
         pendingSpeculativeSignature = nil
@@ -284,12 +285,11 @@ extension SuggestionCoordinator {
         // A new generation starts a new stream. The state value deliberately preserves an already
         // scheduled drain callback while dropping the old request's partial and rendered text.
         suggestionStreamingState.beginGeneration()
-        // Streaming the ghost text token-by-token is opt-in. Read the flag here on the main actor so
-        // the work closure captures a plain Bool. When off, the closure passes no `onPartial`, so the
-        // engine skips its per-token main-actor hops entirely and the suggestion appears once, fully
-        // formed, through `apply` below; when on, each partial renders as an acceptable session the
-        // user can Tab into early.
+        beginTypingPrediction(for: request)
+        // Presentation remains opt-in, but on-device lookahead needs partials internally to know
+        // whether a newly typed character still agrees with the request already being decoded.
         let shouldStreamPartials = settingsSnapshot.streamSuggestionsWhileGenerating
+        let shouldCollectPartials = shouldStreamPartials || typingPrediction != nil
         workController.replaceGenerationWork(for: workID) { [weak self] in
             guard let self else {
                 return
@@ -297,8 +297,10 @@ extension SuggestionCoordinator {
 
             do {
                 let onPartial: (@MainActor (SuggestionResult) -> Void)?
-                if shouldStreamPartials {
-                    onPartial = { [weak self] partial in self?.queueStreamedPartial(partial, workID: workID) }
+                if shouldCollectPartials {
+                    onPartial = { [weak self] partial in
+                        self?.receiveTypingPartial(partial, workID: workID, showPartials: shouldStreamPartials)
+                    }
                 } else {
                     onPartial = nil
                 }
@@ -310,14 +312,16 @@ extension SuggestionCoordinator {
                     return
                 }
 
-                await apply(result: result, workID: workID)
+                await finishTypingPrediction(result, workID: workID)
             } catch SuggestionClientError.cancelled {
+                if self.workController.isCurrent(workID) { self.clearTypingPrediction() }
                 return
             } catch {
                 guard self.workController.isCurrent(workID) else {
                     return
                 }
 
+                self.clearTypingPrediction()
                 await applyFailure(error.localizedDescription, workID: workID)
             }
         }
@@ -368,7 +372,7 @@ extension SuggestionCoordinator {
     /// 10-50ms from the engine, and rendering each one would stack session updates and overlay
     /// layout on the main actor; latest-wins coalescing bounds that work while the authoritative
     /// final result still arrives through `apply`.
-    private func queueStreamedPartial(_ partial: SuggestionResult, workID: UInt64) {
+    func queueStreamedPartial(_ partial: SuggestionResult, workID: UInt64) {
         guard workController.isCurrent(workID) else {
             return
         }
@@ -392,10 +396,8 @@ extension SuggestionCoordinator {
     /// A real session rather than a cosmetic overlay because acceptance gates on the live session
     /// (never on `state`), so the user can Tab into a stream the moment the first words appear;
     /// accepting cancels the in-flight work (work id bump), freezing the suggestion at what was
-    /// streamed. Renders are monotonic (`StreamedGhostTextPolicy`) so reordered hops and
-    /// normalizer rewrites never shrink visible ghost text, and the materialize check stops
-    /// partials the moment the field text moves on without a keystroke (a keystroke already
-    /// bumped the work id before this runs).
+    /// streamed. Matching typed input can instead keep that stream alive; its candidate rebases
+    /// only after AX confirms the exact append. All other edits still retire the work ID.
     private func applyStreamedPartial(_ partial: SuggestionResult, workID: UInt64) {
         guard workController.isCurrent(workID), !suggestionStreamingState.isFinalized else {
             return
@@ -405,11 +407,16 @@ extension SuggestionCoordinator {
         }
 
         let liveContext = interactionState.materializeContext(from: rawContext)
-        guard liveContext.generation == partial.generation else {
-            return
+        let presentedPartial: SuggestionResult
+        if let candidate = typingPrediction {
+            guard let rebased = candidate.rebased(partial, in: rawContext, generation: liveContext.generation) else { return }
+            presentedPartial = rebased
+        } else {
+            guard liveContext.generation == partial.generation else { return }
+            presentedPartial = partial
         }
 
-        guard case let .show(text, wordOnly) = completionPresentation(text: partial.text, context: liveContext, isFinal: false),
+        guard case let .show(text, wordOnly) = completionPresentation(text: presentedPartial.text, context: liveContext, isFinal: false),
               !wasDismissed(text, context: liveContext) else { return }
         let delay = presentationDelay(context: liveContext)
         if delay > 0 {
@@ -421,7 +428,7 @@ extension SuggestionCoordinator {
             }
             return
         }
-        let buffered = bufferedCompletionText(partial.text, visibleText: text, context: liveContext, isFinal: false)
+        let buffered = bufferedCompletionText(presentedPartial.text, visibleText: text, context: liveContext, isFinal: false)
         let candidate = ActiveSuggestionSession(baseContext: liveContext, fullText: buffered,
             initialVisibleCharacterCount: wordOnly ? text.count : nil,
             showFollowingWords: settingsSnapshot.showFollowingWords, latency: partial.latency)
@@ -430,7 +437,7 @@ extension SuggestionCoordinator {
             $0.remainingText == visible && buffered.count > $0.fullText.count && buffered.hasPrefix($0.fullText)
         } ?? false
         guard suggestionStreamingState.canRender(visible) || growsBuffer else { return }
-        let session = startCompletionSession(prediction: partial.text, visibleText: text, context: liveContext,
+        let session = startCompletionSession(prediction: presentedPartial.text, visibleText: text, context: liveContext,
             latency: partial.latency, isFinal: false, wordEndingOnly: wordOnly)
         if growsBuffer { return }
         suggestionStreamingState.recordRendered(session.remainingText)
@@ -693,8 +700,8 @@ extension SuggestionCoordinator {
 
         // The free-running focus poll keeps capturing while the engine generates, so a fresh
         // capture often already exists here; only pay a synchronous AX walk when it does not.
-        // Any keystroke during generation bumped the work id (checked above), and non-keyboard
-        // edits are caught by the generation guard below on the materialized context.
+        // Unrelated edits retire the work ID. Matching typing is rebased before reaching apply;
+        // the generation guard below still catches changes after that validation.
         focusModel.refreshIfStale(maxAgeMilliseconds: Self.freshSnapshotReuseWindowMilliseconds)
         let snapshot = focusModel.snapshot
 
@@ -1154,6 +1161,7 @@ extension SuggestionCoordinator {
     /// Cancels debounce/generation tasks and advances the work id so late completions are ignored.
     func cancelPredictionWork(preservingContinuation: Bool = false) {
         if !preservingContinuation { cancelPreparedContinuation() }
+        clearTypingPrediction()
         delayedStreamPresentation?.cancel()
         delayedStreamPresentation = nil
         pendingSpeculativeSignature = nil

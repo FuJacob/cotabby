@@ -124,6 +124,8 @@ final class SuggestionSettingsModel: ObservableObject {
     @Published private(set) var autoAcceptTrailingPunctuation: Bool
     @Published private(set) var addSpaceAfterAccept: Bool
     @Published private(set) var streamSuggestionsWhileGenerating: Bool
+    /// The store owns durability; snapshots carry this live choice to the coordinator.
+    @Published private(set) var predictAheadWhileTyping: Bool
     /// Whether a newly shown suggestion fades in. Read live by `OverlayController` at present time, so
     /// toggling it takes effect on the very next suggestion without any subscription bookkeeping. Not
     /// part of `snapshot`: it never reaches generation, only the overlay renderer.
@@ -251,6 +253,7 @@ final class SuggestionSettingsModel: ObservableObject {
         autoAcceptTrailingPunctuation = data.autoAcceptTrailingPunctuation
         addSpaceAfterAccept = data.addSpaceAfterAccept
         streamSuggestionsWhileGenerating = data.streamSuggestionsWhileGenerating
+        predictAheadWhileTyping = data.predictAheadWhileTyping
         fadeInSuggestions = data.fadeInSuggestions
         fadeInDurationSeconds = data.fadeInDurationSeconds
         acceptanceKeyCode = data.acceptanceKeyCode
@@ -330,6 +333,7 @@ final class SuggestionSettingsModel: ObservableObject {
         autoAcceptTrailingPunctuation = data.autoAcceptTrailingPunctuation
         addSpaceAfterAccept = data.addSpaceAfterAccept
         streamSuggestionsWhileGenerating = data.streamSuggestionsWhileGenerating
+        predictAheadWhileTyping = data.predictAheadWhileTyping
         fadeInSuggestions = data.fadeInSuggestions
         fadeInDurationSeconds = data.fadeInDurationSeconds
         acceptanceKeyCode = data.acceptanceKeyCode
@@ -400,6 +404,7 @@ final class SuggestionSettingsModel: ObservableObject {
                 autoAcceptTrailingPunctuation: autoAcceptTrailingPunctuation,
                 addSpaceAfterAccept: addSpaceAfterAccept,
                 streamSuggestionsWhileGenerating: streamSuggestionsWhileGenerating,
+                predictAheadWhileTyping: predictAheadWhileTyping,
                 acceptanceGranularity: acceptanceGranularity
             ),
             context: SuggestionContextSettings(
@@ -485,6 +490,7 @@ final class SuggestionSettingsModel: ObservableObject {
             autoAcceptTrailingPunctuation: settings.completion.autoAcceptTrailingPunctuation,
             addSpaceAfterAccept: settings.completion.addSpaceAfterAccept,
             streamSuggestionsWhileGenerating: settings.completion.streamSuggestionsWhileGenerating,
+            predictAheadWhileTyping: settings.completion.predictAheadWhileTyping,
             isFastModeEnabled: settings.context.isFastModeEnabled,
             mirrorPreference: settings.presentation.mirrorPreference,
             acceptanceGranularity: settings.completion.acceptanceGranularity,
@@ -887,6 +893,12 @@ final class SuggestionSettingsModel: ObservableObject {
         }
         addSpaceAfterAccept = enabled
         store.saveAddSpaceAfterAccept(enabled)
+    }
+
+    func setPredictAheadWhileTyping(_ enabled: Bool) {
+        guard predictAheadWhileTyping != enabled else { return }
+        predictAheadWhileTyping = enabled
+        store.savePredictAheadWhileTyping(enabled)
     }
 
     func setStreamSuggestionsWhileGenerating(_ enabled: Bool) {
@@ -1554,19 +1566,18 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                 $responseLanguages,
                 $enabledSpellingDictionaryCodes
             ),
-            // The acceptance toggles and the streaming-reveal toggle share this slot via a grouped
-            // `CombineLatest3` so new settings cost no extra upstream in a tuple already at Combine's
-            // four-input cap.
+            // Acceptance and prediction toggles share one slot within Combine's four-input cap.
             Publishers.CombineLatest4(
                 $debounceMilliseconds,
                 $focusPollIntervalMilliseconds,
                 // Typing choices travel together so the subscriber receives the incoming
                 // @Published value, rather than re-reading the model before its setter completes.
                 Publishers.CombineLatest3($isMultiLineEnabled, $suggestWithinWords, $showFollowingWords),
-                Publishers.CombineLatest3(
+                Publishers.CombineLatest4(
                     $autoAcceptTrailingPunctuation,
                     $addSpaceAfterAccept,
-                    $streamSuggestionsWhileGenerating
+                    $streamSuggestionsWhileGenerating,
+                    $predictAheadWhileTyping
                 )
             )
         )
@@ -1600,7 +1611,7 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                 let (userName, customRules, responseLanguages, enabledSpellingDictionaryCodes) = profile
                 let (debounce, focusPoll, generationToggles, acceptToggles) = timing
                 let (multiLine, suggestWithinWords, showFollowingWords) = generationToggles
-                let (autoAcceptPunctuation, addSpaceAfterAccept, streamWhileGenerating) = acceptToggles
+                let (autoAcceptPunctuation, addSpaceAfterAccept, streamWhileGenerating, predictAhead) = acceptToggles
                 let (isCustomActive, customLow, customHigh) = customRangeTuple
                 let (extendedContext, suggestInIntegratedTerminals, surfaceContextEnabled, lowPowerModeAutoDisableEnabled) =
                     extendedContextTuple
@@ -1628,6 +1639,7 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                     autoAcceptTrailingPunctuation: autoAcceptPunctuation,
                     addSpaceAfterAccept: addSpaceAfterAccept,
                     streamSuggestionsWhileGenerating: streamWhileGenerating,
+                    predictAheadWhileTyping: predictAhead,
                     isFastModeEnabled: fastModeEnabled,
                     mirrorPreference: mirrorPreference,
                     acceptanceGranularity: granularity,

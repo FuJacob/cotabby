@@ -547,9 +547,18 @@ extension SuggestionCoordinator {
             return false
         }
 
-        cancelPredictionWork(preservingContinuation: true)
+        let keptTypingPrediction = retainTypingPrediction(typing: typedCharacters)
+        if !keptTypingPrediction { cancelPredictionWork(preservingContinuation: true) }
 
         if advancedSession.isExhausted {
+            if keptTypingPrediction {
+                // Consuming the visible partial is not accepting unseen words. Keep decoding,
+                // release Tab, and let a later validated partial reveal the next complete word.
+                interactionState.clearSuggestion()
+                hideOverlay(reason: "Overlay hidden while a matching prediction continues.")
+                state = .generating
+                return true
+            }
             markPreparedContinuationCommitted(after: session)
             completeActiveSuggestion(
                 reason: "Overlay hidden because the user typed through the rest of the suggestion.",
@@ -561,6 +570,9 @@ extension SuggestionCoordinator {
             return true
         }
 
+        if keptTypingPrediction {
+            suggestionStreamingState.recordRendered(advancedSession.remainingText)
+        }
         state = .ready(text: advancedSession.remainingText, latency: advancedSession.latency)
         // Same slide as Tab acceptance; the user typed the next characters, so the caret traveled
         // by exactly them. Fall back to the (session-start) caret anchor only if the slide can't apply.

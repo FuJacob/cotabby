@@ -178,6 +178,11 @@ remain under `CotabbyTests/Evals`, and shared fixtures remain under `CotabbyTest
 - `Support/Suggestion/Streaming/TypingCadence.swift` measures recent inter-letter intervals and
   controls presentation timing independently of generation debounce. `SuggestionStreamingState`
   memoizes exact-word checks and closes the stream when a final result arrives.
+- `Support/Suggestion/Streaming/TypingPredictionCandidate.swift` tracks matching typed characters
+  against one on-device request and validates their exact Accessibility publication before rebasing
+  the remaining text. `SuggestionCoordinator+TypingPrediction.swift` owns that candidate and its
+  expiry timer. The default-on `predictAheadWhileTyping` setting controls retention independently
+  of streaming display; disabling it cancels retained work through the settings snapshot lifecycle.
 - `Support/Suggestion/Session/SuggestionDismissalMemory.swift` remembers explicit dismissal for at
   most 15 seconds in the same field and text context. It is bounded and never persisted.
 - `App/Coordinators/Suggestion/SuggestionCoordinator+WordCompletion.swift` adapts these pure values

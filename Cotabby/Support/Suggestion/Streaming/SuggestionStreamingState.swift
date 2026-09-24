@@ -60,6 +60,12 @@ struct SuggestionStreamingState {
         )
     }
 
+    /// Matching typing moves the caret through the rendered text. Subsequent partials are
+    /// compared at that new anchor, while the pending drain and finalization state stay intact.
+    mutating func resetRenderedText() {
+        renderedText = nil
+    }
+
     /// Records text only after all coordinator freshness and seam guards have accepted it.
     mutating func recordRendered(_ text: String) {
         renderedText = text

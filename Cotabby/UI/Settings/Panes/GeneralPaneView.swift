@@ -75,6 +75,16 @@ struct GeneralPaneView: View {
             }
 
             Section("Suggestions") {
+                Toggle(isOn: predictAheadWhileTypingBinding) {
+                    SettingsRowLabel(
+                        title: "Predict Ahead While Typing",
+                        description: "Keep on-device predictions ready as you type, then show matching suggestions " +
+                            "when you pause. May use more power. Applies to Apple Intelligence and Open Source models.",
+                        systemImage: "bolt.horizontal.circle"
+                    )
+                }
+                .settingsItem(.predictAheadWhileTyping)
+
                 Toggle(isOn: suggestWithinWordsBinding) {
                     SettingsRowLabel(
                         title: "Suggest while typing a word",
@@ -211,6 +221,15 @@ struct GeneralPaneView: View {
         Binding(
             get: { suggestionSettings.isMultiLineEnabled },
             set: { suggestionSettings.setMultiLineEnabled($0) }
+        )
+    }
+
+    // This view only edits the settings facade. Its snapshot publisher cancels obsolete work
+    // immediately when the toggle changes, so the coordinator never keeps a disabled prediction.
+    private var predictAheadWhileTypingBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.predictAheadWhileTyping },
+            set: { suggestionSettings.setPredictAheadWhileTyping($0) }
         )
     }
 

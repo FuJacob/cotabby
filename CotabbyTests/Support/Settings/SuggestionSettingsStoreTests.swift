@@ -16,6 +16,20 @@ final class SuggestionSettingsStoreTests: XCTestCase {
     // @MainActor test blocks the main actor while the host app is still doing its own main-actor
     // startup, which can crash the native runtime. Yielding cooperatively avoids that.
 
+    func test_predictAheadPreservesDefaultUserChoiceAndReset() async {
+        let defaults = makeIsolatedDefaults()
+        let store = SuggestionSettingsStore(userDefaults: defaults)
+        XCTAssertTrue(store.load(configuration: .standard).predictAheadWhileTyping)
+        XCTAssertEqual(defaults.object(forKey: "cotabbyPredictAheadWhileTyping") as? Bool, true)
+
+        store.savePredictAheadWhileTyping(false)
+        XCTAssertFalse(store.load(configuration: .standard).predictAheadWhileTyping)
+        XCTAssertEqual(defaults.object(forKey: "cotabbyPredictAheadWhileTyping") as? Bool, false)
+
+        XCTAssertTrue(store.resetToDefaults(configuration: .standard).predictAheadWhileTyping)
+        XCTAssertEqual(defaults.object(forKey: "cotabbyPredictAheadWhileTyping") as? Bool, true)
+    }
+
     // MARK: - Suggestion timing
 
     func test_suggestWithinWords_preservesDefaultUserChoiceAndReset() async {
@@ -676,6 +690,7 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         store.saveAutoAcceptTrailingPunctuation(false)
         store.saveAddSpaceAfterAccept(true)
         store.saveStreamSuggestionsWhileGenerating(true)
+        store.savePredictAheadWhileTyping(false)
         store.saveFadeInSuggestions(false)
         store.saveFadeInDurationSeconds(0.25)
         store.saveAcceptanceKey(keyCode: 36, modifiers: [], label: "Return")

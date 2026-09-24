@@ -160,6 +160,8 @@ struct SuggestionSettingsSnapshot: Equatable, Sendable {
     /// finishes. Travels in the snapshot so the prediction path reads the live value when deciding
     /// whether to pass an `onPartial` handler to the engine.
     let streamSuggestionsWhileGenerating: Bool
+    /// Authorizes retaining local generation across matching input; presentation is separate.
+    let predictAheadWhileTyping: Bool
     /// When true, the screenshot/OCR visual-context pipeline is skipped entirely for lower-latency
     /// suggestions. Defaults to false. Only affects visual context — predictions still run.
     let isFastModeEnabled: Bool

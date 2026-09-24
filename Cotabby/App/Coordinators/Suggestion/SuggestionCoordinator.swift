@@ -104,6 +104,11 @@ final class SuggestionCoordinator: ObservableObject {
     var dismissalMemory = SuggestionDismissalMemory()
     var delayedStreamPresentation: Task<Void, Never>?
 
+    /// One ordinary on-device request may survive matching keys before it becomes visible.
+    /// The value owns text reconciliation; this timer bounds how long the model/AX may lag.
+    var typingPrediction: TypingPredictionCandidate?
+    var typingPredictionExpiry: Task<Void, Never>?
+
     /// Monotonic cancellation token for the "wait until the host publishes typed text to AX" loop.
     ///
     /// Keystrokes can arrive faster than Chromium publishes contenteditable updates. Without this

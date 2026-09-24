@@ -5,7 +5,7 @@
 Local-first AI autocomplete for macOS. Open source, with Apple Intelligence, local GGUF models,
 and an optional OpenAI-compatible endpoint you configure.
 
-**[Download CoHamster for Apple Silicon](https://github.com/mc-hamster/CoHamster/releases/download/cohamster-v0.6.3/CoHamster-0.6.3-arm64.dmg)** · [Release notes](https://github.com/mc-hamster/CoHamster/releases/tag/cohamster-v0.6.3) · [FAQ](FAQ.md) · [AGPLv3](LICENSE)
+**[Download CoHamster for Apple Silicon](https://github.com/mc-hamster/CoHamster/releases/download/cohamster-v0.6.4/CoHamster-0.6.4-arm64.dmg)** · [Release notes](https://github.com/mc-hamster/CoHamster/releases/tag/cohamster-v0.6.4) · [FAQ](FAQ.md) · [AGPLv3](LICENSE)
 
 ## Features
 
@@ -70,7 +70,7 @@ For the full suggestion pipeline, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 **Compatibility:** macOS 14.0 or later. Apple Intelligence requires macOS 26 or later on a supported Mac.
 
-Download the [signed and notarized CoHamster 0.6.3 prerelease](https://github.com/mc-hamster/CoHamster/releases/tag/cohamster-v0.6.3),
+Download the [signed and notarized CoHamster 0.6.4 prerelease](https://github.com/mc-hamster/CoHamster/releases/tag/cohamster-v0.6.4),
 open the DMG, and drag **CoHamster.app** into Applications. Quit any older copy before opening it.
 The matching source and checksums are included on the release page. To build from source, follow
 the development instructions below.

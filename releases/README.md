@@ -23,7 +23,7 @@ xcrun notarytool store-credentials McHamster --apple-id YOUR_APPLE_ID --team-id 
 Write `releases/cohamster-<version>.md` before building. Then:
 
 ```sh
-NOTARY_PROFILE=McHamster scripts/release_cohamster.sh 0.6.3 2026092401
+NOTARY_PROFILE=McHamster scripts/release_cohamster.sh 0.6.4 2026092402
 ```
 
 Without `NOTARY_PROFILE`, the script produces only a signed candidate. Publish after notarization,
