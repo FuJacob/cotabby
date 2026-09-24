@@ -422,8 +422,7 @@ extension SuggestionCoordinator {
         if delay > 0 {
             delayedStreamPresentation?.cancel()
             delayedStreamPresentation = Task { [weak self] in
-                do { try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000)) }
-                catch { return }
+                do { try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000)) } catch { return }
                 self?.applyStreamedPartial(partial, workID: workID)
             }
             return

@@ -96,6 +96,12 @@ extension SuggestionCoordinator {
             return
         }
         scheduleTypingPredictionExpiry()
+        await deliverTypingPredictionWhenReady(result, workID: workID)
+    }
+
+    /// Waiting for the editor and pause is separate from collecting the final answer. The same
+    /// work ID owns both phases, so a setting change or new field cancels this suspension too.
+    private func deliverTypingPredictionWhenReady(_ result: SuggestionResult, workID: UInt64) async {
         while workController.isCurrent(workID), !Task.isCancelled {
             focusModel.refreshIfStale(maxAgeMilliseconds: Self.freshSnapshotReuseWindowMilliseconds)
             guard workController.isCurrent(workID), !Task.isCancelled else { return }
@@ -128,8 +134,7 @@ extension SuggestionCoordinator {
                 await apply(result: consumed > 0 ? rebased : result, workID: workID)
                 return
             }
-            do { try await Task.sleep(nanoseconds: 20_000_000) }
-            catch { return }
+            do { try await Task.sleep(nanoseconds: 20_000_000) } catch { return }
         }
     }
 
@@ -143,8 +148,7 @@ extension SuggestionCoordinator {
         let workID = currentWorkID
         let delay = max(0, deadline - ProcessInfo.processInfo.systemUptime)
         typingPredictionExpiry = Task { [weak self] in
-            do { try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000)) }
-            catch { return }
+            do { try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000)) } catch { return }
             guard let self, self.workController.isCurrent(workID), let current = self.typingPrediction else { return }
             self.focusModel.refreshIfStale(maxAgeMilliseconds: Self.freshSnapshotReuseWindowMilliseconds)
             guard self.workController.isCurrent(workID) else { return }
