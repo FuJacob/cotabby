@@ -129,7 +129,7 @@ nonisolated struct OpenAICompatibleEndpointConfiguration: Equatable, Sendable {
         case .loopback:
             return nil
         case .localNetwork:
-            return "Cotabby will send typed text and any enabled context to this server on your local network."
+            return "CoHamster will send typed text and any enabled context to this server on your local network."
         case .publicInternet:
             return "This server is outside your Mac. Typed text and any enabled context will leave your device."
         }

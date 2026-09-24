@@ -67,7 +67,7 @@ final class BundledRuntimeLocatorTests: XCTestCase {
 
     func test_resolve_throwsRuntimeDirectoryMissingWhenPathDoesNotExist() {
         let config = makeConfig(
-            runtimePath: "/tmp/Cotabby-test-nonexistent-\(UUID().uuidString)",
+            runtimePath: "/tmp/CoHamster-test-nonexistent-\(UUID().uuidString)",
             preferred: []
         )
         let locator = BundledRuntimeLocator()
@@ -141,7 +141,7 @@ final class BundledRuntimeLocatorTests: XCTestCase {
 
     func test_availableModels_returnsEmptyArrayWhenDirectoryMissing() {
         let config = makeConfig(
-            runtimePath: "/tmp/Cotabby-test-nonexistent-\(UUID().uuidString)",
+            runtimePath: "/tmp/CoHamster-test-nonexistent-\(UUID().uuidString)",
             preferred: []
         )
         let locator = BundledRuntimeLocator()
@@ -279,15 +279,27 @@ final class BundledRuntimeLocatorTests: XCTestCase {
         )
     }
 
-    func test_userRuntimeDirectoryURL_fallsBackToCotabbyFolderWhenBundleNameMissing() throws {
+    func test_userRuntimeDirectoryURL_preservesStorageAcrossProductRename() throws {
+        let bundle = try makeBundle(withInfo: [
+            "CFBundleName": "CoHamster",
+            "CoHamsterDataDirectory": "Cotabby McHamster"
+        ])
+
+        let url = BundledRuntimeLocator.userRuntimeDirectoryURL(bundle: bundle)
+
+        XCTAssertEqual(url.deletingLastPathComponent().lastPathComponent, "Cotabby McHamster")
+        XCTAssertEqual(url.lastPathComponent, "LlamaRuntime")
+    }
+
+    func test_userRuntimeDirectoryURL_fallsBackToCoHamsterFolderWhenBundleNameMissing() throws {
         // A bare directory bundle carries no Info.plist, so CFBundleName resolves to nil and the
-        // app-folder name must fall back to "Cotabby" rather than producing a nameless path.
+        // app-folder name must fall back to "CoHamster" rather than producing a nameless path.
         let bundle = try makeBundle(withInfo: nil)
 
         let url = BundledRuntimeLocator.userRuntimeDirectoryURL(bundle: bundle)
 
         XCTAssertEqual(url.lastPathComponent, BundledRuntimeLocator.runtimeFolderName)
-        XCTAssertEqual(url.deletingLastPathComponent().lastPathComponent, "Cotabby")
+        XCTAssertEqual(url.deletingLastPathComponent().lastPathComponent, "CoHamster")
     }
 
     // MARK: - Default candidate enumeration (nil runtimeDirectoryPath)
@@ -359,7 +371,7 @@ final class BundledRuntimeLocatorTests: XCTestCase {
 
     private func makeTemporaryDirectory() throws -> URL {
         let dir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("Cotabby-locator-test-\(UUID().uuidString)", isDirectory: true)
+            .appendingPathComponent("CoHamster-locator-test-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         temporaryDirectories.append(dir)
         return dir
@@ -376,7 +388,7 @@ final class BundledRuntimeLocatorTests: XCTestCase {
 
     private func makeTemporaryRuntimeDirectory(ggufFilenames: [String]) throws -> URL {
         let dir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("Cotabby-locator-test-\(UUID().uuidString)", isDirectory: true)
+            .appendingPathComponent("CoHamster-locator-test-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         temporaryDirectories.append(dir)
 

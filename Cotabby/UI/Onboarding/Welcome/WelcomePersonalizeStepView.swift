@@ -16,13 +16,13 @@ struct WelcomePersonalizeStepView: View {
             OnboardingStepHeader(
                 systemImage: "person.crop.circle.fill",
                 title: "Make it yours",
-                subtitle: "Cotabby writes in your languages and can address you by name."
+                subtitle: "CoHamster writes in your languages and can address you by name."
             )
             .onboardingReveal(0)
 
             VStack(spacing: 12) {
                 personalizeCard(icon: "textformat", title: "Your name", index: 1) {
-                    TextField("What should Cotabby call you? (Optional)", text: Binding(
+                    TextField("What should CoHamster call you? (Optional)", text: Binding(
                         get: { suggestionSettings.userName },
                         set: { suggestionSettings.setUserName($0) }
                     ))

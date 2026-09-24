@@ -21,11 +21,11 @@ def main() -> None:
         parser.error(f"No Package.swift in {checkout}")
 
     root = Path(__file__).resolve().parent.parent
-    project = root / "Cotabby.xcodeproj"
+    project = root / "CoHamster.xcodeproj"
     if not project.is_dir():
-        parser.error("Generate Cotabby.xcodeproj with XcodeGen first")
+        parser.error("Generate CoHamster.xcodeproj with XcodeGen first")
 
-    destination = args.output.resolve() if args.output else root / "build" / "CotabbyDevelopment.xcworkspace"
+    destination = args.output.resolve() if args.output else root / "build" / "CoHamsterDevelopment.xcworkspace"
     destination.mkdir(parents=True, exist_ok=True)
     workspace = ET.Element("Workspace", version="1.0")
     for path in (project, checkout):

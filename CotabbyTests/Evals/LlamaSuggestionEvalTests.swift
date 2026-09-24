@@ -10,7 +10,7 @@ import XCTest
 /// shell environment variables into the macOS test host, so the switch is a compile flag, and the
 /// model is a multi-GB local download. Run with:
 ///
-///   xcodebuild test -project Cotabby.xcodeproj -scheme Cotabby -destination 'platform=macOS' \
+///   xcodebuild test -project CoHamster.xcodeproj -scheme CoHamster -destination 'platform=macOS' \
 ///     -only-testing:CotabbyTests/LlamaSuggestionEvalTests \
 ///     SWIFT_ACTIVE_COMPILATION_CONDITIONS='$(inherited) RUN_LLAMA_EVAL' \
 ///     CODE_SIGNING_ALLOWED=NO -derivedDataPath build/DerivedData
@@ -40,7 +40,7 @@ final class LlamaSuggestionEvalTests: XCTestCase {
             if ProcessInfo.processInfo.environment["COTABBY_EVAL_MODEL_PATH"] != nil { throw error }
             throw XCTSkip(
                 "No llama runtime available (\(error)). Download a model in the app first; " +
-                "the eval loads it from ~/Library/Application Support/Cotabby/LlamaRuntime/."
+                "the eval loads it from the app's model storage directory."
             )
         }
         defer { manager.shutdownSync(timeoutSeconds: 5) }

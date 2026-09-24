@@ -15,10 +15,10 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "59F15B162977174E700D0CAA"
-               BuildableName = "Cotabby Dev.app"
-               BlueprintName = "Cotabby Dev"
-               ReferencedContainer = "container:Cotabby.xcodeproj">
+               BlueprintIdentifier = "BEC8DD68A06CB56DCAA347EB"
+               BuildableName = "CoHamster.app"
+               BlueprintName = "CoHamster"
+               ReferencedContainer = "container:CoHamster.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -32,14 +32,27 @@
       <MacroExpansion>
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "59F15B162977174E700D0CAA"
-            BuildableName = "Cotabby Dev.app"
-            BlueprintName = "Cotabby Dev"
-            ReferencedContainer = "container:Cotabby.xcodeproj">
+            BlueprintIdentifier = "BEC8DD68A06CB56DCAA347EB"
+            BuildableName = "CoHamster.app"
+            BlueprintName = "CoHamster"
+            ReferencedContainer = "container:CoHamster.xcodeproj">
          </BuildableReference>
       </MacroExpansion>
       <Testables>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "4115FC6CE492C0D341B8DCAD"
+               BuildableName = "CotabbyTests.xctest"
+               BlueprintName = "CotabbyTests"
+               ReferencedContainer = "container:CoHamster.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
+      <CommandLineArguments>
+      </CommandLineArguments>
    </TestAction>
    <LaunchAction
       buildConfiguration = "Debug"
@@ -55,10 +68,10 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "59F15B162977174E700D0CAA"
-            BuildableName = "Cotabby Dev.app"
-            BlueprintName = "Cotabby Dev"
-            ReferencedContainer = "container:Cotabby.xcodeproj">
+            BlueprintIdentifier = "BEC8DD68A06CB56DCAA347EB"
+            BuildableName = "CoHamster.app"
+            BlueprintName = "CoHamster"
+            ReferencedContainer = "container:CoHamster.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
       <CommandLineArguments>
@@ -78,10 +91,10 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "59F15B162977174E700D0CAA"
-            BuildableName = "Cotabby Dev.app"
-            BlueprintName = "Cotabby Dev"
-            ReferencedContainer = "container:Cotabby.xcodeproj">
+            BlueprintIdentifier = "BEC8DD68A06CB56DCAA347EB"
+            BuildableName = "CoHamster.app"
+            BlueprintName = "CoHamster"
+            ReferencedContainer = "container:CoHamster.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
       <CommandLineArguments>

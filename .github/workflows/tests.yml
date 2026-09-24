@@ -16,9 +16,9 @@ name: Tests
 
 on:
   pull_request:
-    branches: [main]
+    branches: [master, main]
   push:
-    branches: [main]
+    branches: [master, main]
 
 concurrency:
   group: tests-${{ github.ref }}
@@ -44,6 +44,9 @@ jobs:
         with:
           xcode-version: latest-stable
 
+      - name: Prepare fork native dependency
+        run: scripts/prepare_cohamster_workspace.sh
+
       - name: Toolchain info
         run: |
           xcodebuild -version
@@ -62,8 +65,9 @@ jobs:
         # RUN_FM_EVAL too, but skipping it explicitly keeps the CI intent visible.
         run: |
           xcodebuild test \
-            -project Cotabby.xcodeproj \
-            -scheme Cotabby \
+            -workspace build/cohamster-dependencies/CoHamster.xcworkspace \
+            -scheme CoHamster \
             -destination 'platform=macOS' \
+            -derivedDataPath build/DerivedData \
             -skip-testing:CotabbyTests/FoundationModelDriftEvalTests \
             CODE_SIGNING_ALLOWED=NO

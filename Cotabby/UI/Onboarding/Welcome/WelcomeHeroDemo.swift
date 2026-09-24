@@ -106,7 +106,7 @@ struct WelcomeHeroDemo: View {
                 .fill(Color(nsColor: .textBackgroundColor))
         )
         // A focused-field ring: hairline accent border plus a soft outer halo, matching how macOS
-        // marks the focused text field. Sells "Cotabby is live in this field right now."
+        // marks the focused text field. Sells "CoHamster is live in this field right now."
         .overlay(
             RoundedRectangle(cornerRadius: 9, style: .continuous)
                 .strokeBorder(CotabbyBrand.accent.opacity(0.65), lineWidth: 1)

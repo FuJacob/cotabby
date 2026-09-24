@@ -16,7 +16,7 @@ included:
 excluded:
   - .build
   - DerivedData
-  - Cotabby.xcodeproj
+  - CoHamster.xcodeproj
   - Cotabby/Resources
 
 disabled_rules:

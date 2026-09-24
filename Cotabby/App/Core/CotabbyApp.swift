@@ -32,12 +32,8 @@ struct CotabbyApp: App {
                     appDelegate.settingsCoordinator.showSettings()
                 },
                 onReportFeedback: {
-                    #if COTABBY_MCHAMSTER
-                    // Reports about the fork belong with its source and releases.
+                    // Reports belong with this fork's source and releases.
                     let feedbackURL = "https://github.com/mc-hamster/cotabby/issues"
-                    #else
-                    let feedbackURL = "https://www.cotabby.app/feedback"
-                    #endif
                     guard let baseURL = URL(string: feedbackURL) else {
                         return
                     }

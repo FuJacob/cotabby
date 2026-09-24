@@ -5,15 +5,15 @@ final class Aria2ProvisionerTests: XCTestCase {
     func test_aria2ProvisioningError_errorDescription() {
         XCTAssertEqual(
             Aria2ProvisioningError.homebrewUnavailable.errorDescription,
-            "Homebrew is not available, so Cotabby will use its standard downloader."
+            "Homebrew is not available, so CoHamster will use its standard downloader."
         )
         XCTAssertEqual(
             Aria2ProvisioningError.installFailed.errorDescription,
-            "Homebrew could not install aria2. Cotabby will use its standard downloader."
+            "Homebrew could not install aria2. CoHamster will use its standard downloader."
         )
         XCTAssertEqual(
             Aria2ProvisioningError.installTimedOut.errorDescription,
-            "Installing aria2 timed out. Cotabby will use its standard downloader."
+            "Installing aria2 timed out. CoHamster will use its standard downloader."
         )
     }
 

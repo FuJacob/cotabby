@@ -44,7 +44,7 @@ final class WelcomeCoordinator: NSObject, NSWindowDelegate {
     /// Furthest onboarding step the user has reached, stored as the step's raw index. Lets the wizard
     /// *resume* instead of restarting when the user is pulled out mid-flow: granting Accessibility or
     /// Input Monitoring on the permissions step typically only takes effect after the user quits and
-    /// relaunches Cotabby, which lands before the final "Start Using Cotabby" tap that stamps
+    /// relaunches CoHamster, which lands before the final "Start Using CoHamster" tap that stamps
     /// completion. Without this, that relaunch drops them back at step one and onboarding repeats
     /// every time (issue #314). Cleared on completion so a future version bump starts clean.
     ///
@@ -86,7 +86,7 @@ final class WelcomeCoordinator: NSObject, NSWindowDelegate {
     /// Presents the welcome wizard if the user has never completed onboarding.
     ///
     /// Unlike the previous approach, the completion flag is set when the user finishes the wizard
-    /// (taps "Start Using Cotabby"), not when the window first appears. If the user closes the
+    /// (taps "Start Using CoHamster"), not when the window first appears. If the user closes the
     /// window mid-flow or macOS prompts a restart for permissions, the wizard will reappear on
     /// next launch so they don't lose their place.
     func presentIfNeeded() {
@@ -154,7 +154,7 @@ final class WelcomeCoordinator: NSObject, NSWindowDelegate {
             backing: .buffered,
             defer: false
         )
-        window.title = "Welcome to Cotabby"
+        window.title = "Welcome to CoHamster"
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.isMovableByWindowBackground = true
@@ -187,7 +187,7 @@ final class WelcomeCoordinator: NSObject, NSWindowDelegate {
         }
     }
 
-    /// Called when the user completes the full onboarding wizard ("Start Using Cotabby"). Stamps the
+    /// Called when the user completes the full onboarding wizard ("Start Using CoHamster"). Stamps the
     /// current onboarding version so the wizard does not reappear until the next revamp bumps it.
     /// This is the only thing that clears the gate: closing the window mid-flow leaves the stored
     /// version unchanged, so the wizard returns on next launch.
@@ -226,7 +226,7 @@ final class WelcomeCoordinator: NSObject, NSWindowDelegate {
             backing: .buffered,
             defer: false
         )
-        window.title = "Cotabby — Permissions"
+        window.title = "CoHamster — Permissions"
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.isMovableByWindowBackground = true

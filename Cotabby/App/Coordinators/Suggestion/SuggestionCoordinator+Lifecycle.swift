@@ -20,7 +20,7 @@ extension SuggestionCoordinator {
         cancelPredictionWork()
         resetCachedGenerationContext()
         visualContextCoordinator.cancel(resetState: true)
-        hideOverlay(reason: "Overlay hidden because Cotabby stopped observing suggestions.")
+        hideOverlay(reason: "Overlay hidden because CoHamster stopped observing suggestions.")
         inputMonitor.onEvent = nil
         inputMonitor.onSuppressedSyntheticInput = nil
         overlayController.onStateChange = nil

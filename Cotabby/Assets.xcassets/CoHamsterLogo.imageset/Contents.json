@@ -1,17 +1,17 @@
 {
   "images" : [
     {
-      "filename" : "CotabbyLogo.png",
+      "filename" : "CoHamsterLogo.png",
       "idiom" : "universal",
       "scale" : "1x"
     },
     {
-      "filename" : "CotabbyLogo@2x.png",
+      "filename" : "CoHamsterLogo@2x.png",
       "idiom" : "universal",
       "scale" : "2x"
     },
     {
-      "filename" : "CotabbyLogo@3x.png",
+      "filename" : "CoHamsterLogo@3x.png",
       "idiom" : "universal",
       "scale" : "3x"
     }

@@ -1,8 +1,8 @@
-# Cotabby Codex Instructions
+# CoHamster Codex Instructions
 
 ## Project Identity
 
-Cotabby is a macOS menu bar app for local-first inline autocomplete. The core loop is:
+CoHamster is a macOS menu bar app for local-first inline autocomplete. The core loop is:
 
 1. Track the currently focused editable field through Accessibility.
 2. Monitor global keyboard input without stealing focus.
@@ -117,7 +117,7 @@ about than coordinator mutations.
 Focus and geometry live in:
 
 - `FocusTracker`: observes focus/value/selection changes and publishes snapshots.
-- `FocusSnapshotResolver`: reduces raw AX elements into Cotabby-supported focus snapshots.
+- `FocusSnapshotResolver`: reduces raw AX elements into CoHamster-supported focus snapshots.
 - `AXTextGeometryResolver`: resolves caret and input geometry.
 - `AXHelper`: low-level Accessibility/Core Foundation helper calls.
 - `FocusModels`: pure focus values, identities, capabilities, stale-result signatures, and the
@@ -167,7 +167,7 @@ Runtime generation is split by responsibility:
 cache/decode, and shutdown work serialized while heavy generation runs away from MainActor. The
 manager should publish state; the core should own native correctness.
 
-Cotabby owns one autocomplete sequence. CotabbyInference therefore exposes one live native sequence
+CoHamster owns one autocomplete sequence. CotabbyInference therefore exposes one live native sequence
 backed by llama.cpp slot zero; a changing external sequence ID rejects stale handles after reset.
 The Swift generation loop owns the maximum output-token budget.
 
@@ -222,15 +222,15 @@ It also creates better tests.
 
 ## Debugging & Logs
 
-Cotabby has a structured logging system built for AI-assisted debugging. During development the app
+CoHamster has a structured logging system built for AI-assisted debugging. During development the app
 is launched with `-cotabby-debug`, which enables on-disk JSONL sinks in addition to the always-on
 Console.app stream.
 
 **Log file locations** (only populated when `-cotabby-debug` is set):
 
-- `~/Library/Logs/Cotabby/cotabby.jsonl` — main event stream. One JSON object per line, with all
+- `~/Library/Logs/CoHamster/cotabby.jsonl` — main event stream. One JSON object per line, with all
   metadata flattened as top-level fields so it can be filtered with `jq`.
-- `~/Library/Logs/Cotabby/llm-io.jsonl` — full LLM prompts and completions, one record per
+- `~/Library/Logs/CoHamster/llm-io.jsonl` — full LLM prompts and completions, one record per
   generation. Shares `request_id` with the main log so a single suggestion can be joined across
   files.
 - `~/Desktop/cotabby-ax-dump.txt` — most recent Chrome AX tree snapshot. Overwritten on each
@@ -242,24 +242,24 @@ line touching that request (coordinator state transitions, router selection, eng
 I/O capture). Pull a complete history of one suggestion:
 
 ```bash
-jq 'select(.request_id == "req_a3f9k2lq")' ~/Library/Logs/Cotabby/cotabby.jsonl
-jq 'select(.request_id == "req_a3f9k2lq")' ~/Library/Logs/Cotabby/llm-io.jsonl
+jq 'select(.request_id == "req_a3f9k2lq")' ~/Library/Logs/CoHamster/cotabby.jsonl
+jq 'select(.request_id == "req_a3f9k2lq")' ~/Library/Logs/CoHamster/llm-io.jsonl
 ```
 
 **Useful `jq` recipes:**
 
 ```bash
 # Recent errors across the app
-jq 'select(.level == "error")' ~/Library/Logs/Cotabby/cotabby.jsonl
+jq 'select(.level == "error")' ~/Library/Logs/CoHamster/cotabby.jsonl
 
 # Llama generations slower than 500 ms
-jq 'select(.engine == "llama" and .latency_ms > 500)' ~/Library/Logs/Cotabby/llm-io.jsonl
+jq 'select(.engine == "llama" and .latency_ms > 500)' ~/Library/Logs/CoHamster/llm-io.jsonl
 
 # Coordinator state transitions
-jq 'select(.category == "suggestion" and .stage != null)' ~/Library/Logs/Cotabby/cotabby.jsonl
+jq 'select(.category == "suggestion" and .stage != null)' ~/Library/Logs/CoHamster/cotabby.jsonl
 
 # Runtime model load/decode events
-jq 'select(.category == "runtime")' ~/Library/Logs/Cotabby/cotabby.jsonl
+jq 'select(.category == "runtime")' ~/Library/Logs/CoHamster/cotabby.jsonl
 ```
 
 **Symptom → category map:**
@@ -285,18 +285,19 @@ symptom → category map. Do not ask the user to re-explain symptoms before chec
 ## Validation
 
 Use the narrowest meaningful validation first, then broaden if the change touches shared behavior.
-Common commands:
+Common commands (prepare the pinned, patched native package first):
 
 ```bash
-xcodebuild -project Cotabby.xcodeproj -scheme Cotabby -destination 'platform=macOS' build \
+scripts/prepare_cohamster_workspace.sh
+xcodebuild -workspace build/cohamster-dependencies/CoHamster.xcworkspace -scheme CoHamster -destination 'platform=macOS' build \
   -derivedDataPath build/DerivedData
-xcodebuild -project Cotabby.xcodeproj -scheme Cotabby -destination 'platform=macOS' build-for-testing \
+xcodebuild -workspace build/cohamster-dependencies/CoHamster.xcworkspace -scheme CoHamster -destination 'platform=macOS' build-for-testing \
   -derivedDataPath build/DerivedData
 ```
 
 Always pass `-derivedDataPath build/DerivedData` so the output lands in the repo-scoped `build/`
 directory (already gitignored) instead of accumulating under
-`~/Library/Developer/Xcode/DerivedData/Cotabby-*`, where every build leaves a fresh multi-GB module
+`~/Library/Developer/Xcode/DerivedData/CoHamster-*`, where every build leaves a fresh multi-GB module
 cache and SwiftPM checkout that nothing trims. When a task is done and the artifacts are no longer
 needed, `rm -rf build/DerivedData` before reporting completion.
 

@@ -1,25 +1,40 @@
-# McHamster release process
+# CoHamster release process
 
-`Config/McHamsterInfo.plist` owns distribution metadata for the separate `Cotabby McHamster` target in `project.yml`. Its name and bundle identifier isolate model storage, preferences, credentials, and permission grants. It deliberately has no upstream Sparkle feed or public key. The existing application environment still owns the updater; the McHamster compile condition disables automatic updating and routes manual checks to the fork's release page. Menu and About headers read the built bundle name.
+`project.yml` owns the application targets and `Config/CoHamsterInfo.plist` owns distribution
+metadata. The release is named **CoHamster**. Its existing `org.mchamster.cotabby` bundle identifier
+and `Cotabby McHamster` data directory are compatibility identifiers: they preserve preferences,
+Keychain credentials, and downloaded models from earlier fork releases. Keep the same signing team
+when upgrading. macOS may still request permission again after an application replacement.
 
-`scripts/release_mchamster.sh` owns local release packaging. It checks out CotabbyInference at `7574a21`, applies the checked-in patch, verifies that source on subsequent runs, creates a separate ignored release workspace, loads the committed `Config/McHamster.Package.resolved` dependency pins, archives the McHamster target, signs nested code inside-out, verifies identity, and creates an Apple Silicon DMG. The patch records the native changes required by the fork without modifying upstream's repository or depending on uncommitted local files.
+`scripts/release_cohamster.sh` owns local packaging. Its shared
+`scripts/prepare_cohamster_workspace.sh` helper checks out CotabbyInference at `7574a21`,
+applies `patches/cotabbyinference-mchamster.patch`, verifies the native diff before reuse, creates an
+ignored workspace, uses `Config/McHamster.Package.resolved`, and archives the CoHamster scheme.
+The source package and patch retain their upstream names. Nested binaries are signed inside-out;
+the script verifies app identity and creates an Apple Silicon DMG with license notices and release notes.
 
-Prerequisites: Xcode, Developer ID certificate/private key for team `8RN882MNR5`, and a Keychain notarization profile. No private keys or passwords belong in this repository. Set up the profile interactively:
+Prerequisites: Xcode, Developer ID certificate/private key for team `8RN882MNR5`, and a Keychain
+notarization profile. Keep credentials out of this repository. Configure the profile interactively:
 
 ```sh
 xcrun notarytool store-credentials McHamster --apple-id YOUR_APPLE_ID --team-id 8RN882MNR5
 ```
 
-Write the corresponding `releases/mchamster-<version>.md` notes before building; the script selects them from the version argument and fails if they are missing.
-
-Build and notarize:
+Write `releases/cohamster-<version>.md` before building. Then:
 
 ```sh
-NOTARY_PROFILE=McHamster scripts/release_mchamster.sh 0.6.2-mchamster.2 2026091702
+NOTARY_PROFILE=McHamster scripts/release_cohamster.sh 0.6.3 2026092401
 ```
 
-Without `NOTARY_PROFILE`, the script produces only a signed candidate. Do not publish it until Apple accepts notarization, stapling validates, and Gatekeeper accepts the DMG. Keep the output and checksum from `build/mchamster-release/`; remove `build/DerivedData` after validation.
+Without `NOTARY_PROFILE`, the script produces only a signed candidate. Publish after notarization,
+stapling, and Gatekeeper verification pass. Outputs are in `build/cohamster-release/`.
+Remove `build/DerivedData` after validation.
 
-Publish only to `mc-hamster/cotabby`, using a `mchamster-v*` tag and the reviewed notes in this directory. The inherited upstream release and Pages workflows are restricted to `FuJacob/cotabby`; this local process never dispatches updates to upstream's Homebrew tap or Pages domain. Use GitHub's prerelease flag while this fork remains experimental.
+Publish to `mc-hamster/cotabby` using a `cohamster-v<version>` tag and that version's release notes.
+Provide the matching source and build instructions next to every binary download, including the
+pinned CotabbyInference source and applied patch. Preserve AGPLv3 and all dependency/data notices;
+model weights retain their own licenses and are not included in the app. No upstream release or
+Pages workflows are active in this fork. Manual update checks open this repository's release page.
 
-The original `Cotabby` and `Cotabby Dev` targets retain their upstream identities. Distribute only the `Cotabby McHamster` target from this fork. Quit upstream Cotabby before running the fork's autocomplete.
+Do not run another copy of the autocomplete app alongside CoHamster. Historical `mchamster-*`
+release notes describe earlier versions and retain their original names.

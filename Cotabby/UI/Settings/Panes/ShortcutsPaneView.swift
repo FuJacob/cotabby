@@ -122,7 +122,7 @@ struct ShortcutsPaneView: View {
                         shouldShowReset: false,
                         onClear: { suggestionSettings.clearGlobalToggleKey() },
                         clearLabel: "Clear",
-                        clearHelp: "Unbind this shortcut. No key will toggle Tabby on or off.",
+                        clearHelp: "Unbind this shortcut. No key will toggle CoHamster on or off.",
                         conflictChecker: { keyCode, modifiers in
                             suggestionSettings.conflictingShortcutName(
                                 keyCode: keyCode,
@@ -133,8 +133,8 @@ struct ShortcutsPaneView: View {
                     )
                 } label: {
                     SettingsRowLabel(
-                        title: "Toggle Cotabby",
-                        description: "Turn Cotabby on or off globally without opening the menu bar.",
+                        title: "Toggle CoHamster",
+                        description: "Turn CoHamster on or off globally without opening the menu bar.",
                         systemImage: "power.circle"
                     )
                 }

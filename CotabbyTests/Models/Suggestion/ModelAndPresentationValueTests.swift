@@ -348,19 +348,19 @@ final class RuntimeAndInputModelValueTests: XCTestCase {
     func test_runtimeModelCatalogMapsKnownNamesAndLeavesCustomNamesAlone() {
         XCTAssertEqual(
             RuntimeModelCatalog.displayName(for: "Qwen3.5-0.8B-Base.i1-Q6_K.gguf"),
-            "tabby-2-nano"
+            "CoHamster Nano"
         )
         XCTAssertEqual(
             RuntimeModelCatalog.displayName(for: "Qwen3.5-2B-Base.i1-Q4_K_M.gguf"),
-            "tabby-2-mini"
+            "CoHamster Mini"
         )
         XCTAssertEqual(
             RuntimeModelCatalog.displayName(for: "gemma-4-E2B.i1-Q6_K.gguf"),
-            "tabby-2-base"
+            "CoHamster Base"
         )
         XCTAssertEqual(
             RuntimeModelCatalog.displayName(for: "gemma-4-E4B.i1-Q4_K_M.gguf"),
-            "tabby-2-pro"
+            "CoHamster Pro"
         )
         // Retired models fall back to their raw filename like any unknown local GGUF. The 4B Qwen
         // base was dropped when the catalog moved to the nano/mini/base/pro four-tier lineup.
@@ -398,7 +398,7 @@ final class RuntimeAndInputModelValueTests: XCTestCase {
         XCTAssertEqual(RuntimeBootstrapState.idle.summary, "Idle")
         XCTAssertEqual(RuntimeBootstrapState.starting("Locating runtime").summary, "Locating runtime")
         XCTAssertEqual(RuntimeBootstrapState.loading("Loading model").summary, "Loading model")
-        XCTAssertEqual(RuntimeBootstrapState.ready("tabby-2-base ready").summary, "tabby-2-base ready")
+        XCTAssertEqual(RuntimeBootstrapState.ready("CoHamster Base ready").summary, "CoHamster Base ready")
         XCTAssertEqual(RuntimeBootstrapState.failed("Missing model file").summary, "Missing model file")
     }
 
@@ -407,7 +407,7 @@ final class RuntimeAndInputModelValueTests: XCTestCase {
         XCTAssertNil(RuntimeBootstrapState.idle.failureDetail)
         XCTAssertNil(RuntimeBootstrapState.starting("Locating runtime").failureDetail)
         XCTAssertNil(RuntimeBootstrapState.loading("Loading model").failureDetail)
-        XCTAssertNil(RuntimeBootstrapState.ready("tabby-2-base ready").failureDetail)
+        XCTAssertNil(RuntimeBootstrapState.ready("CoHamster Base ready").failureDetail)
     }
 
     func test_runtimeModelOption_keepsRawFilenameAsIdentityButAliasesDisplayName() {
@@ -418,7 +418,7 @@ final class RuntimeAndInputModelValueTests: XCTestCase {
 
         XCTAssertEqual(option.id, "Qwen3.5-0.8B-Base.i1-Q6_K.gguf")
         XCTAssertEqual(option.actualModelName, "Qwen3.5-0.8B-Base.i1-Q6_K.gguf")
-        XCTAssertEqual(option.displayName, "tabby-2-nano")
+        XCTAssertEqual(option.displayName, "CoHamster Nano")
     }
 
     func test_downloadableRuntimeModel_defaultsLeaveValidationMetadataEmpty() throws {

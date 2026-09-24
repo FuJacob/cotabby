@@ -582,7 +582,7 @@ extension SuggestionCoordinator {
         focusModel.invalidateTransientCaretCaches()
         cancelPredictionWork()
         clearSuggestion(clearDiagnostics: false)
-        hideOverlay(reason: "Overlay hidden because Cotabby automatically fixed a typo.")
+        hideOverlay(reason: "Overlay hidden because CoHamster automatically fixed a typo.")
         state = .idle
         logStage(
             "typo-auto-corrected",

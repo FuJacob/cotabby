@@ -43,7 +43,7 @@ struct MacroReferenceSheet: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Inline macros")
                     .font(.system(size: 16, weight: .semibold, design: .rounded))
-                Text("Every macro Cotabby can resolve from a `/` query.")
+                Text("Every macro CoHamster can resolve from a `/` query.")
                     .font(.system(size: 12, design: .rounded))
                     .foregroundStyle(.secondary)
             }

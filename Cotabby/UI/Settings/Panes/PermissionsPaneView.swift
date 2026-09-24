@@ -12,14 +12,14 @@ struct PermissionsPaneView: View {
     var body: some View {
         SettingsPaneScaffold(callout: callout) {
             Section("Permissions") {
-                Text("Cotabby needs Accessibility and Input Monitoring for autocomplete. " +
+                Text("CoHamster needs Accessibility and Input Monitoring for autocomplete. " +
                     "Screen Recording is optional and adds on-screen visual context.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
                 SettingsPermissionRow(
                     permission: .accessibility,
-                    description: "Lets Cotabby see which text field has focus and read its contents " +
+                    description: "Lets CoHamster see which text field has focus and read its contents " +
                         "so it knows what to continue.",
                     granted: permissionManager.accessibilityGranted,
                     permissionGuidanceController: permissionGuidanceController
@@ -28,7 +28,7 @@ struct PermissionsPaneView: View {
 
                 SettingsPermissionRow(
                     permission: .inputMonitoring,
-                    description: "Lets Cotabby see your keystrokes so it can detect when to suggest " +
+                    description: "Lets CoHamster see your keystrokes so it can detect when to suggest " +
                         "and which key you used to accept.",
                     granted: permissionManager.inputMonitoringGranted,
                     permissionGuidanceController: permissionGuidanceController
@@ -37,8 +37,8 @@ struct PermissionsPaneView: View {
 
                 SettingsPermissionRow(
                     permission: .screenRecording,
-                    description: "Optional. Lets Cotabby screenshot the focused window for extra " +
-                        "context. Without it, Cotabby runs in Fast Mode using only the text you've typed.",
+                    description: "Optional. Lets CoHamster screenshot the focused window for extra " +
+                        "context. Without it, CoHamster runs in Fast Mode using only the text you've typed.",
                     granted: permissionManager.screenRecordingGranted,
                     permissionGuidanceController: permissionGuidanceController
                 )
@@ -64,7 +64,7 @@ struct PermissionsPaneView: View {
         }
         return SettingsPaneCallout(
             tone: .warning,
-            message: "Cotabby needs more access to run. Grant the permissions below to enable autocomplete."
+            message: "CoHamster needs more access to run. Grant the permissions below to enable autocomplete."
         )
     }
 

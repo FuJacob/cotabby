@@ -112,7 +112,7 @@ final class PromptContextSanitizerTests: XCTestCase {
     func test_sanitizeOCR_dropsRandomMixedCaseAndAlphanumericGarbage() {
         let input = """
         gLVWrt bDokE 54tbdbDX
-        Visible task update Screen Recording copy for Cotabby
+        Visible task update Screen Recording copy for CoHamster
         """
 
         let result = PromptContextSanitizer.sanitizeOCR(input)
@@ -120,16 +120,17 @@ final class PromptContextSanitizerTests: XCTestCase {
         XCTAssertFalse(result.contains("gLVWrt"))
         XCTAssertFalse(result.contains("bDokE"))
         XCTAssertFalse(result.contains("54tbdbDX"))
-        XCTAssertTrue(result.contains("Visible task update Screen Recording copy for Cotabby"))
+        XCTAssertTrue(result.contains("Visible task update Screen Recording copy for CoHamster"))
     }
 
     func test_sanitizeOCR_preservesUsefulTechnicalAndUserContext() {
         let input = """
-        Cotabby PR API context needs GeneralPaneView.swift normalizedBundleIdentifier jane@example.com
+        Cotabby CoHamster PR API context needs GeneralPaneView.swift normalizedBundleIdentifier jane@example.com
         """
 
         let result = PromptContextSanitizer.sanitizeOCR(input)
 
+        XCTAssertTrue(result.contains("CoHamster"))
         XCTAssertTrue(result.contains("Cotabby"))
         XCTAssertTrue(result.contains("PR"))
         XCTAssertTrue(result.contains("API"))

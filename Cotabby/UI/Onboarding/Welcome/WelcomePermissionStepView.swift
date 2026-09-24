@@ -34,7 +34,7 @@ struct WelcomePermissionStepView: View {
             OnboardingStepHeader(
                 systemImage: "lock.shield.fill",
                 title: "Two quick permissions",
-                subtitle: "Cotabby needs to read the field you're typing in and watch for the accept key.\n"
+                subtitle: "CoHamster needs to read the field you're typing in and watch for the accept key.\n"
                     + "The optional one unlocks smarter, screen-aware suggestions."
             )
             .onboardingReveal(0)
@@ -68,7 +68,7 @@ struct WelcomePermissionStepView: View {
                 Image(systemName: "lock.fill")
                     .font(.system(size: 10, weight: .medium))
 
-                Text("Everything Cotabby reads stays on your Mac. Nothing is ever uploaded.")
+                Text("Everything CoHamster reads stays on your Mac. Nothing is ever uploaded.")
                     .font(.system(size: 12, design: .rounded))
             }
             .foregroundStyle(.tertiary)

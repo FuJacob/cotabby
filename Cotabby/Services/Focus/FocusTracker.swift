@@ -309,9 +309,9 @@ final class FocusTracker {
             sanctionedElementIdentifier: selfCaptureAllowedElementIdentifier
         ) {
             return inactiveCapture(
-                applicationName: application.localizedName ?? "Cotabby",
+                applicationName: application.localizedName ?? "CoHamster",
                 bundleIdentifier: application.bundleIdentifier,
-                capability: .blocked("Cotabby is focused.")
+                capability: .blocked("CoHamster is focused.")
             )
         }
 
@@ -325,7 +325,7 @@ final class FocusTracker {
             return inactiveCapture(
                 applicationName: application.localizedName ?? "?",
                 bundleIdentifier: application.bundleIdentifier,
-                capability: .blocked("Cotabby is disabled for this app.")
+                capability: .blocked("CoHamster is disabled for this app.")
             )
         }
         noteCaptureResumedIfNeeded()

@@ -119,7 +119,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .fadeInSuggestions: return "Fade In Suggestions"
         case .showFieldIndicator: return "Show Field Indicator"
         case .showWordCount: return "Show Word Count in Menu Bar"
-        case .showMenuBarIcon: return "Show Cotabby in Menu Bar"
+        case .showMenuBarIcon: return "Show CoHamster in Menu Bar"
         case .showKeyHint: return "Show Accept-Key Hint"
         case .ghostTextColor: return "Ghost Text Color"
         case .ghostTextOpacity: return "Ghost Text Opacity"
@@ -158,7 +158,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .acceptanceMode: return "Acceptance Mode"
         case .acceptWord: return "Accept Word"
         case .acceptEntireSuggestion: return "Accept Entire Suggestion"
-        case .toggleTabby: return "Toggle Cotabby"
+        case .toggleTabby: return "Toggle CoHamster"
         case .disabledApps: return "Disabled Apps"
         case .suggestInIntegratedTerminals: return "Suggest in Integrated Terminals"
         case .accessibility: return "Accessibility"
@@ -169,9 +169,9 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .resourceUsage: return "Live Resource Usage"
         case .recentRequests: return "Recent Requests"
         case .checkForUpdates: return "Check for Updates"
-        case .support: return "Support Cotabby"
+        case .support: return "Contribute to CoHamster"
         case .githubRepository: return "GitHub Repository"
-        case .wiki: return "Wiki & Contributor Guide"
+        case .wiki: return "Contributor Guide"
         case .acknowledgements: return "Acknowledgements"
         case .uninstall: return "Uninstall"
         }
@@ -294,9 +294,9 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     /// phrasing the title doesn't carry ("looks too big", "on every keystroke").
     var summary: String {
         switch self {
-        case .enableGlobally: return "Turn Cotabby on or off everywhere without quitting."
+        case .enableGlobally: return "Turn CoHamster on or off everywhere without quitting."
         case .fastMode: return "Skip screenshot context for faster suggestions."
-        case .openAtLogin: return "Start Cotabby automatically when you log in."
+        case .openAtLogin: return "Start CoHamster automatically when you log in."
         case .includeClipboardContext: return "Let suggestions reference what you last copied."
         case .includeAppContext: return "Tell the model which app and window you are typing in."
         case .allowMultiLine: return "Allow continuations that span more than one line."
@@ -306,13 +306,13 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .addSpaceAfterAccept: return "Add a space when an accept finishes a word."
         case .inlineMacros: return "Type / for dates, math, units, currency, and randoms."
         case .onboarding: return "Replay the first-run setup walkthrough."
-        case .resetAllSettings: return "Restore every Cotabby setting to its original default."
+        case .resetAllSettings: return "Restore every CoHamster setting to its original default."
         case .suggestionDisplay: return "Inline ghost text, popup card, or automatic per app."
         case .streamWhileGenerating: return "Reveal ghost text token by token as the model writes."
         case .fadeInSuggestions: return "Fade new suggestions in smoothly instead of all at once."
         case .showFieldIndicator: return "Show a small icon when a field is ready for suggestions."
         case .showWordCount: return "Count accepted words next to the menu bar icon."
-        case .showMenuBarIcon: return "Hide menu bar clutter while Cotabby keeps running."
+        case .showMenuBarIcon: return "Hide menu bar clutter while CoHamster keeps running."
         case .showKeyHint: return "Show the accept-key badge beside the ghost text."
         case .ghostTextColor: return "Pick the color of the inline suggestion."
         case .ghostTextOpacity: return "How faint the suggestion looks before you accept it."
@@ -321,8 +321,8 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .emojiSkinTone: return "Prefer a skin tone in emoji suggestions."
         case .emojiPeopleStyle: return "Person, man, or woman variants when available."
         case .emojiHistory: return "Clear recently and frequently used emoji."
-        case .length: return "How many words Cotabby aims for per suggestion."
-        case .name: return "What Cotabby should call you."
+        case .length: return "How many words CoHamster aims for per suggestion."
+        case .name: return "What CoHamster should call you."
         case .languages: return "Languages suggestions should be written in."
         case .customRules: return "Your own style rules passed to the model."
         case .hideSuggestionsOnTypo: return "Pause completions while a word looks misspelled."
@@ -346,13 +346,13 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .endpointBaseURL: return "The OpenAI-compatible server address; /v1 is added when omitted."
         case .endpointAPIMode: return "Choose Chat Completions or Text Completions for this model."
         case .endpointAPIKey: return "Optional bearer token stored securely in Keychain."
-        case .endpointStatus: return "Whether Cotabby can reach the server and list its models."
+        case .endpointStatus: return "Whether CoHamster can reach the server and list its models."
         case .endpointModel: return "The model identifier sent to the configured endpoint."
         case .acceptanceMode: return "Whether the accept key takes a word or a phrase."
         case .acceptWord: return "The key that inserts the next word."
         case .acceptEntireSuggestion: return "The key that inserts the whole suggestion."
-        case .toggleTabby: return "A global hotkey that turns Cotabby on or off."
-        case .disabledApps: return "Apps where Cotabby never autocompletes."
+        case .toggleTabby: return "A global hotkey that turns CoHamster on or off."
+        case .disabledApps: return "Apps where CoHamster never autocompletes."
         case .suggestInIntegratedTerminals: return "Ghost text in VS Code and Cursor terminals."
         case .accessibility: return "Required to read the focused field and caret."
         case .inputMonitoring: return "Required to see keystrokes and the accept key."
@@ -361,12 +361,12 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .suggestionQualityStats: return "Shown, accepted, and withheld counters."
         case .resourceUsage: return "Live CPU and memory graphs for the app."
         case .recentRequests: return "Latency log of the most recent generations."
-        case .checkForUpdates: return "See if a newer Cotabby is available."
-        case .support: return "Tip the two students who build Cotabby."
+        case .checkForUpdates: return "See if a newer CoHamster is available."
+        case .support: return "Report bugs, suggest features, or contribute code."
         case .githubRepository: return "Browse the source code and issues."
         case .wiki: return "Documentation and the contributor guide."
-        case .acknowledgements: return "Third-party packages Cotabby ships with."
-        case .uninstall: return "Remove Cotabby and its data from this Mac."
+        case .acknowledgements: return "Third-party packages CoHamster ships with."
+        case .uninstall: return "Remove CoHamster and its data from this Mac."
         }
     }
 
@@ -582,8 +582,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
             return ["update", "version", "upgrade", "sparkle", "release", "new version",
                     "check updates", "auto update"]
         case .support:
-            return ["donate", "support", "ko-fi", "kofi", "tip", "donation", "sponsor",
-                    "contribute money", "help"]
+            return ["support", "contribute", "bugs", "features", "feedback", "help"]
         case .githubRepository:
             return ["github", "repo", "repository", "source code", "code", "git",
                     "contribute", "issues", "open source"]

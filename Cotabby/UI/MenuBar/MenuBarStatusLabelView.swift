@@ -13,7 +13,7 @@ struct MenuBarStatusLabelView: View {
 
     var body: some View {
         HStack(spacing: 2) {
-            Image("MenuBarCatIcon")
+            Image("MenuBarHamsterIcon")
                 .renderingMode(.template)
                 .resizable()
                 .scaledToFit()
@@ -39,6 +39,6 @@ struct MenuBarStatusLabelView: View {
     /// Global disable takes precedence when both states are present because it remains in effect
     /// after the temporary pause is cleared.
     private var inactiveAccessibilityLabel: String {
-        suggestionSettings.isGloballyEnabled ? "Cotabby paused" : "Cotabby disabled"
+        suggestionSettings.isGloballyEnabled ? "CoHamster paused" : "CoHamster disabled"
     }
 }

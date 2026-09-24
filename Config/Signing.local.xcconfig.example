@@ -14,6 +14,6 @@
 DEVELOPMENT_TEAM = YOUR_TEAM_ID
 
 // Optional. Only needed if your personal team rejects the shared dev bundle id and Xcode reports
-// "Failed to register bundle identifier". This gives the "Cotabby Dev" build its own identity:
+// "Failed to register bundle identifier". This gives the "CoHamster Dev" build its own identity:
 //
-// COTABBY_DEV_BUNDLE_ID = com.yourname.tabby.dev
+// COHAMSTER_DEV_BUNDLE_ID = com.yourname.cohamster.dev

@@ -2,19 +2,21 @@
 set -euo pipefail
 
 MODE="${1:-run}"
-APP_NAME="Cotabby Dev"
-BUNDLE_ID="com.jacobfu.tabby.dev"
+APP_NAME="CoHamster Dev"
+BUNDLE_ID="org.mchamster.cohamster.dev"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DERIVED_DATA="$ROOT_DIR/build/DerivedData"
 APP_BUNDLE="$DERIVED_DATA/Build/Products/Debug/$APP_NAME.app"
 APP_BINARY="$APP_BUNDLE/Contents/MacOS/$APP_NAME"
 
-# Cotabby Dev has its own bundle identity so rebuilding it does not disturb the permissions or
+# CoHamster Dev has its own bundle identity so rebuilding it does not disturb the permissions or
 # settings of the production app. Stop only the dev process before replacing its executable.
 pkill -x "$APP_NAME" >/dev/null 2>&1 || true
 
+"$ROOT_DIR/scripts/prepare_cohamster_workspace.sh"
 xcodebuild \
-  -project "$ROOT_DIR/Cotabby.xcodeproj" \
+  -workspace "$ROOT_DIR/build/cohamster-dependencies/CoHamster.xcworkspace" \
+  -onlyUsePackageVersionsFromResolvedFile \
   -scheme "$APP_NAME" \
   -configuration Debug \
   -destination "platform=macOS" \

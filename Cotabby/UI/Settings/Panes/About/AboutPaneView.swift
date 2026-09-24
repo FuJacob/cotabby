@@ -25,14 +25,14 @@ struct AboutPaneView: View {
     @ViewBuilder
     private var aboutHeader: some View {
         HStack(spacing: 12) {
-            Image("CotabbyLogo")
+            Image("CoHamsterLogo")
                 .resizable()
                 .scaledToFit()
                 .frame(width: 40, height: 40)
                 .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String ?? "Cotabby")
+                Text(Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String ?? "CoHamster")
                     .font(.system(size: 16, weight: .semibold, design: .rounded))
 
                 Text("Local macOS AI Autocomplete")
@@ -57,31 +57,13 @@ struct AboutPaneView: View {
 
     @ViewBuilder
     private var supportRow: some View {
-        // Stack the support copy and the call-to-action vertically so the button sits below the
-        // paragraphs instead of competing with them on the right edge of the row. `LabeledContent`
-        // placed the value column next to the label, which made the wall of text visually compete
-        // with a small button — the natural reading order is paragraphs first, then action.
         VStack(alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 8) {
-                Text(
-                    "Cotabby started from a simple belief: AI should run on your device, "
-                    + "respect your privacy, and remain open to everyone."
-                )
-
-                Text(
-                    "We're building Cotabby in our spare time, one release at a time. "
-                    + "If Cotabby has helped you, your support helps us keep improving it."
-                )
-            }
-            .foregroundStyle(.secondary)
-            .fixedSize(horizontal: false, vertical: true)
-
-            if let supportURL = URL(string: "https://ko-fi.com/cotabby") {
-                Link(destination: supportURL) {
-                    Label("Support Cotabby", systemImage: "heart.fill")
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(.blue)
+            Text("Help improve CoHamster by reporting bugs, suggesting features, or contributing code.")
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            if let url = URL(string: "https://github.com/mc-hamster/cotabby/issues") {
+                Link("Contribute & Report Issues", destination: url)
+                    .buttonStyle(.borderedProminent)
             }
         }
     }
@@ -90,20 +72,16 @@ struct AboutPaneView: View {
     /// search can scroll to and pulse individually.
     @ViewBuilder
     private var resourceRows: some View {
-        #if COTABBY_MCHAMSTER
         let repository = "https://github.com/mc-hamster/cotabby"
-        #else
-        let repository = "https://github.com/FuJacob/Cotabby"
-        #endif
         if let repoURL = URL(string: repository) {
             Link(destination: repoURL) {
                 Label("GitHub Repository", systemImage: "chevron.left.forwardslash.chevron.right")
             }
             .settingsItem(.githubRepository)
         }
-        if let wikiURL = URL(string: "https://github.com/FuJacob/Cotabby/wiki") {
+        if let wikiURL = URL(string: "https://github.com/mc-hamster/cotabby/blob/master/CONTRIBUTING.md") {
             Link(destination: wikiURL) {
-                Label("Wiki & Contributor Guide", systemImage: "book")
+                Label("Contributor Guide", systemImage: "book")
             }
             .settingsItem(.wiki)
         }
@@ -118,10 +96,8 @@ struct AboutPaneView: View {
 
     @ViewBuilder
     private var uninstallText: some View {
-        Text(
-            "Remove Cotabby from Applications. To fully clean up app data, "
-            + "delete ~/Library/Application Support/Cotabby."
-        )
+        let dataDirectory = BundledRuntimeLocator.userRuntimeDirectoryURL().deletingLastPathComponent().path
+        Text("Remove CoHamster from Applications. To fully clean up model data, delete \(dataDirectory).")
         .font(.caption)
         .foregroundStyle(.secondary)
     }

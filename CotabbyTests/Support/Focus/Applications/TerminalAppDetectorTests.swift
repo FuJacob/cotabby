@@ -97,7 +97,7 @@ final class TerminalAppDetectorTests: XCTestCase {
             focusSnapshot: snapshot
         )
 
-        XCTAssertEqual(reason, "Cotabby is not available in terminal apps.")
+        XCTAssertEqual(reason, "CoHamster is not available in terminal apps.")
     }
 
     func test_evaluator_doesNotBlockNonTerminalApp() {
@@ -148,7 +148,7 @@ final class TerminalAppDetectorTests: XCTestCase {
             focusSnapshot: snapshot
         )
 
-        XCTAssertEqual(reason, "Cotabby is turned off.",
+        XCTAssertEqual(reason, "CoHamster is turned off.",
                        "Global-off should take precedence over the terminal check")
     }
 }

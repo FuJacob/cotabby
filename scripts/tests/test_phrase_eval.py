@@ -23,7 +23,7 @@ class PhraseEvalCLITests(unittest.TestCase):
         """A tiny app/native workspace with filesystem changes and a stubbed Git file listing."""
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
-            paths = ['Cotabby/app.swift', 'CotabbyTests/test.swift', 'Config/Signing.local.xcconfig', 'CotabbyInfo.plist',
+            paths = ['Cotabby/app.swift', 'CotabbyTests/test.swift', 'Config/Signing.local.xcconfig', 'Config/CoHamsterInfo.plist',
                      'native/Package.swift', 'native/source.cpp']
             for name in paths:
                 path = root / name
@@ -68,7 +68,7 @@ class PhraseEvalCLITests(unittest.TestCase):
 
     def test_resolution_rejects_app_test_native_and_config_changes(self):
         for name in ('Cotabby/app.swift', 'CotabbyTests/test.swift', 'native/source.cpp', 'native/Package.swift',
-                     'Config/Signing.local.xcconfig', 'CotabbyInfo.plist', 'dev.xcworkspace/contents.xcworkspacedata'):
+                     'Config/Signing.local.xcconfig', 'Config/CoHamsterInfo.plist', 'dev.xcworkspace/contents.xcworkspacedata'):
             with self.subTest(name=name), self.resolution_fixture() as (root, workspace, output):
                 def resolve(command, log):
                     with (root / name).open('a') as stream:
@@ -141,10 +141,10 @@ class PhraseEvalCLITests(unittest.TestCase):
                         lock.write_text('resolved pins')
                     elif arguments[1] == 'build-for-testing':
                         products = eval_cli.DERIVED / 'Build/Products'
-                        binary = products / 'Release/Cotabby.app/Contents/MacOS/Cotabby'
+                        binary = products / 'Release/CoHamster.app/Contents/MacOS/CoHamster'
                         binary.parent.mkdir(parents=True)
                         binary.write_bytes(b'built app')
-                        (products / 'Cotabby_test.xctestrun').write_bytes(eval_cli.plistlib.dumps(
+                        (products / 'CoHamster_test.xctestrun').write_bytes(eval_cli.plistlib.dumps(
                             {'TestBundlePath': '__TESTROOT__/CotabbyTests.xctest'}))
                         if mutate_build_input:
                             path = root / 'Cotabby/app.swift' if mutate_build_input == 'source' else lock
@@ -257,7 +257,7 @@ class PhraseEvalCLITests(unittest.TestCase):
             root = pathlib.Path(directory)
             source = root / 'Cotabby.xctestrun'
             source.write_bytes(b'configuration')
-            executable = root / 'Release/Cotabby.app/Contents/PlugIns/CotabbyTests.xctest/Contents/MacOS/CotabbyTests'
+            executable = root / 'Release/CoHamster.app/Contents/PlugIns/CotabbyTests.xctest/Contents/MacOS/CoHamsterTests'
             executable.parent.mkdir(parents=True)
             executable.write_bytes(b'original test code')
             first = eval_cli.build_product_fingerprint(source)

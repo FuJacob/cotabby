@@ -11,8 +11,8 @@ The diff already shows what; this section should explain why.
 What you actually ran and what you actually saw, not what you intended to run.
 Examples:
 
-  xcodebuild test -project Cotabby.xcodeproj -scheme Cotabby \
-    -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO
+  xcodebuild test -workspace build/cohamster-dependencies/CoHamster.xcworkspace -scheme CoHamster \
+    -destination 'platform=macOS' -derivedDataPath build/DerivedData CODE_SIGNING_ALLOWED=NO
   # ** TEST SUCCEEDED **  N tests, 0 failures
 
   swiftlint lint --config .swiftlint.yml --quiet

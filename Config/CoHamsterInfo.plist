@@ -23,23 +23,15 @@
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSAccessibilityUsageDescription</key>
-	<string>Cotabby needs Accessibility access to read and insert text in other apps.</string>
+	<string>$(PRODUCT_NAME) needs Accessibility access to read and insert text in other apps.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
-	<key>SUAllowsAutomaticUpdates</key>
-	<true/>
-	<key>SUAutomaticallyUpdate</key>
-	<true/>
-	<key>SUEnableAutomaticChecks</key>
-	<true/>
-	<key>SUScheduledCheckInterval</key>
-	<integer>86400</integer>
-	<key>SUFeedURL</key>
-	<string>https://updates.cotabby.app/appcast.xml</string>
-    <key>SUPublicEDKey</key>
-    <string>efJeZNfUISOs6npbxI2MLLe7sBB5tT/sVnTk9t/qBSY=</string>
+	<key>CoHamsterDataDirectory</key>
+	<string>$(COHAMSTER_DATA_DIRECTORY)</string>
+	<key>CFBundleDisplayName</key>
+	<string>$(PRODUCT_NAME)</string>
 </dict>
 </plist>

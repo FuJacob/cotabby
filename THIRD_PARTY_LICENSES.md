@@ -1,13 +1,14 @@
 # Third-Party Licenses
 
-Cotabby is licensed under the GNU Affero General Public License v3.0 (see
+CoHamster is licensed under the GNU Affero General Public License v3.0 (see
 [`LICENSE`](LICENSE)). It bundles third-party software and data that keep their own
 licenses; the notices that ask to be reproduced are included below.
 
-The Swift package dependencies Cotabby links against (llama.cpp, CotabbyInference,
-Sparkle, swift-log) are credited in the in-app Acknowledgements
+The Swift package dependencies CoHamster links against (llama.cpp, CotabbyInference,
+Sparkle, swift-log, LaunchAtLogin) are credited in the in-app Acknowledgements
 (Settings → About → Acknowledgements) and in the README, each linking to its
-upstream license text.
+upstream license text. Full license texts for these packages and gemoji are also bundled in
+`Cotabby/Resources/ThirdPartyLicenses/`; provenance is recorded in its `SOURCES.md`.
 
 ## SymSpell
 
@@ -81,7 +82,7 @@ full SCOWL copyright file.
 
 ### Multilingual dictionaries
 
-Cotabby also bundles the German, Spanish, French, Hebrew, Italian, and Russian
+CoHamster also bundles the German, Spanish, French, Hebrew, Italian, and Russian
 frequency dictionaries published in SymSpell's `SymSpell.FrequencyDictionary`
 folder at commit `b8b2905bde` (March 13, 2020). SymSpell generated these by
 intersecting Google Books Ngram frequencies with Hunspell word lists.

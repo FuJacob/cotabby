@@ -1,8 +1,8 @@
 import SwiftUI
 
 /// File overview:
-/// Modal sheet listing the third-party packages Cotabby ships with. Lightweight by design: each
-/// row names the project, summarizes what it does for Cotabby, and links to its repo. The intent
+/// Modal sheet preserving upstream attribution and the third-party packages CoHamster ships with. Each
+/// row names the project, summarizes its role, and links to its repo. The intent
 /// is attribution, not a full license dump; the GitHub repo carries the verbatim license texts.
 struct AcknowledgementsView: View {
     let onClose: () -> Void
@@ -44,18 +44,36 @@ struct AcknowledgementsView: View {
 
     private static let entries: [AcknowledgementEntry] = [
         AcknowledgementEntry(
+            name: "Cotabby",
+            summary: "CoHamster is an independent fork of Cotabby, originally created by FuJacob "
+                + "and developed with jam-cai, akramj13, and other contributors. "
+                + "Modified by the CoHamster contributors beginning September 24, 2026. "
+                + "Distributed under AGPLv3, without warranty; redistribution is permitted under that license.",
+            url: "https://github.com/FuJacob/cotabby"
+        ),
+        AcknowledgementEntry(
+            name: "CoHamster source & license",
+            summary: "Source code, build instructions, and the GNU Affero General Public License v3.0.",
+            url: "https://github.com/mc-hamster/cotabby"
+        ),
+        AcknowledgementEntry(
+            name: "LaunchAtLogin",
+            summary: "Login-item integration for starting CoHamster with macOS.",
+            url: "https://github.com/sindresorhus/LaunchAtLogin-Modern"
+        ),
+        AcknowledgementEntry(
             name: "llama.cpp",
             summary: "On-device inference engine for GGUF models on the Open Source path.",
             url: "https://github.com/ggml-org/llama.cpp"
         ),
         AcknowledgementEntry(
             name: "Sparkle",
-            summary: "Update framework used by the Check for Updates button.",
+            summary: "Bundled update framework; automatic updating is disabled in CoHamster.",
             url: "https://github.com/sparkle-project/Sparkle"
         ),
         AcknowledgementEntry(
             name: "swift-log",
-            summary: "Logging façade Cotabby uses across runtime, focus, and suggestion subsystems.",
+            summary: "Logging façade CoHamster uses across runtime, focus, and suggestion subsystems.",
             url: "https://github.com/apple/swift-log"
         ),
         AcknowledgementEntry(
@@ -68,7 +86,7 @@ struct AcknowledgementsView: View {
         ),
         AcknowledgementEntry(
             name: "CotabbyInference",
-            summary: "Swift wrapper around llama.cpp that exposes the inference API Cotabby links against.",
+            summary: "Swift wrapper around llama.cpp that exposes the inference API CoHamster links against.",
             url: "https://github.com/FuJacob/cotabbyinference"
         )
     ]

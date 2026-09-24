@@ -301,9 +301,9 @@ def build_input_snapshot(workspace=None):
     Only canonical package lock paths may change during explicit dependency resolution. A file
     merely named Package.resolved inside app/test fixtures is still an ordinary protected input.
     """
-    roots = [(ROOT, ["Cotabby", "CotabbyTests", "Cotabby.xcodeproj", "project.yml", "CotabbyInfo.plist", "Config"])]
+    roots = [(ROOT, ["Cotabby", "CotabbyTests", "CoHamster.xcodeproj", "project.yml", "Config/CoHamsterInfo.plist", "Config"])]
     inputs = set((ROOT / "Config").glob("*.xcconfig"))
-    package_locks = {ROOT / "Cotabby.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"}
+    package_locks = {ROOT / "CoHamster.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"}
     if workspace:
         workspace = workspace.resolve()
         document = workspace / "contents.xcworkspacedata"
@@ -375,7 +375,7 @@ def prepare_build_inputs(workspace, project, output, *, skip_build):
     record_path.write_text(json.dumps(record, indent=2) + "\n")
     try:
         logged_command([
-            "xcodebuild", "-resolvePackageDependencies", *project, "-scheme", "Cotabby", "-configuration", "Release",
+            "xcodebuild", "-resolvePackageDependencies", *project, "-scheme", "CoHamster", "-configuration", "Release",
             "-destination", "platform=macOS", "-derivedDataPath", DERIVED, "-skipPackageUpdates",
         ], output / "resolution.log")
         # Resolving is not complete until its resulting inputs can be captured. A concurrent
@@ -434,10 +434,10 @@ def run(args):
                       "perCategory": args.per_category, "limit": args.limit},
     }
     (output / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
-    patch_arguments = ("diff", "HEAD", "--", "Cotabby", "CotabbyTests", "Cotabby.xcodeproj", "CotabbyInfo.plist", "Config", "project.yml", "scripts")
+    patch_arguments = ("diff", "HEAD", "--", "Cotabby", "CotabbyTests", "CoHamster.xcodeproj", "Config/CoHamsterInfo.plist", "Config", "project.yml", "scripts")
     (output / "working-tree.patch").write_text(git_output(*patch_arguments))
     print(f"Results: {output}", flush=True)
-    project = ["-workspace", args.workspace.resolve()] if args.workspace else ["-project", ROOT / "Cotabby.xcodeproj"]
+    project = ["-workspace", args.workspace.resolve()] if args.workspace else ["-project", ROOT / "CoHamster.xcodeproj"]
     build_marker = DERIVED / "phrase-eval-build.json"
     initial_git = {key: manifest[key] for key in ("gitCommit", "gitStatus")}
     prepared_inputs = prepare_build_inputs(args.workspace, project, output, skip_build=args.skip_build)
@@ -459,13 +459,13 @@ def run(args):
         raise RuntimeError("--skip-build requires a recorded successful build with unchanged source inputs; run once without it")
     if not args.skip_build:
         logged_command([
-            "xcodebuild", "build-for-testing", *project, "-scheme", "Cotabby", "-configuration", "Release",
+            "xcodebuild", "build-for-testing", *project, "-scheme", "CoHamster", "-configuration", "Release",
             "-destination", "platform=macOS", "-derivedDataPath", DERIVED,
             "CODE_SIGNING_ALLOWED=NO", "ENABLE_TESTABILITY=YES", "ONLY_ACTIVE_ARCH=YES",
             "SWIFT_ACTIVE_COMPILATION_CONDITIONS=$(inherited) RUN_LLAMA_EVAL", "-skipPackageUpdates",
         ], output / "build.log")
     products = DERIVED / "Build/Products"
-    candidates = [p for p in products.glob("Cotabby_*.xctestrun") if "phrase-eval-" not in p.name]
+    candidates = [p for p in products.glob("CoHamster_*.xctestrun") if "phrase-eval-" not in p.name]
     if not candidates:
         raise RuntimeError("Build produced no Cotabby xctestrun file")
     source = max(candidates, key=lambda p: p.stat().st_mtime_ns)
@@ -499,7 +499,7 @@ def run(args):
     if inject_environment(configuration, environment) != 1:
         raise RuntimeError("Expected exactly one CotabbyTests target in xctestrun")
     # __TESTROOT__ is relative to the plist, so keep the temporary copy beside the original.
-    prepared = products / f"Cotabby_phrase-eval-{uuid.uuid4().hex}.xctestrun"
+    prepared = products / f"CoHamster_phrase-eval-{uuid.uuid4().hex}.xctestrun"
     prepared.write_bytes(plistlib.dumps(configuration))
     try:
         logged_command([

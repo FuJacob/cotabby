@@ -1,7 +1,7 @@
 import Foundation
 
 /// File overview:
-/// Defines Cotabby's custom autocomplete "rules" — short imperative style directives the user can
+/// Defines CoHamster's custom autocomplete "rules" — short imperative style directives the user can
 /// add as tags. A rule is one clause of the same shape as the prompt's built-in rules (e.g.
 /// "Never use em dashes"), so the renderers can emit each as a single bullet.
 ///

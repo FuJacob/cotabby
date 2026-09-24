@@ -1,6 +1,6 @@
 // Code signing for local development.
 //
-// The shared default is Cotabby's development team so maintainers can pull main and immediately
+// The shared default is CoHamster's development team so maintainers can pull main and immediately
 // run the app without Xcode writing a personal choice into the generated project.pbxproj. A
 // contributor who is not on that team overrides it once in Config/Signing.local.xcconfig
 // (gitignored). Generate that override with
@@ -20,6 +20,6 @@
 // DEVELOPMENT_TEAM must not be set in project.yml's build settings either: project-level build
 // settings outrank an xcconfig, so a value there would silently override this file.
 
-DEVELOPMENT_TEAM = G946M8K23B
+DEVELOPMENT_TEAM = 8RN882MNR5
 
 #include? "Signing.local.xcconfig"

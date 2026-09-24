@@ -108,7 +108,7 @@ struct SuggestionSettingsSnapshot: Equatable, Sendable {
     let disabledAppBundleIdentifiers: Set<String>
     /// When false (the default), ghost text is suppressed in integrated terminals (VS Code / Cursor
     /// xterm.js surfaces). Power users can opt back in. Travels in the snapshot so the availability
-    /// gate sees the live value alongside the other "where Cotabby runs" rules.
+    /// gate sees the live value alongside the other "where CoHamster runs" rules.
     let suggestInIntegratedTerminals: Bool
     /// Whether the availability gate pauses suggestions during Low Power Mode.
     let isLowPowerModeAutoDisableEnabled: Bool

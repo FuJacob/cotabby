@@ -6,7 +6,7 @@ import Logging
 /// Tracks Cotabby's own synthetic key events so inserted suggestions do not recursively trigger
 /// the input-monitoring pipeline and cause bogus follow-up completions.
 ///
-/// Think of this as a tiny "ignore my own write" guard. When Cotabby injects accepted text back into
+/// Think of this as a tiny "ignore my own write" guard. When CoHamster injects accepted text back into
 /// the focused app, the global event tap would otherwise observe those synthetic key events and
 /// treat them like fresh user typing.
 @MainActor

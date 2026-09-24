@@ -88,7 +88,7 @@ final class FoundationModelSuggestionEngine {
             // the failure explicit instead of constructing a session with the wrong backend state.
             guard let model = availabilityService.systemLanguageModel else {
                 throw SuggestionClientError.unavailable(
-                    "Apple Intelligence reported available, but Cotabby could not access the system language model."
+                    "Apple Intelligence reported available, but CoHamster could not access the system language model."
                 )
             }
 
@@ -309,9 +309,9 @@ final class FoundationModelSuggestionEngine {
         case .guardrailViolation:
             return .generationFailed("Apple Intelligence rejected this request because of model guardrails.")
         case .unsupportedGuide:
-            return .generationFailed("Apple Intelligence rejected a guided-generation request Cotabby sent.")
+            return .generationFailed("Apple Intelligence rejected a guided-generation request CoHamster sent.")
         case .decodingFailure:
-            return .generationFailed("Apple Intelligence returned a response Cotabby could not decode.")
+            return .generationFailed("Apple Intelligence returned a response CoHamster could not decode.")
         case .rateLimited:
             return .generationFailed("Apple Intelligence is temporarily rate limited.")
         case .concurrentRequests:

@@ -69,7 +69,7 @@ enum OnboardingTemplate: String, CaseIterable, Identifiable, Equatable, Sendable
             return "Longer suggestions and higher quality on harder prompts."
         case .custom:
             return "Returning users keep every setting they've already tuned. "
-                + "New users start from Cotabby's lean defaults and fine-tune length, model, and behavior in Settings."
+                + "New users start from CoHamster's lean defaults and fine-tune length, model, and behavior in Settings."
         }
     }
 

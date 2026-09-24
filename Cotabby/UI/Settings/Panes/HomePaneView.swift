@@ -99,7 +99,7 @@ struct HomePaneView: View {
 
     private var hero: some View {
         VStack(spacing: 10) {
-            Image("CotabbyLogo")
+            Image("CoHamsterLogo")
                 .resizable()
                 .scaledToFit()
                 .frame(width: 64, height: 64)
@@ -111,7 +111,7 @@ struct HomePaneView: View {
                 .opacity(hasAppeared ? 1 : 0)
 
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text("Cotabby")
+                Text("CoHamster")
                     .font(.system(size: 26, weight: .bold, design: .rounded))
                 if let version = appVersionText {
                     Text(version)
@@ -258,7 +258,7 @@ struct HomePaneView: View {
         HomeStatusCard(
             systemImage: "power",
             tint: suggestionSettings.isGloballyEnabled ? .green : .gray,
-            title: "Cotabby",
+            title: "CoHamster",
             caption: suggestionSettings.isGloballyEnabled ? "Active" : "Paused"
         ) {
             Toggle("", isOn: globallyEnabledBinding)
@@ -266,7 +266,7 @@ struct HomePaneView: View {
                 .controlSize(.small)
                 .labelsHidden()
                 .tint(.green)
-                .accessibilityLabel("Enable Cotabby globally")
+                .accessibilityLabel("Enable CoHamster globally")
         }
     }
 
@@ -385,20 +385,20 @@ struct HomePaneView: View {
         HStack(spacing: 6) {
             Text("Free & open source")
             footerDot
-            if let repoURL = URL(string: "https://github.com/FuJacob/Cotabby") {
+            if let repoURL = URL(string: "https://github.com/mc-hamster/cotabby") {
                 Link("GitHub", destination: repoURL)
             }
             footerDot
-            if let supportURL = URL(string: "https://ko-fi.com/cotabby") {
+            if let supportURL = URL(string: "https://github.com/mc-hamster/cotabby/issues") {
                 Link(destination: supportURL) {
-                    Label("Support", systemImage: "heart.fill")
+                    Label("Contribute", systemImage: "person.2")
                         .labelStyle(.titleAndIcon)
                         .foregroundStyle(.pink)
                 }
             }
             footerDot
-            if let wikiURL = URL(string: "https://github.com/FuJacob/Cotabby/wiki") {
-                Link("Wiki", destination: wikiURL)
+            if let wikiURL = URL(string: "https://github.com/mc-hamster/cotabby/blob/master/CONTRIBUTING.md") {
+                Link("Contributor Guide", destination: wikiURL)
             }
         }
         .font(.caption)

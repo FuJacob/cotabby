@@ -64,7 +64,7 @@ struct MenuBarView: View {
     @ViewBuilder
     private var headerSection: some View {
         HStack(alignment: .center) {
-            Text(Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String ?? "Cotabby")
+            Text(Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String ?? "CoHamster")
                 .font(.headline)
 
             if let appShortVersion {
@@ -74,11 +74,9 @@ struct MenuBarView: View {
                     .accessibilityLabel("Version \(appShortVersion)")
             }
 
-            // Ko-fi tip jar lives next to the title because the menu bar surface is the most
-            // frequented entry point. Using a Link lets SwiftUI hand the URL to NSWorkspace and
-            // dismiss the popover; a Button would need its own handler plumbing for the same effect.
-            if let kofiURL = URL(string: "https://ko-fi.com/cotabby") {
-                Link("Support Us", destination: kofiURL)
+            // A plain source link keeps project information separate from the product title.
+            if let projectURL = URL(string: "https://github.com/mc-hamster/cotabby") {
+                Link("GitHub", destination: projectURL)
                     .buttonStyle(.borderless)
                     .font(.subheadline)
             }
@@ -134,7 +132,7 @@ struct MenuBarView: View {
                     Button {
                         suggestionSettings.enableCotabby()
                     } label: {
-                        Label("Enable Cotabby", systemImage: "play.fill")
+                        Label("Enable CoHamster", systemImage: "play.fill")
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .buttonStyle(.borderless)
@@ -144,7 +142,7 @@ struct MenuBarView: View {
                             .font(.caption)
                             .foregroundStyle(.orange)
                     } else {
-                        Text("Cotabby is turned off")
+                        Text("CoHamster is turned off")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -156,7 +154,7 @@ struct MenuBarView: View {
                             }
                         }
                     } label: {
-                        Label("Pause Cotabby", systemImage: "pause.fill")
+                        Label("Pause CoHamster", systemImage: "pause.fill")
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .menuStyle(.borderlessButton)

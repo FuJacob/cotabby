@@ -35,7 +35,7 @@ struct WelcomeView: View {
     let onStepChange: (Int) -> Void
     /// True when this user has completed a prior onboarding version. The Custom path keeps the
     /// user's existing settings instead of overwriting them with template defaults, since they have
-    /// already tuned Cotabby; advancing via "Set up later" preserves that.
+    /// already tuned CoHamster; advancing via "Set up later" preserves that.
     let isReturningUser: Bool
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -255,7 +255,7 @@ extension WelcomeView {
             WelcomeNavigation(
                 canGoBack: true,
                 canContinue: !suggestionSettings.responseLanguages.isEmpty,
-                disabledHint: "Add at least one language so Cotabby knows what to write in.",
+                disabledHint: "Add at least one language so CoHamster knows what to write in.",
                 onBack: { go(to: .template) },
                 onContinue: { go(to: .keybind) }
             )
@@ -280,7 +280,7 @@ extension WelcomeView {
             Spacer(minLength: 0)
 
             VStack(spacing: 24) {
-                Image("CotabbyLogo")
+                Image("CoHamsterLogo")
                     .resizable()
                     .scaledToFit()
                     .frame(width: 84, height: 84)
@@ -289,7 +289,7 @@ extension WelcomeView {
                     .onboardingReveal(0)
 
                 VStack(spacing: 8) {
-                    Text("Welcome to Cotabby")
+                    Text("Welcome to CoHamster")
                         .font(.system(size: 30, weight: .bold, design: .rounded))
 
                     Text("Ghost-text autocomplete in every app,\ngenerated entirely on your Mac.")
@@ -380,7 +380,7 @@ extension WelcomeView {
             VStack(spacing: 12) {
                 doneStepModelStatus
 
-                WelcomeButton(title: "Start Using Cotabby") {
+                WelcomeButton(title: "Start Using CoHamster") {
                     onDismiss()
                 }
             }
@@ -420,7 +420,7 @@ extension WelcomeView {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(.quaternary.opacity(0.55))
 
-                Image("MenuBarCatIcon")
+                Image("MenuBarHamsterIcon")
                     .resizable()
                     .scaledToFit()
                     .frame(height: 18)
@@ -429,7 +429,7 @@ extension WelcomeView {
             .frame(width: 44, height: 30)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("Cotabby lives in your menu bar")
+                Text("CoHamster lives in your menu bar")
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
 
                 Text("Click the cat to pause suggestions, switch models, or open Settings.")

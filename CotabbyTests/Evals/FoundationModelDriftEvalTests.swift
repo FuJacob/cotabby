@@ -28,7 +28,7 @@ import XCTest
 /// `tests.yml` also `-skip-testing`s this class — so it is a no-op there.
 ///
 /// Run locally with:
-///   xcodebuild test -project Cotabby.xcodeproj -scheme Cotabby -destination 'platform=macOS' \
+///   xcodebuild test -project CoHamster.xcodeproj -scheme CoHamster -destination 'platform=macOS' \
 ///     -only-testing:CotabbyTests/FoundationModelDriftEvalTests \
 ///     SWIFT_ACTIVE_COMPILATION_CONDITIONS='$(inherited) RUN_FM_EVAL' CODE_SIGNING_ALLOWED=NO
 @available(macOS 26.0, *)
