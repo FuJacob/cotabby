@@ -56,10 +56,9 @@ final class FoundationModelPromptRendererTests: XCTestCase {
         XCTAssertFalse(instructions.contains("UNIQUE_PROFILE_NAME"))
     }
 
-    /// The few-shot set was trimmed from five demonstrations to two on purpose — one
-    /// prose-with-salutation and one code — so this test pins both presence *and* count to keep
-    /// future edits from silently growing the set back.
-    func test_sessionInstructions_includeExactlyTwoContinuationExamples() {
+    /// Every writing surface receives these instructions. Keep the continuation demonstration
+    /// without injecting an unrelated programming task into prose requests.
+    func test_sessionInstructions_includeOneContinuationExampleWithoutProgrammingTopic() {
         let request = CotabbyTestFixtures.suggestionRequest()
 
         let instructions = FoundationModelPromptRenderer.sessionInstructions(for: request)
@@ -73,7 +72,10 @@ final class FoundationModelPromptRendererTests: XCTestCase {
             .dropFirst()
             .joined(separator: examplesHeader)
         let continuationCount = examplesSection.components(separatedBy: "Continuation:").count - 1
-        XCTAssertEqual(continuationCount, 2, "Expected the trimmed two-example demo set.")
+        XCTAssertEqual(continuationCount, 1, "Expected one continuation demonstration.")
+        XCTAssertTrue(examplesSection.contains("Continuation: proposal we discussed last week."))
+        XCTAssertFalse(instructions.contains("def total(items)"))
+        XCTAssertFalse(instructions.contains("sum(item.price"))
     }
 
     func test_prompt_includesApplicationNameAndPreservesPrefixText() {
