@@ -143,11 +143,10 @@ final class SuggestionCoordinator: ObservableObject {
     static let anchorReuseDisabledDefaultsKey = "cotabbyAnchorReuseDisabled"
     static let speculativePrefetchDisabledDefaultsKey = "cotabbySpeculativePrefetchDisabled"
 
-    /// Content signature a speculative post-acceptance generation was built against. While set,
-    /// `apply` may accept a result whose generation predates the live one as long as the live
-    /// content matches this signature (the speculation bet paid off), and the host-publish poll
-    /// stands down instead of scheduling a duplicate regeneration.
-    var pendingSpeculativeSignature: String?
+    /// Expected post-acceptance context. A speculative result may predate the live generation
+    /// only when both its writing session and exact text match. A matching draft in a different
+    /// conversation must never receive this exemption. The host-publish poll shares that rule.
+    var pendingSpeculativeContext: FocusedInputContext?
 
     /// One bounded next-word request can outlive consumption of its source word. It has its own
     /// work identity so accepting a correction does not cancel the answer being prepared for it.
@@ -283,21 +282,32 @@ final class SuggestionCoordinator: ObservableObject {
         }
 
         visualContextCoordinator.onStateChange = { [weak self] status, excerpt in
-            self?.visualContextStatus = status
-            self?.latestVisualContextText = excerpt
+            guard let self else { return }
+            let lostContext = self.latestVisualContextText != nil && excerpt == nil
+            self.visualContextStatus = status
+            self.latestVisualContextText = excerpt
+            // Expired or invalidated screen text must not survive indirectly in a visible tail,
+            // cached completion, or late result. New requests can use the live draft immediately.
+            if lostContext {
+                self.suggestionAnchorCache = SuggestionAnchorCache()
+                self.cancelPredictionWork()
+                self.clearSuggestion()
+                self.hideOverlay(reason: "Overlay hidden because screen context was invalidated.")
+                if case .disabled = self.state { return }
+                self.state = .idle
+            }
         }
 
         visualContextCoordinator.onInjectedContextReady = { [weak self] identity in
-            guard let self else { return }
-            // Previously cached continuations were conditioned on different screen text. Do not
-            // restore them after a refresh, but leave an already visible/accepting tail stable.
+            guard let self, self.focusModel.snapshot.context?.identity == identity else { return }
+            // A host may expose identical URL/title/geometry for two chats. Changed screen text
+            // is then our next navigation signal. Retire visible tails as well as cached/async
+            // work; keeping an old tail stable would let it outlive arbitrarily many refreshes.
             self.suggestionAnchorCache = SuggestionAnchorCache()
-            guard self.interactionState.activeSession == nil else {
-                // An in-flight continuation used the old screen context and could refill the
-                // anchor cache after this clear. Cancel the work, not the visible/accepting tail.
-                self.cancelPredictionWork()
-                return
-            }
+            self.clipboardPrefaceMemo = nil
+            self.cancelPredictionWork()
+            self.clearSuggestion()
+            self.hideOverlay(reason: "Overlay hidden because screen context changed.")
             self.schedulePredictionForCurrentFocusIfPossible(matching: identity)
         }
         visualContextCoordinator.refreshContextProvider = { [weak self] in

@@ -13,7 +13,5 @@
 
 DEVELOPMENT_TEAM = YOUR_TEAM_ID
 
-// Optional. Only needed if your personal team rejects the shared dev bundle id and Xcode reports
-// "Failed to register bundle identifier". This gives the "CoHamster Dev" build its own identity:
-//
-// COHAMSTER_DEV_BUNDLE_ID = com.yourname.cohamster.dev
+// Debug and Release use the same CoHamster bundle identity. Use a consistent signing identity
+// across rebuilds to keep macOS permission grants valid.

@@ -2,15 +2,17 @@
 set -euo pipefail
 
 MODE="${1:-run}"
-APP_NAME="CoHamster Dev"
-BUNDLE_ID="org.mchamster.cohamster.dev"
+APP_NAME="CoHamster"
+BUNDLE_ID="org.mchamster.cotabby"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DERIVED_DATA="$ROOT_DIR/build/DerivedData"
 APP_BUNDLE="$DERIVED_DATA/Build/Products/Debug/$APP_NAME.app"
 APP_BINARY="$APP_BUNDLE/Contents/MacOS/$APP_NAME"
 
-# CoHamster Dev has its own bundle identity so rebuilding it does not disturb the permissions or
-# settings of the production app. Stop only the dev process before replacing its executable.
+# Debug runs are the same CoHamster application, sharing preferences and model storage. Stop the
+# current instance before opening the new executable so two input monitors cannot run together.
+# Use the project's configured signing identity; unsigned compile checks are separate from runs
+# because an ad-hoc executable can invalidate the existing app's macOS permission grants.
 pkill -x "$APP_NAME" >/dev/null 2>&1 || true
 
 "$ROOT_DIR/scripts/prepare_cohamster_workspace.sh"
@@ -21,7 +23,6 @@ xcodebuild \
   -configuration Debug \
   -destination "platform=macOS" \
   -derivedDataPath "$DERIVED_DATA" \
-  CODE_SIGNING_ALLOWED=NO \
   build
 
 open_app() {

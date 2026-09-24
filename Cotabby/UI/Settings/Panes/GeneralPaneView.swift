@@ -126,6 +126,23 @@ struct GeneralPaneView: View {
                 .settingsItem(.inlineMacros)
             }
 
+            #if DEBUG
+            Section("Development") {
+                Toggle(isOn: Binding(
+                    get: { suggestionSettings.showDevelopmentDebugOverlays },
+                    set: { suggestionSettings.setShowDevelopmentDebugOverlays($0) }
+                )) {
+                    SettingsRowLabel(
+                        title: "Show Development Debug Overlays",
+                        description: "Show caret and field outlines, focus polling, and screen-context status. " +
+                            "Changes apply immediately.",
+                        systemImage: "ladybug"
+                    )
+                }
+                .settingsItem(.developmentDebugOverlays)
+            }
+            #endif
+
             Section("Help") {
                 LabeledContent {
                     Button("Open Welcome Guide") {

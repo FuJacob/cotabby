@@ -89,15 +89,14 @@ final class SuggestionInteractionState {
         return extendedSession
     }
 
-    /// Uses process-level identity instead of AX element identity because Chrome recycles
-    /// AX node tokens between polls, making `CFHash`-based `elementIdentifier` unstable.
-    /// Intra-process field switches are caught downstream by content/text guards.
+    /// A conversation switch invalidates work even when both composers contain identical text.
+    /// The session key tolerates AX wrapper churn while retaining the tracker's navigation signal.
     func hasFocusedElementChanged(comparedTo focusedContext: FocusedInputSnapshot) -> Bool {
-        guard let currentContext else {
+        guard let currentContext = currentContext ?? activeSession?.baseContext else {
             return false
         }
 
-        return currentContext.processIdentifier != focusedContext.processIdentifier
+        return currentContext.sessionIdentity != focusedContext.sessionIdentity
     }
 
     /// Reconciles the currently active session against the latest AX snapshot and stores the
@@ -233,7 +232,7 @@ final class SuggestionInteractionState {
                 sessionForAcceptance = reconciledSession
             }
         } else {
-            guard liveContext.processIdentifier == activeSession.baseContext.processIdentifier else {
+            guard liveContext.sessionIdentity == activeSession.baseContext.sessionIdentity else {
                 return SessionValidation(session: nil, failureReason: "Key passed through because the focused field changed.")
             }
 

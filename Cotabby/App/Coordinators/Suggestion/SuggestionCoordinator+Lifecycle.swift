@@ -102,8 +102,7 @@ extension SuggestionCoordinator {
     func currentVisualRefreshContext() -> FocusedInputSnapshot? {
         focusModel.refreshIfStale(maxAgeMilliseconds: 100)
         let snapshot = focusModel.snapshot
-        guard settingsSnapshot.selectedEngine != .openAICompatible,
-              let context = snapshot.context, !context.isSecure,
+        guard let context = snapshot.context, !context.isSecure,
               SuggestionAvailabilityEvaluator.shouldCaptureVisualContext(
                 globallyEnabled: settingsSnapshot.isGloballyEnabled,
                 temporarilyPaused: settingsSnapshot.isTemporarilyPaused,

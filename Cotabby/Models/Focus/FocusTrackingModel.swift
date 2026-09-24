@@ -41,10 +41,19 @@ final class FocusTrackingModel: ObservableObject {
             self?.updateLatestExternalApplication(from: snapshot)
         }
 
-        if publishesPollingEvents {
+        setPollingDiagnosticsEnabled(publishesPollingEvents)
+    }
+
+    /// AppDelegate toggles this alongside the debug panels. Detaching the callback while hidden
+    /// avoids publishing diagnostics on every poll; normal focus snapshots continue independently.
+    func setPollingDiagnosticsEnabled(_ enabled: Bool) {
+        if enabled {
             tracker.onPoll = { [weak self] event in
                 self?.latestPollEvent = event
             }
+        } else {
+            tracker.onPoll = nil
+            latestPollEvent = nil
         }
     }
 

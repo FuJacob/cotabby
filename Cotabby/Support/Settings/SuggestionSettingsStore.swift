@@ -86,6 +86,7 @@ struct SuggestionSettingsStore {
     private static let suggestInIntegratedTerminalsDefaultsKey = "cotabbySuggestInIntegratedTerminals"
     private static let showCaretIndicatorDefaultsKey = "cotabbyShowCaretIndicator"
     private static let selectedIndicatorModeDefaultsKey = "cotabbySelectedIndicatorMode"
+    private static let showDevelopmentDebugOverlaysDefaultsKey = "cotabbyShowDevelopmentDebugOverlays"
     private static let showAcceptanceHintDefaultsKey = "cotabbyShowAcceptanceHint"
     private static let customSuggestionTextColorHexDefaultsKey = "cotabbyCustomSuggestionTextColorHex"
     private static let ghostTextOpacityDefaultsKey = "cotabbyGhostTextOpacity"
@@ -177,6 +178,7 @@ struct SuggestionSettingsStore {
         showCaretIndicatorDefaultsKey,
         selectedIndicatorModeDefaultsKey,
         showAcceptanceHintDefaultsKey,
+        showDevelopmentDebugOverlaysDefaultsKey,
         customSuggestionTextColorHexDefaultsKey,
         ghostTextOpacityDefaultsKey,
         ghostTextSizeMultiplierDefaultsKey,
@@ -582,7 +584,8 @@ struct SuggestionSettingsStore {
                 isMenuBarWordCountVisible: resolvedMenuBarWordCountVisible,
                 mirrorPreference: resolvedMirrorPreference,
                 fadeInSuggestions: resolvedFadeInSuggestions,
-                fadeInDurationSeconds: resolvedFadeInDurationSeconds
+                fadeInDurationSeconds: resolvedFadeInDurationSeconds,
+                showDevelopmentDebugOverlays: userDefaults.bool(forKey: Self.showDevelopmentDebugOverlaysDefaultsKey)
             ),
             inlineFeatures: SuggestionInlineFeatureSettings(
                 isEmojiPickerEnabled: resolvedEmojiPickerEnabled,
@@ -618,6 +621,7 @@ struct SuggestionSettingsStore {
         saveSuggestInIntegratedTerminals(data.suggestInIntegratedTerminals)
         saveShowIndicator(data.showIndicator)
         saveShowAcceptanceHint(data.showAcceptanceHint)
+        saveShowDevelopmentDebugOverlays(data.presentation.showDevelopmentDebugOverlays)
         saveCustomSuggestionTextColorHex(data.customSuggestionTextColorHex)
         saveGhostTextOpacity(data.ghostTextOpacity)
         saveGhostTextSizeMultiplier(data.ghostTextSizeMultiplier)
@@ -754,6 +758,10 @@ struct SuggestionSettingsStore {
         let mode: ActivationIndicatorMode = show ? .fieldEdgeIcon : .hidden
         userDefaults.set(mode.rawValue, forKey: Self.selectedIndicatorModeDefaultsKey)
         userDefaults.set(show, forKey: Self.showCaretIndicatorDefaultsKey)
+    }
+
+    func saveShowDevelopmentDebugOverlays(_ show: Bool) {
+        userDefaults.set(show, forKey: Self.showDevelopmentDebugOverlaysDefaultsKey)
     }
 
     func saveShowAcceptanceHint(_ show: Bool) {

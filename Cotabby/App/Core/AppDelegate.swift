@@ -109,6 +109,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .store(in: &cancellables)
 
         if let focusDebugOverlayController {
+            // @Published emits its new value before the property itself changes. Use `enabled`
+            // directly so the panels respond immediately, including the initial stored value.
+            suggestionSettings.$showDevelopmentDebugOverlays
+                .removeDuplicates()
+                .sink { [weak self, weak focusDebugOverlayController] enabled in
+                    guard let self, let focusDebugOverlayController else { return }
+                    focusDebugOverlayController.setEnabled(enabled)
+                    self.focusModel.setPollingDiagnosticsEnabled(focusDebugOverlayController.isEnabled)
+                    if focusDebugOverlayController.isEnabled {
+                        focusDebugOverlayController.update(for: self.focusModel.snapshot)
+                        focusDebugOverlayController.updateVisualContext(
+                            status: self.suggestionCoordinator.visualContextStatus,
+                            excerpt: self.suggestionCoordinator.latestVisualContextText
+                        )
+                    }
+                }
+                .store(in: &cancellables)
+
             focusModel.$latestPollEvent
                 .compactMap { $0 }
                 .sink { [weak focusDebugOverlayController] pollEvent in

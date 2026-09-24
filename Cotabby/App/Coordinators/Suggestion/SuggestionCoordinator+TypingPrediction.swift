@@ -10,7 +10,7 @@ extension SuggestionCoordinator {
         // Post-acceptance speculation has its own publication contract and is kept separate.
         guard settingsSnapshot.predictAheadWhileTyping,
               settingsSnapshot.selectedEngine != .openAICompatible,
-              pendingSpeculativeSignature == nil, !request.context.isSecure,
+              pendingSpeculativeContext == nil, !request.context.isSecure,
               request.context.selection.length == 0,
               !userDefaults.bool(forKey: Self.speculativePrefetchDisabledDefaultsKey) else { return }
         typingPrediction = TypingPredictionCandidate(context: request.context)

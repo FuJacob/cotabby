@@ -155,17 +155,10 @@ targets:
       - CotabbyApp
     settings:
       base:
-        # Compatibility identity from the existing fork; this is not a display name.
+        # Debug and Release are configurations of one app. Keep the bundle and storage identity
+        # stable so development uses the user's existing preferences, credentials, and models.
         PRODUCT_BUNDLE_IDENTIFIER: org.mchamster.cotabby
         COHAMSTER_DATA_DIRECTORY: Cotabby McHamster
-  "CoHamster Dev":
-    templates:
-      - CotabbyApp
-    settings:
-      base:
-        ASSETCATALOG_COMPILER_APPICON_NAME: AppIconDev
-        PRODUCT_BUNDLE_IDENTIFIER: "$(COHAMSTER_DEV_BUNDLE_ID:default=org.mchamster.cohamster.dev)"
-        COHAMSTER_DATA_DIRECTORY: CoHamster Dev
   CotabbyTests:
     type: bundle.unit-test
     platform: macOS
@@ -207,20 +200,6 @@ schemes:
       gatherCoverageData: false
       targets:
         - CotabbyTests
-    profile:
-      config: Release
-    analyze:
-      config: Debug
-    archive:
-      config: Release
-  "CoHamster Dev":
-    build:
-      targets:
-        "CoHamster Dev": all
-    run:
-      config: Debug
-      commandLineArguments:
-        -cotabby-debug: true
     profile:
       config: Release
     analyze:

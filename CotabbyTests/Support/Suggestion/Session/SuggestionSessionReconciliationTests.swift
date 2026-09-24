@@ -3,6 +3,28 @@ import XCTest
 
 /// Focused coverage for one responsibility of `SuggestionSessionReconciler`.
 final class SuggestionSessionReconciliationTests: XCTestCase {
+    func test_identicalTextInAnotherConversationRejectsEvenDuringInsertionLag() {
+        let session = CotabbyTestFixtures.activeSession()
+        let targets = [
+            CotabbyTestFixtures.focusedInputContext(focusChangeSequence: 2),
+            CotabbyTestFixtures.focusedInputContext(windowTitle: "Other chat"),
+            CotabbyTestFixtures.focusedInputContext(focusedURLString: "https://chat.example/two")
+        ]
+        for target in targets {
+            assertInvalid(SuggestionSessionReconciler.reconcile(
+                session: session, with: target, pendingInsertionConsumedCount: session.consumedCharacterCount
+            ), reason: "Overlay hidden because the focused field changed.")
+        }
+    }
+
+    func test_wrapperChurnInsideSessionStillAcceptsSuggestion() {
+        let session = CotabbyTestFixtures.activeSession()
+        let target = CotabbyTestFixtures.focusedInputContext(elementIdentifier: "refreshed-wrapper")
+        guard case .valid = SuggestionSessionReconciler.reconcile(
+            session: session, with: target, pendingInsertionConsumedCount: nil
+        ) else { return XCTFail("AX wrapper churn must not discard an otherwise matching suggestion") }
+    }
+
     func test_reconcile_validWhenLiveContextStillMatchesBaseContext() {
         let session = CotabbyTestFixtures.activeSession(
             fullText: " world again",

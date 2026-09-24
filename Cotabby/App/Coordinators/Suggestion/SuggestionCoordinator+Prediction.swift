@@ -20,7 +20,7 @@ extension SuggestionCoordinator {
         clearTypingPrediction()
         // Any normal reschedule supersedes an outstanding speculative bet (its work id retires the
         // in-flight task; this retires the signature exemption so a late result cannot sneak in).
-        pendingSpeculativeSignature = nil
+        pendingSpeculativeContext = nil
         if let disabledReason = currentDisabledReason(focusSnapshot: focusModel.snapshot) {
             disablePredictions(reason: disabledReason)
             return
@@ -77,6 +77,8 @@ extension SuggestionCoordinator {
         // The host-publish poll usually captured one milliseconds ago, though, so a fresh-enough
         // capture is reused instead of paying another synchronous AX walk back to back.
         focusModel.refreshIfStale(maxAgeMilliseconds: Self.freshSnapshotReuseWindowMilliseconds)
+        // Refresh may synchronously publish navigation and cancel this work.
+        guard workController.isCurrent(workID) else { return }
         let snapshot = focusModel.snapshot
 
         if let disabledReason = currentDisabledReason(focusSnapshot: snapshot) {
@@ -118,16 +120,20 @@ extension SuggestionCoordinator {
         }
 
         let context = interactionState.materializeContext(from: rawContext)
+        // Validate age before restoring prediction memory too. Expiry may synchronously cancel
+        // work conditioned on the old excerpt; retry once with the now-cleared visual context.
+        let visualContextSummary = permissionManager.screenRecordingGranted
+            ? visualContextCoordinator.excerpt(for: context)
+            : nil
+        guard workController.isCurrent(workID) else {
+            schedulePrediction()
+            return
+        }
         // A cached suggestion consistent with the live text re-shows instantly: no debounce paid,
         // no model run. Covers backspace rollback, type-through re-entry, and field return.
         if restoreSuggestionFromAnchorCache(context: context, workID: workID) {
             return
         }
-        // Screen Recording is optional. Re-check it live so a cached excerpt captured before the user
-        // revoked the permission can never be injected during the 2s permission-poll window.
-        let visualContextSummary = permissionManager.screenRecordingGranted
-            ? visualContextCoordinator.excerpt(for: context)
-            : nil
         let clipboardContext = pinnedClipboardContext(rawContext: rawContext)
         let requestBuildResult = SuggestionRequestFactory.buildRequest(
             context: context,
@@ -160,7 +166,7 @@ extension SuggestionCoordinator {
         guard !userDefaults.bool(forKey: Self.anchorReuseDisabledDefaultsKey) else { return false }
         guard context.selection.length == 0, !context.isSecure else { return false }
         guard let remainder = suggestionAnchorCache.remainder(
-            identityKey: context.focusedInputIdentityKey,
+            identityKey: context.suggestionSessionIdentityKey,
             precedingText: context.precedingText
         ), !remainder.isEmpty else { return false }
 
@@ -213,7 +219,7 @@ extension SuggestionCoordinator {
     /// Starts the next generation immediately after a final-chunk accept, against the snapshot
     /// the host is expected to publish, instead of idling through the publish poll first. The
     /// poll keeps running as the validator: a matching publish lets this result through
-    /// (`pendingSpeculativeSignature` in `apply`), a mismatch schedules a normal regeneration
+    /// (`pendingSpeculativeContext` in `apply`), a mismatch schedules a normal regeneration
     /// whose newer work id retires this one automatically.
     func dispatchSpeculativePostAcceptanceGeneration(
         rawContext: FocusedInputSnapshot,
@@ -243,7 +249,7 @@ extension SuggestionCoordinator {
         }
 
         let context = interactionState.materializeContext(from: optimistic)
-        pendingSpeculativeSignature = context.contentSignature
+        pendingSpeculativeContext = context
 
         let visualContextSummary = permissionManager.screenRecordingGranted
             ? visualContextCoordinator.excerpt(for: context)
@@ -402,6 +408,8 @@ extension SuggestionCoordinator {
         guard workController.isCurrent(workID), !suggestionStreamingState.isFinalized else {
             return
         }
+        focusModel.refreshIfStale(maxAgeMilliseconds: Self.freshSnapshotReuseWindowMilliseconds)
+        guard workController.isCurrent(workID) else { return }
         guard let rawContext = focusModel.snapshot.context else {
             return
         }
@@ -702,6 +710,8 @@ extension SuggestionCoordinator {
         // Unrelated edits retire the work ID. Matching typing is rebased before reaching apply;
         // the generation guard below still catches changes after that validation.
         focusModel.refreshIfStale(maxAgeMilliseconds: Self.freshSnapshotReuseWindowMilliseconds)
+        // Refresh may synchronously publish navigation and cancel this work.
+        guard workController.isCurrent(workID) else { return }
         let snapshot = focusModel.snapshot
 
         if let disabledReason = currentDisabledReason(focusSnapshot: snapshot) {
@@ -729,10 +739,11 @@ extension SuggestionCoordinator {
         // not published yet, so its generation predates the live one by construction. When the
         // live content now matches the signature the speculation was built against, the bet paid
         // off and the result is exactly current.
-        let isPaidOffSpeculation = pendingSpeculativeSignature != nil
-            && pendingSpeculativeSignature == liveContext.contentSignature
+        let isPaidOffSpeculation = pendingSpeculativeContext != nil
+            && pendingSpeculativeContext?.sessionIdentity == liveContext.sessionIdentity
+            && pendingSpeculativeContext?.contentSignature == liveContext.contentSignature
         if isPaidOffSpeculation {
-            pendingSpeculativeSignature = nil
+            pendingSpeculativeContext = nil
         }
 
         guard isPaidOffSpeculation || liveContext.generation == result.generation else {
@@ -840,7 +851,7 @@ extension SuggestionCoordinator {
         let session = startCompletionSession(prediction: prediction, visibleText: visibleText,
             context: liveContext, latency: result.latency, isFinal: true, wordEndingOnly: wordEndingOnly)
         suggestionAnchorCache.record(
-            identityKey: liveContext.focusedInputIdentityKey,
+            identityKey: liveContext.suggestionSessionIdentityKey,
             precedingText: liveContext.precedingText,
             fullText: session.fullText
         )
@@ -1163,7 +1174,7 @@ extension SuggestionCoordinator {
         clearTypingPrediction()
         delayedStreamPresentation?.cancel()
         delayedStreamPresentation = nil
-        pendingSpeculativeSignature = nil
+        pendingSpeculativeContext = nil
         hostPublishPollGeneration &+= 1
         workController.cancelAll()
     }

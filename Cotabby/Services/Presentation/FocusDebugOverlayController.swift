@@ -2,7 +2,7 @@ import AppKit
 import Foundation
 import SwiftUI
 
-/// Gated behind `-cotabby-debug`. Shows focused-input geometry near the caret and renders a
+/// Opt-in in development builds. Shows focused-input geometry near the caret and renders a
 /// bottom-edge status panel for focus polling diagnostics and the screenshot/OCR visual-context
 /// pipeline.
 ///
@@ -11,8 +11,15 @@ import SwiftUI
 /// headless and testable.
 @MainActor
 final class FocusDebugOverlayController {
-    static var isEnabled: Bool {
-        CotabbyDebugOptions.isEnabled
+    private(set) var isEnabled = false
+
+    /// AppDelegate forwards the live preference to this app-lifetime controller. Hiding all panels
+    /// here, and guarding every update below, prevents later focus/OCR events from reopening them.
+    func setEnabled(_ enabled: Bool) {
+        let enabled = enabled && CotabbyDebugOptions.areOverlaysAvailable
+        guard isEnabled != enabled else { return }
+        isEnabled = enabled
+        if !enabled { hide() }
     }
 
     private lazy var caretPanel: NSPanel = makePanel()
@@ -31,6 +38,7 @@ final class FocusDebugOverlayController {
     private var latestPollEvent: FocusPollingEvent?
 
     func update(for snapshot: FocusSnapshot) {
+        guard isEnabled else { return }
         guard let context = snapshot.context else {
             hideFocusGeometry()
             return
@@ -46,6 +54,7 @@ final class FocusDebugOverlayController {
     /// We show metadata only, not the cleaned OCR excerpt. The raw prompt block remains the source
     /// of truth for sensitive text debugging, and it is already gated behind `-cotabby-debug`.
     func updateVisualContext(status: VisualContextStatus, excerpt: String?) {
+        guard isEnabled else { return }
         latestVisualContextStatus = status
         latestVisualContextExcerptCharacterCount = excerpt?.count
         renderBottomStatusPanel()
@@ -56,6 +65,7 @@ final class FocusDebugOverlayController {
     /// Polling diagnostics replace the old AXObserver pulse. This keeps focus debugging tied to
     /// the single source of truth that now drives snapshots.
     func updateFocusPolling(event: FocusPollingEvent) {
+        guard isEnabled else { return }
         latestPollEvent = event
         renderBottomStatusPanel()
     }

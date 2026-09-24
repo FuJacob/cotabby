@@ -24,6 +24,9 @@ extension SuggestionCoordinator {
         fullText: Bool,
         keyName: String
     ) -> Bool {
+        // A tab switch can precede the next timer poll. Refresh before committing text, while
+        // preserving the short reuse window for rapid consecutive accepts in the same field.
+        focusModel.refreshIfStale(maxAgeMilliseconds: Self.freshSnapshotReuseWindowMilliseconds)
         let snapshot = focusModel.snapshot
 
         if let disabledReason = currentDisabledReason(focusSnapshot: snapshot) {
@@ -50,6 +53,10 @@ extension SuggestionCoordinator {
         guard case .supported = snapshot.capability, let rawContext = snapshot.context else {
             return passTabThrough(reason: snapshot.capability.summary)
         }
+
+        // Enforce visual-context expiry even if its timer was delayed by a busy main run loop.
+        // The invalidation callback retires any visible suggestion based on that old excerpt.
+        _ = visualContextCoordinator.excerpt(for: FocusedInputContext(snapshot: rawContext, generation: 0))
 
         // Gate on the live session, not on `state`. A background refresh (notably the visual-context
         // path that calls `schedulePrediction` once OCR finishes) flips `state` to `.debouncing`
@@ -604,7 +611,7 @@ extension SuggestionCoordinator {
         // remember it (string-only) before the state is torn down.
         if let session = interactionState.activeSession, !session.kind.isCorrection {
             suggestionAnchorCache.record(
-                identityKey: session.baseContext.focusedInputIdentityKey,
+                identityKey: session.baseContext.suggestionSessionIdentityKey,
                 precedingText: session.baseContext.precedingText,
                 fullText: session.fullText
             )

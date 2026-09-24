@@ -87,9 +87,7 @@ nonisolated struct SuggestionContinuationPlan: Equatable, Sendable {
     /// to web fields with the same real focus sequence and frame; native fields, missing geometry,
     /// and legacy snapshots without a sequence continue to require the exact element identifier.
     static func sameFocusedField(_ snapshot: FocusedInputSnapshot, context expected: FocusedInputContext) -> Bool {
-        guard snapshot.processIdentifier == expected.processIdentifier,
-              snapshot.bundleIdentifier == expected.bundleIdentifier,
-              snapshot.focusChangeSequence == expected.focusChangeSequence,
+        guard snapshot.sessionIdentity == expected.sessionIdentity,
               snapshot.role == expected.role, snapshot.subrole == expected.subrole else { return false }
         if snapshot.elementIdentifier == expected.elementIdentifier { return true }
         guard snapshot.isWebContentField, expected.isWebContentField,

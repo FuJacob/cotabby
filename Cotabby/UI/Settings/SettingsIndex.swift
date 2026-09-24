@@ -25,6 +25,9 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     case inlineMacros
     case onboarding
     case resetAllSettings
+    #if DEBUG
+    case developmentDebugOverlays
+    #endif
     // Appearance
     case suggestionDisplay
     case streamWhileGenerating
@@ -116,6 +119,9 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .inlineMacros: return "Inline Macros"
         case .onboarding: return "Onboarding"
         case .resetAllSettings: return "Reset All Settings"
+        #if DEBUG
+        case .developmentDebugOverlays: return "Show Development Debug Overlays"
+        #endif
         case .suggestionDisplay: return "Suggestion Display"
         case .streamWhileGenerating: return "Stream Suggestions While Generating"
         case .fadeInSuggestions: return "Fade In Suggestions"
@@ -195,6 +201,9 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .inlineMacros: return "slash.circle"
         case .onboarding: return "graduationcap"
         case .resetAllSettings: return "arrow.counterclockwise"
+        #if DEBUG
+        case .developmentDebugOverlays: return "ladybug"
+        #endif
         case .suggestionDisplay: return "text.cursor"
         case .streamWhileGenerating: return "text.append"
         case .fadeInSuggestions: return "sparkles"
@@ -260,6 +269,9 @@ enum SettingsItem: String, CaseIterable, Identifiable {
 
     var category: SettingsCategory {
         switch self {
+        #if DEBUG
+        case .developmentDebugOverlays: return .general
+        #endif
         case .enableGlobally, .fastMode, .openAtLogin, .includeClipboardContext, .includeAppContext,
              .allowMultiLine, .suggestWithinWords, .predictAheadWhileTyping, .showFollowingWords,
              .inlineMacros, .onboarding, .resetAllSettings:
@@ -312,6 +324,9 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .inlineMacros: return "Type / for dates, math, units, currency, and randoms."
         case .onboarding: return "Replay the first-run setup walkthrough."
         case .resetAllSettings: return "Restore every CoHamster setting to its original default."
+        #if DEBUG
+        case .developmentDebugOverlays: return "Show caret, field, focus polling, and screen-context debug panels."
+        #endif
         case .suggestionDisplay: return "Inline ghost text, popup card, or automatic per app."
         case .streamWhileGenerating: return "Reveal ghost text token by token as the model writes."
         case .fadeInSuggestions: return "Fade new suggestions in smoothly instead of all at once."
@@ -380,6 +395,10 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     /// search behaves more like "find anything that mentions this" than strict label matching.
     var keywords: [String] {
         switch self {
+        #if DEBUG
+        case .developmentDebugOverlays:
+            return ["development", "developer", "debug", "overlays", "caret", "outline", "focus", "ocr", "diagnostics"]
+        #endif
         case .enableGlobally:
             return ["on", "off", "disable", "toggle", "global", "pause", "resume",
                     "active", "status", "stop", "start", "turn off", "turn on"]

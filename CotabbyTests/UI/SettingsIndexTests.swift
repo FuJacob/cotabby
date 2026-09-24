@@ -59,4 +59,11 @@ final class SettingsIndexTests: XCTestCase {
         XCTAssertTrue(SettingsItem.results(for: "   ").isEmpty)
         XCTAssertTrue(SettingsItem.results(for: "").isEmpty)
     }
+
+    #if DEBUG
+    func test_debugOverlaySettingIsSearchableInDevelopmentBuilds() {
+        XCTAssertTrue(SettingsItem.results(for: "debug overlays").contains(.developmentDebugOverlays))
+        XCTAssertEqual(SettingsItem.developmentDebugOverlays.category, .general)
+    }
+    #endif
 }

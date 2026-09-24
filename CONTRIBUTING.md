@@ -64,10 +64,10 @@ Accounts (a free account is enough), then re-run the script. To set the team by 
 You do not need a paid Apple Developer account to build or run CoHamster locally; a free personal
 team can sign and launch it. The paid program is only needed to distribute notarized builds.
 
-For everyday local work, use the **CoHamster Dev** scheme rather than `CoHamster`. It builds a separate
-app identity (`org.mchamster.cohamster.dev`, its own icon, auto-update disabled), so the permissions you
-grant your dev build never collide with a released copy of CoHamster you have installed, and your
-Accessibility grant survives rebuilds. See [Run](#run).
+For everyday local work, use the **CoHamster** scheme, whose Run action uses Debug. Development is
+one configuration of CoHamster: the app name, bundle identity, preferences, and model storage match
+Release. Debug overlays default off and can be enabled live under Settings > General > Development.
+The scheme enables diagnostic logging with `-cotabby-debug` independently. See [Run](#run).
 
 ## The Xcode Project Is Generated
 
@@ -137,24 +137,24 @@ launch the app locally.
 
 From Xcode:
 
-1. Select the **CoHamster Dev** scheme (see [Local Setup](#local-setup) for why).
-2. Choose your Mac as the run destination.
-3. Build and run. The dev build is named "CoHamster Dev" and has its own menu bar icon.
-4. Complete onboarding.
-5. Grant **Accessibility** and **Input Monitoring** to "CoHamster Dev" when prompted, and optionally
+1. Select the **CoHamster** scheme (its Run action uses Debug).
+2. Choose your Mac as the run destination and quit any already-running CoHamster instance.
+3. Build and run. The app is still named "CoHamster" and uses its existing settings and models.
+4. Complete onboarding if this is your first launch.
+5. Grant **Accessibility** and **Input Monitoring** to "CoHamster" when prompted, and optionally
    **Screen Recording** for visual context. These map to the features in
    [README.md](README.md#permissions).
 6. Pick Apple Intelligence if available, or use the Open Source engine with a downloaded GGUF
    model.
 
-Because the dev build signs with your own stable team, macOS remembers these grants across
-rebuilds. If a permission reads as enabled but the app behaves as if it is not (common after
+Keep the signing identity consistent with the CoHamster build you granted permissions to so
+macOS can recognize it across rebuilds. If a permission reads as enabled but the app behaves as if it is not (common after
 switching signing identity, or when an earlier unsigned build left a stale entry), reset it and
 grant again:
 
 ```sh
-tccutil reset Accessibility org.mchamster.cohamster.dev
-tccutil reset ListenEvent org.mchamster.cohamster.dev
+tccutil reset Accessibility org.mchamster.cotabby
+tccutil reset ListenEvent org.mchamster.cotabby
 ```
 
 Then toggle the app back on in System Settings > Privacy & Security. Avoid ad-hoc "Sign to Run
@@ -337,12 +337,12 @@ infrastructure noise, note that clearly in the PR description.
 
 ### Product identity
 
-`CoHamster.xcodeproj` and the `CoHamster` / `CoHamster Dev` schemes are generated from `project.yml`.
+`CoHamster.xcodeproj` and its `CoHamster` scheme are generated from `project.yml`.
 The Swift module and source directories remain `Cotabby` / `CotabbyTests` for source compatibility.
-The release retains `org.mchamster.cotabby`, the existing preference keys, and the
+Debug and Release retain `org.mchamster.cotabby`, the existing preference keys, and the
 `Cotabby McHamster` Application Support directory so installed fork users keep their settings,
 credentials, and models. `CoHamsterDataDirectory` in `Config/CoHamsterInfo.plist` separates storage
-identity from the name shown in macOS. Development builds use their own identity and storage.
+identity from the name shown in macOS. Development uses that same identity and storage.
 
 The repository is `mc-hamster/CoHamster`. GitHub redirects links from its previous repository name.
 Brand artwork is generated from the original vector paths in `scripts/generate_brand_assets.swift`.

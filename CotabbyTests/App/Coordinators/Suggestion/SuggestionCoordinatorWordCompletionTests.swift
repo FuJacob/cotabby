@@ -146,7 +146,7 @@ final class SuggestionCoordinatorWordCompletionTests: XCTestCase {
         XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
         XCTAssertEqual(rig.inserter.insertedChunks, [" world "])
         let expected = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello world ")
-        XCTAssertEqual(rig.coordinator.pendingSpeculativeSignature, expected.contentSignature)
+        XCTAssertEqual(rig.coordinator.pendingSpeculativeContext?.contentSignature, expected.contentSignature)
         await waitUntil { !rig.engine.requests.isEmpty }
         XCTAssertEqual(rig.engine.requests.first?.prefixText, "Hello world ")
     }
@@ -159,7 +159,7 @@ final class SuggestionCoordinatorWordCompletionTests: XCTestCase {
         rig.overlayController.showSuggestion(" world", geometry: CotabbyTestFixtures.overlayGeometry())
         XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
         XCTAssertEqual(rig.inserter.insertedChunks, [" world"])
-        XCTAssertNil(rig.coordinator.pendingSpeculativeSignature)
+        XCTAssertNil(rig.coordinator.pendingSpeculativeContext)
         XCTAssertFalse(rig.coordinator.postExhaustionAcceptanceState.isArmed)
         XCTAssertFalse(rig.coordinator.acceptCurrentSuggestion())
     }

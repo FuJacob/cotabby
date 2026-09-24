@@ -59,10 +59,9 @@ enum SuggestionSessionReconciler {
     ) -> SuggestionSessionReconciliation {
         let isAwaitingInsertedTextSync = pendingInsertionConsumedCount == session.consumedCharacterCount
 
-        // Process-level identity check instead of AX element identity. Chrome recycles AX
-        // node tokens between polls, making CFHash-based elementIdentifier unstable. The text
-        // guards below catch intra-process field switches via content divergence.
-        guard liveContext.processIdentifier == session.baseContext.processIdentifier else {
+        // Text may be identical in two conversations. Validate the writing session before even
+        // the post-insertion AX-lag tolerance, which must never authorize a different target.
+        guard liveContext.sessionIdentity == session.baseContext.sessionIdentity else {
             return .invalid("Overlay hidden because the focused field changed.")
         }
 

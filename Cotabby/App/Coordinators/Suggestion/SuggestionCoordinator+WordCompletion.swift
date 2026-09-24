@@ -70,7 +70,7 @@ extension SuggestionCoordinator {
     }
 
     func wasDismissed(_ text: String, context: FocusedInputContext) -> Bool {
-        dismissalMemory.suppresses(identityKey: context.focusedInputIdentityKey,
+        dismissalMemory.suppresses(identityKey: context.suggestionSessionIdentityKey,
                                   precedingText: context.precedingText, trailingText: context.trailingText,
                                   completion: text, at: ProcessInfo.processInfo.systemUptime)
     }

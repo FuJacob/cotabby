@@ -403,8 +403,12 @@ model failures, and app for permissions/lifecycle.
 
 [project.yml](project.yml) is the Xcode project source of truth. XcodeGen produces the committed
 [CoHamster.xcodeproj](CoHamster.xcodeproj); CI regenerates it and fails when the checked-in project differs.
-CoHamster and CoHamster Dev build the same sources under distinct bundle/product identities so development
-does not overwrite the production app's TCC grants. Swift default actor isolation is MainActor.
+Debug and Release build the same CoHamster app identity, preference domain, icon, and model storage.
+The Debug configuration exposes General > Development > Show Development Debug Overlays (off by
+default); AppDelegate forwards that live preference to the presentation controller and polling
+diagnostics. The `-cotabby-debug` launch argument controls local diagnostic logging independently.
+Keep the signing identity consistent across builds to preserve macOS permission grants.
+Swift default actor isolation is MainActor.
 
 Use the narrowest relevant tests first, then broaden. The standard build boundary is:
 

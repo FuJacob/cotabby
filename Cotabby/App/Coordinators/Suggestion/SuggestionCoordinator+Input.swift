@@ -143,6 +143,31 @@ extension SuggestionCoordinator {
             state = .idle
         }
 
+        if interactionState.hasFocusedElementChanged(comparedTo: focusedContext) {
+            let shouldRestartTypingPrediction = typingPrediction != nil
+            cancelPredictionWork()
+            resetCachedGenerationContext()
+            clearSuggestion(clearDiagnostics: true)
+            suggestionAnchorCache = SuggestionAnchorCache()
+            clipboardPrefaceMemo = nil
+            _ = interactionState.materializeContext(from: focusedContext)
+            hideOverlay(reason: "Overlay hidden because the focused field changed.")
+            state = .idle
+            // The user is now on a new editable surface and is likely to type soon. Prime the
+            // selected engine in the background so weight loading and instruction tokenization
+            // happen before the first real `respond` instead of inside its critical path. The
+            // external endpoint also uses this hook to cold-load default local Ollama separately
+            // from the aggressively cancellable autocomplete request.
+            prewarmEngineForCurrentField(rawContext: focusedContext)
+            // Preserve the existing typing-lookahead restart behavior without treating passive
+            // focus as new typing (which could trigger automatic typo replacement in the host).
+            // Other new fields resume on input or fresh visual context, after all old work is gone.
+            if shouldRestartTypingPrediction {
+                schedulePrediction()
+            }
+            return
+        }
+
         // Lookahead has stricter field identity than an already visible tail: an unrelated AX
         // edit or focus change must retire the request even before its first result arrives.
         if let candidate = typingPrediction, !candidate.accepts(focusedContext) {
@@ -153,20 +178,6 @@ extension SuggestionCoordinator {
         if interactionState.activeSession != nil {
             reconcileActiveSession(with: snapshot)
             return
-        }
-
-        if interactionState.hasFocusedElementChanged(comparedTo: focusedContext) {
-            cancelPredictionWork()
-            resetCachedGenerationContext()
-            clearSuggestion(clearDiagnostics: true)
-            hideOverlay(reason: "Overlay hidden because the focused field changed.")
-            state = .idle
-            // The user is now on a new editable surface and is likely to type soon. Prime the
-            // selected engine in the background so weight loading and instruction tokenization
-            // happen before the first real `respond` instead of inside its critical path. The
-            // external endpoint also uses this hook to cold-load default local Ollama separately
-            // from the aggressively cancellable autocomplete request.
-            prewarmEngineForCurrentField(rawContext: focusedContext)
         }
 
         if overlayState.isVisible {
@@ -240,7 +251,7 @@ extension SuggestionCoordinator {
         if event.kind == .dismissal, let session = interactionState.activeSession,
            let raw = focusModel.snapshot.context {
             let context = interactionState.materializeContext(from: raw)
-            dismissalMemory.record(identityKey: context.focusedInputIdentityKey,
+            dismissalMemory.record(identityKey: context.suggestionSessionIdentityKey,
                                    precedingText: context.precedingText, trailingText: context.trailingText,
                                    completion: session.remainingText, at: ProcessInfo.processInfo.systemUptime)
         }
@@ -404,8 +415,9 @@ extension SuggestionCoordinator {
             // round-trip the speculation existed to skip. Stand down and let it land; `apply`
             // validates via the same signature. Any divergence falls through to the normal
             // reschedule, whose newer work id retires the speculation automatically.
-            if let expected = pendingSpeculativeSignature,
-               currentContext?.contentSignature == expected {
+            if let expected = pendingSpeculativeContext,
+               currentContext?.sessionIdentity == expected.sessionIdentity,
+               currentContext?.contentSignature == expected.contentSignature {
                 logStage(
                     "speculation-validated",
                     workID: currentWorkID,
@@ -414,7 +426,7 @@ extension SuggestionCoordinator {
                 )
                 return
             }
-            pendingSpeculativeSignature = nil
+            pendingSpeculativeContext = nil
             schedulePrediction(
                 consumedDelayMilliseconds: Self.elapsedMilliseconds(since: baseline.keystrokeUptimeNanoseconds)
             )

@@ -71,7 +71,7 @@ final class VisualContextCoordinatorTests: XCTestCase {
         XCTAssertNil(coordinator.latestExcerpt)
     }
 
-    func test_endpointKeepsFocusOnlyCapture() async throws {
+    func test_endpointRefreshKeepsOriginalCropAndLimits() async throws {
         let generator = StubVisualContextGenerator()
         let coordinator = makeCoordinator(generator)
         let snapshot = CotabbyTestFixtures.focusedInputSnapshot()
@@ -79,9 +79,88 @@ final class VisualContextCoordinatorTests: XCTestCase {
         coordinator.startSessionIfNeeded(for: snapshot, configuration: .default)
         defer { coordinator.cancel(resetState: true) }
         try await waitUntil { coordinator.status == .ready }
-        try await Task.sleep(nanoseconds: 80_000_000)
-        XCTAssertEqual(generator.contexts.count, 1)
-        XCTAssertEqual(generator.configurations, [.default])
+        try await waitUntil { generator.contexts.count >= 2 }
+        XCTAssertTrue(generator.configurations.allSatisfy { $0 == .default })
+    }
+
+    func test_reusedComposerClearsPublishedExcerptDuringNavigationSettleDelay() async throws {
+        let generator = StubVisualContextGenerator()
+        let coordinator = makeCoordinator(generator)
+        var live = CotabbyTestFixtures.focusedInputSnapshot(windowTitle: "First chat")
+        coordinator.refreshContextProvider = { live }
+        var published: String?
+        coordinator.onStateChange = { _, excerpt in published = excerpt }
+        coordinator.startSessionIfNeeded(for: live, configuration: .local)
+        defer { coordinator.cancel(resetState: true) }
+        try await waitUntil { coordinator.status == .ready }
+        XCTAssertNotNil(published)
+
+        // Even an unchanged AX handle, sequence, text and frame cannot hide a new conversation.
+        live = CotabbyTestFixtures.focusedInputSnapshot(windowTitle: "Second chat")
+        coordinator.startSessionIfNeeded(for: live, configuration: .local)
+        XCTAssertNil(published)
+        XCTAssertNil(coordinator.latestExcerpt)
+        XCTAssertNil(coordinator.excerpt(for: FocusedInputContext(snapshot: live, generation: 1)))
+        generator.text = "Current conversation"
+        try await waitUntil { coordinator.latestExcerpt == "Current conversation" }
+    }
+
+    func test_expiredExcerptIsUnusableWhileRefreshIsSuspended() async throws {
+        let generator = StubVisualContextGenerator()
+        var uptime: TimeInterval = 10
+        let coordinator = VisualContextCoordinator(
+            screenshotContextGenerator: generator, screenRecordingPermissionProvider: { true },
+            refreshIntervalNanoseconds: 30_000_000, now: { uptime }
+        )
+        let snapshot = CotabbyTestFixtures.focusedInputSnapshot()
+        coordinator.refreshContextProvider = { snapshot }
+        coordinator.startSessionIfNeeded(for: snapshot, configuration: .local)
+        defer { coordinator.cancel(resetState: true); generator.pending?.resume(); generator.pending = nil }
+        try await waitUntil { coordinator.status == .ready }
+        generator.suspendNext = true
+        try await waitUntil { generator.pending != nil }
+        uptime += 6
+        XCTAssertNil(coordinator.excerpt(for: FocusedInputContext(snapshot: snapshot, generation: 1)))
+        XCTAssertNil(coordinator.latestExcerpt)
+        // The completed OCR is also old: completion time cannot reset the age of captured pixels.
+        generator.pending?.resume()
+        generator.pending = nil
+        try await waitUntil {
+            coordinator.status == .unavailable("Screen context expired before recognition completed.")
+        }
+        XCTAssertNil(coordinator.latestExcerpt)
+    }
+
+    func test_timerExpiresExcerptWithoutAnotherRequest() async throws {
+        let generator = StubVisualContextGenerator()
+        let coordinator = VisualContextCoordinator(
+            screenshotContextGenerator: generator, screenRecordingPermissionProvider: { true },
+            excerptLifetimeNanoseconds: 80_000_000
+        )
+        coordinator.startSessionIfNeeded(for: CotabbyTestFixtures.focusedInputSnapshot())
+        defer { coordinator.cancel(resetState: true) }
+        try await waitUntil { coordinator.status == .ready }
+        try await waitUntil { coordinator.latestExcerpt == nil }
+        XCTAssertEqual(coordinator.status, .unavailable("Screen context expired; waiting for a fresh capture."))
+    }
+
+    func test_lateOCRFromPreviousChatCannotPublishIntoReplacementSession() async throws {
+        let generator = StubVisualContextGenerator()
+        let coordinator = makeCoordinator(generator)
+        var live = CotabbyTestFixtures.focusedInputSnapshot()
+        coordinator.refreshContextProvider = { live }
+        generator.suspendNext = true
+        coordinator.startSessionIfNeeded(for: live, configuration: .default)
+        defer { coordinator.cancel(resetState: true); generator.pending?.resume(); generator.pending = nil }
+        try await waitUntil { generator.pending != nil }
+        live = CotabbyTestFixtures.focusedInputSnapshot(focusChangeSequence: 2)
+        coordinator.startSessionIfNeeded(for: live, configuration: .default)
+        generator.pending?.resume()
+        generator.pending = nil
+        await Task.yield()
+        XCTAssertNil(coordinator.latestExcerpt)
+        generator.text = "New chat facts"
+        try await waitUntil { coordinator.latestExcerpt == "New chat facts" }
     }
 
     func test_secureFieldNeverStartsCapture() async throws {

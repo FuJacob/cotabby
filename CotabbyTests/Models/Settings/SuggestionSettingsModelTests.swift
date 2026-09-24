@@ -56,6 +56,26 @@ final class SuggestionSettingsModelTests: XCTestCase {
 
     // MARK: - Setter persistence round-trip
 
+    func test_debugOverlaysDefaultOffPublishPersistAndResetWithoutChangingInference() {
+        let model = makeModel()
+        let inferenceSettings = model.snapshot
+        var values: [Bool] = []
+        let subscription = model.$showDevelopmentDebugOverlays.sink { values.append($0) }
+        defer { subscription.cancel() }
+        XCTAssertFalse(model.showDevelopmentDebugOverlays)
+
+        model.setShowDevelopmentDebugOverlays(true)
+        model.setShowDevelopmentDebugOverlays(true)
+        XCTAssertEqual(values, [false, true])
+        XCTAssertTrue(model.domainSettings.presentation.showDevelopmentDebugOverlays)
+        XCTAssertTrue(makeModel().showDevelopmentDebugOverlays)
+        XCTAssertEqual(model.snapshot, inferenceSettings)
+
+        model.resetToDefaults()
+        XCTAssertEqual(values.last, false)
+        XCTAssertFalse(makeModel().showDevelopmentDebugOverlays)
+    }
+
     func test_setters_persistThroughStoreAndReloadInAFreshModel() {
         let model = makeModel()
 

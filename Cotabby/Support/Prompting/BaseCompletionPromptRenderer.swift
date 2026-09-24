@@ -39,8 +39,8 @@ enum BaseCompletionPromptRenderer {
         // The surface description leads the preface: knowing the writing surface (email in Mail,
         // a chat in Slack, a document title) is the strongest situational cue a base model gets,
         // and the composer already omits it for the app classes where metadata would hurt. The
-        // value is frozen per field session upstream, so these bytes stay stable across keystrokes
-        // and the llama KV prefix reuse keeps amortizing them.
+        // facts remain stable during ordinary typing; navigation refreshes them even when doing
+        // so sacrifices KV reuse. Context freshness takes precedence over a cached prompt head.
         if let surface = surfaceContext {
             let lines = SurfaceContextComposer.prefaceLines(for: surface)
             if !lines.isEmpty {

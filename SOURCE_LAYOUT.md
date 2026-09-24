@@ -49,7 +49,7 @@ Cotabby/
 ├── Services/
 │   ├── Context/                      live clipboard acquisition
 │   ├── Focus/
-│   │   ├── Caching/                  field-scoped focus and surface caches
+│   │   ├── Caching/                  field-scoped focus caches
 │   │   ├── Chromium/                 Chromium AX enablement and diagnostics
 │   │   └── Resolution/               focus snapshots, geometry, bounded AX walks
 │   ├── Input/                        event taps and input-source monitoring
@@ -211,3 +211,15 @@ third-party editor AX behavior or visual placement.
 When a file seems to fit several folders, that usually signals either a cross-subsystem contract
 that belongs in `Models`, a root orchestrator that should remain above its collaborators, or a type
 that owns too many responsibilities and should be split by behavior rather than hidden by nesting.
+
+## Conversation Context Freshness
+
+- `Support/Focus/FocusedInputPollingSignature.swift` distinguishes navigation using live URL, title,
+  placeholder and field geometry, while ignoring typing and volatile AX wrapper tokens. The focus
+  resolver reads these facts before comparing sessions; surface metadata is not frozen in a cache.
+- `FocusedInputSessionIdentity` in `Models/Focus/FocusModels.swift` carries that boundary through
+  generation, acceptance and speculative work. Prediction memory has a session key separate from
+  the geometry/style key so another conversation cannot restore an old suggestion.
+- `VisualContextCoordinator` refreshes both backend profiles using their existing capture limits.
+  Excerpts expire six seconds after capture starts, even while OCR is pending. Navigation clears
+  the published excerpt immediately, and invalidation retires predictions conditioned on it.

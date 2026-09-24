@@ -196,7 +196,7 @@ final class SuggestionCoordinatorContinuityTests: XCTestCase {
         let gate = ResultGate()
         defer { gate.resume(text: "a meeting"); rig.coordinator.stop() }
         let context = rig.interactionState.materializeContext(from: snapshot)
-        rig.coordinator.suggestionAnchorCache.record(identityKey: context.focusedInputIdentityKey,
+        rig.coordinator.suggestionAnchorCache.record(identityKey: context.suggestionSessionIdentityKey,
             precedingText: context.precedingText, fullText: "le")
         rig.engine.resultProvider = { request in await gate.wait(for: request) }
 
@@ -238,6 +238,9 @@ final class SuggestionCoordinatorContinuityTests: XCTestCase {
         publishText("Please receive ", in: rig)
         XCTAssertTrue(rig.coordinator.usePreparedContinuationIfPossible())
         await waitUntil { rig.interactionState.activeSession?.remainingText == "the package" }
+        // Let the earlier acceptance poll's deadline pass: it must not regenerate after the
+        // prepared result was already promoted, even when presentation won that scheduling race.
+        try? await Task.sleep(nanoseconds: 80_000_000)
         XCTAssertEqual(rig.engine.requests.count, 1)
         XCTAssertTrue(rig.inserter.insertedChunks.isEmpty, "Prepared text becomes a ghost, never an automatic insertion")
     }

@@ -82,6 +82,8 @@ struct SuggestionPresentationSettings: Equatable {
     var mirrorPreference: MirrorPreference
     var fadeInSuggestions: Bool
     var fadeInDurationSeconds: Double
+    /// UI-only developer preference. Release builds ignore it; it never enters inference snapshots.
+    var showDevelopmentDebugOverlays: Bool = false
 }
 
 /// Non-model inline features that share the global input stream.
