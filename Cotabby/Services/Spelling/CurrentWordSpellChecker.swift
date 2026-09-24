@@ -50,6 +50,21 @@ final class CurrentWordSpellChecker {
         return misspelledRange.length == (word as NSString).length
     }
 
+    /// True when `partialWord` is the beginning of at least one dictionary word: the user is still
+    /// typing it. Distinguishes "apprec" (in progress) from "nmae" (a typo) for the typo gate.
+    func hasCompletions(forPartialWord partialWord: String) -> Bool {
+        guard partialWord.count >= 2 else { return false }
+        let fullRange = NSRange(location: 0, length: (partialWord as NSString).length)
+        let completions = NSSpellChecker.shared.completions(
+            forPartialWordRange: fullRange,
+            in: partialWord,
+            language: nil,
+            inSpellDocumentWithTag: documentTag
+        ) ?? []
+        let lowered = partialWord.lowercased()
+        return completions.contains { $0.count > partialWord.count && $0.lowercased().hasPrefix(lowered) }
+    }
+
     /// `NSSpellChecker`'s own ranked corrections for the word (best first), or an empty array when it
     /// has nothing to offer.
     func nativeCorrections(for word: String) -> [String] {

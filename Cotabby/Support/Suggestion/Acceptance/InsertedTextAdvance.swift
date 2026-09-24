@@ -36,7 +36,7 @@ nonisolated enum InsertedTextAdvance {
     /// usable font (callers keep their previous approximation).
     ///
     /// Whitespace is measured as-is: a leading boundary space is real caret travel, so this
-    /// deliberately does not share `GhostSuggestionLayout`'s display normalization. A style whose
+    /// deliberately measures the raw string, not a display-normalized one. A style whose
     /// face name fails to resolve still uses the host's point size with the system face; the size
     /// dominates the width error the ghost-font fallback suffers from.
     static func width(of text: String, style: ResolvedFieldStyle?) -> CGFloat? {

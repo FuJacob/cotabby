@@ -252,7 +252,22 @@ final class FocusTracker {
         let focusedElement: AXUIElement
         var preresolvedApplication: NSRunningApplication?
         if let systemFocused = AXHelper.focusedElement() {
-            focusedElement = systemFocused
+            // A system alert or banner can own the system-wide focused element while the user types
+            // into the frontmost app (see `SystemUIFocusShadowPolicy`). Ask the frontmost app for its
+            // own focused element in that case so autocomplete does not vanish for the alert's
+            // lifetime; when that query fails, fall back to the system-wide answer as before.
+            let frontmost = NSWorkspace.shared.frontmostApplication
+            if let frontmost,
+               SystemUIFocusShadowPolicy.shouldPreferFrontmostApplication(
+                   owningBundleIdentifier: AXHelper.owningApplication(of: systemFocused)?.bundleIdentifier,
+                   frontmostBundleIdentifier: frontmost.bundleIdentifier
+               ),
+               let appFocused = AXHelper.focusedElement(forApplicationPID: frontmost.processIdentifier) {
+                focusedElement = appFocused
+                preresolvedApplication = frontmost
+            } else {
+                focusedElement = systemFocused
+            }
             // System focus works here, so we are not in the OOPIF fallback mode; drop any stale
             // hit-test element so it can never shadow a real focus change.
             chromiumHitTestCache = nil

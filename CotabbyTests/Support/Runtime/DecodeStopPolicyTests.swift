@@ -87,4 +87,13 @@ final class DecodeStopPolicyTests: XCTestCase {
             .sentenceBoundary
         )
     }
+
+    func testSentenceStopWaitsForTheMinimumWordCount() {
+        // "report." is a sentence end after one word; with a four-word minimum decoding continues.
+        XCTAssertNil(DecodeStopPolicy.verdict(accumulated: " report.", tokensGenerated: 3, minimumWords: 4))
+        XCTAssertEqual(
+            DecodeStopPolicy.verdict(accumulated: " the report by Friday.", tokensGenerated: 6, minimumWords: 4),
+            .sentenceBoundary
+        )
+    }
 }

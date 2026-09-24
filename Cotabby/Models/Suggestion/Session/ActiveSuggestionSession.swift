@@ -36,6 +36,12 @@ struct ActiveSuggestionSession: Equatable, Sendable {
         fullText.droppingLeadingCharacters(consumedCharacterCount)
     }
 
+    /// The field's text before the caret once the whole suggestion is typed or accepted: the text
+    /// it was generated for plus all of it, whatever the host has published so far.
+    var precedingTextOnceTypedThrough: String {
+        baseContext.precedingText + fullText
+    }
+
     var acceptedCount: Int {
         consumedCharacterCount
     }

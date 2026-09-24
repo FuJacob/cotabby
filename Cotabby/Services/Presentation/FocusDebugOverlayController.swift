@@ -11,8 +11,13 @@ import SwiftUI
 /// headless and testable.
 @MainActor
 final class FocusDebugOverlayController {
+    /// Debug-only escape hatch: the caret badge and frame outline paint over the host's text, which
+    /// spoils pixel comparisons of ghost text against the host. Setting this default keeps every
+    /// other `-cotabby-debug` artifact (logs, forced suggestions) while hiding these two panels.
+    static let hiddenDefaultsKey = "cotabbyDebugFocusOverlayHidden"
+
     static var isEnabled: Bool {
-        CotabbyDebugOptions.isEnabled
+        CotabbyDebugOptions.isEnabled && !UserDefaults.standard.bool(forKey: hiddenDefaultsKey)
     }
 
     private lazy var caretPanel: NSPanel = makePanel()

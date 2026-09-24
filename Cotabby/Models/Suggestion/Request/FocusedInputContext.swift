@@ -36,6 +36,14 @@ struct FocusedInputContext: Equatable, Sendable {
     let isWebContentField: Bool
     /// The host field's own text font/color, carried through so the overlay can match it.
     let resolvedFieldStyle: ResolvedFieldStyle?
+    /// Measured host text geometry (width sample, line box, line pitch), carried through so the
+    /// overlay can match the host's typeface and wrap exactly where the host would.
+    let hostTextMetrics: HostTextMetrics?
+    /// The focused element's unwidened frame (see `FocusedInputSnapshot.elementFrameRect`), the
+    /// only frame the overlay may use to decide where a ghost row must wrap.
+    let elementFrameRect: CGRect?
+    /// The host's uncommitted text range, if any (see `FocusedInputSnapshot.hostMarkedTextRange`).
+    let hostMarkedTextRange: NSRange?
     /// Surface metadata captured once per field session, carried through so the request factory
     /// can condition the prompt on what the user is writing in (see `SurfaceContextComposer`).
     let windowTitle: String?
@@ -67,6 +75,9 @@ struct FocusedInputContext: Equatable, Sendable {
         isSecure = snapshot.isSecure
         isWebContentField = snapshot.isWebContentField
         resolvedFieldStyle = snapshot.resolvedFieldStyle
+        hostTextMetrics = snapshot.hostTextMetrics
+        elementFrameRect = snapshot.elementFrameRect
+        hostMarkedTextRange = snapshot.hostMarkedTextRange
         windowTitle = snapshot.windowTitle
         fieldPlaceholder = snapshot.fieldPlaceholder
         focusedURLString = snapshot.focusedURLString
@@ -80,6 +91,28 @@ struct FocusedInputContext: Equatable, Sendable {
     /// mid-line completion strategy like fill-in-middle applies versus a plain forward continuation.
     var isCaretAtEndOfLine: Bool {
         CaretLinePosition.isAtEndOfLine(trailingText: trailingText)
+    }
+
+    /// True when real (non-whitespace) characters follow the caret anywhere in the captured
+    /// trailing window. A multi-row ghost would paint over that content, so the overlay keeps the
+    /// ghost to one row or promotes it to the card when this is set.
+    var hasTrailingContent: Bool {
+        trailingText.contains { !$0.isWhitespace }
+    }
+
+    /// True for a field the host lays out on one line: a text field or combo box by its
+    /// Accessibility role (an HTML `<input>`, Chromium's address bar, an `NSTextField`). Its text
+    /// scrolls sideways instead of wrapping, so a ghost row past its right edge has no line below
+    /// to go to: measured 2026-09-11 in a Chrome text input and a search input, a long ghost's
+    /// second row was drawn under the input, over the page.
+    var isSingleLineField: Bool {
+        role == "AXTextField" || role == "AXComboBox"
+    }
+
+    /// True while the host shows uncommitted text of its own: an inline prediction after the caret
+    /// or an IME composition before it. Generation and ghost rendering pause until it clears.
+    var hasHostMarkedText: Bool {
+        (hostMarkedTextRange?.length ?? 0) > 0
     }
 
     /// Stable per-process key for the focused field, intentionally NOT including the input frame

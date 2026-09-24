@@ -166,7 +166,7 @@ struct LlamaRuntimeConfiguration: Equatable, Sendable {
             "Qwen3.5-0.8B-Base.i1-Q6_K.gguf",
             "gemma-4-E4B.i1-Q4_K_M.gguf"
         ],
-        contextWindowTokens: 2048,
+        contextWindowTokens: 4096,
         batchSize: 512,
         gpuLayerCount: -1
     )
@@ -190,6 +190,11 @@ struct LlamaGenerationOptions: Equatable, Sendable {
     var singleLine: Bool = false
     /// Constrains the first generated token to continue the current word (mid-word carets only).
     var forceWordContinuation: Bool = false
+    /// Bytes the completion must begin with: for a request anchored at a word boundary, the
+    /// boundary whitespace plus the letters the user has typed of the current word. The engine masks
+    /// every token inconsistent with them until they are produced, so the model finishes the word
+    /// the user started from a prompt whose last token is a whole word (see `WordBoundaryAnchorPolicy`).
+    var requiredPrefix: String?
 
     /// Average per-token log-probability below which a completion is suppressed as low-confidence.
     /// Defaults to -infinity, which disables suppression entirely.
@@ -199,6 +204,9 @@ struct LlamaGenerationOptions: Equatable, Sendable {
     /// degenerate instant stops (e.g. a lone leading period). Lives here so length presets can tune
     /// the floor without reaching into `DecodeStopPolicy`; the default preserves prior behavior.
     var sentenceStopMinimumTokens: Int = 2
+    /// Minimum whitespace-separated words before the sentence-boundary early stop may fire; the
+    /// word-count preset's lower bound, so short sentence ends do not cut a suggestion to one word.
+    var sentenceStopMinimumWords: Int = 0
 
     /// Stop decoding the moment the raw distribution's most-likely next token is end-of-generation,
     /// even when the stochastic sampler drew something else. The model's top choice being "stop"

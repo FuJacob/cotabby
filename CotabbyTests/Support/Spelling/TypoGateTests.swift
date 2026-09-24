@@ -22,6 +22,30 @@ final class TypoGateTests: XCTestCase {
         )
     }
 
+    func test_wordStillBeingTypedProceedsWhenItStartsRealWords() {
+        // "apprec" is flagged by the checker like a typo, but it is the beginning of "appreciate":
+        // the continuation completes it instead of the gate suppressing or correcting mid-keystroke.
+        let decision = TypoGate.resolve(
+            precedingText: "I really apprec",
+            settings: TypoGate.Settings(suppressCompletionsOnTypo: true, offerTypoCorrections: true, automaticallyFixTypos: false),
+            isTypo: { _ in true },
+            bestCorrection: { _ in "appreciate" },
+            isWordInProgress: { $0 == "apprec" }
+        )
+        XCTAssertEqual(decision, .proceed)
+    }
+
+    func test_finishedWordIsNeverTreatedAsInProgress() {
+        let decision = TypoGate.resolve(
+            precedingText: "I really apprec ",
+            settings: TypoGate.Settings(suppressCompletionsOnTypo: true, offerTypoCorrections: true, automaticallyFixTypos: false),
+            isTypo: { _ in true },
+            bestCorrection: { _ in "appreciate" },
+            isWordInProgress: { _ in true }
+        )
+        XCTAssertEqual(decision, .offerCorrection(word: "apprec", correctedWord: "appreciate"))
+    }
+
     func test_proceedsWhenSuppressionDisabled() {
         let decision = resolve(precedingText: "hi nmae", suppress: false, offer: true, typos: ["nmae"])
         XCTAssertEqual(decision, .proceed)

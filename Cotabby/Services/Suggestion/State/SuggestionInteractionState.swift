@@ -3,7 +3,7 @@ import Foundation
 /// File overview:
 /// Owns the mutable interaction state that sits between Accessibility snapshots and a live
 /// suggestion session. This includes the buffered focused-input context, the active suggestion
-/// session, and the AX-lag sentinel used after partial Tab acceptance.
+/// session, and the AX-lag sentinel used after partial Tab acceptance and typed-through text.
 ///
 /// The architectural lesson is that `SuggestionCoordinator` should orchestrate state transitions,
 /// not store every mutable implementation detail itself. This type becomes the home for that
@@ -240,6 +240,14 @@ final class SuggestionInteractionState {
     }
 
     /// Advances the stored session when the user typed the next expected characters directly.
+    ///
+    /// The advance comes from the key event, which lands before the host publishes the character
+    /// through Accessibility. The next focus poll can therefore still show the field WITHOUT the
+    /// character the session already counts as consumed, and the reconciler would read that as
+    /// the user undoing part of the suggestion (measured in the Claude composer, 2026-09-10: the
+    /// ghost vanished right after "the" was typed through and came back on the next keystroke).
+    /// The same sentinel a Tab insert arms covers this lag: the reconciler tolerates a shorter
+    /// live text until it catches up, then clears it.
     func advanceIfTypedCharactersMatch(
         _ typedCharacters: String,
         expectedSession: ActiveSuggestionSession
@@ -255,6 +263,7 @@ final class SuggestionInteractionState {
         }
 
         self.activeSession = advancedSession
+        pendingInsertionConsumedCount = advancedSession.isExhausted ? nil : advancedSession.consumedCharacterCount
         return advancedSession
     }
 }

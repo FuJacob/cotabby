@@ -17,6 +17,20 @@ final class SuggestionWordAcceptanceTests: XCTestCase {
         )
     }
 
+    func test_nextAcceptanceChunk_bindsLeadingPunctuationToTheNextWord() {
+        // A completion that opens with the sentence's closing punctuation (". I'll be in touch")
+        // used to cost a Tab for the lone period; it now comes with the word after it.
+        XCTAssertEqual(SuggestionSessionReconciler.nextAcceptanceChunk(from: ". I'll be in touch"), ". I'll")
+        XCTAssertEqual(SuggestionSessionReconciler.nextAcceptanceChunk(from: ", and then"), ", and")
+        XCTAssertEqual(SuggestionSessionReconciler.nextAcceptanceChunk(from: "!"), "!", "a lone mark is the whole tail")
+        XCTAssertEqual(SuggestionSessionReconciler.nextAcceptanceChunk(from: " ... maybe"), " ... maybe")
+        XCTAssertEqual(
+            SuggestionSessionReconciler.nextAcceptanceChunk(from: ". Done.", autoAcceptTrailingPunctuation: false),
+            ".",
+            "punctuation accepted separately by choice stays a step of its own"
+        )
+    }
+
     func test_nextAcceptanceChunk_returnsEmptyForEmptyTail() {
         XCTAssertEqual(SuggestionSessionReconciler.nextAcceptanceChunk(from: ""), "")
     }

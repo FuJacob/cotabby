@@ -138,7 +138,9 @@ enum SuggestionAvailabilityEvaluator {
             return false
         }
 
-        return SuggestionRequestFactory.shouldGenerateSuggestion(for: context.precedingText)
+        return SuggestionRequestFactory.shouldGenerateSuggestion(
+            for: context.precedingText, trailingText: context.trailingText
+        )
     }
 
     /// Returns the first app, domain, or terminal rule that disables the focused field.

@@ -253,12 +253,19 @@ protocol SuggestionOverlayControlling: AnyObject {
     /// safely slide (hidden, mirror mode, RTL, multi-line, or nothing rendered to measure
     /// against); callers then fall back to a caret-anchored present.
     func advanceInline(to remainingText: String, insertedText: String) -> Bool
+
+    /// Called when generation starts for `context`, so the controller can do the slow parts of an
+    /// inline presentation (measuring the host's painted baseline) before the suggestion arrives.
+    func prepareInlinePresentation(for context: FocusedInputContext)
 }
 
 extension SuggestionOverlayControlling {
     /// Default: not supported, so conformers that do not render an inline panel (e.g. test doubles)
     /// transparently fall back to the caret-anchored present path.
     func advanceInline(to remainingText: String, insertedText: String) -> Bool { false }
+
+    /// Default: nothing to prepare.
+    func prepareInlinePresentation(for context: FocusedInputContext) {}
 }
 
 @MainActor

@@ -28,6 +28,13 @@ enum SuggestionRequestFactory {
         return !trimmed.isEmpty
     }
 
+    /// The full pre-generation gate: some typed text, and a caret that is not parked inside a token
+    /// (see `CaretTokenPosition`), where any completion would duplicate or splice what follows.
+    static func shouldGenerateSuggestion(for precedingText: String, trailingText: String) -> Bool {
+        guard shouldGenerateSuggestion(for: precedingText) else { return false }
+        return !CaretTokenPosition.isInsideToken(precedingText: precedingText, trailingText: trailingText)
+    }
+
     /// Builds the generation request plus the exact prompt preview used by Cotabby's diagnostics UI.
     static func buildRequest(
         context: FocusedInputContext,
@@ -36,11 +43,21 @@ enum SuggestionRequestFactory {
         clipboardContext: String? = nil,
         visualContextSummary: String? = nil
     ) -> SuggestionRequestBuildResult {
-        let prefixText = truncatedPromptPrefix(
+        let fullPrefixText = truncatedPromptPrefix(
             from: context.precedingText,
             configuration: configuration,
             engine: settings.selectedEngine
         )
+        // On the llama path a caret after letters anchors the request at the word boundary: the
+        // partial word leaves the prompt (so its last token is a whole word) and the engine is
+        // required to reproduce it, so the model finishes the word the user started and the
+        // normalizer takes the typed part back off (see `WordBoundaryAnchorPolicy`). The other
+        // engines cannot constrain their output and keep the prompt exactly where the user stopped.
+        let wordBoundaryAnchor = settings.selectedEngine == .llamaOpenSource
+            ? WordBoundaryAnchorPolicy.anchor(precedingText: context.precedingText, trailingText: context.trailingText)
+            : nil
+        let prefixText = wordBoundaryAnchor.map { WordBoundaryAnchorPolicy.promptPrefix(fullPrefixText, removing: $0) }
+            ?? fullPrefixText
         let completionLengthInstruction = settings.effectiveWordRange.promptInstruction
         let userName = activeUserName(settings: settings)
         // Custom rules are hidden from users (CustomRulesCatalog.isUserFacingEnabled == false): the
@@ -126,7 +143,9 @@ enum SuggestionRequestFactory {
             visualContextSummary: boundedVisualContextSummary,
             surfaceContext: surfaceContext,
             isMultiLineEnabled: settings.isMultiLineEnabled,
-            requestID: RequestID.generate()
+            requestID: RequestID.generate(),
+            wordBoundaryAnchor: wordBoundaryAnchor,
+            wordRange: settings.effectiveWordRange
         )
 
         return SuggestionRequestBuildResult(
@@ -162,13 +181,38 @@ enum SuggestionRequestFactory {
         }
 
         let characterWindow = String(precedingText.suffix(maxCharacters))
-        let trailingWords = characterWindow
-            .split(whereSeparator: { $0.isWhitespace })
-            .suffix(maxWords)
-            .map(String.init)
-            .joined(separator: " ")
+        return lastWords(of: characterWindow, count: maxWords)
+    }
 
-        return trailingWords.isEmpty ? characterWindow : trailingWords
+    /// The text from the start of its `count`-th last word to its end, with the whitespace between
+    /// those words exactly as typed. A base model continues text, and the line and paragraph breaks
+    /// are part of that text: rejoining the words with single spaces, as the window did before,
+    /// handed the model "Hi Sam, Thanks for" for "Hi Sam,\n\nThanks for", and a new paragraph as
+    /// the tail of the sentence before it (a Chrome page modelled on Claude's composer, 2026-09-11: "one
+    /// line. The second paragraph starts here and A third one" for three paragraphs). Leading
+    /// whitespace stays out, and so do trailing spaces and tabs, as before; a trailing line break
+    /// stays, since the caret then opens a new line. Text without a word, or a count below one,
+    /// comes back whole.
+    static func lastWords(of text: String, count: Int) -> String {
+        guard count > 0 else { return text }
+        var wordStarts: [String.Index] = []
+        var end: String.Index?
+        var inWord = false
+        var index = text.startIndex
+        while index < text.endIndex {
+            let character = text[index]
+            let isSpace = character.isWhitespace
+            if !isSpace, !inWord {
+                wordStarts.append(index)
+            }
+            inWord = !isSpace
+            index = text.index(after: index)
+            if !isSpace || (character.isNewline && end != nil) {
+                end = index
+            }
+        }
+        guard let end, !wordStarts.isEmpty else { return text }
+        return String(text[wordStarts[max(0, wordStarts.count - count)]..<end])
     }
 
     private static func activeUserName(

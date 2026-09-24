@@ -38,7 +38,8 @@ enum TypoGate {
         precedingText: String,
         settings: Settings,
         isTypo: (String) -> Bool,
-        bestCorrection: (String) -> String?
+        bestCorrection: (String) -> String?,
+        isWordInProgress: (String) -> Bool = { _ in false }
     ) -> TypoGateDecision {
         guard settings.suppressCompletionsOnTypo else {
             return .proceed
@@ -49,6 +50,12 @@ enum TypoGate {
             return .proceed
         }
         guard isTypo(current.result.word) else {
+            return .proceed
+        }
+        // A word still being typed ("apprec", "Unfortun") is flagged by the checker like a typo but
+        // is merely unfinished when it is the start of real words. Let the continuation complete it
+        // (see `WordBoundaryAnchorPolicy`) instead of suppressing or "correcting" mid-keystroke.
+        if current.trailingSpaceCount == 0, isWordInProgress(current.result.word) {
             return .proceed
         }
         guard let corrected = bestCorrection(current.result.word) else {

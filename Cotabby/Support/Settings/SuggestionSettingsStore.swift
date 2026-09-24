@@ -427,7 +427,7 @@ struct SuggestionSettingsStore {
         // Defaults to false so the suggestion appears once, fully formed; token-by-token streaming
         // is opt-in from Settings.
         let resolvedStreamSuggestionsWhileGenerating =
-            userDefaults.object(forKey: Self.streamWhileGeneratingDefaultsKey) as? Bool ?? false
+            userDefaults.object(forKey: Self.streamWhileGeneratingDefaultsKey) as? Bool ?? true
         // Defaults to true: the gentle fade-in is the intended out-of-box feel. Users who prefer
         // ghost text to snap in instantly can turn it off, and the overlay suppresses it under
         // Reduce Motion regardless. Existing installs (no key) get the fade on the next launch.
