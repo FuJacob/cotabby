@@ -13,7 +13,7 @@ final class AppUpdateManager {
     }
 
     func checkForUpdates() {
-        guard let url = URL(string: "https://github.com/mc-hamster/cotabby/releases") else { return }
+        guard let url = URL(string: "https://github.com/mc-hamster/CoHamster/releases") else { return }
         NSWorkspace.shared.open(url)
     }
 }

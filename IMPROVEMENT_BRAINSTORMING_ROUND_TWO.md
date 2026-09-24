@@ -1,4 +1,4 @@
-# Cotabby 1337 improvement experiments — round two
+# CoHamster 1337 improvement experiments — round two
 
 This is round two's working checklist, hypothesis register, and decision record. The benchmark
 runner owns replay and scoring; this document connects those measurements to a bounded decision.

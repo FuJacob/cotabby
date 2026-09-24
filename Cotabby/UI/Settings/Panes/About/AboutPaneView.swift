@@ -61,7 +61,7 @@ struct AboutPaneView: View {
             Text("Help improve CoHamster by reporting bugs, suggesting features, or contributing code.")
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-            if let url = URL(string: "https://github.com/mc-hamster/cotabby/issues") {
+            if let url = URL(string: "https://github.com/mc-hamster/CoHamster/issues") {
                 Link("Contribute & Report Issues", destination: url)
                     .buttonStyle(.borderedProminent)
             }
@@ -72,14 +72,14 @@ struct AboutPaneView: View {
     /// search can scroll to and pulse individually.
     @ViewBuilder
     private var resourceRows: some View {
-        let repository = "https://github.com/mc-hamster/cotabby"
+        let repository = "https://github.com/mc-hamster/CoHamster"
         if let repoURL = URL(string: repository) {
             Link(destination: repoURL) {
                 Label("GitHub Repository", systemImage: "chevron.left.forwardslash.chevron.right")
             }
             .settingsItem(.githubRepository)
         }
-        if let wikiURL = URL(string: "https://github.com/mc-hamster/cotabby/blob/master/CONTRIBUTING.md") {
+        if let wikiURL = URL(string: "https://github.com/mc-hamster/CoHamster/blob/master/CONTRIBUTING.md") {
             Link(destination: wikiURL) {
                 Label("Contributor Guide", systemImage: "book")
             }

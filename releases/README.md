@@ -30,7 +30,7 @@ Without `NOTARY_PROFILE`, the script produces only a signed candidate. Publish a
 stapling, and Gatekeeper verification pass. Outputs are in `build/cohamster-release/`.
 Remove `build/DerivedData` after validation.
 
-Publish to `mc-hamster/cotabby` using a `cohamster-v<version>` tag and that version's release notes.
+Publish to `mc-hamster/CoHamster` using a `cohamster-v<version>` tag and that version's release notes.
 Provide the matching source and build instructions next to every binary download, including the
 pinned CotabbyInference source and applied patch. Preserve AGPLv3 and all dependency/data notices;
 model weights retain their own licenses and are not included in the app. No upstream release or

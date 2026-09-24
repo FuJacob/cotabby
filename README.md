@@ -1,9 +1,11 @@
 # CoHamster
 
+<img src="Cotabby/Assets.xcassets/CoHamsterLogo.imageset/CoHamsterLogo.png" alt="CoHamster hamster icon" width="112" />
+
 Local-first AI autocomplete for macOS. Open source, with Apple Intelligence, local GGUF models,
 and an optional OpenAI-compatible endpoint you configure.
 
-[Source](https://github.com/mc-hamster/cotabby) · [Releases](https://github.com/mc-hamster/cotabby/releases) · [AGPLv3](LICENSE)
+**[Download CoHamster for Apple Silicon](https://github.com/mc-hamster/CoHamster/releases/download/cohamster-v0.6.3/CoHamster-0.6.3-arm64.dmg)** · [Release notes](https://github.com/mc-hamster/CoHamster/releases/tag/cohamster-v0.6.3) · [FAQ](FAQ.md) · [AGPLv3](LICENSE)
 
 ## Features
 
@@ -68,9 +70,10 @@ For the full suggestion pipeline, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 **Compatibility:** macOS 14.0 or later. Apple Intelligence requires macOS 26 or later on a supported Mac.
 
-Build CoHamster from source using the instructions below. Downloads are published on
-[GitHub Releases](https://github.com/mc-hamster/cotabby/releases); older downloads may still carry
-the previous Cotabby McHamster name. Quit any older copy before running CoHamster.
+Download the [signed and notarized CoHamster 0.6.3 prerelease](https://github.com/mc-hamster/CoHamster/releases/tag/cohamster-v0.6.3),
+open the DMG, and drag **CoHamster.app** into Applications. Quit any older copy before opening it.
+The matching source and checksums are included on the release page. To build from source, follow
+the development instructions below.
 
 Check for new releases in Settings → About. CoHamster currently uses manual updates.
 
@@ -91,7 +94,7 @@ Requires Xcode and Command Line Tools. Apple Silicon is strongly recommended for
 For autocomplete tuning, the [phrase prediction benchmark](PHRASE_EVAL.md) replays 1,337 writing scenarios with synthetic screen context, reports next-word accuracy per phrase, category, and suite, and measures the gain or regression from that context.
 
 ```bash
-git clone https://github.com/mc-hamster/cotabby.git CoHamster
+git clone https://github.com/mc-hamster/CoHamster.git CoHamster
 cd CoHamster
 scripts/prepare_cohamster_workspace.sh
 open build/cohamster-dependencies/CoHamster.xcworkspace

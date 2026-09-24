@@ -45,7 +45,7 @@ Clone the repo and open the project. If your Apple ID is not on CoHamster's deve
 one-time signing setup first:
 
 ```sh
-git clone https://github.com/mc-hamster/cotabby.git CoHamster
+git clone https://github.com/mc-hamster/CoHamster.git CoHamster
 cd CoHamster
 scripts/dev-setup.sh
 scripts/prepare_cohamster_workspace.sh
@@ -344,6 +344,6 @@ The release retains `org.mchamster.cotabby`, the existing preference keys, and t
 credentials, and models. `CoHamsterDataDirectory` in `Config/CoHamsterInfo.plist` separates storage
 identity from the name shown in macOS. Development builds use their own identity and storage.
 
-The repository URL is still `mc-hamster/cotabby`; renaming the app does not rename the hosted repository.
+The repository is `mc-hamster/CoHamster`. GitHub redirects links from its previous repository name.
 Brand artwork is generated from the original vector paths in `scripts/generate_brand_assets.swift`.
 Run `swift scripts/generate_brand_assets.swift` from the repo root to regenerate icon sizes.

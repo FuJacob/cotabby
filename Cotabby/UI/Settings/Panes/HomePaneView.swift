@@ -385,11 +385,11 @@ struct HomePaneView: View {
         HStack(spacing: 6) {
             Text("Free & open source")
             footerDot
-            if let repoURL = URL(string: "https://github.com/mc-hamster/cotabby") {
+            if let repoURL = URL(string: "https://github.com/mc-hamster/CoHamster") {
                 Link("GitHub", destination: repoURL)
             }
             footerDot
-            if let supportURL = URL(string: "https://github.com/mc-hamster/cotabby/issues") {
+            if let supportURL = URL(string: "https://github.com/mc-hamster/CoHamster/issues") {
                 Link(destination: supportURL) {
                     Label("Contribute", systemImage: "person.2")
                         .labelStyle(.titleAndIcon)
@@ -397,7 +397,7 @@ struct HomePaneView: View {
                 }
             }
             footerDot
-            if let wikiURL = URL(string: "https://github.com/mc-hamster/cotabby/blob/master/CONTRIBUTING.md") {
+            if let wikiURL = URL(string: "https://github.com/mc-hamster/CoHamster/blob/master/CONTRIBUTING.md") {
                 Link("Contributor Guide", destination: wikiURL)
             }
         }

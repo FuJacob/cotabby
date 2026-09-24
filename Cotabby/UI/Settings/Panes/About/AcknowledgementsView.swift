@@ -54,7 +54,7 @@ struct AcknowledgementsView: View {
         AcknowledgementEntry(
             name: "CoHamster source & license",
             summary: "Source code, build instructions, and the GNU Affero General Public License v3.0.",
-            url: "https://github.com/mc-hamster/cotabby"
+            url: "https://github.com/mc-hamster/CoHamster"
         ),
         AcknowledgementEntry(
             name: "LaunchAtLogin",

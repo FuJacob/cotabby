@@ -1,54 +1,54 @@
-# Cotabby FAQ
+# CoHamster FAQ
 
-Frequently asked questions about Cotabby, the free, open-source, local-first AI
+Frequently asked questions about CoHamster, the free, open-source, local-first AI
 autocomplete for macOS.
 
-## 1. What is Cotabby and how does it work?
+## 1. What is CoHamster and how does it work?
 
-Cotabby is a free, open-source macOS menu bar app that adds AI autocomplete to
+CoHamster is a free, open-source macOS menu bar app that adds AI autocomplete to
 almost any text field on your Mac. As you type, it shows a gray "ghost text"
 suggestion inline next to your cursor. Press `Tab` to accept it, or just keep
 typing to ignore it.
 
-Under the hood, Cotabby notices which text field you are focused on, reads what
+Under the hood, CoHamster notices which text field you are focused on, reads what
 you have typed (and optionally the surrounding on-screen context), generates a
 short continuation with your selected engine, and inserts the text you accept right
 where your cursor is.
 
-Beyond sentence completion, Cotabby also includes:
+Beyond sentence completion, CoHamster also includes:
 
 - Inline emoji autocomplete (type `:smile` and accept).
 - Slash macros for quick math, unit and currency conversion, dates, and more
   (type `/`).
 - Autocorrect that fixes typos with a single keystroke.
 
-Cotabby is currently in beta.
+CoHamster is currently in beta.
 
-## 2. Is Cotabby free?
+## 2. Is CoHamster free?
 
-Yes. Cotabby is completely free and open source, released under the GNU Affero
+Yes. CoHamster is completely free and open source, released under the GNU Affero
 General Public License v3.0 (AGPL-3.0). There is no subscription, no account, and
 no paid tier. You are free to read, modify, and redistribute the source under the
 terms of that license. The code lives at
-[github.com/FuJacob/cotabby](https://github.com/FuJacob/cotabby).
+[github.com/mc-hamster/CoHamster](https://github.com/mc-hamster/CoHamster).
 
 The downloadable AI models are free too, and Apple Intelligence is built into
 macOS. If you configure a third-party OpenAI-compatible endpoint, that provider may charge for use.
 
-## 3. Is my data private? Does Cotabby send what I type to the cloud?
+## 3. Is my data private? Does CoHamster send what I type to the cloud?
 
-Privacy is the core design principle. Cotabby's default engines produce suggestions
+Privacy is the core design principle. CoHamster's default engines produce suggestions
 on your Mac:
 
 - Apple Intelligence and the Open Source engine run on-device.
 - The optional OpenAI-compatible engine sends the bounded request to the endpoint
   you configure. That endpoint can be loopback, on your LAN, or a public HTTPS service.
 - When screen context is used, the screenshot is captured and read entirely
-  on-device with Apple's built-in text recognition. No images or recognized text
-  are ever uploaded.
-- Cotabby contains no analytics, no telemetry, and no crash reporting.
+  on-device with Apple's built-in text recognition. Screenshots stay on-device; a bounded
+  text excerpt can be sent to your configured endpoint when that context is enabled.
+- CoHamster contains no analytics, no telemetry, and no crash reporting.
 
-Apart from a configured endpoint, Cotabby uses the network to download or search
+Apart from a configured endpoint, CoHamster uses the network to download or search
 for models and to check for app updates. Those operations do not carry the text
 you type, your suggestions, or anything from your screen.
 
@@ -67,29 +67,21 @@ those stay on your Mac and are never transmitted.
   on a Mac that supports Apple Intelligence, with Apple Intelligence turned on in
   System Settings. On older Macs, use the Open Source engine or a configured endpoint instead.
 
-## 5. How do I install Cotabby?
+## 5. How do I install CoHamster?
 
-There are three ways:
+Download the [CoHamster 0.6.3 prerelease](https://github.com/mc-hamster/CoHamster/releases/tag/cohamster-v0.6.3).
+The Apple Silicon DMG is signed and notarized. Open it and drag **CoHamster.app** into Applications.
+Quit any previous copy before opening CoHamster.
 
-- **Homebrew (recommended):**
-  ```sh
-  brew tap FuJacob/cotabby
-  brew install --cask cotabby
-  ```
-  Update later with `brew upgrade --cask cotabby`.
-- **Direct download:** get the latest release from
-  [cotabby.app](https://cotabby.app) (or the GitHub Releases page) and drag
-  Cotabby into your Applications folder.
-- **Build from source:** clone
-  [github.com/FuJacob/cotabby](https://github.com/FuJacob/cotabby) and open the
-  project in Xcode.
+To build from source, follow [CONTRIBUTING.md](CONTRIBUTING.md), including preparation of the
+patched inference dependency.
 
-After launching, Cotabby lives in your menu bar and walks you through a short
-setup. It checks for and installs updates automatically when new versions ship.
+After launching, CoHamster lives in your menu bar and walks you through setup. Updates are manual:
+Settings → About → Check for Updates opens this project's GitHub releases.
 
-## 6. Why does Cotabby need Accessibility, Input Monitoring, and Screen Recording permissions?
+## 6. Why does CoHamster need Accessibility, Input Monitoring, and Screen Recording permissions?
 
-Cotabby works inside other apps, so macOS asks for permissions that map to specific features:
+CoHamster works inside other apps, so macOS asks for permissions that map to specific features:
 
 - **Accessibility:** to read the text and cursor position in the field you are
   typing in, and to insert the text you accept.
@@ -98,12 +90,12 @@ Cotabby works inside other apps, so macOS asks for permissions that map to speci
 - **Screen Recording (optional):** to capture the area around your cursor for visual
   context. Text-only autocomplete still works without it.
 
-Cotabby guides you through granting each one during setup and shows a reminder if
+CoHamster guides you through granting each one during setup and shows a reminder if
 a permission is later turned off. You can change them anytime in System Settings
-under Privacy & Security. Cotabby blocks generation, presentation, and insertion in password and
+under Privacy & Security. CoHamster blocks generation, presentation, and insertion in password and
 other secure fields.
 
-## 7. How do I use Cotabby, and how do I accept or dismiss a suggestion?
+## 7. How do I use CoHamster, and how do I accept or dismiss a suggestion?
 
 Start typing in any supported text field. When a suggestion appears as ghost
 text:
@@ -117,9 +109,9 @@ text:
 All of these keys are rebindable in Settings, under Shortcuts, so you can pick
 whatever feels natural.
 
-## 8. Which apps does Cotabby work in?
+## 8. Which apps does CoHamster work in?
 
-Cotabby works system-wide in almost any standard, editable text field, including
+CoHamster works system-wide in almost any standard, editable text field, including
 native Mac apps and most web and Electron apps (such as Chrome).
 
 For your safety and privacy, it deliberately stays out of:
@@ -129,12 +121,12 @@ For your safety and privacy, it deliberately stays out of:
 - Terminal apps (Terminal, iTerm2, and others).
 
 Some browser and Electron editors expose their contents to macOS a little
-differently, so Cotabby includes special handling for them. If a particular
-field does not expose what Cotabby needs, it simply stays quiet there.
+differently, so CoHamster includes special handling for them. If a particular
+field does not expose what CoHamster needs, it simply stays quiet there.
 
-## 9. Which AI model does Cotabby use, and does it work offline?
+## 9. Which AI model does CoHamster use, and does it work offline?
 
-Cotabby gives you three engines, and you choose which one to use:
+CoHamster gives you three engines, and you choose which one to use:
 
 - **Apple Intelligence:** Apple's on-device model built into macOS (requires
   macOS 26 or later on a supported Mac). Nothing to download.
@@ -149,7 +141,7 @@ Cotabby gives you three engines, and you choose which one to use:
 Apple Intelligence and Open Source run entirely on your Mac and work offline once configured.
 The endpoint engine's network requirements depend on the server you choose.
 
-## 10. How do I customize Cotabby or turn it off?
+## 10. How do I customize CoHamster or turn it off?
 
 Open Settings from the menu bar icon. A few of the things you can adjust:
 
@@ -160,7 +152,7 @@ Open Settings from the menu bar icon. A few of the things you can adjust:
 - Engine and model selection, emoji style, slash macros, and your keyboard
   shortcuts.
 
-To pause Cotabby:
+To pause CoHamster:
 
 - Turn off "Enable Globally" in the menu or General settings to disable it
   everywhere without quitting.
