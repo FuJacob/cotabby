@@ -304,24 +304,7 @@ struct SuggestionSettingsStore {
             } else {
                 Self.clampedGhostTextSizeMultiplier(userDefaults.double(forKey: Self.ghostTextSizeMultiplierDefaultsKey))
             }
-        let resolvedGhostFontSizeFloor: Double =
-            if userDefaults.object(forKey: Self.ghostFontSizeFloorDefaultsKey) == nil {
-                Self.defaultGhostFontSizeFloor
-            } else {
-                Self.clampedGhostFontSizeFloor(userDefaults.double(forKey: Self.ghostFontSizeFloorDefaultsKey))
-            }
-        let resolvedGhostFontSizeCeiling: Double =
-            if userDefaults.object(forKey: Self.ghostFontSizeCeilingDefaultsKey) == nil {
-                Self.defaultGhostFontSizeCeiling
-            } else {
-                Self.clampedGhostFontSizeCeiling(userDefaults.double(forKey: Self.ghostFontSizeCeilingDefaultsKey))
-            }
-        // The two bounds are separate keys written one at a time, so a crash between the writes can
-        // leave floor > ceiling on disk. `GhostFontMetrics` would then clamp with an inverted range
-        // and the ceiling would silently win every time, so repair the pair here rather than trust
-        // that the setters always completed.
-        let normalizedGhostFontSizeCeiling = max(resolvedGhostFontSizeCeiling, resolvedGhostFontSizeFloor)
-        let normalizedGhostFontSizeFloor = min(resolvedGhostFontSizeFloor, normalizedGhostFontSizeCeiling)
+        let ghostFontSizeBounds = resolvedGhostFontSizeBounds()
 
         let resolvedEngine = userDefaults
             .string(forKey: Self.selectedEngineDefaultsKey)
@@ -610,8 +593,8 @@ struct SuggestionSettingsStore {
                 customSuggestionTextColorHex: resolvedCustomSuggestionTextColorHex,
                 ghostTextOpacity: resolvedGhostTextOpacity,
                 ghostTextSizeMultiplier: resolvedGhostTextSizeMultiplier,
-                ghostFontSizeFloor: normalizedGhostFontSizeFloor,
-                ghostFontSizeCeiling: normalizedGhostFontSizeCeiling,
+                ghostFontSizeFloor: ghostFontSizeBounds.floor,
+                ghostFontSizeCeiling: ghostFontSizeBounds.ceiling,
                 isMenuBarIconVisible: resolvedMenuBarIconVisible,
                 isMenuBarWordCountVisible: resolvedMenuBarWordCountVisible,
                 mirrorPreference: resolvedMirrorPreference,
@@ -1168,6 +1151,31 @@ struct SuggestionSettingsStore {
         }
 
         return min(maximumGhostFontSizeCeiling, max(minimumGhostFontSizeCeiling, value))
+    }
+
+    /// Reads the ghost-size floor and ceiling, repairing an inverted pair.
+    ///
+    /// The two bounds live in separate keys written one at a time, so a crash between the writes can
+    /// persist floor > ceiling. `GhostFontMetrics` would then clamp with an inverted range and the
+    /// ceiling would silently win, so the pair is ordered here rather than trusted. Kept out of
+    /// `load()` so that function's branch count stays under the complexity limit; the resolution is
+    /// self-contained, which makes it a natural thing to lift out.
+    private func resolvedGhostFontSizeBounds() -> (floor: Double, ceiling: Double) {
+        let storedFloor: Double =
+            if userDefaults.object(forKey: Self.ghostFontSizeFloorDefaultsKey) == nil {
+                Self.defaultGhostFontSizeFloor
+            } else {
+                Self.clampedGhostFontSizeFloor(userDefaults.double(forKey: Self.ghostFontSizeFloorDefaultsKey))
+            }
+        let storedCeiling: Double =
+            if userDefaults.object(forKey: Self.ghostFontSizeCeilingDefaultsKey) == nil {
+                Self.defaultGhostFontSizeCeiling
+            } else {
+                Self.clampedGhostFontSizeCeiling(userDefaults.double(forKey: Self.ghostFontSizeCeilingDefaultsKey))
+            }
+
+        let repairedCeiling = max(storedCeiling, storedFloor)
+        return (min(storedFloor, repairedCeiling), repairedCeiling)
     }
 
     static func clampedFadeInDuration(_ value: Double) -> Double {

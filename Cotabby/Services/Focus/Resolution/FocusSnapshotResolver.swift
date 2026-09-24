@@ -829,9 +829,9 @@ struct FocusSnapshotResolver {
         // to `AXLineForIndex` resolves some other visual line and yields a margin from the wrong
         // place entirely.
         let lineQueryOffsetIsDocumentRelative = markerSelection == nil
+        let lineQuerySelection = lineQueryOffsetIsDocumentRelative ? selectionForGeometry : nil
         let observedContentEdges = caretResult?.observedContentEdges
-            ?? (lineQueryOffsetIsDocumentRelative ? selectionForGeometry : nil).flatMap {
-                geometrySelection -> ObservedContentEdges? in
+            ?? lineQuerySelection.flatMap { geometrySelection -> ObservedContentEdges? in
             // Cached per paragraph as well as per focus session. `lineContentEdgesParagraphKey`
             // documents how the key stays correct across paragraphs yet stable while typing.
             guard let windowSelection = selection, let windowText = textValue else { return nil }

@@ -317,8 +317,7 @@ final class OverlayController: SuggestionOverlayControlling {
             panelFrame: frame.integral,
             contentSize: contentSize,
             layout: layout,
-            renderFont: renderFont,
-            fontSize: fontSize
+            font: renderFont ?? NSFont.systemFont(ofSize: fontSize)
         )
 
         // Capture exactly what this inline render used, so a subsequent `advanceInline` slides the
@@ -586,13 +585,14 @@ final class OverlayController: SuggestionOverlayControlling {
         panelFrame: CGRect,
         contentSize: CGSize,
         layout: GhostSuggestionLayout,
-        renderFont: NSFont?,
-        fontSize: CGFloat
+        /// The font as actually rendered, so the caller's fallback-to-system-font decision is not
+        /// repeated here. Its `pointSize` is the rendered size, which is why no separate size
+        /// parameter is needed — one resolved font answers both questions.
+        font: NSFont
     ) {
         // Same reasoning as `logGhostFontResolution`: skip the font metrics and signature work
         // entirely unless this line can actually be emitted.
         guard CotabbyLogger.suggestion.logLevel <= .debug else { return }
-        let font = renderFont ?? NSFont.systemFont(ofSize: fontSize)
         // Text sits on its baseline, which is `descent` above the bottom of its own line box.
         let ghostDescent = -font.descender
         let ghostBaselineY = panelFrame.minY + ghostDescent
@@ -631,7 +631,7 @@ final class OverlayController: SuggestionOverlayControlling {
                 "content_height": .string(String(format: "%.2f", contentSize.height)),
                 "layout_line_height": .string(String(format: "%.2f", layout.lineHeight)),
                 "line_count": .stringConvertible(layout.lines.count),
-                "font_size": .string(String(format: "%.2f", fontSize)),
+                "font_size": .string(String(format: "%.2f", font.pointSize)),
                 "font_natural_line_height": .string(
                     String(format: "%.2f", ceil(font.ascender - font.descender + font.leading))
                 ),
