@@ -85,6 +85,16 @@ struct GeneralPaneView: View {
                 }
                 .settingsItem(.suggestWithinWords)
 
+                Toggle(isOn: showFollowingWordsBinding) {
+                    SettingsRowLabel(
+                        title: "Show following words",
+                        description: "Preview the phrase after the current word. Turn off to see one word at a time; " +
+                            "the next words stay ready as you finish typing or accept each word.",
+                        systemImage: "text.word.spacing"
+                    )
+                }
+                .settingsItem(.showFollowingWords)
+
                 Toggle(isOn: multiLineEnabledBinding) {
                     SettingsRowLabel(
                         title: "Allow Multi-line Suggestions",
@@ -208,6 +218,13 @@ struct GeneralPaneView: View {
         Binding(
             get: { suggestionSettings.suggestWithinWords },
             set: { suggestionSettings.setSuggestWithinWords($0) }
+        )
+    }
+
+    private var showFollowingWordsBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.showFollowingWords },
+            set: { suggestionSettings.setShowFollowingWords($0) }
         )
     }
 

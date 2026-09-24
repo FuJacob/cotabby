@@ -110,6 +110,14 @@ extension SuggestionCoordinator {
             return
         }
 
+        // After accepting a correction there may be no visible session, but its following words
+        // can still be generating. Retire that work on focus changes too; active-tail reconciliation
+        // cannot protect this interval because the source offer has already been consumed.
+        if let prepared = preparedContinuation,
+           !SuggestionContinuationPlan.sameFocusedField(focusedContext, prepared.plan.sourceSnapshot) {
+            cancelPreparedContinuation()
+        }
+
         // Start capturing visual context for newly focused input. Gated like the focus-change path
         // (and skipped in fast mode) so this entry point never kicks off screenshot/OCR work that the
         // earlier `shouldCaptureVisualContext` check already declined.
@@ -204,7 +212,7 @@ extension SuggestionCoordinator {
         // panel. Consumption still happens through the active tap's `emojiCaptureKeyDecider`.
         if emojiInputObserver?(event) == true {
             suggestionPresentationTiming.clear()
-            if overlayState.isVisible || interactionState.activeSession != nil {
+            if overlayState.isVisible || interactionState.activeSession != nil || preparedContinuation != nil {
                 cancelPredictionWork()
                 clearSuggestion(clearDiagnostics: true)
                 hideOverlay(reason: "Overlay hidden because the emoji picker is active.")
@@ -361,12 +369,22 @@ extension SuggestionCoordinator {
 
         let currentContext = focusModel.snapshot.context
 
+        if usePreparedContinuationIfPossible() { return }
+
         // No focus context at all means the user moved away from any editable field — let
         // `schedulePrediction` and its downstream guards handle the disabled / unsupported state.
         let textChanged = currentContext?.precedingText != baseline.precedingText
         let elementChanged = currentContext?.elementIdentifier != baseline.elementIdentifier
         let selectionChanged = currentContext?.selection.location != baseline.selectionLocation
-        if textChanged || elementChanged || (selectionChanged && !baseline.requiresTextChange) {
+        // A replacement can publish intermediate backspaces before its final insertion. A prepared
+        // continuation names the exact target, so do not turn those intermediate slices into new
+        // predictions. Real user input cancels this plan before it starts another polling chain.
+        let awaitingPreparedTarget = preparedContinuation.map { prepared in
+            prepared.awaitingCommit && currentContext.map {
+                SuggestionContinuationPlan.sameFocusedField($0, prepared.plan.sourceSnapshot)
+            } == true
+        } ?? false
+        if !awaitingPreparedTarget && (textChanged || elementChanged || (selectionChanged && !baseline.requiresTextChange)) {
             // The publish arrived. When it matches the snapshot a speculative post-acceptance
             // generation was built against, that generation is already in flight (or applied) for
             // exactly this content: scheduling another would only retire it and pay the full
@@ -403,6 +421,7 @@ extension SuggestionCoordinator {
                 // same stale word. Let the next real input restart prediction, and release any
                 // queued Tab now instead of accepting a second copy of the correction.
                 releasePostExhaustionAcceptanceWindow()
+                cancelPreparedContinuation()
                 return
             }
             schedulePrediction(

@@ -159,6 +159,19 @@ remain under `CotabbyTests/Evals`, and shared fixtures remain under `CotabbyTest
   characters awaiting Accessibility publication. `SuggestionSessionReconciler` tolerates only an
   older matching prefix during this handoff, so a typed space preserves the following words without
   treating unrelated edits as acceptance. Correction sessions never participate in type-through.
+- `Models/Suggestion/Session/ActiveSuggestionSession.swift` separates the full prediction from
+  the visible acceptance boundary. An uncertain word ending can retain following words without
+  offering them early. The `showFollowingWords` completion preference uses the same boundary to
+  show one word at a time; even full acceptance inserts only the current visible offer. Matching
+  typing consumes the buffered prediction, while streaming may extend it without revising it.
+- `Support/Suggestion/Session/SuggestionContinuationPlan.swift` constructs hypothetical completed
+  or corrected text and its exact publication target. A virtual separating space asks for the
+  next words rather than another ending; it never edits the host field. The coordinator's
+  `+Continuation.swift` owns one cancellable lookahead and attaches it to a terminal word ending,
+  or holds it behind a correction until the editor publishes that correction. The live context
+  buffer remains anchored to observed text throughout this work.
+  Additional preaccept lookahead is limited to on-device engines; configured endpoints retain
+  already-generated phrases but do not receive the new hypothetical-edit requests.
 - `Support/Spelling/WordPrefixIndex.swift` supplies immutable exact-prefix candidates and bounded
   document/glossary vocabulary. `SymSpellCorrector` builds its index on the existing background
   dictionary queue; fallback never uses spelling edit distance or changes typed letters.
@@ -176,6 +189,11 @@ against the actual coordinator with synthetic OS and engine boundaries. The phra
 uses the committed typo gate and final display policy, but deliberately excludes local fallback so
 its score remains attributable to the model. Timing replay and coordinator interaction tests cover
 presentation and acceptance separately; model-only scores do not represent the complete experience.
+`SuggestionCoordinatorContinuityTests` covers buffered acceptance, hidden streaming growth, cached
+word restoration, correction publication, and late cancellation. `TypingExperienceEvalTests` drives
+the production coordinator with the real local engine and a synthetic editor, recording visible
+and buffered text plus actual requests in `build/eval/typing-experience.json`. It does not measure
+third-party editor AX behavior or visual placement.
 
 ## Adding Or Moving A File
 

@@ -30,6 +30,7 @@ final class SuggestionSettingsDomainTests: XCTestCase {
         defaults.set(false, forKey: "cotabbyShowAcceptanceHint")
         defaults.set(false, forKey: "cotabbyLowPowerModeAutoDisableEnabled")
         defaults.set(false, forKey: "cotabbySuggestWithinWords")
+        defaults.set(false, forKey: "cotabbyShowFollowingWords")
 
         let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
 
@@ -39,6 +40,7 @@ final class SuggestionSettingsDomainTests: XCTestCase {
         XCTAssertFalse(data.presentation.showAcceptanceHint)
         XCTAssertFalse(data.general.isLowPowerModeAutoDisableEnabled)
         XCTAssertFalse(data.completion.suggestWithinWords)
+        XCTAssertFalse(data.completion.showFollowingWords)
         XCTAssertEqual(data.shortcuts.acceptance.keyCode, SuggestionSettingsStore.defaultAcceptanceKeyCode)
     }
 
@@ -48,14 +50,18 @@ final class SuggestionSettingsDomainTests: XCTestCase {
         data.openAICompatibleModelName = "forwarded-model"
         data.completion.acceptanceGranularity = .phrase
         data.suggestWithinWords = false
+        data.showFollowingWords = false
         data.ghostTextOpacity = 0.7
         data.shortcuts.globalToggle.label = "⌥G"
 
         XCTAssertEqual(data.engine.openAICompatibleModelName, "forwarded-model")
         XCTAssertEqual(data.acceptanceGranularity, .phrase)
         XCTAssertFalse(data.completion.suggestWithinWords)
+        XCTAssertFalse(data.completion.showFollowingWords)
         data.completion.suggestWithinWords = true
         XCTAssertTrue(data.suggestWithinWords)
+        data.completion.showFollowingWords = true
+        XCTAssertTrue(data.showFollowingWords)
         XCTAssertEqual(data.presentation.ghostTextOpacity, 0.7)
         XCTAssertEqual(data.globalToggleKeyLabel, "⌥G")
     }
@@ -67,6 +73,7 @@ final class SuggestionSettingsDomainTests: XCTestCase {
         model.setFastModeEnabled(true)
         model.setOfferTypoCorrections(false)
         model.setAcceptanceGranularity(.phrase)
+        model.setShowFollowingWords(false)
 
         let domains = model.domainSettings
 
@@ -76,5 +83,7 @@ final class SuggestionSettingsDomainTests: XCTestCase {
         XCTAssertFalse(domains.correction.offerTypoCorrections)
         XCTAssertEqual(domains.completion.acceptanceGranularity, model.snapshot.acceptanceGranularity)
         XCTAssertEqual(model.snapshot.selectedEngine, .openAICompatible)
+        XCTAssertFalse(domains.completion.showFollowingWords)
+        XCTAssertFalse(model.snapshot.showFollowingWords)
     }
 }

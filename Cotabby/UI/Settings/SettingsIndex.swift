@@ -20,6 +20,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     case includeAppContext
     case allowMultiLine
     case suggestWithinWords
+    case showFollowingWords
     case inlineMacros
     case onboarding
     case resetAllSettings
@@ -107,6 +108,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .includeAppContext: return "Include App Context"
         case .allowMultiLine: return "Allow Multi-line Suggestions"
         case .suggestWithinWords: return "Suggest while typing a word"
+        case .showFollowingWords: return "Show following words"
         case .acceptPunctuation: return "Accept Punctuation With Word"
         case .addSpaceAfterAccept: return "Add Space After Accepting"
         case .inlineMacros: return "Inline Macros"
@@ -184,6 +186,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .includeAppContext: return "macwindow"
         case .allowMultiLine: return "text.alignleft"
         case .suggestWithinWords: return "text.cursor"
+        case .showFollowingWords: return "text.word.spacing"
         case .acceptPunctuation: return "textformat.abc"
         case .addSpaceAfterAccept: return "space"
         case .inlineMacros: return "slash.circle"
@@ -255,7 +258,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     var category: SettingsCategory {
         switch self {
         case .enableGlobally, .fastMode, .openAtLogin, .includeClipboardContext, .includeAppContext,
-             .allowMultiLine, .suggestWithinWords, .inlineMacros, .onboarding, .resetAllSettings:
+             .allowMultiLine, .suggestWithinWords, .showFollowingWords, .inlineMacros, .onboarding, .resetAllSettings:
             return .general
         case .suggestionDisplay, .streamWhileGenerating, .fadeInSuggestions, .showFieldIndicator,
              .showWordCount, .showMenuBarIcon, .showKeyHint, .ghostTextColor,
@@ -298,6 +301,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .includeAppContext: return "Tell the model which app and window you are typing in."
         case .allowMultiLine: return "Allow continuations that span more than one line."
         case .suggestWithinWords: return "Show new suggestions inside a word, or wait for a space or punctuation."
+        case .showFollowingWords: return "Preview the following phrase, or reveal one word at a time as you type or accept."
         case .acceptPunctuation: return "Also accept trailing commas and periods with a word."
         case .addSpaceAfterAccept: return "Add a space when an accept finishes a word."
         case .inlineMacros: return "Type / for dates, math, units, currency, and randoms."
@@ -394,6 +398,9 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .suggestWithinWords:
             return ["typing", "mid word", "midword", "unfinished", "word boundary", "space", "pause",
                     "wait", "complete word", "word ending", "autocomplete"]
+        case .showFollowingWords:
+            return ["following words", "next words", "phrase preview", "one word", "word at a time",
+                    "preview length", "quiet", "distraction", "autocomplete"]
         case .addSpaceAfterAccept:
             return ["space", "spacebar", "trailing space", "auto space", "add space",
                     "accept", "after accept", "whitespace", "gap", "separator"]

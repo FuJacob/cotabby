@@ -52,6 +52,8 @@ final class SuggestionInteractionState {
 
     func startSession(
         fullText: String,
+        initialVisibleCharacterCount: Int? = nil,
+        showFollowingWords: Bool = true,
         liveContext: FocusedInputContext,
         latency: TimeInterval,
         kind: SuggestionKind = .continuation
@@ -59,6 +61,8 @@ final class SuggestionInteractionState {
         let session = ActiveSuggestionSession(
             baseContext: liveContext,
             fullText: fullText,
+            initialVisibleCharacterCount: initialVisibleCharacterCount,
+            showFollowingWords: showFollowingWords,
             latency: latency,
             kind: kind
         )
@@ -66,6 +70,23 @@ final class SuggestionInteractionState {
         pendingInsertionConsumedCount = nil
         pendingTypedConsumedRange = nil
         return session
+    }
+
+    /// Adds a monotonic prediction extension without restarting an interaction already in flight.
+    /// The coordinator captures the expected session before async lookahead; equality rejects an
+    /// answer for an old anchor or consumed position. The existing AX-publication sentinels remain
+    /// valid because no characters before the extended suffix change.
+    func extendPrediction(
+        fullText: String,
+        expectedSession: ActiveSuggestionSession
+    ) -> ActiveSuggestionSession? {
+        guard let activeSession,
+              activeSession == expectedSession,
+              let extendedSession = activeSession.extendingPrediction(to: fullText) else {
+            return nil
+        }
+        self.activeSession = extendedSession
+        return extendedSession
     }
 
     /// Uses process-level identity instead of AX element identity because Chrome recycles
@@ -223,6 +244,20 @@ final class SuggestionInteractionState {
             return SessionValidation(
                 session: nil,
                 failureReason: "Key passed through because no remaining suggestion text was available."
+            )
+        }
+
+        // AX may reveal a just-typed word before its key event has advanced the ghost. Reconciliation
+        // can then cross a presentation boundary and expose a new buffered word. That text was not
+        // in the ghost the user accepted, so this key must not silently commit it. A normal advance
+        // within the same visible offer remains acceptable because its tail is still that offer's
+        // exact suffix.
+        let reconciledAdvance = sessionForAcceptance.consumedCharacterCount - activeSession.consumedCharacterCount
+        let previouslyOfferedTail = String(activeSession.remainingText.dropFirst(max(reconciledAdvance, 0)))
+        guard sessionForAcceptance.remainingText == previouslyOfferedTail else {
+            return SessionValidation(
+                session: nil,
+                failureReason: "Key passed through because the next buffered word has not been shown yet."
             )
         }
 

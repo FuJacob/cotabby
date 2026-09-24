@@ -36,6 +36,8 @@ final class SettingsIndexTests: XCTestCase {
             ("ghost text size", .ghostTextSize),
             ("mid word", .suggestWithinWords),
             ("word boundary", .suggestWithinWords),
+            ("next words", .showFollowingWords),
+            ("one word", .showFollowingWords),
             ("terminal", .suggestInIntegratedTerminals),
             ("vscode", .suggestInIntegratedTerminals),
             ("typo", .automaticallyFixTypos),

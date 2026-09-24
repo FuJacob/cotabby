@@ -4,6 +4,35 @@ import Foundation
 /// work identity. Keeping this at the orchestration boundary avoids giving pure rules access to
 /// AppKit or user settings, and keeps the prediction lifecycle readable.
 extension SuggestionCoordinator {
+    /// Keeps prediction separate from its first visible offer. An uncertain word ending can be
+    /// shown conservatively while its following words stay buffered. Validate their first word
+    /// independently: the seam check that approved a name ending did not approve `teh` after it.
+    func bufferedCompletionText(_ prediction: String, visibleText: String,
+                                context: FocusedInputContext, isFinal: Bool) -> String {
+        var buffered = visibleText
+        if prediction.hasPrefix(visibleText), prediction.count > visibleText.count {
+            let following = String(prediction.dropFirst(visibleText.count))
+            if case .show = CompletionSeamGuard.presentation(
+                precedingText: context.precedingText + visibleText + " ", completion: following,
+                isFinal: isFinal, spellingAssessment: { self.completionSpellingAssessment(for: $0) }
+            ) { buffered = prediction }
+        }
+        if !isFinal {
+            let visibleCount = settingsSnapshot.showFollowingWords ? visibleText.count
+                : SuggestionSessionReconciler.nextAcceptanceChunk(from: visibleText).count
+            buffered = StreamedGhostTextPolicy.completedBufferedPrediction(buffered, visibleCharacterCount: visibleCount)
+        }
+        return buffered
+    }
+
+    func startCompletionSession(prediction: String, visibleText: String, context: FocusedInputContext,
+                                latency: TimeInterval, isFinal: Bool, wordEndingOnly: Bool = false) -> ActiveSuggestionSession {
+        let fullText = bufferedCompletionText(prediction, visibleText: visibleText, context: context, isFinal: isFinal)
+        return interactionState.startSession(fullText: fullText,
+            initialVisibleCharacterCount: wordEndingOnly || fullText != visibleText ? visibleText.count : nil,
+            showFollowingWords: settingsSnapshot.showFollowingWords, liveContext: context, latency: latency)
+    }
+
     func completionPresentation(
         text: String, context: FocusedInputContext, isFinal: Bool
     ) -> CompletionSeamGuard.PresentationDecision {

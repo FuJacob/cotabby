@@ -33,6 +33,21 @@ final class SuggestionSettingsStoreTests: XCTestCase {
         XCTAssertEqual(defaults.object(forKey: "cotabbySuggestWithinWords") as? Bool, true)
     }
 
+    func test_showFollowingWords_preservesDefaultUserChoiceAndReset() async {
+        let defaults = makeIsolatedDefaults()
+        let store = SuggestionSettingsStore(userDefaults: defaults)
+
+        XCTAssertTrue(store.load(configuration: .standard).showFollowingWords)
+        XCTAssertEqual(defaults.object(forKey: "cotabbyShowFollowingWords") as? Bool, true)
+
+        store.saveShowFollowingWords(false)
+        XCTAssertFalse(store.load(configuration: .standard).showFollowingWords)
+        XCTAssertEqual(defaults.object(forKey: "cotabbyShowFollowingWords") as? Bool, false)
+
+        XCTAssertTrue(store.resetToDefaults(configuration: .standard).showFollowingWords)
+        XCTAssertEqual(defaults.object(forKey: "cotabbyShowFollowingWords") as? Bool, true)
+    }
+
     // MARK: - Word-count preset migration (#475)
 
     func test_load_migratesRetiredShortPresetToFourToSeven() async {

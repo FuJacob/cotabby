@@ -44,6 +44,12 @@
 
 Cotabby adds AI autocomplete to almost any text field on your Mac. As you type, a gray suggestion appears inline next to your cursor. Press `Tab` to accept it a word at a time, or keep typing to ignore it.
 
+Matching letters and spaces advance through the existing suggestion. Cotabby keeps following words
+ready behind a word ending. On-device engines also prepare a continuation while a correction is offered. In Settings →
+General → Suggestions, **Suggest while typing a word** controls whether new suggestions can appear mid-word;
+**Show following words** controls whether you see a phrase or one word at a time. Both are enabled by
+default. Turning off phrase previews keeps the following words buffered for your next acceptance.
+
 The default Apple Intelligence and Open Source engines run on your Mac. No account or telemetry is
 required. An optional OpenAI-compatible engine can connect to a server you configure.
 

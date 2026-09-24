@@ -48,7 +48,9 @@ struct FocusedInputContext: Equatable, Sendable {
     let focusChangeSequence: UInt64
     let generation: UInt64
 
-    init(snapshot: FocusedInputSnapshot, generation: UInt64) {
+    // Copying immutable snapshot values needs no UI actor; pure continuation plans use this
+    // initializer to share the same field-identity rule as coordinator-held contexts.
+    nonisolated init(snapshot: FocusedInputSnapshot, generation: UInt64) {
         applicationName = snapshot.applicationName
         bundleIdentifier = snapshot.bundleIdentifier
         processIdentifier = snapshot.processIdentifier

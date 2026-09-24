@@ -39,7 +39,10 @@ enum SuggestionSessionReconciler {
             return nil
         }
 
-        guard session.remainingText.hasPrefix(typedCharacters) else {
+        // User-authored input is allowed to cross the visible offer's boundary. Unlike Tab, typing
+        // those characters does not accept anything unseen; it confirms more of the prediction and
+        // should keep the following words ready instead of throwing away the session.
+        guard session.predictedRemainingText.hasPrefix(typedCharacters) else {
             return nil
         }
 

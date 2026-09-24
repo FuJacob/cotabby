@@ -91,6 +91,88 @@ final class SuggestionModelValueTests: XCTestCase {
         XCTAssertTrue(session.isExhausted)
     }
 
+    func test_activeSuggestionSession_retainsFollowingWordsBehindAnInitialWordEnding() {
+        let session = ActiveSuggestionSession(
+            baseContext: CotabbyTestFixtures.focusedInputContext(precedingText: "Build a flux"),
+            fullText: "beam for the device",
+            initialVisibleCharacterCount: 4,
+            latency: 0.05
+        )
+
+        XCTAssertEqual(session.remainingText, "beam")
+        XCTAssertEqual(session.predictedRemainingText, "beam for the device")
+        XCTAssertTrue(session.hasBufferedContinuation)
+
+        let partlyTyped = session.advancing(by: 2)
+        XCTAssertEqual(partlyTyped.remainingText, "am")
+        XCTAssertTrue(partlyTyped.hasBufferedContinuation)
+
+        let completedWord = partlyTyped.advancing(by: 2)
+        XCTAssertEqual(completedWord.remainingText, " for the device")
+        XCTAssertFalse(completedWord.isExhausted)
+        XCTAssertFalse(completedWord.hasBufferedContinuation)
+        XCTAssertEqual(completedWord.baseContext, session.baseContext)
+    }
+
+    func test_activeSuggestionSession_oneWordPresentationRollsThroughTheSamePrediction() {
+        var session = ActiveSuggestionSession(
+            baseContext: CotabbyTestFixtures.focusedInputContext(),
+            fullText: " hello world again",
+            showFollowingWords: false,
+            latency: 0.05
+        )
+
+        for expectedOffer in [" hello", " world", " again"] {
+            XCTAssertEqual(session.remainingText, expectedOffer)
+            XCTAssertFalse(session.isExhausted)
+            session = session.advancing(by: expectedOffer.count)
+        }
+        XCTAssertTrue(session.isExhausted)
+        XCTAssertEqual(session.remainingText, "")
+    }
+
+    func test_activeSuggestionSession_initialBoundaryCountsGraphemes() {
+        let session = ActiveSuggestionSession(
+            baseContext: CotabbyTestFixtures.focusedInputContext(),
+            fullText: "é👩🏽‍💻 next",
+            initialVisibleCharacterCount: 2,
+            latency: 0
+        )
+
+        XCTAssertEqual(session.remainingText, "é👩🏽‍💻")
+        XCTAssertEqual(session.advancing(by: 1).remainingText, "👩🏽‍💻")
+        XCTAssertEqual(session.withConsumedCharacters(2).remainingText, " next")
+    }
+
+    func test_activeSuggestionSession_extensionPreservesPresentationAndConsumedPosition() throws {
+        let session = ActiveSuggestionSession(
+            baseContext: CotabbyTestFixtures.focusedInputContext(),
+            fullText: "hello",
+            initialVisibleCharacterCount: 5,
+            showFollowingWords: false,
+            consumedCharacterCount: 2,
+            latency: 0.05
+        )
+        let extended = try XCTUnwrap(session.extendingPrediction(to: "hello world again"))
+
+        XCTAssertEqual(extended.consumedCharacterCount, 2)
+        XCTAssertEqual(extended.remainingText, "llo")
+        XCTAssertEqual(extended.predictedRemainingText, "llo world again")
+        XCTAssertEqual(extended.advancing(by: 3).remainingText, " world")
+        XCTAssertEqual(extended.latency, session.latency)
+        XCTAssertNil(session.extendingPrediction(to: "help instead"))
+    }
+
+    func test_activeSuggestionSession_unrestrictedExtensionImmediatelyOffersTheWholeTail() throws {
+        let session = ActiveSuggestionSession(
+            baseContext: CotabbyTestFixtures.focusedInputContext(),
+            fullText: "hello",
+            latency: 0
+        )
+
+        XCTAssertEqual(try XCTUnwrap(session.extendingPrediction(to: "hello world")).remainingText, "hello world")
+    }
+
     func test_overlayStateVisibleExposesRenderMode() {
         let state = OverlayState.visible(
             text: "hello",

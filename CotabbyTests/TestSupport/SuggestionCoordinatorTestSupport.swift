@@ -260,7 +260,9 @@ func makeCoordinatorRig(
     capability: FocusCapability = .supported,
     overlayState: OverlayState = .hidden(reason: "initial"),
     lowPowerModeEnabled: Bool = false,
-    settingsSnapshot: SuggestionSettingsSnapshot = CotabbyTestFixtures.settingsSnapshot(debounceMilliseconds: 1)
+    settingsSnapshot: SuggestionSettingsSnapshot = CotabbyTestFixtures.settingsSnapshot(debounceMilliseconds: 1),
+    generationEngine: (any SuggestionGenerating)? = nil,
+    configuration: SuggestionConfiguration = .standard
 ) -> CoordinatorRig {
     let focusSnapshot = FocusSnapshot(
         applicationName: snapshot.applicationName,
@@ -287,14 +289,14 @@ func makeCoordinatorRig(
         inputMonitor: inputMonitor,
         overlayController: overlayController,
         suggestionInserter: inserter,
-        suggestionEngine: engine,
+        suggestionEngine: generationEngine ?? engine,
         suggestionSettings: settingsProvider,
         clipboardContextProvider: clipboardProvider,
         clipboardRelevanceFilter: clipboardFilter,
         visualContextCoordinator: visualContext,
         interactionState: interactionState,
         workController: SuggestionWorkController(),
-        configuration: .standard,
+        configuration: configuration,
         spellChecker: CurrentWordSpellChecker(),
         symSpellCorrector: SymSpellCorrector(preloadLanguage: nil),
         qualityMetricsStore: SuggestionQualityMetricsStore(

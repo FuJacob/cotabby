@@ -109,6 +109,9 @@ final class SuggestionSettingsModel: ObservableObject {
     /// The UI controls request timing here; the immutable snapshot carries this choice to the
     /// coordinator so generation never needs to observe a SwiftUI-facing model directly.
     @Published private(set) var suggestWithinWords: Bool
+    /// A presentation choice, separate from request timing and prediction length. Keeping the
+    /// full prediction lets the session reveal its next word without waiting for another model run.
+    @Published private(set) var showFollowingWords: Bool
     /// Whether the inline `:emoji:` picker is active. Read live by `EmojiPickerController` at event
     /// time, so toggling it takes effect on the next keystroke without restarting capture.
     @Published private(set) var isEmojiPickerEnabled: Bool
@@ -240,6 +243,7 @@ final class SuggestionSettingsModel: ObservableObject {
         focusPollIntervalMilliseconds = data.focusPollIntervalMilliseconds
         isMultiLineEnabled = data.isMultiLineEnabled
         suggestWithinWords = data.suggestWithinWords
+        showFollowingWords = data.showFollowingWords
         isEmojiPickerEnabled = data.isEmojiPickerEnabled
         isMacroExpansionEnabled = data.isMacroExpansionEnabled
         preferredEmojiSkinTone = data.preferredEmojiSkinTone
@@ -318,6 +322,7 @@ final class SuggestionSettingsModel: ObservableObject {
         focusPollIntervalMilliseconds = data.focusPollIntervalMilliseconds
         isMultiLineEnabled = data.isMultiLineEnabled
         suggestWithinWords = data.suggestWithinWords
+        showFollowingWords = data.showFollowingWords
         isEmojiPickerEnabled = data.isEmojiPickerEnabled
         isMacroExpansionEnabled = data.isMacroExpansionEnabled
         preferredEmojiSkinTone = data.preferredEmojiSkinTone
@@ -391,6 +396,7 @@ final class SuggestionSettingsModel: ObservableObject {
                 focusPollIntervalMilliseconds: focusPollIntervalMilliseconds,
                 isMultiLineEnabled: isMultiLineEnabled,
                 suggestWithinWords: suggestWithinWords,
+                showFollowingWords: showFollowingWords,
                 autoAcceptTrailingPunctuation: autoAcceptTrailingPunctuation,
                 addSpaceAfterAccept: addSpaceAfterAccept,
                 streamSuggestionsWhileGenerating: streamSuggestionsWhileGenerating,
@@ -475,6 +481,7 @@ final class SuggestionSettingsModel: ObservableObject {
             focusPollIntervalMilliseconds: settings.completion.focusPollIntervalMilliseconds,
             isMultiLineEnabled: settings.completion.isMultiLineEnabled,
             suggestWithinWords: settings.completion.suggestWithinWords,
+            showFollowingWords: settings.completion.showFollowingWords,
             autoAcceptTrailingPunctuation: settings.completion.autoAcceptTrailingPunctuation,
             addSpaceAfterAccept: settings.completion.addSpaceAfterAccept,
             streamSuggestionsWhileGenerating: settings.completion.streamSuggestionsWhileGenerating,
@@ -822,6 +829,12 @@ final class SuggestionSettingsModel: ObservableObject {
         guard suggestWithinWords != enabled else { return }
         suggestWithinWords = enabled
         store.saveSuggestWithinWords(enabled)
+    }
+
+    func setShowFollowingWords(_ enabled: Bool) {
+        guard showFollowingWords != enabled else { return }
+        showFollowingWords = enabled
+        store.saveShowFollowingWords(enabled)
     }
 
     func setEmojiPickerEnabled(_ enabled: Bool) {
@@ -1547,9 +1560,9 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
             Publishers.CombineLatest4(
                 $debounceMilliseconds,
                 $focusPollIntervalMilliseconds,
-                // Request-timing choices travel together so the subscriber receives the incoming
+                // Typing choices travel together so the subscriber receives the incoming
                 // @Published value, rather than re-reading the model before its setter completes.
-                Publishers.CombineLatest($isMultiLineEnabled, $suggestWithinWords),
+                Publishers.CombineLatest3($isMultiLineEnabled, $suggestWithinWords, $showFollowingWords),
                 Publishers.CombineLatest3(
                     $autoAcceptTrailingPunctuation,
                     $addSpaceAfterAccept,
@@ -1586,7 +1599,7 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                 let (suppressOnTypo, offerCorrections, automaticallyFixTypos) = typoToggles
                 let (userName, customRules, responseLanguages, enabledSpellingDictionaryCodes) = profile
                 let (debounce, focusPoll, generationToggles, acceptToggles) = timing
-                let (multiLine, suggestWithinWords) = generationToggles
+                let (multiLine, suggestWithinWords, showFollowingWords) = generationToggles
                 let (autoAcceptPunctuation, addSpaceAfterAccept, streamWhileGenerating) = acceptToggles
                 let (isCustomActive, customLow, customHigh) = customRangeTuple
                 let (extendedContext, suggestInIntegratedTerminals, surfaceContextEnabled, lowPowerModeAutoDisableEnabled) =
@@ -1611,6 +1624,7 @@ extension SuggestionSettingsModel: SuggestionSettingsProviding {
                     focusPollIntervalMilliseconds: focusPoll,
                     isMultiLineEnabled: multiLine,
                     suggestWithinWords: suggestWithinWords,
+                    showFollowingWords: showFollowingWords,
                     autoAcceptTrailingPunctuation: autoAcceptPunctuation,
                     addSpaceAfterAccept: addSpaceAfterAccept,
                     streamSuggestionsWhileGenerating: streamWhileGenerating,

@@ -16,11 +16,13 @@ final class SuggestionCoordinatorWordCompletionTests: XCTestCase {
                         suppressCompletionsOnTypo: true, offerTypoCorrections: true))
                 let suffix = String(word.dropFirst(count))
                 rig.engine.resultProvider = { request in
-                    .init(generation: request.generation, rawText: suffix, text: suffix, latency: 0.01)
+                    let text = request.prefixText.hasSuffix(" ") ? "" : suffix
+                    return .init(generation: request.generation, rawText: text, text: text, latency: 0.01)
                 }
                 rig.coordinator.schedulePrediction()
                 await waitUntil("No word completion for \(prefix)") { rig.interactionState.activeSession != nil }
-                XCTAssertEqual(rig.engine.requests.count, 1, prefix)
+                XCTAssertEqual(rig.engine.requests.filter { $0.prefixText == "Please " + prefix }.count, 1, prefix)
+                XCTAssertTrue(rig.engine.requests.dropFirst().allSatisfy { $0.prefixText == "Please " + word + " " })
                 XCTAssertEqual(rig.interactionState.activeSession?.kind, .continuation, prefix)
                 XCTAssertEqual(rig.interactionState.activeSession?.remainingText, suffix, prefix)
                 XCTAssertTrue(rig.inserter.replacements.isEmpty, prefix)
@@ -36,7 +38,8 @@ final class SuggestionCoordinatorWordCompletionTests: XCTestCase {
         rig.coordinator.symSpellCorrector.loadForTesting(contents: "schedule 100\nscheduled 5\n")
         rig.engine.partialTexts = [" schedule", " schedule a meeting"]
         rig.engine.resultProvider = { request in
-            .init(generation: request.generation, rawText: " schedule a meeting", text: " schedule a meeting", latency: 0.01)
+            let text = request.prefixText == "Please schedule " ? "a meeting" : " schedule a meeting"
+            return .init(generation: request.generation, rawText: text, text: text, latency: 0.01)
         }
         rig.coordinator.schedulePrediction()
         await waitUntil { rig.interactionState.activeSession != nil }
@@ -121,7 +124,8 @@ final class SuggestionCoordinatorWordCompletionTests: XCTestCase {
         XCTAssertEqual(rig.inserter.replacements.map(\.text), ["receive "])
         XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion(), "Rapid Tab should wait for the continuation.")
         await waitUntil { rig.focusProvider.refreshCount > 0 }
-        XCTAssertTrue(rig.engine.requests.isEmpty, "Pre-replacement AX must never drive a new request.")
+        XCTAssertTrue(rig.engine.requests.allSatisfy { $0.prefixText == "Please receive " },
+            "Lookahead must use the corrected word, never stale pre-replacement AX.")
         XCTAssertNil(rig.interactionState.activeSession)
 
         publishText("Please receive ", in: rig)
@@ -178,7 +182,7 @@ final class SuggestionCoordinatorWordCompletionTests: XCTestCase {
             try? await Task.sleep(nanoseconds: 500_000_000)
             XCTAssertEqual(rig.inserter.replacements.count, 1)
             XCTAssertNil(rig.interactionState.activeSession)
-            XCTAssertTrue(rig.engine.requests.isEmpty)
+            XCTAssertEqual(rig.engine.requests.map(\.prefixText), ["Please receive "])
             XCTAssertFalse(rig.coordinator.postExhaustionAcceptanceState.isArmed)
             rig.coordinator.stop()
         }

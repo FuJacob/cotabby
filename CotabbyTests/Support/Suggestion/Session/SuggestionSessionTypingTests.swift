@@ -56,4 +56,37 @@ final class SuggestionSessionTypingTests: XCTestCase {
         XCTAssertNil(SuggestionSessionReconciler.advanceIfTypedCharactersMatch("r", session: session))
         XCTAssertNil(SuggestionSessionReconciler.advanceIfTypedCharactersMatch("receive", session: session))
     }
+
+    func test_typedTextCanCrossTheInitialVisibleBoundaryWithoutDiscardingFollowingWords() throws {
+        let session = ActiveSuggestionSession(
+            baseContext: CotabbyTestFixtures.focusedInputContext(precedingText: "Make a flux"),
+            fullText: "beam for the device",
+            initialVisibleCharacterCount: 4,
+            latency: 0
+        )
+
+        let advanced = try XCTUnwrap(SuggestionSessionReconciler.advanceIfTypedCharactersMatch(
+            "beam for", session: session
+        ))
+
+        XCTAssertEqual(advanced.remainingText, " the device")
+        XCTAssertEqual(advanced.consumedCharacterCount, 8)
+        XCTAssertFalse(advanced.isExhausted)
+    }
+
+    func test_typingThroughOneWordRevealsOnlyTheNextWordInOneWordMode() throws {
+        let session = ActiveSuggestionSession(
+            baseContext: CotabbyTestFixtures.focusedInputContext(),
+            fullText: " hello world again",
+            showFollowingWords: false,
+            latency: 0
+        )
+
+        let advanced = try XCTUnwrap(SuggestionSessionReconciler.advanceIfTypedCharactersMatch(
+            " hello ", session: session
+        ))
+
+        XCTAssertEqual(advanced.remainingText, "world")
+        XCTAssertEqual(advanced.predictedRemainingText, "world again")
+    }
 }

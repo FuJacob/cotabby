@@ -144,6 +144,12 @@ final class SuggestionCoordinator: ObservableObject {
     /// stands down instead of scheduling a duplicate regeneration.
     var pendingSpeculativeSignature: String?
 
+    /// One bounded next-word request can outlive consumption of its source word. It has its own
+    /// work identity so accepting a correction does not cancel the answer being prepared for it.
+    /// Normal edits, dismissal, focus changes, and settings changes cancel both work controllers.
+    let continuationWorkController = SuggestionWorkController()
+    var preparedContinuation: PreparedContinuation?
+
     /// Pure state for the bounded "keep owning Tab" window after a final-chunk acceptance. The
     /// coordinator continues to own the timer and input-monitor effects around these transitions.
     var postExhaustionAcceptanceState = PostExhaustionAcceptanceState()

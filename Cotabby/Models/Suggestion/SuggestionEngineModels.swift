@@ -144,6 +144,9 @@ struct SuggestionSettingsSnapshot: Equatable, Sendable {
     /// request-timing policy from its current snapshot; matching an already visible tail remains
     /// independent so turning it off does not make ghost text disappear while the user follows it.
     let suggestWithinWords: Bool
+    /// Whether a preview includes following words. Turning this off reveals one word at a time;
+    /// the session keeps the complete prediction ready so finishing that word needs no new request.
+    let showFollowingWords: Bool
     /// When true (the default), accepting a word also takes punctuation attached to it. When false,
     /// trailing punctuation is left as its own acceptance part so a single Tab takes the word alone.
     let autoAcceptTrailingPunctuation: Bool

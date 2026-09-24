@@ -41,6 +41,8 @@ struct SuggestionCompletionSettings: Equatable {
     var isMultiLineEnabled: Bool
     /// Controls when new generation may start; a visible suggestion still follows matching typing.
     var suggestWithinWords: Bool
+    /// Limits the visible preview, while the session retains following words for subsequent typing.
+    var showFollowingWords: Bool
     var autoAcceptTrailingPunctuation: Bool
     var addSpaceAfterAccept: Bool
     var streamSuggestionsWhileGenerating: Bool
@@ -244,6 +246,11 @@ extension SuggestionSettingsData {
     var suggestWithinWords: Bool {
         get { completion.suggestWithinWords }
         set { completion.suggestWithinWords = newValue }
+    }
+
+    var showFollowingWords: Bool {
+        get { completion.showFollowingWords }
+        set { completion.showFollowingWords = newValue }
     }
 
     var autoAcceptTrailingPunctuation: Bool {

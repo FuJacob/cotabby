@@ -151,7 +151,10 @@ extension SuggestionCoordinator {
         lastAcceptanceAt = Date()
         focusModel.invalidateTransientCaretCaches()
 
-        cancelPredictionWork()
+        if preparedContinuation == nil, sessionForAcceptance.advancing(by: acceptedChunk.count).isExhausted {
+            prepareContinuation(after: sessionForAcceptance, rawContext: rawContext)
+        }
+        cancelPredictionWork(preservingContinuation: true)
 
         switch interactionState.commitAcceptedChunk(
             acceptedChunk,
@@ -159,8 +162,9 @@ extension SuggestionCoordinator {
             session: sessionForAcceptance
         ) {
         case .exhausted:
+            let hasPreparedContinuation = markPreparedContinuationCommitted(after: sessionForAcceptance)
             latestGenerationNumber = liveContext.generation
-            clearSuggestion(clearDiagnostics: false)
+            clearSuggestion(clearDiagnostics: false, preservingContinuation: hasPreparedContinuation)
             hideOverlay(reason: "Overlay hidden because \(keyName) accepted the final suggestion chunk.")
             state = .idle
             // Remember what we just committed and the text it followed. `apply` consumes this to drop
@@ -192,10 +196,9 @@ extension SuggestionCoordinator {
             // Start the continuation against the text the host is about to publish instead of
             // idling through the publish poll first; the poll below validates the bet (see
             // dispatchSpeculativePostAcceptanceGeneration).
-            dispatchSpeculativePostAcceptanceGeneration(
-                rawContext: rawContext,
-                insertionChunk: insertionText
-            )
+            if !hasPreparedContinuation {
+                dispatchSpeculativePostAcceptanceGeneration(rawContext: rawContext, insertionChunk: insertionText)
+            }
             // Wait for the host to actually publish the inserted text before regenerating. A bare
             // `schedulePrediction()` here reads pre-insertion AX in Chromium editors (the publish lags
             // the synthetic keystroke), so the model re-proposes the word just accepted and the next
@@ -244,7 +247,7 @@ extension SuggestionCoordinator {
         }
         return SuggestionSessionReconciler.acceptanceChunkConsumingTrailingSpace(
             chunk,
-            remainingText: session.remainingText
+            remainingText: session.predictedRemainingText
         )
     }
 
@@ -371,7 +374,8 @@ extension SuggestionCoordinator {
         // length, closes the window where a keystroke between the last AX poll and this Tab swapped
         // in a different same-length word; if it diverged, pass the key through rather than delete
         // the wrong text.
-        guard case let .correction(typoWord) = session.kind,
+        guard correctionSessionMatches(session, rawContext: rawContext),
+              case let .correction(typoWord) = session.kind,
               let replacement = TypoCorrectionReplacementPlanner.plan(
                   precedingText: rawContext.precedingText,
                   expectedTypo: typoWord,
@@ -402,9 +406,11 @@ extension SuggestionCoordinator {
 
         lastAcceptanceAt = Date()
         focusModel.invalidateTransientCaretCaches()
-        cancelPredictionWork()
+        if preparedContinuation == nil { prepareContinuation(after: session, rawContext: rawContext) }
+        cancelPredictionWork(preservingContinuation: true)
+        let hasPreparedContinuation = markPreparedContinuationCommitted(after: session)
         latestGenerationNumber = session.baseContext.generation
-        clearSuggestion(clearDiagnostics: false)
+        clearSuggestion(clearDiagnostics: false, preservingContinuation: hasPreparedContinuation)
         hideOverlay(reason: "Overlay hidden because \(keyName) accepted a typo correction.")
         state = .idle
         let workID = currentWorkID
@@ -541,9 +547,10 @@ extension SuggestionCoordinator {
             return false
         }
 
-        cancelPredictionWork()
+        cancelPredictionWork(preservingContinuation: true)
 
         if advancedSession.isExhausted {
+            markPreparedContinuationCommitted(after: session)
             completeActiveSuggestion(
                 reason: "Overlay hidden because the user typed through the rest of the suggestion.",
                 scheduleNextPrediction: true,
@@ -604,7 +611,7 @@ extension SuggestionCoordinator {
         message: String
     ) {
         let generation = latestGenerationNumber
-        clearSuggestion(clearDiagnostics: false)
+        clearSuggestion(clearDiagnostics: false, preservingContinuation: preparedContinuation?.awaitingCommit == true)
         hideOverlay(reason: reason)
         state = .idle
         logStage(stage, workID: currentWorkID, generation: generation, message: message)
