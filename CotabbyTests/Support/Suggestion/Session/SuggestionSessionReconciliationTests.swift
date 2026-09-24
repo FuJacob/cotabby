@@ -293,6 +293,30 @@ final class SuggestionSessionReconciliationTests: XCTestCase {
         XCTAssertNil(nextPending)
     }
 
+    func test_pendingTypedInputNeverToleratesUnrelatedEditsOrAnEarlierPublishedPrefix() {
+        let session = CotabbyTestFixtures.activeSession(fullText: " world again", consumedCharacterCount: 7,
+                                                       basePrecedingText: "Hello", baseTrailingText: " tail")
+        let invalidContexts = [
+            CotabbyTestFixtures.focusedInputContext(precedingText: "Hello world", trailingText: " changed"),
+            CotabbyTestFixtures.focusedInputContext(precedingText: "Goodbye", trailingText: " tail"),
+            CotabbyTestFixtures.focusedInputContext(precedingText: "Hello there", trailingText: " tail"),
+            CotabbyTestFixtures.focusedInputContext(precedingText: "Hello", trailingText: " tail"),
+            CotabbyTestFixtures.focusedInputContext(precedingText: "Hello world", trailingText: " tail", focusChangeSequence: 2),
+            CotabbyTestFixtures.focusedInputContext(precedingText: "Hello world", trailingText: " tail",
+                                                    selection: NSRange(location: 11, length: 1))
+        ]
+
+        for context in invalidContexts {
+            let result = SuggestionSessionReconciler.reconcile(
+                session: session, with: context, pendingInsertionConsumedCount: nil,
+                pendingTypedConsumedRange: 6..<7
+            )
+            guard case .invalid = result else {
+                return XCTFail("Typed-input lag must not excuse a changed field or text: \(context.precedingText)")
+            }
+        }
+    }
+
     private func assertInvalid(
         _ reconciliation: SuggestionSessionReconciliation,
         reason expectedReason: String,

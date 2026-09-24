@@ -292,12 +292,13 @@ extension SuggestionCoordinator {
     ///
     /// We now snapshot the AX state at keystroke time (focused element identity, preceding text,
     /// selection) and poll `focusModel` until the snapshot actually moves on. The poll is capped
-    /// at `hostPublishWaitCeilingMs` so a silent host can't hang the pipeline — once the cap is
-    /// reached we generate against whatever's there, matching the old fixed-delay behavior.
+    /// at `hostPublishWaitCeilingMs` so a silent host can't hang the pipeline. Ordinary input can
+    /// fall back to the latest snapshot; correction callers require changed text and abandon the
+    /// refresh on timeout so stale AX cannot repeatedly correct the same word.
     /// `schedulePrediction()` internally `replaceDebouncedWork`s, so back-to-back keystrokes
     /// still collapse cleanly. The `hostPublishPollGeneration` token adds the missing outer
     /// coalescing layer: only the newest keystroke's polling chain may keep reading AX.
-    func schedulePredictionAfterHostPublishDelay() {
+    func schedulePredictionAfterHostPublishDelay(requiresTextChange: Bool = false) {
         hostPublishPollGeneration &+= 1
         let pollGeneration = hostPublishPollGeneration
         let baseline = focusModel.snapshot.context
@@ -320,6 +321,7 @@ extension SuggestionCoordinator {
                     precedingText: baseline?.precedingText,
                     elementIdentifier: baseline?.elementIdentifier,
                     selectionLocation: baseline?.selection.location,
+                    requiresTextChange: requiresTextChange,
                     keystrokeUptimeNanoseconds: keystrokeUptimeNanoseconds
                 ),
                 pollGeneration: pollGeneration,
@@ -334,6 +336,9 @@ extension SuggestionCoordinator {
         let precedingText: String?
         let elementIdentifier: String?
         let selectionLocation: Int?
+        /// Correction must never run again against the same pre-replacement text on timeout.
+        /// Ordinary keystrokes retain their fallback for hosts that publish no observable change.
+        let requiresTextChange: Bool
         let keystrokeUptimeNanoseconds: UInt64
     }
 
@@ -361,7 +366,7 @@ extension SuggestionCoordinator {
         let textChanged = currentContext?.precedingText != baseline.precedingText
         let elementChanged = currentContext?.elementIdentifier != baseline.elementIdentifier
         let selectionChanged = currentContext?.selection.location != baseline.selectionLocation
-        if textChanged || elementChanged || selectionChanged {
+        if textChanged || elementChanged || (selectionChanged && !baseline.requiresTextChange) {
             // The publish arrived. When it matches the snapshot a speculative post-acceptance
             // generation was built against, that generation is already in flight (or applied) for
             // exactly this content: scheduling another would only retire it and pay the full
@@ -393,6 +398,13 @@ extension SuggestionCoordinator {
         let interval = Self.hostPublishPollIntervalMs
         let nextElapsed = elapsedMs + interval
         guard nextElapsed < Self.hostPublishWaitCeilingMs else {
+            if baseline.requiresTextChange {
+                // A delayed or rejected replacement must not become a loop of correcting the
+                // same stale word. Let the next real input restart prediction, and release any
+                // queued Tab now instead of accepting a second copy of the correction.
+                releasePostExhaustionAcceptanceWindow()
+                return
+            }
             schedulePrediction(
                 consumedDelayMilliseconds: Self.elapsedMilliseconds(since: baseline.keystrokeUptimeNanoseconds)
             )

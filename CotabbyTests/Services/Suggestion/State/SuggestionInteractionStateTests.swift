@@ -117,4 +117,82 @@ final class SuggestionInteractionStateAcceptanceGuardTests: XCTestCase {
         let state = makeState()
         XCTAssertNil(state.reconcileActiveSession(with: CotabbyTestFixtures.focusedInputSnapshot()))
     }
+
+    func test_matchingSpaceAndLetterSurviveStaleAXUntilTypedPrefixPublishes() throws {
+        let state = makeState()
+        let snapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello")
+        let session = state.startSession(fullText: " world again",
+                                        liveContext: FocusedInputContext(snapshot: snapshot, generation: 1), latency: 0)
+        let spaced = try XCTUnwrap(state.advanceIfTypedCharactersMatch(" ", expectedSession: session))
+        _ = state.advanceIfTypedCharactersMatch("w", expectedSession: spaced)
+
+        for stalePrefix in ["Hello", "Hello "] {
+            let result = state.reconcileActiveSession(
+                with: CotabbyTestFixtures.focusedInputSnapshot(precedingText: stalePrefix)
+            )
+            guard case let .valid(_, kept, _) = result else {
+                return XCTFail("A not-yet-published matching key should retain the continuation")
+            }
+            XCTAssertEqual(kept.remainingText, "orld again")
+            XCTAssertTrue(state.isAwaitingPostInsertionSync)
+            XCTAssertNil(state.pendingInsertionConsumedCount, "Typing must not open synthetic-insertion tolerance")
+        }
+
+        guard case let .valid(_, published, _) = state.reconcileActiveSession(
+            with: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello w")
+        ) else { return XCTFail("Published matching input must reconcile") }
+        XCTAssertEqual(published.remainingText, "orld again")
+        XCTAssertFalse(state.isAwaitingPostInsertionSync)
+
+        guard case .invalid = state.reconcileActiveSession(with: snapshot) else {
+            return XCTFail("After publication, deleting the typed prefix must invalidate the session")
+        }
+    }
+
+    func test_acceptanceAfterMatchingTypedSpaceUsesTailWhileAXStillLags() {
+        let state = makeState()
+        let snapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello")
+        let session = state.startSession(fullText: " world again",
+                                        liveContext: FocusedInputContext(snapshot: snapshot, generation: 1), latency: 0)
+        _ = state.advanceIfTypedCharactersMatch(" ", expectedSession: session)
+
+        guard case let .ready(_, prepared, chunk) = state.prepareAcceptance(
+            from: snapshot, overlayState: visibleOverlay(text: "world again", for: snapshot), granularity: .word
+        ) else { return XCTFail("A rapid Tab should still accept after the matching space") }
+        XCTAssertEqual(prepared.remainingText, "world again")
+        XCTAssertEqual(chunk, "world")
+    }
+
+    func test_matchingTypingAfterTabPreservesOutstandingInsertionPublication() throws {
+        let state = makeState()
+        let snapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello")
+        let context = FocusedInputContext(snapshot: snapshot, generation: 1)
+        let session = state.startSession(fullText: " world again", liveContext: context, latency: 0)
+        _ = state.commitAcceptedChunk(" world", liveContext: context, session: session)
+        let afterAccept = try XCTUnwrap(state.activeSession)
+        _ = state.advanceIfTypedCharactersMatch(" ", expectedSession: afterAccept)
+
+        XCTAssertEqual(state.pendingInsertionConsumedCount, 7)
+        guard case let .valid(_, kept, _) = state.reconcileActiveSession(with: snapshot) else {
+            return XCTFail("Typing ahead must not retire a still-pending Tab insertion")
+        }
+        XCTAssertEqual(kept.remainingText, "again")
+
+        _ = state.reconcileActiveSession(with: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello world "))
+        XCTAssertFalse(state.isAwaitingPostInsertionSync)
+    }
+
+    func test_clearSuggestionRetiresPendingTypedInput() {
+        let state = makeState()
+        let snapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello")
+        let session = state.startSession(fullText: " world again",
+                                        liveContext: FocusedInputContext(snapshot: snapshot, generation: 1), latency: 0)
+        _ = state.advanceIfTypedCharactersMatch(" ", expectedSession: session)
+        XCTAssertTrue(state.isAwaitingPostInsertionSync)
+
+        state.clearSuggestion()
+
+        XCTAssertNil(state.activeSession)
+        XCTAssertFalse(state.isAwaitingPostInsertionSync)
+    }
 }

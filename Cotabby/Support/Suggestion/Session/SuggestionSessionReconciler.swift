@@ -33,7 +33,9 @@ enum SuggestionSessionReconciler {
         _ typedCharacters: String,
         session: ActiveSuggestionSession
     ) -> ActiveSuggestionSession? {
-        guard typedCharacters.isDirectTextMutation else {
+        // A correction replaces an existing word; matching its first letters is not acceptance
+        // of an append-only tail. Only continuations can advance optimistically from key events.
+        guard !session.kind.isCorrection, typedCharacters.isDirectTextMutation else {
             return nil
         }
 
@@ -49,7 +51,8 @@ enum SuggestionSessionReconciler {
     static func reconcile(
         session: ActiveSuggestionSession,
         with liveContext: FocusedInputContext,
-        pendingInsertionConsumedCount: Int?
+        pendingInsertionConsumedCount: Int?,
+        pendingTypedConsumedRange: Range<Int>? = nil
     ) -> SuggestionSessionReconciliation {
         let isAwaitingInsertedTextSync = pendingInsertionConsumedCount == session.consumedCharacterCount
 
@@ -100,6 +103,18 @@ enum SuggestionSessionReconciler {
         }
 
         guard consumedSuffix.count >= session.consumedCharacterCount else {
+            // The tap observes a matching character before the host handles it. A stale AX prefix
+            // is therefore expected until that character publishes. Unlike synthetic insertion,
+            // ordinary typing never excuses a changed prefix, suffix, selection, or focus event:
+            // all those guards have already passed before this narrowly scoped tolerance applies.
+            if pendingTypedConsumedRange?.upperBound == session.consumedCharacterCount,
+               pendingTypedConsumedRange?.contains(consumedSuffix.count) == true,
+               liveContext.focusChangeSequence == session.baseContext.focusChangeSequence {
+                return tolerateTransientPostInsertionLag(
+                    session: session,
+                    pendingInsertionConsumedCount: pendingInsertionConsumedCount
+                )
+            }
             // Same AX lag protection: if we just Tab-inserted, the preceding text hasn't updated yet.
             if isAwaitingInsertedTextSync {
                 return tolerateTransientPostInsertionLag(

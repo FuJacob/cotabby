@@ -75,6 +75,16 @@ struct GeneralPaneView: View {
             }
 
             Section("Suggestions") {
+                Toggle(isOn: suggestWithinWordsBinding) {
+                    SettingsRowLabel(
+                        title: "Suggest while typing a word",
+                        description: "Show new suggestions before you finish a word. Turn off to wait for a space " +
+                            "or punctuation. Suggestions already on screen still follow your typing.",
+                        systemImage: "text.cursor"
+                    )
+                }
+                .settingsItem(.suggestWithinWords)
+
                 Toggle(isOn: multiLineEnabledBinding) {
                     SettingsRowLabel(
                         title: "Allow Multi-line Suggestions",
@@ -191,6 +201,13 @@ struct GeneralPaneView: View {
         Binding(
             get: { suggestionSettings.isMultiLineEnabled },
             set: { suggestionSettings.setMultiLineEnabled($0) }
+        )
+    }
+
+    private var suggestWithinWordsBinding: Binding<Bool> {
+        Binding(
+            get: { suggestionSettings.suggestWithinWords },
+            set: { suggestionSettings.setSuggestWithinWords($0) }
         )
     }
 

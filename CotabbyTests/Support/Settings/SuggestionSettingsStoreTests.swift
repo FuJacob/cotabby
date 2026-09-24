@@ -16,6 +16,23 @@ final class SuggestionSettingsStoreTests: XCTestCase {
     // @MainActor test blocks the main actor while the host app is still doing its own main-actor
     // startup, which can crash the native runtime. Yielding cooperatively avoids that.
 
+    // MARK: - Suggestion timing
+
+    func test_suggestWithinWords_preservesDefaultUserChoiceAndReset() async {
+        let defaults = makeIsolatedDefaults()
+        let store = SuggestionSettingsStore(userDefaults: defaults)
+
+        XCTAssertTrue(store.load(configuration: .standard).suggestWithinWords)
+        XCTAssertEqual(defaults.object(forKey: "cotabbySuggestWithinWords") as? Bool, true)
+
+        store.saveSuggestWithinWords(false)
+        XCTAssertFalse(store.load(configuration: .standard).suggestWithinWords)
+        XCTAssertEqual(defaults.object(forKey: "cotabbySuggestWithinWords") as? Bool, false)
+
+        XCTAssertTrue(store.resetToDefaults(configuration: .standard).suggestWithinWords)
+        XCTAssertEqual(defaults.object(forKey: "cotabbySuggestWithinWords") as? Bool, true)
+    }
+
     // MARK: - Word-count preset migration (#475)
 
     func test_load_migratesRetiredShortPresetToFourToSeven() async {

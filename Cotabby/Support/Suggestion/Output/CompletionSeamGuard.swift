@@ -98,8 +98,8 @@ nonisolated enum CompletionSeamGuard {
     }
 
     /// One decision is consumed by the streaming, final, and cached-result paths. `wordOnly`
-    /// records conservative lexical evidence, not a calibrated model probability: a short prefix
-    /// or unknown word does not justify displaying an entire speculative phrase.
+    /// records conservative lexical evidence, not a calibrated model probability: an unknown
+    /// joined word can offer its ending without endorsing the following phrase.
     enum PresentationDecision: Equatable {
         case wait
         case suppress(Verdict)
@@ -170,7 +170,11 @@ nonisolated enum CompletionSeamGuard {
         if word.first?.isLowercase == true, word.count >= minimumSeamWordLength, assessment == .correctableTypo {
             return .suppress(.seamMisspelling(word: word))
         }
-        let wordOnly = prefix.count < 3 || assessment != .known
+        // Judge the complete joined word, not how many letters the writer has typed. Once `b`
+        // + `uild` is a credible word, throwing away ` a spaceship` forces another generation
+        // after acceptance and makes the same phrase behave differently at `b`, `bu`, and `bui`.
+        // Unknown names and vocabulary still get the conservative ending-only presentation.
+        let wordOnly = assessment != .known
         return .show(text: wordOnly ? String(ending) : completion, wordOnly: wordOnly)
     }
 

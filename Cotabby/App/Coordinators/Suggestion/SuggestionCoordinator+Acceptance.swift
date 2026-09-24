@@ -181,13 +181,20 @@ extension SuggestionCoordinator {
             // swallowed and queued instead of leaking into the host app as a real Tab. Must run
             // *after* the `hideOverlay` above, which routes through `onStateChange(.hidden)` and
             // turns interception off; arming re-asserts it. See `armPostExhaustionAcceptance`.
-            armPostExhaustionAcceptance()
+            let expected = SpeculativeAcceptanceContext.optimisticSnapshot(
+                after: rawContext, inserting: insertionText
+            )
+            if SuggestionRequestFactory.shouldGenerateSuggestion(
+                for: expected.precedingText, suggestWithinWords: settingsSnapshot.suggestWithinWords
+            ) {
+                armPostExhaustionAcceptance()
+            }
             // Start the continuation against the text the host is about to publish instead of
             // idling through the publish poll first; the poll below validates the bet (see
             // dispatchSpeculativePostAcceptanceGeneration).
             dispatchSpeculativePostAcceptanceGeneration(
                 rawContext: rawContext,
-                insertionChunk: insertionChunk
+                insertionChunk: insertionText
             )
             // Wait for the host to actually publish the inserted text before regenerating. A bare
             // `schedulePrediction()` here reads pre-insertion AX in Chromium editors (the publish lags
@@ -411,9 +418,12 @@ extension SuggestionCoordinator {
                 normalizedOutput: replacement.replacementText
             )
         }
-        // Re-arm prediction so the next keystroke can produce a fresh continuation now that the typo
-        // is gone — the user usually keeps typing right after accepting.
-        schedulePrediction()
+        // Replacement publishes asynchronously through Accessibility, just like accepting a
+        // completion. Wait for that edit before predicting, or a fast engine can offer the same
+        // correction again. Keep the same bounded Tab handoff used after a final word accept so
+        // a second quick Tab can accept the next word instead of moving focus out of the editor.
+        armPostExhaustionAcceptance()
+        schedulePredictionAfterHostPublishDelay(requiresTextChange: true)
         return true
     }
 

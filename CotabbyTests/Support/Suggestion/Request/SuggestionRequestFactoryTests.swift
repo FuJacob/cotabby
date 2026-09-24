@@ -69,11 +69,19 @@ final class SuggestionRequestFactoryTests: XCTestCase {
         XCTAssertTrue(SuggestionRequestFactory.shouldGenerateSuggestion(for: "Hello, wor"))
     }
 
-    /// The key documented behavior: no trailing-space requirement. If this
-    /// test starts failing, someone added a settling heuristic that belongs
-    /// in the debounce layer, not here.
+    /// The default remains eligible before a delimiter; users can opt into boundary-only requests.
     func test_shouldGenerate_trueMidWordWithoutTrailingSpace() {
         XCTAssertTrue(SuggestionRequestFactory.shouldGenerateSuggestion(for: "word"))
+    }
+
+    func test_boundaryPreferenceWaitsForDelimiterButPreservesUnspacedLanguages() {
+        for text in ["w", "word", "Please schedu", "I don't"] {
+            XCTAssertFalse(SuggestionRequestFactory.shouldGenerateSuggestion(for: text, suggestWithinWords: false), text)
+        }
+        for text in ["word ", "word,", "word.", "word\n", "今日は"] {
+            XCTAssertTrue(SuggestionRequestFactory.shouldGenerateSuggestion(for: text, suggestWithinWords: false), text)
+        }
+        XCTAssertFalse(SuggestionRequestFactory.shouldGenerateSuggestion(for: "  ", suggestWithinWords: false))
     }
 
     func test_shouldGenerate_trueWhenLeadingWhitespacePrecedesRealContent() {

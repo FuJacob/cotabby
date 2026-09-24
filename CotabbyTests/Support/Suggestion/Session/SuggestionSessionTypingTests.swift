@@ -44,4 +44,16 @@ final class SuggestionSessionTypingTests: XCTestCase {
 
         XCTAssertNil(SuggestionSessionReconciler.advanceIfTypedCharactersMatch("", session: session))
     }
+
+    func test_advanceIfTypedCharactersMatch_neverConsumesACorrection() {
+        let session = ActiveSuggestionSession(
+            baseContext: CotabbyTestFixtures.focusedInputContext(precedingText: "Please recieve "),
+            fullText: "receive",
+            latency: 0,
+            kind: .correction(typoWord: "recieve")
+        )
+
+        XCTAssertNil(SuggestionSessionReconciler.advanceIfTypedCharactersMatch("r", session: session))
+        XCTAssertNil(SuggestionSessionReconciler.advanceIfTypedCharactersMatch("receive", session: session))
+    }
 }

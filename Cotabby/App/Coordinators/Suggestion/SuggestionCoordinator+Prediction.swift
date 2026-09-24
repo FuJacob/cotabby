@@ -86,10 +86,21 @@ extension SuggestionCoordinator {
             return
         }
 
-        guard SuggestionRequestFactory.shouldGenerateSuggestion(for: rawContext.precedingText) else {
-            clearSuggestion()
-            hideOverlay(reason: "Overlay hidden because the field has no typed text yet.")
-            state = .idle
+        guard SuggestionRequestFactory.shouldGenerateSuggestion(
+            for: rawContext.precedingText, suggestWithinWords: settingsSnapshot.suggestWithinWords
+        ) else {
+            // A visual-context refresh may ask for new work while a valid tail is visible.
+            // The boundary preference quiets new suggestions without interrupting type-through.
+            if interactionState.activeSession != nil {
+                reconcileActiveSession(with: snapshot)
+            } else {
+                clearSuggestion()
+                let isEmpty = rawContext.precedingText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                hideOverlay(reason: isEmpty
+                    ? "Overlay hidden because the field has no typed text yet."
+                    : "Overlay hidden while waiting for a word boundary.")
+                state = .idle
+            }
             return
         }
 
@@ -217,7 +228,9 @@ extension SuggestionCoordinator {
         // speculative request must not spend a decode on text the normal path would refuse (too
         // little text) or suppress (typo gate). The post-publish regeneration still runs the full
         // gate with its correction semantics; declining here only skips the speculation.
-        guard SuggestionRequestFactory.shouldGenerateSuggestion(for: optimistic.precedingText) else {
+        guard SuggestionRequestFactory.shouldGenerateSuggestion(
+            for: optimistic.precedingText, suggestWithinWords: settingsSnapshot.suggestWithinWords
+        ) else {
             return
         }
         if settingsSnapshot.suppressCompletionsOnTypo,
@@ -567,7 +580,7 @@ extension SuggestionCoordinator {
         )
         // Synthetic replacement is asynchronous from the host editor's perspective. Poll until AX
         // publishes the corrected text before asking for the next continuation.
-        schedulePredictionAfterHostPublishDelay()
+        schedulePredictionAfterHostPublishDelay(requiresTextChange: true)
     }
 
     /// Presents a native spell-checker correction as a replace-the-word suggestion, with no model

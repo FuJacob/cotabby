@@ -140,6 +140,10 @@ struct SuggestionSettingsSnapshot: Equatable, Sendable {
     let debounceMilliseconds: Int
     let focusPollIntervalMilliseconds: Int
     let isMultiLineEnabled: Bool
+    /// Whether new suggestions may start inside an unfinished word. The coordinator reads this
+    /// request-timing policy from its current snapshot; matching an already visible tail remains
+    /// independent so turning it off does not make ghost text disappear while the user follows it.
+    let suggestWithinWords: Bool
     /// When true (the default), accepting a word also takes punctuation attached to it. When false,
     /// trailing punctuation is left as its own acceptance part so a single Tab takes the word alone.
     let autoAcceptTrailingPunctuation: Bool

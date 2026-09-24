@@ -129,6 +129,7 @@ struct SuggestionSettingsStore {
     private static let debounceMillisecondsDefaultsKey = "cotabbyDebounceMilliseconds"
     private static let focusPollIntervalMillisecondsDefaultsKey = "cotabbyFocusPollIntervalMilliseconds"
     private static let multiLineEnabledDefaultsKey = "cotabbyMultiLineEnabled"
+    private static let suggestWithinWordsDefaultsKey = "cotabbySuggestWithinWords"
     private static let emojiPickerEnabledDefaultsKey = "cotabbyEmojiPickerEnabled"
     private static let macroExpansionEnabledDefaultsKey = "cotabbyMacroExpansionEnabled"
     private static let preferredEmojiSkinToneDefaultsKey = "cotabbyPreferredEmojiSkinTone"
@@ -204,6 +205,7 @@ struct SuggestionSettingsStore {
         debounceMillisecondsDefaultsKey,
         focusPollIntervalMillisecondsDefaultsKey,
         multiLineEnabledDefaultsKey,
+        suggestWithinWordsDefaultsKey,
         emojiPickerEnabledDefaultsKey,
         macroExpansionEnabledDefaultsKey,
         preferredEmojiSkinToneDefaultsKey,
@@ -412,6 +414,9 @@ struct SuggestionSettingsStore {
         }()
 
         let resolvedMultiLineEnabled = userDefaults.object(forKey: Self.multiLineEnabledDefaultsKey) as? Bool ?? false
+        // Preserve word-completion behavior for existing installs while allowing users to wait
+        // until a word boundary before a new suggestion is generated.
+        let resolvedSuggestWithinWords = userDefaults.object(forKey: Self.suggestWithinWordsDefaultsKey) as? Bool ?? true
         let resolvedEmojiPickerEnabled = userDefaults.object(forKey: Self.emojiPickerEnabledDefaultsKey) as? Bool ?? true
         let resolvedMacroExpansionEnabled = userDefaults.object(forKey: Self.macroExpansionEnabledDefaultsKey) as? Bool ?? true
         let resolvedPreferredEmojiSkinTone = userDefaults.string(forKey: Self.preferredEmojiSkinToneDefaultsKey)
@@ -536,6 +541,7 @@ struct SuggestionSettingsStore {
                 debounceMilliseconds: resolvedDebounceMilliseconds,
                 focusPollIntervalMilliseconds: resolvedFocusPollIntervalMilliseconds,
                 isMultiLineEnabled: resolvedMultiLineEnabled,
+                suggestWithinWords: resolvedSuggestWithinWords,
                 autoAcceptTrailingPunctuation: resolvedAutoAcceptTrailingPunctuation,
                 addSpaceAfterAccept: resolvedAddSpaceAfterAccept,
                 streamSuggestionsWhileGenerating: resolvedStreamSuggestionsWhileGenerating,
@@ -631,6 +637,7 @@ struct SuggestionSettingsStore {
         saveDebounceMilliseconds(data.debounceMilliseconds)
         saveFocusPollIntervalMilliseconds(data.focusPollIntervalMilliseconds)
         saveMultiLineEnabled(data.isMultiLineEnabled)
+        saveSuggestWithinWords(data.suggestWithinWords)
         saveEmojiPickerEnabled(data.isEmojiPickerEnabled)
         saveMacroExpansionEnabled(data.isMacroExpansionEnabled)
         savePreferredEmojiSkinTone(data.preferredEmojiSkinTone)
@@ -896,6 +903,10 @@ struct SuggestionSettingsStore {
 
     func saveMultiLineEnabled(_ enabled: Bool) {
         userDefaults.set(enabled, forKey: Self.multiLineEnabledDefaultsKey)
+    }
+
+    func saveSuggestWithinWords(_ enabled: Bool) {
+        userDefaults.set(enabled, forKey: Self.suggestWithinWordsDefaultsKey)
     }
 
     func saveEmojiPickerEnabled(_ enabled: Bool) {

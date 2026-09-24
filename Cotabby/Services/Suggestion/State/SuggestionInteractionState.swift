@@ -3,7 +3,7 @@ import Foundation
 /// File overview:
 /// Owns the mutable interaction state that sits between Accessibility snapshots and a live
 /// suggestion session. This includes the buffered focused-input context, the active suggestion
-/// session, and the AX-lag sentinel used after partial Tab acceptance.
+/// session, and the AX-lag sentinels used after partial acceptance or matching typed input.
 ///
 /// The architectural lesson is that `SuggestionCoordinator` should orchestrate state transitions,
 /// not store every mutable implementation detail itself. This type becomes the home for that
@@ -14,6 +14,9 @@ final class SuggestionInteractionState {
 
     private(set) var activeSession: ActiveSuggestionSession?
     private(set) var pendingInsertionConsumedCount: Int?
+    /// Typed input only tolerates an older matching prefix. It must not inherit the broader
+    /// synthetic-insertion tolerance for temporarily inconsistent AX prefix/suffix slices.
+    private var pendingTypedConsumedRange: Range<Int>?
 
     init(contextBuffer: ContextBuffer? = nil) {
         // Default argument evaluation happens before entering the actor-isolated initializer body,
@@ -26,10 +29,10 @@ final class SuggestionInteractionState {
     }
 
     /// Exposes the higher-level meaning of `pendingInsertionConsumedCount` without leaking the
-    /// sentinel's storage detail to the coordinator. When this is true, Cotabby has already inserted
-    /// suggestion text and is waiting for Accessibility to publish a matching live snapshot.
+    /// sentinel's storage detail to the coordinator. When this is true, accepted or directly typed
+    /// suggestion text has advanced the ghost and Accessibility has not published it yet.
     var isAwaitingPostInsertionSync: Bool {
-        pendingInsertionConsumedCount != nil
+        pendingInsertionConsumedCount != nil || pendingTypedConsumedRange != nil
     }
 
     func materializeContext(from snapshot: FocusedInputSnapshot) -> FocusedInputContext {
@@ -39,6 +42,7 @@ final class SuggestionInteractionState {
     func clearSuggestion() {
         activeSession = nil
         pendingInsertionConsumedCount = nil
+        pendingTypedConsumedRange = nil
     }
 
     func resetAll() {
@@ -60,6 +64,7 @@ final class SuggestionInteractionState {
         )
         activeSession = session
         pendingInsertionConsumedCount = nil
+        pendingTypedConsumedRange = nil
         return session
     }
 
@@ -87,11 +92,13 @@ final class SuggestionInteractionState {
         switch SuggestionSessionReconciler.reconcile(
             session: activeSession,
             with: liveContext,
-            pendingInsertionConsumedCount: pendingInsertionConsumedCount
+            pendingInsertionConsumedCount: pendingInsertionConsumedCount,
+            pendingTypedConsumedRange: pendingTypedConsumedRange
         ) {
         case let .valid(reconciledSession, advancement, nextPendingInsertionConsumedCount):
             self.activeSession = reconciledSession
             pendingInsertionConsumedCount = nextPendingInsertionConsumedCount
+            clearPublishedTypedInput(in: liveContext, session: reconciledSession)
             return .valid(
                 liveContext: liveContext,
                 session: reconciledSession,
@@ -192,7 +199,8 @@ final class SuggestionInteractionState {
             switch SuggestionSessionReconciler.reconcile(
                 session: activeSession,
                 with: liveContext,
-                pendingInsertionConsumedCount: pendingInsertionConsumedCount
+                pendingInsertionConsumedCount: pendingInsertionConsumedCount,
+                pendingTypedConsumedRange: pendingTypedConsumedRange
             ) {
             case .invalid(let reason):
                 return SessionValidation(session: nil, failureReason: reason)
@@ -200,6 +208,7 @@ final class SuggestionInteractionState {
             case let .valid(reconciledSession, _, nextPendingInsertionConsumedCount):
                 self.activeSession = reconciledSession
                 pendingInsertionConsumedCount = nextPendingInsertionConsumedCount
+                clearPublishedTypedInput(in: liveContext, session: reconciledSession)
                 sessionForAcceptance = reconciledSession
             }
         } else {
@@ -228,6 +237,9 @@ final class SuggestionInteractionState {
     ) -> SuggestionAcceptedChunkProgress {
         let advancedSession = session.advancing(by: acceptedChunk.count)
         pendingInsertionConsumedCount = advancedSession.consumedCharacterCount
+        // The new synthetic insert now owns publication of the entire consumed prefix, including
+        // any matching characters typed immediately before this accept.
+        pendingTypedConsumedRange = nil
 
         if advancedSession.isExhausted {
             pendingInsertionConsumedCount = nil
@@ -255,7 +267,26 @@ final class SuggestionInteractionState {
         }
 
         self.activeSession = advancedSession
+        if pendingInsertionConsumedCount != nil {
+            // A matching key can arrive before a preceding Tab insert publishes. Keep that existing
+            // insertion window aimed at the latest consumed prefix instead of disabling it merely
+            // because the user typed one more expected character.
+            pendingInsertionConsumedCount = advancedSession.consumedCharacterCount
+        } else {
+            let firstUnpublishedCount = pendingTypedConsumedRange?.lowerBound ?? activeSession.consumedCharacterCount
+            pendingTypedConsumedRange = firstUnpublishedCount..<advancedSession.consumedCharacterCount
+        }
         return advancedSession
+    }
+
+    /// Retires typed-input tolerance as soon as AX contains the expected prefix. Later deletion of
+    /// those letters is then a real edit again, not an indefinitely tolerated publication delay.
+    private func clearPublishedTypedInput(in context: FocusedInputContext, session: ActiveSuggestionSession) {
+        guard let count = pendingTypedConsumedRange?.upperBound else { return }
+        let expectedPrefix = session.baseContext.precedingText + String(session.fullText.prefix(count))
+        if context.precedingText.hasPrefix(expectedPrefix) {
+            pendingTypedConsumedRange = nil
+        }
     }
 }
 

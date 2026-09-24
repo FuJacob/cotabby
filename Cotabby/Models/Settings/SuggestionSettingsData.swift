@@ -39,6 +39,8 @@ struct SuggestionCompletionSettings: Equatable {
     var debounceMilliseconds: Int
     var focusPollIntervalMilliseconds: Int
     var isMultiLineEnabled: Bool
+    /// Controls when new generation may start; a visible suggestion still follows matching typing.
+    var suggestWithinWords: Bool
     var autoAcceptTrailingPunctuation: Bool
     var addSpaceAfterAccept: Bool
     var streamSuggestionsWhileGenerating: Bool
@@ -237,6 +239,11 @@ extension SuggestionSettingsData {
     var isMultiLineEnabled: Bool {
         get { completion.isMultiLineEnabled }
         set { completion.isMultiLineEnabled = newValue }
+    }
+
+    var suggestWithinWords: Bool {
+        get { completion.suggestWithinWords }
+        set { completion.suggestWithinWords = newValue }
     }
 
     var autoAcceptTrailingPunctuation: Bool {

@@ -60,6 +60,7 @@ final class SuggestionSettingsModelTests: XCTestCase {
             model.setMenuBarWordCountVisible(false)
             model.setMirrorPreference(.alwaysMirror)
             model.setMultiLineEnabled(true)
+            model.setSuggestWithinWords(false)
             model.setEmojiPickerEnabled(false)
             model.setMacroExpansionEnabled(false)
             model.setPreferredEmojiSkinTone(.mediumDark)
@@ -107,6 +108,7 @@ final class SuggestionSettingsModelTests: XCTestCase {
         XCTAssertFalse(reloaded.isMenuBarWordCountVisible)
         XCTAssertEqual(reloaded.mirrorPreference, .alwaysMirror)
         XCTAssertTrue(reloaded.isMultiLineEnabled)
+        XCTAssertFalse(reloaded.suggestWithinWords)
         XCTAssertFalse(reloaded.isEmojiPickerEnabled)
         XCTAssertFalse(reloaded.isMacroExpansionEnabled)
         XCTAssertEqual(reloaded.preferredEmojiSkinTone, .mediumDark)
@@ -173,6 +175,7 @@ final class SuggestionSettingsModelTests: XCTestCase {
         model.setMenuBarWordCountVisible(false)
         model.setMirrorPreference(.alwaysMirror)
         model.setMultiLineEnabled(true)
+        model.setSuggestWithinWords(false)
         model.setEmojiPickerEnabled(false)
         model.setMacroExpansionEnabled(false)
         model.setPreferredEmojiSkinTone(.mediumDark)
@@ -227,6 +230,7 @@ final class SuggestionSettingsModelTests: XCTestCase {
         XCTAssertEqual(model.isMenuBarWordCountVisible, pristine.isMenuBarWordCountVisible)
         XCTAssertEqual(model.mirrorPreference, pristine.mirrorPreference)
         XCTAssertEqual(model.isMultiLineEnabled, pristine.isMultiLineEnabled)
+        XCTAssertEqual(model.suggestWithinWords, pristine.suggestWithinWords)
         XCTAssertEqual(model.isEmojiPickerEnabled, pristine.isEmojiPickerEnabled)
         XCTAssertEqual(model.isMacroExpansionEnabled, pristine.isMacroExpansionEnabled)
         XCTAssertEqual(model.preferredEmojiSkinTone, pristine.preferredEmojiSkinTone)
@@ -642,6 +646,27 @@ final class SuggestionSettingsModelTests: XCTestCase {
     }
 
     // MARK: - Snapshot publisher
+
+    func test_suggestWithinWords_publishesLivePolicyAndResetWithoutDuplicateEmissions() {
+        let model = makeModel()
+        var snapshots: [SuggestionSettingsSnapshot] = []
+        let subscription = model.snapshotPublisher.sink { snapshots.append($0) }
+        defer { subscription.cancel() }
+
+        XCTAssertEqual(snapshots.map(\.suggestWithinWords), [true])
+        model.setSuggestWithinWords(false)
+        XCTAssertEqual(snapshots.map(\.suggestWithinWords), [true, false])
+        XCTAssertEqual(snapshots.last, model.snapshot)
+        XCTAssertFalse(model.domainSettings.completion.suggestWithinWords)
+
+        model.setSuggestWithinWords(false)
+        XCTAssertEqual(snapshots.count, 2, "A repeated toggle value must not restart suggestion work")
+
+        model.resetToDefaults()
+        XCTAssertEqual(snapshots.map(\.suggestWithinWords), [true, false, true])
+        XCTAssertEqual(snapshots.last, model.snapshot)
+        XCTAssertTrue(makeModel().suggestWithinWords)
+    }
 
     func test_snapshotPublisher_emitsCurrentStateThenDistinctChangesOnly() {
         let model = makeModel()

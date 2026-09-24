@@ -150,7 +150,15 @@ remain under `CotabbyTests/Evals`, and shared fixtures remain under `CotabbyTest
   pausing alone never makes correction eligible.
 - `Support/Suggestion/Output/CompletionSeamGuard.swift` returns the same presentation decision for
   streamed and final output: wait for the first word, reject a malformed join, show a word ending,
-  or show a phrase. Dictionary membership is evidence, not a requirement for names and jargon.
+  or show a phrase. A recognized completed word keeps its following phrase even from a one-letter
+  prefix; unknown names and jargon can still show a conservative word ending.
+- `Support/Suggestion/Request/SuggestionRequestFactory.swift` applies the optional
+  `suggestWithinWords` preference to new ordinary and speculative requests. The completion settings
+  domain persists the choice, while active sessions remain free to follow matching typing.
+- `Services/Suggestion/State/SuggestionInteractionState.swift` holds a narrow range of typed
+  characters awaiting Accessibility publication. `SuggestionSessionReconciler` tolerates only an
+  older matching prefix during this handoff, so a typed space preserves the following words without
+  treating unrelated edits as acceptance. Correction sessions never participate in type-through.
 - `Support/Spelling/WordPrefixIndex.swift` supplies immutable exact-prefix candidates and bounded
   document/glossary vocabulary. `SymSpellCorrector` builds its index on the existing background
   dictionary queue; fallback never uses spelling edit distance or changes typed letters.

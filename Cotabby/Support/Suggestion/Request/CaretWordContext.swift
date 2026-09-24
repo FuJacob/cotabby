@@ -13,10 +13,14 @@ nonisolated enum CaretWordContext {
     /// space-delimited words are left to their existing completion paths.
     static func unfinishedWord(in text: String) -> String? {
         let token = String(text.reversed().prefix(while: { !$0.isWhitespace }).reversed())
-        guard !token.isEmpty, token.first?.isLetter == true,
-              token.allSatisfy({ $0.isLetter || isConnector($0) }),
-              !token.unicodeScalars.contains(where: isUnspacedScript) else { return nil }
-        return token
+        // An opening quote or parenthesis frames prose; it does not finish the word being typed.
+        // Strip only leading prose openers so `(wor` shares the normal mid-word timing and seam
+        // checks, while embedded punctuation in `call(wor`, URLs, and identifiers stays excluded.
+        let word = token.drop(while: { "(\"'“‘«‹".contains($0) })
+        guard !word.isEmpty, word.first?.isLetter == true,
+              word.allSatisfy({ $0.isLetter || isConnector($0) }),
+              !word.unicodeScalars.contains(where: isUnspacedScript) else { return nil }
+        return String(word)
     }
 
     /// Deliberately bounded: after another whitespace character the writer has moved on.

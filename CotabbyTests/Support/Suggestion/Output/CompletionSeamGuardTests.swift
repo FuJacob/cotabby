@@ -462,12 +462,121 @@ final class CompletionSeamGuardTests: XCTestCase {
         }
     }
 
-    func testShortOrUnknownWordOnlyShowsItsEnding() {
-        XCTAssertEqual(CompletionSeamGuard.presentation(precedingText: "like to b", completion: "uild a spaceship", isFinal: true,
-            spellingAssessment: knowsEverything), .show(text: "uild", wordOnly: true))
-        XCTAssertEqual(CompletionSeamGuard.presentation(precedingText: "Use Cota", completion: "bby for everything", isFinal: true,
-            spellingAssessment: knowsNothing), .show(text: "bby", wordOnly: true))
-        XCTAssertEqual(CompletionSeamGuard.presentation(precedingText: "book a roo", completion: "m for two guests", isFinal: true,
-            spellingAssessment: knowsEverything), .show(text: "m for two guests", wordOnly: false))
+    /// The phrase is already generated. Keeping it once the seam is known lets acceptance and
+    /// ordinary typing advance through one suggestion instead of discarding its useful tail.
+    func testKnownJoinedWordKeepsItsPhraseAtEveryPrefixLength() {
+        let word = "build"
+        for prefixLength in 1..<word.count {
+            let prefix = String(word.prefix(prefixLength))
+            let completion = String(word.dropFirst(prefixLength)) + " a spaceship"
+            for isFinal in [false, true] {
+                XCTAssertEqual(
+                    CompletionSeamGuard.presentation(
+                        precedingText: "I would like to " + prefix,
+                        completion: completion,
+                        isFinal: isFinal,
+                        spellingAssessment: knowing([word])
+                    ),
+                    .show(text: completion, wordOnly: false),
+                    "Prefix: \(prefix), final: \(isFinal)"
+                )
+            }
+        }
+    }
+
+    /// A dictionary entry is not a word boundary: `build` could still grow into `building`.
+    /// Buffer until the stream proves the seam word complete, then expose its phrase in one step.
+    func testKnownJoinedWordStillWaitsForItsStreamedBoundary() {
+        for completion in ["u", "uil", "uild", "uilding"] {
+            XCTAssertEqual(
+                CompletionSeamGuard.presentation(
+                    precedingText: "I would like to b",
+                    completion: completion,
+                    isFinal: false,
+                    spellingAssessment: { _ in
+                        XCTFail("An unfinished joined word must not reach spelling assessment")
+                        return .known
+                    }
+                ),
+                .wait
+            )
+        }
+        XCTAssertEqual(
+            CompletionSeamGuard.presentation(
+                precedingText: "I would like to b",
+                completion: "uild a spaceship",
+                isFinal: false,
+                spellingAssessment: knowing(["build"])
+            ),
+            .show(text: "uild a spaceship", wordOnly: false)
+        )
+    }
+
+    func testShortPrefixDoesNotPermitAMalformedJoinedWord() {
+        for isFinal in [false, true] {
+            XCTAssertEqual(
+                CompletionSeamGuard.presentation(
+                    precedingText: "That looks b",
+                    completion: "eutiful in the garden",
+                    isFinal: isFinal,
+                    spellingAssessment: { word in
+                        XCTAssertEqual(word, "beutiful")
+                        return .correctableTypo
+                    }
+                ),
+                .suppress(.seamMisspelling(word: "beutiful"))
+            )
+        }
+    }
+
+    func testProseOpenersDoNotBypassTheStreamedSeamGuard() {
+        for opening in ["(", "\"", "“", "(“"] {
+            XCTAssertEqual(
+                CompletionSeamGuard.presentation(
+                    precedingText: "Try " + opening + "b",
+                    completion: "uild",
+                    isFinal: false,
+                    spellingAssessment: knowsEverything
+                ),
+                .wait
+            )
+            for isFinal in [false, true] {
+                XCTAssertEqual(
+                    CompletionSeamGuard.presentation(
+                        precedingText: "Try " + opening + "b",
+                        completion: "uild a spaceship",
+                        isFinal: isFinal,
+                        spellingAssessment: knowing(["build"])
+                    ),
+                    .show(text: "uild a spaceship", wordOnly: false)
+                )
+                XCTAssertEqual(
+                    CompletionSeamGuard.presentation(
+                        precedingText: "Try " + opening + "gre",
+                        completion: "atful for this",
+                        isFinal: isFinal,
+                        spellingAssessment: { _ in .correctableTypo }
+                    ),
+                    .suppress(.seamMisspelling(word: "greatful"))
+                )
+            }
+        }
+    }
+
+    func testUnknownJoinedWordOnlyShowsItsEnding() {
+        for isFinal in [false, true] {
+            for prefix in ["C", "Cota"] {
+                let ending = String("Cotabby".dropFirst(prefix.count))
+                XCTAssertEqual(
+                    CompletionSeamGuard.presentation(
+                        precedingText: "Use " + prefix,
+                        completion: ending + " for everything",
+                        isFinal: isFinal,
+                        spellingAssessment: knowsNothing
+                    ),
+                    .show(text: ending, wordOnly: true)
+                )
+            }
+        }
     }
 }

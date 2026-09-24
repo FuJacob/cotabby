@@ -21,11 +21,12 @@ enum SuggestionRequestFactory {
     private static let maxClipboardContextCharacters = 1_200
 
     /// Require at least one non-whitespace character so we don't suggest on a blank field.
-    /// No trailing-space gate — the debounce handles rapid keystroke settling, and
-    /// `SuggestionTextNormalizer` applies deterministic space management on the output side.
-    static func shouldGenerateSuggestion(for precedingText: String) -> Bool {
+    /// The optional word-boundary preference gates new requests, never advancement of an already
+    /// visible tail. Sharing it here keeps ordinary and speculative generation in agreement.
+    /// Scripts without space-delimited words retain their normal completion path.
+    static func shouldGenerateSuggestion(for precedingText: String, suggestWithinWords: Bool = true) -> Bool {
         let trimmed = precedingText.trimmingCharacters(in: .whitespacesAndNewlines)
-        return !trimmed.isEmpty
+        return !trimmed.isEmpty && (suggestWithinWords || CaretWordContext.unfinishedWord(in: precedingText) == nil)
     }
 
     /// Builds the generation request plus the exact prompt preview used by Cotabby's diagnostics UI.

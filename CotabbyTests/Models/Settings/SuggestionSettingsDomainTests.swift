@@ -29,6 +29,7 @@ final class SuggestionSettingsDomainTests: XCTestCase {
         defaults.set(true, forKey: "cotabbyClipboardContextEnabled")
         defaults.set(false, forKey: "cotabbyShowAcceptanceHint")
         defaults.set(false, forKey: "cotabbyLowPowerModeAutoDisableEnabled")
+        defaults.set(false, forKey: "cotabbySuggestWithinWords")
 
         let data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
 
@@ -37,6 +38,7 @@ final class SuggestionSettingsDomainTests: XCTestCase {
         XCTAssertTrue(data.context.isClipboardContextEnabled)
         XCTAssertFalse(data.presentation.showAcceptanceHint)
         XCTAssertFalse(data.general.isLowPowerModeAutoDisableEnabled)
+        XCTAssertFalse(data.completion.suggestWithinWords)
         XCTAssertEqual(data.shortcuts.acceptance.keyCode, SuggestionSettingsStore.defaultAcceptanceKeyCode)
     }
 
@@ -45,11 +47,15 @@ final class SuggestionSettingsDomainTests: XCTestCase {
 
         data.openAICompatibleModelName = "forwarded-model"
         data.completion.acceptanceGranularity = .phrase
+        data.suggestWithinWords = false
         data.ghostTextOpacity = 0.7
         data.shortcuts.globalToggle.label = "⌥G"
 
         XCTAssertEqual(data.engine.openAICompatibleModelName, "forwarded-model")
         XCTAssertEqual(data.acceptanceGranularity, .phrase)
+        XCTAssertFalse(data.completion.suggestWithinWords)
+        data.completion.suggestWithinWords = true
+        XCTAssertTrue(data.suggestWithinWords)
         XCTAssertEqual(data.presentation.ghostTextOpacity, 0.7)
         XCTAssertEqual(data.globalToggleKeyLabel, "⌥G")
     }

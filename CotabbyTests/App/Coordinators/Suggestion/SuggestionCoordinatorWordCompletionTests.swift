@@ -58,7 +58,7 @@ final class SuggestionCoordinatorWordCompletionTests: XCTestCase {
         XCTAssertEqual(rig.overlayController.shownTexts, [" world"])
     }
 
-    func testShortPrefixOffersOnlyAWordAndNeverInsertsTheUnshownPhrase() async {
+    func testShortPrefixKeepsFollowingWordsAfterAcceptingWordEnding() async {
         let rig = makeCoordinatorRig(snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "I want to b"))
         defer { rig.coordinator.stop() }
         rig.engine.resultProvider = { request in
@@ -66,9 +66,128 @@ final class SuggestionCoordinatorWordCompletionTests: XCTestCase {
         }
         rig.coordinator.schedulePrediction()
         await waitUntil { rig.interactionState.activeSession != nil }
-        XCTAssertEqual(rig.interactionState.activeSession?.fullText, "uild")
-        XCTAssertTrue(rig.coordinator.acceptEntireSuggestion())
+        XCTAssertEqual(rig.interactionState.activeSession?.fullText, "uild a spaceship")
+        XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
         XCTAssertEqual(rig.inserter.insertedChunks, ["uild"])
+        XCTAssertEqual(rig.interactionState.activeSession?.remainingText, " a spaceship")
+        XCTAssertEqual(rig.engine.requests.count, 1, "The following words were already generated.")
+    }
+
+    func testBoundaryPreferenceWaitsThenGeneratesAfterSpace() async {
+        let rig = makeCoordinatorRig(snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello"),
+            settingsSnapshot: CotabbyTestFixtures.settingsSnapshot(debounceMilliseconds: 1, suggestWithinWords: false))
+        defer { rig.coordinator.stop() }
+        rig.coordinator.schedulePrediction()
+        await waitUntil { rig.coordinator.state == .idle }
+        XCTAssertTrue(rig.engine.requests.isEmpty)
+        XCTAssertTrue(rig.overlayController.shownTexts.isEmpty)
+
+        publishText("Hello ", in: rig)
+        rig.coordinator.schedulePrediction()
+        await waitUntil { rig.interactionState.activeSession != nil }
+        XCTAssertEqual(rig.engine.requests.map(\.prefixText), ["Hello "])
+    }
+
+    func testBoundaryPreferencePreservesVisibleTailThroughTypingAndRefresh() async {
+        let rig = makeCoordinatorRig(snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello "),
+            settingsSnapshot: CotabbyTestFixtures.settingsSnapshot(debounceMilliseconds: 1, suggestWithinWords: false))
+        defer { rig.coordinator.stop() }
+        let context = rig.interactionState.materializeContext(from: rig.focusProvider.snapshot.context!)
+        _ = rig.interactionState.startSession(fullText: "world again", liveContext: context, latency: 0.01)
+        rig.overlayController.showSuggestion("world again", geometry: CotabbyTestFixtures.overlayGeometry())
+
+        _ = rig.coordinator.handleInputEvent(CotabbyTestFixtures.inputEvent(kind: .textMutation, characters: "w"))
+        publishText("Hello w", in: rig)
+        rig.coordinator.schedulePrediction()
+        await waitUntil { rig.coordinator.state == .ready(text: "orld again", latency: 0.01) }
+        XCTAssertEqual(rig.interactionState.activeSession?.remainingText, "orld again")
+        XCTAssertTrue(rig.engine.requests.isEmpty)
+    }
+
+    func testAcceptedCorrectionWaitsForPublishedTextAndQueuesNextTab() async {
+        let rig = makeCoordinatorRig(snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Please recieve "),
+            settingsSnapshot: CotabbyTestFixtures.settingsSnapshot(debounceMilliseconds: 1,
+                suggestWithinWords: false, suppressCompletionsOnTypo: true, offerTypoCorrections: true))
+        defer { rig.coordinator.stop() }
+        let context = rig.interactionState.materializeContext(from: rig.focusProvider.snapshot.context!)
+        _ = rig.interactionState.startSession(fullText: "receive", liveContext: context, latency: 0,
+            kind: .correction(typoWord: "recieve"))
+        rig.overlayController.showSuggestion("receive", geometry: CotabbyTestFixtures.overlayGeometry())
+        rig.engine.resultProvider = { request in
+            .init(generation: request.generation, rawText: "the package", text: "the package", latency: 0.01)
+        }
+
+        XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
+        XCTAssertEqual(rig.inserter.replacements.map(\.text), ["receive "])
+        XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion(), "Rapid Tab should wait for the continuation.")
+        await waitUntil { rig.focusProvider.refreshCount > 0 }
+        XCTAssertTrue(rig.engine.requests.isEmpty, "Pre-replacement AX must never drive a new request.")
+        XCTAssertNil(rig.interactionState.activeSession)
+
+        publishText("Please receive ", in: rig)
+        await waitUntil { !rig.inserter.insertedChunks.isEmpty }
+        XCTAssertEqual(rig.engine.requests.map(\.prefixText), ["Please receive "])
+        XCTAssertEqual(rig.inserter.insertedChunks, ["the"])
+        XCTAssertEqual(rig.interactionState.activeSession?.remainingText, " package")
+    }
+
+    func testFinalAcceptPredictsFromActualInsertedTrailingSpace() async {
+        let rig = makeCoordinatorRig(settingsSnapshot: CotabbyTestFixtures.settingsSnapshot(
+            suggestWithinWords: false, addSpaceAfterAccept: true))
+        defer { rig.coordinator.stop() }
+        let context = rig.interactionState.materializeContext(from: rig.focusProvider.snapshot.context!)
+        _ = rig.interactionState.startSession(fullText: " world", liveContext: context, latency: 0.01)
+        rig.overlayController.showSuggestion(" world", geometry: CotabbyTestFixtures.overlayGeometry())
+
+        XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
+        XCTAssertEqual(rig.inserter.insertedChunks, [" world "])
+        let expected = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello world ")
+        XCTAssertEqual(rig.coordinator.pendingSpeculativeSignature, expected.contentSignature)
+        await waitUntil { !rig.engine.requests.isEmpty }
+        XCTAssertEqual(rig.engine.requests.first?.prefixText, "Hello world ")
+    }
+
+    func testBoundaryPreferenceDoesNotCaptureNextTabWhenFinalAcceptAddsNoSpace() {
+        let rig = makeCoordinatorRig(settingsSnapshot: CotabbyTestFixtures.settingsSnapshot(suggestWithinWords: false))
+        defer { rig.coordinator.stop() }
+        let context = rig.interactionState.materializeContext(from: rig.focusProvider.snapshot.context!)
+        _ = rig.interactionState.startSession(fullText: " world", liveContext: context, latency: 0.01)
+        rig.overlayController.showSuggestion(" world", geometry: CotabbyTestFixtures.overlayGeometry())
+        XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
+        XCTAssertEqual(rig.inserter.insertedChunks, [" world"])
+        XCTAssertNil(rig.coordinator.pendingSpeculativeSignature)
+        XCTAssertFalse(rig.coordinator.postExhaustionAcceptanceState.isArmed)
+        XCTAssertFalse(rig.coordinator.acceptCurrentSuggestion())
+    }
+
+    func testCorrectionTimeoutNeverReoffersOrRepeatsAnUnpublishedReplacement() async {
+        for automatic in [false, true] {
+            let rig = makeCoordinatorRig(snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Please recieve "),
+                settingsSnapshot: CotabbyTestFixtures.settingsSnapshot(debounceMilliseconds: 1,
+                    suppressCompletionsOnTypo: true, offerTypoCorrections: true, automaticallyFixTypos: automatic))
+            rig.coordinator.schedulePrediction()
+            if automatic {
+                await waitUntil { !rig.inserter.replacements.isEmpty }
+            } else {
+                await waitUntil { rig.interactionState.activeSession?.kind.isCorrection == true }
+                XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
+                XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
+            }
+            // Keep AX frozen beyond its 400 ms publication ceiling. Neither manual nor automatic
+            // correction may interpret this old word as permission to replace it a second time.
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            XCTAssertEqual(rig.inserter.replacements.count, 1)
+            XCTAssertNil(rig.interactionState.activeSession)
+            XCTAssertTrue(rig.engine.requests.isEmpty)
+            XCTAssertFalse(rig.coordinator.postExhaustionAcceptanceState.isArmed)
+            rig.coordinator.stop()
+        }
+    }
+
+    private func publishText(_ text: String, in rig: CoordinatorRig) {
+        let snapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: text)
+        rig.focusProvider.snapshot = FocusSnapshot(applicationName: snapshot.applicationName,
+            bundleIdentifier: snapshot.bundleIdentifier, capability: .supported, context: snapshot)
     }
 
     func testCancellationDuringTypingPausePreventsLatePresentation() async {
