@@ -60,6 +60,15 @@ final class FocusTracker {
     private var chromiumHitTestCache: (element: AXUIElement, pid: pid_t)?
     private var lastChromeProbeSignature: String?
 
+    /// Codex's native shell can hide its focused web composer from AXFocusedUIElement.
+    /// The tracker owns this incremental search; small slices avoid blocking typing, and a
+    /// cached field is reused only while AX still marks it focused in the current window.
+    private var codexSearchWindow: AXUIElement?
+    private var codexSearchStack: [(AXUIElement, Int)] = []
+    private var codexSearchVisits = 0
+    private var codexSearchRetryAt = Date.distantPast
+    private var codexFocusedField: AXUIElement?
+
     // Last bundle identifier we logged as suppressed. Used to emit one log line per
     // suppression transition instead of one per 50-80ms poll tick.
     private var lastSuppressedBundleIdentifier: String?
@@ -251,7 +260,11 @@ final class FocusTracker {
 
         let focusedElement: AXUIElement
         var preresolvedApplication: NSRunningApplication?
-        if let systemFocused = AXHelper.focusedElement() {
+        let systemFocused = AXHelper.focusedElement()
+        if let codex = resolveCodexFocusedField(systemFocused: systemFocused) {
+            focusedElement = codex.element
+            preresolvedApplication = codex.application
+        } else if let systemFocused {
             focusedElement = systemFocused
             // System focus works here, so we are not in the OOPIF fallback mode; drop any stale
             // hit-test element so it can never shadow a real focus change.
@@ -389,6 +402,68 @@ final class FocusTracker {
             return (editable, frontmost)
         }
 
+        return nil
+    }
+
+    /// Search only Codex's active window, accepting an explicitly focused editable node.
+    /// This repairs its native-shell/web-content boundary without broadening browser heuristics
+    /// or choosing an unfocused composer. The normal resolver still checks security, selection,
+    /// geometry and stale-result identity before any generation or insertion can happen.
+    private func resolveCodexFocusedField(systemFocused: AXUIElement?)
+        -> (element: AXUIElement, application: NSRunningApplication)? {
+        guard let app = NSWorkspace.shared.frontmostApplication,
+              app.bundleIdentifier?.lowercased() == "com.openai.codex",
+              !isCaptureSuppressedForBundle(app.bundleIdentifier),
+              systemFocused == nil || AXHelper.owningApplication(of: systemFocused!)?.processIdentifier == app.processIdentifier
+        else {
+            codexSearchWindow = nil
+            codexSearchStack = []
+            codexFocusedField = nil
+            codexSearchRetryAt = .distantPast
+            return nil
+        }
+        let root = AXUIElementCreateApplication(app.processIdentifier)
+        var rawWindow: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(root, kAXFocusedWindowAttribute as CFString, &rawWindow) == .success,
+              let rawWindow, CFGetTypeID(rawWindow) == AXUIElementGetTypeID() else { return nil }
+        // Type checked above; AX copy ownership is managed by Swift's CF bridging.
+        let window = unsafeBitCast(rawWindow, to: AXUIElement.self)
+        if codexSearchWindow == nil || !CFEqual(codexSearchWindow!, window) {
+            codexSearchWindow = window
+            codexFocusedField = nil
+            codexSearchStack = []
+            codexSearchRetryAt = .distantPast
+        }
+        if let field = codexFocusedField, AXHelper.isFocused(field) { return (field, app) }
+        if codexFocusedField != nil {
+            codexSearchRetryAt = .distantPast
+            codexSearchStack = []
+        }
+        codexFocusedField = nil
+        if codexSearchStack.isEmpty {
+            guard Date() >= codexSearchRetryAt else { return nil }
+            codexSearchStack = [(window, 0)]
+            codexSearchVisits = 0
+        }
+        let deadline = Date().addingTimeInterval(0.015)
+        while !codexSearchStack.isEmpty, codexSearchVisits < 2000, Date() < deadline {
+            let (node, depth) = codexSearchStack.removeLast()
+            codexSearchVisits += 1
+            let role = AXHelper.stringValue(for: kAXRoleAttribute as CFString, on: node) ?? ""
+            if AXHelper.isKnownEditableRole(role), AXHelper.isFocused(node) {
+                codexFocusedField = node
+                codexSearchStack = []
+                logChromeFocusProbe(source: "codex-focused-descendant", application: app)
+                return (node, app)
+            }
+            if depth < 40 {
+                codexSearchStack.append(contentsOf: AXHelper.childElements(of: node).map { ($0, depth + 1) })
+            }
+        }
+        if codexSearchStack.isEmpty || codexSearchVisits >= 2000 {
+            codexSearchStack = []
+            codexSearchRetryAt = Date().addingTimeInterval(1)
+        }
         return nil
     }
 
