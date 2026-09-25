@@ -14,7 +14,7 @@ import Foundation
 enum SettingsItem: String, CaseIterable, Identifiable {
     // General
     case enableGlobally
-    case fastMode
+    case useScreenContext
     case openAtLogin
     case includeClipboardContext
     case includeAppContext
@@ -108,7 +108,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .enableGlobally: return "Enable Globally"
-        case .fastMode: return "Fast Mode"
+        case .useScreenContext: return "Use screen context"
         case .openAtLogin: return "Open at Login"
         case .includeClipboardContext: return "Include Clipboard Context"
         case .includeAppContext: return "Include App Context"
@@ -192,7 +192,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     var systemImage: String {
         switch self {
         case .enableGlobally: return "power"
-        case .fastMode: return "bolt.fill"
+        case .useScreenContext: return "text.viewfinder"
         case .openAtLogin: return "arrow.right.circle"
         case .includeClipboardContext: return "doc.on.clipboard"
         case .includeAppContext: return "macwindow"
@@ -278,7 +278,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         #if DEBUG
         case .developmentDebugOverlays: return .general
         #endif
-        case .enableGlobally, .fastMode, .openAtLogin, .includeClipboardContext, .includeAppContext,
+        case .enableGlobally, .useScreenContext, .openAtLogin, .includeClipboardContext, .includeAppContext,
              .allowMultiLine, .suggestWithinWords, .predictAheadWhileTyping, .showFollowingWords,
              .inlineMacros, .onboarding, .resetAllSettings:
             return .general
@@ -317,7 +317,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
     var summary: String {
         switch self {
         case .enableGlobally: return "Turn CoHamster on or off everywhere without quitting."
-        case .fastMode: return "Skip screenshot context for faster suggestions."
+        case .useScreenContext: return "Help suggestions understand surrounding text using screenshots of the focused window."
         case .openAtLogin: return "Start CoHamster automatically when you log in."
         case .includeClipboardContext: return "Let suggestions reference what you last copied."
         case .includeAppContext: return "Tell the model which app and window you are typing in."
@@ -412,7 +412,7 @@ enum SettingsItem: String, CaseIterable, Identifiable {
         case .enableGlobally:
             return ["on", "off", "disable", "toggle", "global", "pause", "resume",
                     "active", "status", "stop", "start", "turn off", "turn on"]
-        case .fastMode:
+        case .useScreenContext:
             return ["speed", "fast", "screenshot", "ocr", "context", "vision",
                     "quick", "performance", "screen", "image"]
         case .openAtLogin:

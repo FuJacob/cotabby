@@ -27,16 +27,6 @@ struct GeneralPaneView: View {
                 }
                 .settingsItem(.enableGlobally)
 
-                Toggle(isOn: fastModeForcedOn ? .constant(true) : fastModeEnabledBinding) {
-                    SettingsRowLabel(
-                        title: "Fast Mode",
-                        description: fastModeDescription,
-                        systemImage: "bolt.fill"
-                    )
-                }
-                .disabled(fastModeForcedOn)
-                .settingsItem(.fastMode)
-
                 // Backed by `SMAppService.mainApp` via the LaunchAtLogin package, which owns the
                 // observable for the login-item status and refreshes the toggle if the user changes
                 // it in System Settings while Cotabby is open.
@@ -55,6 +45,16 @@ struct GeneralPaneView: View {
             // acceptance toggles that used to live here now sit with Writing, next to the other
             // controls that shape inserted text.
             Section("Context") {
+                Toggle(isOn: screenContextUnavailable ? .constant(false) : screenContextEnabledBinding) {
+                    SettingsRowLabel(
+                        title: "Use screen context",
+                        description: screenContextDescription,
+                        systemImage: "text.viewfinder"
+                    )
+                }
+                .disabled(screenContextUnavailable)
+                .settingsItem(.useScreenContext)
+
                 Toggle(isOn: clipboardContextEnabledBinding) {
                     SettingsRowLabel(
                         title: "Include Clipboard Context",
@@ -211,27 +211,26 @@ struct GeneralPaneView: View {
         )
     }
 
-    private var fastModeEnabledBinding: Binding<Bool> {
+    /// Keep the positive UI control compatible with the existing inverse stored preference.
+    private var screenContextEnabledBinding: Binding<Bool> {
         Binding(
-            get: { suggestionSettings.isFastModeEnabled },
-            set: { suggestionSettings.setFastModeEnabled($0) }
+            get: { !suggestionSettings.isFastModeEnabled },
+            set: { suggestionSettings.setFastModeEnabled(!$0) }
         )
     }
 
-    /// Fast Mode is forced on and locked while Screen Recording is unavailable (visual context can't
-    /// run without it). The stored preference is left untouched so it returns when the permission is
-    /// granted.
-    private var fastModeForcedOn: Bool {
+    /// Permission availability changes the displayed state without overwriting the user's choice.
+    /// Granting Screen Recording restores that choice through the settings model.
+    private var screenContextUnavailable: Bool {
         !permissionManager.screenRecordingGranted
     }
 
-    private var fastModeDescription: String {
-        if fastModeForcedOn {
-            return "Forced on because Screen Recording is off. Suggestions rely only on the text " +
-                "you've typed; grant Screen Recording to add visual context."
+    private var screenContextDescription: String {
+        if screenContextUnavailable {
+            return "Unavailable while Screen Recording is off. Grant permission to help suggestions " +
+                "understand surrounding text."
         }
-        return "Skip the screenshot-based context step for faster suggestions. " +
-            "Suggestions rely only on the text you've typed."
+        return "Help suggestions understand surrounding text using screenshots of the focused window."
     }
 
     private var multiLineEnabledBinding: Binding<Bool> {

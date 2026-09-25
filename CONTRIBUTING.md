@@ -41,6 +41,11 @@ Apple Silicon is strongly recommended for local model-runtime work.
 
 ## Local Setup
 
+Maintainers can use the [Fastlane pipeline](fastlane/README.md) for signed build/launch,
+verification, and packaging: `bundle exec fastlane mac dev` or `bundle exec fastlane mac verify`.
+Its guide covers Ruby installation and credentials. The Xcode-based contributor setup below
+remains available for contributors using their own development team.
+
 Clone the repo and open the project. If your Apple ID is not on CoHamster's development team, run the
 one-time signing setup first:
 

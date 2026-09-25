@@ -282,28 +282,39 @@ log stream --predicate 'subsystem == "com.cotabby.app"' --level debug
 **Rule of thumb.** When a user reports a bug, first `tail` / `jq` the relevant file with the
 symptom → category map. Do not ask the user to re-explain symptoms before checking the logs.
 
-## Validation
+## Builds And Validation
 
-Use the narrowest meaningful validation first, then broaden if the change touches shared behavior.
-Common commands (prepare the pinned, patched native package first):
+**All app builds, local launches, app-hosted tests, and distribution must go through Fastlane.**
+Use `bundle exec fastlane mac <lane>` from the repository root. Do not bypass the lanes with direct
+`xcodebuild` or build/release shell-script invocations for routine work. Fastlane owns dependency
+preparation, signing, process replacement, build locking, diagnostics, and cleanup; bypassing it can
+break signing compatibility or race another build. If a build workflow is missing, extend the
+Fastlane pipeline instead of creating an ad hoc build command.
+
+Use the Ruby version in `.ruby-version` and the dependencies pinned by `Gemfile.lock`. The macOS
+system Ruby is too old; with Homebrew Ruby, prepend `$(brew --prefix ruby)/bin` to `PATH`. See
+[`fastlane/README.md`](fastlane/README.md) for setup, credentials, and lane options.
 
 ```bash
-scripts/prepare_cohamster_workspace.sh
-xcodebuild -workspace build/cohamster-dependencies/CoHamster.xcworkspace -scheme CoHamster -destination 'platform=macOS' build \
-  -derivedDataPath build/DerivedData
-xcodebuild -workspace build/cohamster-dependencies/CoHamster.xcworkspace -scheme CoHamster -destination 'platform=macOS' build-for-testing \
-  -derivedDataPath build/DerivedData
+bundle exec fastlane mac dev                         # Signed Debug build and local launch
+bundle exec fastlane mac dev configuration:Release   # Optimized local build and launch
+bundle exec fastlane mac verify                      # Lint, project checks, and signed tests
+bundle exec fastlane mac package                     # Signed/notarized artifacts; no publication
+bundle exec fastlane mac prerelease suffix:beta.1    # Publish a GitHub pre-release when requested
+bundle exec fastlane mac release                     # Publish a stable GitHub release when requested
+bundle exec fastlane mac doctor                      # Check tools and credentials
 ```
 
-Always pass `-derivedDataPath build/DerivedData` so the output lands in the repo-scoped `build/`
-directory (already gitignored) instead of accumulating under
-`~/Library/Developer/Xcode/DerivedData/CoHamster-*`, where every build leaves a fresh multi-GB module
-cache and SwiftPM checkout that nothing trims. When a task is done and the artifacts are no longer
-needed, `rm -rf build/DerivedData` before reporting completion.
+Use the narrowest meaningful validation first, then broaden if the change touches shared behavior.
+The build lanes keep DerivedData at `build/DerivedData` and remove it on exit, including after
+failure. Verify cleanup before reporting completion. The runnable dev app remains at
+`~/Library/Application Support/CoHamster/Development/<checkout-id>/<configuration>/CoHamster.app`,
+outside Documents/iCloud so Finder metadata cannot invalidate its signature. Logs and test results
+remain in `build/fastlane-logs/`.
+Never move DerivedData to `~/Library/Developer/Xcode/DerivedData/CoHamster-*`.
 
-Run targeted tests for changed pure logic when available. If `xcodebuild test` fails locally because
-of app-hosted test bundle signing or Team ID mismatch, report the exact failure and still provide the
-successful build/build-for-testing result.
+Run targeted tests for changed pure logic when available. If the verification lane fails, report
+the exact failure and distinguish any successful build-for-testing step from actual test execution.
 
 ## Git And Worktree Safety
 

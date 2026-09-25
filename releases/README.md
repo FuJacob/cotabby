@@ -1,5 +1,10 @@
 # CoHamster release process
 
+The maintainer entry point is now [Fastlane](../fastlane/README.md): `bundle exec fastlane mac
+prerelease suffix:beta.1` or `bundle exec fastlane mac release` validates, packages, and publishes.
+Use `bundle exec fastlane mac package` to build distribution artifacts locally. See that guide for
+version rules, GitHub environment secrets, and the manually triggered Distribution workflow.
+
 `project.yml` owns the application targets and `Config/CoHamsterInfo.plist` owns distribution
 metadata. The release is named **CoHamster**. Its existing `org.mchamster.cotabby` bundle identifier
 and `Cotabby McHamster` data directory are compatibility identifiers: they preserve preferences,
@@ -29,8 +34,8 @@ matches them. Optional version/build arguments must agree with the file. Then:
 NOTARY_PROFILE=McHamster scripts/release_cohamster.sh
 ```
 
-Without `NOTARY_PROFILE`, the script produces only a signed candidate. Publish after notarization,
-stapling, and Gatekeeper verification pass. Outputs are in `build/cohamster-release/`.
+`NOTARY_PROFILE` is mandatory; the script fails if notarization is unavailable or rejected.
+Publish after notarization, stapling, and Gatekeeper verification pass. Shell-script outputs are in `build/cohamster-release/`.
 Remove `build/DerivedData` after validation.
 
 Publish to `mc-hamster/CoHamster` using a `cohamster-v<version>` tag and that version's release notes.

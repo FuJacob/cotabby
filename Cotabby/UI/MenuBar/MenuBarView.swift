@@ -110,13 +110,13 @@ struct MenuBarView: View {
     private var controlsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             VStack(alignment: .leading, spacing: 2) {
-                Toggle("Fast Mode", isOn: fastModeForcedOn ? .constant(true) : fastModeEnabledBinding)
+                Toggle("Use screen context", isOn: screenContextUnavailable ? .constant(false) : screenContextEnabledBinding)
                     .toggleStyle(.switch)
                     .controlSize(.small)
-                    .disabled(fastModeForcedOn)
+                    .disabled(screenContextUnavailable)
 
-                if fastModeForcedOn {
-                    Text("Forced on because Screen Recording is off")
+                if screenContextUnavailable {
+                    Text("Unavailable while Screen Recording is off")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
@@ -348,10 +348,11 @@ struct MenuBarView: View {
         )
     }
 
-    private var fastModeEnabledBinding: Binding<Bool> {
+    /// Keep the positive UI control compatible with the existing inverse stored preference.
+    private var screenContextEnabledBinding: Binding<Bool> {
         Binding(
-            get: { suggestionSettings.isFastModeEnabled },
-            set: { suggestionSettings.setFastModeEnabled($0) }
+            get: { !suggestionSettings.isFastModeEnabled },
+            set: { suggestionSettings.setFastModeEnabled(!$0) }
         )
     }
 
@@ -483,10 +484,9 @@ struct MenuBarView: View {
         permissionManager.allPermissionsGranted
     }
 
-    /// Fast Mode is forced on and locked while Screen Recording is unavailable, since visual context
-    /// can't run without it. The user's stored preference is preserved and restored once the
-    /// permission is granted.
-    private var fastModeForcedOn: Bool {
+    /// Permission availability changes the displayed state without overwriting the user's choice.
+    /// Granting Screen Recording restores that choice through the settings model.
+    private var screenContextUnavailable: Bool {
         !permissionManager.screenRecordingGranted
     }
 

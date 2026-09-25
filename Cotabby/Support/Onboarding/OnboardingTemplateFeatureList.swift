@@ -39,8 +39,8 @@ enum OnboardingTemplateFeatureList {
                 value: .detail(template.wordCountPreset.displayLabel)
             ),
             OnboardingTemplateFeatureRow(
-                title: "Fast mode (skip screen context)",
-                value: template.enablesFastMode ? .enabled : .disabled
+                title: "Use screen context",
+                value: template.enablesFastMode ? .disabled : .enabled
             ),
             OnboardingTemplateFeatureRow(
                 title: "Clipboard context",

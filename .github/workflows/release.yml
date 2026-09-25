@@ -1,0 +1,107 @@
+# One manual entry point runs the same signed lanes used on a maintainer's Mac.
+# Select the branch in GitHub's Run workflow dialog; checkout pins its event SHA.
+name: Distribution
+
+on:
+  workflow_dispatch:
+    inputs:
+      lane:
+        description: Package locally in CI, publish a pre-release, or publish stable
+        required: true
+        type: choice
+        options: [package, prerelease, release]
+        default: package
+      suffix:
+        description: 'Pre-release suffix (beta.1, rc.1, or alpha.1); empty for stable'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: cohamster-distribution
+  cancel-in-progress: false
+
+jobs:
+  distribute:
+    runs-on: macos-26
+    timeout-minutes: 120
+    environment: cohamster-release
+    env:
+      CI: 'true'
+      FASTLANE_SKIP_UPDATE_CHECK: '1'
+      FASTLANE_HIDE_CHANGELOG: '1'
+      FASTLANE_OPT_OUT_USAGE: '1'
+      NOTARY_PROFILE: CoHamster-CI
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
+        with:
+          bundler-cache: true
+
+      - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
+        with:
+          xcode-version: '26.6'
+
+      - name: Install build tools
+        run: |
+          command -v xcodegen >/dev/null || brew install xcodegen
+          command -v swiftlint >/dev/null || brew install swiftlint
+
+      - name: Import Apple signing and notarization credentials
+        env:
+          APPLE_CERTIFICATE_P12_BASE64: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        run: python3 scripts/ci_keychain.py setup
+
+      - name: Check credentials and tools
+        env:
+          NOTARY_KEYCHAIN: ${{ runner.temp }}/cohamster-signing.keychain-db
+        run: bundle exec fastlane mac doctor
+
+      - name: Build and optionally publish
+        env:
+          NOTARY_KEYCHAIN: ${{ runner.temp }}/cohamster-signing.keychain-db
+          DISTRIBUTION_LANE: ${{ inputs.lane }}
+          DISTRIBUTION_SUFFIX: ${{ inputs.suffix }}
+        run: |
+          # Inputs enter through environment variables and are validated by the
+          # lane as well. No user-supplied expression becomes shell source code.
+          case "$DISTRIBUTION_LANE" in
+            package|prerelease)
+              bundle exec fastlane mac "$DISTRIBUTION_LANE" "suffix:$DISTRIBUTION_SUFFIX"
+              ;;
+            release)
+              test -z "$DISTRIBUTION_SUFFIX" || { echo 'Stable releases cannot have a suffix'; exit 1; }
+              bundle exec fastlane mac release
+              ;;
+            *) exit 1 ;;
+          esac
+
+      - name: Remove temporary Apple credentials
+        if: always()
+        run: python3 scripts/ci_keychain.py cleanup
+
+      - name: Retain packages and diagnostic logs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: cohamster-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            build/releases/
+            build/fastlane-logs/
+            build/cohamster-release/notarization.json
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Clean build cache
+        if: always()
+        run: rm -rf build/DerivedData

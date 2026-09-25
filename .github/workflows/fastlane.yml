@@ -1,0 +1,29 @@
+# Exercise release gates without granting PR code access to signing credentials.
+name: Fastlane
+on:
+  pull_request:
+    branches: [master, main]
+  push:
+    branches: [master, main]
+
+permissions:
+  contents: read
+
+jobs:
+  pipeline-tests:
+    runs-on: macos-26
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
+        with:
+          bundler-cache: true
+      - name: Validate lane syntax and publishing guards
+        env:
+          FASTLANE_SKIP_UPDATE_CHECK: '1'
+          FASTLANE_OPT_OUT_USAGE: '1'
+        run: |
+          bundle exec fastlane lanes
+          bundle exec ruby fastlane/tests/release_pipeline_test.rb
+          bash -n scripts/build_and_run.sh scripts/release_cohamster.sh
+          python3 -m py_compile scripts/ci_keychain.py scripts/sign_local_app.py

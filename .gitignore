@@ -45,3 +45,13 @@ posts.txt
 
 .agents
 .internal
+
+# Fastlane/Bundler local state; never commit signing material or environment secrets.
+.bundle/
+vendor/bundle/
+fastlane/report.xml
+fastlane/.env*
+!fastlane/.env.example
+*.p12
+*.p8
+*.keychain-db
