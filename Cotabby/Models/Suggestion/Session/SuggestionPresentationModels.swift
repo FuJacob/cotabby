@@ -54,6 +54,11 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
     /// The host field's own text font/color, so the overlay can render ghost text that matches the
     /// field instead of always using the system font and a fixed gray. Nil falls back to defaults.
     let resolvedFieldStyle: ResolvedFieldStyle?
+    /// Where the host actually starts drawing text, when it could be measured. A field's `AXFrame`
+    /// is not its text area — Word publishes the whole page, so its left edge is the paper's edge
+    /// rather than the document's margin. Ghost text that wraps onto another line aligns to this
+    /// instead of the frame, so overflow lines land on the host's margin like its own text does.
+    let observedContentEdges: ObservedContentEdges?
 
     init(
         caretRect: CGRect,
@@ -66,7 +71,8 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
         focusChangeSequence: UInt64 = 0,
         focusedInputIdentityKey: UInt64 = 0,
         isCorrection: Bool = false,
-        resolvedFieldStyle: ResolvedFieldStyle? = nil
+        resolvedFieldStyle: ResolvedFieldStyle? = nil,
+        observedContentEdges: ObservedContentEdges? = nil
     ) {
         self.caretRect = caretRect
         self.inputFrameRect = inputFrameRect
@@ -79,6 +85,7 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
         self.focusedInputIdentityKey = focusedInputIdentityKey
         self.isCorrection = isCorrection
         self.resolvedFieldStyle = resolvedFieldStyle
+        self.observedContentEdges = observedContentEdges
     }
 
     /// Returns a copy with only `caretRect` replaced. Used to advance the ghost by an exact measured
@@ -94,7 +101,8 @@ struct SuggestionOverlayGeometry: Equatable, Sendable {
             isRightToLeft: isRightToLeft,
             focusChangeSequence: focusChangeSequence,
             focusedInputIdentityKey: focusedInputIdentityKey,
-            resolvedFieldStyle: resolvedFieldStyle
+            resolvedFieldStyle: resolvedFieldStyle,
+            observedContentEdges: observedContentEdges
         )
     }
 }

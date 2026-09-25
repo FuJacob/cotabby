@@ -94,9 +94,18 @@ final class ActivationIndicatorController {
             caretRect
         }
 
+        // Horizontal placement follows the field's edge, but vertical placement follows the *caret*.
+        // Centering vertically on the field only reads as "beside this input" when the field is
+        // about one line tall. In a document-shaped text area it is badly wrong: Word publishes the
+        // whole page as one `AXTextArea` (846pt tall), so the icon landed halfway down an empty page,
+        // hundreds of points below the line being typed. The caret is always on the active line, and
+        // for single-line fields it sits at the field's own centre anyway, so short inputs are
+        // unaffected. Falls back to the field when the caret rect is empty.
+        let verticalAnchor = caretRect.isEmpty ? anchorRect : caretRect
+
         let preferredLeftX = anchorRect.minX - contentSize.width - fieldEdgeGap
         let fallbackRightX = anchorRect.maxX + fieldEdgeGap
-        let centeredY = anchorRect.midY - (contentSize.height / 2)
+        let centeredY = verticalAnchor.midY - (contentSize.height / 2)
 
         guard let screen = screen(for: anchorRect) else {
             return CGPoint(x: preferredLeftX, y: centeredY)
