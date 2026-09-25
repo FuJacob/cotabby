@@ -290,6 +290,34 @@ final class AXHelperTests: XCTestCase {
         }
     }
 
+    func test_textMarkerEndpoints_readsCFRangeWithoutChromiumHostQueries() throws {
+        // Arbitrary bytes are valid for testing the CF container. Only the host interprets marker
+        // payloads; extraction must preserve them, including a collapsed selection's equal ends.
+        let startBytes: [UInt8] = [1, 2, 3]
+        let endBytes: [UInt8] = [4, 5, 6]
+        let start = startBytes.withUnsafeBufferPointer {
+            AXTextMarkerCreate(nil, $0.baseAddress!, $0.count)
+        }
+        let end = endBytes.withUnsafeBufferPointer {
+            AXTextMarkerCreate(nil, $0.baseAddress!, $0.count)
+        }
+        for last in [start, end] {
+            let range = AXTextMarkerRangeCreate(nil, start, last)
+            let endpoints = try XCTUnwrap(AXHelper.textMarkerEndpoints(from: range))
+            XCTAssertEqual(AXTextMarkerGetLength(endpoints.start), 3)
+            XCTAssertEqual(AXTextMarkerGetBytePtr(endpoints.start).pointee, 1)
+            XCTAssertEqual(AXTextMarkerGetLength(endpoints.end), 3)
+            XCTAssertEqual(
+                AXTextMarkerGetBytePtr(endpoints.end).pointee,
+                AXTextMarkerGetBytePtr(last).pointee
+            )
+        }
+    }
+
+    func test_textMarkerEndpoints_rejectsUnexpectedHostValueType() {
+        XCTAssertNil(AXHelper.textMarkerEndpoints(from: "not a marker range" as CFString))
+    }
+
     // MARK: - Coordinate conversion (pure over live screen geometry)
 
     func test_rectHasFiniteComponents_rejectsNaNAndInfinity() {

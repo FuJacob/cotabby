@@ -725,7 +725,12 @@ struct FocusSnapshotResolver {
         let markerSelection =
             canBeEditableTarget && nativeSelection == nil
             ? AXHelper.synthesizeMarkerSelection(
-                on: element, parameterizedAttributes: supportedParameterizedAttributes)
+                on: element,
+                parameterizedAttributes: supportedParameterizedAttributes,
+                // Mail rewrites trailing spaces as NBSP in its WebKit AX text. Give every
+                // downstream session comparison the same representation as keyboard events.
+                normalizeNonBreakingSpaces: bundleIdentifier == "com.apple.mail"
+            )
             : nil
 
         let nativeTextSelection = nativeSelection.flatMap {

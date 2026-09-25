@@ -445,8 +445,6 @@ enum AXHelper {
     private static let selectedTextMarkerRangeAttribute = "AXSelectedTextMarkerRange" as CFString
     private static let startTextMarkerAttribute = "AXStartTextMarker" as CFString
     private static let endTextMarkerAttribute = "AXEndTextMarker" as CFString
-    private static let startMarkerForRangeAttribute = "AXStartTextMarkerForTextMarkerRange" as CFString
-    private static let endMarkerForRangeAttribute = "AXEndTextMarkerForTextMarkerRange" as CFString
     private static let markerRangeForMarkersAttribute = "AXTextMarkerRangeForUnorderedTextMarkers" as CFString
     private static let stringForMarkerRangeAttribute = "AXStringForTextMarkerRange" as CFString
 
@@ -465,13 +463,12 @@ enum AXHelper {
     /// opaque `CFTypeRef`: never inspected, never cached across ticks or threads.
     static func synthesizeMarkerSelection(
         on element: AXUIElement,
-        parameterizedAttributes: Set<String>
+        parameterizedAttributes: Set<String>,
+        normalizeNonBreakingSpaces: Bool = false
     ) -> MarkerSelection? {
         // Guard on advertised parameterized attributes so apps without marker support degrade to
         // nil instead of issuing doomed cross-process AX calls on every poll.
-        guard parameterizedAttributes.contains(startMarkerForRangeAttribute as String),
-            parameterizedAttributes.contains(endMarkerForRangeAttribute as String),
-            parameterizedAttributes.contains(markerRangeForMarkersAttribute as String),
+        guard parameterizedAttributes.contains(markerRangeForMarkersAttribute as String),
             parameterizedAttributes.contains(stringForMarkerRangeAttribute as String)
         else {
             return nil
@@ -480,17 +477,14 @@ enum AXHelper {
         guard let selectionRange = copyOpaqueAttribute(selectedTextMarkerRangeAttribute, on: element),
             let documentStart = copyOpaqueAttribute(startTextMarkerAttribute, on: element),
             let documentEnd = copyOpaqueAttribute(endTextMarkerAttribute, on: element),
-            let selectionStart = copyOpaqueParameterized(
-                startMarkerForRangeAttribute, parameter: selectionRange, on: element),
-            let selectionEnd = copyOpaqueParameterized(
-                endMarkerForRangeAttribute, parameter: selectionRange, on: element)
+            let endpoints = textMarkerEndpoints(from: selectionRange)
         else {
             return nil
         }
 
         // Before-caret text is required: its length is the caret offset. An empty-but-present
         // result (caret at document start) is valid; a failed query is not.
-        guard let preRange = markerRange(from: documentStart, to: selectionStart, on: element),
+        guard let preRange = markerRange(from: documentStart, to: endpoints.start, on: element),
             let beforeText = stringForMarkerRange(preRange, on: element)
         else {
             return nil
@@ -500,13 +494,28 @@ enum AXHelper {
 
         // After-caret context is nice-to-have, not required for offset correctness.
         var afterText = ""
-        if let postRange = markerRange(from: selectionEnd, to: documentEnd, on: element),
+        if let postRange = markerRange(from: endpoints.end, to: documentEnd, on: element),
             let trailing = stringForMarkerRange(postRange, on: element) {
             afterText = trailing
         }
 
         return MarkerSelectionSynthesizer.make(
-            beforeCaret: beforeText, selected: selectedText, afterCaret: afterText)
+            beforeCaret: beforeText, selected: selectedText, afterCaret: afterText,
+            normalizeNonBreakingSpaces: normalizeNonBreakingSpaces
+        )
+    }
+
+    /// Reads endpoints locally from the opaque CF range returned by the host. WebKit (including
+    /// Mail) does not advertise Chromium's AXStart/EndTextMarkerForTextMarkerRange queries, so
+    /// requiring those queries rejects valid selections before any text can be read.
+    ///
+    /// The type check protects the CF cast from malformed host replies. The Copy functions are
+    /// imported with ARC ownership: the returned markers live through this poll and are released
+    /// automatically. Their host-specific bytes are never interpreted or retained across polls.
+    static func textMarkerEndpoints(from value: CFTypeRef) -> (start: AXTextMarker, end: AXTextMarker)? {
+        guard CFGetTypeID(value) == AXTextMarkerRangeGetTypeID() else { return nil }
+        let range = unsafeBitCast(value, to: AXTextMarkerRange.self)
+        return (AXTextMarkerRangeCopyStartMarker(range), AXTextMarkerRangeCopyEndMarker(range))
     }
 
     /// Builds an `AXTextMarkerRange` spanning two markers via `AXTextMarkerRangeForUnorderedTextMarkers`.

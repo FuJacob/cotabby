@@ -30,11 +30,19 @@ enum MarkerSelectionSynthesizer {
         beforeCaret: String,
         selected: String,
         afterCaret: String,
-        window: Int = defaultWindow
+        window: Int = defaultWindow,
+        normalizeNonBreakingSpaces: Bool = false
     ) -> MarkerSelection {
         let windowedBefore = suffix(of: beforeCaret, limit: window)
         let windowedAfter = prefix(of: afterCaret, limit: window)
-        let text = windowedBefore + selected + windowedAfter
+        let rawText = windowedBefore + selected + windowedAfter
+        // Mail uses NBSP for a trailing typed space, then changes it to ASCII space when the next
+        // word arrives. Canonicalize only the captured context, never the host document. Both are
+        // one UTF-16 unit, so selection offsets and replacement ranges remain unchanged. Keeping
+        // this opt-in preserves intentional NBSP characters in other hosts.
+        let text = normalizeNonBreakingSpaces
+            ? rawText.replacingOccurrences(of: "\u{00A0}", with: " ")
+            : rawText
 
         let location = (windowedBefore as NSString).length
         let length = (selected as NSString).length
