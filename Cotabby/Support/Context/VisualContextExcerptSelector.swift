@@ -5,6 +5,13 @@ import Foundation
 /// lines and the focused field's normalized bounds; this helper keeps nearby conversation/document
 /// text ahead of distant window chrome, then restores reading order. It owns no tasks or history.
 nonisolated enum VisualContextExcerptSelector {
+    /// A ranked OCR line exists only during selection; its index restores reading order.
+    private struct Candidate {
+        let index: Int
+        let text: String
+        let score: Double
+    }
+
     static func select(
         lines: [OCRTextHygiene.OCRLine],
         fieldText: String,
@@ -13,7 +20,7 @@ nonisolated enum VisualContextExcerptSelector {
     ) -> String {
         guard maxCharacters > 0 else { return "" }
         var seen = Set<String>()
-        let candidates = lines.enumerated().compactMap { index, line -> (Int, String, Double)? in
+        let candidates = lines.enumerated().compactMap { index, line -> Candidate? in
             let cleaned = OCRTextHygiene.clean(lines: [line], fieldText: fieldText, maxChars: maxCharacters)
             // Confidence/line hygiene has already removed corrupt recognition. The legacy
             // token-level OCR filter drops every number and unrecognized English word, erasing
@@ -30,11 +37,13 @@ nonisolated enum VisualContextExcerptSelector {
                 // rather than spending the entire budget on the top toolbar and oldest messages.
                 score = -Double(index)
             }
-            return (index, text, score)
+            return Candidate(index: index, text: text, score: score)
         }
         var remaining = maxCharacters
         var selected: [(Int, String)] = []
-        for (index, text, _) in candidates.sorted(by: { $0.2 == $1.2 ? $0.0 < $1.0 : $0.2 < $1.2 }) {
+        for candidate in candidates.sorted(by: { $0.score == $1.score ? $0.index < $1.index : $0.score < $1.score }) {
+            let index = candidate.index
+            let text = candidate.text
             let separator = selected.isEmpty ? 0 : 1
             guard remaining > separator else { break }
             if text.count + separator <= remaining {

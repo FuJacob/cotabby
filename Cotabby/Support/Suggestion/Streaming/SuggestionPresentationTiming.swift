@@ -12,14 +12,21 @@ nonisolated struct SuggestionPresentationTiming {
         let milliseconds: Double
     }
 
-    private var pending: (identity: FocusedInputIdentity, kind: String, time: TimeInterval)?
+    /// One pending input, owned until presentation or invalidation consumes it.
+    private struct PendingInput {
+        let identity: FocusedInputIdentity
+        let kind: String
+        let time: TimeInterval
+    }
+
+    private var pending: PendingInput?
 
     mutating func begin(identity: FocusedInputIdentity, kind: String, at time: TimeInterval) {
         guard time.isFinite else {
             clear()
             return
         }
-        pending = (identity, kind, time)
+        pending = PendingInput(identity: identity, kind: kind, time: time)
     }
 
     mutating func clear() {

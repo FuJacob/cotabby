@@ -415,14 +415,7 @@ extension SuggestionCoordinator {
         }
 
         let liveContext = interactionState.materializeContext(from: rawContext)
-        let presentedPartial: SuggestionResult
-        if let candidate = typingPrediction {
-            guard let rebased = candidate.rebased(partial, in: rawContext, generation: liveContext.generation) else { return }
-            presentedPartial = rebased
-        } else {
-            guard liveContext.generation == partial.generation else { return }
-            presentedPartial = partial
-        }
+        guard let presentedPartial = rebasedStreamedPartial(partial, rawContext: rawContext, liveContext: liveContext) else { return }
 
         guard case let .show(text, wordOnly) = completionPresentation(text: presentedPartial.text, context: liveContext, isFinal: false),
               !wasDismissed(text, context: liveContext) else { return }
@@ -450,6 +443,19 @@ extension SuggestionCoordinator {
         suggestionStreamingState.recordRendered(session.remainingText)
         presentOverlay(text: session.remainingText, at: liveContext.caretRect, context: liveContext,
                        isRightToLeft: TextDirectionDetector.isRightToLeft(liveContext.precedingText))
+    }
+
+    /// A retained typing candidate may rebase the stream; ordinary streams must still match
+    /// the live generation. Keeping this check together prevents either path bypassing freshness.
+    private func rebasedStreamedPartial(
+        _ partial: SuggestionResult,
+        rawContext: FocusedInputSnapshot,
+        liveContext: FocusedInputContext
+    ) -> SuggestionResult? {
+        if let candidate = typingPrediction {
+            return candidate.rebased(partial, in: rawContext, generation: liveContext.generation)
+        }
+        return liveContext.generation == partial.generation ? partial : nil
     }
 
     /// Runs the typo gate for the current word. Returns `true` when it handled the cycle by suppressing,
@@ -805,6 +811,17 @@ extension SuggestionCoordinator {
             return
         }
 
+        presentFreshResult(result, workID: workID, liveContext: liveContext, rawContext: rawContext)
+    }
+
+    /// Only a result that passed the focus, selection, and acceptance-echo guards reaches here.
+    /// This stage chooses a safe visible completion and publishes its session and overlay together.
+    private func presentFreshResult(
+        _ result: SuggestionResult,
+        workID: UInt64,
+        liveContext: FocusedInputContext,
+        rawContext: FocusedInputSnapshot
+    ) {
         let decision = completionPresentation(text: result.text, context: liveContext, isFinal: true)
         let visibleText: String
         let prediction: String

@@ -87,8 +87,7 @@ extension SuggestionCoordinator {
             let context = interactionState.materializeContext(from: raw)
             let delay = presentationDelay(context: context)
             if delay > 0 {
-                do { try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000)) }
-                catch { return false }
+                do { try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000)) } catch { return false }
             }
         }
         return !Task.isCancelled && workController.isCurrent(workID)

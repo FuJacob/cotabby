@@ -49,7 +49,15 @@ final class ScreenshotContextGenerator: ScreenshotContextGenerating {
     /// Only the raw extraction is cached: hygiene and bounding still rerun against the live field
     /// text below, so a cache hit stays byte-identical to re-OCRing identical pixels. Bounded to a
     /// few entries so alt-tabbing between two or three windows keeps hitting.
-    private var extractionCache: [(hash: UInt64, configuration: VisualContextConfiguration, extracted: ExtractedScreenText)] = []
+    private var extractionCache: [CachedExtraction] = []
+
+    /// One bounded cache entry couples pixels and capture policy to their OCR result.
+    /// The generator owns it until eviction; live-field hygiene is never cached here.
+    private struct CachedExtraction {
+        let hash: UInt64
+        let configuration: VisualContextConfiguration
+        let extracted: ExtractedScreenText
+    }
     private static let extractionCacheLimit = 4
 
     init(
@@ -214,7 +222,7 @@ final class ScreenshotContextGenerator: ScreenshotContextGenerating {
         }
 
         extractionCache.removeAll { $0.hash == hash }
-        extractionCache.append((hash, configuration, extracted))
+        extractionCache.append(CachedExtraction(hash: hash, configuration: configuration, extracted: extracted))
         if extractionCache.count > Self.extractionCacheLimit {
             extractionCache.removeFirst(extractionCache.count - Self.extractionCacheLimit)
         }

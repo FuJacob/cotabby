@@ -15,7 +15,7 @@ import ScreenCaptureKit
 struct CapturedWindowScreenshot {
     let image: CGImage
     let windowTitle: String?
-    var focusBounds: CGRect? = nil
+    var focusBounds: CGRect?
 }
 
 /// Test seam for screen capture.

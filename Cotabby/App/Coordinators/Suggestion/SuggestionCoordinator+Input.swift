@@ -211,9 +211,10 @@ extension SuggestionCoordinator {
         }
     }
 
-    func handleInputEvent(_ event: CapturedInputEvent) -> Bool {
+    /// Debug timing follows input routing but owns no suggestion state transitions.
+    private func recordInputPresentationTiming(_ event: CapturedInputEvent) {
         if CotabbyDebugOptions.isEnabled {
-            if (event.shouldSchedulePrediction || event.kind == .acceptance || event.kind == .fullAcceptance),
+            if event.shouldSchedulePrediction || event.kind == .acceptance || event.kind == .fullAcceptance,
                let context = focusModel.snapshot.context {
                 suggestionPresentationTiming.begin(
                     identity: context.identity,
@@ -224,6 +225,10 @@ extension SuggestionCoordinator {
                 suggestionPresentationTiming.clear()
             }
         }
+    }
+
+    func handleInputEvent(_ event: CapturedInputEvent) -> Bool {
+        recordInputPresentationTiming(event)
         // Give the emoji picker first look at every keystroke so it can drive its trigger state
         // machine. When a capture is involved, the picker owns the interaction: the suggestion
         // pipeline stands down and any lingering ghost text is cleared so it does not show behind the
@@ -273,6 +278,13 @@ extension SuggestionCoordinator {
             return false
         }
 
+        schedulePredictionForInputWithoutSession(event)
+        return false
+    }
+
+    /// With no session left to reconcile, retire obsolete work and wait for the host's text
+    /// publication before predicting. This preserves the event-tap versus AX timing boundary.
+    private func schedulePredictionForInputWithoutSession(_ event: CapturedInputEvent) {
         if event.shouldClearSuggestion {
             // Always kill pending work: a stale host-publish chain or debounce from the previous
             // keystroke must not fire a prediction this event meant to cancel.
@@ -294,8 +306,6 @@ extension SuggestionCoordinator {
             // `schedulePredictionAfterHostPublishDelay` for the full rationale.
             schedulePredictionAfterHostPublishDelay()
         }
-
-        return false
     }
 
     /// Maximum wall time we'll wait for the host app to publish post-keystroke AX before giving
