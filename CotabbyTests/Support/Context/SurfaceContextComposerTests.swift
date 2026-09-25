@@ -26,6 +26,17 @@ final class SurfaceContextComposerTests: XCTestCase {
         )
     }
 
+    func testBasePrefaceKeepsDocumentFactsAndSubjectFieldWithoutSoftwareBranding() {
+        let surface = SurfaceContext(surfaceClass: .email, applicationName: "Mail",
+            windowTitle: "Budget review", domain: nil, fieldPlaceholder: "Subject")
+        XCTAssertEqual(SurfaceContextComposer.baseCompletionPrefaceLines(for: surface),
+                       ["Format: email; Title: Budget review; Field: Subject."])
+        let generic = SurfaceContext(surfaceClass: .other, applicationName: "ChatGPT",
+            windowTitle: "ChatGPT", domain: nil, fieldPlaceholder: "Message")
+        XCTAssertEqual(SurfaceContextComposer.baseCompletionPrefaceLines(for: generic), ["Format: text."])
+        XCTAssertTrue(SurfaceContextComposer.prefaceLines(for: generic)[0].contains("App: ChatGPT"))
+    }
+
     // MARK: - Class gating
 
     func testCodeEditorsGetNoSurfaceContext() {

@@ -149,9 +149,11 @@ struct TypingSessionEvalReport: Codable {
     let seed: UInt32
     let debounceMilliseconds: Int
     let sessions: [Session]
+    /// Stored with the report so shorter suggestions cannot masquerade as faster long ones.
+    var wordCountPreset = "12-20"
     var measurementScope = "Scripted input to display-eligible text; excludes AX, overlay layout, typing-cadence delay, local fallback, dismissal, and coordinator tail reuse. " +
         "Tab counts are opportunities, not observed user accepts. " +
-        "Fixed settings: multiline=true, surface context=false, word-count preset=12–20; clipboard context disabled."
+        "Fixed settings: multiline=true, surface context=false; clipboard context disabled. Word-count preset is recorded separately."
 
     func rendered() -> String {
         sessions.map { session in

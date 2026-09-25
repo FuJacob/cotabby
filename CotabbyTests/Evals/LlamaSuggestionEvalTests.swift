@@ -209,7 +209,11 @@ enum LlamaEvalRuntime {
             maxPrefixWordsFoundationModel: defaults.maxPrefixWordsFoundationModel,
             maxPrefixCharactersFoundationModel: defaults.maxPrefixCharactersFoundationModel,
             maxSuffixCharacters: defaults.maxSuffixCharacters, llamaPromptTokenBudget: defaults.llamaPromptTokenBudget,
-            defaultUserName: defaults.defaultUserName, defaultWordCountPreset: defaults.defaultWordCountPreset,
+            defaultUserName: defaults.defaultUserName,
+            // Share the explicit harness length with the typing replay; otherwise a 4–7-word
+            // campaign silently measures streaming with the older 12–20-word default.
+            defaultWordCountPreset: ProcessInfo.processInfo.environment["COTABBY_PHRASE_WORD_COUNT"]
+                .flatMap(SuggestionWordCountPreset.init(rawValue:)) ?? defaults.defaultWordCountPreset,
             focusPollIntervalMilliseconds: defaults.focusPollIntervalMilliseconds
         )
     }

@@ -88,10 +88,12 @@ final class TypingSessionEvalScoringTests: XCTestCase {
     func testReportRoundTripsMeasurementsAndRetainsMissingLatency() throws {
         let report = TypingSessionEvalReport(
             modelFilename: "test.gguf", seed: 42, debounceMilliseconds: 20,
-            sessions: [.init(traceID: "test", cacheMode: "cold", streamingEnabled: true, measurements: [makeMeasurement()])]
+            sessions: [.init(traceID: "test", cacheMode: "cold", streamingEnabled: true, measurements: [makeMeasurement()])],
+            wordCountPreset: "4-7"
         )
         let decoded = try JSONDecoder().decode(TypingSessionEvalReport.self, from: JSONEncoder().encode(report))
         XCTAssertNil(decoded.sessions[0].measurements[0].firstUsefulLatencyMilliseconds)
+        XCTAssertEqual(decoded.wordCountPreset, "4-7")
         XCTAssertTrue(decoded.rendered().contains("p50 n/a"))
     }
 

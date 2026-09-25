@@ -6,6 +6,7 @@ app-hosted test with explicit environment settings, and compares its versioned J
 """
 import argparse
 import collections
+import contextlib
 import copy
 import datetime
 import hashlib
@@ -19,6 +20,7 @@ import re
 import signal
 import subprocess
 import sys
+import tempfile
 import time
 import uuid
 import xml.etree.ElementTree as ET
@@ -91,21 +93,28 @@ def partition_phrases(phrases, args):
 
 
 def read_selection(args):
-    corpus = json.loads(CORPUS.read_text())
+    corpus_path = getattr(args, "corpus", None) or CORPUS
+    canonical = not getattr(args, "corpus", None)
+    corpus = json.loads(corpus_path.read_text())
     phrases = corpus["phrases"]
     if (corpus["version"] != 2 or corpus["language"] != "en"
-            or len(phrases) != 1337
-            or len({p["id"] for p in phrases}) != 1337
-            or len({p["text"].strip().lower() for p in phrases}) != 1337
-            or collections.Counter(p["category"] for p in phrases) != dict.fromkeys(CATEGORIES, 191)
-            or any(len(WORD.findall(p["text"])) < 3 for p in phrases)):
+            or not corpus.get("provenance")
+            or not phrases
+            or (canonical and len(phrases) != 1337)
+            or len({p["id"] for p in phrases}) != len(phrases)
+            or len({p["text"].strip().lower() for p in phrases}) != len(phrases)
+            or not set(p["category"] for p in phrases).issubset(CATEGORIES)
+            or (canonical and collections.Counter(p["category"] for p in phrases) != dict.fromkeys(CATEGORIES, 191))
+            or any(not p["id"] or p["text"] != p["text"].strip() or len(WORD.findall(p["text"])) < 3 for p in phrases)):
         raise ValueError("Invalid corpus: expected 1337 unique phrases, 191 per category, at least three words each")
     screens = [p.get("scenario", {}).get("screenText", "") for p in phrases]
-    if len(set(screens)) != 1337 or any(len(screen) < 40 or len(screen) > 4000 for screen in screens):
+    if len(set(screens)) != len(phrases) or any(len(screen) < 40 or len(screen) > 4000 for screen in screens):
         raise ValueError("Every phrase requires a distinct bounded screen scenario")
     folded = lambda text: " ".join(WORD.findall(text.lower()))
     for phrase in phrases:
         scene = phrase["scenario"]
+        if not all(scene.get(key) for key in ("applicationName", "bundleIdentifier", "kind")):
+            raise ValueError("Incomplete surface scenario")
         if folded(phrase["text"]) in folded(scene["screenText"] + " " + scene["documentPrefix"]):
             raise ValueError(f"Reference sentence leaked into screen context: {phrase['id']}")
     selected = [p for p in partition_phrases(phrases, args) if (not args.category or p["category"] == args.category)
@@ -152,6 +161,7 @@ def show_plan(args):
         print(f"  {category}: {count:,} checkpoints")
     print("Primary score: exact next word before its first letter; suppressed output is a miss.")
     print(f"Selection: split={getattr(args, 'split', 'all')}; split seed={getattr(args, 'split_seed', 1337)}; screen phrases/category={getattr(args, 'screen_per_category', 20)}")
+    print(f"Prompt: {getattr(args, 'prompt_variant', 'production')}; profile: {getattr(args, 'profile', 'plain')}; word count: {getattr(args, 'word_count', None) or 'product default'}")
     if overrides:
         print("Sampling overrides:", json.dumps(overrides, sort_keys=True))
     return phrases
@@ -393,6 +403,68 @@ def prepare_build_inputs(workspace, project, output, *, skip_build):
     return after
 
 
+@contextlib.contextmanager
+def sign_test_hosts(products, output):
+    """Stage and ad-hoc sign a disposable XCTest host outside file-provider managed folders.
+
+    Incremental unsigned builds can retain stale seals. File providers can also reattach Finder
+    metadata immediately after xattr cleanup under Documents, invalidating a new seal. A clean
+    temporary copy avoids both, needs no developer identity, and never changes the installed app
+    or the binaries fingerprinted for build reuse. The context manager removes it even on failure.
+    """
+    source = products / "Release/CoHamster.app"
+    if not source.is_dir():
+        raise RuntimeError("No Release test host found for ad-hoc signing")
+    entitlements = output / "test-host.entitlements"
+    entitlements.write_bytes(plistlib.dumps({"com.apple.security.get-task-allow": True,
+        "com.apple.security.cs.disable-library-validation": True}))
+    with tempfile.TemporaryDirectory(prefix="cohamster-eval-", dir="/private/tmp") as staging:
+        host = pathlib.Path(staging) / "CoHamster.app"
+        logged_command(["ditto", "--norsrc", "--noextattr", source, host], output / "sign-copy.log")
+        logged_command(["xattr", "-cr", host], output / "sign-attributes.log")
+        logged_command(["codesign", "--force", "--deep", "--sign", "-", "--timestamp=none",
+                        "--options", "runtime", "--entitlements", entitlements, host], output / "sign.log")
+        logged_command(["codesign", "--verify", "--deep", "--strict", host], output / "sign-verify.log")
+        try:
+            yield host
+        finally:
+            # XCTest launches through launchd, outside xcodebuild's process group. Interrupting
+            # that group alone can leave a blocked host (and its model) alive. Match only this
+            # disposable executable, never the installed CoHamster app or another replay.
+            executable = host / "Contents/MacOS/CoHamster"
+            subprocess.run(["pkill", "-TERM", "-f", "^" + re.escape(str(executable)) + "( |$)"],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
+
+
+def retarget_test_host(value, host):
+    """Preserve __TESTROOT__/__TESTHOST__ semantics while pointing XCTest at the signed copy."""
+    count = 0
+    if isinstance(value, dict):
+        if "CotabbyTests.xctest" in str(value.get("TestBundlePath", "")):
+            old = value["TestHostPath"]
+            value["TestHostPath"] = str(host)
+            value["DependentProductPaths"] = [p.replace(old, str(host)) for p in value.get("DependentProductPaths", [])]
+            # XCTest adds product-directory overrides ahead of the app's own rpaths. Leaving
+            # these behind defeats staging: dyld can reopen file-provider-managed frameworks
+            # under Documents and stall before main(). Use the verified embedded copies instead.
+            product_root = str(pathlib.PurePosixPath(old).parent)
+            framework_root = str(host / "Contents/Frameworks")
+            for section in ("EnvironmentVariables", "TestingEnvironmentVariables"):
+                for key, item in value.get(section, {}).items():
+                    if not isinstance(item, str):
+                        continue
+                    if "DYLD_" in key:
+                        value[section][key] = item.replace(product_root + "/PackageFrameworks", framework_root).replace(product_root, framework_root)
+                    elif key == "__XCODE_BUILT_PRODUCTS_DIR_PATHS":
+                        value[section][key] = item.replace(product_root, str(host.parent))
+            count += 1
+        else:
+            count += sum(retarget_test_host(child, host) for child in value.values())
+    elif isinstance(value, list):
+        count += sum(retarget_test_host(child, host) for child in value)
+    return count
+
+
 def build_product_fingerprint(source):
     """Detect replacement of the app-hosted test binaries after the recorded successful build."""
     products = source.parent
@@ -410,7 +482,10 @@ def build_product_fingerprint(source):
 
 
 def run(args):
+    if getattr(args, "runtime_checks", False) and args.model is None:
+        raise ValueError("--runtime-checks requires --model so native checks cannot skip or use a different model")
     phrases = show_plan(args)
+    corpus_path = getattr(args, "corpus", None) or CORPUS
     overrides = sampling_overrides(args)
     workers = min(args.workers, len(phrases))
     if platform.system() != "Darwin":
@@ -425,10 +500,14 @@ def run(args):
     manifest = {
         "startedUTC": stamp, "label": args.label, "gitCommit": git_output("rev-parse", "HEAD").strip(),
         "gitStatus": git_output("status", "--short"), "mode": args.mode, "contextMode": args.context,
-        "corpusSHA256": hashlib.sha256(CORPUS.read_bytes()).hexdigest(),
+        "corpusSHA256": hashlib.sha256(corpus_path.read_bytes()).hexdigest(),
         "phraseIDs": [p["id"] for p in phrases], "platform": platform.platform(),
         "modelPath": str(args.model.resolve()) if args.model else "app runtime default",
         "workerCount": workers,
+        "promptVariant": getattr(args, "prompt_variant", "production"),
+        "profile": getattr(args, "profile", "plain"),
+        "wordCountPreset": getattr(args, "word_count", None) or "product default",
+        "corpusPath": str(corpus_path.resolve()),
         "samplingOverrides": overrides,
         "selection": {"split": args.split, "splitSeed": args.split_seed, "screenPerCategory": args.screen_per_category,
                       "perCategory": args.per_category, "limit": args.limit},
@@ -442,7 +521,7 @@ def run(args):
     initial_git = {key: manifest[key] for key in ("gitCommit", "gitStatus")}
     prepared_inputs = prepare_build_inputs(args.workspace, project, output, skip_build=args.skip_build)
     source_fingerprint = prepared_inputs["sourceSHA256"]
-    if hashlib.sha256(CORPUS.read_bytes()).hexdigest() != manifest["corpusSHA256"]:
+    if hashlib.sha256(corpus_path.read_bytes()).hexdigest() != manifest["corpusSHA256"]:
         raise RuntimeError("Corpus changed after phrase selection; retry with a stable checkout")
     # The manifest/patch now describe the inputs about to compile, including newly generated pins.
     # Keep launch provenance as well; a rejected setup never masquerades as a completed benchmark.
@@ -482,39 +561,78 @@ def run(args):
         print("Reusing verified app/test build; source inputs and binary fingerprints match.", flush=True)
     manifest["build"] = build_record
     (output / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
-    configuration = plistlib.loads(source.read_bytes())
-    environment = {
-        "COTABBY_PHRASE_EVAL": "1", "COTABBY_PHRASE_MODE": args.mode, "COTABBY_PHRASE_CONTEXT": args.context,
-        "COTABBY_PHRASE_OUTPUT": str(output), "COTABBY_PHRASE_LABEL": args.label,
-        "COTABBY_PHRASE_WORKERS": str(workers),
-        "COTABBY_PHRASE_SPLIT": args.split, "COTABBY_PHRASE_SPLIT_SEED": str(args.split_seed),
-        "COTABBY_PHRASE_SCREEN_PER_CATEGORY": str(args.screen_per_category),
-    }
-    for field, value in overrides.items():
-        environment["COTABBY_PHRASE_SEED" if field == "seed" else SAMPLING_FIELDS[field][1]] = str(value)
-    for key, value in (("COTABBY_PHRASE_CATEGORY", args.category), ("COTABBY_PHRASE_ID", args.phrase),
-                       ("COTABBY_PHRASE_LIMIT", args.limit), ("COTABBY_PHRASE_PER_CATEGORY", args.per_category), ("COTABBY_EVAL_MODEL_PATH", args.model)):
-        if value is not None:
-            environment[key] = str(value.resolve() if isinstance(value, pathlib.Path) else value)
-    if inject_environment(configuration, environment) != 1:
-        raise RuntimeError("Expected exactly one CotabbyTests target in xctestrun")
-    # __TESTROOT__ is relative to the plist, so keep the temporary copy beside the original.
-    prepared = products / f"CoHamster_phrase-eval-{uuid.uuid4().hex}.xctestrun"
-    prepared.write_bytes(plistlib.dumps(configuration))
-    try:
-        logged_command([
-            "xcodebuild", "test-without-building", "-xctestrun", prepared,
-            "-destination", "platform=macOS", "-derivedDataPath", DERIVED,
-            "-only-testing:CotabbyTests/PhrasePredictionEvalTests/testReplayCorpus",
-            "-parallel-testing-enabled", "NO", "-test-timeouts-enabled", "NO",
-        ], output / "test.log", ReplayProgress(output, sum(checkpoint_counts(phrases, args.mode, args.context).values())))
-    finally:
-        prepared.unlink(missing_ok=True)
+    with sign_test_hosts(products, output) as host:
+        configuration = plistlib.loads(source.read_bytes())
+        if retarget_test_host(configuration, host) != 1:
+            raise RuntimeError("Expected exactly one app-hosted CotabbyTests target")
+        if build_product_fingerprint(source) != product_fingerprint:
+            raise RuntimeError("App/test binaries changed while staging the test host")
+        environment = {
+            "COTABBY_PHRASE_EVAL": "1", "COTABBY_PHRASE_MODE": args.mode, "COTABBY_PHRASE_CONTEXT": args.context,
+            "COTABBY_PHRASE_OUTPUT": str(output), "COTABBY_PHRASE_LABEL": args.label,
+            "COTABBY_PHRASE_WORKERS": str(workers),
+            "COTABBY_PHRASE_PROMPT_VARIANT": getattr(args, "prompt_variant", "production"),
+            "COTABBY_PHRASE_PROFILE": getattr(args, "profile", "plain"),
+            "COTABBY_PHRASE_SPLIT": args.split, "COTABBY_PHRASE_SPLIT_SEED": str(args.split_seed),
+            "COTABBY_PHRASE_SCREEN_PER_CATEGORY": str(args.screen_per_category),
+        }
+        if getattr(args, "word_count", None):
+            environment["COTABBY_PHRASE_WORD_COUNT"] = args.word_count
+        typing_artifact = host.parent / "typing.json"
+        if getattr(args, "runtime_checks", False):
+            environment["COTABBY_TYPING_OUTPUT"] = str(typing_artifact)
+            # The native integration suite prefers TEST_MODEL_PATH over EVAL_MODEL_PATH.
+            # Override both, rather than inheriting an unrelated developer test selection.
+            environment["COTABBY_TEST_MODEL_PATH"] = str(args.model.resolve())
+        if getattr(args, "corpus", None):
+            # The disposable host should not need Documents access to read a custom fixture.
+            # Freeze the same bytes we fingerprinted, beside the staged app, for this replay.
+            staged_corpus = host.parent / "corpus.json"
+            corpus_bytes = args.corpus.read_bytes()
+            if hashlib.sha256(corpus_bytes).hexdigest() != manifest["corpusSHA256"]:
+                raise RuntimeError("Corpus changed before staging; retry with stable inputs")
+            staged_corpus.write_bytes(corpus_bytes)
+            environment["COTABBY_PHRASE_CORPUS"] = str(staged_corpus)
+        for field, value in overrides.items():
+            environment["COTABBY_PHRASE_SEED" if field == "seed" else SAMPLING_FIELDS[field][1]] = str(value)
+        for key, value in (("COTABBY_PHRASE_CATEGORY", args.category), ("COTABBY_PHRASE_ID", args.phrase),
+                           ("COTABBY_PHRASE_LIMIT", args.limit), ("COTABBY_PHRASE_PER_CATEGORY", args.per_category), ("COTABBY_EVAL_MODEL_PATH", args.model)):
+            if value is not None:
+                environment[key] = str(value.resolve() if isinstance(value, pathlib.Path) else value)
+        if inject_environment(configuration, environment) != 1:
+            raise RuntimeError("Expected exactly one CotabbyTests target in xctestrun")
+        # __TESTROOT__ is relative to the plist, so keep the temporary copy beside the original.
+        prepared = products / f"CoHamster_phrase-eval-{uuid.uuid4().hex}.xctestrun"
+        prepared.write_bytes(plistlib.dumps(configuration))
+        try:
+            logged_command([
+                "xcodebuild", "test-without-building", "-xctestrun", prepared,
+                "-destination", "platform=macOS", "-derivedDataPath", DERIVED,
+                "-only-testing:CotabbyTests/PhrasePredictionEvalTests/testReplayCorpus",
+                *(["-only-testing:CotabbyTests/LlamaRuntimeCoreIntegrationTests",
+                   "-only-testing:CotabbyTests/LlamaTypingSessionEvalTests"] if getattr(args, "runtime_checks", False) else []),
+                "-parallel-testing-enabled", "NO", "-test-timeouts-enabled", "NO",
+            ], output / "test.log", ReplayProgress(output, sum(checkpoint_counts(phrases, args.mode, args.context).values())))
+        finally:
+            prepared.unlink(missing_ok=True)
+        if getattr(args, "runtime_checks", False):
+            if not typing_artifact.is_file():
+                raise RuntimeError("No typing report was produced; check test.log for skipped tests")
+            (output / "typing.json").write_bytes(typing_artifact.read_bytes())
     report_path = output / "report.json"
     if not report_path.exists():
         raise RuntimeError("No report was produced; check test.log for a skipped or interrupted benchmark")
     report = json.loads(report_path.read_text())
     validate_sampling_report(report, overrides)
+    for field, attribute in (("promptVariant", "prompt_variant"), ("profile", "profile")):
+        if hasattr(args, attribute) and report["metadata"].get("configuration", {}).get(field) != getattr(args, attribute):
+            raise RuntimeError(f"Test host ignored {attribute}; rebuild the test bundle")
+    if getattr(args, "word_count", None) and report["metadata"].get("configuration", {}).get("wordCountPreset") != args.word_count:
+        raise RuntimeError("Test host ignored word-count preset; rebuild the test bundle")
+    if hashlib.sha256(corpus_path.read_bytes()).hexdigest() != manifest["corpusSHA256"]:
+        raise RuntimeError("Corpus changed during replay; do not use this run")
+    if "corpusSHA256" in report["metadata"] and report["metadata"]["corpusSHA256"] != manifest["corpusSHA256"]:
+        raise RuntimeError("Test host used a different corpus; rebuild the test bundle")
     if report["metadata"].get("workerCount", 1) != workers:
         raise RuntimeError("Executed worker count does not match the requested worker count")
     conditions = ["none", "screen"] if args.context == "paired" else [args.context]
@@ -646,6 +764,10 @@ def main():
     commands = parser.add_subparsers(dest="command", required=True)
     for name in ("plan", "run"):
         command = commands.add_parser(name)
+        command.add_argument("--corpus", type=pathlib.Path, help="Explicit version-2 regression corpus; default is the canonical 1337 scenarios")
+        command.add_argument("--prompt-variant", choices=("production", "content-only", "compact-surface", "compact-language"), default="production", help="Test-only ablation: content-only omits surface/profile/language hints, retaining screen text")
+        command.add_argument("--word-count", choices=("2-4", "4-7", "7-12", "12-20"), help="Explicit completion length; omitted inherits product defaults")
+        command.add_argument("--profile", choices=("plain", "personalized"), default="plain", help="personalized includes a synthetic name and English language preference")
         command.add_argument("--mode", choices=("word", "character"), default="word")
         command.add_argument("--context", choices=("none", "screen", "paired"), default="paired")
         command.add_argument("--workers", type=int, choices=(1, 2, 3), default=3,
@@ -669,6 +791,7 @@ def main():
             command.add_argument("--workspace", type=pathlib.Path, help="Optional workspace for a local CotabbyInference checkout")
             command.add_argument("--output", type=pathlib.Path, help="New results directory; never overwrites a previous run")
             command.add_argument("--label", default="baseline")
+            command.add_argument("--runtime-checks", action="store_true", help="Also verify cache restoration, cancellation and streamed typing with the selected model")
             command.add_argument("--skip-build", action="store_true",
                                  help="Reuse a successful CLI build only if source and app/test fingerprints still match")
     command = commands.add_parser("compare")

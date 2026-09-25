@@ -41,17 +41,23 @@ final class LlamaTypingSessionEvalTests: XCTestCase {
             modelFilename: manager.diagnostics.modelFilePath.map { URL(fileURLWithPath: $0).lastPathComponent } ?? "unknown",
             seed: LlamaEvalRuntime.seed,
             debounceMilliseconds: runner.configuration.debounceMilliseconds,
-            sessions: sessions
+            sessions: sessions,
+            wordCountPreset: runner.configuration.defaultWordCountPreset.rawValue
         )
         print(report.measurementScope)
         print(report.rendered())
         let directory = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .appendingPathComponent("build/eval", isDirectory: true)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        let artifact = directory.appendingPathComponent("typing-eval-\(report.modelFilename).json")
+        // Campaigns provide a fresh staged artifact path so test hosts neither overwrite another
+        // run nor need to open an existing file in a protected Documents folder. The CLI copies
+        // this report into the immutable run directory before removing its temporary host.
+        let artifact = ProcessInfo.processInfo.environment["COTABBY_TYPING_OUTPUT"]
+            .map { URL(fileURLWithPath: $0) }
+            ?? directory.appendingPathComponent("typing-eval-\(report.modelFilename).json")
+        try FileManager.default.createDirectory(at: artifact.deletingLastPathComponent(), withIntermediateDirectories: true)
         try encoder.encode(report).write(to: artifact)
         print("Typing eval artifact: \(artifact.path)")
         #else
@@ -209,7 +215,7 @@ private final class TypingSessionReplay {
                 precedingText: step.precedingText, trailingText: step.trailingText, generation: generation
             ),
             settings: CotabbyTestFixtures.settingsSnapshot(
-                selectedEngine: .llamaOpenSource, selectedWordCountPreset: .twelveToTwenty,
+                selectedEngine: .llamaOpenSource, selectedWordCountPreset: configuration.defaultWordCountPreset,
                 isClipboardContextEnabled: false, isSurfaceContextEnabled: false,
                 isMultiLineEnabled: true, streamSuggestionsWhileGenerating: true
             ),

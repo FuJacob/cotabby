@@ -145,7 +145,8 @@ class PhraseEvalCLITests(unittest.TestCase):
                         binary.parent.mkdir(parents=True)
                         binary.write_bytes(b'built app')
                         (products / 'CoHamster_test.xctestrun').write_bytes(eval_cli.plistlib.dumps(
-                            {'TestBundlePath': '__TESTROOT__/CotabbyTests.xctest'}))
+                            {'TestBundlePath': '__TESTHOST__/Contents/PlugIns/CotabbyTests.xctest',
+                             'TestHostPath': '__TESTROOT__/Release/CoHamster.app'}))
                         if mutate_build_input:
                             path = root / 'Cotabby/app.swift' if mutate_build_input == 'source' else lock
                             path.write_text('changed during compilation')
@@ -160,7 +161,8 @@ class PhraseEvalCLITests(unittest.TestCase):
                         mock.patch.object(eval_cli.platform, 'system', return_value='Darwin'), \
                         mock.patch.object(eval_cli.platform, 'platform', return_value='Synthetic macOS'), \
                         mock.patch.object(eval_cli, 'git_output', side_effect=git_output), \
-                        mock.patch.object(eval_cli, 'logged_command', side_effect=command), contextlib.redirect_stdout(io.StringIO()):
+                        mock.patch.object(eval_cli, 'logged_command', side_effect=command), \
+                        mock.patch.object(eval_cli, 'sign_test_hosts', return_value=contextlib.nullcontext(root / 'staged/CoHamster.app')), contextlib.redirect_stdout(io.StringIO()):
                     if mutate_build_input:
                         with self.assertRaisesRegex(RuntimeError, 'Source inputs changed during build setup'):
                             eval_cli.run(args)
@@ -175,6 +177,49 @@ class PhraseEvalCLITests(unittest.TestCase):
                         self.assertEqual(manifest['buildInputs']['sourceSHA256'], manifest['build']['sourceSHA256'])
                         self.assertEqual(manifest['build']['sourceSHA256'], eval_cli.build_input_fingerprint(workspace))
                         self.assertEqual(calls, ['-resolvePackageDependencies', 'build-for-testing', 'test-without-building'])
+
+    def test_staging_retargets_library_search_paths_as_well_as_host(self):
+        host = pathlib.Path('/private/tmp/example/CoHamster.app')
+        target = {'TestHostPath': '__TESTROOT__/Release/CoHamster.app',
+            'TestBundlePath': '__TESTHOST__/Contents/PlugIns/CotabbyTests.xctest',
+            'DependentProductPaths': ['__TESTROOT__/Release/CoHamster.app'],
+            'TestingEnvironmentVariables': {
+                'DYLD_FRAMEWORK_PATH': '__TESTROOT__/Release:__TESTROOT__/Release/PackageFrameworks:__PLATFORMS__/Developer/Frameworks',
+                '__XPC_DYLD_LIBRARY_PATH': '__TESTROOT__/Release',
+                '__XCODE_BUILT_PRODUCTS_DIR_PATHS': '__TESTROOT__/Release'}}
+        value = {'TestConfigurations': [{'TestTargets': [target]}]}
+        self.assertEqual(eval_cli.retarget_test_host(value, host), 1)
+        self.assertEqual(target['TestHostPath'], str(host))
+        self.assertEqual(target['TestBundlePath'], '__TESTHOST__/Contents/PlugIns/CotabbyTests.xctest')
+        for item in target['TestingEnvironmentVariables'].values():
+            self.assertNotIn('__TESTROOT__/Release', item)
+        self.assertIn('__PLATFORMS__/Developer/Frameworks', target['TestingEnvironmentVariables']['DYLD_FRAMEWORK_PATH'])
+
+    def test_runtime_checks_require_an_explicit_model_before_any_build(self):
+        with self.assertRaisesRegex(ValueError, 'requires --model'):
+            eval_cli.run(argparse.Namespace(runtime_checks=True, model=None))
+
+    def test_test_host_signing_is_local_adhoc_and_verified(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            host = root / 'products/Release/CoHamster.app'
+            host.mkdir(parents=True)
+            output = root / 'output'
+            output.mkdir()
+            with mock.patch.object(eval_cli, 'logged_command') as command, mock.patch.object(eval_cli.subprocess, 'run') as cleanup:
+                with eval_cli.sign_test_hosts(root / 'products', output) as signed:
+                    self.assertNotEqual(signed, host)
+            calls = [item.args[0] for item in command.call_args_list]
+            self.assertEqual(calls[2][calls[2].index('--sign') + 1], '-')
+            self.assertEqual(calls[-1], ['codesign', '--verify', '--deep', '--strict', signed])
+            self.assertFalse(signed.parent.exists(), 'staged bundles must not accumulate')
+            self.assertEqual(cleanup.call_args.args[0][:3], ['pkill', '-TERM', '-f'])
+            pattern = cleanup.call_args.args[0][3]
+            self.assertIsNotNone(eval_cli.re.search(pattern, str(signed / 'Contents/MacOS/CoHamster') + ' -cotabby-debug'))
+            self.assertIsNone(eval_cli.re.search(pattern, '/Applications/CoHamster.app/Contents/MacOS/CoHamster'))
+            entitlements = eval_cli.plistlib.loads((output / 'test-host.entitlements').read_bytes())
+            self.assertTrue(entitlements['com.apple.security.get-task-allow'])
+            self.assertTrue(entitlements['com.apple.security.cs.disable-library-validation'])
 
     def test_hash_partitions_are_balanced_disjoint_and_result_independent(self):
         args = argparse.Namespace(category=None, phrase=None, limit=None, split='screen', split_seed=1337,

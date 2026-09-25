@@ -29,10 +29,10 @@ final class PhrasePredictionEvalTests: XCTestCase {
         replayArgumentDomain[LlamaSuggestionEngine.argmaxStopDisabledKey] = false
         defaults.setVolatileDomain(replayArgumentDomain, forName: UserDefaults.argumentDomain)
         defer { defaults.setVolatileDomain(previousArgumentDomain, forName: UserDefaults.argumentDomain) }
-        let corpusURL = try XCTUnwrap(Bundle(for: Self.self).url(forResource: "phrase-prediction-1337", withExtension: "json"))
+        let corpusURL = try options.corpusURL ?? XCTUnwrap(Bundle(for: Self.self).url(forResource: "phrase-prediction-1337", withExtension: "json"))
         let data = try Data(contentsOf: corpusURL)
         let corpus = try JSONDecoder().decode(PhrasePredictionCorpus.self, from: data)
-        try corpus.validate()
+        try corpus.validate(canonical: options.corpusURL == nil)
         let selected = try options.select(corpus.phrases)
         let shards = try PhrasePredictionReplayPlan.shards(phraseCount: selected.count, workers: options.workers)
         let managers = try shards.map { _ in try LlamaEvalRuntime.makeManager() }
@@ -49,15 +49,20 @@ final class PhrasePredictionEvalTests: XCTestCase {
         }
         let configuration = options.configuration
         let settings = CotabbyTestFixtures.settingsSnapshot(
-            selectedEngine: .llamaOpenSource, selectedWordCountPreset: configuration.defaultWordCountPreset,
-            isClipboardContextEnabled: false, isSurfaceContextEnabled: true,
-            userName: "", isMultiLineEnabled: false, suppressCompletionsOnTypo: true, offerTypoCorrections: true
+            selectedEngine: .llamaOpenSource, selectedWordCountPreset: options.wordCountPreset,
+            isClipboardContextEnabled: false, isSurfaceContextEnabled: options.promptVariant != "content-only",
+            userName: options.profile == "personalized" && options.promptVariant != "content-only" ? "Alex" : "",
+            responseLanguages: options.profile == "personalized" && options.promptVariant != "content-only" ? ["English"] : [],
+            isMultiLineEnabled: false, suppressCompletionsOnTypo: true, offerTypoCorrections: true
         )
         var configurationRecord = Dictionary(uniqueKeysWithValues: Mirror(reflecting: configuration).children.compactMap {
             child -> (String, String)? in
             child.label.map { ($0, String(describing: child.value)) }
         })
-        configurationRecord["settings"] = "single-line; surface metadata and prior draft fixed; synthetic OCR varies; no clipboard/profile/custom rules"
+        configurationRecord["promptVariant"] = options.promptVariant
+        configurationRecord["profile"] = options.profile
+        configurationRecord["wordCountPreset"] = options.wordCountPreset.rawValue
+        configurationRecord["settings"] = "single-line; surface metadata and prior draft fixed; synthetic OCR varies; no clipboard/custom rules; profile=\(options.profile); prompt=\(options.promptVariant)"
         configurationRecord["wordPolicy"] = "committed typo gate; unified first-word display; no local fallback in model-only accuracy replay"
         configurationRecord["os"] = ProcessInfo.processInfo.operatingSystemVersionString
         configurationRecord["processors"] = String(ProcessInfo.processInfo.processorCount)
@@ -106,7 +111,7 @@ final class PhrasePredictionEvalTests: XCTestCase {
                                 try Task.checkCancellation()
                                 observations.append(try await self.observe(
                                     checkpoint, scenario: scenario, condition: condition, engine: engine, spellChecker: spellChecker,
-                                    settings: settings, configuration: configuration
+                                    settings: settings, configuration: configuration, promptVariant: options.promptVariant
                                 ))
                             }
                             let result = PhrasePredictionReport.PhraseResult(phrase: phrase, observations: observations, condition: condition)
@@ -147,6 +152,14 @@ final class PhrasePredictionEvalTests: XCTestCase {
         var environment = ["COTABBY_PHRASE_OUTPUT": "/tmp/cotabby-options-test"]
         let defaults = try Options(environment)
         XCTAssertEqual(defaults.configuration, LlamaEvalRuntime.configuration)
+        XCTAssertEqual(defaults.wordCountPreset, LlamaEvalRuntime.configuration.defaultWordCountPreset)
+        environment["COTABBY_PHRASE_WORD_COUNT"] = "4-7"
+        environment["COTABBY_PHRASE_PROFILE"] = "personalized"
+        environment["COTABBY_PHRASE_PROMPT_VARIANT"] = "compact-surface"
+        XCTAssertEqual(try Options(environment).wordCountPreset, .fourToSeven)
+        var badLength = environment
+        badLength["COTABBY_PHRASE_WORD_COUNT"] = "100"
+        XCTAssertThrowsError(try Options(badLength))
         environment.merge([
             "COTABBY_PHRASE_SPLIT": "screen", "COTABBY_PHRASE_CATEGORY": "science",
             "COTABBY_PHRASE_PER_CATEGORY": "3", "COTABBY_PHRASE_TEMPERATURE": "0",
@@ -213,7 +226,7 @@ final class PhrasePredictionEvalTests: XCTestCase {
         _ checkpoint: PhrasePredictionScorer.Checkpoint, scenario: PhrasePredictionCorpus.ScreenScenario,
         condition: PhrasePredictionScorer.ContextCondition, engine: LlamaSuggestionEngine,
         spellChecker: CurrentWordSpellChecker, settings: SuggestionSettingsSnapshot,
-        configuration: SuggestionConfiguration
+        configuration: SuggestionConfiguration, promptVariant: String
     ) async throws -> PhrasePredictionObservation {
         guard SuggestionRequestFactory.shouldGenerateSuggestion(for: checkpoint.prefix) else {
             return .init(checkpoint: checkpoint, raw: "", shown: nil, suppression: "pre-generation-gate", latencyMilliseconds: 0, error: nil)
@@ -230,7 +243,7 @@ final class PhrasePredictionEvalTests: XCTestCase {
         }
         let request = PhrasePredictionScreenContext.request(
             checkpoint: checkpoint, scenario: scenario, condition: condition,
-            settings: settings, configuration: configuration
+            settings: settings, configuration: configuration, promptVariant: promptVariant
         )
         let start = ContinuousClock.now
         func elapsed() -> Double {
@@ -281,6 +294,10 @@ final class PhrasePredictionEvalTests: XCTestCase {
     /// Invalid filters fail loudly instead of silently reporting an empty or different suite.
     @MainActor
     private struct Options {
+        let corpusURL: URL?
+        let promptVariant: String
+        let wordCountPreset: SuggestionWordCountPreset
+        let profile: String
         let mode: PhrasePredictionScorer.Mode
         let contextMode: PhrasePredictionScorer.ContextMode
         let category: String?
@@ -296,6 +313,16 @@ final class PhrasePredictionEvalTests: XCTestCase {
         let label: String
 
         init(_ environment: [String: String]) throws {
+            if let path = environment["COTABBY_PHRASE_CORPUS"] {
+                guard path.hasPrefix("/") else { throw Self.invalid("Corpus path must be absolute") }
+                corpusURL = URL(fileURLWithPath: path)
+            } else { corpusURL = nil }
+            promptVariant = environment["COTABBY_PHRASE_PROMPT_VARIANT"] ?? "production"
+            profile = environment["COTABBY_PHRASE_PROFILE"] ?? "plain"
+            guard ["production", "content-only", "compact-surface", "compact-language"].contains(promptVariant),
+                  ["plain", "personalized"].contains(profile) else {
+                throw Self.invalid("Unknown prompt variant or profile")
+            }
             guard let mode = PhrasePredictionScorer.Mode(rawValue: environment["COTABBY_PHRASE_MODE"] ?? "word") else {
                 throw Self.invalid("Mode must be word or character")
             }
@@ -322,6 +349,11 @@ final class PhrasePredictionEvalTests: XCTestCase {
             }
             screenPerCategory = screenCount
             configuration = try Self.samplingConfiguration(environment)
+            guard let preset = SuggestionWordCountPreset(rawValue:
+                environment["COTABBY_PHRASE_WORD_COUNT"] ?? configuration.defaultWordCountPreset.rawValue) else {
+                throw Self.invalid("Unknown word-count preset")
+            }
+            wordCountPreset = preset
             category = environment["COTABBY_PHRASE_CATEGORY"]
             phraseID = environment["COTABBY_PHRASE_ID"]
             if let raw = environment["COTABBY_PHRASE_LIMIT"] {

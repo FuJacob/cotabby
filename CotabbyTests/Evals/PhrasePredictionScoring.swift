@@ -29,22 +29,23 @@ struct PhrasePredictionCorpus: Codable {
         let screenText: String
     }
 
-    func validate() throws {
+    func validate(canonical: Bool = true) throws {
         func require(_ condition: Bool, _ message: String) throws {
             if !condition { throw ValidationError.invalid(message) }
         }
         try require(version == 2 && language == "en", "Unsupported corpus version or language")
         try require(!provenance.isEmpty, "Corpus provenance is required")
-        try require(phrases.count == 1337, "Expected exactly 1337 phrases")
+        try require(!phrases.isEmpty, "Empty corpus")
+        if canonical { try require(phrases.count == 1337, "Expected exactly 1337 phrases") }
         try require(Set(phrases.map(\.id)).count == phrases.count, "Duplicate phrase IDs")
         let folded = phrases.map { $0.text.lowercased().trimmingCharacters(in: .whitespacesAndNewlines) }
         try require(Set(folded).count == phrases.count, "Duplicate phrase text")
         let categories = Dictionary(grouping: phrases, by: \.category)
-        try require(Set(categories.keys) == Set([
+        try require(Set(categories.keys).isSubset(of: Set([
             "conversation", "science", "entertainment", "work", "technology", "everyday", "travel"
-        ]), "Unexpected categories")
-        try require(categories.values.allSatisfy { $0.count == 191 }, "Each category must contain 191 phrases")
-        try require(Set(phrases.compactMap { $0.scenario?.screenText }).count == 1337, "Each phrase needs its own screen context")
+        ])), "Unexpected categories")
+        if canonical { try require(categories.count == 7 && categories.values.allSatisfy { $0.count == 191 }, "Each category must contain 191 phrases") }
+        try require(Set(phrases.compactMap { $0.scenario?.screenText }).count == phrases.count, "Each phrase needs its own screen context")
         for phrase in phrases {
             try require(!phrase.id.isEmpty, "Empty phrase ID")
             try require(phrase.text == phrase.text.trimmingCharacters(in: .whitespacesAndNewlines), "Untrimmed phrase")

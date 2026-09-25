@@ -85,6 +85,31 @@ nonisolated enum SurfaceContextComposer {
         return [fields.joined(separator: "; ") + "."]
     }
 
+    /// Opt-in evaluation variant that removes software branding and generic composer labels.
+    /// Screening found mixed results, so production keeps `prefaceLines`. Keeping this pure
+    /// renderer separate lets the replay compare representations without mutating surface facts.
+    static func baseCompletionPrefaceLines(for surface: SurfaceContext) -> [String] {
+        let format: String
+        switch surface.surfaceClass {
+        case .email: format = "email"
+        case .chat: format = "chat"
+        case .browser: format = "web text"
+        case .other: format = "text"
+        case .codeEditor, .terminal: return []
+        }
+        var fields = ["Format: \(format)"]
+        if surface.surfaceClass == .browser, let domain = surface.domain { fields.append("Domain: \(domain)") }
+        if let title = surface.windowTitle, title.caseInsensitiveCompare(surface.applicationName) != .orderedSame {
+            fields.append("Title: \(title)")
+        }
+        if let placeholder = surface.fieldPlaceholder,
+           !["message", "imessage", "reply", "message body", "write a message", "type a message",
+             "text", "text field", "note", "compose", "ask anything", "message chatgpt"].contains(placeholder.lowercased()) {
+            fields.append("Field: \(placeholder)")
+        }
+        return [fields.joined(separator: "; ") + "."]
+    }
+
     // MARK: - Sanitization
 
     /// Strips the app-name suffix browsers and many apps append (`Inbox - Google Chrome`,

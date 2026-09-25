@@ -61,6 +61,29 @@ final class PhrasePredictionScreenContextTests: XCTestCase {
         XCTAssertEqual(checkpoints.first?.prefix, "Hi Morgan,\n\nPlease ")
     }
 
+    func testCompactSurfaceExperimentChangesOnlyPromptRepresentation() {
+        let checkpoint = PhrasePredictionScorer.Checkpoint(wordIndex: 1, typedCharacters: 0,
+            prefix: "Please confirm ", typedWordPrefix: "", expectedWord: "Tuesday")
+        let scenario = scene("Morgan: Tuesday is the only free inspection slot.")
+        let settings = CotabbyTestFixtures.settingsSnapshot(userName: "Alex", responseLanguages: ["English"])
+        let current = PhrasePredictionScreenContext.request(checkpoint: checkpoint, scenario: scenario,
+            condition: .screen, settings: settings, configuration: .standard)
+        let compact = PhrasePredictionScreenContext.request(checkpoint: checkpoint, scenario: scenario,
+            condition: .screen, settings: settings, configuration: .standard, promptVariant: "compact-surface")
+        XCTAssertTrue(current.prompt.contains("App: Mail"))
+        XCTAssertFalse(compact.prompt.contains("App: Mail"))
+        XCTAssertTrue(current.prompt.contains("Match the language"))
+        XCTAssertTrue(compact.prompt.contains("Match the language"))
+        XCTAssertEqual(current.context, compact.context)
+        XCTAssertEqual(current.prefixText, compact.prefixText)
+        XCTAssertEqual(current.visualContextSummary, compact.visualContextSummary)
+        XCTAssertEqual(current.surfaceContext, compact.surfaceContext)
+        XCTAssertEqual(current.maxPredictionTokens, compact.maxPredictionTokens)
+        XCTAssertEqual(current.temperature, compact.temperature)
+        XCTAssertEqual(current.randomSeed, compact.randomSeed)
+        XCTAssertTrue(compact.prompt.hasSuffix(checkpoint.prefix))
+    }
+
     private func request(_ checkpoint: PhrasePredictionScorer.Checkpoint, _ scene: PhrasePredictionCorpus.ScreenScenario,
                          _ condition: PhrasePredictionScorer.ContextCondition) -> SuggestionRequest {
         PhrasePredictionScreenContext.request(

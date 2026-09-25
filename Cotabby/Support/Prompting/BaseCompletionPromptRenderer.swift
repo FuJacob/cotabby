@@ -30,6 +30,7 @@ enum BaseCompletionPromptRenderer {
         clipboardContext: String? = nil,
         visualContextSummary: String? = nil,
         surfaceContext: SurfaceContext? = nil,
+        usesCompactSurfaceContext: Bool = false,
         contextBudget: Int = defaultContextBudget,
         maxScreenCharacters: Int = 4000,
         screenPriority: Int = 45,
@@ -42,7 +43,11 @@ enum BaseCompletionPromptRenderer {
         // facts remain stable during ordinary typing; navigation refreshes them even when doing
         // so sacrifices KV reuse. Context freshness takes precedence over a cached prompt head.
         if let surface = surfaceContext {
-            let lines = SurfaceContextComposer.prefaceLines(for: surface)
+            // This alternative is an opt-in evaluation control. Shipping requests use the
+            // default representation until disjoint replay evidence supports a change.
+            let lines = usesCompactSurfaceContext
+                ? SurfaceContextComposer.baseCompletionPrefaceLines(for: surface)
+                : SurfaceContextComposer.prefaceLines(for: surface)
             if !lines.isEmpty {
                 sections.append(
                     Self.contextSection("surface", lines.joined(separator: " "), priority: 70, maxChars: 240)

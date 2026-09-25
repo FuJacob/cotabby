@@ -1,5 +1,8 @@
 # Contextual next-word benchmark
 
+For automated multi-model admission, downloads, and staged screening/validation, see
+[MODEL_EVAL.md](MODEL_EVAL.md). This document describes the underlying replay and scorer.
+
 The harness replays **1,337 synthetic English writing scenarios**, with **191 per category**:
 conversation, science, entertainment, work, technology, everyday life (`everyday`), and travel.
 Each scenario pairs a target phrase with individually authored visible screen information. The
