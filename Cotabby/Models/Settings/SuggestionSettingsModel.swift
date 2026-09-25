@@ -51,9 +51,9 @@ final class SuggestionSettingsModel: ObservableObject {
     /// `OverlayController` at present time (like `ghostTextOpacity`), so it is intentionally not part
     /// of the generation-facing `SuggestionSettingsSnapshot` — it changes presentation, not requests.
     @Published private(set) var ghostTextSizeMultiplier: Double
-    /// Point-size floor and ceiling for the caret-approximated ghost size, applied before
-    /// `ghostTextSizeMultiplier`. Read live by `OverlayController` for the same reason the
-    /// multiplier is: they change presentation, not the generation request.
+    /// Point-size floor and ceiling for ghost text, applied after `ghostTextSizeMultiplier` so they
+    /// are absolute. Read live by `OverlayController` for the same reason the multiplier is: they
+    /// change presentation, not the generation request.
     @Published private(set) var ghostFontSizeFloor: Double
     @Published private(set) var ghostFontSizeCeiling: Double
     @Published private(set) var selectedEngine: SuggestionEngineKind

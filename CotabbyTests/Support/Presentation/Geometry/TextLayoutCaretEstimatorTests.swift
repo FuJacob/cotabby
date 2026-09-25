@@ -320,6 +320,21 @@ final class TextLayoutCaretEstimatorTests: XCTestCase {
         XCTAssertEqual(estimate.caretRect.maxY, 190, accuracy: 0.01)
     }
 
+    func test_estimate_lineQueryMarginCalibratesTheLeftInsetButNotTheTop() throws {
+        // A line-query margin knows where the host's text column starts, not where its text block
+        // starts vertically, so only the left inset is measured; the top keeps the default.
+        let frame = CGRect(x: 100, y: 100, width: 300, height: 100)
+        let estimate = try XCTUnwrap(
+            acceptedEstimate(
+                for: makeInput(prefix: "", frame: frame, observedContentEdges: .lineQueryMargin(leftX: 112))
+            )
+        )
+
+        XCTAssertTrue(estimate.usedObservedContentEdges)
+        XCTAssertEqual(estimate.caretRect.minX, 112, accuracy: 0.01)
+        XCTAssertEqual(estimate.caretRect.maxY, frame.maxY - topInset, accuracy: 0.01)
+    }
+
     func test_estimate_absurdContentEdgesFallBackToDefaultInsets() throws {
         // A heavily indented first run (quote, list) or an offscreen top edge is not padding.
         let frame = CGRect(x: 100, y: 100, width: 300, height: 100)

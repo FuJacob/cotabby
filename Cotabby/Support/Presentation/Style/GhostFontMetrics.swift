@@ -12,17 +12,22 @@ import Foundation
 /// Kept as a pure value helper (no AppKit) so the sizing math is unit-testable in isolation; callers
 /// extract the metrics from an `NSFont` and pass plain numbers.
 enum GhostFontMetrics {
-    /// Hard legibility floor applied after the user's size multiplier, below which ghost text would
-    /// read as broken rather than small. It sits under `minimum` on purpose so a "smaller" multiplier
-    /// still shrinks text that auto-sized to the floor; within the shipped multiplier range it never
-    /// binds, so it is purely a backstop against degenerate inputs (a non-positive or tiny multiplier).
+    /// Hard legibility floor applied last, below which ghost text would read as broken rather than
+    /// small. It only binds when a caller's `minimum` sits below it. The user's "Smallest Ghost Text"
+    /// setting cannot go that low (`SuggestionSettingsStore.minimumGhostFontSizeFloor` equals this),
+    /// so in the app it is purely a backstop against degenerate inputs.
     static let absoluteMinimumPointSize: CGFloat = 9
+
+    /// Plausible range for a host's display scale (its zoom). Word's zoom runs from 10% to 500%;
+    /// the bounds sit a little outside the useful range and exist only to reject nonsense ratios.
+    static let plausibleHostDisplayScale: ClosedRange<CGFloat> = 0.25...8
 
     /// Note on what `caretHeight` means, and why this helper does not second-guess the host's font
     /// report. A caret rect measured through `AXBoundsForRange` is the *rendered glyph box*
     /// (`ascender - descender`) in screen points, so it already carries the host's zoom. Multiplying
     /// it by the font's own scale-invariant ratio recovers the on-screen point size directly, which
-    /// is why no zoom factor appears anywhere in this file.
+    /// is why the caret-derived path needs no zoom factor. Only the synthetic-caret path, which has
+    /// no measured caret to carry the zoom, needs one; see `hostDisplayScale`.
     ///
     /// A previous version tried to detect placeholder font reports by testing `caretHeight` against
     /// the glyph box implied by the *reported* point size. That test is unsound: the reported size is
@@ -53,20 +58,30 @@ enum GhostFontMetrics {
     /// the `AXFrame` fallback path the resolver has no text-range geometry to read, so it fabricates
     /// a caret box from a fixed 15pt system font — a constant ~18pt regardless of what the host is
     /// really rendering. Deriving a font size from that constant is meaningless: it pins ghost text
-    /// near 14pt in *every* such host, which is why a zoomed Word document (16pt Aptos at 161% zoom
-    /// ≈ 26pt on screen) got ghost text roughly half the size of the user's own text. When the caret
-    /// is synthetic and the host told us its real point size, that reported size is genuine
-    /// information and the fabricated height is not, so we use the former and ignore the latter.
+    /// near 14pt in *every* such host. When the caret is synthetic and the host told us its point
+    /// size, that reported size is genuine information and the fabricated height is not, so we use
+    /// the former and ignore the latter.
+    ///
+    /// The reported size is in the host's *document* points, though, while ghost text is drawn in
+    /// screen points: Word at 161% zoom reports 16pt for text it renders at ~26pt. `hostDisplayScale`
+    /// is that zoom, learned from a precise caret earlier in the same focus session (see
+    /// `hostDisplayScale(caretHeight:fieldMetrics:hostReportedPointSize:)`); it converts the report
+    /// to screen points. Without one the report is used as-is, which is exact at 100% zoom.
     ///
     /// `hostReportedPointSize` is passed separately from `fieldMetrics` on purpose. `fieldMetrics`
     /// can only be built when the typeface itself instantiates, and hosts that bundle private fonts
     /// (Word's Aptos) may report a perfectly good *size* alongside a *name* we cannot resolve.
     /// Keeping them apart means a failed typeface lookup no longer throws away the point size too.
+    ///
+    /// `minimum` always wins over a cap: `maximum` and `syntheticCaretMaximum` may carry built-in
+    /// caps that tighten the user's ceiling for untrustworthy carets, and those must never override
+    /// the user's floor ("Smallest Ghost Text" promises text never renders below it).
     static func pointSize(
         caretHeight: CGFloat,
         caretHeightIsSynthetic: Bool = false,
         fieldMetrics: FieldFontMetrics?,
         hostReportedPointSize: CGFloat? = nil,
+        hostDisplayScale: CGFloat? = nil,
         fallbackRatio: CGFloat,
         minimum: CGFloat,
         maximum: CGFloat,
@@ -78,7 +93,7 @@ enum GhostFontMetrics {
         let base: CGFloat
         let ceiling: CGFloat
         if caretHeightIsSynthetic, let reported = hostReportedPointSize, reported > 0 {
-            base = reported
+            base = reported * (hostDisplayScale ?? 1)
             // The tighter `maximum` a synthetic caret normally gets exists to stop one bad *rect*
             // from rendering comically oversized ghost text. A host-reported point size is not a
             // rect estimate, so it earns the looser ceiling — otherwise legitimately large text
@@ -96,8 +111,33 @@ enum GhostFontMetrics {
         // text in fields pinned to a rail; that reasoning predates the rails being user-settable,
         // and someone who wants smaller text can now lower the floor itself.
         let scaled = base * sizeMultiplier
-        let clamped = min(max(minimum, scaled), ceiling)
+        let clamped = min(max(minimum, scaled), max(ceiling, minimum))
         return max(absoluteMinimumPointSize, clamped)
+    }
+
+    /// The host's display scale — screen points per point it reports — implied by one render whose
+    /// caret height was a real measurement, or nil when that cannot be told reliably.
+    ///
+    /// A precise caret already carries the zoom, so the on-screen size it implies divided by the
+    /// size the host reports is exactly the zoom. That holds even for a host that reports a
+    /// placeholder size: the ratio then maps the placeholder to the text's real on-screen size,
+    /// which is what the synthetic path needs it for. Requires the real typeface metrics, because
+    /// the fallback ratio is itself an approximation and would bake its error into every later
+    /// synthetic render.
+    static func hostDisplayScale(
+        caretHeight: CGFloat,
+        fieldMetrics: FieldFontMetrics?,
+        hostReportedPointSize: CGFloat?
+    ) -> CGFloat? {
+        guard caretHeight > 0,
+              let reported = hostReportedPointSize, reported > 0,
+              let ratio = metricRatio(fieldMetrics)
+        else {
+            return nil
+        }
+
+        let scale = caretHeight * ratio / reported
+        return plausibleHostDisplayScale.contains(scale) ? scale : nil
     }
 
     /// `pointSize / (ascender - descender)` for the field font, or nil when the metrics are unusable.

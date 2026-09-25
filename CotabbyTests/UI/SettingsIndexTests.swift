@@ -34,6 +34,8 @@ final class SettingsIndexTests: XCTestCase {
         // entry. If one of these fails, a rename or removal broke search for that setting.
         let expectations: [(query: String, item: SettingsItem)] = [
             ("ghost text size", .ghostTextSize),
+            ("smallest ghost text", .ghostTextSizeFloor),
+            ("largest ghost text", .ghostTextSizeCeiling),
             ("terminal", .suggestInIntegratedTerminals),
             ("vscode", .suggestInIntegratedTerminals),
             ("typo", .automaticallyFixTypos),

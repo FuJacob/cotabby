@@ -49,19 +49,27 @@ struct SuggestionSettingsStore {
 
     /// User-adjustable floor and ceiling for the caret-approximated ghost-text size, in points.
     ///
-    /// These bound the size *before* `ghostTextSizeMultiplier` scales it. They exist as their own
-    /// controls because the multiplier cannot express what they express: it rescales every host
-    /// proportionally, whereas these clamp the outliers — a host whose caret geometry reads far
-    /// smaller or larger than its real text. The shipped defaults are the values the overlay used
-    /// when they were hard-coded, so an untouched install behaves exactly as before.
+    /// These bound the size *after* `ghostTextSizeMultiplier` scales it, so they are absolute: no
+    /// multiplier setting renders ghost text outside them. They exist as their own controls because
+    /// the multiplier cannot express what they express: it rescales every host proportionally,
+    /// whereas these clamp the outliers — a host whose caret geometry reads far smaller or larger
+    /// than its real text.
+    ///
+    /// The defaults deliberately differ from the 14pt/24pt the overlay used when these were
+    /// hard-coded. A 24pt ceiling is reachable by ordinary documents (20pt text at 120% zoom renders
+    /// near 24pt, and Word at 200% draws 12pt text at 24pt), silently shrinking anything larger; a
+    /// 14pt floor forced ghost text larger than the surrounding text in hosts that render at
+    /// 11-13pt.
     ///
     /// The two controls have deliberately different ranges. A floor above ~24pt would force ghost
     /// text larger than ordinary body text in most hosts, and a ceiling below ~16pt would clamp
     /// ordinary body text back down, so neither control is allowed into the other's territory by
     /// range alone. `SuggestionSettingsModel` additionally keeps floor <= ceiling, which range
-    /// clamping cannot do because each value is stored independently.
+    /// clamping cannot do because each value is stored independently. The floor's minimum equals
+    /// `GhostFontMetrics.absoluteMinimumPointSize`, the legibility backstop beneath it, so every
+    /// value the slider offers actually takes effect.
     static let defaultGhostFontSizeFloor: Double = 11
-    static let minimumGhostFontSizeFloor: Double = 6
+    static let minimumGhostFontSizeFloor: Double = 9
     static let maximumGhostFontSizeFloor: Double = 24
 
     static let defaultGhostFontSizeCeiling: Double = 48

@@ -71,7 +71,7 @@ struct SuggestionPresentationSettings: Equatable {
     var customSuggestionTextColorHex: String?
     var ghostTextOpacity: Double
     var ghostTextSizeMultiplier: Double
-    /// Point-size clamps applied to the caret-approximated ghost size before the multiplier.
+    /// Absolute point-size clamps for ghost text, applied after the size multiplier.
     var ghostFontSizeFloor: Double
     var ghostFontSizeCeiling: Double
     var isMenuBarIconVisible: Bool

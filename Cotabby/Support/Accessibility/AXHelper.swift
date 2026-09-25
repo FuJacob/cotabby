@@ -322,8 +322,6 @@ enum AXHelper {
         return nil
     }
 
-    /// Extracts a `ResolvedFieldStyle` from one character's attributes, handling both the AppKit
-    /// `.font`/`.foregroundColor` shapes and the AX-specific font dictionary / `CGColor` shapes.
     /// Picks the font face name to render with out of an `AXFont` dictionary, preferring the
     /// specific face but falling back to the family when the two contradict each other.
     ///
@@ -370,6 +368,8 @@ enum AXHelper {
         return familyName
     }
 
+    /// Extracts a `ResolvedFieldStyle` from one character's attributes, handling both the AppKit
+    /// `.font`/`.foregroundColor` shapes and the AX-specific font dictionary / `CGColor` shapes.
     private static func fieldStyle(from attributes: [NSAttributedString.Key: Any]) -> ResolvedFieldStyle? {
         var fontName: String?
         var fontPointSize: CGFloat?

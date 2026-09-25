@@ -667,11 +667,22 @@ final class SuggestionSettingsModelTests: XCTestCase {
         XCTAssertLessThanOrEqual(model.ghostFontSizeFloor, model.ghostFontSizeCeiling)
     }
 
-    func test_ghostFontSizeLimitsDefaultToThePreviouslyHardCodedValues() {
-        // An untouched install must render exactly as it did before these became user settings.
+    func test_ghostFontSizeLimitsDefaultTo11And48() {
+        // Deliberately not the 14/24 the overlay hard-coded before these were settings: a 24pt
+        // ceiling silently shrank zoomed or large text, and a 14pt floor enlarged ghost text past
+        // hosts that render at 11-13pt. Pinned so a change to either default is a deliberate one.
         let model = makeModel()
         XCTAssertEqual(model.ghostFontSizeFloor, 11)
         XCTAssertEqual(model.ghostFontSizeCeiling, 48)
+    }
+
+    func test_ghostFontSizeFloorMinimumMatchesTheLegibilityBackstop() {
+        // Below `absoluteMinimumPointSize` the backstop wins anyway, so a lower slider minimum would
+        // offer settings that silently do nothing.
+        XCTAssertEqual(
+            SuggestionSettingsModel.minimumGhostFontSizeFloor,
+            Double(GhostFontMetrics.absoluteMinimumPointSize)
+        )
     }
 
     func test_ghostFontSizeLimitsSurviveAReload() {

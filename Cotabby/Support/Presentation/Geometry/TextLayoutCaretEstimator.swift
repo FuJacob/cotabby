@@ -15,8 +15,10 @@ import Foundation
 ///     ghost two full lines too high.
 ///   - `observedCharWidth` (measured from child text-run frames) rescales the approximated font so
 ///     soft-wrap points match the host's. A too-narrow font wraps too late, losing whole lines.
-///   - `observedContentEdges` (leftmost/topmost child-run edges) replace the guessed content
-///     insets, since `AXFrame` includes padding that AX never reports directly.
+///   - `observedContentEdges` replace the guessed content insets, since `AXFrame` includes padding
+///     that AX never reports directly. The left inset comes from any measured edge; the top inset
+///     only from edges that know where the text block starts (child-run edges, not a line-query
+///     margin, whose `topY` is nil).
 ///
 /// Deliberately conservative: any condition under which the hidden layout could lie about the real
 /// field (truncated context window, possibly-scrolled content, tab stops, unusable frame) rejects
@@ -48,7 +50,8 @@ enum TextLayoutCaretEstimator {
         /// Average rendered character width measured from child-run frames; rescales the
         /// approximated font so wrap points match the host.
         let observedCharWidth: CGFloat?
-        /// Real content edges measured from child-run frames; replaces the guessed insets.
+        /// Real content edges measured from the host; replaces the guessed insets (the top inset only
+        /// when the edges carry a text-block top).
         let observedContentEdges: ObservedContentEdges?
 
         init(
@@ -348,12 +351,12 @@ enum TextLayoutCaretEstimator {
         let isMeasured: Bool
     }
 
-    /// Derives content insets from measured run edges, with sanity gates per axis; any distrusted
-    /// measurement falls back to the generalized default for that axis.
+    /// Derives content insets from measured edges, with sanity gates per axis; any distrusted or
+    /// missing measurement falls back to the generalized default for that axis.
     ///
-    /// The top edge is only trusted when the prefix does not start with a line break: the topmost
-    /// run is the first *rendered* text, so leading blank lines would sit above it and the
-    /// anchor would be one line too high per blank.
+    /// The top edge is only trusted when the edges carry one (a line-query margin does not) and the
+    /// prefix does not start with a line break: the topmost run is the first *rendered* text, so
+    /// leading blank lines would sit above it and the anchor would be one line too high per blank.
     private static func contentInsets(
         from edges: ObservedContentEdges?,
         frame: CGRect,
@@ -372,13 +375,18 @@ enum TextLayoutCaretEstimator {
                 isMeasured = true
             }
 
-            let measuredTop = frame.maxY - edges.topY
-            let prefixStartsWithLineBreak = precedingText.first.map(\.isNewline) ?? false
-            if !prefixStartsWithLineBreak,
-                measuredTop >= 0,
-                measuredTop <= frame.height * Metrics.maximumMeasuredTopInsetFraction {
-                top = measuredTop
-                isMeasured = true
+            // Only edges that know where the text block starts can calibrate the top inset. A
+            // line-query margin measured one visual line, whose top sits the caret's line index
+            // below the block's top; using it here laid the whole prefix out that many lines low.
+            if let topY = edges.topY {
+                let measuredTop = frame.maxY - topY
+                let prefixStartsWithLineBreak = precedingText.first.map(\.isNewline) ?? false
+                if !prefixStartsWithLineBreak,
+                    measuredTop >= 0,
+                    measuredTop <= frame.height * Metrics.maximumMeasuredTopInsetFraction {
+                    top = measuredTop
+                    isMeasured = true
+                }
             }
         }
 

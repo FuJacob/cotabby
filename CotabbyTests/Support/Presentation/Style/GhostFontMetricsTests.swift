@@ -178,19 +178,78 @@ final class GhostFontMetricsTests: XCTestCase {
     private let syntheticCaretHeight: CGFloat = 18
 
     func testSyntheticCaretPrefersHostReportedPointSize() {
-        // Word at 161% zoom renders 16pt Aptos at roughly 26pt on screen. Whatever the host reports,
-        // the fabricated 18pt caret must not be what sizing is derived from.
+        // Whatever the host reports, the fabricated 18pt caret must not be what sizing is derived
+        // from. With no learned display scale the report is used as-is, exact at 100% zoom.
         let size = GhostFontMetrics.pointSize(
             caretHeight: syntheticCaretHeight,
             caretHeightIsSynthetic: true,
-            fieldMetrics: metrics(pointSize: 26, ascender: 24.4, descender: -7.3),
-            hostReportedPointSize: 26,
+            fieldMetrics: metrics(pointSize: 16, ascender: 15.0, descender: -4.5),
+            hostReportedPointSize: 16,
             fallbackRatio: fallbackRatio,
             minimum: minimum,
             maximum: 16,
             syntheticCaretMaximum: 32
         )
-        XCTAssertEqual(size, 26, accuracy: 0.0001)
+        XCTAssertEqual(size, 16, accuracy: 0.0001)
+    }
+
+    func testSyntheticCaretScalesTheReportByTheLearnedDisplayScale() {
+        // Word at 161% zoom *reports* 16pt Aptos — hosts report document points — and renders it at
+        // ~25.8pt. Unscaled, the ghost would be ~40% smaller than the text beside it.
+        let size = GhostFontMetrics.pointSize(
+            caretHeight: syntheticCaretHeight,
+            caretHeightIsSynthetic: true,
+            fieldMetrics: nil,
+            hostReportedPointSize: 16,
+            hostDisplayScale: 1.61,
+            fallbackRatio: fallbackRatio,
+            minimum: minimum,
+            maximum: 16,
+            syntheticCaretMaximum: 32
+        )
+        XCTAssertEqual(size, 16 * 1.61, accuracy: 0.0001)
+    }
+
+    func testDisplayScaleDoesNotAffectAMeasuredCaret() {
+        // A measured caret already carries the zoom; scaling it again would double-count it.
+        let size = GhostFontMetrics.pointSize(
+            caretHeight: 20,
+            fieldMetrics: nil,
+            hostReportedPointSize: 12,
+            hostDisplayScale: 2,
+            fallbackRatio: fallbackRatio,
+            minimum: minimum,
+            maximum: maximum
+        )
+        XCTAssertEqual(size, 20 * fallbackRatio, accuracy: 0.0001)
+    }
+
+    // MARK: - Learning the host's display scale
+
+    func testHostDisplayScaleIsTheZoomAPreciseCaretImplies() throws {
+        // Ratio 12 / (12 + 3) = 0.8, so a 30pt caret is 24pt text on screen; the host reports 12pt.
+        let scale = try XCTUnwrap(
+            GhostFontMetrics.hostDisplayScale(
+                caretHeight: 30,
+                fieldMetrics: metrics(pointSize: 12, ascender: 12, descender: -3),
+                hostReportedPointSize: 12
+            )
+        )
+        XCTAssertEqual(scale, 2, accuracy: 0.0001)
+    }
+
+    func testHostDisplayScaleNeedsTheRealTypefaceMetrics() {
+        // The fallback ratio is itself an approximation; learning from it would bake that error
+        // into every later synthetic-caret render.
+        XCTAssertNil(GhostFontMetrics.hostDisplayScale(caretHeight: 30, fieldMetrics: nil, hostReportedPointSize: 12))
+    }
+
+    func testHostDisplayScaleRejectsMissingReportsAndImplausibleRatios() {
+        let fieldMetrics = metrics(pointSize: 12, ascender: 12, descender: -3)
+        XCTAssertNil(GhostFontMetrics.hostDisplayScale(caretHeight: 30, fieldMetrics: fieldMetrics, hostReportedPointSize: nil))
+        XCTAssertNil(GhostFontMetrics.hostDisplayScale(caretHeight: 30, fieldMetrics: fieldMetrics, hostReportedPointSize: 0))
+        // 24pt on screen for a reported 1pt would be a 24x zoom: a nonsense report, not a zoom.
+        XCTAssertNil(GhostFontMetrics.hostDisplayScale(caretHeight: 30, fieldMetrics: fieldMetrics, hostReportedPointSize: 1))
     }
 
     func testSyntheticCaretRegressionAgainstFabricatedHeight() {
@@ -389,5 +448,18 @@ final class GhostFontMetricsTests: XCTestCase {
             sizeMultiplier: 1.2
         )
         XCTAssertEqual(size, 20 * fallbackRatio * 1.2, accuracy: 0.0001)
+    }
+
+    func testUserFloorWinsOverABuiltInCap() {
+        // An estimated caret is capped at 16pt to stop a bad rect from ballooning, but "Smallest
+        // Ghost Text" promises nothing renders below it: a 20pt floor must beat the 16pt cap.
+        let size = GhostFontMetrics.pointSize(
+            caretHeight: 18,
+            fieldMetrics: nil,
+            fallbackRatio: fallbackRatio,
+            minimum: 20,
+            maximum: 16
+        )
+        XCTAssertEqual(size, 20, accuracy: 0.0001)
     }
 }

@@ -123,16 +123,28 @@ nonisolated struct ResolvedFieldStyle: Equatable, Sendable {
     }
 }
 
-/// Real content edges measured from the host's own AX child text-run frames (Gmail/Outlook-class
-/// editors). The field's `AXFrame` includes its padding, which AX never reports directly; the
-/// leftmost/topmost rendered text runs reveal where content actually starts. Used by the caret
-/// layout estimator instead of guessed insets, so its anchor matches the host's real padding.
-/// These are live per-field measurements, not per-app knowledge.
+/// Where the host really starts drawing text, measured live rather than guessed from the field's
+/// `AXFrame` (which includes padding AX never reports directly). These are per-field measurements,
+/// not per-app knowledge, and they come from two sources with different reach:
+///
+/// - **Child text runs** (Gmail/Outlook-class editors): the leftmost and topmost rendered runs reveal
+///   both the left padding and where the text block starts vertically.
+/// - **The host's line-query attributes** (Word, native text views): one visual line's box reveals
+///   the text margin, but nothing about where the text block starts — so `topY` stays nil.
+///
+/// Consumers: the caret layout estimator uses them instead of guessed insets, and ghost-text layout
+/// aligns wrapped lines to `leftX`.
 nonisolated struct ObservedContentEdges: Equatable, Sendable {
-    /// Global Cocoa-coordinate X of the leftmost text run's leading edge.
+    /// Global Cocoa-coordinate X where content starts: the leftmost text run's leading edge, or the
+    /// measured line's left edge for a line-query margin.
     let leftX: CGFloat
-    /// Global Cocoa-coordinate top edge (maxY) of the topmost text run.
-    let topY: CGFloat
+    /// Global Cocoa-coordinate top edge (maxY) of the topmost text run — the top of the *text block*.
+    ///
+    /// Nil when only a single line was measured. That line's own top is not the block's top, and the
+    /// layout estimator subtracts `topY` from the frame's top to get the field's top inset, so a
+    /// caret line's top in this slot shifted every estimate down by the caret's line index. Keeping it
+    /// optional makes that mistake unrepresentable rather than merely documented.
+    let topY: CGFloat?
     /// True only when these edges came from walking the host's child text-run frames. Those frames
     /// carry the host's real line positions, which is why `layoutRepairedAnchor` lets them outrank
     /// its own layout estimate for a web field. Edges obtained any other way — the host's line-query
@@ -141,11 +153,40 @@ nonisolated struct ObservedContentEdges: Equatable, Sendable {
     /// to opt in deliberately rather than inherit an exemption it did not earn.
     let isRunMeasured: Bool
 
-    init(leftX: CGFloat, topY: CGFloat, isRunMeasured: Bool = false) {
+    init(leftX: CGFloat, topY: CGFloat?, isRunMeasured: Bool = false) {
         self.leftX = leftX
         self.topY = topY
         self.isRunMeasured = isRunMeasured
     }
+
+    /// A text margin read from one visual line through the host's line-query attributes: a left edge
+    /// only, with no text-block top and no run-measured trust.
+    static func lineQueryMargin(leftX: CGFloat) -> ObservedContentEdges {
+        ObservedContentEdges(leftX: leftX, topY: nil, isRunMeasured: false)
+    }
+}
+
+/// One line-margin lookup's result, with the provenance needed to decide whether it can stand for
+/// the caret's whole paragraph.
+///
+/// The margin a host wraps a paragraph to is the left edge of its *continuation* lines. The first
+/// visual line can start elsewhere — a first-line indent starts it further right, a hanging indent
+/// further left — so a first-line measurement is only provisional: the caller re-measures once the
+/// caret moves onto another visual line, and a continuation-line measurement then stands for the
+/// rest of the paragraph. Produced by `AXTextGeometryResolver.resolveLineContentEdges` and cached
+/// per paragraph by `FocusSnapshotResolver`.
+nonisolated struct LineContentEdgesMeasurement: Equatable, Sendable {
+    /// The margin to publish, as a line-query margin (left edge only).
+    let edges: ObservedContentEdges
+    /// The measured line's box in global Cocoa coordinates, so the caller can tell when a precise
+    /// caret has left it without another AX round trip.
+    let lineRect: CGRect
+    /// True when the measured line is the first visual line of its paragraph, whose left edge
+    /// includes any first-line indent and therefore may not be the paragraph's wrap margin.
+    let isParagraphFirstLine: Bool
+    /// Document offset the lookup ran at. A caret that has not moved never triggers a re-measure,
+    /// which bounds lookups to one per caret move even when the vertical check keeps disagreeing.
+    let caretLocation: Int
 }
 
 /// This snapshot is the future handoff point into suggestion generation.

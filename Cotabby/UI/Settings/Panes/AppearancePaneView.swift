@@ -229,7 +229,7 @@ struct AppearancePaneView: View {
                         systemImage: "arrow.down.to.line"
                     )
                 }
-                .settingsItem(.ghostTextSizeLimits)
+                .settingsItem(.ghostTextSizeFloor)
 
                 LabeledContent {
                     HStack(spacing: 10) {
@@ -254,6 +254,7 @@ struct AppearancePaneView: View {
                         systemImage: "arrow.up.to.line"
                     )
                 }
+                .settingsItem(.ghostTextSizeCeiling)
             }
         }
     }

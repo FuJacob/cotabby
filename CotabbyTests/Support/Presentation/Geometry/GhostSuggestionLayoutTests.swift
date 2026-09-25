@@ -654,7 +654,7 @@ final class GhostSuggestionLayoutTests: XCTestCase {
         )
 
         XCTAssertGreaterThan(layout.lines.count, 1)
-        XCTAssertTrue(layout.panelAnchoredToHostContentEdge)
+        XCTAssertTrue(layout.wrappedLinesFollowHostMargin)
     }
 
     func test_make_singleLineAtCaretDoesNotClaimTheMeasuredMargin() {
@@ -673,7 +673,7 @@ final class GhostSuggestionLayoutTests: XCTestCase {
         )
 
         XCTAssertEqual(layout.lines.count, 1)
-        XCTAssertFalse(layout.panelAnchoredToHostContentEdge)
+        XCTAssertFalse(layout.wrappedLinesFollowHostMargin)
     }
 
     func test_make_withoutMeasuredMarginNeverReportsIt() {
@@ -691,6 +691,157 @@ final class GhostSuggestionLayoutTests: XCTestCase {
         )
 
         XCTAssertGreaterThan(layout.lines.count, 1)
-        XCTAssertFalse(layout.panelAnchoredToHostContentEdge)
+        XCTAssertFalse(layout.wrappedLinesFollowHostMargin)
+    }
+
+    // MARK: - A measured margin never moves the caret's own line
+
+    /// Long enough to wrap several times at 10pt per character in every geometry below.
+    private let longSuggestion = String(
+        repeating: " alpha beta gamma delta epsilon zeta eta theta iota kappa lambda",
+        count: 3
+    )
+
+    /// Reproduced in Word: a first-line indent measured on line 1 (x 360) while the caret sits near
+    /// the start of line 2 (x 324). The margin used to clamp the first-line anchor, so the ghost
+    /// started 36pt right of the caret. It must stay flush against the caret.
+    func test_make_marginRightOfTheCaretNeverDetachesASingleLine() {
+        let geometry = CotabbyTestFixtures.overlayGeometry(
+            caretRect: CGRect(x: 324, y: 500, width: 2, height: 18),
+            inputFrameRect: CGRect(x: 0, y: 0, width: 1000, height: 900),
+            observedContentEdges: .lineQueryMargin(leftX: 360)
+        )
+
+        let layout = GhostSuggestionLayout.make(
+            text: " hi",
+            geometry: geometry,
+            fontSize: 14,
+            visibleFrame: CGRect(x: 0, y: 0, width: 1200, height: 1000)
+        )
+
+        XCTAssertEqual(layout.lines.count, 1)
+        XCTAssertEqual(layout.panelOriginX, geometry.caretRect.maxX, accuracy: 0.001)
+    }
+
+    /// The same geometry with a wrapping suggestion: the caret's line stays on the caret and only
+    /// the wrapped lines are indented out to the margin.
+    func test_make_marginRightOfTheCaretIndentsOnlyTheWrappedLines() {
+        let geometry = CotabbyTestFixtures.overlayGeometry(
+            caretRect: CGRect(x: 324, y: 500, width: 2, height: 18),
+            inputFrameRect: CGRect(x: 0, y: 0, width: 1000, height: 900),
+            observedCharWidth: 10,
+            observedContentEdges: .lineQueryMargin(leftX: 360)
+        )
+
+        let layout = GhostSuggestionLayout.make(
+            text: longSuggestion,
+            geometry: geometry,
+            fontSize: 14,
+            visibleFrame: CGRect(x: 0, y: 0, width: 1200, height: 1000),
+            showsAcceptanceHint: false
+        )
+
+        XCTAssertGreaterThan(layout.lines.count, 2)
+        XCTAssertEqual(layout.topLineCenterOffsetFromCaret, 0, "the first line continues the caret's line")
+        XCTAssertEqual(layout.panelOriginX, 326, accuracy: 0.001)
+        XCTAssertEqual(layout.lines[0].leadingIndent, 0, accuracy: 0.001)
+        for line in layout.lines.dropFirst() {
+            XCTAssertEqual(line.leadingIndent, 34, accuracy: 0.001, "wrapped lines start at the margin (360)")
+        }
+        XCTAssertTrue(layout.wrappedLinesFollowHostMargin)
+    }
+
+    /// The left edge of a right-to-left line is its ragged end, not a margin, so an RTL layout must
+    /// come out exactly as if nothing had been measured.
+    func test_make_rightToLeftIgnoresTheMeasuredMargin() {
+        func layout(edges: ObservedContentEdges?) -> GhostSuggestionLayout {
+            GhostSuggestionLayout.make(
+                text: longSuggestion,
+                geometry: CotabbyTestFixtures.overlayGeometry(
+                    caretRect: CGRect(x: 700, y: 500, width: 2, height: 18),
+                    inputFrameRect: CGRect(x: 0, y: 0, width: 1000, height: 900),
+                    observedCharWidth: 10,
+                    isRightToLeft: true,
+                    observedContentEdges: edges
+                ),
+                fontSize: 14,
+                visibleFrame: CGRect(x: 0, y: 0, width: 1200, height: 1000)
+            )
+        }
+
+        XCTAssertEqual(layout(edges: .lineQueryMargin(leftX: 360)), layout(edges: nil))
+    }
+
+    // MARK: - The measured margin mirrors onto the right edge
+
+    /// Word's frame is the whole page. With a 140pt left margin measured on an 800pt page, the text
+    /// column's right edge is 660, not the page edge's 792, so no ghost line may run past 660.
+    func test_make_lineQueryMarginMirrorsOntoTheRightEdge() {
+        let geometry = CotabbyTestFixtures.overlayGeometry(
+            caretRect: CGRect(x: 300, y: 800, width: 2, height: 18),
+            inputFrameRect: CGRect(x: 0, y: 0, width: 800, height: 900),
+            observedCharWidth: 10,
+            observedContentEdges: .lineQueryMargin(leftX: 140)
+        )
+
+        let layout = GhostSuggestionLayout.make(
+            text: longSuggestion,
+            geometry: geometry,
+            fontSize: 14,
+            visibleFrame: CGRect(x: 0, y: 0, width: 1000, height: 1000),
+            showsAcceptanceHint: false
+        )
+
+        XCTAssertGreaterThan(layout.lines.count, 2)
+        XCTAssertLessThanOrEqual(rightmostLineEdge(of: layout), 660 + 0.001)
+    }
+
+    /// A caret right of the mirrored edge disproves the symmetric-margin assumption (the host never
+    /// draws past its own right margin), so the frame's edge stands. Applying the mirror here would
+    /// have pulled the ghost back over text the user already typed.
+    func test_make_mirroredRightEdgeIsIgnoredWhenTheCaretIsPastIt() {
+        let geometry = CotabbyTestFixtures.overlayGeometry(
+            caretRect: CGRect(x: 700, y: 800, width: 2, height: 18),
+            inputFrameRect: CGRect(x: 0, y: 0, width: 800, height: 900),
+            observedContentEdges: .lineQueryMargin(leftX: 140)
+        )
+
+        let layout = GhostSuggestionLayout.make(
+            text: " hi",
+            geometry: geometry,
+            fontSize: 14,
+            visibleFrame: CGRect(x: 0, y: 0, width: 1000, height: 1000)
+        )
+
+        XCTAssertEqual(layout.lines.count, 1)
+        XCTAssertEqual(layout.panelOriginX, geometry.caretRect.maxX, accuracy: 0.001)
+    }
+
+    /// Run-measured edges come from web editors whose frame already hugs the text; mirroring their
+    /// left padding would only narrow the wrap, so their right edge stays the frame's.
+    func test_make_runMeasuredEdgesKeepTheFrameRightEdge() {
+        let geometry = CotabbyTestFixtures.overlayGeometry(
+            caretRect: CGRect(x: 300, y: 800, width: 2, height: 18),
+            inputFrameRect: CGRect(x: 0, y: 0, width: 800, height: 900),
+            observedCharWidth: 10,
+            observedContentEdges: ObservedContentEdges(leftX: 140, topY: 860, isRunMeasured: true)
+        )
+
+        let layout = GhostSuggestionLayout.make(
+            text: longSuggestion,
+            geometry: geometry,
+            fontSize: 14,
+            visibleFrame: CGRect(x: 0, y: 0, width: 1000, height: 1000),
+            showsAcceptanceHint: false
+        )
+
+        XCTAssertGreaterThan(rightmostLineEdge(of: layout), 660)
+    }
+
+    /// The rightmost x any line reaches, at the fixtures' exact 10pt per character.
+    private func rightmostLineEdge(of layout: GhostSuggestionLayout) -> CGFloat {
+        layout.lines
+            .map { layout.panelOriginX + $0.leadingIndent + CGFloat(($0.text as NSString).length) * 10 }
+            .max() ?? 0
     }
 }

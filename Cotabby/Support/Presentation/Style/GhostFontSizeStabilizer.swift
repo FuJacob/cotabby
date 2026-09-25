@@ -15,8 +15,8 @@ import Foundation
 /// a fresh measurement instead of inheriting a stale ceiling.
 ///
 /// This intentionally biases toward the smaller reading: an over-tall fallback is the observed
-/// failure mode, and the downstream `minimumGhostFontSize` floor bounds how small a spurious low
-/// reading can make the text.
+/// failure mode, and the user's "Smallest Ghost Text" floor downstream bounds how small a spurious
+/// low reading can make the text.
 ///
 /// Crucially, the clamp applies *only to imprecise readings*. The flicker it defends against is
 /// specifically a precise branch failing and falling back to the coarse `AXFrame` height, which is
