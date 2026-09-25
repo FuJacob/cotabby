@@ -166,15 +166,38 @@ nonisolated struct ObservedContentEdges: Equatable, Sendable {
     }
 }
 
-/// One line-margin lookup's result, with the provenance needed to decide whether it can stand for
+/// What one line-margin lookup found, as the per-paragraph cache in `FocusSnapshotResolver`
+/// remembers it. Produced by `AXTextGeometryResolver.resolveLineContentEdges`.
+///
+/// Failures come in two kinds with different retry rules. An *empty line* — the caret's line right
+/// after Return, which has no box to measure yet — fixes itself as soon as the user types, so it is
+/// retried once the caret moves, and the measurement that follows replaces it. Any *other* failure
+/// (an unsupported host, a line box outside the field) would fail again, so it is not retried within
+/// the paragraph and focus session: retrying it would put AX calls on every poll tick.
+nonisolated enum LineContentEdgesOutcome: Equatable, Sendable {
+    case measured(LineContentEdgesMeasurement)
+    /// The caret's line had nothing to measure; `caretLocation` is the document offset the lookup
+    /// ran at, so the caller retries only once the caret has moved.
+    case emptyLine(caretLocation: Int)
+    case unavailable
+
+    /// The margin to publish, when one was measured.
+    var edges: ObservedContentEdges? {
+        if case .measured(let measurement) = self {
+            return measurement.edges
+        }
+        return nil
+    }
+}
+
+/// One successful line-margin lookup, with the provenance needed to decide whether it can stand for
 /// the caret's whole paragraph.
 ///
 /// The margin a host wraps a paragraph to is the left edge of its *continuation* lines. The first
 /// visual line can start elsewhere — a first-line indent starts it further right, a hanging indent
 /// further left — so a first-line measurement is only provisional: the caller re-measures once the
 /// caret moves onto another visual line, and a continuation-line measurement then stands for the
-/// rest of the paragraph. Produced by `AXTextGeometryResolver.resolveLineContentEdges` and cached
-/// per paragraph by `FocusSnapshotResolver`.
+/// rest of the paragraph.
 nonisolated struct LineContentEdgesMeasurement: Equatable, Sendable {
     /// The margin to publish, as a line-query margin (left edge only).
     let edges: ObservedContentEdges

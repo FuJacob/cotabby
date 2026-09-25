@@ -216,21 +216,13 @@ final class FocusSnapshotResolverSelectionTests: XCTestCase {
         XCTAssertNotEqual(endOfFirst, justPastViewInSecond)
     }
 
-    /// Right after Return the caret's line is empty, so the host has no line box to measure and the
-    /// lookup fails. That miss must not be cached under the key the paragraph keeps once text is
-    /// typed, or every paragraph started with Return keeps the page-edge fallback (reproduced in
-    /// Word). The caret at the paragraph's start therefore gets its own key.
-    func testCaretAtParagraphStartIsKeyedApartFromTheTypedParagraph() {
-        let emptyNewParagraph = "First paragraph.\n"
-        let afterFirstCharacter = "First paragraph.\nN"
-
-        XCTAssertEqual(paragraphKey(document: emptyNewParagraph, caret: 17), "p17@start")
-        XCTAssertEqual(paragraphKey(document: afterFirstCharacter, caret: 18), "p17")
-    }
-
-    func testCaretAtDocumentStartIsKeyedAsAParagraphStart() {
-        XCTAssertEqual(paragraphKey(document: "", caret: 0), "p0@start")
-        XCTAssertEqual(paragraphKey(document: "H", caret: 1), "p0")
+    /// A caret at its paragraph's very start shares the paragraph's key: the empty-line miss right
+    /// after Return is handled by the outcome's retry rule, not by a separate key (a separate key
+    /// let the miss answer again whenever the caret returned to the start).
+    func testCaretAtParagraphStartSharesTheParagraphsKey() {
+        XCTAssertEqual(paragraphKey(document: "First paragraph.\n", caret: 17), "p17")
+        XCTAssertEqual(paragraphKey(document: "First paragraph.\nN", caret: 18), "p17")
+        XCTAssertEqual(paragraphKey(document: "", caret: 0), "p0")
     }
 
     func testParagraphReportsItsStartOffsetOnlyWhenVisible() {
@@ -243,89 +235,122 @@ final class FocusSnapshotResolverSelectionTests: XCTestCase {
 
     // MARK: - Line-content-edge re-measure policy
 
-    private func measurement(
+    /// The first visual line of a paragraph starting at offset 17, measured with the caret at 18.
+    private let firstLine = CGRect(x: 288, y: 600, width: 400, height: 30)
+    private let lineBelow = CGRect(x: 288, y: 570, width: 400, height: 30)
+
+    private func measured(
         isParagraphFirstLine: Bool,
-        caretLocation: Int = 100,
-        lineRect: CGRect = CGRect(x: 360, y: 600, width: 400, height: 30)
-    ) -> LineContentEdgesMeasurement {
-        LineContentEdgesMeasurement(
-            edges: .lineQueryMargin(leftX: lineRect.minX),
-            lineRect: lineRect,
-            isParagraphFirstLine: isParagraphFirstLine,
-            caretLocation: caretLocation
+        caretLocation: Int = 18,
+        lineRect: CGRect? = nil,
+        leftX: CGFloat = 288
+    ) -> LineContentEdgesOutcome {
+        .measured(
+            LineContentEdgesMeasurement(
+                edges: .lineQueryMargin(leftX: leftX),
+                lineRect: lineRect ?? firstLine,
+                isParagraphFirstLine: isParagraphFirstLine,
+                caretLocation: caretLocation
+            )
         )
+    }
+
+    /// A precise caret box on `line`.
+    private func caret(_ location: Int, on line: CGRect?) -> FocusSnapshotResolver.LineEdgeCaret {
+        FocusSnapshotResolver.LineEdgeCaret(
+            location: location,
+            preciseRect: line.map { CGRect(x: 300, y: $0.minY, width: 2, height: $0.height) }
+        )
+    }
+
+    private func needsRemeasure(_ cached: LineContentEdgesOutcome, _ caret: FocusSnapshotResolver.LineEdgeCaret) -> Bool {
+        FocusSnapshotResolver.lineContentEdgesNeedRemeasure(cached, caret: caret)
     }
 
     /// Reproduced in Word: a first-line-indented paragraph measured on its first line kept that
     /// indent for every wrapped line. Once a precise caret sits on another visual line, the
     /// provisional first-line margin must be measured again.
     func testFirstLineMarginIsRemeasuredOnceThePreciseCaretLeavesThatLine() {
-        let lineBelow = CGRect(x: 290, y: 564, width: 2, height: 30)
-        XCTAssertTrue(
-            FocusSnapshotResolver.lineContentEdgesNeedRemeasure(
-                measurement(isParagraphFirstLine: true),
-                caretLocation: 140,
-                caretRect: lineBelow
-            )
-        )
+        let indentedFirstLine = CGRect(x: 360, y: 600, width: 400, height: 30)
+        XCTAssertTrue(needsRemeasure(measured(isParagraphFirstLine: true, lineRect: indentedFirstLine), caret(60, on: lineBelow)))
     }
 
     func testFirstLineMarginIsKeptWhileTheCaretStaysOnThatLine() {
-        let sameLine = CGRect(x: 700, y: 600, width: 2, height: 30)
-        XCTAssertFalse(
-            FocusSnapshotResolver.lineContentEdgesNeedRemeasure(
-                measurement(isParagraphFirstLine: true),
-                caretLocation: 110,
-                caretRect: sameLine
-            )
-        )
+        XCTAssertFalse(needsRemeasure(measured(isParagraphFirstLine: true), caret(30, on: firstLine)))
     }
 
     /// Bounds lookups to one per caret move: at a wrap boundary the caret's box and the line the host
     /// reports for its offset can disagree, and re-measuring the same offset would return the same
     /// line on every poll tick.
     func testAnUnmovedCaretNeverRemeasures() {
-        let lineBelow = CGRect(x: 290, y: 564, width: 2, height: 30)
-        XCTAssertFalse(
-            FocusSnapshotResolver.lineContentEdgesNeedRemeasure(
-                measurement(isParagraphFirstLine: true, caretLocation: 140),
-                caretLocation: 140,
-                caretRect: lineBelow
-            )
-        )
+        XCTAssertFalse(needsRemeasure(measured(isParagraphFirstLine: true, caretLocation: 60), caret(60, on: lineBelow)))
     }
 
     func testAnEstimatedCaretCannotTriggerARemeasure() {
-        // The caller passes nil for any caret that is not a precise measurement.
-        XCTAssertFalse(
-            FocusSnapshotResolver.lineContentEdgesNeedRemeasure(
-                measurement(isParagraphFirstLine: true),
-                caretLocation: 140,
-                caretRect: nil
-            )
-        )
+        XCTAssertFalse(needsRemeasure(measured(isParagraphFirstLine: true), caret(60, on: nil)))
     }
 
     func testContinuationLineMarginStandsForTheWholeParagraph() {
-        let farAway = CGRect(x: 290, y: 200, width: 2, height: 30)
-        XCTAssertFalse(
-            FocusSnapshotResolver.lineContentEdgesNeedRemeasure(
-                measurement(isParagraphFirstLine: false),
-                caretLocation: 400,
-                caretRect: farAway
-            )
-        )
+        XCTAssertFalse(needsRemeasure(measured(isParagraphFirstLine: false, lineRect: lineBelow), caret(400, on: firstLine)))
     }
 
-    func testCachedFailureIsNotRetried() {
-        // Retrying failures would issue AX calls on every poll tick; the empty-paragraph failure,
-        // the one that fixes itself, re-keys instead.
-        XCTAssertFalse(
-            FocusSnapshotResolver.lineContentEdgesNeedRemeasure(
-                nil,
-                caretLocation: 140,
-                caretRect: CGRect(x: 290, y: 564, width: 2, height: 30)
-            )
-        )
+    /// The empty line right after Return is the one failure that fixes itself: once the caret moves
+    /// (the first character is typed) the lookup must run again.
+    func testEmptyLineMissIsRetriedOnceTheCaretMoves() {
+        XCTAssertTrue(needsRemeasure(.emptyLine(caretLocation: 17), caret(18, on: firstLine)))
+    }
+
+    /// While the user pauses on the empty line every poll tick sees the same caret; retrying then
+    /// would put AX calls on the idle poll.
+    func testEmptyLineMissIsNotRetriedWhileTheCaretStays() {
+        XCTAssertFalse(needsRemeasure(.emptyLine(caretLocation: 17), caret(17, on: firstLine)))
+    }
+
+    func testUnavailableIsNeverRetried() {
+        XCTAssertFalse(needsRemeasure(.unavailable, caret(400, on: lineBelow)))
+    }
+
+    // MARK: - Line-content-edge cache flow
+
+    /// Found in review: press Return, type into the new paragraph, then move back to its start. The miss recorded while the line was empty must not answer again — the measurement
+    /// taken after typing replaced it, and it is what the caret at the start gets, without a lookup.
+    @MainActor
+    func testReturningToAParagraphStartUsesTheMeasurementNotTheEarlierEmptyLineMiss() {
+        let cache = FocusSessionScopedCache<LineContentEdgesOutcome>()
+        var lookups = 0
+        func edges(caretAt location: Int, lookup outcome: LineContentEdgesOutcome) -> ObservedContentEdges? {
+            FocusSnapshotResolver.cachedLineContentEdges(
+                in: cache,
+                key: "lineEdges:field:p17",
+                focusChangeSequence: 1,
+                caret: caret(location, on: firstLine)
+            ) {
+                lookups += 1
+                return outcome
+            }
+        }
+
+        XCTAssertNil(edges(caretAt: 17, lookup: .emptyLine(caretLocation: 17)), "right after Return")
+        XCTAssertEqual(edges(caretAt: 18, lookup: measured(isParagraphFirstLine: true))?.leftX, 288, "first character typed")
+        XCTAssertEqual(edges(caretAt: 17, lookup: .unavailable)?.leftX, 288, "back at the paragraph start")
+        XCTAssertEqual(lookups, 2, "returning to the start must be answered from the cache")
+    }
+
+    @MainActor
+    func testAnEmptyLineMissCostsNothingWhileTheCaretStaysPut() {
+        let cache = FocusSessionScopedCache<LineContentEdgesOutcome>()
+        var lookups = 0
+        for _ in 0..<5 {
+            _ = FocusSnapshotResolver.cachedLineContentEdges(
+                in: cache,
+                key: "lineEdges:field:p17",
+                focusChangeSequence: 1,
+                caret: caret(17, on: firstLine)
+            ) {
+                lookups += 1
+                return .emptyLine(caretLocation: 17)
+            }
+        }
+        XCTAssertEqual(lookups, 1)
     }
 }

@@ -244,6 +244,19 @@ final class AXTextGeometryResolverTests: XCTestCase {
         )
     }
 
+    private struct NotMeasured: Error, CustomStringConvertible {
+        let outcome: LineContentEdgesOutcome
+        var description: String { "expected a measurement, got \(outcome)" }
+    }
+
+    /// Unwraps a `.measured` outcome; any other outcome throws, which fails the test.
+    private func measurement(_ outcome: LineContentEdgesOutcome) throws -> LineContentEdgesMeasurement {
+        guard case .measured(let measurement) = outcome else {
+            throw NotMeasured(outcome: outcome)
+        }
+        return measurement
+    }
+
     /// The lookup issues synchronous cross-process AX calls. Against a host that does not implement
     /// them, each one blocks for the full messaging timeout, and doing that from the focus path is
     /// what froze typing in the `AXBoundsForRange` incident. The gate must stop before any call.
@@ -255,7 +268,7 @@ final class AXTextGeometryResolverTests: XCTestCase {
             request: request(caretLocation: 150, supportsLineGeometry: false)
         )
 
-        XCTAssertNil(result)
+        XCTAssertEqual(result, .unavailable)
         XCTAssertEqual(host.calls, [], "the capability gate must short-circuit before any AX call")
     }
 
@@ -264,14 +277,17 @@ final class AXTextGeometryResolverTests: XCTestCase {
     func test_resolveLineContentEdges_negativeCaretIsNeverQueried() {
         let host = indentedParagraphHost()
 
-        XCTAssertNil(resolver.resolveLineContentEdges(using: host.queries, request: request(caretLocation: -1)))
+        XCTAssertEqual(
+            resolver.resolveLineContentEdges(using: host.queries, request: request(caretLocation: -1)),
+            .unavailable
+        )
         XCTAssertEqual(host.calls, [])
     }
 
     func test_resolveLineContentEdges_continuationLineIsTheParagraphMargin() throws {
         let host = indentedParagraphHost()
 
-        let result = try XCTUnwrap(
+        let result = try measurement(
             resolver.resolveLineContentEdges(using: host.queries, request: request(caretLocation: 150))
         )
 
@@ -286,7 +302,7 @@ final class AXTextGeometryResolverTests: XCTestCase {
     func test_resolveLineContentEdges_firstLineIsFlaggedProvisional() throws {
         let host = indentedParagraphHost()
 
-        let result = try XCTUnwrap(
+        let result = try measurement(
             resolver.resolveLineContentEdges(using: host.queries, request: request(caretLocation: 120))
         )
 
@@ -299,7 +315,7 @@ final class AXTextGeometryResolverTests: XCTestCase {
     func test_resolveLineContentEdges_unknownParagraphStartMeansContinuationLine() throws {
         let host = indentedParagraphHost()
 
-        let result = try XCTUnwrap(
+        let result = try measurement(
             resolver.resolveLineContentEdges(
                 using: host.queries,
                 request: request(caretLocation: 120, paragraphStart: nil)
@@ -314,7 +330,7 @@ final class AXTextGeometryResolverTests: XCTestCase {
     func test_resolveLineContentEdges_publishesALeftMarginOnly() throws {
         let host = indentedParagraphHost()
 
-        let result = try XCTUnwrap(
+        let result = try measurement(
             resolver.resolveLineContentEdges(using: host.queries, request: request(caretLocation: 150))
         )
 
@@ -323,15 +339,31 @@ final class AXTextGeometryResolverTests: XCTestCase {
     }
 
     /// Right after Return the caret's line is empty; there is no box to measure, so the lookup stops
-    /// before asking for bounds.
-    func test_resolveLineContentEdges_emptyLineFailsWithoutAskingForBounds() {
+    /// before asking for bounds — and says so, because unlike other failures typing fixes it.
+    func test_resolveLineContentEdges_emptyLineIsReportedWithoutAskingForBounds() {
         let host = ScriptedLineHost(
             lineForOffset: { _ in 5 },
             lines: [5: (NSRange(location: 0, length: 0), CGRect(x: 288, y: 300, width: 0, height: 30))]
         )
 
-        XCTAssertNil(resolver.resolveLineContentEdges(using: host.queries, request: request(caretLocation: 17)))
+        XCTAssertEqual(
+            resolver.resolveLineContentEdges(using: host.queries, request: request(caretLocation: 17)),
+            .emptyLine(caretLocation: 17)
+        )
         XCTAssertEqual(host.calls, ["lineForIndex", "rangeForLine"])
+    }
+
+    /// A line holding only a paragraph break can come back with a zero-width box: just as empty.
+    func test_resolveLineContentEdges_zeroWidthLineBoxIsAnEmptyLine() {
+        let host = ScriptedLineHost(
+            lineForOffset: { _ in 5 },
+            lines: [5: (NSRange(location: 17, length: 1), CGRect(x: 288, y: 300, width: 0, height: 30))]
+        )
+
+        XCTAssertEqual(
+            resolver.resolveLineContentEdges(using: host.queries, request: request(caretLocation: 17)),
+            .emptyLine(caretLocation: 17)
+        )
     }
 
     func test_resolveLineContentEdges_lineOutsideTheFieldIsRejected() {
@@ -340,11 +372,12 @@ final class AXTextGeometryResolverTests: XCTestCase {
         // mis-reported range, not a margin.
         let field = AXHelper.cocoaRect(fromAccessibilityRect: CGRect(x: 2000, y: 2000, width: 300, height: 100))
 
-        XCTAssertNil(
+        XCTAssertEqual(
             resolver.resolveLineContentEdges(
                 using: host.queries,
                 request: request(caretLocation: 150, anchorFrame: field)
-            )
+            ),
+            .unavailable
         )
     }
 }

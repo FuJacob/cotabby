@@ -260,12 +260,14 @@ struct AXTextGeometryResolver {
     /// its own gate for. The caller already holds the element's parameterized-attribute set, so the
     /// check costs nothing extra, and it caches results per paragraph so steady typing issues none.
     ///
-    /// Returns nil unless every step succeeds — including for an empty line, which has no box to
-    /// measure — leaving callers on their existing frame-based guess.
+    /// Returns `.measured` only when every step succeeds, leaving callers on their existing
+    /// frame-based guess otherwise. An empty line — which has no box to measure yet — is reported as
+    /// `.emptyLine` rather than `.unavailable`, because typing makes it measurable and the caller
+    /// retries it once the caret moves; every other failure would simply fail again.
     func resolveLineContentEdges(
         for element: AXUIElement,
         request: LineEdgeRequest
-    ) -> LineContentEdgesMeasurement? {
+    ) -> LineContentEdgesOutcome {
         resolveLineContentEdges(using: .accessibility(element), request: request)
     }
 
@@ -273,16 +275,25 @@ struct AXTextGeometryResolver {
     func resolveLineContentEdges(
         using queries: LineGeometryQueries,
         request: LineEdgeRequest
-    ) -> LineContentEdgesMeasurement? {
+    ) -> LineContentEdgesOutcome {
         guard request.supportsLineGeometry,
               request.caretLocation >= 0,
               let line = queries.lineForIndex(request.caretLocation),
-              let lineRange = queries.rangeForLine(line),
-              lineRange.length > 0,
-              let rect = queries.boundsForRange(lineRange),
-              !rect.isEmpty
+              let lineRange = queries.rangeForLine(line)
         else {
-            return nil
+            return .unavailable
+        }
+        // The caret's line right after Return has no characters yet, and a line holding only a
+        // paragraph break can come back with a zero-width box: nothing to measure either way, but
+        // only until the user types.
+        guard lineRange.length > 0 else {
+            return .emptyLine(caretLocation: request.caretLocation)
+        }
+        guard let rect = queries.boundsForRange(lineRange) else {
+            return .unavailable
+        }
+        guard !rect.isEmpty else {
+            return .emptyLine(caretLocation: request.caretLocation)
         }
 
         let cocoaRect = AXHelper.validatedCocoaTextRect(
@@ -294,14 +305,14 @@ struct AXTextGeometryResolver {
         // the corner of the display. Reject the degenerate rect before the anchor test, so the guard
         // does not depend on an anchor frame being present.
         guard AXHelper.rectHasFiniteComponents(cocoaRect), !cocoaRect.isEmpty else {
-            return nil
+            return .unavailable
         }
         // A line rect that escapes the field is a mis-reported range, not a margin; ignore it rather
         // than anchoring ghost text somewhere the host is not drawing.
         if let anchorFrame = request.anchorFrame,
            !anchorFrame.isEmpty,
            !anchorFrame.insetBy(dx: -1, dy: -1).intersects(cocoaRect) {
-            return nil
+            return .unavailable
         }
 
         // First line of its paragraph when the line starts at the paragraph's first character — or
@@ -309,11 +320,13 @@ struct AXTextGeometryResolver {
         // line (NSTextView does). Either way the edge is not proven to be the wrap margin yet.
         let isParagraphFirstLine = request.paragraphStart.map { lineRange.location <= $0 } ?? false
 
-        return LineContentEdgesMeasurement(
-            edges: .lineQueryMargin(leftX: cocoaRect.minX),
-            lineRect: cocoaRect,
-            isParagraphFirstLine: isParagraphFirstLine,
-            caretLocation: request.caretLocation
+        return .measured(
+            LineContentEdgesMeasurement(
+                edges: .lineQueryMargin(leftX: cocoaRect.minX),
+                lineRect: cocoaRect,
+                isParagraphFirstLine: isParagraphFirstLine,
+                caretLocation: request.caretLocation
+            )
         )
     }
 
