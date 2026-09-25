@@ -95,6 +95,16 @@ extension SuggestionCoordinator {
             )
         }
 
+        return commitPreparedAcceptance(preparation, rawContext: rawContext, keyName: keyName)
+    }
+
+    /// Preparation validates the live session; this stage performs insertion and advances that
+    /// exact session. Keeping the handoff explicit avoids repeating eligibility checks mid-commit.
+    private func commitPreparedAcceptance(
+        _ preparation: SuggestionAcceptancePreparation,
+        rawContext: FocusedInputSnapshot,
+        keyName: String
+    ) -> Bool {
         let liveContext: FocusedInputContext
         let sessionForAcceptance: ActiveSuggestionSession
         let acceptedChunk: String

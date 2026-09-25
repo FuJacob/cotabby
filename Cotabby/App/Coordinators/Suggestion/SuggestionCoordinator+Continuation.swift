@@ -159,8 +159,7 @@ extension SuggestionCoordinator {
         // A failed optional prefetch never replaces a useful visible word with an error state.
         // Once the source has been accepted, ordinary prediction remains the fallback.
         if shouldRefresh {
-            if targetPublished { schedulePrediction() }
-            else { schedulePredictionAfterHostPublishDelay(requiresTextChange: true) }
+            if targetPublished { schedulePrediction() } else { schedulePredictionAfterHostPublishDelay(requiresTextChange: true) }
         }
     }
 }

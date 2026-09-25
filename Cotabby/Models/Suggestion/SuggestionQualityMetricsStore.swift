@@ -60,8 +60,7 @@ final class SuggestionQualityMetricsStore: ObservableObject {
     func recordShown(recoveringSuppression reason: String? = nil) {
         mutate {
             if let reason, let count = $0.suppressedByReason[reason], count > 0 {
-                if count == 1 { $0.suppressedByReason.removeValue(forKey: reason) }
-                else { $0.suppressedByReason[reason] = count - 1 }
+                if count == 1 { $0.suppressedByReason.removeValue(forKey: reason) } else { $0.suppressedByReason[reason] = count - 1 }
             }
             $0.shown += 1
         }

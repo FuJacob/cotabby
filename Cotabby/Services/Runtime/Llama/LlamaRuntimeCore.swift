@@ -166,11 +166,7 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         defer { clearAbortTarget() }
 
         let sequenceID = try obtainAutocompleteSequence(
-            promptTokens: preparation.promptTokens,
-            promptBytes: preparation.promptBytes,
-            fingerprint: preparation.fingerprint,
-            cachedPrefixBytes: preparation.cachedPrefixBytes,
-            healingPrefix: preparation.healingPrefix,
+            preparation: preparation,
             options: options
         )
 
@@ -232,11 +228,7 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         }
 
         let sequenceID = try obtainAutocompleteSequence(
-            promptTokens: preparation.promptTokens,
-            promptBytes: preparation.promptBytes,
-            fingerprint: preparation.fingerprint,
-            cachedPrefixBytes: preparation.cachedPrefixBytes,
-            healingPrefix: preparation.healingPrefix,
+            preparation: preparation,
             options: options
         )
 
@@ -438,6 +430,16 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
             ]
         )
 
+        return Self.generationOutput(text: generatedText, sumLogprob: sumLogprob, tokensGenerated: tokensGenerated, options: options)
+    }
+
+    /// Confidence affects the returned value after decode; it must not change retained KV state.
+    private static func generationOutput(
+        text generatedText: String,
+        sumLogprob: Double,
+        tokensGenerated: Int,
+        options: LlamaGenerationOptions
+    ) -> LlamaGenerationOutput {
         // The average is only meaningful when the engine actually computed per-token logprobs,
         // which is keyed on the floor being enabled (see setComputeLogprob at sequence setup).
         let averageLogprob: Double? = options.confidenceFloor > -.infinity && tokensGenerated > 0
@@ -557,13 +559,14 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
     /// even when both prompt descriptions are identical. A missed checkpoint rebuilds cold.
     /// Must be called while holding `autocompleteLock`.
     private func obtainAutocompleteSequence(
-        promptTokens: [Int32],
-        promptBytes: [UInt8],
-        fingerprint: SamplingFingerprint,
-        cachedPrefixBytes: Int?,
-        healingPrefix: [UInt8],
+        preparation: PreparedPrompt,
         options: LlamaGenerationOptions
     ) throws -> Int32 {
+        let promptTokens = preparation.promptTokens
+        let promptBytes = preparation.promptBytes
+        let fingerprint = preparation.fingerprint
+        let cachedPrefixBytes = preparation.cachedPrefixBytes
+        let healingPrefix = preparation.healingPrefix
         if autocompleteSequenceID >= 0,
            let cachedPrefixBytes, cachedPrefixBytes > 0,
            autocompleteSamplingFingerprint == fingerprint {

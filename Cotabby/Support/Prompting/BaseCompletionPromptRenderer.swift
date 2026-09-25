@@ -42,17 +42,8 @@ enum BaseCompletionPromptRenderer {
         // and the composer already omits it for the app classes where metadata would hurt. The
         // facts remain stable during ordinary typing; navigation refreshes them even when doing
         // so sacrifices KV reuse. Context freshness takes precedence over a cached prompt head.
-        if let surface = surfaceContext {
-            // This alternative is an opt-in evaluation control. Shipping requests use the
-            // default representation until disjoint replay evidence supports a change.
-            let lines = usesCompactSurfaceContext
-                ? SurfaceContextComposer.baseCompletionPrefaceLines(for: surface)
-                : SurfaceContextComposer.prefaceLines(for: surface)
-            if !lines.isEmpty {
-                sections.append(
-                    Self.contextSection("surface", lines.joined(separator: " "), priority: 70, maxChars: 240)
-                )
-            }
+        if let section = surfaceSection(surfaceContext, compact: usesCompactSurfaceContext) {
+            sections.append(section)
         }
         if let persona = Self.personaLine(userName) {
             sections.append(Self.contextSection("persona", persona, priority: 60, maxChars: 200))
@@ -136,6 +127,17 @@ enum BaseCompletionPromptRenderer {
         // A blank line separates the conditioning preface from the live text without a label the
         // model could copy. The prefix remains the final bytes of the prompt.
         return preface.joined(separator: "\n") + "\n\n" + prefix
+    }
+
+    /// Surface metadata is one optional section; its representation does not affect budgeting.
+    private static func surfaceSection(_ surface: SurfaceContext?, compact: Bool) -> PromptSection? {
+        guard let surface else { return nil }
+        // Compact rendering remains an opt-in evaluation control.
+        let lines = compact
+            ? SurfaceContextComposer.baseCompletionPrefaceLines(for: surface)
+            : SurfaceContextComposer.prefaceLines(for: surface)
+        guard !lines.isEmpty else { return nil }
+        return contextSection("surface", lines.joined(separator: " "), priority: 70, maxChars: 240)
     }
 
     private static func contextSection(

@@ -254,6 +254,13 @@ struct CoordinatorRig {
     let interactionState: SuggestionInteractionState
 }
 
+// App-hosted tests on macOS 15 can over-release @MainActor instances in Swift's
+// back-deployed isolated-deinit shim. Keep the stopped fixture graph alive, as the
+// focus/state suites already do; each test must still stop its coordinator so tasks
+// and subscriptions cannot escape into the next test. Production ownership is unchanged.
+@MainActor
+private var retainedCoordinatorRigs: [CoordinatorRig] = []
+
 @MainActor
 func makeCoordinatorRig(
     snapshot: FocusedInputSnapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello"),
@@ -304,7 +311,7 @@ func makeCoordinatorRig(
         ),
         userDefaults: UserDefaults(suiteName: "CotabbyTests.rig.\(UUID().uuidString)") ?? .standard
     )
-    return CoordinatorRig(
+    let rig = CoordinatorRig(
         coordinator: coordinator,
         permissionProvider: permissionProvider,
         lowPowerModeProvider: lowPowerModeProvider,
@@ -319,6 +326,8 @@ func makeCoordinatorRig(
         visualContext: visualContext,
         interactionState: interactionState
     )
+    retainedCoordinatorRigs.append(rig)
+    return rig
 }
 
 /// Polls a main-actor condition until it holds or the timeout elapses, yielding to the run loop

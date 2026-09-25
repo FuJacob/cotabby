@@ -445,6 +445,13 @@ final class FocusTracker {
             codexSearchStack = [(window, 0)]
             codexSearchVisits = 0
         }
+        return searchCodexFocusedDescendants(application: app)
+    }
+
+    /// Advances the bounded AX walk, retaining its stack for the next poll when time runs out.
+    /// Window/session invalidation remains the caller's responsibility.
+    private func searchCodexFocusedDescendants(application app: NSRunningApplication)
+        -> (element: AXUIElement, application: NSRunningApplication)? {
         let deadline = Date().addingTimeInterval(0.015)
         while !codexSearchStack.isEmpty, codexSearchVisits < 2000, Date() < deadline {
             let (node, depth) = codexSearchStack.removeLast()
