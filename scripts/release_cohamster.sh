@@ -3,8 +3,14 @@
 # Credentials stay in Keychain. Publication is separate so a failed notarization cannot ship a DMG.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-version="${1:-0.6.4}"
-build_number="${2:-2026092402}"
+# Read the same checked-in settings Xcode uses; release-only overrides hid stale local versions.
+version=$(awk -F ' = ' '/^MARKETING_VERSION = / { print $2 }' Config/Version.xcconfig)
+build_number=$(awk -F ' = ' '/^CURRENT_PROJECT_VERSION = / { print $2 }' Config/Version.xcconfig)
+[[ -n "$version" && -n "$build_number" ]] || { echo 'Missing canonical version settings' >&2; exit 1; }
+if [[ "${1:-$version}" != "$version" || "${2:-$build_number}" != "$build_number" ]]; then
+    echo 'Update Config/Version.xcconfig first; release arguments must match local builds.' >&2
+    exit 1
+fi
 # Each DMG must carry notes for its own version, never the first release's hardcoded file.
 release_notes="releases/cohamster-${version}.md"
 [[ -f "$release_notes" ]] || { echo "Missing release notes: $release_notes" >&2; exit 1; }
@@ -12,6 +18,7 @@ identity='Developer ID Application: Jorge Miguel Casler (8RN882MNR5)'
 app_name='CoHamster'
 release_dir="$PWD/build/cohamster-release"
 native_dir="$release_dir/CotabbyInference"
+xcodegen generate
 scripts/prepare_cohamster_workspace.sh "$release_dir"
 workspace="$release_dir/CoHamster.xcworkspace"
 xcodebuild archive \
@@ -21,7 +28,6 @@ xcodebuild archive \
     -derivedDataPath build/DerivedData -archivePath "$release_dir/CoHamster.xcarchive" \
     DEVELOPMENT_TEAM=8RN882MNR5 CODE_SIGN_STYLE=Manual CODE_SIGNING_ALLOWED=NO \
     CODE_SIGN_IDENTITY="$identity" OTHER_CODE_SIGN_FLAGS=--timestamp \
-    MARKETING_VERSION="$version" CURRENT_PROJECT_VERSION="$build_number" \
     ARCHS=arm64
 archive_app="$release_dir/CoHamster.xcarchive/Products/Applications/$app_name.app"
 # Documents may be managed by iCloud, which restores FinderInfo immediately after xattr removal.
@@ -52,12 +58,14 @@ for nested in \
 done
 codesign --force --options runtime --timestamp --sign "$identity" "$app"
 codesign --verify --deep --strict "$app"
-python3 - "$app/Contents/Info.plist" <<'PY'
+python3 - "$app/Contents/Info.plist" "$version" "$build_number" <<'PY'
 import plistlib, sys
 with open(sys.argv[1], 'rb') as f:
     info = plistlib.load(f)
 assert info['CFBundleIdentifier'] == 'org.mchamster.cotabby'
 assert info['CFBundleName'] == 'CoHamster'
+assert info['CFBundleShortVersionString'] == sys.argv[2]
+assert info['CFBundleVersion'] == sys.argv[3]
 assert 'SUFeedURL' not in info and 'SUPublicEDKey' not in info
 PY
 ln -sfn /Applications "$stage/Applications"

@@ -933,6 +933,7 @@
 		B377908CDC5FDDBF4FFD02A4 /* MirrorOverlayLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MirrorOverlayLayout.swift; sourceTree = "<group>"; };
 		B4EFE3822D9A164260A95CAB /* SentenceBoundaryClassifierTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SentenceBoundaryClassifierTests.swift; sourceTree = "<group>"; };
 		B56E614AB06701C3753952E6 /* EmojiRecentsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmojiRecentsTests.swift; sourceTree = "<group>"; };
+		B61F5A5B198E71257CE26DDA /* Version.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Version.xcconfig; sourceTree = "<group>"; };
 		B64AA9234194239F58C82941 /* SettingsCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsCoordinator.swift; sourceTree = "<group>"; };
 		B7BBD966D4E15477A24DAEE8 /* LowPowerModeMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LowPowerModeMonitor.swift; sourceTree = "<group>"; };
 		B84D5ED9AB0D12A2E17F2D6F /* DownloadOutcomeClassifierTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadOutcomeClassifierTests.swift; sourceTree = "<group>"; };
@@ -2806,6 +2807,7 @@
 			isa = PBXGroup;
 			children = (
 				8081F0DB94607FAD4B80FAF0 /* Signing.xcconfig */,
+				B61F5A5B198E71257CE26DDA /* Version.xcconfig */,
 			);
 			path = Config;
 			sourceTree = "<group>";
@@ -3655,6 +3657,7 @@
 		};
 		B7AE453598F054671C5CB157 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = B61F5A5B198E71257CE26DDA /* Version.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -3663,7 +3666,6 @@
 				CODE_SIGN_STYLE = Automatic;
 				COHAMSTER_DATA_DIRECTORY = "Cotabby McHamster";
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
@@ -3676,7 +3678,6 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = org.mchamster.cotabby;
 				PRODUCT_MODULE_NAME = Cotabby;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -3694,6 +3695,7 @@
 		};
 		C82368809F01A0BF8E7AE009 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = B61F5A5B198E71257CE26DDA /* Version.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -3702,7 +3704,6 @@
 				CODE_SIGN_STYLE = Automatic;
 				COHAMSTER_DATA_DIRECTORY = "Cotabby McHamster";
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
@@ -3715,7 +3716,6 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = org.mchamster.cotabby;
 				PRODUCT_MODULE_NAME = Cotabby;
 				PRODUCT_NAME = "$(TARGET_NAME)";

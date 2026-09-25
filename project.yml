@@ -99,6 +99,9 @@ configFiles:
 # The dev identity remains separate from the installed release.
 targetTemplates:
   CotabbyApp:
+    configFiles:
+      Debug: Config/Version.xcconfig
+      Release: Config/Version.xcconfig
     type: application
     platform: macOS
     deploymentTarget: "14.0"
@@ -127,7 +130,6 @@ targetTemplates:
         CODE_SIGN_IDENTITY[sdk=macosx*]: Apple Development
         CODE_SIGN_STYLE: Automatic
         COMBINE_HIDPI_IMAGES: YES
-        CURRENT_PROJECT_VERSION: "1"
         ENABLE_APP_SANDBOX: NO
         ENABLE_HARDENED_RUNTIME: YES
         ENABLE_PREVIEWS: YES
@@ -138,7 +140,6 @@ targetTemplates:
         LD_RUNPATH_SEARCH_PATHS:
           - $(inherited)
           - "@executable_path/../Frameworks"
-        MARKETING_VERSION: "1.0"
         PRODUCT_NAME: $(TARGET_NAME)
         PRODUCT_MODULE_NAME: Cotabby
         REGISTER_APP_GROUPS: YES

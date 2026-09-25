@@ -20,10 +20,13 @@ notarization profile. Keep credentials out of this repository. Configure the pro
 xcrun notarytool store-credentials McHamster --apple-id YOUR_APPLE_ID --team-id 8RN882MNR5
 ```
 
-Write `releases/cohamster-<version>.md` before building. Then:
+Set the next version and build number in `Config/Version.xcconfig`, which is shared by Debug and
+Release. Write matching `releases/cohamster-<version>.md` notes before building. The packaging
+script regenerates the Xcode project, reads these canonical values, and verifies the archived app
+matches them. Optional version/build arguments must agree with the file. Then:
 
 ```sh
-NOTARY_PROFILE=McHamster scripts/release_cohamster.sh 0.6.4 2026092402
+NOTARY_PROFILE=McHamster scripts/release_cohamster.sh
 ```
 
 Without `NOTARY_PROFILE`, the script produces only a signed candidate. Publish after notarization,
