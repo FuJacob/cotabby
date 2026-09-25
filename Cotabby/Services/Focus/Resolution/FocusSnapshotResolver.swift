@@ -705,7 +705,11 @@ struct FocusSnapshotResolver {
         )
         let hasStrongEditabilitySignal = AXHelper.hasStrongEditabilitySignal(
             role: role,
-            explicitEditableFlag: explicitEditableFlag
+            explicitEditableFlag: explicitEditableFlag,
+            // Probe only web areas missing AXEditable; ordinary fields keep their cheap path.
+            // This admits Mail's writable composer without treating every HTML page as editable.
+            isValueSettable: role == "AXWebArea" && explicitEditableFlag == nil
+                && AXHelper.isValueSettable(on: element)
         )
         let isKnownReadOnlyRole = AXHelper.isKnownReadOnlyRole(role)
         let canBeEditableTarget = hasStrongEditabilitySignal && !isKnownReadOnlyRole

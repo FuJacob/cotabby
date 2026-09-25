@@ -271,6 +271,25 @@ final class AXHelperTests: XCTestCase {
         XCTAssertFalse(AXHelper.hasStrongEditabilitySignal(role: "AXGroup", explicitEditableFlag: nil))
     }
 
+    func test_webAreaEditability_requiresWritableValueWhenEditableFlagIsAbsent() {
+        XCTAssertTrue(AXHelper.hasStrongEditabilitySignal(
+            role: "AXWebArea", explicitEditableFlag: nil, isValueSettable: true
+        ))
+        // Received mail and ordinary web pages must remain ineligible, even if they expose
+        // selectable text and caret geometry through WebKit's text-marker APIs.
+        XCTAssertFalse(AXHelper.hasStrongEditabilitySignal(
+            role: "AXWebArea", explicitEditableFlag: nil, isValueSettable: false
+        ))
+        XCTAssertFalse(AXHelper.hasStrongEditabilitySignal(
+            role: "AXWebArea", explicitEditableFlag: false, isValueSettable: true
+        ))
+        for role in ["AXGroup", "AXStaticText", "AXButton"] {
+            XCTAssertFalse(AXHelper.hasStrongEditabilitySignal(
+                role: role, explicitEditableFlag: nil, isValueSettable: true
+            ))
+        }
+    }
+
     // MARK: - Coordinate conversion (pure over live screen geometry)
 
     func test_rectHasFiniteComponents_rejectsNaNAndInfinity() {

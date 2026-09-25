@@ -850,8 +850,22 @@ enum AXHelper {
     }
 
     /// A strong editability signal is what separates a real input target from display text that merely exposes AX metadata.
-    static func hasStrongEditabilitySignal(role: String, explicitEditableFlag: Bool?) -> Bool {
+    static func hasStrongEditabilitySignal(
+        role: String, explicitEditableFlag: Bool?, isValueSettable: Bool = false
+    ) -> Bool {
+        // Mail's WebKit composer can expose a writable AXWebArea without AXEditable.
+        // A web area alone is not evidence: received messages and browser documents use the
+        // same role. Require a writable value, and never override an explicit read-only flag.
         explicitEditableFlag == true || isKnownEditableRole(role)
+            || (role == "AXWebArea" && explicitEditableFlag == nil && isValueSettable)
+    }
+
+    /// Queries capability only; this never writes the host's text. AX errors fail closed so an
+    /// unavailable or read-only web document cannot become an autocomplete insertion target.
+    static func isValueSettable(on element: AXUIElement) -> Bool {
+        var settable: DarwinBoolean = false
+        return AXUIElementIsAttributeSettable(element, kAXValueAttribute as CFString, &settable) == .success
+            && settable.boolValue
     }
 
     static func isKnownEditableRole(_ role: String) -> Bool {
