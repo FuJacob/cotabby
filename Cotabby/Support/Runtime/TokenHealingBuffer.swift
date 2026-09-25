@@ -1,6 +1,6 @@
 import Foundation
 
-/// Separates a healed prompt token's replay from the new text a completion is allowed to show.
+/// Separates a healed prompt suffix's replay from the new text a completion is allowed to show.
 ///
 /// `LlamaRuntimeCore` creates one buffer per decode. The native sampler may choose a larger token
 /// that begins with the exact bytes removed from the prompt; those bytes already belong to the
@@ -13,7 +13,7 @@ nonisolated struct TokenHealingBuffer {
     static let maximumReplayTokens = 16
     /// A byte-fallback vocabulary can need one token per byte. Capping the candidate to the same
     /// count guarantees its replay fits even in that worst case; the runtime applies this policy
-    /// before removing a prompt token. The buffer itself can validate an arbitrary byte prefix.
+    /// before removing prompt tokens. The buffer itself can validate an arbitrary byte prefix.
     static let maximumHealedTokenBytes = maximumReplayTokens
 
     private var remainingReplay: ArraySlice<UInt8>

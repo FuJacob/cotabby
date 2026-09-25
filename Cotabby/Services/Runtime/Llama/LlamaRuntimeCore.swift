@@ -313,20 +313,14 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
             ]
         )
 
-        // Retokenize the final token under a byte-prefix constraint. Token boundaries rarely
-        // align with a half-typed word; replaying its exact bytes lets the model select a longer
-        // vocabulary token without deleting or changing anything the writer has entered.
-        var tokens = allPromptTokens
-        var healingPrefix: [UInt8] = []
-        if tokens.count > 1, let last = tokens.last {
-            let piece = Array(engine.tokenPiece(last))
-            if !piece.isEmpty, piece.count <= TokenHealingBuffer.maximumHealedTokenBytes,
-               promptBytes.suffix(piece.count).elementsEqual(piece),
-               !(options.singleLine && piece.contains(where: { $0 == 10 || $0 == 13 })) {
-                tokens.removeLast()
-                healingPrefix = piece
-            }
-        }
+        // Reconsider the entire bounded word fragment, not just its last vocabulary token.
+        // The pure plan protects byte identity; native sampling enforces the resulting prefix.
+        let healing = TokenHealingPlan(
+            prompt: prompt, tokens: allPromptTokens, singleLine: options.singleLine,
+            piece: { Array(engine.tokenPiece($0)) }
+        )
+        let tokens = healing.promptTokens
+        let healingPrefix = healing.replayBytes
         // A byte-fallback vocabulary can replay at most one token per prefix byte. Reserve a
         // separate bounded allowance so healing cannot consume the user's output-token budget.
         let maxPromptTokens = max(1, preparedRuntime.contextWindowTokens

@@ -142,7 +142,7 @@ index 1b2aca3..673e8de 100644
  ## Requirements
  
 diff --git a/Sources/CotabbyInferenceEngine/CotabbyInferenceEngine.cpp b/Sources/CotabbyInferenceEngine/CotabbyInferenceEngine.cpp
-index 5fc867f..e82dd30 100644
+index 5fc867f..b9b6aa6 100644
 --- a/Sources/CotabbyInferenceEngine/CotabbyInferenceEngine.cpp
 +++ b/Sources/CotabbyInferenceEngine/CotabbyInferenceEngine.cpp
 @@ -1,4 +1,5 @@
@@ -151,7 +151,7 @@ index 5fc867f..e82dd30 100644
  
  #include <algorithm>
  #include <atomic>
-@@ -102,6 +103,22 @@ struct SequenceState {
+@@ -102,6 +103,23 @@ struct SequenceState {
      int kv_position_count = 0;
      std::atomic<bool> cancelled{false};
      std::string last_piece;
@@ -171,10 +171,11 @@ index 5fc867f..e82dd30 100644
 +    int checkpoint_position = 0;
 +    int last_restore_replayed_tokens = 0;
 +    cotabby::TokenPrefix completion_prefix;
++    bool single_line = false;
  
      llama_token seed_token = 0;
      bool has_seed_token = false;
-@@ -147,6 +164,12 @@ struct CotabbyInferenceEngine::Impl {
+@@ -147,6 +165,12 @@ struct CotabbyInferenceEngine::Impl {
      int batch_size = 0;
      int thread_count = 0;
      int gpu_layer_count = 0;
@@ -187,7 +188,7 @@ index 5fc867f..e82dd30 100644
  
      // Token masks built once per model load (see buildTokenMasks). EOG tokens are deliberately
      // excluded so the stop check still fires; they are never emitted as text. `starts_new_word`
-@@ -154,6 +177,7 @@ struct CotabbyInferenceEngine::Impl {
+@@ -154,6 +178,7 @@ struct CotabbyInferenceEngine::Impl {
      std::vector<llama_logit_bias> nonprintable_bias;
      std::vector<llama_logit_bias> linebreak_bias;
      std::vector<bool> starts_new_word;
@@ -195,7 +196,7 @@ index 5fc867f..e82dd30 100644
  
      // One product sequence with a monotonically changing external identity. The mutex protects
      // create/destroy and lookup; callers still must not destroy the sequence while another method
-@@ -166,6 +190,104 @@ struct CotabbyInferenceEngine::Impl {
+@@ -166,6 +191,104 @@ struct CotabbyInferenceEngine::Impl {
      // prefill, trim, and reset, while cancellation only touches the sequence's atomic flag.
      std::mutex decode_mutex;
  
@@ -219,7 +220,7 @@ index 5fc867f..e82dd30 100644
 +    // prefix and include new letters, or may cover only its first bytes (byte fallback).
 +    bool maskCompletionPrefix(const SequenceState& seq, int logits_row) const {
 +        if (seq.completion_prefix.empty()) return true;
-+        const auto allowed = healing_vocabulary.matchingTokens(seq.completion_prefix.remaining());
++        const auto allowed = healing_vocabulary.matchingTokens(seq.completion_prefix.remaining(), seq.single_line);
 +        if (allowed.empty()) return false;
 +        float* logits = llama_get_logits_ith(shared_ctx, logits_row);
 +        if (!logits) return false;
@@ -300,7 +301,7 @@ index 5fc867f..e82dd30 100644
      SequenceState* findSequence(int32_t id) {
          std::lock_guard<std::mutex> lock(sequence_mutex);
          return sequence && sequence->external_id == id ? sequence.get() : nullptr;
-@@ -246,6 +368,7 @@ struct CotabbyInferenceEngine::Impl {
+@@ -246,6 +369,7 @@ struct CotabbyInferenceEngine::Impl {
          nonprintable_bias.clear();
          linebreak_bias.clear();
          starts_new_word.clear();
@@ -308,7 +309,7 @@ index 5fc867f..e82dd30 100644
          if (!vocab) return;
  
          const int32_t n = llama_vocab_n_tokens(vocab);
-@@ -256,6 +379,7 @@ struct CotabbyInferenceEngine::Impl {
+@@ -256,6 +380,7 @@ struct CotabbyInferenceEngine::Impl {
          const llama_token bos_token = llama_vocab_bos(vocab);
  
          char piece[64];
@@ -316,7 +317,7 @@ index 5fc867f..e82dd30 100644
          for (llama_token t = 0; t < n; ++t) {
              const bool is_eog = llama_vocab_is_eog(vocab, t);
  
-@@ -282,6 +406,11 @@ struct CotabbyInferenceEngine::Impl {
+@@ -282,6 +407,11 @@ struct CotabbyInferenceEngine::Impl {
                  }
              }
  
@@ -328,7 +329,7 @@ index 5fc867f..e82dd30 100644
              const int written = llama_token_to_piece(vocab, t, piece, sizeof(piece), 0, false);
              if (written <= 0) {
                  continue;
-@@ -299,6 +428,7 @@ struct CotabbyInferenceEngine::Impl {
+@@ -299,6 +429,7 @@ struct CotabbyInferenceEngine::Impl {
                  }
              }
          }
@@ -336,7 +337,7 @@ index 5fc867f..e82dd30 100644
      }
  
      // Masks every "starts a new word" token (decoded text begins with whitespace) in the logits
-@@ -424,6 +554,8 @@ EngineStatus CotabbyInferenceEngine::loadModel(const char* path, int gpu_layers,
+@@ -424,6 +555,8 @@ EngineStatus CotabbyInferenceEngine::loadModel(const char* path, int gpu_layers,
      impl_->context_window_tokens = context_window_tokens;
      impl_->batch_size = batch_size;
      impl_->gpu_layer_count = gpu_layers;
@@ -345,7 +346,7 @@ index 5fc867f..e82dd30 100644
      // Performance cores only — see resolveDecodeThreadCount. hardware_concurrency() counted
      // every logical core including efficiency cores, which both slows barriered matmuls and
      // burns extra package power for nothing when layers are Metal-offloaded anyway.
-@@ -471,6 +603,7 @@ void CotabbyInferenceEngine::unloadModel() {
+@@ -471,6 +604,7 @@ void CotabbyInferenceEngine::unloadModel() {
      }
      impl_->vocab = nullptr;
      impl_->model_path.clear();
@@ -353,7 +354,15 @@ index 5fc867f..e82dd30 100644
  
      if (impl_->backend_initialized) {
          llama_backend_free();
-@@ -574,6 +707,9 @@ EngineStatus CotabbyInferenceEngine::decodePrompt(int32_t sequence_id,
+@@ -495,6 +629,7 @@ int32_t CotabbyInferenceEngine::createSequence(SamplingConfig config) {
+     auto state = std::make_unique<SequenceState>();
+     state->external_id = id;
+     state->sampler = sampler;
++    state->single_line = config.single_line;
+     impl_->sequence = std::move(state);
+     return id;
+ }
+@@ -574,6 +709,9 @@ EngineStatus CotabbyInferenceEngine::decodePrompt(int32_t sequence_id,
  
      SequenceState* seq = impl_->findSequence(sequence_id);
      if (!seq) return EngineStatus::error;
@@ -363,7 +372,7 @@ index 5fc867f..e82dd30 100644
  
      if (seq->cancelled.load(std::memory_order_acquire)) {
          return EngineStatus::cancelled;
-@@ -587,6 +723,12 @@ EngineStatus CotabbyInferenceEngine::decodePrompt(int32_t sequence_id,
+@@ -587,6 +725,12 @@ EngineStatus CotabbyInferenceEngine::decodePrompt(int32_t sequence_id,
      int cursor = 0;
      int end = token_count;
      int total_end_position = start_position + token_count;
@@ -376,7 +385,7 @@ index 5fc867f..e82dd30 100644
  
      while (cursor < end) {
          if (seq->cancelled.load(std::memory_order_acquire)) {
-@@ -595,6 +737,10 @@ EngineStatus CotabbyInferenceEngine::decodePrompt(int32_t sequence_id,
+@@ -595,6 +739,10 @@ EngineStatus CotabbyInferenceEngine::decodePrompt(int32_t sequence_id,
          }
  
          int chunk_end = std::min(cursor + batch_cap, end);
@@ -387,7 +396,7 @@ index 5fc867f..e82dd30 100644
          int chunk_size = chunk_end - cursor;
  
          batch.n_tokens = static_cast<int32_t>(chunk_size);
-@@ -612,20 +758,37 @@ EngineStatus CotabbyInferenceEngine::decodePrompt(int32_t sequence_id,
+@@ -612,20 +760,37 @@ EngineStatus CotabbyInferenceEngine::decodePrompt(int32_t sequence_id,
          }
  
          if (llama_decode(impl_->shared_ctx, batch) != 0) {
@@ -426,7 +435,7 @@ index 5fc867f..e82dd30 100644
          impl_->maskNewWordStarts(-1);
          seq->force_word_continuation = false;
      }
-@@ -633,10 +796,10 @@ EngineStatus CotabbyInferenceEngine::decodePrompt(int32_t sequence_id,
+@@ -633,10 +798,10 @@ EngineStatus CotabbyInferenceEngine::decodePrompt(int32_t sequence_id,
      // Seed sample: take one token from the prompt's final logits row. The seed will be returned by
      // the next sampleNext call as-is and feedback-decoded by the call after that.
      llama_token seed = llama_sampler_sample(seq->sampler, impl_->shared_ctx, -1);
@@ -439,7 +448,7 @@ index 5fc867f..e82dd30 100644
      seq->has_seed_token = true;
      seq->has_pending_input = false;
  
-@@ -668,6 +831,10 @@ SampleResult CotabbyInferenceEngine::sampleNext(int32_t sequence_id) {
+@@ -668,6 +833,10 @@ SampleResult CotabbyInferenceEngine::sampleNext(int32_t sequence_id) {
          result.is_eos = true;
          return result;
      }
@@ -450,7 +459,7 @@ index 5fc867f..e82dd30 100644
  
      if (seq->cancelled.load(std::memory_order_acquire)) {
          result.was_cancelled = true;
-@@ -732,20 +899,37 @@ SampleResult CotabbyInferenceEngine::sampleNext(int32_t sequence_id) {
+@@ -732,20 +901,37 @@ SampleResult CotabbyInferenceEngine::sampleNext(int32_t sequence_id) {
      batch.logits[0] = 1;
  
      const int status = llama_decode(impl_->shared_ctx, batch);
@@ -490,7 +499,7 @@ index 5fc867f..e82dd30 100644
              seq->last_piece.resize(64);
              while (true) {
                  const int written = llama_token_to_piece(
-@@ -775,7 +959,6 @@ SampleResult CotabbyInferenceEngine::sampleNext(int32_t sequence_id) {
+@@ -775,7 +961,6 @@ SampleResult CotabbyInferenceEngine::sampleNext(int32_t sequence_id) {
  
      // Feedback decode advanced KV by one position; record the just-sampled
      // token as input for the next call.
@@ -498,7 +507,7 @@ index 5fc867f..e82dd30 100644
      seq->pending_input_token = result.token;
      seq->has_pending_input = true;
      return result;
-@@ -789,6 +972,10 @@ bool CotabbyInferenceEngine::trimKV(int32_t sequence_id, int keep_positions) {
+@@ -789,6 +974,10 @@ bool CotabbyInferenceEngine::trimKV(int32_t sequence_id, int keep_positions) {
      if (!impl_->shared_ctx) return false;
      SequenceState* seq = impl_->findSequence(sequence_id);
      if (!seq) return false;
@@ -509,7 +518,7 @@ index 5fc867f..e82dd30 100644
  
      llama_memory_t memory = llama_get_memory(impl_->shared_ctx);
      if (!memory) return false;
-@@ -796,20 +983,34 @@ bool CotabbyInferenceEngine::trimKV(int32_t sequence_id, int keep_positions) {
+@@ -796,20 +985,34 @@ bool CotabbyInferenceEngine::trimKV(int32_t sequence_id, int keep_positions) {
      // Serialize with prompt and feedback decode; never remove KV while llama is mutating it.
      std::lock_guard<std::mutex> lock(impl_->decode_mutex);
  
@@ -550,7 +559,7 @@ index 5fc867f..e82dd30 100644
      }
      return ok;
  }
-@@ -822,6 +1023,23 @@ void CotabbyInferenceEngine::setForceWordContinuation(int32_t sequence_id, bool
+@@ -822,6 +1025,23 @@ void CotabbyInferenceEngine::setForceWordContinuation(int32_t sequence_id, bool
      }
  }
  
@@ -574,7 +583,7 @@ index 5fc867f..e82dd30 100644
  void CotabbyInferenceEngine::setComputeLogprob(int32_t sequence_id, bool enabled) {
      if (!impl_) return;
      SequenceState* seq = impl_->findSequence(sequence_id);
-@@ -835,9 +1053,12 @@ void CotabbyInferenceEngine::setComputeLogprob(int32_t sequence_id, bool enabled
+@@ -835,9 +1055,12 @@ void CotabbyInferenceEngine::setComputeLogprob(int32_t sequence_id, bool enabled
  // ---------------------------------------------------------------------------
  
  void CotabbyInferenceEngine::cancelSequence(int32_t sequence_id) {
@@ -590,7 +599,7 @@ index 5fc867f..e82dd30 100644
      }
  }
  
-@@ -860,3 +1081,16 @@ int CotabbyInferenceEngine::getThreadCount() const {
+@@ -860,3 +1083,16 @@ int CotabbyInferenceEngine::getThreadCount() const {
  int CotabbyInferenceEngine::getGPULayerCount() const {
      return impl_->gpu_layer_count;
  }
@@ -609,10 +618,10 @@ index 5fc867f..e82dd30 100644
 +}
 diff --git a/Sources/CotabbyInferenceEngine/TokenHealing.cpp b/Sources/CotabbyInferenceEngine/TokenHealing.cpp
 new file mode 100644
-index 0000000..2312e09
+index 0000000..20db5a6
 --- /dev/null
 +++ b/Sources/CotabbyInferenceEngine/TokenHealing.cpp
-@@ -0,0 +1,76 @@
+@@ -0,0 +1,88 @@
 +#include "TokenHealing.h"
 +
 +#include <algorithm>
@@ -624,6 +633,9 @@ index 0000000..2312e09
 +    entries.erase(std::remove_if(entries.begin(), entries.end(), [](const Entry& entry) {
 +        return entry.piece.empty();
 +    }), entries.end());
++    for (auto& entry : entries) {
++        entry.contains_line_break = entry.piece.find_first_of("\r\n") != std::string::npos;
++    }
 +    std::sort(entries.begin(), entries.end(), [](const Entry& lhs, const Entry& rhs) {
 +        return lhs.piece < rhs.piece;
 +    });
@@ -634,7 +646,7 @@ index 0000000..2312e09
 +    entries_ = {};
 +}
 +
-+std::vector<int32_t> TokenHealingVocabulary::matchingTokens(std::string_view prefix) const {
++std::vector<int32_t> TokenHealingVocabulary::matchingTokens(std::string_view prefix, bool single_line) const {
 +    std::vector<int32_t> matches;
 +    if (prefix.empty()) return matches;
 +
@@ -647,15 +659,24 @@ index 0000000..2312e09
 +    // Binary search avoids rescanning hundreds of thousands of vocabulary strings per keystroke.
 +    for (auto it = lowerBound(prefix); it != entries_.end(); ++it) {
 +        if (std::string_view(it->piece).substr(0, prefix.size()) != prefix) break;
-+        matches.push_back(it->token);
++        if (!single_line || !it->contains_line_break) matches.push_back(it->token);
 +    }
 +
-+    // Tokens shorter than the replay must match it exactly. Include every token ID for duplicate
-+    // spellings: some vocabularies intentionally contain more than one token for the same bytes.
++    // Prefer a token that accounts for ALL known bytes. A short token such as " i" has high
++    // probability because it can start many words that contradict the already-typed " int".
++    // Letting it compete with " intelligence", then forcing "nt" afterward, ranks incompatible
++    // paths before their likelihood is known. Covering tokens can be compared at the same prefix
++    // boundary instead. Exact replay remains allowed, so a completed word can end normally.
++    // Ignore line-break tokens before choosing this branch: a covering token that the sampler
++    // later forbids must not prevent a valid shorter spelling from being replayed.
++    if (!matches.empty()) return matches;
++
++    // Multi-token/byte-fallback text may have no covering token. Only then allow shorter pieces;
++    // the next step applies this same rule to the remaining bytes. Include duplicate spellings.
 +    for (size_t length = 1; length < prefix.size(); ++length) {
 +        const auto fragment = prefix.substr(0, length);
 +        for (auto it = lowerBound(fragment); it != entries_.end() && it->piece == fragment; ++it) {
-+            matches.push_back(it->token);
++            if (!single_line || !it->contains_line_break) matches.push_back(it->token);
 +        }
 +    }
 +    return matches;
@@ -691,10 +712,10 @@ index 0000000..2312e09
 +} // namespace cotabby
 diff --git a/Sources/CotabbyInferenceEngine/TokenHealing.h b/Sources/CotabbyInferenceEngine/TokenHealing.h
 new file mode 100644
-index 0000000..f831be1
+index 0000000..15712fb
 --- /dev/null
 +++ b/Sources/CotabbyInferenceEngine/TokenHealing.h
-@@ -0,0 +1,53 @@
+@@ -0,0 +1,55 @@
 +#pragma once
 +
 +#include <cstdint>
@@ -715,15 +736,17 @@ index 0000000..f831be1
 +    struct Entry {
 +        int32_t token;
 +        std::string piece;
++        // Derived once at reset, so single-line filtering adds no per-step string scanning.
++        bool contains_line_break = false;
 +    };
 +
 +    void reset(std::vector<Entry> entries);
 +    void clear();
 +
-+    /// Includes tokens that cover the remaining prefix, and tokens that consume only part of it.
-+    /// The latter are necessary when a tokenizer represents the same text with several pieces.
++    /// Returns tokens covering the complete remaining prefix, including exact replay. Falls back
++    /// to shorter matching pieces only when no covering token exists (e.g. byte-fallback text).
 +    /// Empty/control tokens must not be indexed: they would make no progress through the prefix.
-+    std::vector<int32_t> matchingTokens(std::string_view prefix) const;
++    std::vector<int32_t> matchingTokens(std::string_view prefix, bool single_line = false) const;
 +
 +private:
 +    std::vector<Entry> entries_;
@@ -1009,10 +1032,10 @@ index b7741ba..83380c8 100644
                FileManager.default.fileExists(atPath: path) else {
 diff --git a/Tests/TokenHealingTests.cpp b/Tests/TokenHealingTests.cpp
 new file mode 100644
-index 0000000..3f3f426
+index 0000000..6fb140b
 --- /dev/null
 +++ b/Tests/TokenHealingTests.cpp
-@@ -0,0 +1,60 @@
+@@ -0,0 +1,75 @@
 +#include "../Sources/CotabbyInferenceEngine/TokenHealing.h"
 +
 +#include <algorithm>
@@ -1037,11 +1060,26 @@ index 0000000..3f3f426
 +
 +    // Unfinished words can choose a whole-word token instead of being trapped in the original
 +    // tokenization. A completed word still permits replaying itself and predicting a space next.
-+    assert(sorted(vocabulary.matchingTokens("sched")) == std::vector<int32_t>({1, 2, 3, 4, 9}));
-+    assert(sorted(vocabulary.matchingTokens("schedule")) == std::vector<int32_t>({1, 2, 4, 9}));
++    assert(sorted(vocabulary.matchingTokens("sched")) == std::vector<int32_t>({1, 2, 3, 9}));
++    assert(sorted(vocabulary.matchingTokens("schedule")) == std::vector<int32_t>({2}));
 +    assert(sorted(vocabulary.matchingTokens(" ")) == std::vector<int32_t>({6, 7}));
 +    assert(sorted(vocabulary.matchingTokens("\n")) == std::vector<int32_t>({10, 11}));
-+    assert(sorted(vocabulary.matchingTokens("é")) == std::vector<int32_t>({12, 13}));
++    assert(sorted(vocabulary.matchingTokens("é")) == std::vector<int32_t>({13}));
++    // A fragment must not lose its context just because a high-probability shorter token can
++    // start it. Neither " i" nor " in" accounts for the known final 't' of " int".
++    TokenHealingVocabulary technical;
++    technical.reset({{20, " i"}, {21, " in"}, {22, " int"}, {23, " intelligence"}, {24, " internal"}});
++    assert(sorted(technical.matchingTokens(" int")) == std::vector<int32_t>({22, 23, 24}));
++    // A multi-token spelling that has no complete covering token still progresses byte by byte.
++    assert(sorted(vocabulary.matchingTokens("schedx")) == std::vector<int32_t>({1, 4, 9}));
++    assert(sorted(vocabulary.matchingTokens("éx")) == std::vector<int32_t>({12}));
++    TokenHealingVocabulary line_breaks;
++    line_breaks.reset({{30, "foo\n"}, {31, "f"}, {32, "oo"}, {33, "foo\r\n"}});
++    assert(sorted(line_breaks.matchingTokens("foo")) == std::vector<int32_t>({30, 33}));
++    // Single-line sampling masks the only covering tokens. Shorter safe pieces must remain
++    // available, or all logits become -infinity before the sampler can complete the replay.
++    assert(sorted(line_breaks.matchingTokens("foo", true)) == std::vector<int32_t>({31}));
++    assert(sorted(line_breaks.matchingTokens("oo", true)) == std::vector<int32_t>({32}));
 +    assert(vocabulary.matchingTokens("xyz").empty());
 +    assert(vocabulary.matchingTokens("").empty());
 +
