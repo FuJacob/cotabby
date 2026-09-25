@@ -13,10 +13,24 @@ import SwiftUI
 @MainActor
 final class OverlayController: SuggestionOverlayControlling {
     private enum Layout {
-        static let minimumGhostFontSize: CGFloat = 14
-        static let maximumGhostFontSize: CGFloat = 24
+        // The ghost-size floor and ceiling now live in Settings (Appearance -> Ghost Text Size
+        // Limits); their shipped defaults are in `SuggestionSettingsStore`. Only the caps for paths
+        // whose caret rect is *not* a real measurement stay here, because those guard against bad
+        // geometry rather than expressing a user preference.
         static let maximumEstimatedGhostFontSize: CGFloat = 16
+        /// Ceiling for a size derived from what the *host itself* reported, which only applies on the
+        /// synthetic-caret path. It is deliberately looser than both caret-derived caps: those guard
+        /// against a bad caret *rect*, a risk that does not exist for a point size read straight out
+        /// of the host's own text attributes. It stays bounded so a nonsense AX value still cannot
+        /// paint a full-screen suggestion. It applies after the learned display scale, so 32pt covers
+        /// zoomed body text (Word reports 16pt at 161% zoom and renders it at ~26pt) and ordinary
+        /// headings.
+        static let maximumHostReportedFontSize: CGFloat = 32
         static let fontToLineHeightRatio: CGFloat = 0.78
+        /// Size used only to instantiate a host font so its metrics can be read. The glyph-box
+        /// ratio derived from it is scale-invariant, so the value is arbitrary — it never
+        /// reaches the screen and must not be confused with a rendered size.
+        static let metricProbeFontSize: CGFloat = 12
     }
 
     var onStateChange: ((OverlayState) -> Void)?
@@ -60,11 +74,30 @@ final class OverlayController: SuggestionOverlayControlling {
     /// line height and the coarse field-height fallback from poll to poll; stabilizing keeps ghost
     /// text from ballooning when the fallback wins. See `GhostFontSizeStabilizer`.
     private var ghostFontStabilizer = GhostFontSizeStabilizer()
+    /// The host's zoom as last revealed by a precise caret in this field; lets a synthetic-caret
+    /// render convert the host's reported point size to screen points (see `GhostHostScaleTracker`).
+    private var hostScaleTracker = GhostHostScaleTracker()
 
     /// The font and size the inline ghost was last rendered with, captured so `advanceInline` can
     /// measure the handed-off prefix in exactly the rendered typeface. Nil until the first inline show.
     private var lastInlineRenderFont: NSFont?
     private var lastInlineFontSize: CGFloat?
+
+    /// Signature of the last ghost-font resolution written to the log. Inline ghost text re-renders
+    /// on every keystroke, so logging each render would bury the signal; this emits one line per
+    /// *distinct* outcome instead. See `logGhostFontResolution`.
+    private var lastLoggedFontSignature: String?
+
+    /// Same idea for the placement line: inline ghost text re-renders on every keystroke, and the
+    /// caret X changes each time, so the signature excludes every value that tracks the caret —
+    /// including the panel's own origin, which follows it in the inline path. What is worth one line
+    /// per change is the *shape* of the placement, not the fact that the caret moved.
+    private var lastLoggedPlacementSignature: String?
+
+    /// `"<bundle id>|<font name>"` pairs already handed to `HostFontRegistry`, so a font the host
+    /// bundle does not contain is looked up once rather than on every render. Grows only with the
+    /// number of distinct unresolvable fonts actually encountered, which is small.
+    private var requestedHostFonts: Set<String> = []
 
     init(
         suggestionSettings: SuggestionSettingsModel,
@@ -191,15 +224,53 @@ final class OverlayController: SuggestionOverlayControlling {
         // still resets on genuine field switches.
         let stabilizedCaretHeight = ghostFontStabilizer.stabilizedCaretHeight(
             geometry.caretRect.height,
+            // Everything but `.estimated` measured real text-range geometry, so it reports the
+            // host's true line box and must be trusted even when it grew mid-session — the user
+            // raising the font size or the zoom does exactly that without changing fields.
+            isPreciseMeasurement: geometry.caretQuality != .estimated,
             focusSessionKey: geometry.focusedInputIdentityKey
         )
         // The host field's own font, when AX exposed it. Instantiated at the reported size only to
         // read its (scale-invariant) glyph-box ratio; the rendered size comes from the caret height.
-        let referenceFieldFont = geometry.resolvedFieldStyle.flatMap(fieldFont(from:))
+        let referenceFieldFont = geometry.resolvedFieldStyle.flatMap {
+            fieldFont(from: $0, bundleIdentifier: geometry.bundleIdentifier)
+        }
+        // Read the reported size straight off the style rather than off `referenceFieldFont`, which
+        // is nil whenever the typeface itself could not be instantiated. The two facts are
+        // independent: a host can name a font we cannot load while still reporting a usable size.
+        let hostReportedPointSize = geometry.resolvedFieldStyle?.fontPointSize
+        let fieldMetrics = referenceFieldFont.map {
+            GhostFontMetrics.FieldFontMetrics(
+                pointSize: $0.pointSize,
+                ascender: $0.ascender,
+                descender: $0.descender
+            )
+        }
+        // A precise caret carries the host's zoom; remember it so a later synthetic-caret render in
+        // this field can scale the host's document-point size to the screen.
+        if geometry.caretQuality != .estimated {
+            hostScaleTracker.record(
+                GhostFontMetrics.hostDisplayScale(
+                    caretHeight: stabilizedCaretHeight,
+                    fieldMetrics: fieldMetrics,
+                    hostReportedPointSize: hostReportedPointSize
+                ),
+                focusSessionKey: geometry.focusedInputIdentityKey
+            )
+        }
         let fontSize = resolvedGhostFontSize(
             forCaretHeight: stabilizedCaretHeight,
             caretQuality: geometry.caretQuality,
-            fieldFont: referenceFieldFont
+            fieldMetrics: fieldMetrics,
+            hostReportedPointSize: hostReportedPointSize,
+            hostDisplayScale: hostScaleTracker.scale(forFocusSessionKey: geometry.focusedInputIdentityKey)
+        )
+        logGhostFontResolution(
+            geometry: geometry,
+            stabilizedCaretHeight: stabilizedCaretHeight,
+            hostReportedPointSize: hostReportedPointSize,
+            referenceFieldFont: referenceFieldFont,
+            fontSize: fontSize
         )
         // Render in the field's typeface at the derived size so the ghost reads as a continuation of
         // the host text rather than pasted-on system font. Nil falls back to the system font.
@@ -264,6 +335,14 @@ final class OverlayController: SuggestionOverlayControlling {
         }
         panel.setFrame(frame.integral, display: true)
         panel.orderFrontRegardless()
+
+        logGhostPlacement(
+            caretRect: geometry.caretRect,
+            panelFrame: frame.integral,
+            contentSize: contentSize,
+            layout: layout,
+            font: renderFont ?? NSFont.systemFont(ofSize: fontSize)
+        )
 
         // Capture exactly what this inline render used, so a subsequent `advanceInline` slides the
         // panel by the prefix width measured in the same typeface and size.
@@ -422,36 +501,263 @@ final class OverlayController: SuggestionOverlayControlling {
     private func resolvedGhostFontSize(
         forCaretHeight caretHeight: CGFloat,
         caretQuality: CaretGeometryQuality,
-        fieldFont: NSFont?
+        fieldMetrics: GhostFontMetrics.FieldFontMetrics?,
+        hostReportedPointSize: CGFloat?,
+        hostDisplayScale: CGFloat?
     ) -> CGFloat {
+        // The user's ceiling is an absolute upper bound. The built-in caps only *tighten* it further
+        // on paths whose caret rect is not a real measurement, so lowering the ceiling always takes
+        // effect while raising it never loosens an untrustworthy estimate. The user's floor is
+        // absolute too: `GhostFontMetrics` lets it win over any built-in cap.
+        let userCeiling = CGFloat(suggestionSettings.ghostFontSizeCeiling)
+        let userFloor = CGFloat(suggestionSettings.ghostFontSizeFloor)
         let qualityCap = caretQuality == .estimated
-            ? Layout.maximumEstimatedGhostFontSize
-            : Layout.maximumGhostFontSize
-
-        let fieldMetrics = fieldFont.map {
-            GhostFontMetrics.FieldFontMetrics(
-                pointSize: $0.pointSize,
-                ascender: $0.ascender,
-                descender: $0.descender
-            )
-        }
+            ? min(Layout.maximumEstimatedGhostFontSize, userCeiling)
+            : userCeiling
 
         return GhostFontMetrics.pointSize(
             caretHeight: caretHeight,
+            // Only `.estimated` comes from the AXFrame fallback, whose caret height is a fixed
+            // system-font constant rather than a measurement. `.layoutEstimated` is excluded on
+            // purpose: it re-derives the caret from a real text layout, so its height is meaningful.
+            caretHeightIsSynthetic: caretQuality == .estimated,
             fieldMetrics: fieldMetrics,
+            hostReportedPointSize: hostReportedPointSize,
+            hostDisplayScale: hostDisplayScale,
             fallbackRatio: Layout.fontToLineHeightRatio,
-            minimum: Layout.minimumGhostFontSize,
+            minimum: userFloor,
             maximum: qualityCap,
+            syntheticCaretMaximum: min(Layout.maximumHostReportedFontSize, userCeiling),
             sizeMultiplier: CGFloat(suggestionSettings.ghostTextSizeMultiplier)
+        )
+    }
+
+    /// Records how ghost-text font and size were resolved for the current field.
+    ///
+    /// This subsystem previously logged nothing, which made "the ghost text looks wrong in app X"
+    /// impossible to triage from logs alone: every input to the decision — what the host reported,
+    /// which caret branch produced the height, whether the typeface actually loaded — was invisible.
+    /// The fields below are exactly what is needed to tell a *host-reporting* problem (no font name,
+    /// no point size) from a *caret-geometry* problem (`caret_quality=estimated`, synthetic height)
+    /// from a *font-loading* problem (name present, `render_font_resolved=false`).
+    ///
+    /// Deduplicated by signature because inline ghost text re-renders on every keystroke; one line
+    /// per distinct outcome keeps the stream readable. Logged at `.debug`, so it costs nothing in
+    /// the default configuration — swift-log skips the autoclosed metadata below the level floor.
+    private func logGhostFontResolution(
+        geometry: SuggestionOverlayGeometry,
+        stabilizedCaretHeight: CGFloat,
+        hostReportedPointSize: CGFloat?,
+        referenceFieldFont: NSFont?,
+        fontSize: CGFloat
+    ) {
+        // Every inline render reaches this; bail before building the signature so the default,
+        // non-debug configuration pays nothing for a diagnostic it will never emit.
+        guard CotabbyLogger.suggestion.logLevel <= .debug else { return }
+        let style = geometry.resolvedFieldStyle
+        let signature = [
+            geometry.bundleIdentifier ?? "-",
+            style?.fontName ?? "-",
+            hostReportedPointSize.map { String(format: "%.1f", $0) } ?? "-",
+            geometry.caretQuality.label,
+            String(format: "%.1f", stabilizedCaretHeight),
+            String(format: "%.1f", fontSize),
+            referenceFieldFont?.fontName ?? "-"
+        ].joined(separator: "|")
+
+        guard signature != lastLoggedFontSignature else { return }
+        lastLoggedFontSignature = signature
+
+        CotabbyLogger.suggestion.debug(
+            "Resolved ghost text font",
+            metadata: [
+                "bundle_id": .string(geometry.bundleIdentifier ?? "unknown"),
+                "host_font_name": .string(style?.fontName ?? "none"),
+                "host_font_point_size": .string(
+                    hostReportedPointSize.map { String(format: "%.2f", $0) } ?? "none"
+                ),
+                "caret_quality": .string(geometry.caretQuality.label),
+                "caret_height": .string(String(format: "%.2f", stabilizedCaretHeight)),
+                // True when caret height was fabricated from a fixed system-font constant rather
+                // than measured, in which case the host-reported size drives sizing instead.
+                "caret_height_synthetic": .stringConvertible(geometry.caretQuality == .estimated),
+                "render_font_resolved": .stringConvertible(referenceFieldFont != nil),
+                "render_font_name": .string(referenceFieldFont?.fontName ?? "system-fallback"),
+                "ghost_font_size": .string(String(format: "%.2f", fontSize))
+            ]
+        )
+    }
+
+    /// Records where the ghost panel actually landed relative to the caret, in enough detail to
+    /// compute the baseline error without guessing at SwiftUI's rendered metrics.
+    ///
+    /// The placement math assumes the rendered line box is `fontSize * lineHeightMultiplier`, but
+    /// the panel is actually sized by SwiftUI's `fittingSize`. When those disagree the ghost drifts
+    /// vertically, and nothing in the logs previously showed the discrepancy. `content_height` is
+    /// the truth; `layout_line_height` is the assumption — comparing the two is the whole point.
+    ///
+    /// `baseline_delta` is the number that matters: ghost text baseline minus host text baseline,
+    /// in points, positive meaning the ghost sits high. It is derived from the render font's own
+    /// descent rather than an approximation, so it can be read directly as the visible error. Both it
+    /// and `caret_to_panel_gap` describe the panel's *top* line, the one continuing the caret's line:
+    /// measuring from the panel's bottom reported a line of phantom error for every wrapped render.
+    private func logGhostPlacement(
+        caretRect: CGRect,
+        panelFrame: CGRect,
+        contentSize: CGSize,
+        layout: GhostSuggestionLayout,
+        /// The font as actually rendered, so the caller's fallback-to-system-font decision is not
+        /// repeated here. Its `pointSize` is the rendered size, which is why no separate size
+        /// parameter is needed — one resolved font answers both questions.
+        font: NSFont
+    ) {
+        // Same reasoning as `logGhostFontResolution`: skip the font metrics and signature work
+        // entirely unless this line can actually be emitted.
+        guard CotabbyLogger.suggestion.logLevel <= .debug else { return }
+        // Every line in the stack renders at the same height (see `panelFrame(for:caretRect:)`), so
+        // the top line's box is the panel's top `renderedLineHeight`.
+        let renderedLineHeight = contentSize.height / CGFloat(max(layout.lines.count, 1))
+        // Text sits on its baseline, which is `descent` above the bottom of its own line box.
+        let ghostDescent = -font.descender
+        let ghostBaselineY = panelFrame.maxY - renderedLineHeight + ghostDescent
+        // The host's line box is the caret rect; its text baseline sits a proportional descent up
+        // from that box's bottom. Scaling the render font's descent by the box ratio approximates
+        // the host's own descent without needing the host's true point size, which Word misreports.
+        // A suggestion that starts below the caret continues the next line, one layout line lower.
+        let hostDescent = ghostDescent * (caretRect.height / max(renderedLineHeight, 1))
+        let hostBaselineY = caretRect.minY + hostDescent + layout.topLineCenterOffsetFromCaret
+
+        // Where ghost text starts on the caret's own line — the panel edge plus the top line's
+        // indent — or nil when the suggestion starts on the line below and no gap exists.
+        let caretLineGap: CGFloat? = layout.topLineCenterOffsetFromCaret != 0 ? nil : {
+            let indent = layout.lines.first?.leadingIndent ?? 0
+            return layout.isRightToLeft
+                ? caretRect.minX - (panelFrame.maxX - indent)
+                : (panelFrame.minX + indent) - caretRect.maxX
+        }()
+
+        // Whether wrapped lines followed the host's measured text margin. Read from the layout's own
+        // decision, not from whether edges were measured at all: a single-line suggestion sits at
+        // the caret even when a margin exists, so "measured" and "used" differ, and only "used"
+        // answers whether ghost text followed the document margin.
+        let usedContentEdge = layout.wrappedLinesFollowHostMargin
+
+        let signature = [
+            String(format: "%.0f", caretRect.height),
+            String(format: "%.0f", contentSize.height),
+            String(layout.lines.count),
+            String(usedContentEdge)
+        ].joined(separator: "|")
+        guard signature != lastLoggedPlacementSignature else { return }
+        lastLoggedPlacementSignature = signature
+
+        CotabbyLogger.suggestion.debug(
+            "Ghost overlay placement",
+            metadata: [
+                "caret_y": .string(String(format: "%.2f", caretRect.minY)),
+                "caret_height": .string(String(format: "%.2f", caretRect.height)),
+                "caret_x": .string(String(format: "%.2f", caretRect.maxX)),
+                "panel_y": .string(String(format: "%.2f", panelFrame.minY)),
+                "panel_x": .string(String(format: "%.2f", panelFrame.minX)),
+                // The right edge wrapped lines ran to, to check it against the host's right margin.
+                "panel_max_x": .string(String(format: "%.2f", panelFrame.maxX)),
+                // Gap between the caret and where ghost text starts drawing on the caret's line;
+                // positive means the ghost starts detached from the caret.
+                "caret_to_panel_gap": .string(caretLineGap.map { String(format: "%.2f", $0) } ?? "none"),
+                // The measured height SwiftUI produced versus the height the math assumed.
+                "content_height": .string(String(format: "%.2f", contentSize.height)),
+                "layout_line_height": .string(String(format: "%.2f", layout.lineHeight)),
+                "line_count": .stringConvertible(layout.lines.count),
+                "font_size": .string(String(format: "%.2f", font.pointSize)),
+                "font_natural_line_height": .string(
+                    String(format: "%.2f", ceil(font.ascender - font.descender + font.leading))
+                ),
+                "baseline_delta": .string(String(format: "%.2f", ghostBaselineY - hostBaselineY)),
+                "used_host_content_edge": .stringConvertible(usedContentEdge)
+            ]
         )
     }
 
     /// Builds the host field's `NSFont` from a resolved style, or nil when the name is missing or the
     /// font cannot be instantiated. The size is only a reference for metric extraction; the rendered
     /// size is derived from caret height in `resolvedGhostFontSize`.
-    private func fieldFont(from style: ResolvedFieldStyle) -> NSFont? {
+    ///
+    /// When the name does not resolve, this asks `HostFontRegistry` to look for the typeface inside
+    /// the host app's own bundle and returns nil for *this* render. Hosts that ship private fonts
+    /// (Word's Aptos and Calibri live in its bundle and are installed nowhere on the system) would
+    /// otherwise render ghost text in the system font forever. Registration is deliberately not
+    /// awaited: it does disk I/O that must not block a render, so the current frame uses the
+    /// fallback font and the next one — the overlay redraws continuously through a suggestion —
+    /// picks up the now-resolvable font. One frame of fallback is invisible next to generation
+    /// latency, and the alternative is stalling the main actor on the hot path.
+    ///
+    /// Only hosts on `HostFontRegistry`'s allowlist ever reach the registry, which also verifies the
+    /// host's code signature before parsing anything: a focused app controls both the font name it
+    /// reports and the files in its bundle, so any other app keeps the system-font fallback.
+    private func fieldFont(from style: ResolvedFieldStyle, bundleIdentifier: String?) -> NSFont? {
         guard let name = style.fontName else { return nil }
-        return NSFont(name: name, size: style.fontPointSize ?? Layout.minimumGhostFontSize)
+        if let font = NSFont(name: name, size: style.fontPointSize ?? Layout.metricProbeFontSize) {
+            return font
+        }
+        guard let bundleIdentifier, HostFontRegistry.isTrustedHost(bundleIdentifier: bundleIdentifier) else {
+            return nil
+        }
+        // Ask at most once per (host, font) pair. `showInline` runs on every keystroke, so without
+        // this a typeface that genuinely is not in the host's bundle would spawn a throwaway Task
+        // per render forever. The registry itself is cheap to re-enter, but the Task allocation and
+        // actor hop are not free on the hot path. The pair is only marked as asked once the host's
+        // bundle is found, so a lookup that could not find it is retried on the next render.
+        let requestKey = "\(bundleIdentifier)|\(name)"
+        guard !requestedHostFonts.contains(requestKey),
+              let bundleURL = runningHostBundleURL(for: bundleIdentifier)
+        else {
+            return nil
+        }
+        requestedHostFonts.insert(requestKey)
+        Task { [weak self] in
+            let registered = await HostFontRegistry.shared.ensureFontAvailable(
+                named: name,
+                bundleIdentifier: bundleIdentifier,
+                bundleURL: bundleURL
+            )
+            guard registered else { return }
+            self?.redrawInlineAfterFontRegistration(fontName: name)
+        }
+        return nil
+    }
+
+    /// The bundle the running host was launched from. Read from the process rather than looked up
+    /// by identifier through LaunchServices, which can name a different copy of the app than the
+    /// one the user is typing into. The focused field belongs to the frontmost app, so that instance
+    /// wins when several share the identifier.
+    private func runningHostBundleURL(for bundleIdentifier: String) -> URL? {
+        if let frontmost = NSWorkspace.shared.frontmostApplication,
+           frontmost.bundleIdentifier == bundleIdentifier {
+            return frontmost.bundleURL
+        }
+        return NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier).first?.bundleURL
+    }
+
+    /// Re-renders a visible inline suggestion once a host font finishes registering.
+    ///
+    /// Without this, "the next render picks it up" is only true while something else is still
+    /// causing renders. A suggestion that arrived complete — no streaming, no further keystrokes —
+    /// is drawn once, in the fallback font, and stays that way until an unrelated later suggestion
+    /// happens to redraw it. Re-showing here is cheap and idempotent: `showInline` recomputes from
+    /// the same text and geometry, and the fade is owned by `showSuggestion`, so nothing re-animates.
+    ///
+    /// Guarded on the font actually being resolvable now, so a registration that reported success
+    /// but left the name unusable cannot cause a pointless redraw loop.
+    private func redrawInlineAfterFontRegistration(fontName: String) {
+        guard case .visible(let text, let geometry, let mode) = state,
+              mode == .inline,
+              geometry.resolvedFieldStyle?.fontName == fontName,
+              NSFont(name: fontName, size: Layout.metricProbeFontSize) != nil
+        else {
+            return
+        }
+
+        showInline(text: text, geometry: geometry)
     }
 
     /// Maps the host field's foreground color to a ghost color, or nil to fall back to the default

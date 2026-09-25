@@ -24,7 +24,11 @@ struct FocusSnapshotResolver {
     /// Internal (not private) so the caret layout repair can detect "the captured prefix filled the
     /// window and may not start at the document start" — laying out a mid-document prefix would
     /// produce meaningless wrap/Y geometry, so that case must be rejected.
-    static let focusedTextContextWindowUTF16 = 4096
+    ///
+    /// `nonisolated` because it is an immutable `Int`, safe from any context, and the pure
+    /// `nonisolated` line-margin key helpers below read it; inheriting the resolver's main-actor
+    /// isolation made that read an error in the Swift 6 language mode.
+    nonisolated static let focusedTextContextWindowUTF16 = 4096
 
     /// Carries deep-walk throttle state across the value-typed resolver's non-mutating polls.
     private let deepWalkThrottle = DeepGeometryWalkThrottle()
@@ -39,6 +43,20 @@ struct FocusSnapshotResolver {
     /// fields (see `FocusSessionScopedCache`).
     private let secureFieldVerdictCache = FocusSessionScopedCache<Bool>()
     private let terminalDetectionCache = FocusSessionScopedCache<Bool>()
+    /// The text margin the caret's paragraph wraps to, which a field's `AXFrame` does not reveal
+    /// (Word's frame is the page edge, not the text margin). Up to three AX round trips, so each
+    /// result is cached per focus session *and* per paragraph: the margin changes between an indented
+    /// block, a list item or a table cell inside one field without `focusChangeSequence` turning
+    /// over. `lineContentEdgesParagraph` documents the key; `lineContentEdgesNeedRemeasure` documents
+    /// when a cached outcome is replaced.
+    private let lineContentEdgesCache = FocusSessionScopedCache<LineContentEdgesOutcome>()
+    /// Every parameterized attribute `resolveLineContentEdges` needs. All three must be
+    /// advertised before it runs; see that method for why an ungated call is a stall risk.
+    private static let lineGeometryAttributes = [
+        "AXLineForIndex",
+        "AXRangeForLine",
+        kAXBoundsForRangeParameterizedAttribute as String
+    ]
 
     /// Caches the resolved field font/color per focused element so the attributed-string AX read
     /// happens once per field rather than on every poll. Reference type for the same reason as
@@ -790,6 +808,31 @@ struct FocusSnapshotResolver {
         }
         let caretRect = caretResult?.rect
         let caretQuality = caretResult?.quality
+        // Prefer content edges the caret resolver already measured from child text runs. Hosts whose
+        // caret comes from `AXBoundsForRange` never walk those runs, so fall back to asking the host
+        // directly for its line geometry — that is the only way to learn a document's text margin as
+        // distinct from its page edge.
+        let observedContentEdges = caretResult?.observedContentEdges
+            ?? lineContentEdges(
+                for: LineEdgeLookup(
+                    element: element,
+                    // Only ask for line geometry when the offset means what the host thinks it means. A
+                    // marker-synthesized selection is window-relative (see Branch 1's gate above), so
+                    // handing it to `AXLineForIndex` would resolve some other visual line.
+                    documentSelection: markerSelection == nil ? selectionForGeometry : nil,
+                    windowSelection: selection,
+                    windowText: textValue,
+                    caretRect: caretRect,
+                    caretQuality: caretQuality,
+                    anchorFrame: inputFrameRect,
+                    // Read from the attribute list already fetched for this element, so the gate adds
+                    // no round trip. Hosts that do not implement these must not pay blocking calls to
+                    // learn that.
+                    supportsLineGeometry: Self.lineGeometryAttributes
+                        .allSatisfy(supportedParameterizedAttributes.contains)
+                ),
+                focusChangeSequence: focusChangeSequence
+            )
         // Recorded from the already-fetched attribute list (no extra AX call) so snapshot
         // assembly can classify the field as web-rendered without touching the element again.
         let vendsDOMAttributes = WebContentFieldDetector.vendsDOMAttributes(supportedAttributes)
@@ -828,7 +871,7 @@ struct FocusSnapshotResolver {
             caretRect: caretRect,
             caretQuality: caretQuality,
             observedCharWidth: caretResult?.observedCharWidth,
-            observedContentEdges: caretResult?.observedContentEdges,
+            observedContentEdges: observedContentEdges,
             caretSourceDetail: caretResult?.sourceDetail,
             caretAllowsDeepSearch: caretResult?.allowsDeepSearch ?? true,
             inputFrameRect: inputFrameRect,
@@ -836,6 +879,203 @@ struct FocusSnapshotResolver {
             vendsDOMAttributes: vendsDOMAttributes,
             resolverCandidate: resolverCandidate
         )
+    }
+
+    /// One candidate's already-fetched state that the line-margin lookup needs, bundled so the
+    /// candidate site reads as a single call.
+    private struct LineEdgeLookup {
+        let element: AXUIElement
+        /// The document-relative selection; nil for a marker-synthesized selection, whose offsets are
+        /// window-relative and would resolve some other visual line.
+        let documentSelection: NSRange?
+        /// The same selection relative to `windowText`.
+        let windowSelection: NSRange?
+        /// The bounded text window around the caret.
+        let windowText: String?
+        let caretRect: CGRect?
+        let caretQuality: CaretGeometryQuality?
+        let anchorFrame: CGRect?
+        let supportsLineGeometry: Bool
+    }
+
+    /// The text margin the caret's paragraph wraps to, from the per-paragraph cache when it is still
+    /// valid and from the host's line-query attributes otherwise.
+    private func lineContentEdges(
+        for lookup: LineEdgeLookup,
+        focusChangeSequence: UInt64
+    ) -> ObservedContentEdges? {
+        // Unsupported hosts skip even the local key work: most fields never offer line geometry.
+        guard lookup.supportsLineGeometry,
+              let documentSelection = lookup.documentSelection,
+              let windowSelection = lookup.windowSelection,
+              let windowText = lookup.windowText
+        else {
+            return nil
+        }
+
+        let paragraph = Self.lineContentEdgesParagraph(
+            windowText: windowText,
+            windowCaretLocation: windowSelection.location,
+            documentCaretLocation: documentSelection.location
+        )
+        // Only a precise caret can say which visual line it is on; an estimated one is a guess.
+        let caretIsPrecise = lookup.caretQuality == .exact || lookup.caretQuality == .derived
+        return Self.cachedLineContentEdges(
+            in: lineContentEdgesCache,
+            key: "lineEdges:\(AXHelper.elementIdentity(for: lookup.element)):\(paragraph.key)",
+            focusChangeSequence: focusChangeSequence,
+            caret: LineEdgeCaret(
+                location: documentSelection.location,
+                preciseRect: caretIsPrecise ? lookup.caretRect : nil
+            )
+        ) {
+            geometryResolver.resolveLineContentEdges(
+                for: lookup.element,
+                request: AXTextGeometryResolver.LineEdgeRequest(
+                    caretLocation: documentSelection.location,
+                    paragraphStart: paragraph.startOffset,
+                    anchorFrame: lookup.anchorFrame,
+                    supportsLineGeometry: lookup.supportsLineGeometry
+                )
+            )
+        }
+    }
+
+    /// The caret as the line-margin cache needs it.
+    nonisolated struct LineEdgeCaret: Equatable {
+        /// Document offset of the caret.
+        let location: Int
+        /// The caret's box, only when it is a precise measurement; nil for an estimated caret, whose
+        /// vertical position cannot say which line it is on.
+        let preciseRect: CGRect?
+    }
+
+    /// The paragraph's margin from `cache` while its entry is still valid for `caret`, otherwise from
+    /// `lookup`, whose outcome *replaces* the entry.
+    ///
+    /// Replacing rather than keeping outcomes side by side is what lets a measurement supersede an
+    /// earlier empty-line miss for the same paragraph: press Return, type, then move back to the
+    /// paragraph's start, and the caret finds the measured margin — not the miss recorded while the
+    /// line was still empty. Internal so that sequence is unit-testable with a scripted lookup.
+    static func cachedLineContentEdges(
+        in cache: FocusSessionScopedCache<LineContentEdgesOutcome>,
+        key: String,
+        focusChangeSequence: UInt64,
+        caret: LineEdgeCaret,
+        lookup: () -> LineContentEdgesOutcome
+    ) -> ObservedContentEdges? {
+        if let cached = cache.cachedValue(forKey: key, focusChangeSequence: focusChangeSequence),
+           !lineContentEdgesNeedRemeasure(cached, caret: caret) {
+            return cached.edges
+        }
+
+        let outcome = lookup()
+        cache.store(outcome, forKey: key, focusChangeSequence: focusChangeSequence)
+        return outcome.edges
+    }
+
+    /// The caret's paragraph as the line-margin cache sees it.
+    nonisolated struct LineEdgeParagraph: Equatable {
+        /// Cache-key component naming the paragraph; see `lineContentEdgesParagraph`.
+        let key: String
+        /// Document offset where the paragraph starts, or nil when it lies before the text window.
+        let startOffset: Int?
+    }
+
+    /// Identifies the caret's paragraph for the line-content-edge cache.
+    ///
+    /// A measured margin belongs to one paragraph: moving between an indented block, a list item or
+    /// a table cell inside one field changes it without `focusChangeSequence` turning over. So the key
+    /// names the paragraph by the document offset where it starts, found with a local string scan
+    /// rather than an AX round trip. `windowText` is the bounded text around the caret, indexed by
+    /// the window-relative `windowCaretLocation`; `documentCaretLocation` is the same caret in
+    /// document coordinates, and their difference is the window's document origin.
+    ///
+    /// The hard case is a paragraph that starts before the window. Its real start is unknowable here,
+    /// and the window's own origin is not a usable stand-in: `nativeTextWindow` keeps
+    /// `focusedTextContextWindowUTF16` units before the caret, so the origin advances with every
+    /// character typed, and a key built from it would miss the cache on every keystroke — putting
+    /// three blocking AX calls back on the typing path. Instead the origin is bucketed by that same
+    /// window size, so the key changes at most once per window's worth of typing. Buckets cannot merge
+    /// two different such paragraphs: a caret whose paragraph start is out of view sits more than one
+    /// window past that start, which is itself past any earlier paragraph, so two such carets'
+    /// origins always differ by more than a bucket. The `p` and `u` prefixes keep the two key kinds
+    /// from ever colliding.
+    ///
+    /// A caret at its paragraph's very start shares the paragraph's key. Right after Return that
+    /// caret's line is still empty, so the lookup finds nothing to measure; that outcome is retried
+    /// once the caret moves (see `lineContentEdgesNeedRemeasure`) and the measurement replaces it, so
+    /// moving back to the start later finds the margin rather than the earlier miss.
+    ///
+    /// Internal (not private) so the key rule is unit-testable without live AX elements, and
+    /// `nonisolated` because it is pure string arithmetic over a `Sendable` constant: inheriting the
+    /// resolver's `@MainActor` isolation would force every caller onto the main actor for no reason.
+    nonisolated static func lineContentEdgesParagraph(
+        windowText: String,
+        windowCaretLocation: Int,
+        documentCaretLocation: Int
+    ) -> LineEdgeParagraph {
+        let window = windowText as NSString
+        let caretInWindow = min(max(windowCaretLocation, 0), window.length)
+        let windowDocumentOrigin = max(documentCaretLocation - caretInWindow, 0)
+        let newlineBeforeCaret = window.rangeOfCharacter(
+            from: .newlines,
+            options: .backwards,
+            range: NSRange(location: 0, length: caretInWindow)
+        )
+
+        let startOffset: Int
+        if newlineBeforeCaret.location != NSNotFound {
+            startOffset = windowDocumentOrigin + NSMaxRange(newlineBeforeCaret)
+        } else if windowDocumentOrigin == 0 {
+            // No newline before the caret and the window begins at the document start, so the
+            // paragraph provably starts at offset 0.
+            startOffset = 0
+        } else {
+            return LineEdgeParagraph(
+                key: "u\(windowDocumentOrigin / focusedTextContextWindowUTF16)",
+                startOffset: nil
+            )
+        }
+
+        return LineEdgeParagraph(key: "p\(startOffset)", startOffset: startOffset)
+    }
+
+    /// Whether a cached line-margin outcome must be replaced before it is used again.
+    ///
+    /// - `.emptyLine` is retried once the caret has moved. It is the one failure that fixes itself —
+    ///   the line after Return gains its first character — and a caret that has not moved (an idle
+    ///   poll tick) is still on the same empty line, so it costs nothing while the user pauses.
+    /// - `.unavailable` is never retried within the paragraph and focus session: it would fail
+    ///   again, and retrying it would put AX calls on every poll tick.
+    /// - `.measured` is provisional only when taken on the paragraph's first line, whose left edge
+    ///   includes any first-line indent, so it may not be the margin the paragraph wraps to. Once a
+    ///   precise caret sits on another visual line — its vertical centre outside the measured line's
+    ///   box, read from the rect already in hand at no AX cost — the lookup runs again, and a
+    ///   continuation-line result then stands for the whole paragraph.
+    ///
+    /// Retries need the caret to have moved since the lookup, which bounds them to one per caret
+    /// move even where the caret and the line disagree at a wrap boundary.
+    nonisolated static func lineContentEdgesNeedRemeasure(
+        _ cached: LineContentEdgesOutcome,
+        caret: LineEdgeCaret
+    ) -> Bool {
+        switch cached {
+        case .unavailable:
+            return false
+        case .emptyLine(let caretLocation):
+            return caret.location != caretLocation
+        case .measured(let measurement):
+            guard measurement.isParagraphFirstLine,
+                  caret.location != measurement.caretLocation,
+                  let caretRect = caret.preciseRect
+            else {
+                return false
+            }
+            let tolerance = measurement.lineRect.height * 0.25
+            return caretRect.midY < measurement.lineRect.minY - tolerance
+                || caretRect.midY > measurement.lineRect.maxY + tolerance
+        }
     }
 
     /// Reads the smallest native text window the host can provide around the current selection.

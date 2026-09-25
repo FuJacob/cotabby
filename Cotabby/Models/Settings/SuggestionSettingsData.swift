@@ -77,6 +77,9 @@ struct SuggestionPresentationSettings: Equatable {
     var customSuggestionTextColorHex: String?
     var ghostTextOpacity: Double
     var ghostTextSizeMultiplier: Double
+    /// Absolute point-size clamps for ghost text, applied after the size multiplier.
+    var ghostFontSizeFloor: Double
+    var ghostFontSizeCeiling: Double
     var isMenuBarIconVisible: Bool
     var isMenuBarWordCountVisible: Bool
     var mirrorPreference: MirrorPreference
@@ -360,6 +363,16 @@ extension SuggestionSettingsData {
     var ghostTextSizeMultiplier: Double {
         get { presentation.ghostTextSizeMultiplier }
         set { presentation.ghostTextSizeMultiplier = newValue }
+    }
+
+    var ghostFontSizeFloor: Double {
+        get { presentation.ghostFontSizeFloor }
+        set { presentation.ghostFontSizeFloor = newValue }
+    }
+
+    var ghostFontSizeCeiling: Double {
+        get { presentation.ghostFontSizeCeiling }
+        set { presentation.ghostFontSizeCeiling = newValue }
     }
 
     var isMenuBarIconVisible: Bool {

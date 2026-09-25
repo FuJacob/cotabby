@@ -189,6 +189,147 @@ struct AXTextGeometryResolver {
         return nil
     }
 
+    /// The three host queries a line-margin lookup issues, in call order.
+    ///
+    /// A value of closures rather than direct `AXHelper` calls so tests can stand in for a host and
+    /// count calls: the capability gate's whole job is to issue *none* of these against a host that
+    /// does not implement them, and only an injected host can prove that.
+    struct LineGeometryQueries {
+        /// `AXLineForIndex`: character offset -> visual line number.
+        let lineForIndex: (Int) -> Int?
+        /// `AXRangeForLine`: visual line number -> that line's character range.
+        let rangeForLine: (Int) -> NSRange?
+        /// `AXBoundsForRange`: character range -> its box, in Accessibility (top-left) coordinates.
+        let boundsForRange: (NSRange) -> CGRect?
+
+        /// The real cross-process queries against `element`.
+        static func accessibility(_ element: AXUIElement) -> LineGeometryQueries {
+            LineGeometryQueries(
+                lineForIndex: { index in
+                    AXHelper.parameterizedIntValue(for: "AXLineForIndex" as CFString, index: index, on: element)
+                },
+                rangeForLine: { line in
+                    AXHelper.parameterizedRangeValue(for: "AXRangeForLine" as CFString, index: line, on: element)
+                },
+                boundsForRange: { range in
+                    AXHelper.parameterizedRectValue(
+                        for: kAXBoundsForRangeParameterizedAttribute as CFString,
+                        range: range,
+                        on: element
+                    )
+                }
+            )
+        }
+    }
+
+    /// What one line-margin lookup is asked, bundled so both entry points stay small.
+    struct LineEdgeRequest {
+        /// The caret's document offset. Must be document-relative: a marker-synthesized selection is
+        /// window-relative and would resolve some other visual line.
+        let caretLocation: Int
+        /// Document offset where the caret's paragraph starts, or nil when it lies before the text
+        /// window. Nil means the paragraph began more than a window of text back, and no visual line
+        /// is that long, so the caret's line cannot be the paragraph's first.
+        let paragraphStart: Int?
+        /// The field frame in Cocoa coordinates, used to convert and sanity-check the line's box.
+        let anchorFrame: CGRect?
+        /// Whether the element advertises all three line-query attributes.
+        let supportsLineGeometry: Bool
+    }
+
+    /// Resolves where the host starts drawing text on the caret's visual line, using the host's
+    /// line-query attributes (`AXLineForIndex` -> `AXRangeForLine` -> `AXBoundsForRange`).
+    ///
+    /// This exists because a field's `AXFrame` is not its text area. Microsoft Word publishes the
+    /// whole page as one `AXTextArea`, so the frame's left edge is the edge of the *paper*, not the
+    /// document's text margin — roughly an inch further left. Ghost text that wrapped onto a second
+    /// line therefore started outside the margin, visibly out of alignment with the user's own text.
+    /// The child-run walk that fills `ObservedContentEdges` elsewhere never runs for hosts like Word,
+    /// because their caret resolves through `AXBoundsForRange` first.
+    ///
+    /// The result records whether the measured line is its paragraph's first visual line. A first
+    /// line's left edge includes any first-line indent, so it is only a provisional stand-in for the
+    /// margin the paragraph wraps to; `FocusSnapshotResolver` re-measures once the caret reaches a
+    /// continuation line. Only the left edge is published: one line's top is not the text block's
+    /// top, which is why the margin carries no `topY`.
+    ///
+    /// Up to three cross-process AX calls, so `supportsLineGeometry` must be true before any of them
+    /// run. That gate is not a nicety: a synchronous AX call into a host that does not implement the
+    /// attribute blocks the caller for the full messaging timeout, and issuing them from the focus
+    /// path is what froze typing in the `AXBoundsForRange` incident that Branch 1 above still carries
+    /// its own gate for. The caller already holds the element's parameterized-attribute set, so the
+    /// check costs nothing extra, and it caches results per paragraph so steady typing issues none.
+    ///
+    /// Returns `.measured` only when every step succeeds, leaving callers on their existing
+    /// frame-based guess otherwise. An empty line — which has no box to measure yet — is reported as
+    /// `.emptyLine` rather than `.unavailable`, because typing makes it measurable and the caller
+    /// retries it once the caret moves; every other failure would simply fail again.
+    func resolveLineContentEdges(
+        for element: AXUIElement,
+        request: LineEdgeRequest
+    ) -> LineContentEdgesOutcome {
+        resolveLineContentEdges(using: .accessibility(element), request: request)
+    }
+
+    /// The same lookup against injected queries; see `resolveLineContentEdges(for:request:)`.
+    func resolveLineContentEdges(
+        using queries: LineGeometryQueries,
+        request: LineEdgeRequest
+    ) -> LineContentEdgesOutcome {
+        guard request.supportsLineGeometry,
+              request.caretLocation >= 0,
+              let line = queries.lineForIndex(request.caretLocation),
+              let lineRange = queries.rangeForLine(line)
+        else {
+            return .unavailable
+        }
+        // The caret's line right after Return has no characters yet, and a line holding only a
+        // paragraph break can come back with a zero-width box: nothing to measure either way, but
+        // only until the user types.
+        guard lineRange.length > 0 else {
+            return .emptyLine(caretLocation: request.caretLocation)
+        }
+        guard let rect = queries.boundsForRange(lineRange) else {
+            return .unavailable
+        }
+        guard !rect.isEmpty else {
+            return .emptyLine(caretLocation: request.caretLocation)
+        }
+
+        let cocoaRect = AXHelper.validatedCocoaTextRect(
+            fromAccessibilityRect: rect,
+            anchorFrame: request.anchorFrame
+        )
+        // `validatedCocoaTextRect` returns `.zero` for a non-finite AX rect, and with no anchor frame
+        // to check against that would publish an edge at the screen origin — anchoring ghost text to
+        // the corner of the display. Reject the degenerate rect before the anchor test, so the guard
+        // does not depend on an anchor frame being present.
+        guard AXHelper.rectHasFiniteComponents(cocoaRect), !cocoaRect.isEmpty else {
+            return .unavailable
+        }
+        // A line rect that escapes the field is a mis-reported range, not a margin; ignore it rather
+        // than anchoring ghost text somewhere the host is not drawing.
+        if let anchorFrame = request.anchorFrame,
+           !anchorFrame.isEmpty,
+           !anchorFrame.insetBy(dx: -1, dy: -1).intersects(cocoaRect) {
+            return .unavailable
+        }
+
+        // First line of its paragraph when the line starts at the paragraph's first character — or
+        // before it, because some hosts answer an offset on an empty paragraph with the previous
+        // line (NSTextView does). Either way the edge is not proven to be the wrap margin yet.
+        let isParagraphFirstLine = request.paragraphStart.map { lineRange.location <= $0 } ?? false
+
+        return .measured(
+            LineContentEdgesMeasurement(
+                edges: .lineQueryMargin(leftX: cocoaRect.minX),
+                lineRect: cocoaRect,
+                isParagraphFirstLine: isParagraphFirstLine,
+                caretLocation: request.caretLocation
+            )
+        )
+    }
+
     /// Best-effort caret estimate when AX exposes only the full field frame.
     ///
     /// This path is intentionally conservative. The previous `prefix.count * 8` heuristic drifted
@@ -321,7 +462,7 @@ struct AXTextGeometryResolver {
         let contentEdges: ObservedContentEdges?
         if let leftX = cocoaRunFrames.map(\.minX).min(),
             let topY = cocoaRunFrames.map(\.maxY).max() {
-            contentEdges = ObservedContentEdges(leftX: leftX, topY: topY)
+            contentEdges = ObservedContentEdges(leftX: leftX, topY: topY, isRunMeasured: true)
         } else {
             contentEdges = nil
         }
@@ -372,7 +513,8 @@ struct AXTextGeometryResolver {
                     quality: .derived,
                     observedContentEdges: ObservedContentEdges(
                         leftX: unionFrame.minX,
-                        topY: unionFrame.maxY
+                        topY: unionFrame.maxY,
+                        isRunMeasured: true
                     ),
                     sourceDetail: "wrapped-run-character-bounds"
                 )

@@ -25,6 +25,12 @@ struct GhostSuggestionLayout: Equatable {
     let lineHeight: CGFloat
     let topLineCenterOffsetFromCaret: CGFloat
     let isRightToLeft: Bool
+    /// True when wrapped lines start at the host's measured text margin rather than the field frame.
+    /// Diagnostics read this instead of inferring it from whether a measurement merely existed: a
+    /// single-line suggestion only ever sits at the caret, and a margin the screen edge overrides or
+    /// a frame too narrow to use is dropped, so "a margin was measured" does not mean "the margin
+    /// was used".
+    var wrappedLinesFollowHostMargin: Bool = false
 
     private enum Metrics {
         static let caretGap: CGFloat = 6
@@ -62,19 +68,28 @@ struct GhostSuggestionLayout: Equatable {
         )
         // When the keycap is hidden the text can use the full width, so we stop reserving room for it.
         let keycapReservation = showsAcceptanceHint ? Metrics.estimatedKeycapAndSpacingWidth : 0
-        let usableFrame = usableTextFrame(
+        let region = usableRegion(
             geometry: geometry,
             visibleFrame: visibleFrame
         )
+        let usableFrame = region.frame
 
         // Direction-dependent anchor and budget.
         // LTR: anchor at the right edge of the caret, budget extends rightward.
         // RTL: anchor at the left edge of the caret, budget extends leftward.
+        //
+        // The anchor sits flush against the caret with no padding, because inline ghost text has to
+        // read as a continuation of the host's own line. `normalizedDisplayText` deliberately keeps
+        // the suggestion's leading space when it has one, so word spacing is already carried by the
+        // text itself; adding a gap on top rendered it as a space *plus* a gap. A gap is outright
+        // wrong for a mid-word continuation ("calc" -> "ulates"), where any padding visibly breaks
+        // the word. `Metrics.caretGap` still applies to the fallback usable-region bounds below,
+        // where it serves a different purpose — keeping the region off the caret.
         let firstLineAnchor: CGFloat
         let firstLineBudget: CGFloat
         if isRTL {
             firstLineAnchor = min(
-                max(geometry.caretRect.minX - Metrics.caretGap, usableFrame.minX),
+                max(geometry.caretRect.minX, usableFrame.minX),
                 usableFrame.maxX
             )
             firstLineBudget = max(
@@ -83,7 +98,7 @@ struct GhostSuggestionLayout: Equatable {
             )
         } else {
             firstLineAnchor = min(
-                max(geometry.caretRect.maxX + Metrics.caretGap, usableFrame.minX),
+                max(geometry.caretRect.maxX, usableFrame.minX),
                 usableFrame.maxX
             )
             firstLineBudget = max(
@@ -92,9 +107,11 @@ struct GhostSuggestionLayout: Equatable {
             )
         }
 
+        // Wrapped lines start at the overflow edge — the host's measured text margin when there is
+        // one — and share the caret line's right bound.
         let overflowBudget = max(
             Metrics.minimumLineWidth,
-            usableFrame.width - keycapReservation
+            usableFrame.maxX - region.overflowMinX - keycapReservation
         )
 
         let singleLineFits = !normalizedText.contains("\n")
@@ -108,15 +125,17 @@ struct GhostSuggestionLayout: Equatable {
                 panelOriginX: firstLineAnchor,
                 lineHeight: lineHeight,
                 topLineCenterOffsetFromCaret: 0,
-                isRightToLeft: isRTL
+                isRightToLeft: isRTL,
+                // A single line always sits flush against the caret; a measured margin only ever
+                // positions wrapped lines.
+                wrappedLinesFollowHostMargin: false
             )
         }
 
-        // Multi-line wrapping. The panel spans the full usable width so overflow lines can
-        // use the entire field. The first line is indented to stay aligned with the caret.
-        let panelOriginX = isRTL ? usableFrame.maxX : usableFrame.minX
+        // Multi-line wrapping: split the text first, then place the panel, because where it starts
+        // depends on whether the first line landed on the caret's line.
         var remainingText = normalizedText
-        var rawLines: [(text: String, leadingIndent: CGFloat)] = []
+        var lineTexts: [String] = []
         var startsBelowCaret = false
 
         if firstLineBudget >= Metrics.minimumLineWidth {
@@ -126,13 +145,7 @@ struct GhostSuggestionLayout: Equatable {
                 using: measure
             )
             if !split.line.isEmpty {
-                let indent: CGFloat
-                if isRTL {
-                    indent = panelOriginX - firstLineAnchor
-                } else {
-                    indent = firstLineAnchor - panelOriginX
-                }
-                rawLines.append((split.line, indent))
+                lineTexts.append(split.line)
                 remainingText = split.remainder
             } else {
                 startsBelowCaret = true
@@ -151,21 +164,38 @@ struct GhostSuggestionLayout: Equatable {
                 break
             }
 
-            rawLines.append((split.line, 0))
+            lineTexts.append(split.line)
             remainingText = split.remainder
         }
 
-        if rawLines.isEmpty {
-            rawLines.append((normalizedText, 0))
+        if lineTexts.isEmpty {
+            lineTexts.append(normalizedText)
             startsBelowCaret = true
         }
 
-        let finalLines = rawLines.enumerated().map { offset, rawLine in
+        // RTL panels anchor at the region's right edge, with the caret line indented from it. LTR
+        // panels start at whichever lies further left, the caret or the overflow margin, and each
+        // line is indented from there: the caret's line to the caret, wrapped lines to the margin.
+        // A margin right of the caret — a first-line indent measured on another line, a centred
+        // line — therefore indents the wrapped lines instead of pushing the first line off the caret.
+        let caretLineIsFirst = !startsBelowCaret
+        let panelOriginX: CGFloat
+        if isRTL {
+            panelOriginX = usableFrame.maxX
+        } else {
+            panelOriginX = caretLineIsFirst
+                ? min(firstLineAnchor, region.overflowMinX)
+                : region.overflowMinX
+        }
+        let caretLineIndent = isRTL ? panelOriginX - firstLineAnchor : firstLineAnchor - panelOriginX
+        let overflowIndent = isRTL ? 0 : region.overflowMinX - panelOriginX
+
+        let finalLines = lineTexts.enumerated().map { offset, text in
             Line(
                 index: offset,
-                text: rawLine.text,
-                leadingIndent: rawLine.leadingIndent,
-                showsKeycap: showsAcceptanceHint && offset == rawLines.count - 1
+                text: text,
+                leadingIndent: offset == 0 && caretLineIsFirst ? caretLineIndent : overflowIndent,
+                showsKeycap: showsAcceptanceHint && offset == lineTexts.count - 1
             )
         }
 
@@ -174,13 +204,24 @@ struct GhostSuggestionLayout: Equatable {
             panelOriginX: panelOriginX,
             lineHeight: lineHeight,
             topLineCenterOffsetFromCaret: startsBelowCaret ? -lineHeight : 0,
-            isRightToLeft: isRTL
+            isRightToLeft: isRTL,
+            // Wrapped lines start at the overflow edge, which is the host's margin when one fed it.
+            wrappedLinesFollowHostMargin: region.usesHostContentEdge
         )
     }
 
     func panelFrame(for contentSize: CGSize, caretRect: CGRect) -> CGRect {
+        // Use the height the text actually rendered at, not the `fontSize * lineHeightMultiplier`
+        // estimate in `lineHeight`. The panel is sized by SwiftUI's `fittingSize`, and the two
+        // disagree by a couple of points in practice (a 17.94pt ghost in Word measured 21pt tall
+        // against an assumed 23pt), which offset the ghost vertically by exactly that difference.
+        // Every line in the stack is laid out identically, so dividing by the line count recovers
+        // the top line's real height — and that is the line the caret has to align with.
+        let renderedLineHeight = lines.isEmpty
+            ? lineHeight
+            : contentSize.height / CGFloat(lines.count)
         let topLineCenterY = caretRect.midY + topLineCenterOffsetFromCaret
-        let originY = topLineCenterY - contentSize.height + (lineHeight / 2)
+        let originY = topLineCenterY - contentSize.height + (renderedLineHeight / 2)
         let originX = isRightToLeft ? panelOriginX - contentSize.width : panelOriginX
 
         return CGRect(
@@ -189,10 +230,24 @@ struct GhostSuggestionLayout: Equatable {
         )
     }
 
-    private static func usableTextFrame(
+    /// Where ghost text may run, split by the role a line plays.
+    private struct UsableRegion {
+        /// Bounds for the caret's own line, and the right edge for every line. On the left it is the
+        /// field frame plus a nominal inset, never a measured margin: the caret's line can
+        /// legitimately start left of that margin (a first-line indent measured on another line, a
+        /// centred line), and ghost text on it must stay flush against the caret.
+        let frame: CGRect
+        /// Where wrapped lines start: the host's measured text margin when one applies, otherwise
+        /// `frame.minX`.
+        let overflowMinX: CGFloat
+        /// True when `overflowMinX` is the host's measured margin.
+        let usesHostContentEdge: Bool
+    }
+
+    private static func usableRegion(
         geometry: SuggestionOverlayGeometry,
         visibleFrame: CGRect
-    ) -> CGRect {
+    ) -> UsableRegion {
         if let inputFrame = geometry.inputFrameRect?.standardized,
            inputFrame.width > Metrics.minimumLineWidth {
             let minX = max(
@@ -205,12 +260,13 @@ struct GhostSuggestionLayout: Equatable {
             )
 
             if maxX - minX > Metrics.minimumLineWidth {
-                return CGRect(
-                    x: minX,
-                    y: inputFrame.minY,
-                    width: maxX - minX,
-                    height: inputFrame.height
-                )
+                let frame = CGRect(x: minX, y: inputFrame.minY, width: maxX - minX, height: inputFrame.height)
+                return regionApplyingMeasuredMargin(
+                    to: frame,
+                    inputFrame: inputFrame,
+                    geometry: geometry,
+                    visibleFrame: visibleFrame
+                ) ?? UsableRegion(frame: frame, overflowMinX: frame.minX, usesHostContentEdge: false)
             }
         }
 
@@ -226,11 +282,66 @@ struct GhostSuggestionLayout: Equatable {
             fallbackMaxX = visibleFrame.maxX - Metrics.fallbackScreenMargin
         }
 
-        return CGRect(
+        let frame = CGRect(
             x: fallbackMinX,
             y: geometry.caretRect.minY,
             width: max(Metrics.minimumLineWidth, fallbackMaxX - fallbackMinX),
             height: geometry.caretRect.height
+        )
+        return UsableRegion(frame: frame, overflowMinX: frame.minX, usesHostContentEdge: false)
+    }
+
+    /// Applies the host's measured text margin to a frame-based region, or returns nil when there
+    /// is no margin to trust.
+    ///
+    /// This matters most in document editors: Word's `AXFrame` is the whole page, roughly an inch
+    /// wider than the text column on each side, so frame-based bounds put wrapped ghost text outside
+    /// both of the margins the user's own text wraps to. The measured left edge fixes the left side
+    /// exactly. It is clamped into the frame so a stale or mis-reported edge cannot push text off the
+    /// field entirely.
+    ///
+    /// The right margin is never measured, so for a line-query margin — the source for page-shaped
+    /// frames like Word's — it is mirrored from the left: symmetric margins are the overwhelmingly
+    /// common layout, and the caret layout estimator makes the same assumption. The mirror is only
+    /// used while it still lies right of the caret, because a host never draws past its own right
+    /// margin; a caret beyond the mirror disproves the symmetry for this field. Run-measured edges
+    /// come from web editors whose frame already hugs the text, so their right edge stays the frame's.
+    ///
+    /// Right-to-left layouts ignore the measurement: the left edge of an RTL line is its ragged end,
+    /// not a margin.
+    private static func regionApplyingMeasuredMargin(
+        to frame: CGRect,
+        inputFrame: CGRect,
+        geometry: SuggestionOverlayGeometry,
+        visibleFrame: CGRect
+    ) -> UsableRegion? {
+        guard !geometry.isRightToLeft, let edges = geometry.observedContentEdges else {
+            return nil
+        }
+
+        let marginX = min(max(edges.leftX, inputFrame.minX), inputFrame.maxX)
+        let overflowMinX = max(marginX, visibleFrame.minX + Metrics.fallbackScreenMargin)
+
+        var maxX = frame.maxX
+        let leftInset = marginX - inputFrame.minX
+        if !edges.isRunMeasured, leftInset > Metrics.inputHorizontalPadding {
+            let mirroredMaxX = inputFrame.maxX - leftInset
+            if mirroredMaxX >= geometry.caretRect.maxX {
+                maxX = min(maxX, mirroredMaxX)
+            }
+        }
+
+        guard maxX - overflowMinX > Metrics.minimumLineWidth,
+              maxX - frame.minX > Metrics.minimumLineWidth
+        else {
+            return nil
+        }
+
+        return UsableRegion(
+            frame: CGRect(x: frame.minX, y: frame.minY, width: maxX - frame.minX, height: frame.height),
+            overflowMinX: overflowMinX,
+            // The screen margin can override the measured edge; only report it when it survived.
+            usesHostContentEdge: overflowMinX == marginX
         )
     }
 
