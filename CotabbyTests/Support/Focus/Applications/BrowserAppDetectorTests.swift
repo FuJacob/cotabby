@@ -37,6 +37,11 @@ final class BrowserAppDetectorTests: XCTestCase {
         XCTAssertTrue(BrowserAppDetector.isElectronEditor(bundleIdentifier: "com.microsoft.VSCode"))
         XCTAssertTrue(BrowserAppDetector.isElectronEditor(bundleIdentifier: "com.microsoft.VSCodeInsiders"))
         XCTAssertTrue(BrowserAppDetector.isElectronEditor(bundleIdentifier: "com.vscodium"))
+        // Obsidian (#791): Electron 39 / CodeMirror 6. Its app element advertises
+        // AXManualAccessibility, but nothing flips it unless the bundle is allowlisted here, so the
+        // editor's web-AX tree stays dormant and no focused field ever resolves.
+        XCTAssertTrue(BrowserAppDetector.isElectronEditor(bundleIdentifier: "md.obsidian"))
+        XCTAssertTrue(BrowserAppDetector.isElectronEditor(bundleIdentifier: "MD.Obsidian"))
         // Electron, but not a text-editing surface we cover: must stay out of the priming allowlist.
         XCTAssertFalse(BrowserAppDetector.isElectronEditor(bundleIdentifier: "com.hnc.Discord"))
         XCTAssertFalse(BrowserAppDetector.isElectronEditor(bundleIdentifier: nil))
@@ -49,6 +54,8 @@ final class BrowserAppDetectorTests: XCTestCase {
             BrowserAppDetector.needsWebAccessibilityPriming(bundleIdentifier: "com.clickup.desktop-app"))
         XCTAssertTrue(
             BrowserAppDetector.needsWebAccessibilityPriming(bundleIdentifier: "com.microsoft.VSCode"))
+        XCTAssertTrue(
+            BrowserAppDetector.needsWebAccessibilityPriming(bundleIdentifier: "md.obsidian"))
         XCTAssertFalse(
             BrowserAppDetector.needsWebAccessibilityPriming(bundleIdentifier: "com.apple.Safari"))
         XCTAssertFalse(

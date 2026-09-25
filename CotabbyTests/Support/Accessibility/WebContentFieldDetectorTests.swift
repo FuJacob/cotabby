@@ -66,6 +66,14 @@ final class WebContentFieldDetectorTests: XCTestCase {
                 vendsDOMAttributes: false
             )
         )
+        // Obsidian is an allowlisted Electron editor (#791), so its fields count as web content even
+        // before the DOM-reflection attributes arrive on the focused node.
+        XCTAssertTrue(
+            WebContentFieldDetector.isWebContentField(
+                bundleIdentifier: "md.obsidian",
+                vendsDOMAttributes: false
+            )
+        )
     }
 
     func test_nativeAppIsNotWebContent() {
