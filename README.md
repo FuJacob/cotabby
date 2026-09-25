@@ -106,6 +106,15 @@ If you want to understand the runtime and suggestion pipeline before contributin
 
 Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, build, and PR guidelines, and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for community expectations. For a tour of the runtime and suggestion pipeline, read [ARCHITECTURE.md](ARCHITECTURE.md).
 
+### Working together with Cotabby
+
+CoHamster builds on the work of [Cotabby](https://github.com/FuJacob/cotabby) and its contributors,
+and we'd love to see improvements made here benefit the original project too. We warmly welcome
+efforts to bring CoHamster's fixes, features, and ideas back into Cotabby, in whatever form its
+maintainers find useful. If you'd like to help adapt a change or discuss a shared approach, open
+an issue or pull request here. Contributors from both communities are welcome, and we're grateful
+for the chance to learn from one another.
+
 ## Acknowledgments
 
 - [llama.cpp](https://github.com/ggerganov/llama.cpp), [CotabbyInference](https://github.com/FuJacob/cotabbyinference), [Sparkle](https://github.com/sparkle-project/Sparkle), and [swift-log](https://github.com/apple/swift-log) for runtime, updates, and logging.
