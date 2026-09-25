@@ -13,14 +13,16 @@ nonisolated struct TypingPredictionCandidate {
     static let maximumTypedCharacters = 64
 
     let context: FocusedInputContext
+    private let requiresInitialPrediction: Bool
     private(set) var typedText = ""
     private(set) var latestResult: SuggestionResult?
     private(set) var isFinal = false
     private(set) var lastInputAt: TimeInterval?
     private var behindSince: TimeInterval?
 
-    init(context: FocusedInputContext) {
+    init(context: FocusedInputContext, requiresInitialPrediction: Bool = false) {
         self.context = context
+        self.requiresInitialPrediction = requiresInitialPrediction
     }
 
     /// Accepts a host observation along the exact append path, including an older published
@@ -48,6 +50,11 @@ nonisolated struct TypingPredictionCandidate {
               behindSince.map({ time < $0 + Self.catchUpWindow }) ?? true else { return false }
         let next = typedText + characters
         let prediction = latestResult?.text ?? ""
+        // A backend that buffers its first output cannot validate a blind lookahead bet in the
+        // short catch-up window. Restart from the new caret immediately instead of paying that
+        // window and then the full generation latency. Once actual text arrives, ordinary matching
+        // type-through and bounded catch-up still apply.
+        guard !requiresInitialPrediction || !prediction.isEmpty else { return false }
         guard prediction.hasPrefix(next) || (!isFinal && next.hasPrefix(prediction)) else { return false }
         typedText = next
         lastInputAt = time

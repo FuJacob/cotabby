@@ -3,6 +3,25 @@ import XCTest
 
 /// Exercises the append-path proof independently of AX timing and inference speed.
 final class TypingPredictionCandidateTests: XCTestCase {
+    func testBufferedBackendRestartsWithoutWaitingForAnUnseenPrediction() {
+        let source = snapshot("I'll send ")
+        var candidate = TypingPredictionCandidate(
+            context: FocusedInputContext(snapshot: source, generation: 1), requiresInitialPrediction: true
+        )
+        XCTAssertFalse(candidate.append("y", in: source, at: 1))
+        XCTAssertEqual(candidate.typedText, "")
+        XCTAssertNil(candidate.expiration(in: source))
+        XCTAssertTrue(candidate.receive(result(""), final: false))
+        XCTAssertFalse(candidate.append("y", in: source, at: 1.01))
+
+        XCTAssertTrue(candidate.receive(result("y"), final: false))
+        XCTAssertTrue(candidate.append("y", in: source, at: 1.02))
+        XCTAssertTrue(candidate.append("o", in: snapshot("I'll send y"), at: 1.03))
+        XCTAssertTrue(candidate.receive(result("you the report"), final: false))
+        XCTAssertEqual(candidate.rebased(result("you the report"), in: snapshot("I'll send yo"), generation: 2)?.text,
+                       "u the report")
+    }
+
     func testMatchingKeysTrimOnlyAfterExactHostPublication() {
         let source = snapshot("I'll send ")
         var candidate = candidate(source)

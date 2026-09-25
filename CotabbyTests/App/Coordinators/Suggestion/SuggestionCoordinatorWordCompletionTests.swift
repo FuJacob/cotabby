@@ -6,6 +6,29 @@ import XCTest
 /// transient bad ghosts, exact insertion, dismissal/cache reuse, and cancelled delayed display.
 @MainActor
 final class SuggestionCoordinatorWordCompletionTests: XCTestCase {
+    func testMissingSpacePredictionAppearsAndAcceptsWithoutAnotherGeneration() async {
+        for streaming in [false, true] {
+            let rig = makeCoordinatorRig(
+                snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "predictions come up"),
+                settingsSnapshot: CotabbyTestFixtures.settingsSnapshot(
+                    debounceMilliseconds: 1, streamSuggestionsWhileGenerating: streaming))
+            defer { rig.coordinator.stop() }
+            rig.engine.partialTexts = streaming ? ["and it takes time "] : []
+            rig.engine.resultProvider = { request in
+                .init(generation: request.generation, rawText: "and it takes time",
+                      text: "and it takes time", latency: 0.01)
+            }
+            rig.coordinator.schedulePrediction()
+            await waitUntil { if case .ready = rig.coordinator.state { return true }; return false }
+            XCTAssertEqual(rig.interactionState.activeSession?.fullText, " and it takes time")
+            XCTAssertTrue(rig.overlayController.shownTexts.allSatisfy { $0.hasPrefix(" and") })
+            XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
+            XCTAssertEqual(rig.inserter.insertedChunks, [" and"])
+            XCTAssertEqual(rig.interactionState.activeSession?.remainingText, " it takes time")
+            XCTAssertEqual(rig.engine.requests.count, 1)
+        }
+    }
+
     func testPausingAfterEveryLetterCompletesWithoutReplacingTypedText() async {
         for word in ["because", "schedule", "recommend"] {
             for count in 1..<word.count {

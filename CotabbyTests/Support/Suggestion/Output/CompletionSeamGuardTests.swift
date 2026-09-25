@@ -110,6 +110,48 @@ final class CompletionSeamGuardTests: XCTestCase {
 
     // MARK: - Seam misspellings
 
+    func testMissingSeparatorBetweenKnownWordsIsRepairedForFinalAndStreamedText() {
+        for isFinal in [false, true] {
+            for prefix in ["up", "delay"] {
+                XCTAssertEqual(CompletionSeamGuard.presentation(
+                    precedingText: "predictions come " + prefix, completion: "and it takes time", isFinal: isFinal,
+                    spellingAssessment: { [prefix, "and"].contains($0) ? .known : .correctableTypo }
+                ), .show(text: " and it takes time", wordOnly: false))
+            }
+        }
+    }
+
+    func testSeparatorRepairWaitsForCompleteFirstWord() {
+        XCTAssertEqual(CompletionSeamGuard.presentation(
+            precedingText: "come up", completion: "an", isFinal: false,
+            spellingAssessment: { ["up", "an"].contains($0) ? .known : .correctableTypo }
+        ), .wait)
+    }
+
+    func testSeparatorRepairPreservesValidJoinsAndRejectsUnknownPieces() {
+        XCTAssertEqual(CompletionSeamGuard.presentation(
+            precedingText: "a car", completion: "pet on the floor", isFinal: true,
+            spellingAssessment: knowing(["car", "pet", "carpet"])
+        ), .show(text: "pet on the floor", wordOnly: false))
+        for known in [Set(["gre"]), Set(["atful"])] {
+            XCTAssertEqual(CompletionSeamGuard.presentation(
+                precedingText: "gre", completion: "atful for this", isFinal: true,
+                spellingAssessment: { known.contains($0) ? .known : .correctableTypo }
+            ), .suppress(.seamMisspelling(word: "greatful")))
+        }
+        XCTAssertEqual(CompletionSeamGuard.presentation(
+            precedingText: "foo", completion: "bar next", isFinal: true,
+            spellingAssessment: knowing(["foo", "bar"])
+        ), .show(text: "bar", wordOnly: true), "Unknown joins must not be rewritten.")
+    }
+
+    func testSeparatorRepairDoesNotSplitContractions() {
+        XCTAssertEqual(CompletionSeamGuard.presentation(
+            precedingText: "don", completion: "'t go", isFinal: true,
+            spellingAssessment: { $0 == "don't" ? .correctableTypo : .known }
+        ), .suppress(.seamMisspelling(word: "don't")))
+    }
+
     func testMisspelledSeamWordIsSuppressed() {
         XCTAssertEqual(
             CompletionSeamGuard.verdict(
@@ -520,7 +562,9 @@ final class CompletionSeamGuardTests: XCTestCase {
                     completion: "eutiful in the garden",
                     isFinal: isFinal,
                     spellingAssessment: { word in
-                        XCTAssertEqual(word, "beutiful")
+                        // A rejected join may also probe whether the prefix is a complete word
+                        // for separator repair. A misspelled fragment still cannot authorize it.
+                        XCTAssertTrue(["beutiful", "b"].contains(word))
                         return .correctableTypo
                     }
                 ),

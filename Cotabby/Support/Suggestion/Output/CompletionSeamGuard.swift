@@ -168,6 +168,17 @@ nonisolated enum CompletionSeamGuard {
         let word = prefix + ending
         let assessment = spellingAssessment(word)
         if word.first?.isLowercase == true, word.count >= minimumSeamWordLength, assessment == .correctableTypo {
+            // Instruction-tuned models sometimes omit the separator after a complete word:
+            // `up` + `and ...` became `upand` and hid an otherwise useful prediction. Repair only
+            // plain-letter words that are BOTH known independently and whose join is a confirmed
+            // typo. Valid joins (`car` + `pet`), unknown vocabulary, and lexical connectors keep
+            // their original semantics. The streaming boundary check above ensures `an` cannot
+            // authorize a space before the model finishes generating `and`.
+            if prefix.allSatisfy(\.isLetter), ending.allSatisfy(\.isLetter),
+               spellingAssessment(prefix) == .known,
+               spellingAssessment(String(ending)) == .known {
+                return .show(text: " " + completion, wordOnly: false)
+            }
             return .suppress(.seamMisspelling(word: word))
         }
         // Judge the complete joined word, not how many letters the writer has typed. Once `b`

@@ -13,7 +13,13 @@ extension SuggestionCoordinator {
               pendingSpeculativeContext == nil, !request.context.isSecure,
               request.context.selection.length == 0,
               !userDefaults.bool(forKey: Self.speculativePrefetchDisabledDefaultsKey) else { return }
-        typingPrediction = TypingPredictionCandidate(context: request.context)
+        // Apple's first snapshot can arrive near the end of a short completion. Retaining a
+        // request with no predicted letters added a 150ms catch-up timeout before regenerating
+        // for the user's last key. Native llama still benefits from that grace during token decode.
+        typingPrediction = TypingPredictionCandidate(
+            context: request.context,
+            requiresInitialPrediction: settingsSnapshot.selectedEngine == .appleIntelligence
+        )
     }
 
     func clearTypingPrediction() {

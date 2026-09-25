@@ -28,9 +28,9 @@ final class SuggestionCoordinatorTypingPredictionTests: XCTestCase {
         XCTAssertEqual(rig.inserter.insertedChunks.first?.trimmingCharacters(in: .whitespaces), "report")
     }
 
-    func testTypingAheadOfFirstTokenCanCatchUpWithoutRestarting() async {
+    func testLlamaTypingAheadOfFirstTokenCanCatchUpWithoutRestarting() async {
         let engine = ControlledTypingEngine()
-        let rig = makeRig(engine)
+        let rig = makeRig(engine, engineKind: .llamaOpenSource)
         defer { rig.coordinator.stop(); engine.finishAll() }
         rig.coordinator.schedulePrediction()
         await waitUntil { engine.requests.count == 1 }
@@ -43,6 +43,28 @@ final class SuggestionCoordinatorTypingPredictionTests: XCTestCase {
         XCTAssertEqual(rig.coordinator.currentWorkID, workID)
         XCTAssertEqual(rig.interactionState.activeSession?.remainingText, "ou the report")
         XCTAssertEqual(engine.requests.count, 1)
+    }
+
+    func testAppleTypingBeforeFirstTokenRetiresWorkImmediatelyAndRejectsItsLateResult() async {
+        let engine = ControlledTypingEngine()
+        let rig = makeRig(engine)
+        defer { rig.coordinator.stop(); engine.finishAll() }
+        rig.coordinator.schedulePrediction()
+        await waitUntil { engine.requests.count == 1 }
+        let workID = rig.coordinator.currentWorkID
+        type("you ", in: rig)
+        // Assert the synchronous state change, rather than relying on a wall-clock timeout.
+        XCTAssertNotEqual(rig.coordinator.currentWorkID, workID)
+        XCTAssertNil(rig.coordinator.typingPrediction)
+        publish("I'll send you ", in: rig)
+        await waitUntil { engine.requests.count == 2 }
+        XCTAssertEqual(engine.requests[1].prefixText, "I'll send you ")
+        engine.emit("you the obsolete report", request: 0)
+        engine.finish("you the obsolete report", request: 0)
+        XCTAssertTrue(rig.overlayController.shownTexts.isEmpty)
+        engine.finish("the current report", request: 1)
+        await waitUntil { rig.interactionState.activeSession != nil }
+        XCTAssertEqual(rig.interactionState.activeSession?.remainingText, "the current report")
     }
 
     func testDivergentTypingRestartsAndOldCallbacksCannotResurrectTheCandidate() async {
@@ -89,6 +111,7 @@ final class SuggestionCoordinatorTypingPredictionTests: XCTestCase {
         defer { rig.coordinator.stop(); engine.finishAll() }
         rig.coordinator.schedulePrediction()
         await waitUntil { engine.requests.count == 1 }
+        engine.emit("you")
         type("y", in: rig)
         publish("I'll send y", in: rig)
         engine.finish("you the report")
