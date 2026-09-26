@@ -57,7 +57,8 @@ When adding a `struct`, `class`, `enum`, actor, or protocol, explain:
 - `CotabbyTests/`: unit and microbench tests that mirror the production subsystem map. Prefer
   testing pure `Support/` and `Models/` logic when possible.
 - `CotabbyInference`: the llama.cpp wrapper, consumed as a SwiftPM package
-  (`github.com/FuJacob/cotabbyinference`, pinned to `main`) rather than vendored in-tree.
+  (`github.com/FuJacob/cotabbyinference`). The build workspace pins a revision and applies
+  `patches/cotabbyinference-upstream-pending.patch` until those APIs are accepted upstream.
 
 Within a subsystem, child folders describe stable responsibilities rather than Swift namespaces.
 Examples include `Services/Runtime/{AppleIntelligence,Llama,OpenAICompatible}` and
@@ -282,27 +283,22 @@ log stream --predicate 'subsystem == "com.cotabby.app"' --level debug
 **Rule of thumb.** When a user reports a bug, first `tail` / `jq` the relevant file with the
 symptom → category map. Do not ask the user to re-explain symptoms before checking the logs.
 
-## Validation
+## Builds And Validation
+
+Build, run, and test with Xcode as documented in
+[`CONTRIBUTING.md`](CONTRIBUTING.md). Prepare the pinned inference workspace with
+`scripts/prepare_cotabby_workspace.sh` first. Local launches use the developer's own signing
+team configured through `scripts/dev-setup.sh` and the isolated `Cotabby Dev` scheme; production
+uses `Cotabby`, its upstream bundle identity, and Sparkle updates. Shared CI uses unsigned compile checks and
+app-hosted tests.
 
 Use the narrowest meaningful validation first, then broaden if the change touches shared behavior.
-Common commands:
+Keep DerivedData in `build/DerivedData`, avoid concurrent builds in the same checkout, and clean
+it after validation. Verify cleanup before reporting completion.
+Never move DerivedData to `~/Library/Developer/Xcode/DerivedData/Cotabby-*`.
 
-```bash
-xcodebuild -project Cotabby.xcodeproj -scheme Cotabby -destination 'platform=macOS' build \
-  -derivedDataPath build/DerivedData
-xcodebuild -project Cotabby.xcodeproj -scheme Cotabby -destination 'platform=macOS' build-for-testing \
-  -derivedDataPath build/DerivedData
-```
-
-Always pass `-derivedDataPath build/DerivedData` so the output lands in the repo-scoped `build/`
-directory (already gitignored) instead of accumulating under
-`~/Library/Developer/Xcode/DerivedData/Cotabby-*`, where every build leaves a fresh multi-GB module
-cache and SwiftPM checkout that nothing trims. When a task is done and the artifacts are no longer
-needed, `rm -rf build/DerivedData` before reporting completion.
-
-Run targeted tests for changed pure logic when available. If `xcodebuild test` fails locally because
-of app-hosted test bundle signing or Team ID mismatch, report the exact failure and still provide the
-successful build/build-for-testing result.
+Run targeted tests for changed pure logic when available. If validation fails, report the exact
+failure and distinguish a successful build-for-testing step from actual test execution.
 
 ## Git And Worktree Safety
 

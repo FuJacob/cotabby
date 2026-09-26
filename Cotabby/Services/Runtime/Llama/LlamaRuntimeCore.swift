@@ -29,6 +29,9 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
 
     private let autocompleteLock = NSLock()
     private var autocompleteSequenceID: Int32 = -1
+    /// Describes the last successfully decoded prompt, not the current end of native KV. Sampling
+    /// may leave a generated tail after this prefix; obtainAutocompleteSequence must restore the
+    /// validated shared prefix before decoding any new request, including a cancelled sequence.
     private var autocompletePromptBytes: [UInt8] = []
     private var autocompletePromptTokens: [Int32] = []
     private var autocompleteSamplingFingerprint: SamplingFingerprint?
@@ -38,18 +41,12 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
     /// because the abort fires while `autocompleteLock` is held by the very work being aborted.
     private let abortTargetLock = NSLock()
     private var abortTargetSequenceID: Int32 = -1
+    private var abortTargetOperationID: UUID?
+    private var currentOperationID: UUID?
 
-    /// One loud line per model load when the engine rejects partial KV trims (llama.cpp cannot
-    /// drop mid-sequence ranges on hybrid/recurrent or SWA caches). Without this signal the
-    /// prefix-reuse fast path degrades silently to a full prompt re-prefill on every request.
+    /// A restoration miss describes one checkpoint/prefix, not a model family's permanent
+    /// capability. Log the first miss prominently and keep trying later compatible prompts.
     private var loggedTrimRejectionForCurrentModel = false
-
-    /// True once the loaded model has rejected a partial KV trim (hybrid/recurrent and SWA caches
-    /// reject them unconditionally). On such models prefix reuse can never succeed, so prewarm
-    /// prefills are pure double work: the warmed sequence cannot be trimmed back to prompt-only
-    /// state, and the following generate's reuse trim is rejected too, forcing a second full
-    /// decode of the same prompt. Guarded by `autocompleteLock`; reset on model load.
-    private var modelRejectsPartialTrims = false
 
     /// Coordinates model lifecycle with in-flight generation. `generate()` increments the active
     /// count on entry and decrements on exit. `shutdown()` sets the
@@ -113,7 +110,6 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         )
         self.preparedRuntime = result
         loggedTrimRejectionForCurrentModel = false
-        modelRejectsPartialTrims = false
         CotabbyLogger.runtime.info(
             "Model loaded",
             metadata: [
@@ -138,10 +134,9 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         prompt: String,
         cachedPrefixBytes: Int? = nil,
         options: LlamaGenerationOptions,
+        operationID: UUID = UUID(),
         onPartialRawText: ((String) -> Void)? = nil
     ) throws -> LlamaGenerationOutput {
-        let preparation = try preparedPrompt(prompt: prompt, cachedPrefixBytes: cachedPrefixBytes, options: options, kind: "generate")
-
         lifecycleCondition.lock()
         guard !isShuttingDown else {
             lifecycleCondition.unlock()
@@ -159,46 +154,36 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
 
         autocompleteLock.lock()
         defer { autocompleteLock.unlock() }
+        try Task.checkCancellation()
+        currentOperationID = operationID
+        defer { currentOperationID = nil }
+        // Tokenization reads native vocabulary; lifecycle ownership must begin before that read
+        // so shutdown cannot free the model while this request waits for the cache lock.
+        let preparation = try preparedPrompt(prompt: prompt, cachedPrefixBytes: cachedPrefixBytes, options: options, kind: "generate")
         // Registered before `obtainAutocompleteSequence` because that call publishes the abort
         // target ahead of its prompt decode; every exit (including a cancelled prefill throwing)
         // must clear it so a late abort can never flag a recycled sequence slot.
         defer { clearAbortTarget() }
 
         let sequenceID = try obtainAutocompleteSequence(
-            promptTokens: preparation.promptTokens,
-            promptBytes: preparation.promptBytes,
-            fingerprint: preparation.fingerprint,
-            cachedPrefixBytes: preparation.cachedPrefixBytes,
+            preparation: preparation,
             options: options
         )
 
-        defer {
-            // Trim sampled tokens so KV retains only the prompt for the next request. A rejected
-            // trim leaves the sampled tokens in KV while the tracker records prompt-only state;
-            // that mismatch self-heals (the next reuse trim is rejected too and rebuilds fresh),
-            // but it also proves this model can never reuse, so remember that for `prefill`.
-            if !engine.trimKV(sequenceID, Int32(preparation.promptTokens.count)) {
-                modelRejectsPartialTrims = true
-            }
-            autocompletePromptBytes = preparation.promptBytes
-            autocompletePromptTokens = preparation.promptTokens
-            autocompleteSamplingFingerprint = preparation.fingerprint
-        }
-
-        // The KV-trim defer above runs after the decoder returns, restoring prompt-only KV state for
-        // the next request. Token selection is delegated to the engine's built-in sampler.
-        let decode = runEngineSampledDecode(
+        // Record only after the entire prompt decoded successfully. Leave generated tokens in
+        // native memory until the next request reveals the exact shared prefix to restore. Eagerly
+        // restoring this whole prompt would replay its tail now and a second time during reuse.
+        // The exit defer closes this operation's abort target; successful restoration in obtain
+        // rearms native cancellation before publishing the next operation's target.
+        autocompletePromptBytes = preparation.promptBytes
+        autocompletePromptTokens = preparation.promptTokens
+        autocompleteSamplingFingerprint = preparation.fingerprint
+        return runEngineSampledDecode(
             sequenceID: sequenceID,
             options: options,
+            healingPrefix: preparation.healingPrefix,
             onPartialRawText: onPartialRawText
         )
-        if decode.engineCancelled {
-            // The engine's per-sequence abort flag is set-once; an aborted sequence would refuse
-            // every future decode, so drop it and let the next request build fresh.
-            engine.destroySequence(sequenceID)
-            autocompleteSequenceID = -1
-        }
-        return decode.output
     }
 
     /// Decodes `prompt` into the autocomplete KV cache without sampling, so the next `generate`
@@ -208,10 +193,9 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
     func prefill(
         prompt: String,
         cachedPrefixBytes: Int? = nil,
-        options: LlamaGenerationOptions
+        options: LlamaGenerationOptions,
+        operationID: UUID = UUID()
     ) throws {
-        let preparation = try preparedPrompt(prompt: prompt, cachedPrefixBytes: cachedPrefixBytes, options: options, kind: "prefill")
-
         lifecycleCondition.lock()
         guard !isShuttingDown else {
             lifecycleCondition.unlock()
@@ -229,17 +213,12 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
 
         autocompleteLock.lock()
         defer { autocompleteLock.unlock() }
+        try Task.checkCancellation()
+        currentOperationID = operationID
+        defer { currentOperationID = nil }
+        let preparation = try preparedPrompt(prompt: prompt, cachedPrefixBytes: cachedPrefixBytes, options: options, kind: "prefill")
         // Same exit guarantee as `generate`: see the comment there.
         defer { clearAbortTarget() }
-
-        // On models that reject partial trims (the hybrid/SWA catalog families), a warmed
-        // sequence can never be reused, so prefilling would only double the cold decode the
-        // first real request pays anyway. The flag is learned from the first rejected trim
-        // after model load; until then one speculative prefill may still run and be discarded.
-        guard !modelRejectsPartialTrims else {
-            CotabbyLogger.runtime.debug("Prefill skipped: the loaded model rejects partial KV trims")
-            return
-        }
 
         // A superseding generation cancels the warmup task before contending on the lock above.
         // The engine-level abort only reaches a decode that already published its target, so close
@@ -249,52 +228,50 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         }
 
         let sequenceID = try obtainAutocompleteSequence(
-            promptTokens: preparation.promptTokens,
-            promptBytes: preparation.promptBytes,
-            fingerprint: preparation.fingerprint,
-            cachedPrefixBytes: preparation.cachedPrefixBytes,
+            preparation: preparation,
             options: options
         )
 
-        // `decodePrompt` samples one seed token beyond the prompt, so the trim is what restores
-        // prompt-only KV. If it is rejected, the warmed sequence still carries the seed and can
-        // never be trimmed by the following generate either: drop it instead of recording tracker
-        // facts the KV does not match, and remember that warming this model is pointless.
+        // The seed is sampled but not decoded; prefill already has prompt-only KV. Trimming
+        // clears pending sampling and cancellation without requiring recurrent rollback.
+        clearAbortTarget()
         if engine.trimKV(sequenceID, Int32(preparation.promptTokens.count)) {
             autocompletePromptBytes = preparation.promptBytes
             autocompletePromptTokens = preparation.promptTokens
             autocompleteSamplingFingerprint = preparation.fingerprint
         } else {
-            modelRejectsPartialTrims = true
-            engine.destroySequence(sequenceID)
-            autocompleteSequenceID = -1
+            discardAutocompleteSequence()
             logTrimRejectionIfNeeded(reusableTokenCount: preparation.promptTokens.count)
         }
     }
 
-    /// Aborts the in-flight autocomplete operation's native work mid-prefill. Task cancellation is
-    /// only polled between sampled tokens, so without this an uninterruptible prompt decode makes
-    /// the next request wait out the entire stale prefill. Safe from any thread: the engine flag
+    /// Stops an operation between prompt batches or sampled tokens. The currently submitted
+    /// native decode finishes; the next batch observes this flag instead of processing the rest
+    /// of a stale prompt. Safe from any thread: the engine flag
     /// is atomic and its sequence lookup is mutex-guarded; a no-op when nothing is in flight.
-    func abortInFlightGeneration() {
+    func abortInFlightGeneration(operationID: UUID) {
         abortTargetLock.lock()
-        let target = abortTargetSequenceID
-        abortTargetLock.unlock()
-        guard target >= 0 else {
+        defer { abortTargetLock.unlock() }
+        guard abortTargetOperationID == operationID, abortTargetSequenceID >= 0 else {
             return
         }
-        engine.cancelSequence(target)
+        engine.cancelSequence(abortTargetSequenceID)
     }
 
     private func setAbortTarget(_ sequenceID: Int32) {
         abortTargetLock.lock()
         abortTargetSequenceID = sequenceID
+        abortTargetOperationID = currentOperationID
+        // A cancellation can arrive during tokenization, before there is a native target. Close
+        // that gap when publishing the target so stale work cannot enter an entire prompt decode.
+        if Task.isCancelled { engine.cancelSequence(sequenceID) }
         abortTargetLock.unlock()
     }
 
     private func clearAbortTarget() {
         abortTargetLock.lock()
         abortTargetSequenceID = -1
+        abortTargetOperationID = nil
         abortTargetLock.unlock()
     }
 
@@ -328,19 +305,24 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
             ]
         )
 
-        let maxPromptTokens = max(1, preparedRuntime.contextWindowTokens - options.maxPredictionTokens)
-        if allPromptTokens.count > maxPromptTokens {
-            return PreparedPrompt(
-                promptBytes: promptBytes,
-                promptTokens: Array(allPromptTokens.suffix(maxPromptTokens)),
-                cachedPrefixBytes: nil,
-                fingerprint: SamplingFingerprint(options: options)
-            )
-        }
+        // Reconsider the entire bounded word fragment, not just its last vocabulary token.
+        // The pure plan protects byte identity; native sampling enforces the resulting prefix.
+        let healing = TokenHealingPlan(
+            prompt: prompt, tokens: allPromptTokens, singleLine: options.singleLine,
+            piece: { Array(engine.tokenPiece($0)) }
+        )
+        let tokens = healing.promptTokens
+        let healingPrefix = healing.replayBytes
+        // A byte-fallback vocabulary can replay at most one token per prefix byte. Reserve a
+        // separate bounded allowance so healing cannot consume the user's output-token budget.
+        let maxPromptTokens = max(1, preparedRuntime.contextWindowTokens
+            - options.maxPredictionTokens - healingPrefix.count)
+        let truncated = tokens.count > maxPromptTokens
         return PreparedPrompt(
             promptBytes: promptBytes,
-            promptTokens: allPromptTokens,
-            cachedPrefixBytes: cachedPrefixBytes,
+            promptTokens: Array(tokens.suffix(maxPromptTokens)),
+            cachedPrefixBytes: truncated ? nil : cachedPrefixBytes,
+            healingPrefix: healingPrefix,
             fingerprint: SamplingFingerprint(options: options)
         )
     }
@@ -349,6 +331,7 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         let promptBytes: [UInt8]
         let promptTokens: [Int32]
         let cachedPrefixBytes: Int?
+        let healingPrefix: [UInt8]
         let fingerprint: SamplingFingerprint
     }
 
@@ -356,21 +339,22 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
 
     /// The shipping decoder: delegates token selection to the engine's built-in sampler
     /// (`sampleNext`), which applies temperature / top-k / top-p / min-p and commits each token.
-    /// `engineCancelled` reports that the native abort flag fired; the sequence must then be
-    /// discarded because the flag is set-once for a sequence's lifetime. `onPartialRawText`
-    /// receives the cumulative raw completion after each sampled token, on the calling thread.
+    /// The next request restores or discards retained cache after cancellation. `onPartialRawText` receives
+    /// cumulative raw completion after each sampled token, on the calling thread.
     private func runEngineSampledDecode(
         sequenceID: Int32,
         options: LlamaGenerationOptions,
+        healingPrefix: [UInt8],
         onPartialRawText: ((String) -> Void)? = nil
-    ) -> (output: LlamaGenerationOutput, engineCancelled: Bool) {
+    ) -> LlamaGenerationOutput {
         var generatedText = ""
         var tokensGenerated = 0
         var sumLogprob = 0.0
         var stopReason = "budget_exhausted"
-        var engineCancelled = false
+        var buffer = TokenHealingBuffer(replayedPrefix: healingPrefix)
+        var replayTokens = 0
 
-        for _ in 0 ..< options.maxPredictionTokens {
+        for _ in 0 ..< options.maxPredictionTokens + healingPrefix.count {
             // Cooperative cancellation: when the wrapping Task is cancelled (caller hit a new
             // keystroke, focus changed, Compose started), bail before the next sampleNext call so
             // we release `autocompleteLock` instead of running the full prediction budget and
@@ -384,7 +368,6 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
 
             if result.was_cancelled {
                 stopReason = "engine_cancelled"
-                engineCancelled = true
                 break
             }
             if result.is_eos {
@@ -400,13 +383,23 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
                 break
             }
 
-            let piece = Self.extractPiece(result)
-            generatedText += piece
+            let replayWasComplete = buffer.replayComplete
+            let partial = buffer.append(tokenBytes: Self.extractPieceBytes(result))
+            if buffer.hasReplayMismatch {
+                generatedText = ""
+                stopReason = "healing_prefix_mismatch"
+                break
+            }
+            if !replayWasComplete && !buffer.hasVisibleBytes {
+                replayTokens += 1
+                continue
+            }
+            generatedText = buffer.text
             tokensGenerated += 1
             sumLogprob += Double(result.logprob)
             // Cumulative text, not the delta: consumers render whole partials, and cumulative
             // semantics make late or reordered deliveries harmless downstream.
-            onPartialRawText?(generatedText)
+            if let partial { onPartialRawText?(partial) }
 
             // Stop at the first natural sentence boundary, or as soon as the text contains a
             // chat-template stop marker, instead of running the full token budget. Both are
@@ -423,6 +416,7 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
                 stopReason = earlyStop.rawValue
                 break
             }
+            if tokensGenerated >= options.maxPredictionTokens { break }
         }
 
         CotabbyLogger.runtime.debug(
@@ -430,11 +424,22 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
             metadata: [
                 "kind": .string("generate"),
                 "tokens_generated": .stringConvertible(tokensGenerated),
+                "replay_tokens": .stringConvertible(replayTokens),
                 "chars_generated": .stringConvertible(generatedText.count),
                 "stop_reason": .string(stopReason)
             ]
         )
 
+        return Self.generationOutput(text: generatedText, sumLogprob: sumLogprob, tokensGenerated: tokensGenerated, options: options)
+    }
+
+    /// Confidence affects the returned value after decode; it must not change retained KV state.
+    private static func generationOutput(
+        text generatedText: String,
+        sumLogprob: Double,
+        tokensGenerated: Int,
+        options: LlamaGenerationOptions
+    ) -> LlamaGenerationOutput {
         // The average is only meaningful when the engine actually computed per-token logprobs,
         // which is keyed on the floor being enabled (see setComputeLogprob at sequence setup).
         let averageLogprob: Double? = options.confidenceFloor > -.infinity && tokensGenerated > 0
@@ -446,19 +451,19 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
                 averageLogprob: averageLogprob,
                 suppressedByLowConfidence: true
             )
-            return (suppressed, engineCancelled)
+            return suppressed
         }
         let output = LlamaGenerationOutput(
             text: generatedText,
             averageLogprob: averageLogprob,
             suppressedByLowConfidence: false
         )
-        return (output, engineCancelled)
+        return output
     }
 
     /// Low-confidence gate for the sampled decoder: drop completions the model itself was unsure
-    /// about. Disabled by default (confidenceFloor == -infinity). The KV-trim defer in `generate`
-    /// still runs because the caller returns "" rather than throwing.
+    /// about. Disabled by default (confidenceFloor == -infinity). Suppressed output leaves the
+    /// same retained native tail as visible output; the next request must restore its own prefix.
     private static func shouldSuppress(
         sumLogprob: Double,
         tokensGenerated: Int,
@@ -489,6 +494,12 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         autocompleteLock.lock()
         defer { autocompleteLock.unlock() }
 
+        discardAutocompleteSequence()
+    }
+
+    /// Called with autocompleteLock held. Clearing both native memory and its prompt description
+    /// together prevents failed restoration from masquerading as a reusable prefix on the next run.
+    private func discardAutocompleteSequence() {
         if autocompleteSequenceID >= 0 {
             CotabbyLogger.runtime.debug(
                 "Prompt cache reset",
@@ -543,16 +554,19 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
 
     // MARK: - Private: autocomplete sequence management
 
-    /// Returns a sequence ID with KV state representing the prompt. Reuses cached KV when the
-    /// new prompt shares a validated prefix with the previous one.
+    /// Returns a sequence ID with KV state representing the new prompt. The existing sequence may
+    /// retain generated tokens or a cancellation flag; restoration is mandatory before reuse,
+    /// even when both prompt descriptions are identical. A missed checkpoint rebuilds cold.
     /// Must be called while holding `autocompleteLock`.
     private func obtainAutocompleteSequence(
-        promptTokens: [Int32],
-        promptBytes: [UInt8],
-        fingerprint: SamplingFingerprint,
-        cachedPrefixBytes: Int?,
+        preparation: PreparedPrompt,
         options: LlamaGenerationOptions
     ) throws -> Int32 {
+        let promptTokens = preparation.promptTokens
+        let promptBytes = preparation.promptBytes
+        let fingerprint = preparation.fingerprint
+        let cachedPrefixBytes = preparation.cachedPrefixBytes
+        let healingPrefix = preparation.healingPrefix
         if autocompleteSequenceID >= 0,
            let cachedPrefixBytes, cachedPrefixBytes > 0,
            autocompleteSamplingFingerprint == fingerprint {
@@ -571,14 +585,16 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
 
                 if reusableTokenCount > 0 {
                     if engine.trimKV(autocompleteSequenceID, Int32(reusableTokenCount)) {
+                        logCacheRestoration(sequenceID: autocompleteSequenceID)
                         let remaining = Array(promptTokens[reusableTokenCount...])
                         if !remaining.isEmpty {
                             // Seed for the reuse path is sampled at the end of this decodePrompt;
                             // apply the word-continuation constraint to it like the fresh path does.
                             engine.setForceWordContinuation(
                                 autocompleteSequenceID,
-                                options.forceWordContinuation
+                                healingPrefix.isEmpty && options.forceWordContinuation
                             )
+                            setCompletionPrefix(healingPrefix, sequenceID: autocompleteSequenceID)
                             // Per-token log-probabilities cost two O(vocab) passes each in the
                             // engine; only compute them when the confidence gate would actually
                             // read them. Re-assert per request: the floor is not part of the
@@ -596,10 +612,10 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
                                 Int32(reusableTokenCount)
                             )
                             if status == .cancelled {
-                                // The caller's request was superseded mid-prefill. Do NOT rebuild
+                                // The caller's request was superseded between prompt batches. Do NOT rebuild
                                 // fresh here: that would decode the full stale prompt right after
-                                // its cancellation. The aborted sequence is unusable (set-once
-                                // flag, partially decoded KV), so drop it and surface the cancel.
+                                // its cancellation. A partially decoded new prompt has no matching
+                                // Swift description yet, so discard it and surface cancellation.
                                 engine.destroySequence(autocompleteSequenceID)
                                 autocompleteSequenceID = -1
                                 throw CancellationError()
@@ -608,7 +624,7 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
                                 // Reuse failed mid-decode; fall through to fresh build.
                                 engine.destroySequence(autocompleteSequenceID)
                                 autocompleteSequenceID = -1
-                                return try buildFreshSequence(promptTokens: promptTokens, options: options)
+                                return try buildFreshSequence(promptTokens: promptTokens, healingPrefix: healingPrefix, options: options)
                             }
                         }
                         CotabbyLogger.runtime.debug(
@@ -630,11 +646,12 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
             engine.destroySequence(autocompleteSequenceID)
             autocompleteSequenceID = -1
         }
-        return try buildFreshSequence(promptTokens: promptTokens, options: options)
+        return try buildFreshSequence(promptTokens: promptTokens, healingPrefix: healingPrefix, options: options)
     }
 
     private func buildFreshSequence(
         promptTokens: [Int32],
+        healingPrefix: [UInt8],
         options: LlamaGenerationOptions
     ) throws -> Int32 {
         let config = Self.samplingConfig(from: options)
@@ -645,7 +662,8 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
 
         // The engine samples the first (seed) token at the end of decodePrompt, so set the
         // word-continuation constraint here, before decoding.
-        engine.setForceWordContinuation(seqID, options.forceWordContinuation)
+        engine.setForceWordContinuation(seqID, healingPrefix.isEmpty && options.forceWordContinuation)
+        setCompletionPrefix(healingPrefix, sequenceID: seqID)
         // Skip the engine's per-token log-probability work (two O(vocab) passes per token)
         // whenever confidence suppression is disabled — the shipping default — since the value
         // would be summed and then discarded.
@@ -657,8 +675,8 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         guard status == .ok else {
             engine.destroySequence(seqID)
             if status == .cancelled {
-                // Superseded mid-prefill; the abort exists precisely so the next request does not
-                // wait out the rest of this decode. Quiet cancellation, no runtime error.
+                // Superseded between prompt batches; skip the remaining stale prompt so a new
+                // request can acquire the lock. Quiet cancellation, no runtime error.
                 throw CancellationError()
             }
             throw LlamaRuntimeError.generationFailed("Prompt decoding failed.")
@@ -668,17 +686,13 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         return seqID
     }
 
-    /// Surfaces "this model cannot reuse its prompt KV" once per model load at info level, then
-    /// per-event at debug. llama.cpp rejects partial sequence removal on hybrid (recurrent) and
-    /// SWA caches — which includes the current catalog families — and the silent fallback is a
-    /// full prompt re-prefill on every keystroke pause: the difference between decoding a few
-    /// delta tokens and the entire prompt.
+    /// Records a cold fallback without permanently disabling prefill. A checkpoint is bounded:
+    /// editing before it can miss even when ordinary typing reuses the same model successfully.
     private func logTrimRejectionIfNeeded(reusableTokenCount: Int) {
-        modelRejectsPartialTrims = true
         if !loggedTrimRejectionForCurrentModel {
             loggedTrimRejectionForCurrentModel = true
             CotabbyLogger.runtime.info(
-                "KV prefix reuse unavailable: the engine rejected a partial trim, so every request re-decodes its full prompt",
+                "Prompt cache restoration missed; rebuilding this request",
                 metadata: [
                     "model": .string(preparedRuntime?.resolvedRuntime.modelDisplayName ?? "unknown"),
                     "rejected_reusable_tokens": .stringConvertible(reusableTokenCount)
@@ -693,6 +707,20 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         )
     }
 
+    private func logCacheRestoration(sequenceID: Int32) {
+        let cache = engine.getCacheDiagnostics(sequenceID)
+        CotabbyLogger.runtime.debug(
+            "Prompt cache restored",
+            metadata: [
+                "reused_tokens": .stringConvertible(cache.decoded_token_count),
+                "checkpoint_bytes": .stringConvertible(cache.checkpoint_bytes),
+                "checkpoint_position": .stringConvertible(cache.checkpoint_position),
+                "restore_replayed_tokens": .stringConvertible(cache.last_restore_replayed_tokens),
+                "partial_state_checkpoint": .stringConvertible(cache.uses_partial_checkpoint)
+            ]
+        )
+    }
+
     // MARK: - Private: helpers
 
     private func tokenize(_ text: String) -> [Int32] {
@@ -702,13 +730,19 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         return Array(vec)
     }
 
-    private static func extractPiece(_ result: SampleResult) -> String {
-        guard let piece = result.piece, result.piece_length > 0 else { return "" }
+    private func setCompletionPrefix(_ bytes: [UInt8], sequenceID: Int32) {
+        bytes.withUnsafeBufferPointer { buffer in
+            engine.setCompletionPrefix(sequenceID, buffer.baseAddress, Int32(buffer.count))
+        }
+    }
+
+    private static func extractPieceBytes(_ result: SampleResult) -> [UInt8] {
+        guard let piece = result.piece, result.piece_length > 0 else { return [] }
         let buffer = UnsafeBufferPointer(
             start: UnsafeRawPointer(piece).assumingMemoryBound(to: UInt8.self),
             count: Int(result.piece_length)
         )
-        return String(bytes: buffer, encoding: .utf8) ?? ""
+        return Array(buffer)
     }
 
     /// Fixed default sampler seed so suggestions are reproducible for the same context. The engine
@@ -755,6 +789,7 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
         let minP: Double
         let repetitionPenalty: Double
         let seed: UInt32?
+        let singleLine: Bool
 
         init(options: LlamaGenerationOptions) {
             maxPredictionTokens = options.maxPredictionTokens
@@ -764,6 +799,7 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
             minP = options.minP
             repetitionPenalty = options.repetitionPenalty
             seed = options.seed
+            singleLine = options.singleLine
         }
     }
 }

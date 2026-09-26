@@ -103,7 +103,13 @@ enum SuggestionTextNormalizer {
             if let blankLine = normalized.range(of: "\n\n") {
                 normalized = String(normalized[..<blankLine.lowerBound])
             }
-            normalized = normalized.trimmingCharacters(in: .whitespacesAndNewlines)
+            // A leading space can be the only boundary between the existing word and the next
+            // one ("hearing" + " from you"). Trim only the trailing formatting here; the shared
+            // seam handling below removes leading space when the field already supplies it.
+            while let last = normalized.unicodeScalars.last,
+                  CharacterSet.whitespacesAndNewlines.contains(last) {
+                normalized.unicodeScalars.removeLast()
+            }
         } else {
             // Single-line mode: only surface the immediate continuation line.
             if let firstLine = normalized.split(separator: "\n", maxSplits: 1).first {

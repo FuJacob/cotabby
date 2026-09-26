@@ -1,0 +1,132 @@
+{
+  "schemaVersion": 1,
+  "registeredUTC": "2026-09-17T13:29:51.826295+00:00",
+  "candidate": "baseline",
+  "freezeSHA256": "f25e89506e15f728bdbae7e1192f394e14fbd028f0ea94005409b6a356a5bdbf",
+  "purpose": "Descriptive characterization of the retained baseline during the full six-hour window; no candidate tuning, alternative selection, or adoption gates.",
+  "timingBasis": {
+    "slowestScreeningSecondsPerCheckpoint": 0.08806726034585531,
+    "safetyMultiplier": 1.3,
+    "fixedBuildAllowanceSeconds": 120,
+    "closureReserveSeconds": 1200
+  },
+  "runs": [
+    {
+      "name": "fresh42",
+      "label": "fresh-baseline",
+      "kind": "freshWord",
+      "seed": 42,
+      "workerCount": 3,
+      "mode": "word",
+      "corpusSHA256": "2529c17f21b276eecafe7859853b1aafeba967346f205fa9f378631aa2dda828",
+      "selection": "all",
+      "perCategory": 0,
+      "estimatedSeconds": 783,
+      "guardException": null
+    },
+    {
+      "name": "old42",
+      "label": "full42-baseline",
+      "kind": "historicalWord",
+      "seed": 42,
+      "workerCount": 3,
+      "mode": "word",
+      "corpusSHA256": "b41c8089a58ae1e0ee84b95ac9283cf71db4e713e25bd8fed47220be69d8b0f6",
+      "selection": "all",
+      "perCategory": 0,
+      "estimatedSeconds": 1823,
+      "guardException": null
+    },
+    {
+      "name": "character50",
+      "label": "character50-baseline",
+      "kind": "historicalCharacter",
+      "seed": 42,
+      "workerCount": 3,
+      "mode": "character",
+      "corpusSHA256": "b41c8089a58ae1e0ee84b95ac9283cf71db4e713e25bd8fed47220be69d8b0f6",
+      "selection": "all",
+      "perCategory": 50,
+      "estimatedSeconds": 2142,
+      "guardException": null
+    },
+    {
+      "name": "fresh1337",
+      "label": "fresh1337-baseline",
+      "kind": "freshWord",
+      "seed": 1337,
+      "workerCount": 3,
+      "mode": "word",
+      "corpusSHA256": "2529c17f21b276eecafe7859853b1aafeba967346f205fa9f378631aa2dda828",
+      "selection": "all",
+      "perCategory": 0,
+      "estimatedSeconds": 783,
+      "guardException": null
+    },
+    {
+      "name": "fresh-production",
+      "label": "freshproduction-baseline",
+      "kind": "freshWord",
+      "seed": 12648430,
+      "workerCount": 3,
+      "mode": "word",
+      "corpusSHA256": "2529c17f21b276eecafe7859853b1aafeba967346f205fa9f378631aa2dda828",
+      "selection": "all",
+      "perCategory": 0,
+      "estimatedSeconds": 783,
+      "guardException": null
+    },
+    {
+      "name": "old-production",
+      "label": "fullproduction-baseline",
+      "kind": "historicalWord",
+      "seed": 12648430,
+      "workerCount": 3,
+      "mode": "word",
+      "corpusSHA256": "b41c8089a58ae1e0ee84b95ac9283cf71db4e713e25bd8fed47220be69d8b0f6",
+      "selection": "all",
+      "perCategory": 0,
+      "estimatedSeconds": 1823,
+      "guardException": null
+    },
+    {
+      "name": "latency-one",
+      "label": "latency-baseline-1",
+      "kind": "latency",
+      "seed": 42,
+      "workerCount": 1,
+      "mode": "word",
+      "corpusSHA256": "b41c8089a58ae1e0ee84b95ac9283cf71db4e713e25bd8fed47220be69d8b0f6",
+      "selection": "screen",
+      "perCategory": 0,
+      "estimatedSeconds": 600,
+      "guardException": null
+    },
+    {
+      "name": "latency-two",
+      "label": "latency-baseline-2",
+      "kind": "latency",
+      "seed": 42,
+      "workerCount": 1,
+      "mode": "word",
+      "corpusSHA256": "b41c8089a58ae1e0ee84b95ac9283cf71db4e713e25bd8fed47220be69d8b0f6",
+      "selection": "screen",
+      "perCategory": 0,
+      "estimatedSeconds": 600,
+      "guardException": null
+    },
+    {
+      "name": "main-production",
+      "label": "integration-production-baseline",
+      "kind": "historicalWord",
+      "seed": 12648430,
+      "workerCount": 3,
+      "mode": "word",
+      "corpusSHA256": "b41c8089a58ae1e0ee84b95ac9283cf71db4e713e25bd8fed47220be69d8b0f6",
+      "selection": "all",
+      "perCategory": 0,
+      "estimatedSeconds": 1823,
+      "guardException": null
+    }
+  ]
+}

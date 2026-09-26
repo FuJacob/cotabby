@@ -48,7 +48,8 @@ one-time signing setup first:
 git clone https://github.com/FuJacob/Cotabby.git
 cd Cotabby
 scripts/dev-setup.sh
-open Cotabby.xcodeproj
+scripts/prepare_cotabby_workspace.sh
+open build/cotabby-dependencies/Cotabby.xcworkspace
 ```
 
 The committed `Config/Signing.xcconfig` defaults to Cotabby's development team, which lets team
@@ -71,7 +72,7 @@ Accessibility grant survives rebuilds. See [Run](#run).
 ## The Xcode Project Is Generated
 
 `Cotabby.xcodeproj` is generated from `project.yml` by [XcodeGen](https://github.com/yonaskolb/XcodeGen).
-It is committed to the repo so you can clone and `open Cotabby.xcodeproj` without any extra tooling,
+It is committed to the repo; the prepared workspace supplies the pending native APIs,
 but **`project.yml` is the source of truth**.
 
 Source files under `Cotabby/` and `CotabbyTests/` are auto-discovered by folder, so adding a new
@@ -119,10 +120,11 @@ For a local compile check:
 
 ```sh
 xcodebuild \
-  -project Cotabby.xcodeproj \
+  -workspace build/cotabby-dependencies/Cotabby.xcworkspace \
   -scheme Cotabby \
   -configuration Debug \
   -destination 'platform=macOS' \
+  -derivedDataPath build/DerivedData \
   CODE_SIGNING_ALLOWED=NO \
   build
 ```
@@ -168,14 +170,118 @@ Run the unit test suite:
 
 ```sh
 xcodebuild test \
-  -project Cotabby.xcodeproj \
+  -workspace build/cotabby-dependencies/Cotabby.xcworkspace \
   -scheme Cotabby \
   -destination 'platform=macOS' \
+  -derivedDataPath build/DerivedData \
   CODE_SIGNING_ALLOWED=NO
 ```
 
-The CI test workflow uses the same macOS deployment target as the app, so tests should not require
-a macOS 26 runner unless a future change raises the app baseline again.
+CI retains upstream’s macOS 15 test runner and latest-stable Xcode selection. Real Apple
+Intelligence drift evaluation remains opt-in and excluded from CI. Run Python tooling tests with
+`python3 -m unittest discover -s scripts/tests` and lint with `swiftlint --strict`. Clean
+`build/DerivedData` after validation; do not run concurrent builds in the same checkout.
+
+### Local Autocomplete Evaluations
+
+The ordinary test suite checks deterministic request, cache, token-boundary, and scoring rules
+without downloading a model. Two opt-in suites exercise an actual local GGUF:
+
+- `LlamaSuggestionEvalTests` scores isolated writing contexts after normalization and display guards.
+- `LlamaTypingSessionEvalTests` replays fixed editor snapshots for unfinished words, backspaces,
+  rapid word-acceptance opportunities, paragraphs/lists, and edits before existing text. It compares
+  cold versus prewarmed prompt caches, each with streaming disabled and enabled.
+
+Both suites use sampler seed `42`, reported in the test output (and the typing report's JSON), so
+baseline comparisons keep the same random sequence along with the same input text.
+
+The typing suite records the time from scripted input to the first display-eligible candidate, the
+first reference-matching word, and final output. It also records revisions, withdrawn suggestions,
+late callbacks, cancellation drain time, and elapsed cancelled requests that produced no useful
+word. That last value includes queueing and is **not** a measure of CPU/GPU time. Missing useful
+output remains missing in the report rather than becoming a zero-millisecond success.
+
+The replay uses production request construction, generation, normalization, and streaming guards,
+with a fixed debounce. It does not measure Accessibility delivery, adaptive debounce, overlay
+layout, or the coordinator's reuse of an accepted tail. A scripted Tab counts an acceptance
+opportunity only when the displayed next-word chunk matches the intended insertion; the next
+snapshot stays fixed regardless, so model comparisons receive the same text. These are not actual
+user acceptance rates. The real app's debug-only `first-presentation` events separately report
+`input_to_first_presentation_ms`: input to the controller accepting its first presentation state
+update, including a reused tail. This excludes fade animation and screen compositor timing and
+does not determine whether the text is useful.
+
+Use Release builds for latency comparisons; Debug timings mostly measure unoptimized Swift work.
+First compile the opt-in suites:
+
+```sh
+xcodebuild build-for-testing \
+  -workspace build/cotabby-dependencies/Cotabby.xcworkspace \
+  -scheme Cotabby \
+  -configuration Release \
+  -destination 'platform=macOS' \
+  -derivedDataPath build/DerivedData \
+  ENABLE_TESTABILITY=YES \
+  SWIFT_ACTIVE_COMPILATION_CONDITIONS='$(inherited) RUN_LLAMA_EVAL' \
+  CODE_SIGNING_ALLOWED=NO
+```
+
+By default the suites use the model available in Cotabby's normal runtime directory. To evaluate
+a repo-local or other explicitly chosen model without changing app settings, set
+`COTABBY_EVAL_MODEL_PATH` in the generated **test process environment**. Exporting a shell variable
+before `xcodebuild` does not forward it into the app-hosted test runner. Find the generated run
+file, then substitute its exact path and your model path below:
+
+```sh
+rg --files build/DerivedData/Build/Products | rg '\.xctestrun$'
+
+# Replace the SDK/architecture filename with the one emitted by your build.
+eval_run_path='build/DerivedData/Build/Products/Cotabby_macosx27.0-arm64.xctestrun'
+eval_model_path='/absolute/path/to/model.gguf'
+/usr/libexec/PlistBuddy \
+  -c "Add :CotabbyTests:EnvironmentVariables:COTABBY_EVAL_MODEL_PATH string $eval_model_path" \
+  "$eval_run_path"
+
+xcodebuild test-without-building \
+  -xctestrun "$eval_run_path" \
+  -destination 'platform=macOS' \
+  -derivedDataPath build/DerivedData \
+  -only-testing:CotabbyTests/LlamaTypingSessionEvalTests
+```
+
+Use `Set` instead of `Add` when updating an existing override. The current scheme emits xctestrun
+format 1, with `CotabbyTests.EnvironmentVariables`; if using a test plan that emits format 2,
+set the same variable in that target's `EnvironmentVariables` under `TestConfigurations` and
+`TestTargets`. Select `LlamaSuggestionEvalTests` instead to run the isolated-context suite. An
+explicit invalid model fails the evaluation; an absent default model skips it with a hint.
+
+JSON reports are written under the gitignored `build/eval/` directory. Preserve a baseline before
+another run overwrites the same model's report, and compare the same model file, quantization,
+build configuration, settings, and hardware. The synthetic reference continuations are not
+exhaustive; inspect reported mismatches before treating a score change as a regression. The timing
+instrumentation stores no prompts or typed text. Eval reports contain their synthetic fixtures and
+generated suggestions; the existing `-cotabby-debug` LLM I/O log still records prompts/completions
+as documented in [AGENTS.md](AGENTS.md). No new background writing-history collection is enabled.
+
+### Paired CotabbyInference Changes
+
+Cotabby currently uses the pinned CotabbyInference source plus
+`patches/cotabbyinference-upstream-pending.patch`. The plain remote package does not yet expose all the
+APIs used by the app. Prepare the matching dependency and workspace before building:
+
+```sh
+scripts/prepare_cotabby_workspace.sh
+```
+
+The build commands above use this workspace to resolve the patched package.
+`scripts/build_and_run.sh` does this preparation automatically. The helper verifies the existing checkout and
+fails on drift instead of overwriting edits. For intentional native development, use
+`python3 scripts/create-inference-workspace.py /absolute/path/to/CotabbyInference` to create a
+separate local workspace. Keep generated workspaces and machine-specific paths out of commits.
+
+After validation, remove `build/DerivedData` when its build artifacts are no longer needed. Keep
+any evaluation reports or model downloads you still need separately under `build/`.
+
 
 ## Lint
 

@@ -15,9 +15,9 @@ struct MenuBarStatusLabelView: View {
         HStack(spacing: 2) {
             Image("MenuBarCatIcon")
                 .renderingMode(.template)
-                .resizable()
-                .scaledToFit()
-                .frame(height: 16)
+                // Match the asset's 18-point canvas so macOS uses its native 1x/2x strokes.
+                .frame(width: 18, height: 18)
+                .accessibilityLabel("Cotabby")
 
             if suggestionSettings.isTemporarilyPaused || !suggestionSettings.isGloballyEnabled {
                 Image(systemName: "pause.fill")

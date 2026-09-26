@@ -1,0 +1,376 @@
+Command line invocation:
+    /Applications/Xcode.app/Contents/Developer/usr/bin/xcodebuild test-without-building -xctestrun /Users/jmcasler/.codex/experiments/cotabby-1337-round3-20260917/cotabby/build/DerivedData/Build/Products/Cotabby_phrase-eval-7d37889e475649bdbb8d42bb8b866dbe.xctestrun -destination platform=macOS -derivedDataPath /Users/jmcasler/.codex/experiments/cotabby-1337-round3-20260917/cotabby/build/DerivedData "-only-testing:CotabbyTests/PhrasePredictionEvalTests/testReplayCorpus" -parallel-testing-enabled NO -test-timeouts-enabled NO
+
+--- xcodebuild: WARNING: Using the first of multiple matching destinations:
+{ platform:macOS, arch:arm64e, id:00006001-0018610E1EF8801E, name:My Mac }
+{ platform:macOS, arch:arm64, id:00006001-0018610E1EF8801E, name:My Mac }
+{ platform:macOS, arch:x86_64, id:00006001-0018610E1EF8801E, name:My Mac }
+{ platform:macOS, arch:arm64e, variant:Mac Catalyst, id:00006001-0018610E1EF8801E, name:My Mac }
+{ platform:macOS, arch:arm64, variant:Mac Catalyst, id:00006001-0018610E1EF8801E, name:My Mac }
+{ platform:macOS, arch:x86_64, variant:Mac Catalyst, id:00006001-0018610E1EF8801E, name:My Mac }
+{ platform:macOS, arch:arm64e, variant:DriverKit, id:00006001-0018610E1EF8801E, name:My Mac }
+{ platform:macOS, arch:arm64, variant:DriverKit, id:00006001-0018610E1EF8801E, name:My Mac }
+{ platform:macOS, arch:arm64e, variant:Designed for [iPad,iPhone], id:00006001-0018610E1EF8801E, name:My Mac }
+{ platform:macOS, arch:arm64, variant:Designed for [iPad,iPhone], id:00006001-0018610E1EF8801E, name:My Mac }
+2026-09-17 09:41:56.143149-0700 Cotabby[12320:4963244] [Connection] Unable to get synchronousRemoteObjectProxy, error: Error Domain=NSCocoaErrorDomain Code=4097 "connection to service named com.apple.linkd.autoShortcut" UserInfo={NSDebugDescription=connection to service named com.apple.linkd.autoShortcut}
+2026-09-17 09:41:56.143152-0700 Cotabby[12320:4963228] [app] Logging initialized
+2026-09-17 09:41:56.143381-0700 Cotabby[12320:4963244] [Application] Error registering app with intents framework: Error Domain=NSCocoaErrorDomain Code=4097 "connection to service named com.apple.linkd.autoShortcut" UserInfo={NSDebugDescription=connection to service named com.apple.linkd.autoShortcut}
+2026-09-17 09:41:56.143863-0700 Cotabby[12320:4963240] [Connection] Unable to get synchronousRemoteObjectProxy, error: Error Domain=NSCocoaErrorDomain Code=4097 "connection to service named com.apple.linkd.autoShortcut" UserInfo={NSDebugDescription=connection to service named com.apple.linkd.autoShortcut}
+2026-09-17 09:41:56.143879-0700 Cotabby[12320:4963240] [Connection] Unable to re-register with Process Instance Registry, error: Error Domain=NSCocoaErrorDomain Code=4097 "connection to service named com.apple.linkd.autoShortcut" UserInfo={NSDebugDescription=connection to service named com.apple.linkd.autoShortcut}
+2026-09-17 09:41:56.144520-0700 Cotabby[12320:4963244] [Connection] Unable to get synchronousRemoteObjectProxy, error: Error Domain=NSCocoaErrorDomain Code=4097 "connection to service named com.apple.linkd.autoShortcut" UserInfo={NSDebugDescription=connection to service named com.apple.linkd.autoShortcut}
+2026-09-17 09:41:56.144541-0700 Cotabby[12320:4963228] [app] Building dependency graph
+2026-09-17 09:41:56.144546-0700 Cotabby[12320:4963244] [Connection] Unable to re-register with Process Instance Registry, error: Error Domain=NSCocoaErrorDomain Code=4097 "connection to service named com.apple.linkd.autoShortcut" UserInfo={NSDebugDescription=connection to service named com.apple.linkd.autoShortcut}
+2026-09-17 09:41:56.145142-0700 Cotabby[12320:4963239] [Connection] Will NOT re-try to establish the connection
+2026-09-17 09:41:56.145207-0700 Cotabby[12320:4963240] [Connection] Unable to get synchronousRemoteObjectProxy, error: Error Domain=NSCocoaErrorDomain Code=4097 "connection to service named com.apple.linkd.autoShortcut" UserInfo={NSDebugDescription=connection to service named com.apple.linkd.autoShortcut}
+2026-09-17 09:41:56.145224-0700 Cotabby[12320:4963240] [Connection] Unable to re-register with Process Instance Registry, error: Error Domain=NSCocoaErrorDomain Code=4097 "connection to service named com.apple.linkd.autoShortcut" UserInfo={NSDebugDescription=connection to service named com.apple.linkd.autoShortcut}
+2026-09-17 09:41:56.154262-0700 Cotabby[12320:4963228] [runtime] Discovered 0 model(s)
+2026-09-17 09:41:56.154474-0700 Cotabby[12320:4963228] [runtime] Configured selected model: none
+2026-09-17 09:41:56.154629-0700 Cotabby[12320:4963228] [runtime] Configured selected model: none
+2026-09-17 09:41:56.169584-0700 Cotabby[12320:4963228] [app] Foundation model engine available
+2026-09-17 09:41:56.185209-0700 Cotabby[12320:4963228] [focus] Focus poll interval changed to 50ms
+2026-09-17 09:41:56.262516-0700 Cotabby[12320:4963228] [app] Unit test host detected; skipping production service startup
+Test Suite 'Selected tests' started at 2026-09-17 09:41:56.293.
+Test Suite 'CotabbyTests.xctest' started at 2026-09-17 09:41:56.294.
+Test Suite 'PhrasePredictionEvalTests' started at 2026-09-17 09:41:56.294.
+Test Case '-[CotabbyTests.PhrasePredictionEvalTests testReplayCorpus]' started.
+2026-09-17 09:41:56.379538-0700 Cotabby[12320:4963228] [runtime] Discovered 1 model(s)
+2026-09-17 09:41:56.387428-0700 Cotabby[12320:4963228] [runtime] Discovered 1 model(s)
+2026-09-17 09:41:56.395035-0700 Cotabby[12320:4963228] [runtime] Discovered 1 model(s)
+2026-09-17 09:41:56.402336-0700 Cotabby[12320:4963228] [runtime] Loading tabby-2-nano into memory
+2026-09-17 09:41:56.402373-0700 Cotabby[12320:4963242] [runtime] Loading model
+2026-09-17 09:41:57.136821-0700 Cotabby[12320:4963242] [runtime] Model loaded
+2026-09-17 09:41:57.137055-0700 Cotabby[12320:4963228] [runtime] Runtime ready: model=tabby-2-nano ctx=2048 threads=8 gpu=-1
+2026-09-17 09:41:57.146328-0700 Cotabby[12320:4963228] [runtime] Loading tabby-2-nano into memory
+2026-09-17 09:41:57.146361-0700 Cotabby[12320:4963242] [runtime] Loading model
+2026-09-17 09:41:57.640516-0700 Cotabby[12320:4963242] [runtime] Model loaded
+2026-09-17 09:41:57.640728-0700 Cotabby[12320:4963228] [runtime] Runtime ready: model=tabby-2-nano ctx=2048 threads=8 gpu=-1
+2026-09-17 09:41:57.650808-0700 Cotabby[12320:4963228] [runtime] Loading tabby-2-nano into memory
+2026-09-17 09:41:57.650828-0700 Cotabby[12320:4963242] [runtime] Loading model
+2026-09-17 09:41:58.125017-0700 Cotabby[12320:4963242] [runtime] Model loaded
+2026-09-17 09:41:58.125250-0700 Cotabby[12320:4963228] [runtime] Runtime ready: model=tabby-2-nano ctx=2048 threads=8 gpu=-1
+REPLAY workers=3; independent native contexts; latency includes worker contention
+PHRASE 2/140 conversation-026 [screen] worker=2: 2/4
+PHRASE 1/140 conversation-005 [none] worker=1: 1/4
+PHRASE 3/140 conversation-049 [none] worker=3: 4/6
+PHRASE 1/140 conversation-005 [screen] worker=1: 1/4
+PHRASE 2/140 conversation-026 [none] worker=2: 1/4
+PHRASE 5/140 conversation-062 [none] worker=2: 1/5
+PHRASE 3/140 conversation-049 [screen] worker=3: 5/6
+PHRASE 4/140 conversation-050 [screen] worker=1: 0/5
+PHRASE 5/140 conversation-062 [screen] worker=2: 3/5
+PHRASE 4/140 conversation-050 [none] worker=1: 0/5
+PHRASE 6/140 conversation-076 [screen] worker=3: 1/5
+PHRASE 8/140 conversation-083 [screen] worker=2: 2/5
+PHRASE 7/140 conversation-081 [none] worker=1: 0/4
+PHRASE 8/140 conversation-083 [none] worker=2: 2/5
+PHRASE 6/140 conversation-076 [none] worker=3: 1/5
+PHRASE 7/140 conversation-081 [screen] worker=1: 1/4
+PHRASE 9/140 conversation-090 [none] worker=3: 1/4
+PHRASE 11/140 conversation-105 [none] worker=2: 0/4
+PHRASE 10/140 conversation-093 [screen] worker=1: 1/4
+PHRASE 9/140 conversation-090 [screen] worker=3: 1/4
+PHRASE 11/140 conversation-105 [screen] worker=2: 0/4
+PHRASE 10/140 conversation-093 [none] worker=1: 1/4
+PHRASE 14/140 conversation-148 [screen] worker=2: 2/4
+PHRASE 12/140 conversation-113 [screen] worker=3: 2/4
+PHRASE 14/140 conversation-148 [none] worker=2: 2/4
+PHRASE 13/140 conversation-130 [none] worker=1: 2/6
+PHRASE 12/140 conversation-113 [none] worker=3: 1/4
+PHRASE 13/140 conversation-130 [screen] worker=1: 2/6
+PHRASE 17/140 conversation-158 [none] worker=2: 1/5
+PHRASE 15/140 conversation-154 [none] worker=3: 0/5
+PHRASE 16/140 conversation-155 [screen] worker=1: 3/6
+PHRASE 17/140 conversation-158 [screen] worker=2: 1/5
+PHRASE 15/140 conversation-154 [screen] worker=3: 0/5
+PHRASE 20/140 conversation-184 [screen] worker=2: 3/6
+PHRASE 18/140 conversation-176 [screen] worker=3: 0/5
+PHRASE 18/140 conversation-176 [none] worker=3: 0/5
+PHRASE 20/140 conversation-184 [none] worker=2: 3/6
+PHRASE 16/140 conversation-155 [none] worker=1: 3/6
+PHRASE 19/140 conversation-182 [none] worker=1: 2/5
+PHRASE 21/140 science-008 [none] worker=3: 2/5
+PHRASE 23/140 science-020 [none] worker=2: 3/5
+PHRASE 19/140 conversation-182 [screen] worker=1: 3/5
+PHRASE 23/140 science-020 [screen] worker=2: 3/5
+PHRASE 21/140 science-008 [screen] worker=3: 2/5
+PHRASE 26/140 science-057 [screen] worker=2: 2/6
+PHRASE 22/140 science-015 [screen] worker=1: 1/7
+PHRASE 24/140 science-024 [screen] worker=3: 2/5
+PHRASE 26/140 science-057 [none] worker=2: 3/6
+PHRASE 29/140 science-099 [none] worker=2: 3/3
+PHRASE 24/140 science-024 [none] worker=3: 2/5
+PHRASE 22/140 science-015 [none] worker=1: 1/7
+PHRASE 29/140 science-099 [screen] worker=2: 3/3
+PHRASE 25/140 science-044 [none] worker=1: 4/5
+PHRASE 27/140 science-059 [none] worker=3: 2/5
+PHRASE 25/140 science-044 [screen] worker=1: 4/5
+PHRASE 27/140 science-059 [screen] worker=3: 2/5
+PHRASE 32/140 science-126 [screen] worker=2: 2/5
+PHRASE 28/140 science-091 [screen] worker=1: 3/4
+PHRASE 32/140 science-126 [none] worker=2: 2/5
+PHRASE 30/140 science-104 [screen] worker=3: 3/6
+PHRASE 28/140 science-091 [none] worker=1: 3/4
+PHRASE 35/140 science-150 [none] worker=2: 3/5
+PHRASE 31/140 science-121 [none] worker=1: 3/5
+PHRASE 35/140 science-150 [screen] worker=2: 2/5
+2026-09-17 09:42:15.230915-0700 Cotabby[12320:4963242] [runtime] Prompt cache restoration missed; rebuilding this request
+PHRASE 30/140 science-104 [none] worker=3: 3/6
+PHRASE 38/140 science-172 [screen] worker=2: 2/5
+PHRASE 33/140 science-127 [none] worker=3: 2/4
+2026-09-17 09:42:16.066451-0700 Cotabby[12320:4963242] [runtime] Prompt cache restoration missed; rebuilding this request
+PHRASE 38/140 science-172 [none] worker=2: 2/5
+PHRASE 31/140 science-121 [screen] worker=1: 3/5
+PHRASE 33/140 science-127 [screen] worker=3: 2/4
+PHRASE 41/140 entertainment-005 [none] worker=2: 1/5
+PHRASE 36/140 science-156 [screen] worker=3: 1/6
+PHRASE 34/140 science-138 [screen] worker=1: 5/8
+PHRASE 41/140 entertainment-005 [screen] worker=2: 2/5
+PHRASE 36/140 science-156 [none] worker=3: 2/6
+PHRASE 44/140 entertainment-046 [screen] worker=2: 1/5
+PHRASE 34/140 science-138 [none] worker=1: 7/8
+PHRASE 37/140 science-164 [none] worker=1: 2/6
+PHRASE 44/140 entertainment-046 [none] worker=2: 1/5
+PHRASE 39/140 science-178 [none] worker=3: 3/6
+PHRASE 37/140 science-164 [screen] worker=1: 4/6
+PHRASE 47/140 entertainment-105 [none] worker=2: 1/6
+PHRASE 47/140 entertainment-105 [screen] worker=2: 2/6
+PHRASE 39/140 science-178 [screen] worker=3: 3/6
+PHRASE 40/140 science-187 [screen] worker=1: 3/7
+PHRASE 50/140 entertainment-108 [screen] worker=2: 3/7
+PHRASE 50/140 entertainment-108 [none] worker=2: 1/7
+PHRASE 42/140 entertainment-017 [screen] worker=3: 1/5
+PHRASE 40/140 science-187 [none] worker=1: 3/7
+PHRASE 53/140 entertainment-124 [none] worker=2: 1/5
+PHRASE 43/140 entertainment-025 [none] worker=1: 1/5
+PHRASE 42/140 entertainment-017 [none] worker=3: 0/5
+PHRASE 53/140 entertainment-124 [screen] worker=2: 1/5
+PHRASE 43/140 entertainment-025 [screen] worker=1: 1/5
+PHRASE 56/140 entertainment-145 [screen] worker=2: 0/4
+PHRASE 45/140 entertainment-050 [none] worker=3: 0/7
+PHRASE 46/140 entertainment-077 [screen] worker=1: 1/5
+PHRASE 45/140 entertainment-050 [screen] worker=3: 2/7
+PHRASE 56/140 entertainment-145 [none] worker=2: 0/4
+PHRASE 46/140 entertainment-077 [none] worker=1: 0/5
+PHRASE 48/140 entertainment-106 [screen] worker=3: 3/6
+PHRASE 48/140 entertainment-106 [none] worker=3: 3/6
+PHRASE 49/140 entertainment-107 [none] worker=1: 0/7
+PHRASE 59/140 entertainment-177 [none] worker=2: 2/5
+PHRASE 51/140 entertainment-110 [none] worker=3: 1/6
+PHRASE 49/140 entertainment-107 [screen] worker=1: 0/7
+PHRASE 59/140 entertainment-177 [screen] worker=2: 1/5
+PHRASE 51/140 entertainment-110 [screen] worker=3: 1/6
+PHRASE 52/140 entertainment-112 [screen] worker=1: 2/5
+PHRASE 62/140 work-009 [screen] worker=2: 3/6
+PHRASE 54/140 entertainment-137 [screen] worker=3: 1/5
+PHRASE 52/140 entertainment-112 [none] worker=1: 1/5
+PHRASE 54/140 entertainment-137 [none] worker=3: 1/5
+PHRASE 62/140 work-009 [none] worker=2: 2/6
+PHRASE 65/140 work-042 [none] worker=2: 3/6
+PHRASE 57/140 entertainment-159 [none] worker=3: 2/7
+PHRASE 55/140 entertainment-140 [none] worker=1: 2/6
+PHRASE 65/140 work-042 [screen] worker=2: 3/6
+PHRASE 57/140 entertainment-159 [screen] worker=3: 5/7
+PHRASE 55/140 entertainment-140 [screen] worker=1: 3/6
+PHRASE 60/140 entertainment-179 [screen] worker=3: 1/4
+PHRASE 68/140 work-057 [screen] worker=2: 0/6
+PHRASE 58/140 entertainment-168 [screen] worker=1: 4/6
+PHRASE 60/140 entertainment-179 [none] worker=3: 1/4
+PHRASE 58/140 entertainment-168 [none] worker=1: 3/6
+PHRASE 68/140 work-057 [none] worker=2: 1/6
+PHRASE 61/140 work-003 [none] worker=1: 4/5
+PHRASE 63/140 work-014 [none] worker=3: 1/5
+PHRASE 61/140 work-003 [screen] worker=1: 4/5
+PHRASE 71/140 work-070 [none] worker=2: 1/6
+PHRASE 63/140 work-014 [screen] worker=3: 1/5
+PHRASE 64/140 work-037 [screen] worker=1: 4/6
+2026-09-17 09:42:39.622449-0700 Cotabby[12320:4963257] [runtime] Prompt cache restoration missed; rebuilding this request
+PHRASE 64/140 work-037 [none] worker=1: 3/6
+PHRASE 66/140 work-043 [screen] worker=3: 1/6
+PHRASE 71/140 work-070 [screen] worker=2: 0/6
+PHRASE 67/140 work-053 [none] worker=1: 2/6
+PHRASE 74/140 work-116 [screen] worker=2: 1/5
+PHRASE 66/140 work-043 [none] worker=3: 1/6
+PHRASE 67/140 work-053 [screen] worker=1: 2/6
+PHRASE 69/140 work-064 [none] worker=3: 1/4
+PHRASE 70/140 work-068 [screen] worker=1: 3/6
+PHRASE 74/140 work-116 [none] worker=2: 2/5
+PHRASE 69/140 work-064 [screen] worker=3: 1/4
+PHRASE 70/140 work-068 [none] worker=1: 1/6
+PHRASE 72/140 work-091 [screen] worker=3: 3/3
+PHRASE 72/140 work-091 [none] worker=3: 3/3
+PHRASE 77/140 work-168 [none] worker=2: 3/6
+PHRASE 73/140 work-114 [none] worker=1: 1/6
+PHRASE 77/140 work-168 [screen] worker=2: 3/6
+PHRASE 75/140 work-124 [none] worker=3: 3/8
+PHRASE 73/140 work-114 [screen] worker=1: 1/6
+PHRASE 80/140 work-187 [screen] worker=2: 4/7
+PHRASE 75/140 work-124 [screen] worker=3: 3/8
+PHRASE 76/140 work-129 [screen] worker=1: 1/6
+PHRASE 78/140 work-169 [screen] worker=3: 1/5
+PHRASE 80/140 work-187 [none] worker=2: 4/7
+PHRASE 78/140 work-169 [none] worker=3: 1/5
+PHRASE 76/140 work-129 [none] worker=1: 2/6
+PHRASE 83/140 technology-030 [none] worker=2: 3/5
+PHRASE 83/140 technology-030 [screen] worker=2: 5/5
+PHRASE 81/140 technology-018 [none] worker=3: 1/5
+PHRASE 79/140 work-171 [none] worker=1: 2/6
+PHRASE 86/140 technology-053 [screen] worker=2: 1/4
+PHRASE 81/140 technology-018 [screen] worker=3: 2/5
+PHRASE 79/140 work-171 [screen] worker=1: 3/6
+PHRASE 86/140 technology-053 [none] worker=2: 1/4
+PHRASE 82/140 technology-024 [screen] worker=1: 0/6
+PHRASE 84/140 technology-032 [screen] worker=3: 3/6
+PHRASE 89/140 technology-071 [none] worker=2: 0/5
+PHRASE 84/140 technology-032 [none] worker=3: 2/6
+PHRASE 82/140 technology-024 [none] worker=1: 1/6
+PHRASE 89/140 technology-071 [screen] worker=2: 1/5
+PHRASE 87/140 technology-058 [none] worker=3: 0/6
+PHRASE 92/140 technology-091 [screen] worker=2: 1/5
+PHRASE 85/140 technology-052 [none] worker=1: 2/5
+PHRASE 87/140 technology-058 [screen] worker=3: 1/6
+PHRASE 92/140 technology-091 [none] worker=2: 0/5
+PHRASE 85/140 technology-052 [screen] worker=1: 1/5
+PHRASE 90/140 technology-074 [screen] worker=3: 4/8
+PHRASE 88/140 technology-062 [screen] worker=1: 3/6
+PHRASE 95/140 technology-121 [none] worker=2: 3/5
+PHRASE 88/140 technology-062 [none] worker=1: 3/6
+PHRASE 90/140 technology-074 [none] worker=3: 3/8
+PHRASE 95/140 technology-121 [screen] worker=2: 3/5
+PHRASE 98/140 technology-138 [screen] worker=2: 2/6
+PHRASE 91/140 technology-090 [none] worker=1: 1/7
+PHRASE 93/140 technology-099 [none] worker=3: 2/6
+PHRASE 91/140 technology-090 [screen] worker=1: 2/7
+PHRASE 98/140 technology-138 [none] worker=2: 1/6
+PHRASE 93/140 technology-099 [screen] worker=3: 2/6
+PHRASE 101/140 everyday-010 [none] worker=2: 2/6
+PHRASE 94/140 technology-118 [screen] worker=1: 3/7
+PHRASE 96/140 technology-122 [screen] worker=3: 3/6
+PHRASE 101/140 everyday-010 [screen] worker=2: 3/6
+PHRASE 94/140 technology-118 [none] worker=1: 1/7
+PHRASE 96/140 technology-122 [none] worker=3: 0/6
+PHRASE 104/140 everyday-041 [screen] worker=2: 3/4
+PHRASE 97/140 technology-126 [none] worker=1: 0/5
+PHRASE 104/140 everyday-041 [none] worker=2: 2/4
+PHRASE 99/140 technology-139 [none] worker=3: 2/7
+PHRASE 97/140 technology-126 [screen] worker=1: 1/5
+PHRASE 107/140 everyday-066 [none] worker=2: 1/4
+PHRASE 99/140 technology-139 [screen] worker=3: 2/7
+PHRASE 107/140 everyday-066 [screen] worker=2: 1/4
+PHRASE 100/140 technology-140 [screen] worker=1: 3/6
+PHRASE 102/140 everyday-025 [screen] worker=3: 5/5
+PHRASE 110/140 everyday-110 [screen] worker=2: 3/6
+PHRASE 102/140 everyday-025 [none] worker=3: 3/5
+PHRASE 100/140 technology-140 [none] worker=1: 3/6
+PHRASE 103/140 everyday-036 [none] worker=1: 3/5
+PHRASE 110/140 everyday-110 [none] worker=2: 1/6
+PHRASE 105/140 everyday-051 [none] worker=3: 2/5
+PHRASE 103/140 everyday-036 [screen] worker=1: 3/5
+PHRASE 113/140 everyday-140 [none] worker=2: 2/5
+PHRASE 105/140 everyday-051 [screen] worker=3: 2/5
+PHRASE 106/140 everyday-063 [screen] worker=1: 1/4
+PHRASE 113/140 everyday-140 [screen] worker=2: 2/5
+PHRASE 108/140 everyday-095 [screen] worker=3: 1/5
+PHRASE 116/140 everyday-164 [screen] worker=2: 4/6
+PHRASE 106/140 everyday-063 [none] worker=1: 1/4
+PHRASE 108/140 everyday-095 [none] worker=3: 1/5
+PHRASE 109/140 everyday-104 [none] worker=1: 1/5
+PHRASE 116/140 everyday-164 [none] worker=2: 3/6
+PHRASE 111/140 everyday-124 [none] worker=3: 1/5
+PHRASE 109/140 everyday-104 [screen] worker=1: 2/5
+PHRASE 111/140 everyday-124 [screen] worker=3: 1/5
+PHRASE 112/140 everyday-131 [screen] worker=1: 2/5
+PHRASE 119/140 everyday-178 [none] worker=2: 0/5
+PHRASE 114/140 everyday-157 [screen] worker=3: 1/6
+PHRASE 119/140 everyday-178 [screen] worker=2: 1/5
+PHRASE 112/140 everyday-131 [none] worker=1: 2/5
+PHRASE 114/140 everyday-157 [none] worker=3: 2/6
+PHRASE 122/140 travel-019 [screen] worker=2: 5/6
+PHRASE 115/140 everyday-161 [none] worker=1: 2/6
+PHRASE 122/140 travel-019 [none] worker=2: 3/6
+PHRASE 117/140 everyday-168 [none] worker=3: 2/6
+PHRASE 115/140 everyday-161 [screen] worker=1: 2/6
+PHRASE 125/140 travel-055 [none] worker=2: 1/5
+PHRASE 118/140 everyday-169 [screen] worker=1: 0/5
+PHRASE 117/140 everyday-168 [screen] worker=3: 2/6
+PHRASE 125/140 travel-055 [screen] worker=2: 2/5
+PHRASE 118/140 everyday-169 [none] worker=1: 0/5
+PHRASE 120/140 everyday-179 [screen] worker=3: 3/7
+PHRASE 128/140 travel-082 [screen] worker=2: 2/6
+PHRASE 121/140 travel-008 [none] worker=1: 0/5
+PHRASE 120/140 everyday-179 [none] worker=3: 1/7
+PHRASE 121/140 travel-008 [screen] worker=1: 0/5
+PHRASE 128/140 travel-082 [none] worker=2: 2/6
+PHRASE 124/140 travel-047 [screen] worker=1: 2/7
+PHRASE 123/140 travel-039 [none] worker=3: 1/5
+PHRASE 123/140 travel-039 [screen] worker=3: 3/5
+PHRASE 131/140 travel-104 [none] worker=2: 3/7
+PHRASE 124/140 travel-047 [none] worker=1: 1/7
+PHRASE 126/140 travel-069 [screen] worker=3: 4/6
+PHRASE 131/140 travel-104 [screen] worker=2: 3/7
+PHRASE 127/140 travel-074 [none] worker=1: 1/5
+PHRASE 126/140 travel-069 [none] worker=3: 3/6
+PHRASE 127/140 travel-074 [screen] worker=1: 1/5
+PHRASE 134/140 travel-130 [screen] worker=2: 1/7
+PHRASE 130/140 travel-101 [screen] worker=1: 3/6
+PHRASE 129/140 travel-095 [none] worker=3: 3/7
+PHRASE 130/140 travel-101 [none] worker=1: 3/6
+PHRASE 134/140 travel-130 [none] worker=2: 0/7
+PHRASE 129/140 travel-095 [screen] worker=3: 3/7
+PHRASE 133/140 travel-112 [none] worker=1: 0/5
+PHRASE 132/140 travel-108 [screen] worker=3: 2/6
+PHRASE 137/140 travel-169 [none] worker=2: 1/6
+PHRASE 133/140 travel-112 [screen] worker=1: 1/5
+PHRASE 132/140 travel-108 [none] worker=3: 3/6
+PHRASE 137/140 travel-169 [screen] worker=2: 1/6
+PHRASE 135/140 travel-138 [none] worker=3: 1/5
+PHRASE 136/140 travel-154 [screen] worker=1: 3/6
+PHRASE 140/140 travel-189 [screen] worker=2: 2/7
+PHRASE 135/140 travel-138 [screen] worker=3: 2/5
+PHRASE 136/140 travel-154 [none] worker=1: 2/6
+PHRASE 138/140 travel-176 [screen] worker=3: 3/7
+PHRASE 139/140 travel-181 [none] worker=1: 3/6
+PHRASE 140/140 travel-189 [none] worker=2: 2/7
+PHRASE 139/140 travel-181 [screen] worker=1: 4/6
+PHRASE 138/140 travel-176 [none] worker=3: 3/7
+Sequential prefix replay through local llama, request factory, normalization and final seam guard. Synthetic OCR text uses production cleanup, selection and prompt budgeting; no screenshots or Vision recognition. Prior draft and surface metadata are held fixed across conditions. No future answer, clipboard, real keystrokes, debounce, streaming or acceptance-tail reuse. Cache reset between conditions; fixed seed; teacher-forced typing.
+SUITE (screen): 140 phrases, next-word 38.18% (294/770), coverage 100.00%, precision 38.18%
+Equal-category next-word score: 38.16%
+conversation: 20 phrases, next-word 34.38% (33/96), coverage 100.00%, precision 34.38%
+entertainment: 20 phrases, next-word 31.53% (35/111), coverage 100.00%, precision 31.53%
+everyday: 20 phrases, next-word 40.00% (42/105), coverage 100.00%, precision 40.00%
+science: 20 phrases, next-word 48.15% (52/108), coverage 100.00%, precision 48.15%
+technology: 20 phrases, next-word 37.07% (43/116), coverage 100.00%, precision 37.07%
+travel: 20 phrases, next-word 39.17% (47/120), coverage 100.00%, precision 39.17%
+work: 20 phrases, next-word 36.84% (42/114), coverage 100.00%, precision 36.84%
+WITHOUT SCREEN: 140 phrases, next-word 31.30% (241/770), coverage 100.00%, precision 31.30%
+Screen-context lift: +6.88 percentage points; helped 83, harmed 30 word checkpoints
+  conversation lift +7.29 pp
+  entertainment lift +11.71 pp
+  everyday lift +9.52 pp
+  science lift -2.78 pp
+  technology lift +12.07 pp
+  travel lift +9.17 pp
+  work lift +0.88 pp
+2026-09-17 09:43:28.853506-0700 Cotabby[12320:4963228] [runtime] Runtime shutdown requested
+2026-09-17 09:43:28.914563-0700 Cotabby[12320:4963228] [runtime] Runtime shutdown complete
+2026-09-17 09:43:28.914750-0700 Cotabby[12320:4963228] [runtime] Runtime shutdown requested
+2026-09-17 09:43:28.945363-0700 Cotabby[12320:4963228] [runtime] Runtime shutdown complete
+2026-09-17 09:43:28.945525-0700 Cotabby[12320:4963228] [runtime] Runtime shutdown requested
+2026-09-17 09:43:28.970061-0700 Cotabby[12320:4963228] [runtime] Runtime shutdown complete
+Test Case '-[CotabbyTests.PhrasePredictionEvalTests testReplayCorpus]' passed (92.710 seconds).
+Test Suite 'PhrasePredictionEvalTests' passed at 2026-09-17 09:43:29.004.
+	 Executed 1 test, with 0 failures (0 unexpected) in 92.710 (92.711) seconds
+Test Suite 'CotabbyTests.xctest' passed at 2026-09-17 09:43:29.005.
+	 Executed 1 test, with 0 failures (0 unexpected) in 92.710 (92.711) seconds
+Test Suite 'Selected tests' passed at 2026-09-17 09:43:29.005.
+	 Executed 1 test, with 0 failures (0 unexpected) in 92.710 (92.712) seconds
+2026-09-17 09:43:29.443 xcodebuild[12317:4963176] [MT] IDETestOperationsObserverDebug: 93.623 elapsed -- Testing started completed.
+2026-09-17 09:43:29.443 xcodebuild[12317:4963176] [MT] IDETestOperationsObserverDebug: 0.000 sec, +0.000 sec -- start
+2026-09-17 09:43:29.443 xcodebuild[12317:4963176] [MT] IDETestOperationsObserverDebug: 93.623 sec, +93.623 sec -- end
+
+Test session results, code coverage, and logs:
+	/Users/jmcasler/.codex/experiments/cotabby-1337-round3-20260917/cotabby/build/DerivedData/Logs/Test/Test-Cotabby-2026.09.17_09-41-55--0700.xcresult
+
+** TEST EXECUTE SUCCEEDED **
+
+Testing started

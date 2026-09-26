@@ -140,6 +140,13 @@ struct SuggestionSettingsSnapshot: Equatable, Sendable {
     let debounceMilliseconds: Int
     let focusPollIntervalMilliseconds: Int
     let isMultiLineEnabled: Bool
+    /// Whether new suggestions may start inside an unfinished word. The coordinator reads this
+    /// request-timing policy from its current snapshot; matching an already visible tail remains
+    /// independent so turning it off does not make ghost text disappear while the user follows it.
+    let suggestWithinWords: Bool
+    /// Whether a preview includes following words. Turning this off reveals one word at a time;
+    /// the session keeps the complete prediction ready so finishing that word needs no new request.
+    let showFollowingWords: Bool
     /// When true (the default), accepting a word also takes punctuation attached to it. When false,
     /// trailing punctuation is left as its own acceptance part so a single Tab takes the word alone.
     let autoAcceptTrailingPunctuation: Bool
@@ -153,6 +160,8 @@ struct SuggestionSettingsSnapshot: Equatable, Sendable {
     /// finishes. Travels in the snapshot so the prediction path reads the live value when deciding
     /// whether to pass an `onPartial` handler to the engine.
     let streamSuggestionsWhileGenerating: Bool
+    /// Authorizes retaining local generation across matching input; presentation is separate.
+    let predictAheadWhileTyping: Bool
     /// When true, the screenshot/OCR visual-context pipeline is skipped entirely for lower-latency
     /// suggestions. Defaults to false. Only affects visual context — predictions still run.
     let isFastModeEnabled: Bool
@@ -163,7 +172,7 @@ struct SuggestionSettingsSnapshot: Equatable, Sendable {
     /// How much of the buffered suggestion the primary accept key takes per press. Read once per
     /// accept call so a mid-press setting change can't strand a partially-handled press.
     let acceptanceGranularity: AcceptanceGranularity
-    /// When true, Cotabby checks the current word with `NSSpellChecker` and hides the normal
+    /// When true, Cotabby checks the committed word with `NSSpellChecker` and hides the normal
     /// continuation when it looks misspelled. Travels in the snapshot so the prediction gate reads
     /// the live value without subscribing to the settings model directly.
     let suppressCompletionsOnTypo: Bool

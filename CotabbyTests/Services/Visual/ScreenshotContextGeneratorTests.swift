@@ -4,6 +4,24 @@ import XCTest
 
 @MainActor
 final class ScreenshotContextGeneratorTests: XCTestCase {
+    func test_localProfileCapturesFullWindowAndDoesNotReuseLowerResolutionEndpointOCR() async throws {
+        let lines = (0..<80).map { OCRTextHygiene.OCRLine(text: "Project agenda item \($0)", confidence: 1) }
+        let extractor = CountingTextExtractor(extracted: ExtractedScreenText(
+            text: lines.map(\.text).joined(separator: "\n"), lineCount: lines.count, lines: lines
+        ))
+        let capture = RecordingScreenshotCapture(screenshot: CapturedWindowScreenshot(image: makeImage(), windowTitle: nil))
+        let generator = ScreenshotContextGenerator(screenshotService: capture, textExtractor: extractor)
+        let endpoint = try await generator.generateContext(for: makeSnapshot(), configuration: .default)
+        let local = try await generator.generateContext(for: makeSnapshot(), configuration: .local)
+        _ = try await generator.generateContext(for: makeSnapshot(), configuration: .local)
+        XCTAssertEqual(capture.fullWindowRequests, [false, true, true])
+        XCTAssertEqual(extractor.extractionCount, 2)
+        XCTAssertLessThanOrEqual(endpoint.text.count, 1500)
+        XCTAssertFalse(endpoint.text.contains("item 79"))
+        XCTAssertTrue(local.text.contains("item 79"))
+        XCTAssertLessThanOrEqual(local.text.count, 4000)
+    }
+
     func test_generateContext_ocrTextIsCappedAndSanitized() async throws {
         let configuration = VisualContextConfiguration(
             snapshotDimension: 700,
@@ -254,9 +272,25 @@ private struct StubScreenshotCapture: WindowScreenshotCapturing {
 
     func captureSnapshot(
         around context: FocusedInputSnapshot,
-        snapshotDimension: Int
+        snapshotDimension: Int,
+        capturesEntireWindow: Bool
     ) async throws -> CapturedWindowScreenshot {
         screenshot
+    }
+}
+
+@MainActor
+private final class RecordingScreenshotCapture: WindowScreenshotCapturing {
+    let screenshot: CapturedWindowScreenshot
+    var fullWindowRequests: [Bool] = []
+
+    init(screenshot: CapturedWindowScreenshot) { self.screenshot = screenshot }
+
+    func captureSnapshot(
+        around context: FocusedInputSnapshot, snapshotDimension: Int, capturesEntireWindow: Bool
+    ) async throws -> CapturedWindowScreenshot {
+        fullWindowRequests.append(capturesEntireWindow)
+        return screenshot
     }
 }
 

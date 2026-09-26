@@ -10,23 +10,21 @@ final class ContextBuffer {
     private(set) var currentContext: FocusedInputContext?
 
     private var lastSignature: String?
-    private var lastProcessIdentifier: Int32?
+    private var lastSessionIdentity: FocusedInputSessionIdentity?
     private var nextGeneration: UInt64 = 0
 
     /// Converts the latest focus snapshot into a stable context and bumps the generation when
-    /// either the target process or the text/selection signature changes.
+    /// either the writing session or the text/selection signature changes.
     func materialize(from snapshot: FocusedInputSnapshot) -> FocusedInputContext {
         let signature = snapshot.contentSignature
 
-        // We bump the generation on process switch or content change. We intentionally use
-        // `processIdentifier` instead of `elementIdentifier` here because Chrome recycles
-        // AX node tokens between polls, making CFHash-based identity unstable. Intra-process
-        // field switches are detected by the content signature changing.
-        if snapshot.processIdentifier != lastProcessIdentifier || signature != lastSignature {
+        // Identical drafts in two chat tabs are different requests. Session identity includes
+        // navigation but excludes volatile AX tokens, so a wrapper refresh alone stays harmless.
+        if snapshot.sessionIdentity != lastSessionIdentity || signature != lastSignature {
             nextGeneration &+= 1
         }
 
-        lastProcessIdentifier = snapshot.processIdentifier
+        lastSessionIdentity = snapshot.sessionIdentity
         lastSignature = signature
 
         let context = FocusedInputContext(snapshot: snapshot, generation: nextGeneration)
@@ -37,7 +35,7 @@ final class ContextBuffer {
     /// Resets the generation baseline when the suggestion pipeline is fully disabled.
     func clear() {
         lastSignature = nil
-        lastProcessIdentifier = nil
+        lastSessionIdentity = nil
         currentContext = nil
         nextGeneration &+= 1
     }

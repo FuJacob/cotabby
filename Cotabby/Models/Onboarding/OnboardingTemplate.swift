@@ -99,9 +99,10 @@ enum OnboardingTemplate: String, CaseIterable, Identifiable, Equatable, Sendable
         }
     }
 
-    /// Quick favors low latency by skipping screen-context extraction.
+    /// Every preset keeps surrounding text available. The inverse flag remains compatible with
+    /// the settings store; screen capture runs separately from suggestion generation.
     var enablesFastMode: Bool {
-        self == .quick
+        false
     }
 
     /// Multi-line is off in every tier so a fresh user does not get long block completions before

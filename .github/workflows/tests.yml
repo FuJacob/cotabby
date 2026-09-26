@@ -44,6 +44,9 @@ jobs:
         with:
           xcode-version: latest-stable
 
+      - name: Prepare matching inference dependency
+        run: scripts/prepare_cotabby_workspace.sh
+
       - name: Toolchain info
         run: |
           xcodebuild -version
@@ -53,14 +56,22 @@ jobs:
       # and the test bundle's project settings already mirror this. Without
       # it, xcodebuild would refuse to embed the test xctest bundle into the
       # host app's Contents/PlugIns for loading.
+      - name: Test Python tooling
+        run: python3 -m unittest discover -s scripts/tests
+
       - name: Run tests
         # FoundationModelDriftEvalTests is excluded here: it drives the real on-device Apple
         # Intelligence model (absent on CI runners) and is non-deterministic. It self-skips via
         # RUN_FM_EVAL too, but skipping it explicitly keeps the CI intent visible.
         run: |
           xcodebuild test \
-            -project Cotabby.xcodeproj \
+            -workspace build/cotabby-dependencies/Cotabby.xcworkspace \
             -scheme Cotabby \
             -destination 'platform=macOS' \
+            -derivedDataPath build/DerivedData \
             -skip-testing:CotabbyTests/FoundationModelDriftEvalTests \
             CODE_SIGNING_ALLOWED=NO
+
+      - name: Clean build cache
+        if: always()
+        run: rm -rf build/DerivedData

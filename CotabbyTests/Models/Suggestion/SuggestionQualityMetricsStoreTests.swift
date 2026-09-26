@@ -7,6 +7,16 @@ final class SuggestionQualityMetricsStoreTests: XCTestCase {
         UserDefaults(suiteName: "CotabbyTests.qualityMetrics.\(UUID().uuidString)") ?? .standard
     }
 
+    func testLocalFallbackReclassifiesSuppressedRequestAsShown() {
+        let store = SuggestionQualityMetricsStore(userDefaults: freshDefaults())
+        store.recordGenerated()
+        store.recordSuppressed(reason: "emptyGeneration")
+        store.recordShown(recoveringSuppression: "emptyGeneration")
+        XCTAssertEqual(store.counters.generated, 1)
+        XCTAssertEqual(store.counters.shown, 1)
+        XCTAssertEqual(store.counters.suppressedTotal, 0)
+    }
+
     func testCountersAccumulate() {
         let store = SuggestionQualityMetricsStore(userDefaults: freshDefaults())
         store.recordGenerated()

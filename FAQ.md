@@ -44,8 +44,8 @@ on your Mac:
 - The optional OpenAI-compatible engine sends the bounded request to the endpoint
   you configure. That endpoint can be loopback, on your LAN, or a public HTTPS service.
 - When screen context is used, the screenshot is captured and read entirely
-  on-device with Apple's built-in text recognition. No images or recognized text
-  are ever uploaded.
+  on-device with Apple's built-in text recognition. Screenshots stay on-device; a bounded
+  text excerpt can be sent to your configured endpoint when that context is enabled.
 - Cotabby contains no analytics, no telemetry, and no crash reporting.
 
 Apart from a configured endpoint, Cotabby uses the network to download or search
@@ -82,7 +82,7 @@ There are three ways:
   Cotabby into your Applications folder.
 - **Build from source:** clone
   [github.com/FuJacob/cotabby](https://github.com/FuJacob/cotabby) and open the
-  project in Xcode.
+  prepared workspace in Xcode (see [CONTRIBUTING.md](CONTRIBUTING.md)).
 
 After launching, Cotabby lives in your menu bar and walks you through a short
 setup. It checks for and installs updates automatically when new versions ship.

@@ -33,11 +33,16 @@ enum SuggestionSessionReconciler {
         _ typedCharacters: String,
         session: ActiveSuggestionSession
     ) -> ActiveSuggestionSession? {
-        guard typedCharacters.isDirectTextMutation else {
+        // A correction replaces an existing word; matching its first letters is not acceptance
+        // of an append-only tail. Only continuations can advance optimistically from key events.
+        guard !session.kind.isCorrection, typedCharacters.isDirectTextMutation else {
             return nil
         }
 
-        guard session.remainingText.hasPrefix(typedCharacters) else {
+        // User-authored input is allowed to cross the visible offer's boundary. Unlike Tab, typing
+        // those characters does not accept anything unseen; it confirms more of the prediction and
+        // should keep the following words ready instead of throwing away the session.
+        guard session.predictedRemainingText.hasPrefix(typedCharacters) else {
             return nil
         }
 
@@ -49,14 +54,14 @@ enum SuggestionSessionReconciler {
     static func reconcile(
         session: ActiveSuggestionSession,
         with liveContext: FocusedInputContext,
-        pendingInsertionConsumedCount: Int?
+        pendingInsertionConsumedCount: Int?,
+        pendingTypedConsumedRange: Range<Int>? = nil
     ) -> SuggestionSessionReconciliation {
         let isAwaitingInsertedTextSync = pendingInsertionConsumedCount == session.consumedCharacterCount
 
-        // Process-level identity check instead of AX element identity. Chrome recycles AX
-        // node tokens between polls, making CFHash-based elementIdentifier unstable. The text
-        // guards below catch intra-process field switches via content divergence.
-        guard liveContext.processIdentifier == session.baseContext.processIdentifier else {
+        // Text may be identical in two conversations. Validate the writing session before even
+        // the post-insertion AX-lag tolerance, which must never authorize a different target.
+        guard liveContext.sessionIdentity == session.baseContext.sessionIdentity else {
             return .invalid("Overlay hidden because the focused field changed.")
         }
 
@@ -100,6 +105,18 @@ enum SuggestionSessionReconciler {
         }
 
         guard consumedSuffix.count >= session.consumedCharacterCount else {
+            // The tap observes a matching character before the host handles it. A stale AX prefix
+            // is therefore expected until that character publishes. Unlike synthetic insertion,
+            // ordinary typing never excuses a changed prefix, suffix, selection, or focus event:
+            // all those guards have already passed before this narrowly scoped tolerance applies.
+            if pendingTypedConsumedRange?.upperBound == session.consumedCharacterCount,
+               pendingTypedConsumedRange?.contains(consumedSuffix.count) == true,
+               liveContext.focusChangeSequence == session.baseContext.focusChangeSequence {
+                return tolerateTransientPostInsertionLag(
+                    session: session,
+                    pendingInsertionConsumedCount: pendingInsertionConsumedCount
+                )
+            }
             // Same AX lag protection: if we just Tab-inserted, the preceding text hasn't updated yet.
             if isAwaitingInsertedTextSync {
                 return tolerateTransientPostInsertionLag(
@@ -463,10 +480,10 @@ enum SuggestionSessionReconciler {
     /// separating space themselves after the ghost appeared, or because AX reported the prefix before
     /// that space landed.
     ///
-    /// We deliberately do NOT synthesize a word boundary. The base-model prompt ends at a clean
-    /// boundary (`BaseCompletionPromptRenderer` trims trailing whitespace), so the model's first token
-    /// already encodes intent: a leading space means "new word", none means "continue the current
-    /// word". Honoring that is what makes a mid-word completion like "after" + "noon" land as
+    /// We deliberately do NOT synthesize a word boundary. The base-model prompt preserves the exact
+    /// caret prefix, so generation continues from the boundary the user actually typed. When that
+    /// prefix has no trailing whitespace, a leading model space means "new word", while its absence
+    /// means "continue the current word". Honoring that makes "after" + "noon" land as
     /// "afternoon" instead of "after noon", while a genuine new word arrives with the model's own
     /// leading space already attached to the first acceptance chunk (`nextAcceptanceChunk` keeps it).
     /// The cost of trusting the model is that when it omits a space it should have emitted, the words

@@ -103,8 +103,7 @@ final class CotabbyAppEnvironment {
                 return calendarAccessibilityCaptureGuard.shouldSuppressCapture(
                     for: bundleIdentifier
                 )
-            },
-            publishesPollingEvents: FocusDebugOverlayController.isEnabled
+            }
         )
         // The snapshot is poll-based, so after a fast app switch the closure may briefly
         // evaluate against the previous app's identity until the next AX poll fires. This
@@ -346,7 +345,7 @@ final class CotabbyAppEnvironment {
         self.qualityMetricsStore = qualityMetricsStore
         self.settingsCoordinator = settingsCoordinator
         self.activationIndicatorController = activationIndicatorController
-        self.focusDebugOverlayController = FocusDebugOverlayController.isEnabled
+        self.focusDebugOverlayController = CotabbyDebugOptions.areOverlaysAvailable
             ? FocusDebugOverlayController()
             : nil
 

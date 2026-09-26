@@ -16,6 +16,7 @@ extension SuggestionCoordinator {
     /// Cancels any pending work and detaches long-lived callbacks during shutdown.
     func stop() {
         CotabbyLogger.suggestion.info("Suggestion coordinator stopping")
+        suggestionPresentationTiming.clear()
         cancelPredictionWork()
         resetCachedGenerationContext()
         visualContextCoordinator.cancel(resetState: true)
@@ -25,12 +26,14 @@ extension SuggestionCoordinator {
         overlayController.onStateChange = nil
         visualContextCoordinator.onStateChange = nil
         visualContextCoordinator.onInjectedContextReady = nil
+        visualContextCoordinator.refreshContextProvider = nil
     }
 
     /// Clears any active suggestion work before the runtime swaps to a different model.
     /// This prevents stale completions from the previous model from surviving the switch.
     func prepareForRuntimeModelSwitch() {
         CotabbyLogger.suggestion.info("Preparing for runtime model switch, clearing active state")
+        suggestionPresentationTiming.clear()
         cancelPredictionWork()
         resetCachedGenerationContext()
         interactionState.resetAll()
@@ -73,7 +76,9 @@ extension SuggestionCoordinator {
                focusSnapshot: focusModel.snapshot,
                isFastModeEnabled: settingsSnapshot.isFastModeEnabled
            ) {
-            visualContextCoordinator.startSessionIfNeeded(for: focusedSnapshot)
+            visualContextCoordinator.startSessionIfNeeded(
+                for: focusedSnapshot, configuration: .forEngine(settingsSnapshot.selectedEngine)
+            )
         }
 
         if SuggestionAvailabilityEvaluator.shouldSchedulePrediction(
@@ -89,5 +94,28 @@ extension SuggestionCoordinator {
         ) {
             schedulePrediction()
         }
+    }
+
+    /// Called by the visual service's slow refresh timer. Orchestration owns permission/settings
+    /// policy; the service owns the timer and pixels. A fresh AX read prevents a background capture
+    /// from using the field that was focused three seconds ago after the user changes windows.
+    func currentVisualRefreshContext() -> FocusedInputSnapshot? {
+        focusModel.refreshIfStale(maxAgeMilliseconds: 100)
+        let snapshot = focusModel.snapshot
+        guard let context = snapshot.context, !context.isSecure,
+              SuggestionAvailabilityEvaluator.shouldCaptureVisualContext(
+                globallyEnabled: settingsSnapshot.isGloballyEnabled,
+                temporarilyPaused: settingsSnapshot.isTemporarilyPaused,
+                isLowPowerModeActive: lowPowerModeProvider.isLowPowerModeEnabled,
+                isLowPowerModeAutoDisableEnabled: settingsSnapshot.isLowPowerModeAutoDisableEnabled,
+                disabledAppBundleIdentifiers: settingsSnapshot.disabledAppBundleIdentifiers,
+                disabledDomains: PerDomainDisableSettings.disabledDomains(),
+                suggestInIntegratedTerminals: settingsSnapshot.suggestInIntegratedTerminals,
+                inputMonitoringGranted: permissionManager.inputMonitoringGranted,
+                screenRecordingGranted: permissionManager.screenRecordingGranted,
+                focusSnapshot: snapshot,
+                isFastModeEnabled: settingsSnapshot.isFastModeEnabled
+              ) else { return nil }
+        return context
     }
 }

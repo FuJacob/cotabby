@@ -1,0 +1,18 @@
+{
+  "configuration": "Release",
+  "architecture": "arm64",
+  "version": "0.6.5",
+  "build": "2026092403",
+  "teamIdentifier": "8RN882MNR5",
+  "signingIdentity": "Apple Development",
+  "codeSignatureVerifiedAfterZIPExtraction": true,
+  "testBundlesEmbedded": false,
+  "installedApplicationReplaced": false,
+  "savedPreferencesChanged": false,
+  "archive": "build/token-healing-fix/CoHamster.zip",
+  "archiveSHA256": "b9a8e2197a4a2dba5b1ec383f44622078326c31d26748a148e122b125099d7e4",
+  "executableSHA256": "82052e943fb785c9e39eb1b113e48b40da51898a2878d3febcbb8cc05a2fe8e6",
+  "nativePatchSHA256": "235684f3fc2ca408c06d77d68f05009fd6764ba5cf670a3dbb5edb1e4fb2e859",
+  "sourceCommit": "f780483a4b6bea3ec56b22715fb88b0566b5e326",
+  "includesWorkingTreeFix": true
+}

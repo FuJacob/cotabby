@@ -119,6 +119,7 @@ struct SuggestionSettingsStore {
     private static let suggestInIntegratedTerminalsDefaultsKey = "cotabbySuggestInIntegratedTerminals"
     private static let showCaretIndicatorDefaultsKey = "cotabbyShowCaretIndicator"
     private static let selectedIndicatorModeDefaultsKey = "cotabbySelectedIndicatorMode"
+    private static let showDevelopmentDebugOverlaysDefaultsKey = "cotabbyShowDevelopmentDebugOverlays"
     private static let showAcceptanceHintDefaultsKey = "cotabbyShowAcceptanceHint"
     private static let customSuggestionTextColorHexDefaultsKey = "cotabbyCustomSuggestionTextColorHex"
     private static let ghostTextOpacityDefaultsKey = "cotabbyGhostTextOpacity"
@@ -164,12 +165,15 @@ struct SuggestionSettingsStore {
     private static let debounceMillisecondsDefaultsKey = "cotabbyDebounceMilliseconds"
     private static let focusPollIntervalMillisecondsDefaultsKey = "cotabbyFocusPollIntervalMilliseconds"
     private static let multiLineEnabledDefaultsKey = "cotabbyMultiLineEnabled"
+    private static let suggestWithinWordsDefaultsKey = "cotabbySuggestWithinWords"
+    private static let showFollowingWordsDefaultsKey = "cotabbyShowFollowingWords"
     private static let emojiPickerEnabledDefaultsKey = "cotabbyEmojiPickerEnabled"
     private static let macroExpansionEnabledDefaultsKey = "cotabbyMacroExpansionEnabled"
     private static let preferredEmojiSkinToneDefaultsKey = "cotabbyPreferredEmojiSkinTone"
     private static let preferredEmojiGenderDefaultsKey = "cotabbyPreferredEmojiGender"
     private static let autoAcceptTrailingPunctuationDefaultsKey = "cotabbyAutoAcceptTrailingPunctuation"
     private static let addSpaceAfterAcceptDefaultsKey = "cotabbyAddSpaceAfterAccept"
+    private static let predictAheadWhileTypingDefaultsKey = "cotabbyPredictAheadWhileTyping"
     private static let streamWhileGeneratingDefaultsKey = "cotabbyStreamSuggestionsWhileGenerating"
     private static let fadeInSuggestionsDefaultsKey = "cotabbyFadeInSuggestions"
     private static let fadeInDurationSecondsDefaultsKey = "cotabbyFadeInDurationSeconds"
@@ -209,6 +213,7 @@ struct SuggestionSettingsStore {
         showCaretIndicatorDefaultsKey,
         selectedIndicatorModeDefaultsKey,
         showAcceptanceHintDefaultsKey,
+        showDevelopmentDebugOverlaysDefaultsKey,
         customSuggestionTextColorHexDefaultsKey,
         ghostTextOpacityDefaultsKey,
         ghostTextSizeMultiplierDefaultsKey,
@@ -241,6 +246,8 @@ struct SuggestionSettingsStore {
         debounceMillisecondsDefaultsKey,
         focusPollIntervalMillisecondsDefaultsKey,
         multiLineEnabledDefaultsKey,
+        suggestWithinWordsDefaultsKey,
+        showFollowingWordsDefaultsKey,
         emojiPickerEnabledDefaultsKey,
         macroExpansionEnabledDefaultsKey,
         preferredEmojiSkinToneDefaultsKey,
@@ -248,6 +255,7 @@ struct SuggestionSettingsStore {
         autoAcceptTrailingPunctuationDefaultsKey,
         addSpaceAfterAcceptDefaultsKey,
         streamWhileGeneratingDefaultsKey,
+        predictAheadWhileTypingDefaultsKey,
         fadeInSuggestionsDefaultsKey,
         fadeInDurationSecondsDefaultsKey,
         fadeInDurationDefaultRevisionDefaultsKey,
@@ -451,6 +459,11 @@ struct SuggestionSettingsStore {
         }()
 
         let resolvedMultiLineEnabled = userDefaults.object(forKey: Self.multiLineEnabledDefaultsKey) as? Bool ?? false
+        // Preserve word-completion behavior for existing installs while allowing users to wait
+        // until a word boundary before a new suggestion is generated.
+        let resolvedSuggestWithinWords = userDefaults.object(forKey: Self.suggestWithinWordsDefaultsKey) as? Bool ?? true
+        // Existing installs keep the phrase preview; users can choose a quieter word-at-a-time view.
+        let resolvedShowFollowingWords = userDefaults.object(forKey: Self.showFollowingWordsDefaultsKey) as? Bool ?? true
         let resolvedEmojiPickerEnabled = userDefaults.object(forKey: Self.emojiPickerEnabledDefaultsKey) as? Bool ?? true
         let resolvedMacroExpansionEnabled = userDefaults.object(forKey: Self.macroExpansionEnabledDefaultsKey) as? Bool ?? true
         let resolvedPreferredEmojiSkinTone = userDefaults.string(forKey: Self.preferredEmojiSkinToneDefaultsKey)
@@ -463,8 +476,10 @@ struct SuggestionSettingsStore {
         // trailing space is opt-in from Settings.
         let resolvedAddSpaceAfterAccept =
             userDefaults.object(forKey: Self.addSpaceAfterAcceptDefaultsKey) as? Bool ?? false
-        // Defaults to false so the suggestion appears once, fully formed; token-by-token streaming
-        // is opt-in from Settings.
+        // Missing keys opt existing installations into prediction reuse; an explicit false survives reload.
+        let resolvedPredictAheadWhileTyping =
+            userDefaults.object(forKey: Self.predictAheadWhileTypingDefaultsKey) as? Bool ?? true
+        // Streaming is opt-in; prediction reuse works independently when a user hides partials.
         let resolvedStreamSuggestionsWhileGenerating =
             userDefaults.object(forKey: Self.streamWhileGeneratingDefaultsKey) as? Bool ?? false
         // Defaults to true: the gentle fade-in is the intended out-of-box feel. Users who prefer
@@ -575,9 +590,12 @@ struct SuggestionSettingsStore {
                 debounceMilliseconds: resolvedDebounceMilliseconds,
                 focusPollIntervalMilliseconds: resolvedFocusPollIntervalMilliseconds,
                 isMultiLineEnabled: resolvedMultiLineEnabled,
+                suggestWithinWords: resolvedSuggestWithinWords,
+                showFollowingWords: resolvedShowFollowingWords,
                 autoAcceptTrailingPunctuation: resolvedAutoAcceptTrailingPunctuation,
                 addSpaceAfterAccept: resolvedAddSpaceAfterAccept,
                 streamSuggestionsWhileGenerating: resolvedStreamSuggestionsWhileGenerating,
+                predictAheadWhileTyping: resolvedPredictAheadWhileTyping,
                 acceptanceGranularity: resolvedAcceptanceGranularity
             ),
             context: SuggestionContextSettings(
@@ -607,7 +625,8 @@ struct SuggestionSettingsStore {
                 isMenuBarWordCountVisible: resolvedMenuBarWordCountVisible,
                 mirrorPreference: resolvedMirrorPreference,
                 fadeInSuggestions: resolvedFadeInSuggestions,
-                fadeInDurationSeconds: resolvedFadeInDurationSeconds
+                fadeInDurationSeconds: resolvedFadeInDurationSeconds,
+                showDevelopmentDebugOverlays: userDefaults.bool(forKey: Self.showDevelopmentDebugOverlaysDefaultsKey)
             ),
             inlineFeatures: SuggestionInlineFeatureSettings(
                 isEmojiPickerEnabled: resolvedEmojiPickerEnabled,
@@ -643,6 +662,7 @@ struct SuggestionSettingsStore {
         saveSuggestInIntegratedTerminals(data.suggestInIntegratedTerminals)
         saveShowIndicator(data.showIndicator)
         saveShowAcceptanceHint(data.showAcceptanceHint)
+        saveShowDevelopmentDebugOverlays(data.presentation.showDevelopmentDebugOverlays)
         saveCustomSuggestionTextColorHex(data.customSuggestionTextColorHex)
         saveGhostTextOpacity(data.ghostTextOpacity)
         saveGhostTextSizeMultiplier(data.ghostTextSizeMultiplier)
@@ -674,6 +694,8 @@ struct SuggestionSettingsStore {
         saveDebounceMilliseconds(data.debounceMilliseconds)
         saveFocusPollIntervalMilliseconds(data.focusPollIntervalMilliseconds)
         saveMultiLineEnabled(data.isMultiLineEnabled)
+        saveSuggestWithinWords(data.suggestWithinWords)
+        saveShowFollowingWords(data.showFollowingWords)
         saveEmojiPickerEnabled(data.isEmojiPickerEnabled)
         saveMacroExpansionEnabled(data.isMacroExpansionEnabled)
         savePreferredEmojiSkinTone(data.preferredEmojiSkinTone)
@@ -681,6 +703,7 @@ struct SuggestionSettingsStore {
         saveAutoAcceptTrailingPunctuation(data.autoAcceptTrailingPunctuation)
         saveAddSpaceAfterAccept(data.addSpaceAfterAccept)
         saveStreamSuggestionsWhileGenerating(data.streamSuggestionsWhileGenerating)
+        savePredictAheadWhileTyping(data.predictAheadWhileTyping)
         saveFadeInSuggestions(data.fadeInSuggestions)
         saveFadeInDurationSeconds(data.fadeInDurationSeconds)
         saveAcceptanceKey(
@@ -778,6 +801,10 @@ struct SuggestionSettingsStore {
         let mode: ActivationIndicatorMode = show ? .fieldEdgeIcon : .hidden
         userDefaults.set(mode.rawValue, forKey: Self.selectedIndicatorModeDefaultsKey)
         userDefaults.set(show, forKey: Self.showCaretIndicatorDefaultsKey)
+    }
+
+    func saveShowDevelopmentDebugOverlays(_ show: Bool) {
+        userDefaults.set(show, forKey: Self.showDevelopmentDebugOverlaysDefaultsKey)
     }
 
     func saveShowAcceptanceHint(_ show: Bool) {
@@ -949,6 +976,14 @@ struct SuggestionSettingsStore {
         userDefaults.set(enabled, forKey: Self.multiLineEnabledDefaultsKey)
     }
 
+    func saveSuggestWithinWords(_ enabled: Bool) {
+        userDefaults.set(enabled, forKey: Self.suggestWithinWordsDefaultsKey)
+    }
+
+    func saveShowFollowingWords(_ enabled: Bool) {
+        userDefaults.set(enabled, forKey: Self.showFollowingWordsDefaultsKey)
+    }
+
     func saveEmojiPickerEnabled(_ enabled: Bool) {
         userDefaults.set(enabled, forKey: Self.emojiPickerEnabledDefaultsKey)
     }
@@ -971,6 +1006,10 @@ struct SuggestionSettingsStore {
 
     func saveAddSpaceAfterAccept(_ enabled: Bool) {
         userDefaults.set(enabled, forKey: Self.addSpaceAfterAcceptDefaultsKey)
+    }
+
+    func savePredictAheadWhileTyping(_ enabled: Bool) {
+        userDefaults.set(enabled, forKey: Self.predictAheadWhileTypingDefaultsKey)
     }
 
     func saveStreamSuggestionsWhileGenerating(_ enabled: Bool) {

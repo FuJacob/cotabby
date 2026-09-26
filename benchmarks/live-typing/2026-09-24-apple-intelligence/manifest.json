@@ -1,0 +1,24 @@
+{
+  "source_base_revision": "cf8e3c2",
+  "source_state": "Updated build includes the uncommitted latency and seam-repair changes committed with this report. Baseline is the backed-up installed pre-fix app; binary hashes identify both builds.",
+  "engine": "Apple Intelligence",
+  "host_app": "TextEdit",
+  "block_order": [
+    "updated-1",
+    "baseline-1",
+    "baseline-2",
+    "updated-2"
+  ],
+  "requested_key_interval_ms": 120,
+  "observation_window_seconds": 3,
+  "builds": {
+    "baseline": {
+      "executable_sha256": "8d5491ba89409fc44e55fd036fc6197c5a4784f2f33355896a7b1a34593e648f",
+      "dylib_sha256": "8faca1ad988894bed22fe6f529485af66009b5a30238e2d4a839b3205bad1ea9"
+    },
+    "updated": {
+      "executable_sha256": "1019be51b1525c6e6e6a6747b68b5774bef70da8c7eb9916063dc6c017a98c84",
+      "dylib_sha256": "df61264dbf277f15745f6a6c89ad1a2ad3619b28b7c5ebc76a420bc6d774a36f"
+    }
+  }
+}

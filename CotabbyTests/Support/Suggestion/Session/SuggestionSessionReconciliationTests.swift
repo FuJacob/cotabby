@@ -3,6 +3,28 @@ import XCTest
 
 /// Focused coverage for one responsibility of `SuggestionSessionReconciler`.
 final class SuggestionSessionReconciliationTests: XCTestCase {
+    func test_identicalTextInAnotherConversationRejectsEvenDuringInsertionLag() {
+        let session = CotabbyTestFixtures.activeSession()
+        let targets = [
+            CotabbyTestFixtures.focusedInputContext(focusChangeSequence: 2),
+            CotabbyTestFixtures.focusedInputContext(windowTitle: "Other chat"),
+            CotabbyTestFixtures.focusedInputContext(focusedURLString: "https://chat.example/two")
+        ]
+        for target in targets {
+            assertInvalid(SuggestionSessionReconciler.reconcile(
+                session: session, with: target, pendingInsertionConsumedCount: session.consumedCharacterCount
+            ), reason: "Overlay hidden because the focused field changed.")
+        }
+    }
+
+    func test_wrapperChurnInsideSessionStillAcceptsSuggestion() {
+        let session = CotabbyTestFixtures.activeSession()
+        let target = CotabbyTestFixtures.focusedInputContext(elementIdentifier: "refreshed-wrapper")
+        guard case .valid = SuggestionSessionReconciler.reconcile(
+            session: session, with: target, pendingInsertionConsumedCount: nil
+        ) else { return XCTFail("AX wrapper churn must not discard an otherwise matching suggestion") }
+    }
+
     func test_reconcile_validWhenLiveContextStillMatchesBaseContext() {
         let session = CotabbyTestFixtures.activeSession(
             fullText: " world again",
@@ -291,6 +313,30 @@ final class SuggestionSessionReconciliationTests: XCTestCase {
             return
         }
         XCTAssertNil(nextPending)
+    }
+
+    func test_pendingTypedInputNeverToleratesUnrelatedEditsOrAnEarlierPublishedPrefix() {
+        let session = CotabbyTestFixtures.activeSession(fullText: " world again", consumedCharacterCount: 7,
+                                                       basePrecedingText: "Hello", baseTrailingText: " tail")
+        let invalidContexts = [
+            CotabbyTestFixtures.focusedInputContext(precedingText: "Hello world", trailingText: " changed"),
+            CotabbyTestFixtures.focusedInputContext(precedingText: "Goodbye", trailingText: " tail"),
+            CotabbyTestFixtures.focusedInputContext(precedingText: "Hello there", trailingText: " tail"),
+            CotabbyTestFixtures.focusedInputContext(precedingText: "Hello", trailingText: " tail"),
+            CotabbyTestFixtures.focusedInputContext(precedingText: "Hello world", trailingText: " tail", focusChangeSequence: 2),
+            CotabbyTestFixtures.focusedInputContext(precedingText: "Hello world", trailingText: " tail",
+                                                    selection: NSRange(location: 11, length: 1))
+        ]
+
+        for context in invalidContexts {
+            let result = SuggestionSessionReconciler.reconcile(
+                session: session, with: context, pendingInsertionConsumedCount: nil,
+                pendingTypedConsumedRange: 6..<7
+            )
+            guard case .invalid = result else {
+                return XCTFail("Typed-input lag must not excuse a changed field or text: \(context.precedingText)")
+            }
+        }
     }
 
     private func assertInvalid(

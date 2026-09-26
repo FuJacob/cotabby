@@ -63,4 +63,21 @@ final class MarkerSelectionSynthesizerTests: XCTestCase {
         XCTAssertEqual(result.text, "abcd")
         XCTAssertEqual(result.selection, NSRange(location: 2, length: 0))
     }
+    func testMailSpaceNormalizationPreservesUTF16SelectionAndOtherWhitespace() {
+        let result = MarkerSelectionSynthesizer.make(
+            beforeCaret: "😀Hello\u{00A0}", selected: "a\u{00A0}b", afterCaret: "\t\nnext\u{00A0}word",
+            normalizeNonBreakingSpaces: true
+        )
+        XCTAssertEqual(result.text, "😀Hello a b\t\nnext word")
+        XCTAssertEqual(result.selection, NSRange(location: 8, length: 3))
+        XCTAssertEqual((result.text as NSString).substring(with: result.selection), "a b")
+    }
+
+    func testOtherHostsPreserveIntentionalNonBreakingSpaces() {
+        let result = MarkerSelectionSynthesizer.make(
+            beforeCaret: "Hello\u{00A0}", selected: "", afterCaret: "world"
+        )
+        XCTAssertEqual(result.text, "Hello\u{00A0}world")
+    }
+
 }

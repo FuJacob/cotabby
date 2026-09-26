@@ -39,9 +39,15 @@ struct SuggestionCompletionSettings: Equatable {
     var debounceMilliseconds: Int
     var focusPollIntervalMilliseconds: Int
     var isMultiLineEnabled: Bool
+    /// Controls when new generation may start; a visible suggestion still follows matching typing.
+    var suggestWithinWords: Bool
+    /// Limits the visible preview, while the session retains following words for subsequent typing.
+    var showFollowingWords: Bool
     var autoAcceptTrailingPunctuation: Bool
     var addSpaceAfterAccept: Bool
     var streamSuggestionsWhileGenerating: Bool
+    /// Keeps an on-device request alive through matching typing, independently of partial display.
+    var predictAheadWhileTyping: Bool
     var acceptanceGranularity: AcceptanceGranularity
 }
 
@@ -79,6 +85,8 @@ struct SuggestionPresentationSettings: Equatable {
     var mirrorPreference: MirrorPreference
     var fadeInSuggestions: Bool
     var fadeInDurationSeconds: Double
+    /// UI-only developer preference. Release builds ignore it; it never enters inference snapshots.
+    var showDevelopmentDebugOverlays: Bool = false
 }
 
 /// Non-model inline features that share the global input stream.
@@ -242,6 +250,16 @@ extension SuggestionSettingsData {
         set { completion.isMultiLineEnabled = newValue }
     }
 
+    var suggestWithinWords: Bool {
+        get { completion.suggestWithinWords }
+        set { completion.suggestWithinWords = newValue }
+    }
+
+    var showFollowingWords: Bool {
+        get { completion.showFollowingWords }
+        set { completion.showFollowingWords = newValue }
+    }
+
     var autoAcceptTrailingPunctuation: Bool {
         get { completion.autoAcceptTrailingPunctuation }
         set { completion.autoAcceptTrailingPunctuation = newValue }
@@ -250,6 +268,11 @@ extension SuggestionSettingsData {
     var addSpaceAfterAccept: Bool {
         get { completion.addSpaceAfterAccept }
         set { completion.addSpaceAfterAccept = newValue }
+    }
+
+    var predictAheadWhileTyping: Bool {
+        get { completion.predictAheadWhileTyping }
+        set { completion.predictAheadWhileTyping = newValue }
     }
 
     var streamSuggestionsWhileGenerating: Bool {

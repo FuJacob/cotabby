@@ -1,4 +1,7 @@
 # Xcode
+# Finder/iCloud numbered copies are not generated build inputs. Keep only Cotabby.xcodeproj.
+/CoHamster*.xcodeproj/
+/Cotabby [0-9]*.xcodeproj/
 *.xcuserstate
 xcuserdata/
 *.xcworkspace/xcuserdata/
@@ -26,6 +29,8 @@ Signing.local.xcconfig
 .venv/
 .venv-*/
 venv/
+__pycache__/
+*.py[cod]
 
 # Personal notes
 launch.txt
@@ -43,3 +48,8 @@ posts.txt
 
 .agents
 .internal
+
+# Never commit signing material or environment secrets.
+*.p12
+*.p8
+*.keychain-db

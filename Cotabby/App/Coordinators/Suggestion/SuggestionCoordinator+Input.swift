@@ -75,8 +75,8 @@ extension SuggestionCoordinator {
             "Focus snapshot changed: app=\(snapshot.applicationName) capability=\(snapshot.capability.shortLabel) detail=\(changedDetail)"
         )
         // Start capturing visual context for a newly focused input even when predictions are
-        // temporarily disabled by transient field states (e.g., "text is selected" or "secure
-        // field"). Skip capture entirely when the subsystem is hard-disabled (globally off,
+        // temporarily disabled by transient field states (e.g., "text is selected"). The visual
+        // service rejects secure fields. Skip capture when the subsystem is hard-disabled (globally off,
         // per-app disabled, terminal apps, or missing permissions) to avoid wasted compute.
         if let context = snapshot.context,
            SuggestionAvailabilityEvaluator.shouldCaptureVisualContext(
@@ -92,7 +92,9 @@ extension SuggestionCoordinator {
                focusSnapshot: snapshot,
                isFastModeEnabled: settingsSnapshot.isFastModeEnabled
            ) {
-            visualContextCoordinator.startSessionIfNeeded(for: context)
+            visualContextCoordinator.startSessionIfNeeded(
+                for: context, configuration: .forEngine(settingsSnapshot.selectedEngine)
+            )
         }
 
         if let disabledReason = currentDisabledReason(focusSnapshot: snapshot) {
@@ -106,6 +108,14 @@ extension SuggestionCoordinator {
         guard let focusedContext = snapshot.context else {
             disablePredictions(reason: "No focused text input.")
             return
+        }
+
+        // After accepting a correction there may be no visible session, but its following words
+        // can still be generating. Retire that work on focus changes too; active-tail reconciliation
+        // cannot protect this interval because the source offer has already been consumed.
+        if let prepared = preparedContinuation,
+           !SuggestionContinuationPlan.sameFocusedField(focusedContext, prepared.plan.sourceSnapshot) {
+            cancelPreparedContinuation()
         }
 
         // Start capturing visual context for newly focused input. Gated like the focus-change path
@@ -124,22 +134,23 @@ extension SuggestionCoordinator {
             focusSnapshot: snapshot,
             isFastModeEnabled: settingsSnapshot.isFastModeEnabled
         ) {
-            visualContextCoordinator.startSessionIfNeeded(for: focusedContext)
+            visualContextCoordinator.startSessionIfNeeded(
+                for: focusedContext, configuration: .forEngine(settingsSnapshot.selectedEngine)
+            )
         }
 
         if case .disabled = state {
             state = .idle
         }
 
-        if interactionState.activeSession != nil {
-            reconcileActiveSession(with: snapshot)
-            return
-        }
-
         if interactionState.hasFocusedElementChanged(comparedTo: focusedContext) {
+            let shouldRestartTypingPrediction = typingPrediction != nil
             cancelPredictionWork()
             resetCachedGenerationContext()
             clearSuggestion(clearDiagnostics: true)
+            suggestionAnchorCache = SuggestionAnchorCache()
+            clipboardPrefaceMemo = nil
+            _ = interactionState.materializeContext(from: focusedContext)
             hideOverlay(reason: "Overlay hidden because the focused field changed.")
             state = .idle
             // The user is now on a new editable surface and is likely to type soon. Prime the
@@ -148,6 +159,25 @@ extension SuggestionCoordinator {
             // external endpoint also uses this hook to cold-load default local Ollama separately
             // from the aggressively cancellable autocomplete request.
             prewarmEngineForCurrentField(rawContext: focusedContext)
+            // Preserve the existing typing-lookahead restart behavior without treating passive
+            // focus as new typing (which could trigger automatic typo replacement in the host).
+            // Other new fields resume on input or fresh visual context, after all old work is gone.
+            if shouldRestartTypingPrediction {
+                schedulePrediction()
+            }
+            return
+        }
+
+        // Lookahead has stricter field identity than an already visible tail: an unrelated AX
+        // edit or focus change must retire the request even before its first result arrives.
+        if let candidate = typingPrediction, !candidate.accepts(focusedContext) {
+            restartTypingPrediction(reason: "Focus or surrounding text invalidated the typing prediction.")
+            return
+        }
+
+        if interactionState.activeSession != nil {
+            reconcileActiveSession(with: snapshot)
+            return
         }
 
         if overlayState.isVisible {
@@ -181,13 +211,31 @@ extension SuggestionCoordinator {
         }
     }
 
+    /// Debug timing follows input routing but owns no suggestion state transitions.
+    private func recordInputPresentationTiming(_ event: CapturedInputEvent) {
+        if CotabbyDebugOptions.isEnabled {
+            if event.shouldSchedulePrediction || event.kind == .acceptance || event.kind == .fullAcceptance,
+               let context = focusModel.snapshot.context {
+                suggestionPresentationTiming.begin(
+                    identity: context.identity,
+                    kind: event.kind.rawValue,
+                    at: ProcessInfo.processInfo.systemUptime
+                )
+            } else if event.shouldClearSuggestion || event.kind == .acceptance || event.kind == .fullAcceptance {
+                suggestionPresentationTiming.clear()
+            }
+        }
+    }
+
     func handleInputEvent(_ event: CapturedInputEvent) -> Bool {
+        recordInputPresentationTiming(event)
         // Give the emoji picker first look at every keystroke so it can drive its trigger state
         // machine. When a capture is involved, the picker owns the interaction: the suggestion
         // pipeline stands down and any lingering ghost text is cleared so it does not show behind the
         // panel. Consumption still happens through the active tap's `emojiCaptureKeyDecider`.
         if emojiInputObserver?(event) == true {
-            if overlayState.isVisible || interactionState.activeSession != nil {
+            suggestionPresentationTiming.clear()
+            if overlayState.isVisible || interactionState.activeSession != nil || preparedContinuation != nil || typingPrediction != nil {
                 cancelPredictionWork()
                 clearSuggestion(clearDiagnostics: true)
                 hideOverlay(reason: "Overlay hidden because the emoji picker is active.")
@@ -198,6 +246,19 @@ extension SuggestionCoordinator {
         if let disabledReason = currentDisabledReason(focusSnapshot: focusModel.snapshot) {
             disablePredictions(reason: disabledReason)
             return false
+        }
+
+        if event.kind == .textMutation, let raw = focusModel.snapshot.context {
+            let context = interactionState.materializeContext(from: raw)
+            typingCadence.record(identityKey: context.focusedInputIdentityKey, characters: event.characters,
+                                 at: ProcessInfo.processInfo.systemUptime)
+        }
+        if event.kind == .dismissal, let session = interactionState.activeSession,
+           let raw = focusModel.snapshot.context {
+            let context = interactionState.materializeContext(from: raw)
+            dismissalMemory.record(identityKey: context.suggestionSessionIdentityKey,
+                                   precedingText: context.precedingText, trailingText: context.trailingText,
+                                   completion: session.remainingText, at: ProcessInfo.processInfo.systemUptime)
         }
 
         if event.kind == .acceptance {
@@ -212,6 +273,18 @@ extension SuggestionCoordinator {
             return handleInputEvent(event, with: activeSession)
         }
 
+        if event.kind == .textMutation, event.shouldSchedulePrediction,
+           retainTypingPrediction(typing: event.characters) {
+            return false
+        }
+
+        schedulePredictionForInputWithoutSession(event)
+        return false
+    }
+
+    /// With no session left to reconcile, retire obsolete work and wait for the host's text
+    /// publication before predicting. This preserves the event-tap versus AX timing boundary.
+    private func schedulePredictionForInputWithoutSession(_ event: CapturedInputEvent) {
         if event.shouldClearSuggestion {
             // Always kill pending work: a stale host-publish chain or debounce from the previous
             // keystroke must not fire a prediction this event meant to cancel.
@@ -233,8 +306,6 @@ extension SuggestionCoordinator {
             // `schedulePredictionAfterHostPublishDelay` for the full rationale.
             schedulePredictionAfterHostPublishDelay()
         }
-
-        return false
     }
 
     /// Maximum wall time we'll wait for the host app to publish post-keystroke AX before giving
@@ -262,12 +333,13 @@ extension SuggestionCoordinator {
     ///
     /// We now snapshot the AX state at keystroke time (focused element identity, preceding text,
     /// selection) and poll `focusModel` until the snapshot actually moves on. The poll is capped
-    /// at `hostPublishWaitCeilingMs` so a silent host can't hang the pipeline — once the cap is
-    /// reached we generate against whatever's there, matching the old fixed-delay behavior.
+    /// at `hostPublishWaitCeilingMs` so a silent host can't hang the pipeline. Ordinary input can
+    /// fall back to the latest snapshot; correction callers require changed text and abandon the
+    /// refresh on timeout so stale AX cannot repeatedly correct the same word.
     /// `schedulePrediction()` internally `replaceDebouncedWork`s, so back-to-back keystrokes
     /// still collapse cleanly. The `hostPublishPollGeneration` token adds the missing outer
     /// coalescing layer: only the newest keystroke's polling chain may keep reading AX.
-    func schedulePredictionAfterHostPublishDelay() {
+    func schedulePredictionAfterHostPublishDelay(requiresTextChange: Bool = false) {
         hostPublishPollGeneration &+= 1
         let pollGeneration = hostPublishPollGeneration
         let baseline = focusModel.snapshot.context
@@ -290,6 +362,7 @@ extension SuggestionCoordinator {
                     precedingText: baseline?.precedingText,
                     elementIdentifier: baseline?.elementIdentifier,
                     selectionLocation: baseline?.selection.location,
+                    requiresTextChange: requiresTextChange,
                     keystrokeUptimeNanoseconds: keystrokeUptimeNanoseconds
                 ),
                 pollGeneration: pollGeneration,
@@ -304,6 +377,9 @@ extension SuggestionCoordinator {
         let precedingText: String?
         let elementIdentifier: String?
         let selectionLocation: Int?
+        /// Correction must never run again against the same pre-replacement text on timeout.
+        /// Ordinary keystrokes retain their fallback for hosts that publish no observable change.
+        let requiresTextChange: Bool
         let keystrokeUptimeNanoseconds: UInt64
     }
 
@@ -326,20 +402,32 @@ extension SuggestionCoordinator {
 
         let currentContext = focusModel.snapshot.context
 
+        if usePreparedContinuationIfPossible() { return }
+        if keepTypingPredictionAfterHostPublish() { return }
+
         // No focus context at all means the user moved away from any editable field — let
         // `schedulePrediction` and its downstream guards handle the disabled / unsupported state.
         let textChanged = currentContext?.precedingText != baseline.precedingText
         let elementChanged = currentContext?.elementIdentifier != baseline.elementIdentifier
         let selectionChanged = currentContext?.selection.location != baseline.selectionLocation
-        if textChanged || elementChanged || selectionChanged {
+        // A replacement can publish intermediate backspaces before its final insertion. A prepared
+        // continuation names the exact target, so do not turn those intermediate slices into new
+        // predictions. Real user input cancels this plan before it starts another polling chain.
+        let awaitingPreparedTarget = preparedContinuation.map { prepared in
+            prepared.awaitingCommit && currentContext.map {
+                SuggestionContinuationPlan.sameFocusedField($0, prepared.plan.sourceSnapshot)
+            } == true
+        } ?? false
+        if !awaitingPreparedTarget && (textChanged || elementChanged || (selectionChanged && !baseline.requiresTextChange)) {
             // The publish arrived. When it matches the snapshot a speculative post-acceptance
             // generation was built against, that generation is already in flight (or applied) for
             // exactly this content: scheduling another would only retire it and pay the full
             // round-trip the speculation existed to skip. Stand down and let it land; `apply`
             // validates via the same signature. Any divergence falls through to the normal
             // reschedule, whose newer work id retires the speculation automatically.
-            if let expected = pendingSpeculativeSignature,
-               currentContext?.contentSignature == expected {
+            if let expected = pendingSpeculativeContext,
+               currentContext?.sessionIdentity == expected.sessionIdentity,
+               currentContext?.contentSignature == expected.contentSignature {
                 logStage(
                     "speculation-validated",
                     workID: currentWorkID,
@@ -348,7 +436,7 @@ extension SuggestionCoordinator {
                 )
                 return
             }
-            pendingSpeculativeSignature = nil
+            pendingSpeculativeContext = nil
             schedulePrediction(
                 consumedDelayMilliseconds: Self.elapsedMilliseconds(since: baseline.keystrokeUptimeNanoseconds)
             )
@@ -363,6 +451,14 @@ extension SuggestionCoordinator {
         let interval = Self.hostPublishPollIntervalMs
         let nextElapsed = elapsedMs + interval
         guard nextElapsed < Self.hostPublishWaitCeilingMs else {
+            if baseline.requiresTextChange {
+                // A delayed or rejected replacement must not become a loop of correcting the
+                // same stale word. Let the next real input restart prediction, and release any
+                // queued Tab now instead of accepting a second copy of the correction.
+                releasePostExhaustionAcceptanceWindow()
+                cancelPreparedContinuation()
+                return
+            }
             schedulePrediction(
                 consumedDelayMilliseconds: Self.elapsedMilliseconds(since: baseline.keystrokeUptimeNanoseconds)
             )

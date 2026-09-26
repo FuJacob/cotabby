@@ -1,0 +1,29 @@
+{
+  "baselineName": "smoke-14-qwen35-0.8b-q6",
+  "contextMode": "paired",
+  "corpusSHA256": "b41c8089a58ae1e0ee84b95ac9283cf71db4e713e25bd8fed47220be69d8b0f6",
+  "gitCommit": "76e9fc70c083e98bd7b042e380f29d9c69d2452d",
+  "gitStatus": " M scripts/phrase_eval.py\n M scripts/tests/test_phrase_eval.py\n",
+  "label": "progress-smoke",
+  "mode": "word",
+  "modelFile": "Qwen3.5-0.8B-Base.i1-Q6_K.gguf",
+  "phraseIDs": [
+    "conversation-001",
+    "conversation-002",
+    "science-001",
+    "science-002",
+    "entertainment-001",
+    "entertainment-002",
+    "work-001",
+    "work-002",
+    "technology-001",
+    "technology-002",
+    "everyday-001",
+    "everyday-002",
+    "travel-001",
+    "travel-002"
+  ],
+  "platform": "macOS-27.0-arm64-arm-64bit-Mach-O",
+  "sourceReportSHA256": "e33ccb9041211fdf7df9332a00c2a1138b4a3e0d9a32d4bb627435167073c190",
+  "startedUTC": "20260917T034506Z"
+}

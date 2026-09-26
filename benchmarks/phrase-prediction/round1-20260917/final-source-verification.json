@@ -1,0 +1,15 @@
+{
+  "checkedUTC": "2026-09-17T11:02:07.690919+00:00",
+  "status": "pass",
+  "sourceSHA256": "d4f3b371d9bb799042af4c6fab4a05be262c35a1d3402da0d580dffeff0bb856",
+  "protectedFileCount": 553,
+  "head": "342a76d002b534d13d3a9689768d13fda12f8609",
+  "changesSinceValidatedAdoption": [],
+  "candidateFiles": [
+    "Cotabby/Models/Suggestion/Request/SuggestionConfiguration.swift",
+    "Cotabby/Support/Context/SurfaceContextComposer.swift",
+    "CotabbyTests/Support/Context/SurfaceContextComposerTests.swift",
+    "CotabbyTests/Support/Prompting/BaseCompletionPromptRendererTests.swift",
+    "CotabbyTests/Support/Suggestion/Request/SuggestionRequestFactoryTests.swift"
+  ]
+}

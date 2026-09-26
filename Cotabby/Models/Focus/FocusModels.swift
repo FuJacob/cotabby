@@ -15,6 +15,19 @@ nonisolated struct FocusedInputIdentity: Equatable, Sendable {
     let focusChangeSequence: UInt64
 }
 
+/// Identity of the writing session, independent of volatile AX wrapper tokens. FocusTracker
+/// advances the sequence when it observes navigation; the surface facts also protect consumers
+/// during a direct snapshot refresh. Requests and caches carry this immutable value only in
+/// memory. The full URL distinguishes conversations on one host and is never a prompt field.
+nonisolated struct FocusedInputSessionIdentity: Hashable, Sendable {
+    let processIdentifier: Int32
+    let bundleIdentifier: String
+    let focusChangeSequence: UInt64
+    let focusedURLString: String?
+    let windowTitle: String?
+    let fieldPlaceholder: String?
+}
+
 /// Describes how trustworthy the resolved caret rect is.
 ///
 /// This distinction matters because not every downstream feature should treat all caret geometry
@@ -263,9 +276,8 @@ nonisolated struct FocusedInputSnapshot: Equatable {
     /// The initializer default of 0 keeps test and legacy call sites compiling without changes.
     let focusChangeSequence: UInt64
 
-    /// The focused web page URL, when capture resolved one over Accessibility (browsers only, and only
-    /// while per-site disable is enabled). Nil otherwise. Used solely by the per-site disable gate; the
-    /// initializer default keeps every existing call site compiling unchanged.
+    /// The page URL, when exposed by a browser/web field or requested by per-site rules. The full
+    /// value distinguishes conversations locally; prompt conditioning receives only its host.
     let focusedURLString: String?
 
     /// The host field's own text font/color, resolved once per focused element so ghost text can
@@ -273,10 +285,9 @@ nonisolated struct FocusedInputSnapshot: Equatable {
     /// call sites compiling unchanged.
     let resolvedFieldStyle: ResolvedFieldStyle?
 
-    /// The focused window's title, read once per field session (cached by `SurfaceContextCache`)
-    /// when surface context is enabled. The window title carries the highest-signal surface cue
-    /// available over Accessibility: the email subject, document name, channel, or page title.
-    /// Nil when disabled, unavailable, or the field is secure. The initializer default keeps
+    /// The focused window's title, refreshed with the snapshot to detect navigation even when
+    /// prompt surface conditioning is disabled. It can identify a subject, document or channel.
+    /// Nil when unavailable or the field is secure. The initializer default keeps
     /// existing call sites compiling unchanged.
     let windowTitle: String?
 
@@ -348,11 +359,19 @@ nonisolated struct FocusedInputSnapshot: Equatable {
         )
     }
 
+    nonisolated var sessionIdentity: FocusedInputSessionIdentity {
+        FocusedInputSessionIdentity(
+            processIdentifier: processIdentifier, bundleIdentifier: bundleIdentifier,
+            focusChangeSequence: focusChangeSequence, focusedURLString: focusedURLString,
+            windowTitle: windowTitle, fieldPlaceholder: fieldPlaceholder
+        )
+    }
+
     /// The signature lets later pipeline stages detect whether a completion result is stale.
     /// This is the same idea you would use in a React app with a derived cache key.
     /// Content-only fingerprint for staleness detection. Deliberately excludes `elementIdentifier`
     /// because Chrome recycles AX node tokens between observations, making `CFHash`-based identity unstable.
-    /// Text and selection state is sufficient to detect real content changes.
+    /// Session identity is checked separately; text and selection detect edits within that session.
     var contentSignature: String {
         [
             String(selection.location),

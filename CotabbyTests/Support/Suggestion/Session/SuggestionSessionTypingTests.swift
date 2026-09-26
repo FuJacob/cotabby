@@ -44,4 +44,75 @@ final class SuggestionSessionTypingTests: XCTestCase {
 
         XCTAssertNil(SuggestionSessionReconciler.advanceIfTypedCharactersMatch("", session: session))
     }
+
+    func test_advanceIfTypedCharactersMatch_neverConsumesACorrection() {
+        let session = ActiveSuggestionSession(
+            baseContext: CotabbyTestFixtures.focusedInputContext(precedingText: "Please recieve "),
+            fullText: "receive",
+            latency: 0,
+            kind: .correction(typoWord: "recieve")
+        )
+
+        XCTAssertNil(SuggestionSessionReconciler.advanceIfTypedCharactersMatch("r", session: session))
+        XCTAssertNil(SuggestionSessionReconciler.advanceIfTypedCharactersMatch("receive", session: session))
+    }
+
+    func test_typedTextCanCrossTheInitialVisibleBoundaryWithoutDiscardingFollowingWords() throws {
+        let session = ActiveSuggestionSession(
+            baseContext: CotabbyTestFixtures.focusedInputContext(precedingText: "Make a flux"),
+            fullText: "beam for the device",
+            initialVisibleCharacterCount: 4,
+            latency: 0
+        )
+
+        let advanced = try XCTUnwrap(SuggestionSessionReconciler.advanceIfTypedCharactersMatch(
+            "beam for", session: session
+        ))
+
+        XCTAssertEqual(advanced.remainingText, " the device")
+        XCTAssertEqual(advanced.consumedCharacterCount, 8)
+        XCTAssertFalse(advanced.isExhausted)
+    }
+
+    func test_typingThroughOneWordRevealsOnlyTheNextWordInOneWordMode() throws {
+        let session = ActiveSuggestionSession(
+            baseContext: CotabbyTestFixtures.focusedInputContext(),
+            fullText: " hello world again",
+            showFollowingWords: false,
+            latency: 0
+        )
+
+        let advanced = try XCTUnwrap(SuggestionSessionReconciler.advanceIfTypedCharactersMatch(
+            " hello ", session: session
+        ))
+
+        XCTAssertEqual(advanced.remainingText, "world")
+        XCTAssertEqual(advanced.predictedRemainingText, "world again")
+    }
+    func testMailTrailingSpaceRewriteKeepsTypedSuggestionTailAlive() throws {
+        let session = ActiveSuggestionSession(
+            baseContext: CotabbyTestFixtures.focusedInputContext(precedingText: "Hello"),
+            fullText: " world again", latency: 0
+        )
+        let advanced = try XCTUnwrap(SuggestionSessionReconciler.advanceIfTypedCharactersMatch(
+            " ", session: session
+        ))
+        // First Mail publishes the space as NBSP; typing the next word rewrites it to ASCII.
+        // Both snapshots must reconcile against the original anchor and consumed tail.
+        for (hostPrefix, expectedTail) in [("Hello\u{00A0}", "world again"), ("Hello world", " again")] {
+            let capture = MarkerSelectionSynthesizer.make(
+                beforeCaret: hostPrefix, selected: "", afterCaret: "",
+                normalizeNonBreakingSpaces: true
+            )
+            let live = CotabbyTestFixtures.focusedInputContext(precedingText: capture.text)
+            let result = SuggestionSessionReconciler.reconcile(
+                session: advanced, with: live, pendingInsertionConsumedCount: nil
+            )
+            guard case let .valid(reconciled, _, _) = result else {
+                return XCTFail("Mail's space representation invalidated the suggestion: \(result)")
+            }
+            XCTAssertEqual(reconciled.remainingText, expectedTail)
+        }
+    }
+
 }

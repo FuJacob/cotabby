@@ -1,0 +1,45 @@
+{
+  "createdUTC": "2026-09-17T08:10:39.054486+00:00",
+  "comparisons": [
+    {
+      "configuration": "baseline",
+      "observations": 14874,
+      "differencesExcludingLatency": 0,
+      "examples": [],
+      "inputs": [
+        {
+          "label": "full42-baseline",
+          "sha256": "991bb6d68b887f04647cd83600fb51f0956407c5506915115b9405cb25f75843"
+        },
+        {
+          "label": "screen-baseline",
+          "sha256": "480844d21ddfeccefca61983c682445bc6a9858885454c9da17db1f8ed6b5ab9"
+        },
+        {
+          "label": "heldout42-baseline",
+          "sha256": "e4741f48ce3884b686c16253b847505977aaddfe8512e4a1fec28239459f4e80"
+        }
+      ]
+    },
+    {
+      "configuration": "finalist",
+      "observations": 14874,
+      "differencesExcludingLatency": 0,
+      "examples": [],
+      "inputs": [
+        {
+          "label": "full42-finalist",
+          "sha256": "4a8fafe5a30439879191d474a813641a09bb64ed162128ff7e9b97a28b937b68"
+        },
+        {
+          "label": "screen-P2-H",
+          "sha256": "b619b3684f02b3a069c5356f8975c42ddf172a7c84485d676b72a0179994efb1"
+        },
+        {
+          "label": "heldout42-local-finalist",
+          "sha256": "cf8ca2c4ccf7714784609888ea31931090ed8ac09b8a7d6786200802c419fd8a"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "removed": [
+    {
+      "path": "/Users/jmcasler/Documents/GitHub/mchamster/cotabby/build/phrase-round1-checkout/build/DerivedData",
+      "verifiedAbsentUTC": "2026-09-17T08:42:49.346440+00:00",
+      "method": "non-forced recursive removal after verifying no active build/test used this directory"
+    },
+    {
+      "path": "/Users/jmcasler/.codex/experiments/cotabby-1337-20260917/integration/cotabby/build/DerivedData",
+      "verifiedAbsentUTC": "2026-09-17T10:42:15.496860+00:00",
+      "method": "non-forced recursive removal after no active integration processes and all 38 evidence dependencies verified outside DerivedData",
+      "approximatePriorSize": "1.4 GB"
+    },
+    {
+      "path": "/Users/jmcasler/.codex/experiments/cotabby-1337-20260917/cotabby/build/DerivedData",
+      "verifiedAbsentUTC": "2026-09-17T11:03:09.855801+00:00",
+      "method": "non-forced recursive removal after all experiment build/test processes exited",
+      "approximatePriorSize": "1.3 GB"
+    }
+  ],
+  "alreadyAbsent": [
+    {
+      "path": "/Users/jmcasler/Documents/GitHub/mchamster/cotabby/build/DerivedData",
+      "verifiedAbsentUTC": "2026-09-17T08:46:50.995326+00:00"
+    }
+  ],
+  "allRecordedPathsVerifiedAbsentUTC": "2026-09-17T11:03:09.855801+00:00"
+}

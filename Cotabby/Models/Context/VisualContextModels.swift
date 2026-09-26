@@ -16,6 +16,22 @@ nonisolated struct VisualContextConfiguration: Equatable, Sendable {
     let minRecognizedCharacterCount: Int
     let maxRecognizedCharacters: Int
     let maxSummaryCharacters: Int
+    var capturesEntireWindow = false
+
+    /// Larger context stays on-device. The endpoint profile deliberately retains the shipped
+    /// crop and limits; choosing a network backend is not consent to send a wider screenshot.
+    static let local = VisualContextConfiguration(
+        snapshotDimension: 700,
+        maxImageDimension: 2400,
+        minRecognizedCharacterCount: 12,
+        maxRecognizedCharacters: 12000,
+        maxSummaryCharacters: 4000,
+        capturesEntireWindow: true
+    )
+
+    static func forEngine(_ engine: SuggestionEngineKind) -> Self {
+        engine == .openAICompatible ? .default : .local
+    }
 
     static let `default` = VisualContextConfiguration(
         // Capture a wider field-centered area so OCR can see nearby labels and conversation turns.

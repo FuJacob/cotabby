@@ -38,7 +38,7 @@ concurrency:
 env:
   APP_NAME: Cotabby
   DMG_NAME: Cotabby.dmg
-  PROJECT_PATH: Cotabby.xcodeproj
+  WORKSPACE_PATH: build/cotabby-dependencies/Cotabby.xcworkspace
   SCHEME: Cotabby
   CONFIGURATION: Release
   PAGES_CUSTOM_DOMAIN: updates.cotabby.app
@@ -83,6 +83,9 @@ jobs:
         with:
           python-version: "3.13"
 
+      - name: Prepare matching inference dependency
+        run: scripts/prepare_cotabby_workspace.sh
+
       - name: Toolchain info
         run: |
           xcodebuild -version
@@ -93,7 +96,9 @@ jobs:
       - name: Resolve Swift package dependencies
         run: |
           xcodebuild \
-            -project "${PROJECT_PATH}" \
+            -workspace "${WORKSPACE_PATH}" \
+            -scheme "${SCHEME}" \
+            -derivedDataPath build/DerivedData \
             -resolvePackageDependencies
 
       - name: Install DMG packaging dependencies
@@ -110,7 +115,7 @@ jobs:
 
           sparkle_version="$(python3 -c "
           import json, sys
-          resolved = json.load(open('Cotabby.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved'))
+          resolved = json.load(open('build/cotabby-dependencies/Cotabby.xcworkspace/xcshareddata/swiftpm/Package.resolved'))
           pins = {p['identity']: p for p in resolved['pins']}
           if 'sparkle' not in pins:
               print('Sparkle not found in Package.resolved', file=sys.stderr)
@@ -308,7 +313,7 @@ jobs:
           # "0.0.1-beta" is kept as-is so users see the full version
           # string including the channel tag.
           xcodebuild archive \
-            -project "${PROJECT_PATH}" \
+            -workspace "${WORKSPACE_PATH}" \
             -scheme "${SCHEME}" \
             -configuration "${CONFIGURATION}" \
             -archivePath "build/${APP_NAME}.xcarchive" \
@@ -429,6 +434,10 @@ jobs:
           name: build-artifacts
           path: build/${{ env.APP_NAME }}.xcarchive/
           if-no-files-found: ignore
+
+      - name: Clean build cache
+        if: always()
+        run: rm -rf build/DerivedData
 
   # ---------------------------------------------------------------------------
   # 2. NOTARIZE

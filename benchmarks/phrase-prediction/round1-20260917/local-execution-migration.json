@@ -1,0 +1,25 @@
+{
+  "copiedChangedFiles": [
+    "Cotabby/Support/Context/SurfaceContextComposer.swift",
+    "CotabbyTests/Evals/PhrasePredictionEvalTests.swift",
+    "CotabbyTests/Services/Runtime/Llama/LlamaRuntimeCoreIntegrationTests.swift",
+    "CotabbyTests/Support/Context/SurfaceContextComposerTests.swift",
+    "CotabbyTests/Support/Prompting/BaseCompletionPromptRendererTests.swift",
+    "CotabbyTests/Support/Suggestion/Request/SuggestionRequestFactoryTests.swift",
+    "scripts/phrase_eval.py",
+    "scripts/tests/test_phrase_eval.py"
+  ],
+  "method": "Data-only copies; avoid preserving FileProvider extended attributes.",
+  "modelMatches": true,
+  "nativeFilesMatch": true,
+  "new": {
+    "model": "/Users/jmcasler/.codex/experiments/cotabby-1337-20260917/Qwen3.5-0.8B-Base.i1-Q6_K.gguf",
+    "root": "/Users/jmcasler/.codex/experiments/cotabby-1337-20260917/cotabby",
+    "workspace": "/Users/jmcasler/.codex/experiments/cotabby-1337-20260917/cotabby/build/CotabbyDevelopment.xcworkspace"
+  },
+  "old": {
+    "model": "/Users/jmcasler/Documents/GitHub/mchamster/cotabby/build/models/Qwen3.5-0.8B-Base.i1-Q6_K.gguf",
+    "root": "/Users/jmcasler/Documents/GitHub/mchamster/cotabby/build/phrase-round1-checkout",
+    "workspace": "/Users/jmcasler/Documents/GitHub/mchamster/cotabby/build/phrase-round1-checkout/build/CotabbyDevelopment.xcworkspace"
+  }
+}

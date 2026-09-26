@@ -83,7 +83,7 @@ struct WritingPaneView: View {
                 Toggle(isOn: suppressCompletionsOnTypoBinding) {
                     SettingsRowLabel(
                         title: "Hide Suggestions on Typo",
-                        description: "Pauses normal completions while the current word looks misspelled. " +
+                        description: "Pauses normal completions when a finished word looks misspelled. " +
                             "Turn this on to use the correction options.",
                         systemImage: "eye.slash"
                     )
@@ -96,7 +96,7 @@ struct WritingPaneView: View {
                     Toggle(isOn: offerTypoCorrectionsBinding) {
                         SettingsRowLabel(
                             title: "Offer Corrections on Typo",
-                            description: "Shows a green replacement you can apply with your accept key.",
+                            description: "After you finish a word, shows a green replacement you can apply with your accept key.",
                             systemImage: "checkmark.bubble"
                         )
                     }
@@ -112,15 +112,13 @@ struct WritingPaneView: View {
                     .settingsItem(.automaticallyFixTypos)
                 }
 
-                // Dictionaries rank candidates for the two correction actions above, so they only
-                // appear once at least one action is on. With neither active, choosing a dictionary
-                // would have no observable effect.
-                if suggestionSettings.offerTypoCorrections || suggestionSettings.automaticallyFixTypos {
-                    Section("Spelling Dictionaries") {
-                        SpellingDictionaryPicker(suggestionSettings: suggestionSettings)
-                            .settingsItem(.spellingDictionaries)
-                    }
-                }
+            }
+
+            // These local dictionaries also supply exact-prefix word endings when model output is
+            // unusable, so their language selection remains relevant with corrections disabled.
+            Section("Word Dictionaries") {
+                SpellingDictionaryPicker(suggestionSettings: suggestionSettings)
+                    .settingsItem(.spellingDictionaries)
             }
 
             Section("Profile") {

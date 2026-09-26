@@ -1,0 +1,86 @@
+[
+  {
+    "model": "nano",
+    "prefix": "i'm using gguf models and the predictions are not correct. apple int",
+    "raw": "erop is not working.",
+    "shown": " erop is not working.",
+    "suppression": null
+  },
+  {
+    "model": "nano",
+    "prefix": "Mlx ",
+    "raw": "is a very popular app for creating 3D",
+    "shown": "is a very popular app for creating 3D",
+    "suppression": null
+  },
+  {
+    "model": "nano",
+    "prefix": "i'm using gguf models and the predictions are not correct. apple intelligence is much better. gguf models are ",
+    "raw": "not good enough.",
+    "shown": "not good enough.",
+    "suppression": null
+  },
+  {
+    "model": "mini",
+    "prefix": "i'm using gguf models and the predictions are not correct. apple int",
+    "raw": "erpreter is not working.",
+    "shown": "erpreter is not working.",
+    "suppression": null
+  },
+  {
+    "model": "mini",
+    "prefix": "Mlx ",
+    "raw": "1000000000",
+    "shown": "1000000000",
+    "suppression": null
+  },
+  {
+    "model": "mini",
+    "prefix": "i'm using gguf models and the predictions are not correct. apple intelligence is much better. gguf models are ",
+    "raw": "not as good as apple intelligence.",
+    "shown": "not as good as apple intelligence.",
+    "suppression": null
+  },
+  {
+    "model": "base",
+    "prefix": "i'm using gguf models and the predictions are not correct. apple int",
+    "raw": "ellij idea.",
+    "shown": null,
+    "suppression": "seam-guard"
+  },
+  {
+    "model": "base",
+    "prefix": "Mlx ",
+    "raw": "is a language for technical discussions.",
+    "shown": "is a language for technical discussions.",
+    "suppression": null
+  },
+  {
+    "model": "base",
+    "prefix": "i'm using gguf models and the predictions are not correct. apple intelligence is much better. gguf models are ",
+    "raw": "not good for this task.",
+    "shown": "not good for this task.",
+    "suppression": null
+  },
+  {
+    "model": "pro",
+    "prefix": "i'm using gguf models and the predictions are not correct. apple int",
+    "raw": "el nvidia amd",
+    "shown": "el nvidia amd",
+    "suppression": null
+  },
+  {
+    "model": "pro",
+    "prefix": "Mlx ",
+    "raw": "12.3.1 (21E",
+    "shown": "12.3.1 (21E",
+    "suppression": null
+  },
+  {
+    "model": "pro",
+    "prefix": "i'm using gguf models and the predictions are not correct. apple intelligence is much better. gguf models are ",
+    "raw": "not good enough for this task.",
+    "shown": "not good enough for this task.",
+    "suppression": null
+  }
+]

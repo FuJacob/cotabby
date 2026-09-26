@@ -86,4 +86,4 @@ EOF
 echo "Wrote $local_xcconfig"
 echo "  DEVELOPMENT_TEAM = $team"
 echo
-echo "Next: open Cotabby.xcodeproj, select the \"Cotabby Dev\" scheme, and run."
+echo "Next: run scripts/prepare_cotabby_workspace.sh, open build/cotabby-dependencies/Cotabby.xcworkspace, select the \"Cotabby Dev\" scheme, and run."

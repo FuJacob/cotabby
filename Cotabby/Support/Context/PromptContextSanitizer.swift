@@ -7,7 +7,7 @@ import Foundation
 /// ANSI color escapes, and other prompt-shaped symbols. Those tokens are not useful semantic
 /// context for autocomplete, and small local models can copy them back as output. Keeping this as
 /// a pure `Support/` helper makes the policy deterministic, shared, and easy to test.
-enum PromptContextSanitizer {
+nonisolated enum PromptContextSanitizer {
     private static let ansiEscapePattern = "\u{001B}\\[[0-?]*[ -/]*[@-~]"
     private static let allowedCharacters = CharacterSet.alphanumerics
         .union(.whitespacesAndNewlines)
@@ -96,7 +96,7 @@ enum PromptContextSanitizer {
 
     private static let knownWordSignals = [
         "accept", "app", "autocomplete", "button", "chat", "chrome", "class",
-        "code", "context", "cotabby", "document", "email", "error", "field",
+        "code", "cohamster", "context", "cotabby", "document", "email", "error", "field",
         "file", "fix", "function", "github", "google", "issue", "jira", "linear",
         "message", "model", "notion", "pane", "prompt", "pull", "request",
         "safari", "screen", "setting", "slack", "summary", "swift", "task",

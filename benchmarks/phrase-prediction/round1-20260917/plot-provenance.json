@@ -1,0 +1,43 @@
+{
+  "files": {
+    "plot-data.json": {
+      "localPath": "/Users/jmcasler/Documents/GitHub/mchamster/cotabby/benchmarks/phrase-prediction/round1-20260917/plot-data.json",
+      "sha256": "a8d91f21e9fef2a4728f361544b30ac4f13ffee9899d16ead4c709f659d8e4c6"
+    },
+    "reportplots.md": {
+      "localPath": "/Users/jmcasler/Documents/GitHub/mchamster/cotabby/benchmarks/phrase-prediction/round1-20260917/reportplots.md",
+      "sha256": "98b92ea5860fbfe87bd56fb2191b577485ef1162d530a3c89382ceff742ea30b"
+    },
+    "screening-tradeoff.png": {
+      "localPath": "/Users/jmcasler/Documents/GitHub/mchamster/cotabby/benchmarks/phrase-prediction/round1-20260917/screening-tradeoff.png",
+      "sha256": "7a12fb4de5a92ab2f9483949a27dff17d1678330fc14029f112f7c5e3600a6d6"
+    },
+    "screening-tradeoff.svg": {
+      "localPath": "/Users/jmcasler/Documents/GitHub/mchamster/cotabby/benchmarks/phrase-prediction/round1-20260917/screening-tradeoff.svg",
+      "sha256": "64e50ca8ebf274690b5305a4a469ff4d2c3018d8eca3ef3a985ecb59825fb6f1"
+    },
+    "validation-effects.png": {
+      "localPath": "/Users/jmcasler/Documents/GitHub/mchamster/cotabby/benchmarks/phrase-prediction/round1-20260917/validation-effects.png",
+      "sha256": "942909991da8b0226fbe1abc0ef3bcb05b5ce6edaf63854b349449eb15bde989"
+    },
+    "validation-effects.svg": {
+      "localPath": "/Users/jmcasler/Documents/GitHub/mchamster/cotabby/benchmarks/phrase-prediction/round1-20260917/validation-effects.svg",
+      "sha256": "1b4e162314625dc514856210a9adecc0fa48bb734e8ba486d6e6a7eb23e9b2ba"
+    }
+  },
+  "generatedUTC": "2026-09-17T11:14:38.956761+00:00",
+  "helper": {
+    "localPath": "/Users/jmcasler/Documents/GitHub/mchamster/cotabby/build/eval/round1-20260917/plot_round_results.py",
+    "sha256": "e00378bdd4879643216e2e9267ee3ccb3adc45ed2c560382ea99570ea475ed6f"
+  },
+  "matplotlibVersion": "3.11.2",
+  "pythonVersion": "3.12.14",
+  "requirements": {
+    "localPath": "/Users/jmcasler/Documents/GitHub/mchamster/cotabby/benchmarks/phrase-prediction/round1-20260917/plot-requirements.txt",
+    "sha256": "b6dab00b392625b3c7447030c7ec6506f16a0ff9775b3a9826df9a3e600a890e"
+  },
+  "verificationHelper": {
+    "localPath": "/Users/jmcasler/Documents/GitHub/mchamster/cotabby/build/eval/round1-20260917/write_round_report.py",
+    "sha256": "f5252d2ab4b6d0ff472955934e547e6d483ad7aaca8d8a493c6ca68dbc9c3d86"
+  }
+}

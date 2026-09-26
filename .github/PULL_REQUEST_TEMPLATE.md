@@ -11,12 +11,10 @@ The diff already shows what; this section should explain why.
 What you actually ran and what you actually saw, not what you intended to run.
 Examples:
 
-  xcodebuild test -project Cotabby.xcodeproj -scheme Cotabby \
-    -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO
-  # ** TEST SUCCEEDED **  N tests, 0 failures
-
-  swiftlint lint --config .swiftlint.yml --quiet
-  # exit 0
+  # Xcode build/test commands from CONTRIBUTING.md
+  # ** TEST EXECUTE SUCCEEDED **; N tests, zero failures
+  python3 -m unittest discover -s scripts/tests
+  swiftlint --strict
 
 For UI changes, attach a screenshot or short screen recording.
 For changes that can't be verified end-to-end yet, say so explicitly.

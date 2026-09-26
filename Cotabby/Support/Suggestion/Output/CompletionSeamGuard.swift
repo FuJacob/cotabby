@@ -4,21 +4,21 @@ import Foundation
 /// mid-word splices that misspell the joined word ("gre" + "atful"), and correctable misspellings
 /// in the first generated word. Showing nothing beats presenting any of these as an insertion.
 ///
-/// All three rules are deliberately narrow so they fire rarely:
+/// The guards separate malformed text from uncertain but potentially useful vocabulary:
 ///
 /// - **Junk run**: a run of four or more identical punctuation/symbol characters inside the
 ///   completion, unless the run merely extends an identical run the user already has at the caret
 ///   (continuing an existing `----` divider is legitimate).
 /// - **Seam misspelling**: in the mid-word case (caret inside a word, completion starts with word
-///   characters), the joined word formed across the seam must be known to the spell checker.
+///   characters), actionable misspellings of the joined word are rejected; unknown vocabulary stays eligible.
 /// - **Leading-word misspelling**: when the completion starts a new word, the first generated word
 ///   is checked only when the caller can both identify it as a typo and offer a correction. This is
 ///   deliberately narrower than dictionary membership so names, jargon, and model vocabulary still
 ///   pass through when the native checker has no actionable fix.
 ///
-/// Both spelling checks skip capitalized words (names and brands are routinely out-of-dictionary),
-/// short words (under four letters), words with digits, and CJK text (no space-delimited word
-/// boundaries, and the dictionaries do not cover it).
+/// Capitalized and unknown joins can remain visible as word endings without endorsing a whole
+/// phrase. Code-like tokens and scripts without space-delimited words retain their normal path.
+/// The same presentation decision runs for streamed, final, and cached candidates.
 nonisolated enum CompletionSeamGuard {
     /// One explicit spelling result keeps callers from supplying contradictory combinations such
     /// as "typo without a correction callback". The guard only needs to distinguish actionable
@@ -34,11 +34,12 @@ nonisolated enum CompletionSeamGuard {
         case junkPunctuationRun
         case seamMisspelling(word: String)
         case leadingWordMisspelling(word: String)
+        case abandonedWord(word: String)
     }
 
     /// Streaming must not expose the first generated word until it is complete enough to assess.
-    /// Once this resolves to allow or suppress, the coordinator caches it for the generation so
-    /// `NSSpellChecker` is never called at token cadence.
+    /// The coordinator memoizes spelling by the exact assembled word, not a blanket permission
+    /// for all later partials. Changed letters must be assessed again.
     enum StreamedLeadingWordVerdict: Equatable {
         case wait
         case allow
@@ -51,16 +52,10 @@ nonisolated enum CompletionSeamGuard {
     /// Joined seam words shorter than this are too ambiguous to judge ("a" + "t").
     private static let minimumSeamWordLength = 4
 
-    /// Cheap streaming-path junk rule. The separate leading-word streaming verdict buffers until a
-    /// complete word exists, then performs and caches exactly one spelling decision.
-    static func allowsStreamedPartial(precedingText: String, completion: String) -> Bool {
-        !introducesJunkPunctuationRun(precedingText: precedingText, completion: completion)
-    }
-
     /// The spelling assessment is injected so the pure rule stays testable and the caller picks the
-    /// backend. A single result describes the whole invariant: mid-word seams reject any typo,
+    /// backend. A single result describes the whole invariant: mid-word seams reject actionable typos,
     /// while newly generated words reject only correctable typos.
-    static func verdict(
+    private static func basicVerdict(
         precedingText: String,
         completion: String,
         spellingAssessment: (String) -> SpellingAssessment
@@ -72,7 +67,7 @@ nonisolated enum CompletionSeamGuard {
         if let seamWord = misspellingCandidateSeamWord(
             precedingText: precedingText,
             completion: completion
-        ), spellingAssessment(seamWord) != .known {
+        ), spellingAssessment(seamWord) == .correctableTypo {
             return .seamMisspelling(word: seamWord)
         }
 
@@ -94,17 +89,104 @@ nonisolated enum CompletionSeamGuard {
         completion: String,
         spellingAssessment: (String) -> SpellingAssessment
     ) -> StreamedLeadingWordVerdict {
-        switch leadingWordProbe(precedingText: precedingText, completion: completion) {
-        case .notApplicable:
-            return .allow
-        case .incomplete:
-            return .wait
-        case let .candidate(word, isComplete):
-            guard isComplete else {
-                return .wait
-            }
-            return spellingAssessment(word) == .correctableTypo ? .suppress : .allow
+        switch presentation(precedingText: precedingText, completion: completion,
+                            isFinal: false, spellingAssessment: spellingAssessment) {
+        case .wait: return .wait
+        case .suppress: return .suppress
+        case .show: return .allow
         }
+    }
+
+    /// One decision is consumed by the streaming, final, and cached-result paths. `wordOnly`
+    /// records conservative lexical evidence, not a calibrated model probability: an unknown
+    /// joined word can offer its ending without endorsing the following phrase.
+    enum PresentationDecision: Equatable {
+        case wait
+        case suppress(Verdict)
+        case show(text: String, wordOnly: Bool)
+    }
+
+    static func verdict(
+        precedingText: String, completion: String,
+        spellingAssessment: (String) -> SpellingAssessment
+    ) -> Verdict {
+        switch presentation(precedingText: precedingText, completion: completion,
+                            isFinal: true, spellingAssessment: spellingAssessment) {
+        case let .suppress(reason): return reason
+        case .show, .wait: return .allow
+        }
+    }
+
+    static func presentation(
+        precedingText: String, completion: String, isFinal: Bool,
+        spellingAssessment: (String) -> SpellingAssessment
+    ) -> PresentationDecision {
+        if introducesJunkPunctuationRun(precedingText: precedingText, completion: completion) {
+            return .suppress(.junkPunctuationRun)
+        }
+        guard !completion.isEmpty else { return .wait }
+        let prefix = CaretWordContext.unfinishedWord(in: precedingText)
+        if let prefix, let joined = joinedPresentation(prefix: prefix, completion: completion,
+                                                      isFinal: isFinal, spellingAssessment: spellingAssessment) {
+            return joined
+        }
+        // A generated boundary cannot silently abandon a fragment. Repeating that fragment as
+        // the beginning of a longer new word catches `roo` + ` room`, even when a dictionary
+        // happens to recognize `roo`. A known completed word such as `car` may still start a phrase.
+        if let prefix, completion.first?.isWhitespace == true {
+            let firstWord = String(completion.drop(while: { $0.isWhitespace }).prefix(while: { $0.isLetter }))
+            let repeatsFragment = firstWord.count > prefix.count
+                && firstWord.lowercased().hasPrefix(prefix.lowercased())
+            if repeatsFragment || spellingAssessment(prefix) == .correctableTypo {
+                return .suppress(.abandonedWord(word: prefix))
+            }
+        }
+        if !isFinal {
+            switch leadingWordProbe(precedingText: precedingText, completion: completion) {
+            case .incomplete, .candidate(_, isComplete: false): return .wait
+            case .notApplicable, .candidate: break
+            }
+        }
+        let result = basicVerdict(precedingText: precedingText, completion: completion,
+                                  spellingAssessment: spellingAssessment)
+        return result == .allow ? .show(text: completion, wordOnly: false) : .suppress(result)
+    }
+
+    /// Examines only the lexical token touching the caret. Nil delegates code-like tokens to
+    /// the ordinary continuation path; `.wait` means a natural-language word is still arriving.
+    private static func joinedPresentation(
+        prefix: String, completion: String, isFinal: Bool,
+        spellingAssessment: (String) -> SpellingAssessment
+    ) -> PresentationDecision? {
+        guard let first = completion.first, first.isLetter || CaretWordContext.isConnector(first) else { return nil }
+        let ending = completion.prefix(while: { $0.isLetter || CaretWordContext.isConnector($0) })
+        let following = completion.dropFirst(ending.count).first
+        guard following?.isNumber != true, following != "_" else { return nil }
+        if !isFinal && (ending.count == completion.count || ending.last.map(CaretWordContext.isConnector) == true) {
+            return .wait
+        }
+        let word = prefix + ending
+        let assessment = spellingAssessment(word)
+        if word.first?.isLowercase == true, word.count >= minimumSeamWordLength, assessment == .correctableTypo {
+            // Instruction-tuned models sometimes omit the separator after a complete word:
+            // `up` + `and ...` became `upand` and hid an otherwise useful prediction. Repair only
+            // plain-letter words that are BOTH known independently and whose join is a confirmed
+            // typo. Valid joins (`car` + `pet`), unknown vocabulary, and lexical connectors keep
+            // their original semantics. The streaming boundary check above ensures `an` cannot
+            // authorize a space before the model finishes generating `and`.
+            if prefix.allSatisfy(\.isLetter), ending.allSatisfy(\.isLetter),
+               spellingAssessment(prefix) == .known,
+               spellingAssessment(String(ending)) == .known {
+                return .show(text: " " + completion, wordOnly: false)
+            }
+            return .suppress(.seamMisspelling(word: word))
+        }
+        // Judge the complete joined word, not how many letters the writer has typed. Once `b`
+        // + `uild` is a credible word, throwing away ` a spaceship` forces another generation
+        // after acceptance and makes the same phrase behave differently at `b`, `bu`, and `bui`.
+        // Unknown names and vocabulary still get the conservative ending-only presentation.
+        let wordOnly = assessment != .known
+        return .show(text: wordOnly ? String(ending) : completion, wordOnly: wordOnly)
     }
 
     // MARK: - Junk punctuation runs

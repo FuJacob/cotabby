@@ -1,0 +1,274 @@
+[
+  {
+    "block": "baseline-1",
+    "id": "word_boundary",
+    "valid_text": true,
+    "expected_text": "Please send me the updated ",
+    "observed_text": "Please send me the updated ",
+    "shown": true,
+    "latency_ms": 408.22237500105985,
+    "median_key_interval_ms": 124.99809265136719,
+    "suppression_stages": []
+  },
+  {
+    "block": "baseline-1",
+    "id": "partial_word",
+    "valid_text": false,
+    "expected_text": "Please send me the schedu",
+    "observed_text": "Please send me the schedule",
+    "shown": true,
+    "latency_ms": 522.9508749907836,
+    "median_key_interval_ms": 125.38409233093262,
+    "suppression_stages": []
+  },
+  {
+    "block": "baseline-1",
+    "id": "missing_space_delay",
+    "valid_text": true,
+    "expected_text": "There is a long delay",
+    "observed_text": "There is a long delay",
+    "shown": false,
+    "latency_ms": null,
+    "median_key_interval_ms": 125.06496906280518,
+    "suppression_stages": [
+      "seam-suppressed"
+    ]
+  },
+  {
+    "block": "baseline-1",
+    "id": "missing_space_up",
+    "valid_text": true,
+    "expected_text": "The predictions come up",
+    "observed_text": "The predictions come up",
+    "shown": false,
+    "latency_ms": null,
+    "median_key_interval_ms": 126.28889083862305,
+    "suppression_stages": [
+      "seam-suppressed"
+    ]
+  },
+  {
+    "block": "baseline-1",
+    "id": "sentence_continuation",
+    "valid_text": true,
+    "expected_text": "I would like to build ",
+    "observed_text": "I would like to build ",
+    "shown": true,
+    "latency_ms": 517.3802499921294,
+    "median_key_interval_ms": 126.11794471740723,
+    "suppression_stages": []
+  },
+  {
+    "block": "baseline-1",
+    "id": "prose_boundary",
+    "valid_text": true,
+    "expected_text": "We should review the proposal ",
+    "observed_text": "We should review the proposal ",
+    "shown": true,
+    "latency_ms": 567.4629999994067,
+    "median_key_interval_ms": 125.40507316589355,
+    "suppression_stages": []
+  },
+  {
+    "block": "baseline-2",
+    "id": "word_boundary",
+    "valid_text": true,
+    "expected_text": "Please send me the updated ",
+    "observed_text": "Please send me the updated ",
+    "shown": true,
+    "latency_ms": 409.2265833314741,
+    "median_key_interval_ms": 125.03695487976074,
+    "suppression_stages": []
+  },
+  {
+    "block": "baseline-2",
+    "id": "partial_word",
+    "valid_text": false,
+    "expected_text": "Please send me the schedu",
+    "observed_text": "Please send me the schedule",
+    "shown": true,
+    "latency_ms": 491.8024166690884,
+    "median_key_interval_ms": 126.30224227905273,
+    "suppression_stages": []
+  },
+  {
+    "block": "baseline-2",
+    "id": "missing_space_delay",
+    "valid_text": true,
+    "expected_text": "There is a long delay",
+    "observed_text": "There is a long delay",
+    "shown": false,
+    "latency_ms": null,
+    "median_key_interval_ms": 125.7411241531372,
+    "suppression_stages": [
+      "seam-suppressed"
+    ]
+  },
+  {
+    "block": "baseline-2",
+    "id": "missing_space_up",
+    "valid_text": true,
+    "expected_text": "The predictions come up",
+    "observed_text": "The predictions come up",
+    "shown": false,
+    "latency_ms": null,
+    "median_key_interval_ms": 127.99310684204102,
+    "suppression_stages": [
+      "seam-suppressed"
+    ]
+  },
+  {
+    "block": "baseline-2",
+    "id": "sentence_continuation",
+    "valid_text": true,
+    "expected_text": "I would like to build ",
+    "observed_text": "I would like to build ",
+    "shown": true,
+    "latency_ms": 508.94095833064057,
+    "median_key_interval_ms": 125.00691413879395,
+    "suppression_stages": []
+  },
+  {
+    "block": "baseline-2",
+    "id": "prose_boundary",
+    "valid_text": true,
+    "expected_text": "We should review the proposal ",
+    "observed_text": "We should review the proposal ",
+    "shown": true,
+    "latency_ms": 575.4847083444474,
+    "median_key_interval_ms": 125.21421909332275,
+    "suppression_stages": []
+  },
+  {
+    "block": "updated-1",
+    "id": "word_boundary",
+    "valid_text": true,
+    "expected_text": "Please send me the updated ",
+    "observed_text": "Please send me the updated ",
+    "shown": true,
+    "latency_ms": 430.9283750044415,
+    "median_key_interval_ms": 125.00524520874023,
+    "suppression_stages": []
+  },
+  {
+    "block": "updated-1",
+    "id": "partial_word",
+    "valid_text": false,
+    "expected_text": "Please send me the schedu",
+    "observed_text": "Please send me the schedule",
+    "shown": true,
+    "latency_ms": 458.72599999711383,
+    "median_key_interval_ms": 125.12493133544922,
+    "suppression_stages": []
+  },
+  {
+    "block": "updated-1",
+    "id": "missing_space_delay",
+    "valid_text": true,
+    "expected_text": "There is a long delay",
+    "observed_text": "There is a long delay",
+    "shown": true,
+    "latency_ms": 533.746125001926,
+    "median_key_interval_ms": 125.08547306060791,
+    "suppression_stages": []
+  },
+  {
+    "block": "updated-1",
+    "id": "missing_space_up",
+    "valid_text": true,
+    "expected_text": "The predictions come up",
+    "observed_text": "The predictions come up",
+    "shown": true,
+    "latency_ms": 724.34537501249,
+    "median_key_interval_ms": 130.89609146118164,
+    "suppression_stages": []
+  },
+  {
+    "block": "updated-1",
+    "id": "sentence_continuation",
+    "valid_text": true,
+    "expected_text": "I would like to build ",
+    "observed_text": "I would like to build ",
+    "shown": true,
+    "latency_ms": 414.90870833513327,
+    "median_key_interval_ms": 125.3819465637207,
+    "suppression_stages": []
+  },
+  {
+    "block": "updated-1",
+    "id": "prose_boundary",
+    "valid_text": true,
+    "expected_text": "We should review the proposal ",
+    "observed_text": "We should review the proposal ",
+    "shown": true,
+    "latency_ms": 466.9724166742526,
+    "median_key_interval_ms": 125.00154972076416,
+    "suppression_stages": []
+  },
+  {
+    "block": "updated-2",
+    "id": "word_boundary",
+    "valid_text": true,
+    "expected_text": "Please send me the updated ",
+    "observed_text": "Please send me the updated ",
+    "shown": true,
+    "latency_ms": 407.86087499873247,
+    "median_key_interval_ms": 124.99785423278809,
+    "suppression_stages": []
+  },
+  {
+    "block": "updated-2",
+    "id": "partial_word",
+    "valid_text": false,
+    "expected_text": "Please send me the schedu",
+    "observed_text": "Please send me the schedule",
+    "shown": true,
+    "latency_ms": 475.55950000241864,
+    "median_key_interval_ms": 125.60796737670898,
+    "suppression_stages": []
+  },
+  {
+    "block": "updated-2",
+    "id": "missing_space_delay",
+    "valid_text": true,
+    "expected_text": "There is a long delay",
+    "observed_text": "There is a long delay",
+    "shown": true,
+    "latency_ms": 491.9570833299076,
+    "median_key_interval_ms": 124.9934434890747,
+    "suppression_stages": []
+  },
+  {
+    "block": "updated-2",
+    "id": "missing_space_up",
+    "valid_text": true,
+    "expected_text": "The predictions come up",
+    "observed_text": "The predictions come up",
+    "shown": true,
+    "latency_ms": 665.2434583374998,
+    "median_key_interval_ms": 126.42669677734375,
+    "suppression_stages": []
+  },
+  {
+    "block": "updated-2",
+    "id": "sentence_continuation",
+    "valid_text": true,
+    "expected_text": "I would like to build ",
+    "observed_text": "I would like to build ",
+    "shown": true,
+    "latency_ms": 417.22699999809265,
+    "median_key_interval_ms": 125.00715255737305,
+    "suppression_stages": []
+  },
+  {
+    "block": "updated-2",
+    "id": "prose_boundary",
+    "valid_text": true,
+    "expected_text": "We should review the proposal ",
+    "observed_text": "We should review the proposal ",
+    "shown": true,
+    "latency_ms": 468.56554165424313,
+    "median_key_interval_ms": 125.01060962677002,
+    "suppression_stages": []
+  }
+]

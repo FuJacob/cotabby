@@ -94,17 +94,19 @@ struct DownloadableRuntimeModel: Equatable, Hashable, Sendable, Identifiable {
     }
 }
 
+/// Maps installed model filenames to presentation names. Rebranding these labels never changes
+/// download URLs, model files, or the filenames persisted by the settings model.
 enum RuntimeModelCatalog {
     static func displayName(for filename: String) -> String {
         switch filename {
         case "Qwen3.5-0.8B-Base.i1-Q6_K.gguf":
-            return "tabby-2-nano"
+            return "Cotabby Nano"
         case "Qwen3.5-2B-Base.i1-Q4_K_M.gguf":
-            return "tabby-2-mini"
+            return "Cotabby Mini"
         case "gemma-4-E2B.i1-Q6_K.gguf":
-            return "tabby-2-base"
+            return "Cotabby Base"
         case "gemma-4-E4B.i1-Q4_K_M.gguf":
-            return "tabby-2-pro"
+            return "Cotabby Pro"
         default:
             return filename
         }

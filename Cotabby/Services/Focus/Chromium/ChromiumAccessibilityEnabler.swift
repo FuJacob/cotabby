@@ -67,6 +67,20 @@ final class ChromiumAccessibilityEnabler {
             CotabbyLogger.focus.debug(
                 "CHROME-PRIME enabled web accessibility for \(application.localizedName ?? "?")")
         case .attributeUnsupported:
+            // Codex embeds Chromium in a native shell that rejects AXManualAccessibility.
+            // Its native AXEnhancedUserInterface switch exposes the composed web tree instead.
+            // Keep this fallback specific to Codex: changing it globally can affect window managers.
+            if application.bundleIdentifier?.lowercased() == "com.openai.codex" {
+                let root = AXUIElementCreateApplication(pid)
+                AXUIElementSetMessagingTimeout(root, 0.05)
+                _ = AXUIElementSetAttributeValue(root, "AXEnhancedUserInterface" as CFString, kCFBooleanTrue)
+                // This shell can report notImplemented even after applying the value; read back
+                // the state rather than treating that return code as proof that priming failed.
+                if AXHelper.boolValue(for: "AXEnhancedUserInterface" as CFString, on: root) == true {
+                    primedPIDs.insert(pid)
+                    return
+                }
+            }
             // Electron build that does not expose AXManualAccessibility; stop retrying.
             unsupportedPIDs.insert(pid)
         default:
