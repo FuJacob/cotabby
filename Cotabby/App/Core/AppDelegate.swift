@@ -157,7 +157,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
         let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
         CotabbyLogger.app.info(
-            "CoHamster \(version) (build \(build)) launching on macOS \(ProcessInfo.processInfo.operatingSystemVersionString)"
+            "Cotabby \(version) (build \(build)) launching on macOS \(ProcessInfo.processInfo.operatingSystemVersionString)"
         )
         applyLaunchAtLoginDefaultIfNeeded()
         startRuntimeIfPreferredEngineRequiresIt()
@@ -184,7 +184,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if shouldShowSettings {
             if !suggestionSettings.isMenuBarIconVisible && !wasSettingsExplicitlyRequested {
                 CotabbyLogger.app.info(
-                    "Opening Settings because CoHamster launched with its menu bar icon hidden"
+                    "Opening Settings because Cotabby launched with its menu bar icon hidden"
                 )
             }
             settingsCoordinator.showSettings()
@@ -207,7 +207,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return true
         }
 
-        CotabbyLogger.app.info("Opening Settings because CoHamster was reopened with its menu bar icon hidden")
+        CotabbyLogger.app.info("Opening Settings because Cotabby was reopened with its menu bar icon hidden")
         settingsCoordinator.showSettings()
         return false
     }
@@ -243,8 +243,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        CotabbyLogger.app.info("CoHamster terminating, releasing services")
-        activationIndicatorController.hide(reason: "Activation indicator hidden because CoHamster is terminating.")
+        CotabbyLogger.app.info("Cotabby terminating, releasing services")
+        activationIndicatorController.hide(reason: "Activation indicator hidden because Cotabby is terminating.")
         focusDebugOverlayController?.hide()
         suggestionCoordinator.stop()
         inlineCommandCoordinator.stop()
@@ -300,7 +300,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Xcode's app-hosted unit tests launch the real menu-bar app binary before loading the test
     /// bundle. Those tests instantiate focused services directly, so starting global taps, focus
-    /// polling, Sparkle, and the llama runtime in the host process only adds side effects and can
+    /// polling, update checks, and the llama runtime in the host process only adds side effects and can
     /// crash before a test assertion runs. The environment variable is supplied by XCTest only.
     private static var isRunningUnderXCTest: Bool {
         ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil

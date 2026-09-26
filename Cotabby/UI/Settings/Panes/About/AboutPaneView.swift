@@ -25,14 +25,14 @@ struct AboutPaneView: View {
     @ViewBuilder
     private var aboutHeader: some View {
         HStack(spacing: 12) {
-            Image("CoHamsterLogo")
+            Image("CotabbyLogo")
                 .resizable()
                 .scaledToFit()
                 .frame(width: 40, height: 40)
                 .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String ?? "CoHamster")
+                Text(Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String ?? "Cotabby")
                     .font(.system(size: 16, weight: .semibold, design: .rounded))
 
                 Text("Local macOS AI Autocomplete")
@@ -58,7 +58,7 @@ struct AboutPaneView: View {
     @ViewBuilder
     private var supportRow: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Help improve CoHamster by reporting bugs, suggesting features, or contributing code.")
+            Text("Help improve Cotabby by reporting bugs, suggesting features, or contributing code.")
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             if let url = URL(string: "https://github.com/mc-hamster/CoHamster/issues") {
@@ -97,7 +97,7 @@ struct AboutPaneView: View {
     @ViewBuilder
     private var uninstallText: some View {
         let dataDirectory = BundledRuntimeLocator.userRuntimeDirectoryURL().deletingLastPathComponent().path
-        Text("Remove CoHamster from Applications. To fully clean up model data, delete \(dataDirectory).")
+        Text("Remove Cotabby from Applications. To fully clean up model data, delete \(dataDirectory).")
         .font(.caption)
         .foregroundStyle(.secondary)
     }

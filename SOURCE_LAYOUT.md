@@ -1,4 +1,4 @@
-# CoHamster Source Layout
+# Cotabby Source Layout
 
 This document is the canonical placement map for production and test source files. It complements
 `ARCHITECTURE.md`, which explains runtime ownership and data flow.
@@ -18,7 +18,7 @@ Folders exist so a maintainer can predict where a responsibility lives before se
 5. Put a direct unit test under the corresponding `CotabbyTests/` responsibility. Cross-cutting
    coordinator tests may remain grouped by the coordinator they exercise.
 6. Folder moves must not change Swift access control, runtime ownership, or target membership.
-   XcodeGen discovers the new paths; regenerate `CoHamster.xcodeproj` after moving files.
+   XcodeGen discovers the new paths; regenerate `Cotabby.xcodeproj` after moving files.
 
 ## Production Tree
 
@@ -65,7 +65,7 @@ Cotabby/
 │   ├── Spelling/                     live spell-checking services
 │   ├── Suggestion/
 │   │   └── State/                    work identity and mutable interaction state
-│   ├── Updates/                      Sparkle update integration
+│   ├── Updates/                      manual release checks
 │   └── Visual/                       capture, OCR, and visual-context sessions
 ├── Support/
 │   ├── Accessibility/                pure AX and secure-surface policies

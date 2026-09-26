@@ -28,7 +28,7 @@ nonisolated enum DownloadFileRescuer {
         fileManager: FileManager = .default
     ) throws -> URL {
         let holdingURL = fileManager.temporaryDirectory
-            .appendingPathComponent("CoHamster-download-\(UUID().uuidString)", isDirectory: false)
+            .appendingPathComponent("Cotabby-download-\(UUID().uuidString)", isDirectory: false)
         try fileManager.moveItem(at: location, to: holdingURL)
         return holdingURL
     }

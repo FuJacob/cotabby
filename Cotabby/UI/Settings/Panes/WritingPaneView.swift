@@ -18,7 +18,7 @@ struct WritingPaneView: View {
                 } label: {
                     SettingsRowLabel(
                         title: "Length",
-                        description: "How many words CoHamster aims for per suggestion. Shorter is snappier; " +
+                        description: "How many words Cotabby aims for per suggestion. Shorter is snappier; " +
                             "longer covers more thoughts but takes longer to generate.",
                         systemImage: "ruler"
                     )
@@ -39,7 +39,7 @@ struct WritingPaneView: View {
                         wordCountField(value: customHighBinding, label: "Maximum word count")
                     }
                     Text("Token budget scales by your selected language. Multiple languages or a " +
-                        "language CoHamster doesn't recognize use the English ratio.")
+                        "language Cotabby doesn't recognize use the English ratio.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -137,7 +137,7 @@ struct WritingPaneView: View {
                         Text("Name")
                             .font(.system(size: 13, weight: .medium))
 
-                        TextField("What should CoHamster call you?", text: Binding(
+                        TextField("What should Cotabby call you?", text: Binding(
                             get: { suggestionSettings.userName },
                             set: { suggestionSettings.setUserName($0) }
                         ))

@@ -1,3 +1,12 @@
+# Historical fork releases
+
+Published notes below retain their original names and describe the binaries shipped at the time.
+The app now uses Cotabby branding; see [RELEASING.md](../RELEASING.md) and the
+[Fastlane guide](../fastlane/README.md) for the current workflow. Changes are being prepared for
+upstream contribution before the fork is retired; no EOL date has been set.
+
+---
+
 # CoHamster release process
 
 The maintainer entry point is now [Fastlane](../fastlane/README.md): `bundle exec fastlane mac

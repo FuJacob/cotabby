@@ -112,7 +112,7 @@ final class PromptContextSanitizerTests: XCTestCase {
     func test_sanitizeOCR_dropsRandomMixedCaseAndAlphanumericGarbage() {
         let input = """
         gLVWrt bDokE 54tbdbDX
-        Visible task update Screen Recording copy for CoHamster
+        Visible task update Screen Recording copy for Cotabby
         """
 
         let result = PromptContextSanitizer.sanitizeOCR(input)
@@ -120,7 +120,7 @@ final class PromptContextSanitizerTests: XCTestCase {
         XCTAssertFalse(result.contains("gLVWrt"))
         XCTAssertFalse(result.contains("bDokE"))
         XCTAssertFalse(result.contains("54tbdbDX"))
-        XCTAssertTrue(result.contains("Visible task update Screen Recording copy for CoHamster"))
+        XCTAssertTrue(result.contains("Visible task update Screen Recording copy for Cotabby"))
     }
 
     func test_sanitizeOCR_preservesUsefulTechnicalAndUserContext() {

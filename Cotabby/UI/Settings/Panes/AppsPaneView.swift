@@ -22,7 +22,7 @@ struct AppsPaneView: View {
                     .foregroundStyle(.secondary)
 
                 if suggestionSettings.perAppShortcutOverrides.isEmpty {
-                    Text("No per-app shortcuts. CoHamster uses the global accept key everywhere.")
+                    Text("No per-app shortcuts. Cotabby uses the global accept key everywhere.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 } else {
@@ -37,14 +37,14 @@ struct AppsPaneView: View {
             }
 
             Section("Disabled Apps") {
-                Text("CoHamster won't autocomplete in these apps. Add an app you can't disable from the "
+                Text("Cotabby won't autocomplete in these apps. Add an app you can't disable from the "
                     + "menu bar, like a launcher that closes the moment it loses focus.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .settingsItem(.disabledApps)
 
                 if suggestionSettings.disabledAppRules.isEmpty {
-                    Text("No apps are disabled. CoHamster is active in every supported field.")
+                    Text("No apps are disabled. Cotabby is active in every supported field.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 } else {
@@ -157,7 +157,7 @@ struct AppsPaneView: View {
                 }
                 .buttonStyle(.borderless)
                 .accessibilityLabel("Remove per-app shortcuts for \(override.displayName)")
-                .help("Remove this app's overrides. CoHamster will use the global accept keys here.")
+                .help("Remove this app's overrides. Cotabby will use the global accept keys here.")
             }
 
             perAppBindingRow(
@@ -443,7 +443,7 @@ struct AppsPaneView: View {
         panel.canChooseFiles = true
         panel.directoryURL = URL(fileURLWithPath: "/Applications", isDirectory: true)
         panel.prompt = "Disable"
-        panel.message = "Choose apps where CoHamster should not autocomplete."
+        panel.message = "Choose apps where Cotabby should not autocomplete."
 
         guard panel.runModal() == .OK else {
             return

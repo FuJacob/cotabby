@@ -1,4 +1,4 @@
-name: CoHamster
+name: Cotabby
 options:
   bundleIdPrefix: org.mchamster
   defaultConfig: Release
@@ -8,9 +8,6 @@ options:
   groupSortPosition: top
   xcodeVersion: "2600"
 packages:
-  Sparkle:
-    url: https://github.com/sparkle-project/Sparkle
-    exactVersion: 2.9.1
   CotabbyInference:
     url: https://github.com/FuJacob/cotabbyinference.git
     branch: main
@@ -85,7 +82,7 @@ settings:
       MTL_ENABLE_DEBUG_INFO: NO
       SWIFT_COMPILATION_MODE: wholemodule
 # Signing lives in xcconfig files, not the generated project. `Config/Signing.xcconfig` (committed)
-# supplies CoHamster's team as the maintainer-friendly default and optionally includes the gitignored
+# supplies the fork maintainer's team as the maintainer-friendly default and optionally includes the gitignored
 # `Config/Signing.local.xcconfig` that `scripts/dev-setup.sh` writes for contributors on another
 # team. It sits in a subdirectory on purpose: a root-level config file makes XcodeGen name a group
 # after the checkout directory, which drifts between clones and CI. DEVELOPMENT_TEAM must also stay
@@ -94,9 +91,8 @@ settings:
 configFiles:
   Debug: Config/Signing.xcconfig
   Release: Config/Signing.xcconfig
-# Both products share the same source module. The release keeps the previous fork bundle ID
-# and data directory so a product rename does not reset preferences, credentials, or model storage.
-# The dev identity remains separate from the installed release.
+# Display branding follows Cotabby. Debug and Release retain the installed fork bundle ID
+# and data directory until a deliberate migration to upstream preserves user data and permissions.
 targetTemplates:
   CotabbyApp:
     configFiles:
@@ -112,8 +108,6 @@ targetTemplates:
       - path: THIRD_PARTY_LICENSES.md
         buildPhase: resources
     dependencies:
-      - package: Sparkle
-        product: Sparkle
       - package: CotabbyInference
         product: CotabbyInference
       - package: swift-log
@@ -135,7 +129,7 @@ targetTemplates:
         ENABLE_PREVIEWS: YES
         ENABLE_USER_SELECTED_FILES: readonly
         GENERATE_INFOPLIST_FILE: NO
-        INFOPLIST_FILE: Config/CoHamsterInfo.plist
+        INFOPLIST_FILE: Config/CotabbyInfo.plist
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
         LD_RUNPATH_SEARCH_PATHS:
           - $(inherited)
@@ -151,7 +145,7 @@ targetTemplates:
         SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY: YES
         SWIFT_VERSION: "5.0"
 targets:
-  CoHamster:
+  Cotabby:
     templates:
       - CotabbyApp
     settings:
@@ -167,7 +161,7 @@ targets:
     sources:
       - path: CotabbyTests
     dependencies:
-      - target: CoHamster
+      - target: Cotabby
     settings:
       base:
         BUNDLE_LOADER: $(TEST_HOST)
@@ -186,12 +180,12 @@ targets:
         SDKROOT: macosx
         SWIFT_OBJC_INTEROP_MODE: objcxx
         SWIFT_VERSION: "5.0"
-        TEST_HOST: $(BUILT_PRODUCTS_DIR)/CoHamster.app/Contents/MacOS/CoHamster
+        TEST_HOST: $(BUILT_PRODUCTS_DIR)/Cotabby.app/Contents/MacOS/Cotabby
 schemes:
-  CoHamster:
+  Cotabby:
     build:
       targets:
-        CoHamster: all
+        Cotabby: all
     run:
       config: Debug
       commandLineArguments:

@@ -42,7 +42,7 @@ struct ContextPaneView: View {
     private var livePreviewSection: some View {
         Section("Live preview") {
             VStack(alignment: .leading, spacing: 12) {
-                Text("Type below and CoHamster completes as you go, using the same engine and settings " +
+                Text("Type below and Cotabby completes as you go, using the same engine and settings " +
                     "it uses everywhere. Press Tab to accept the gray suggestion, Esc to dismiss.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -139,7 +139,7 @@ struct ContextPaneView: View {
                     "Sent on every suggestion as reference material, not as instructions."
                 )
                 bulletLine(
-                    "Subordinate to CoHamster's base autocomplete rules, so it cannot override " +
+                    "Subordinate to Cotabby's base autocomplete rules, so it cannot override " +
                         "core behavior."
                 )
                 bulletLine(

@@ -1,6 +1,6 @@
 ---
 name: Bug report
-about: Report a reproducible CoHamster bug
+about: Report a reproducible Cotabby bug
 title: "[Bug] "
 labels: bug
 assignees: ""
@@ -22,7 +22,7 @@ Describe the bug in one or two sentences.
 
 - macOS version:
 - Host app:
-- CoHamster engine: Apple Intelligence / Open Source
+- Cotabby engine: Apple Intelligence / Open Source
 - Model name (if Open Source):
 - Accessibility permission granted: yes / no
 - Input Monitoring permission granted: yes / no
@@ -36,7 +36,7 @@ Describe the bug in one or two sentences.
 
 ## Expected behavior
 
-Describe what you expected CoHamster to do.
+Describe what you expected Cotabby to do.
 
 ## Actual behavior
 

@@ -1,7 +1,7 @@
 import Foundation
 
 /// File overview:
-/// The pure decision behind CoHamster's "never complete inside our own UI" rule and its single
+/// The pure decision behind Cotabby's "never complete inside our own UI" rule and its single
 /// sanctioned exception. It is kept free of Accessibility objects and timer state so the invariant
 /// that matters most here can be unit-tested directly: completions must never leak into Cotabby's own
 /// settings surfaces (search field, Extended Context editor, menus) except the one live-preview box.

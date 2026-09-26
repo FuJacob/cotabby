@@ -9,7 +9,40 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: fastlane-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  verify:
+    runs-on: macos-26
+    timeout-minutes: 30
+    env:
+      FASTLANE_SKIP_UPDATE_CHECK: '1'
+      FASTLANE_OPT_OUT_USAGE: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: ruby/setup-ruby@95ef2b042f9d7a56d8268cba8559e2842e2ad01b # v1.321.0
+        with:
+          bundler-cache: true
+      - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
+        with:
+          xcode-version: '26.6'
+      - name: Install build tools
+        run: |
+          command -v xcodegen >/dev/null || brew install xcodegen
+          command -v swiftlint >/dev/null || brew install swiftlint
+      - name: Verify app and tooling
+        run: bundle exec fastlane mac verify signed:false
+      - name: Retain diagnostic logs
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: verification-${{ github.run_id }}-${{ github.run_attempt }}
+          path: build/fastlane-logs/
+          if-no-files-found: ignore
+          retention-days: 7
+
   pipeline-tests:
     runs-on: macos-26
     timeout-minutes: 10
@@ -25,5 +58,5 @@ jobs:
         run: |
           bundle exec fastlane lanes
           bundle exec ruby fastlane/tests/release_pipeline_test.rb
-          bash -n scripts/build_and_run.sh scripts/release_cohamster.sh
+          bash -n scripts/build_and_run.sh scripts/release_cotabby.sh
           python3 -m py_compile scripts/ci_keychain.py scripts/sign_local_app.py

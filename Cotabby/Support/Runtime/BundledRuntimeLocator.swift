@@ -50,7 +50,7 @@ struct BundledRuntimeLocator {
         let appFolderName =
             (bundle.object(forInfoDictionaryKey: "CoHamsterDataDirectory") as? String)
             ?? (bundle.object(forInfoDictionaryKey: "CFBundleName") as? String)
-            ?? "CoHamster"
+            ?? "Cotabby"
         return
             appSupportRoot
             .appendingPathComponent(appFolderName, isDirectory: true)

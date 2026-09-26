@@ -46,7 +46,7 @@ extension SuggestionCoordinator {
     ) -> Bool {
         guard permissionManager.inputMonitoringGranted else {
             return passTabThrough(
-                reason: "Input Monitoring permission is required before CoHamster can accept suggestions."
+                reason: "Input Monitoring permission is required before Cotabby can accept suggestions."
             )
         }
 

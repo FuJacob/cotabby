@@ -92,7 +92,7 @@ enum SettingsCategory: String, CaseIterable, Hashable, Identifiable {
         case .context: return "What the model can reference"
         case .engineAndModel: return "Choose the engine and models"
         case .shortcuts: return "Keys that accept suggestions"
-        case .apps: return "Where CoHamster stays quiet"
+        case .apps: return "Where Cotabby stays quiet"
         case .permissions: return "System access and privacy"
         case .performance: return "Latency, quality, and resources"
         case .about: return "Version, support, and licenses"

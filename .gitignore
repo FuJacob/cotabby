@@ -1,4 +1,7 @@
 # Xcode
+# Finder/iCloud numbered copies are not generated build inputs. Keep only Cotabby.xcodeproj.
+/CoHamster*.xcodeproj/
+/Cotabby [0-9]*.xcodeproj/
 *.xcuserstate
 xcuserdata/
 *.xcworkspace/xcuserdata/

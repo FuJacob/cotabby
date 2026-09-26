@@ -317,7 +317,7 @@ final class SuggestionCoordinatorInputTests: XCTestCase {
         guard case let .disabled(reason) = rig.coordinator.state else {
             return XCTFail("Expected disabled, got \(rig.coordinator.state)")
         }
-        XCTAssertEqual(reason, "CoHamster is paused because Low Power Mode is on.")
+        XCTAssertEqual(reason, "Cotabby is paused because Low Power Mode is on.")
         XCTAssertEqual(rig.visualContext.cancelCalls, [true])
     }
 

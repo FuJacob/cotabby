@@ -607,7 +607,7 @@ final class SuggestionSettingsModelTests: XCTestCase {
     func test_shortcutActionDisplayNames_coverAllActions() {
         XCTAssertEqual(ShortcutAction.acceptWord.displayName, "Accept Word")
         XCTAssertEqual(ShortcutAction.acceptEntireSuggestion.displayName, "Accept Entire Suggestion")
-        XCTAssertEqual(ShortcutAction.toggleTabby.displayName, "Toggle CoHamster")
+        XCTAssertEqual(ShortcutAction.toggleTabby.displayName, "Toggle Cotabby")
     }
 
     // MARK: - Normalization funnels

@@ -30,7 +30,7 @@ final class FocusSnapshotResolverLiveTests: XCTestCase {
                 defer: false
             )
             window.isReleasedWhenClosed = false
-            window.title = "CoHamster resolver test host"
+            window.title = "Cotabby resolver test host"
             let textView = NSTextView(frame: NSRect(x: 10, y: 60, width: 440, height: 170))
             textView.string = Self.bodyText
             textView.font = NSFont(name: "Helvetica", size: 13) ?? NSFont.systemFont(ofSize: 13)

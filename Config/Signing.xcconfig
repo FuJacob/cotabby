@@ -1,6 +1,6 @@
 // Code signing for local development.
 //
-// The shared default is CoHamster's development team so maintainers can pull main and immediately
+// The shared default is this fork's development team so maintainers can pull main and immediately
 // run the app without Xcode writing a personal choice into the generated project.pbxproj. A
 // contributor who is not on that team overrides it once in Config/Signing.local.xcconfig
 // (gitignored). Generate that override with

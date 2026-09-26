@@ -31,7 +31,7 @@ struct PermissionReminderView: View {
                 systemImage: "exclamationmark.shield.fill",
                 tint: .orange,
                 title: "Permissions needed",
-                subtitle: "CoHamster needs these permissions to work.\nGrant them in System Settings, then come back here."
+                subtitle: "Cotabby needs these permissions to work.\nGrant them in System Settings, then come back here."
             )
             .onboardingReveal(0)
 

@@ -1,11 +1,11 @@
-# Installed CoHamster model evaluation
+# Installed Cotabby model evaluation
 
 Investigation and retained evidence: [2026-09-25 usability report](benchmarks/model-usability/2026-09-25/README.md).
 
 Run the shipping catalog against the real autocomplete pipeline, without downloading models:
 
 ```sh
-scripts/prepare_cohamster_workspace.sh
+scripts/prepare_cotabby_workspace.sh
 python3 scripts/supported_model_eval.py --output build/eval/supported-screen --plan
 python3 scripts/supported_model_eval.py --output build/eval/supported-screen
 ```

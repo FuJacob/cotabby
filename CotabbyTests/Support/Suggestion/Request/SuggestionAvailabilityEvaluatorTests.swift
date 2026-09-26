@@ -85,7 +85,7 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
             focusSnapshot: makeIntegratedTerminalSnapshot()
         )
 
-        XCTAssertEqual(reason, "CoHamster is not available in the integrated terminal.")
+        XCTAssertEqual(reason, "Cotabby is not available in the integrated terminal.")
     }
 
     func test_disabledReason_integratedTerminal_allowedWhenOptedIn() {
@@ -130,7 +130,7 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
             focusSnapshot: makeSnapshot(capability: .supported)
         )
 
-        XCTAssertEqual(reason, "CoHamster is turned off.")
+        XCTAssertEqual(reason, "Cotabby is turned off.")
     }
 
     func test_disabledReason_whenTemporarilyPaused_returnsPauseCopy() {
@@ -141,7 +141,7 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
             focusSnapshot: makeSnapshot(capability: .supported)
         )
 
-        XCTAssertEqual(reason, "CoHamster is temporarily paused.")
+        XCTAssertEqual(reason, "Cotabby is temporarily paused.")
     }
 
     // MARK: - Low Power Mode gating
@@ -155,7 +155,7 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
             focusSnapshot: makeSnapshot(capability: .supported)
         )
 
-        XCTAssertEqual(reason, "CoHamster is paused because Low Power Mode is on.")
+        XCTAssertEqual(reason, "Cotabby is paused because Low Power Mode is on.")
     }
 
     func test_disabledReason_whenLowPowerModeActiveButAutoDisableOptedOut_returnsNil() {
@@ -192,7 +192,7 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
             focusSnapshot: makeSnapshot(capability: .supported)
         )
 
-        XCTAssertEqual(reason, "CoHamster is paused because Low Power Mode is on.")
+        XCTAssertEqual(reason, "Cotabby is paused because Low Power Mode is on.")
     }
 
     func test_shouldSchedulePrediction_falseWhenLowPowerModeActiveAndAutoDisableEnabled() {
@@ -229,7 +229,7 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
             focusSnapshot: makeSupportedSnapshotWithContext(focusedURLString: "https://www.bank.com/account")
         )
 
-        XCTAssertEqual(reason, "CoHamster is disabled on bank.com.")
+        XCTAssertEqual(reason, "Cotabby is disabled on bank.com.")
     }
 
     func test_disabledReason_domainCheckIsInertByDefault() {
@@ -268,7 +268,7 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
             focusSnapshot: makeSnapshot(capability: .supported)
         )
 
-        XCTAssertEqual(reason, "CoHamster is turned off.")
+        XCTAssertEqual(reason, "Cotabby is turned off.")
     }
 
     func test_disabledReason_globalDisabled_winsOverAppDisabled() {
@@ -279,7 +279,7 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
             focusSnapshot: makeSnapshot(capability: .supported)
         )
 
-        XCTAssertEqual(reason, "CoHamster is turned off.")
+        XCTAssertEqual(reason, "Cotabby is turned off.")
     }
 
     func test_disabledReason_whenAppDisabled_returnsAppSpecificCopy() {
@@ -294,7 +294,7 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
             )
         )
 
-        XCTAssertEqual(reason, "CoHamster is disabled in Safari.")
+        XCTAssertEqual(reason, "Cotabby is disabled in Safari.")
     }
 
     // MARK: - disabledReason: capability passthrough
@@ -303,7 +303,7 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
     /// string so the menu can explain which field Cotabby is refusing to
     /// handle. Test that the evaluator passes these through verbatim.
     func test_disabledReason_blockedCapability_returnsCapabilityReason() {
-        let blockReason = "Secure field — CoHamster intentionally won't run here."
+        let blockReason = "Secure field — Cotabby intentionally won't run here."
         let reason = SuggestionAvailabilityEvaluator.disabledReason(
             globallyEnabled: true,
             inputMonitoringGranted: true,

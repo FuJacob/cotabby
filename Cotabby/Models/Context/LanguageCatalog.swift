@@ -1,7 +1,7 @@
 import Foundation
 
 /// File overview:
-/// Defines the languages CoHamster can be told the user writes in. Unlike a single "output language"
+/// Defines the languages Cotabby can be told the user writes in. Unlike a single "output language"
 /// switch, this models the *set* of languages a user works across (e.g. a German/English
 /// code-switcher) so the prompt can carry a soft hint instead of a hard override.
 ///

@@ -9,7 +9,7 @@ require "rbconfig"
 require "tmpdir"
 require "time"
 
-module CoHamster
+module Cotabby
   # One short-lived instance owns one lane's release transaction. Fastfile calls
   # this boundary; shell scripts retain native signing/packaging knowledge. Pure
   # version and artifact gates stay here so tests need neither Apple credentials
@@ -84,20 +84,20 @@ module CoHamster
       FileUtils.mkdir_p(cache)
       run("swiftlint", "--strict", "--cache-path", cache, log: "lint.log")
       run("xcodegen", "generate", log: "xcodegen.log")
-      run("git", "diff", "--exit-code", "HEAD", "--", "CoHamster.xcodeproj", log: "project-drift.log")
+      run("git", "diff", "--exit-code", "HEAD", "--", "Cotabby.xcodeproj", log: "project-drift.log")
       run(RbConfig.ruby, "fastlane/tests/release_pipeline_test.rb", log: "pipeline-tests.log")
       run("python3", "-m", "unittest", "discover", "-s", "scripts/tests", log: "python-tests.log")
       check_signing! if signed
-      run("bash", "scripts/prepare_cohamster_workspace.sh", log: "prepare.log")
-      run("xcodebuild", "-resolvePackageDependencies", "-workspace", "build/cohamster-dependencies/CoHamster.xcworkspace",
-          "-scheme", "CoHamster", "-onlyUsePackageVersionsFromResolvedFile", "-derivedDataPath", "build/DerivedData",
+      run("bash", "scripts/prepare_cotabby_workspace.sh", log: "prepare.log")
+      run("xcodebuild", "-resolvePackageDependencies", "-workspace", "build/cotabby-dependencies/Cotabby.xcworkspace",
+          "-scheme", "Cotabby", "-onlyUsePackageVersionsFromResolvedFile", "-derivedDataPath", "build/DerivedData",
           log: "resolve.log")
-      build_args = ["-workspace", "build/cohamster-dependencies/CoHamster.xcworkspace",
-                    "-scheme", "CoHamster", "-configuration", "Debug", "-destination", "platform=macOS",
+      build_args = ["-workspace", "build/cotabby-dependencies/Cotabby.xcworkspace",
+                    "-scheme", "Cotabby", "-configuration", "Debug", "-destination", "platform=macOS",
                     "-onlyUsePackageVersionsFromResolvedFile", "-derivedDataPath", "build/DerivedData"]
       run("xcodebuild", "build-for-testing", *build_args, "CODE_SIGNING_ALLOWED=NO", log: "test-build.log")
       if signed
-        run("python3", "scripts/sign_local_app.py", "build/DerivedData/Build/Products/Debug/CoHamster.app",
+        run("python3", "scripts/sign_local_app.py", "build/DerivedData/Build/Products/Debug/Cotabby.app",
             "--identity", identity, "--testing", log: "test-signing.log")
       end
       run("xcodebuild", "test-without-building", *build_args,
@@ -132,20 +132,20 @@ module CoHamster
       output = File.join(@root, "build/releases", "#{release_label}-#{metadata.fetch('build_number')}")
       raise "Artifact directory already exists: #{output}. Move it aside before retrying." if File.exist?(output)
       FileUtils.mkdir_p(output)
-      run("bash", "scripts/release_cohamster.sh", env: {
+      run("bash", "scripts/release_cotabby.sh", env: {
         "COHAMSTER_SIGNING_IDENTITY" => identity, "NOTARY_PROFILE" => notary_profile,
         "COHAMSTER_RELEASE_LABEL" => release_label, "COHAMSTER_RELEASE_NOTES" => notes
       }, log: "package.log")
       raise "Checkout changed during packaging" unless clean_commit! == commit
-      release_dir = File.join(@root, "build/cohamster-release")
-      dmg = File.join(output, "CoHamster-#{release_label}-arm64.dmg")
+      release_dir = File.join(@root, "build/cotabby-release")
+      dmg = File.join(output, "Cotabby-#{release_label}-arm64.dmg")
       FileUtils.cp(File.join(release_dir, File.basename(dmg)), dmg)
       source_archive(output, release_label, commit, release_dir)
-      run("ditto", "-c", "-k", "--keepParent", File.join(release_dir, "CoHamster.xcarchive/dSYMs"),
-          File.join(output, "CoHamster-#{release_label}-dSYMs.zip"))
+      run("ditto", "-c", "-k", "--keepParent", File.join(release_dir, "Cotabby.xcarchive/dSYMs"),
+          File.join(output, "Cotabby-#{release_label}-dSYMs.zip"))
       metadata.merge!("commit" => commit, "tag" => "cohamster-v#{release_label}", "prerelease" => !suffix.to_s.empty?,
                       "native_commit" => capture("git", "-C", File.join(release_dir, "CotabbyInference"), "rev-parse", "HEAD").strip,
-                      "native_patch_sha256" => Digest::SHA256.file(File.join(@root, "patches/cotabbyinference-mchamster.patch")).hexdigest,
+                      "native_patch_sha256" => Digest::SHA256.file(File.join(@root, "patches/cotabbyinference-upstream-pending.patch")).hexdigest,
                       "xcode" => capture("xcodebuild", "-version").strip, "created_at" => Time.now.utc.iso8601)
       File.write(File.join(output, "release.json"), JSON.pretty_generate(metadata) + "\n")
       FileUtils.cp(File.join(@root, notes), File.join(output, "Release-Notes.md"))
@@ -174,7 +174,7 @@ module CoHamster
       # The draft therefore cannot silently reuse a tag pointing at other code.
       api("repos/#{REPOSITORY}/git/refs", method: "POST", data: { ref: "refs/tags/#{tag}", sha: commit })
       draft = api("repos/#{REPOSITORY}/releases", method: "POST", data: {
-        tag_name: tag, target_commitish: commit, name: "CoHamster #{self.class.label(metadata.fetch('version'), suffix)}",
+        tag_name: tag, target_commitish: commit, name: "Cotabby #{self.class.label(metadata.fetch('version'), suffix)}",
         body: File.read(artifact.fetch(:notes)), draft: true, prerelease: !suffix.to_s.empty?, make_latest: "false"
       })
       puts "Draft created: #{draft.fetch('html_url')}"
@@ -243,7 +243,7 @@ module CoHamster
 
     def source_archive(output, label, commit, release_dir)
       Dir.mktmpdir("cohamster-source-") do |temporary|
-        source = File.join(temporary, "CoHamster-#{label}")
+        source = File.join(temporary, "Cotabby-#{label}")
         FileUtils.mkdir_p(source)
         archive = File.join(temporary, "source.tar")
         run("git", "archive", "--format=tar", "--output=#{archive}", commit)
@@ -252,19 +252,19 @@ module CoHamster
         FileUtils.mkdir_p(native)
         run("git", "-C", File.join(release_dir, "CotabbyInference"), "archive", "--format=tar", "--output=#{archive}", "HEAD")
         run("tar", "-xf", archive, "-C", native)
-        run("git", "-C", native, "apply", File.join(source, "patches/cotabbyinference-mchamster.patch"))
+        run("git", "-C", native, "apply", File.join(source, "patches/cotabbyinference-upstream-pending.patch"))
         File.write(File.join(source, "BUILDING-SOURCE.txt"), <<~TEXT)
-          This archive contains CoHamster commit #{commit} and the patched native source in vendor/CotabbyInference.
+          This archive contains Cotabby commit #{commit} and the patched native source in vendor/CotabbyInference.
           Model weights are not included. See THIRD_PARTY_LICENSES.md and releases/README.md.
           Install Xcode and XcodeGen. From this directory:
             xcodegen generate
-            python3 scripts/create-inference-workspace.py vendor/CotabbyInference --output build/source/CoHamster.xcworkspace
-            mkdir -p build/source/CoHamster.xcworkspace/xcshareddata/swiftpm
-            cp Config/McHamster.Package.resolved build/source/CoHamster.xcworkspace/xcshareddata/swiftpm/Package.resolved
-            xcodebuild -workspace build/source/CoHamster.xcworkspace -scheme CoHamster -configuration Release -destination 'platform=macOS' -onlyUsePackageVersionsFromResolvedFile -derivedDataPath build/DerivedData CODE_SIGNING_ALLOWED=NO build
+            python3 scripts/create-inference-workspace.py vendor/CotabbyInference --output build/source/Cotabby.xcworkspace
+            mkdir -p build/source/Cotabby.xcworkspace/xcshareddata/swiftpm
+            cp Config/Package.resolved build/source/Cotabby.xcworkspace/xcshareddata/swiftpm/Package.resolved
+            xcodebuild -workspace build/source/Cotabby.xcworkspace -scheme Cotabby -configuration Release -destination 'platform=macOS' -onlyUsePackageVersionsFromResolvedFile -derivedDataPath build/DerivedData CODE_SIGNING_ALLOWED=NO build
           SwiftPM downloads the other pinned dependencies. This produces an unsigned local build.
         TEXT
-        run("tar", "-czf", File.join(output, "CoHamster-#{label}-source.tar.gz"), "-C", temporary, File.basename(source))
+        run("tar", "-czf", File.join(output, "Cotabby-#{label}-source.tar.gz"), "-C", temporary, File.basename(source))
       end
     end
 

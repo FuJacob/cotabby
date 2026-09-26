@@ -1,8 +1,8 @@
-# CoHamster Codex Instructions
+# Cotabby Codex Instructions
 
 ## Project Identity
 
-CoHamster is a macOS menu bar app for local-first inline autocomplete. The core loop is:
+Cotabby is a macOS menu bar app for local-first inline autocomplete. The core loop is:
 
 1. Track the currently focused editable field through Accessibility.
 2. Monitor global keyboard input without stealing focus.
@@ -57,7 +57,8 @@ When adding a `struct`, `class`, `enum`, actor, or protocol, explain:
 - `CotabbyTests/`: unit and microbench tests that mirror the production subsystem map. Prefer
   testing pure `Support/` and `Models/` logic when possible.
 - `CotabbyInference`: the llama.cpp wrapper, consumed as a SwiftPM package
-  (`github.com/FuJacob/cotabbyinference`, pinned to `main`) rather than vendored in-tree.
+  (`github.com/FuJacob/cotabbyinference`). The build workspace pins a revision and applies
+  `patches/cotabbyinference-upstream-pending.patch` until those APIs are accepted upstream.
 
 Within a subsystem, child folders describe stable responsibilities rather than Swift namespaces.
 Examples include `Services/Runtime/{AppleIntelligence,Llama,OpenAICompatible}` and
@@ -117,7 +118,7 @@ about than coordinator mutations.
 Focus and geometry live in:
 
 - `FocusTracker`: observes focus/value/selection changes and publishes snapshots.
-- `FocusSnapshotResolver`: reduces raw AX elements into CoHamster-supported focus snapshots.
+- `FocusSnapshotResolver`: reduces raw AX elements into Cotabby-supported focus snapshots.
 - `AXTextGeometryResolver`: resolves caret and input geometry.
 - `AXHelper`: low-level Accessibility/Core Foundation helper calls.
 - `FocusModels`: pure focus values, identities, capabilities, stale-result signatures, and the
@@ -167,7 +168,7 @@ Runtime generation is split by responsibility:
 cache/decode, and shutdown work serialized while heavy generation runs away from MainActor. The
 manager should publish state; the core should own native correctness.
 
-CoHamster owns one autocomplete sequence. CotabbyInference therefore exposes one live native sequence
+Cotabby owns one autocomplete sequence. CotabbyInference therefore exposes one live native sequence
 backed by llama.cpp slot zero; a changing external sequence ID rejects stale handles after reset.
 The Swift generation loop owns the maximum output-token budget.
 
@@ -222,15 +223,15 @@ It also creates better tests.
 
 ## Debugging & Logs
 
-CoHamster has a structured logging system built for AI-assisted debugging. During development the app
+Cotabby has a structured logging system built for AI-assisted debugging. During development the app
 is launched with `-cotabby-debug`, which enables on-disk JSONL sinks in addition to the always-on
 Console.app stream.
 
 **Log file locations** (only populated when `-cotabby-debug` is set):
 
-- `~/Library/Logs/CoHamster/cotabby.jsonl` — main event stream. One JSON object per line, with all
+- `~/Library/Logs/Cotabby/cotabby.jsonl` — main event stream. One JSON object per line, with all
   metadata flattened as top-level fields so it can be filtered with `jq`.
-- `~/Library/Logs/CoHamster/llm-io.jsonl` — full LLM prompts and completions, one record per
+- `~/Library/Logs/Cotabby/llm-io.jsonl` — full LLM prompts and completions, one record per
   generation. Shares `request_id` with the main log so a single suggestion can be joined across
   files.
 - `~/Desktop/cotabby-ax-dump.txt` — most recent Chrome AX tree snapshot. Overwritten on each
@@ -242,24 +243,24 @@ line touching that request (coordinator state transitions, router selection, eng
 I/O capture). Pull a complete history of one suggestion:
 
 ```bash
-jq 'select(.request_id == "req_a3f9k2lq")' ~/Library/Logs/CoHamster/cotabby.jsonl
-jq 'select(.request_id == "req_a3f9k2lq")' ~/Library/Logs/CoHamster/llm-io.jsonl
+jq 'select(.request_id == "req_a3f9k2lq")' ~/Library/Logs/Cotabby/cotabby.jsonl
+jq 'select(.request_id == "req_a3f9k2lq")' ~/Library/Logs/Cotabby/llm-io.jsonl
 ```
 
 **Useful `jq` recipes:**
 
 ```bash
 # Recent errors across the app
-jq 'select(.level == "error")' ~/Library/Logs/CoHamster/cotabby.jsonl
+jq 'select(.level == "error")' ~/Library/Logs/Cotabby/cotabby.jsonl
 
 # Llama generations slower than 500 ms
-jq 'select(.engine == "llama" and .latency_ms > 500)' ~/Library/Logs/CoHamster/llm-io.jsonl
+jq 'select(.engine == "llama" and .latency_ms > 500)' ~/Library/Logs/Cotabby/llm-io.jsonl
 
 # Coordinator state transitions
-jq 'select(.category == "suggestion" and .stage != null)' ~/Library/Logs/CoHamster/cotabby.jsonl
+jq 'select(.category == "suggestion" and .stage != null)' ~/Library/Logs/Cotabby/cotabby.jsonl
 
 # Runtime model load/decode events
-jq 'select(.category == "runtime")' ~/Library/Logs/CoHamster/cotabby.jsonl
+jq 'select(.category == "runtime")' ~/Library/Logs/Cotabby/cotabby.jsonl
 ```
 
 **Symptom → category map:**
@@ -308,10 +309,10 @@ bundle exec fastlane mac doctor                      # Check tools and credentia
 Use the narrowest meaningful validation first, then broaden if the change touches shared behavior.
 The build lanes keep DerivedData at `build/DerivedData` and remove it on exit, including after
 failure. Verify cleanup before reporting completion. The runnable dev app remains at
-`~/Library/Application Support/CoHamster/Development/<checkout-id>/<configuration>/CoHamster.app`,
+`~/Library/Application Support/Cotabby/Development/<checkout-id>/<configuration>/Cotabby.app`,
 outside Documents/iCloud so Finder metadata cannot invalidate its signature. Logs and test results
 remain in `build/fastlane-logs/`.
-Never move DerivedData to `~/Library/Developer/Xcode/DerivedData/CoHamster-*`.
+Never move DerivedData to `~/Library/Developer/Xcode/DerivedData/Cotabby-*`.
 
 Run targeted tests for changed pure logic when available. If the verification lane fails, report
 the exact failure and distinguish any successful build-for-testing step from actual test execution.

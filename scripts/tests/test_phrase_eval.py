@@ -23,7 +23,7 @@ class PhraseEvalCLITests(unittest.TestCase):
         """A tiny app/native workspace with filesystem changes and a stubbed Git file listing."""
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
-            paths = ['Cotabby/app.swift', 'CotabbyTests/test.swift', 'Config/Signing.local.xcconfig', 'Config/CoHamsterInfo.plist',
+            paths = ['Cotabby/app.swift', 'CotabbyTests/test.swift', 'Config/Signing.local.xcconfig', 'Config/CotabbyInfo.plist',
                      'native/Package.swift', 'native/source.cpp']
             for name in paths:
                 path = root / name
@@ -68,7 +68,7 @@ class PhraseEvalCLITests(unittest.TestCase):
 
     def test_resolution_rejects_app_test_native_and_config_changes(self):
         for name in ('Cotabby/app.swift', 'CotabbyTests/test.swift', 'native/source.cpp', 'native/Package.swift',
-                     'Config/Signing.local.xcconfig', 'Config/CoHamsterInfo.plist', 'dev.xcworkspace/contents.xcworkspacedata'):
+                     'Config/Signing.local.xcconfig', 'Config/CotabbyInfo.plist', 'dev.xcworkspace/contents.xcworkspacedata'):
             with self.subTest(name=name), self.resolution_fixture() as (root, workspace, output):
                 def resolve(command, log):
                     with (root / name).open('a') as stream:
@@ -141,12 +141,12 @@ class PhraseEvalCLITests(unittest.TestCase):
                         lock.write_text('resolved pins')
                     elif arguments[1] == 'build-for-testing':
                         products = eval_cli.DERIVED / 'Build/Products'
-                        binary = products / 'Release/CoHamster.app/Contents/MacOS/CoHamster'
+                        binary = products / 'Release/Cotabby.app/Contents/MacOS/Cotabby'
                         binary.parent.mkdir(parents=True)
                         binary.write_bytes(b'built app')
-                        (products / 'CoHamster_test.xctestrun').write_bytes(eval_cli.plistlib.dumps(
+                        (products / 'Cotabby_test.xctestrun').write_bytes(eval_cli.plistlib.dumps(
                             {'TestBundlePath': '__TESTHOST__/Contents/PlugIns/CotabbyTests.xctest',
-                             'TestHostPath': '__TESTROOT__/Release/CoHamster.app'}))
+                             'TestHostPath': '__TESTROOT__/Release/Cotabby.app'}))
                         if mutate_build_input:
                             path = root / 'Cotabby/app.swift' if mutate_build_input == 'source' else lock
                             path.write_text('changed during compilation')
@@ -162,7 +162,7 @@ class PhraseEvalCLITests(unittest.TestCase):
                         mock.patch.object(eval_cli.platform, 'platform', return_value='Synthetic macOS'), \
                         mock.patch.object(eval_cli, 'git_output', side_effect=git_output), \
                         mock.patch.object(eval_cli, 'logged_command', side_effect=command), \
-                        mock.patch.object(eval_cli, 'sign_test_hosts', return_value=contextlib.nullcontext(root / 'staged/CoHamster.app')), contextlib.redirect_stdout(io.StringIO()):
+                        mock.patch.object(eval_cli, 'sign_test_hosts', return_value=contextlib.nullcontext(root / 'staged/Cotabby.app')), contextlib.redirect_stdout(io.StringIO()):
                     if mutate_build_input:
                         with self.assertRaisesRegex(RuntimeError, 'Source inputs changed during build setup'):
                             eval_cli.run(args)
@@ -179,10 +179,10 @@ class PhraseEvalCLITests(unittest.TestCase):
                         self.assertEqual(calls, ['-resolvePackageDependencies', 'build-for-testing', 'test-without-building'])
 
     def test_staging_retargets_library_search_paths_as_well_as_host(self):
-        host = pathlib.Path('/private/tmp/example/CoHamster.app')
-        target = {'TestHostPath': '__TESTROOT__/Release/CoHamster.app',
+        host = pathlib.Path('/private/tmp/example/Cotabby.app')
+        target = {'TestHostPath': '__TESTROOT__/Release/Cotabby.app',
             'TestBundlePath': '__TESTHOST__/Contents/PlugIns/CotabbyTests.xctest',
-            'DependentProductPaths': ['__TESTROOT__/Release/CoHamster.app'],
+            'DependentProductPaths': ['__TESTROOT__/Release/Cotabby.app'],
             'TestingEnvironmentVariables': {
                 'DYLD_FRAMEWORK_PATH': '__TESTROOT__/Release:__TESTROOT__/Release/PackageFrameworks:__PLATFORMS__/Developer/Frameworks',
                 '__XPC_DYLD_LIBRARY_PATH': '__TESTROOT__/Release',
@@ -202,7 +202,7 @@ class PhraseEvalCLITests(unittest.TestCase):
     def test_test_host_signing_is_local_adhoc_and_verified(self):
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
-            host = root / 'products/Release/CoHamster.app'
+            host = root / 'products/Release/Cotabby.app'
             host.mkdir(parents=True)
             output = root / 'output'
             output.mkdir()
@@ -215,8 +215,8 @@ class PhraseEvalCLITests(unittest.TestCase):
             self.assertFalse(signed.parent.exists(), 'staged bundles must not accumulate')
             self.assertEqual(cleanup.call_args.args[0][:3], ['pkill', '-TERM', '-f'])
             pattern = cleanup.call_args.args[0][3]
-            self.assertIsNotNone(eval_cli.re.search(pattern, str(signed / 'Contents/MacOS/CoHamster') + ' -cotabby-debug'))
-            self.assertIsNone(eval_cli.re.search(pattern, '/Applications/CoHamster.app/Contents/MacOS/CoHamster'))
+            self.assertIsNotNone(eval_cli.re.search(pattern, str(signed / 'Contents/MacOS/Cotabby') + ' -cotabby-debug'))
+            self.assertIsNone(eval_cli.re.search(pattern, '/Applications/Cotabby.app/Contents/MacOS/Cotabby'))
             entitlements = eval_cli.plistlib.loads((output / 'test-host.entitlements').read_bytes())
             self.assertTrue(entitlements['com.apple.security.get-task-allow'])
             self.assertTrue(entitlements['com.apple.security.cs.disable-library-validation'])
@@ -302,7 +302,7 @@ class PhraseEvalCLITests(unittest.TestCase):
             root = pathlib.Path(directory)
             source = root / 'Cotabby.xctestrun'
             source.write_bytes(b'configuration')
-            executable = root / 'Release/CoHamster.app/Contents/PlugIns/CotabbyTests.xctest/Contents/MacOS/CoHamsterTests'
+            executable = root / 'Release/Cotabby.app/Contents/PlugIns/CotabbyTests.xctest/Contents/MacOS/CotabbyTests'
             executable.parent.mkdir(parents=True)
             executable.write_bytes(b'original test code')
             first = eval_cli.build_product_fingerprint(source)

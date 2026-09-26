@@ -32,12 +32,9 @@ the required-status-check protection so the owner can merge directly.
 3. **Validate before pushing.** Run the narrowest useful checks, broaden if shared
    behavior changed:
    ```bash
-   swiftlint lint --quiet
-   xcodebuild -project Cotabby.xcodeproj -scheme Cotabby -destination 'platform=macOS' build
+   bundle exec fastlane mac verify
    ```
-   For test-affecting changes also run `build-for-testing`. Local `test` execution
-   often fails on a **Team ID / signing mismatch** — that's an environment issue, not
-   a code failure; report it and rely on `build-for-testing` succeeding.
+   Report a failed test launch as a failed verification, even if build-for-testing passed.
    - **XcodeGen:** `project.yml` is the source of truth and `Cotabby.xcodeproj` is
      generated. New files under `Cotabby/` and `CotabbyTests/` are auto-discovered —
      no project edit needed. Only structural changes (targets, build settings,

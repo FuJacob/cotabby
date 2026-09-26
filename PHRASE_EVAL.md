@@ -15,7 +15,7 @@ reference sentence. Facts and individual answer words can naturally occur on scr
 is the behavior being measured.
 
 These are **synthetic screen-text fixtures**, not screenshots or captured user data. They exercise
-CoHamster's production OCR cleanup, excerpt selection, request construction, prompt budgets, local
+Cotabby's production OCR cleanup, excerpt selection, request construction, prompt budgets, local
 llama generation, normalization, and final display guard. They do not exercise screenshot capture,
 Vision recognition, Accessibility, actual keyboard events, overlay rendering, or typing latency.
 
@@ -65,7 +65,7 @@ Omit `--model` to use the app runtime's model selection. Nothing is downloaded a
 This currently evaluates the local llama backend, with a fixed sampling seed of 42 and otherwise
 product generation defaults. It requires macOS, Xcode, and the project's usual dependencies.
 For a workspace with a local CotabbyInference checkout, add
-`--workspace build/CoHamsterDevelopment.xcworkspace` after creating that workspace through the
+`--workspace build/CotabbyDevelopment.xcworkspace` after creating that workspace through the
 repository's existing setup tooling.
 
 The CLI builds Release with testability and `RUN_LLAMA_EVAL`, then supplies configuration through
@@ -83,7 +83,7 @@ conditions. Detailed run artifacts remain local; export the completed scores int
 ```sh
 python3 scripts/phrase_eval.py run \
   --model build/models/Qwen3.5-0.8B-Base.i1-Q6_K.gguf \
-  --workspace build/CoHamsterDevelopment.xcworkspace \
+  --workspace build/CotabbyDevelopment.xcworkspace \
   --label baseline-v1 \
   --output build/eval/phrases/baseline-v1
 
@@ -95,12 +95,12 @@ git commit -m "Record phrase prediction baseline v1"
 git push
 ```
 
-After tweaking CoHamster, run the same command with a new label and directory:
+After tweaking Cotabby, run the same command with a new label and directory:
 
 ```sh
 python3 scripts/phrase_eval.py run \
   --model build/models/Qwen3.5-0.8B-Base.i1-Q6_K.gguf \
-  --workspace build/CoHamsterDevelopment.xcworkspace \
+  --workspace build/CotabbyDevelopment.xcworkspace \
   --label candidate-v1 \
   --output build/eval/phrases/candidate-v1
 
@@ -269,7 +269,7 @@ The CLI supports explicit test-only overrides without changing product defaults 
 ```sh
 python3 scripts/phrase_eval.py run \
   --model build/models/Qwen3.5-0.8B-Base.i1-Q6_K.gguf \
-  --workspace build/CoHamsterDevelopment.xcworkspace \
+  --workspace build/CotabbyDevelopment.xcworkspace \
   --split screen --screen-per-category 20 --split-seed 1337 \
   --temperature 0 --repetition-penalty 1.0 --seed 42 --label greedy-screen
 ```
@@ -332,12 +332,12 @@ The model-free Swift tests validate scoring and pass **all 1,337 scenarios** thr
 construction to check that context reaches the prompt without the complete future answer.
 
 ```sh
-xcodebuild test -project CoHamster.xcodeproj -scheme CoHamster -destination 'platform=macOS' \
+xcodebuild test -project Cotabby.xcodeproj -scheme Cotabby -destination 'platform=macOS' \
   -derivedDataPath build/DerivedData -only-testing:CotabbyTests/PhrasePredictionScoringTests \
   -only-testing:CotabbyTests/PhrasePredictionScreenContextTests CODE_SIGNING_ALLOWED=NO
 python3 -m unittest discover -s scripts/tests -p 'test_phrase_eval.py'
 ```
 
-CoHamster builds require the patched native package. Run `scripts/prepare_cohamster_workspace.sh`
-first, then pass `--workspace build/cohamster-dependencies/CoHamster.xcworkspace` to benchmark build
+Cotabby builds require the patched native package. Run `scripts/prepare_cotabby_workspace.sh`
+first, then pass `--workspace build/cotabby-dependencies/Cotabby.xcworkspace` to benchmark build
 commands. The package's pinned revision and patch are shared with release packaging.

@@ -85,7 +85,7 @@ struct WelcomeKeybindStepView: View {
                 // No `onReset` here: the toggle hotkey is opt-in and has no factory default, so the
                 // only meaningful "reset" is unbind, which the Clear button already covers.
                 keybindRow(
-                    title: "Toggle CoHamster",
+                    title: "Toggle Cotabby",
                     keyLabel: suggestionSettings.globalToggleKeyLabel,
                     action: .toggleTabby,
                     onKeyRecorded: { keyCode, modifiers, label in

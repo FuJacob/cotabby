@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Evaluate every installed catalog model through CoHamster's real Swift replay.
+"""Evaluate every installed catalog model through Cotabby's real Swift replay.
 
 This local-only orchestrator owns model discovery and campaign/report lifetime; phrase_eval.py
 owns verified builds and Swift owns prompting, inference, display eligibility and scoring.
@@ -96,7 +96,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--models-dir', type=Path, default=DEFAULT_MODELS)
     parser.add_argument('--model', action='append', help='Optional catalog name suffix (nano, mini, base, pro); repeat to select several')
-    parser.add_argument('--workspace', type=Path, default=ROOT / 'build/cohamster-dependencies/CoHamster.xcworkspace')
+    parser.add_argument('--workspace', type=Path, default=ROOT / 'build/cotabby-dependencies/Cotabby.xcworkspace')
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--word-count', choices=('2-4', '4-7', '7-12', '12-20'), default='4-7')
     parser.add_argument('--stage', choices=('screen', 'validate'), default='screen')

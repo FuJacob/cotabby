@@ -7,7 +7,7 @@ case "$MODE" in run|--debug|debug|--logs|logs|--telemetry|telemetry|--verify|ver
   echo "usage: $0 [run|debug|logs|telemetry|verify] [Debug|Release]" >&2; exit 2;;
 esac
 case "$CONFIGURATION" in Debug|Release) ;; *) echo 'Use Debug or Release' >&2; exit 2;; esac
-APP_NAME="CoHamster"
+APP_NAME="Cotabby"
 BUNDLE_ID="org.mchamster.cotabby"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DERIVED_DATA="$ROOT_DIR/build/DerivedData"
@@ -16,19 +16,26 @@ BUILT_APP="$DERIVED_DATA/Build/Products/$CONFIGURATION/$APP_NAME.app"
 # provider can reattach FinderInfo after verification and invalidate nested code.
 # Scope by checkout so worktrees do not overwrite one another's runnable product.
 CHECKOUT_ID=$(printf '%s' "$ROOT_DIR" | shasum -a 256 | cut -c1-12)
-RUN_DIR="$HOME/Library/Application Support/CoHamster/Development/$CHECKOUT_ID/$CONFIGURATION"
+RUN_DIR="$HOME/Library/Application Support/Cotabby/Development/$CHECKOUT_ID/$CONFIGURATION"
 APP_BUNDLE="$RUN_DIR/$APP_NAME.app"
 APP_BINARY="$APP_BUNDLE/Contents/MacOS/$APP_NAME"
 
 # This script owns local build/launch orchestration. Debug shares the installed app's
 # bundle ID and permissions, so a valid signature alone is insufficient: use the same
 # certificate class and verify its designated requirement before stopping the working app.
-INSTALLED_APP="/Applications/$APP_NAME.app"
+INSTALLED_APP=""
 SIGNING_IDENTITY="${COHAMSTER_SIGNING_IDENTITY:-Apple Development}"
 INSTALLED_REQUIREMENT=""
-if [[ ! -d "$INSTALLED_APP" && -d "$APP_BUNDLE" ]]; then
-  INSTALLED_APP="$APP_BUNDLE"
-fi
+# Product names can change or overlap with upstream. Select by the persisted bundle ID,
+# including the previous installed/development paths, before inheriting a signing identity.
+for existing in "/Applications/$APP_NAME.app" "/Applications/CoHamster.app" "$APP_BUNDLE" \
+  "$HOME/Library/Application Support/CoHamster/Development/$CHECKOUT_ID/$CONFIGURATION/CoHamster.app"; do
+  existing_id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$existing/Contents/Info.plist" 2>/dev/null || true)
+  if [[ "$existing_id" == "$BUNDLE_ID" ]]; then
+    INSTALLED_APP="$existing"
+    break
+  fi
+done
 if [[ -d "$INSTALLED_APP" ]]; then
   SIGNING_DETAILS="$(codesign -d -r- --verbose=2 "$INSTALLED_APP" 2>&1)"
   SIGNING_IDENTITY="$(sed -n 's/^Authority=//p' <<< "$SIGNING_DETAILS" | head -n 1)"
@@ -39,13 +46,13 @@ if [[ -d "$INSTALLED_APP" ]]; then
   fi
 fi
 
-"$ROOT_DIR/scripts/prepare_cohamster_workspace.sh"
+"$ROOT_DIR/scripts/prepare_cotabby_workspace.sh"
 # Materialize binary package artifacts before building from a cleared DerivedData tree.
 xcodebuild -resolvePackageDependencies \
-  -workspace "$ROOT_DIR/build/cohamster-dependencies/CoHamster.xcworkspace" \
+  -workspace "$ROOT_DIR/build/cotabby-dependencies/Cotabby.xcworkspace" \
   -scheme "$APP_NAME" -onlyUsePackageVersionsFromResolvedFile -derivedDataPath "$DERIVED_DATA"
 xcodebuild \
-  -workspace "$ROOT_DIR/build/cohamster-dependencies/CoHamster.xcworkspace" \
+  -workspace "$ROOT_DIR/build/cotabby-dependencies/Cotabby.xcworkspace" \
   -onlyUsePackageVersionsFromResolvedFile \
   -scheme "$APP_NAME" \
   -configuration "$CONFIGURATION" \
@@ -67,15 +74,29 @@ codesign --verify --deep --strict "$candidate"
 if [[ -n "$INSTALLED_REQUIREMENT" ]]; then
   codesign --verify -R "=$INSTALLED_REQUIREMENT" "$candidate"
 fi
-# Stop only after a compatible build exists; two input monitors must not run together.
-pkill -x "$APP_NAME" >/dev/null 2>&1 || true
+# Only stop this fork, including its old executable name. Upstream can have the same
+# display name but a different bundle ID; never terminate it based on its name alone.
+fork_pids() {
+  local pid executable app_path process_bundle_id
+  while IFS= read -r pid; do
+    executable=$(ps -ww -p "$pid" -o comm= 2>/dev/null || true)
+    [[ "$executable" == *.app/Contents/MacOS/* ]] || continue
+    app_path="${executable%/Contents/MacOS/*}"
+    process_bundle_id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app_path/Contents/Info.plist" 2>/dev/null || true)
+    [[ "$process_bundle_id" != "$BUNDLE_ID" ]] || printf '%s\n' "$pid"
+  done < <(pgrep -x "$APP_NAME" || true; pgrep -x CoHamster || true)
+}
+# Stop only after a compatible build exists; two fork input monitors must not run together.
+while IFS= read -r pid; do
+  [[ -z "$pid" ]] || kill "$pid"
+done < <(fork_pids)
 # Give the old process time to release its Accessibility observers and input tap.
 for attempt in {1..40}; do
-  pgrep -x "$APP_NAME" >/dev/null || break
+  [[ -n "$(fork_pids)" ]] || break
   sleep 0.25
 done
-if pgrep -x "$APP_NAME" >/dev/null; then
-  echo 'Existing CoHamster did not stop; leaving its app bundle intact.' >&2
+if [[ -n "$(fork_pids)" ]]; then
+  echo 'Existing Cotabby did not stop; leaving its app bundle intact.' >&2
   exit 1
 fi
 if [[ -d "$APP_BUNDLE" ]]; then mv "$APP_BUNDLE" "$staging_root/previous.app"; fi
@@ -89,8 +110,8 @@ open_app() {
 wait_for_app() {
   local attempt
   for attempt in {1..20}; do
-    if pgrep -x "$APP_NAME" >/dev/null; then
-      echo "CoHamster is running from: $APP_BUNDLE"
+    if [[ -n "$(fork_pids)" ]]; then
+      echo "Cotabby is running from: $APP_BUNDLE"
       return 0
     fi
     sleep 0.25

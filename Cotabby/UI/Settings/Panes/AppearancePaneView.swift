@@ -80,7 +80,7 @@ struct AppearancePaneView: View {
                 Toggle(isOn: showIndicatorBinding) {
                     SettingsRowLabel(
                         title: "Show Field Indicator",
-                        description: "Show a small icon at the edge of a field when CoHamster is ready to suggest.",
+                        description: "Show a small icon at the edge of a field when Cotabby is ready to suggest.",
                         systemImage: "dot.viewfinder"
                     )
                 }
@@ -98,8 +98,8 @@ struct AppearancePaneView: View {
 
                 Toggle(isOn: menuBarIconVisibleBinding) {
                     SettingsRowLabel(
-                        title: "Show CoHamster in Menu Bar",
-                        description: "Keep CoHamster's icon in the menu bar. If hidden, open CoHamster again to show Settings.",
+                        title: "Show Cotabby in Menu Bar",
+                        description: "Keep Cotabby's icon in the menu bar. If hidden, open Cotabby again to show Settings.",
                         systemImage: "menubar.rectangle"
                     )
                 }

@@ -83,11 +83,11 @@ struct SettingsSidebarView: View {
         .padding(.bottom, 4)
     }
 
-    /// "CoHamster" wordmark with the app version in small secondary text beside it, sitting above the
+    /// "Cotabby" wordmark with the app version in small secondary text beside it, sitting above the
     /// search field. The top padding clears the title bar (the search field used to own that space).
     private var appHeader: some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
-            Text("CoHamster")
+            Text("Cotabby")
                 .font(.title3.weight(.semibold))
             if let version = appVersionText {
                 Text(version)
@@ -113,7 +113,7 @@ struct SettingsSidebarView: View {
             Divider()
 
             Button(action: onQuit) {
-                Label("Quit CoHamster", systemImage: "power")
+                Label("Quit Cotabby", systemImage: "power")
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.bordered)

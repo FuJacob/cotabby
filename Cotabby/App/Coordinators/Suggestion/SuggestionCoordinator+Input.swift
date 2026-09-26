@@ -483,7 +483,7 @@ extension SuggestionCoordinator {
             "suppressed-synthetic-input",
             workID: currentWorkID,
             generation: latestGenerationNumber,
-            message: "Ignored CoHamster's own synthetic key event."
+            message: "Ignored Cotabby's own synthetic key event."
         )
     }
 

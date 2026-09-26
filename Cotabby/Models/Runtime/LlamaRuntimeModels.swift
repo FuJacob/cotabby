@@ -100,13 +100,13 @@ enum RuntimeModelCatalog {
     static func displayName(for filename: String) -> String {
         switch filename {
         case "Qwen3.5-0.8B-Base.i1-Q6_K.gguf":
-            return "CoHamster Nano"
+            return "Cotabby Nano"
         case "Qwen3.5-2B-Base.i1-Q4_K_M.gguf":
-            return "CoHamster Mini"
+            return "Cotabby Mini"
         case "gemma-4-E2B.i1-Q6_K.gguf":
-            return "CoHamster Base"
+            return "Cotabby Base"
         case "gemma-4-E4B.i1-Q4_K_M.gguf":
-            return "CoHamster Pro"
+            return "Cotabby Pro"
         default:
             return filename
         }

@@ -99,7 +99,7 @@ struct HomePaneView: View {
 
     private var hero: some View {
         VStack(spacing: 10) {
-            Image("CoHamsterLogo")
+            Image("CotabbyLogo")
                 .resizable()
                 .scaledToFit()
                 .frame(width: 64, height: 64)
@@ -111,7 +111,7 @@ struct HomePaneView: View {
                 .opacity(hasAppeared ? 1 : 0)
 
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text("CoHamster")
+                Text("Cotabby")
                     .font(.system(size: 26, weight: .bold, design: .rounded))
                 if let version = appVersionText {
                     Text(version)
@@ -258,7 +258,7 @@ struct HomePaneView: View {
         HomeStatusCard(
             systemImage: "power",
             tint: suggestionSettings.isGloballyEnabled ? .green : .gray,
-            title: "CoHamster",
+            title: "Cotabby",
             caption: suggestionSettings.isGloballyEnabled ? "Active" : "Paused"
         ) {
             Toggle("", isOn: globallyEnabledBinding)
@@ -266,7 +266,7 @@ struct HomePaneView: View {
                 .controlSize(.small)
                 .labelsHidden()
                 .tint(.green)
-                .accessibilityLabel("Enable CoHamster globally")
+                .accessibilityLabel("Enable Cotabby globally")
         }
     }
 

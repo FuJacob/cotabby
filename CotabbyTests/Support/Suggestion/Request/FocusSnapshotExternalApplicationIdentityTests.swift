@@ -26,9 +26,9 @@ final class FocusSnapshotExternalApplicationIdentityTests: XCTestCase {
 
     func test_externalApplicationIdentity_ignoresCotabbyApplication() {
         let snapshot = FocusSnapshot(
-            applicationName: "CoHamster",
+            applicationName: "Cotabby",
             bundleIdentifier: "com.jacobfu.tabby",
-            capability: .blocked("CoHamster is focused."),
+            capability: .blocked("Cotabby is focused."),
             context: nil
         )
 

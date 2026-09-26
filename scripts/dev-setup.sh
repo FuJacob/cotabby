@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #
-# dev-setup.sh - generate Config/Signing.local.xcconfig so you can build and run CoHamster locally.
+# dev-setup.sh - generate Config/Signing.local.xcconfig so you can build and run Cotabby locally.
 #
-# CoHamster's shared xcconfig defaults to the maintainer team so its members can build immediately.
+# Cotabby's shared xcconfig defaults to the maintainer team so its members can build immediately.
 # Contributors on another team supply their own team id once. This script detects it from an Apple
 # Development signing certificate and writes the gitignored Config/Signing.local.xcconfig, whose
 # value overrides the shared default without dirtying the generated Xcode project.
@@ -82,4 +82,4 @@ EOF
 echo "Wrote $local_xcconfig"
 echo "  DEVELOPMENT_TEAM = $team"
 echo
-echo "Next: run scripts/prepare_cohamster_workspace.sh, open build/cohamster-dependencies/CoHamster.xcworkspace, select the \"CoHamster\" scheme, and run."
+echo "Next: run scripts/prepare_cotabby_workspace.sh, open build/cotabby-dependencies/Cotabby.xcworkspace, select the \"Cotabby\" scheme, and run."

@@ -32,7 +32,7 @@ final class AXHelperTests: XCTestCase {
                 defer: false
             )
             window.isReleasedWhenClosed = false
-            window.title = "CoHamster AXHelper test host"
+            window.title = "Cotabby AXHelper test host"
             let textView = NSTextView(frame: NSRect(x: 10, y: 10, width: 400, height: 180))
             textView.string = "The quick brown fox jumps over the lazy dog"
             textView.font = NSFont(name: "Helvetica", size: 13) ?? NSFont.systemFont(ofSize: 13)

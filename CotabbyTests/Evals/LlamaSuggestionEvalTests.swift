@@ -10,7 +10,7 @@ import XCTest
 /// shell environment variables into the macOS test host, so the switch is a compile flag, and the
 /// model is a multi-GB local download. Run with:
 ///
-///   xcodebuild test -project CoHamster.xcodeproj -scheme CoHamster -destination 'platform=macOS' \
+///   xcodebuild test -project Cotabby.xcodeproj -scheme Cotabby -destination 'platform=macOS' \
 ///     -only-testing:CotabbyTests/LlamaSuggestionEvalTests \
 ///     SWIFT_ACTIVE_COMPILATION_CONDITIONS='$(inherited) RUN_LLAMA_EVAL' \
 ///     CODE_SIGNING_ALLOWED=NO -derivedDataPath build/DerivedData

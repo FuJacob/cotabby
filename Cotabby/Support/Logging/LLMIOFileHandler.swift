@@ -126,7 +126,7 @@ nonisolated final class LLMIOFileWriter: @unchecked Sendable {
         guard let libraryURL = fileManager.urls(for: .libraryDirectory, in: .userDomainMask).first else {
             return nil
         }
-        let bundleName = (Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String) ?? "CoHamster"
+        let bundleName = (Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String) ?? "Cotabby"
         let directory = libraryURL
             .appendingPathComponent("Logs", isDirectory: true)
             .appendingPathComponent(bundleName, isDirectory: true)

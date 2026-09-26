@@ -1,9 +1,9 @@
-# Contributing To CoHamster
+# Contributing To Cotabby
 
-Thanks for helping improve CoHamster. This guide is the contributor entry point for local setup,
+Thanks for helping improve Cotabby. This guide is the contributor entry point for local setup,
 validation, and codebase orientation.
 
-CoHamster is a macOS menu bar app that provides on-device inline autocomplete in other apps. The repo
+Cotabby is a macOS menu bar app that provides on-device inline autocomplete in other apps. The repo
 is split by responsibility so contributors can make small, reviewable changes without spreading
 platform-specific behavior across unrelated layers.
 
@@ -31,7 +31,7 @@ You need:
 - Xcode with Command Line Tools installed.
 - An Apple ID added to Xcode (Settings > Accounts) if you want to launch the app from the IDE. A
   free account is enough; the paid Apple Developer Program is not required for local development.
-  Contributors outside CoHamster's default development team run `scripts/dev-setup.sh` once to
+  Contributors outside this fork's default development team run `scripts/dev-setup.sh` once to
   configure a local override (see Local Setup).
 - SwiftLint for local lint checks. CI installs it with Homebrew when needed.
 - XcodeGen if you need to change the project structure (targets, build settings, dependencies,
@@ -41,23 +41,19 @@ Apple Silicon is strongly recommended for local model-runtime work.
 
 ## Local Setup
 
-Maintainers can use the [Fastlane pipeline](fastlane/README.md) for signed build/launch,
-verification, and packaging: `bundle exec fastlane mac dev` or `bundle exec fastlane mac verify`.
-Its guide covers Ruby installation and credentials. The Xcode-based contributor setup below
-remains available for contributors using their own development team.
-
-Clone the repo and open the project. If your Apple ID is not on CoHamster's development team, run the
-one-time signing setup first:
+Use the [Fastlane pipeline](fastlane/README.md) for builds, local launches, tests, and packaging.
+It owns dependency preparation, signing, build locking, and cleanup. Its guide covers the pinned
+Ruby version and credentials. The workspace remains available for source browsing in Xcode.
 
 ```sh
-git clone https://github.com/mc-hamster/CoHamster.git CoHamster
-cd CoHamster
+git clone https://github.com/mc-hamster/CoHamster.git Cotabby
+cd Cotabby
+bundle install
 scripts/dev-setup.sh
-scripts/prepare_cohamster_workspace.sh
-open build/cohamster-dependencies/CoHamster.xcworkspace
+bundle exec fastlane mac dev
 ```
 
-The committed `Config/Signing.xcconfig` defaults to CoHamster's development team, which lets team
+The committed `Config/Signing.xcconfig` defaults to this fork's development team, which lets team
 members build immediately without Xcode modifying the generated project. `scripts/dev-setup.sh`
 writes a gitignored `Config/Signing.local.xcconfig` with a contributor's own Apple Development team
 id; that local value overrides the shared default and persists across pulls and project
@@ -66,17 +62,17 @@ Accounts (a free account is enough), then re-run the script. To set the team by 
 `Config/Signing.local.xcconfig.example` to `Config/Signing.local.xcconfig`, or pass it explicitly:
 `DEVELOPMENT_TEAM=XXXXXXXXXX scripts/dev-setup.sh`.
 
-You do not need a paid Apple Developer account to build or run CoHamster locally; a free personal
+You do not need a paid Apple Developer account to build or run Cotabby locally; a free personal
 team can sign and launch it. The paid program is only needed to distribute notarized builds.
 
-For everyday local work, use the **CoHamster** scheme, whose Run action uses Debug. Development is
-one configuration of CoHamster: the app name, bundle identity, preferences, and model storage match
+For everyday local work, use the **Cotabby** scheme, whose Run action uses Debug. Development is
+one configuration of Cotabby: the app name, bundle identity, preferences, and model storage match
 Release. Debug overlays default off and can be enabled live under Settings > General > Development.
 The scheme enables diagnostic logging with `-cotabby-debug` independently. See [Run](#run).
 
 ## The Xcode Project Is Generated
 
-`CoHamster.xcodeproj` is generated from `project.yml` by [XcodeGen](https://github.com/yonaskolb/XcodeGen).
+`Cotabby.xcodeproj` is generated from `project.yml` by [XcodeGen](https://github.com/yonaskolb/XcodeGen).
 It is committed to the repo so contributors do not need XcodeGen for ordinary source changes,
 but **`project.yml` is the source of truth**.
 
@@ -90,7 +86,7 @@ After any structural change, regenerate and commit the result:
 xcodegen generate
 ```
 
-CI runs the `XcodeGen` workflow on every PR and fails if the committed `CoHamster.xcodeproj` differs
+CI runs the `XcodeGen` workflow on every PR and fails if the committed `Cotabby.xcodeproj` differs
 from what `project.yml` produces. If that check is red, run `xcodegen generate` and commit the diff.
 Avoid hand-editing the project in Xcode without mirroring the change into `project.yml`.
 
@@ -121,69 +117,39 @@ That separation keeps behavior easier to test and reduces regressions in Accessi
 
 ## Build
 
-For a local compile check:
+Build and launch through Fastlane:
 
 ```sh
-xcodebuild \
-  -workspace build/cohamster-dependencies/CoHamster.xcworkspace \
-  -scheme CoHamster \
-  -configuration Debug \
-  -destination 'platform=macOS' \
-  -derivedDataPath build/DerivedData \
-  CODE_SIGNING_ALLOWED=NO \
-  build
+bundle exec fastlane mac dev
+# For optimized local behavior:
+bundle exec fastlane mac dev configuration:Release
 ```
 
-`CODE_SIGNING_ALLOWED=NO` keeps the build command usable on machines that do not have the project
-owner's signing certificate. Use the shared team or your gitignored local override when you need to
-launch the app locally.
+The lane prepares the patched inference workspace, signs a clean app copy, checks compatibility
+with the installed fork, and replaces the running process only after verification succeeds.
+Use a consistent signing identity to retain macOS permissions. See the
+[Fastlane setup guide](fastlane/README.md) for contributor signing overrides.
 
 ## Run
 
-From Xcode:
-
-1. Select the **CoHamster** scheme (its Run action uses Debug).
-2. Choose your Mac as the run destination and quit any already-running CoHamster instance.
-3. Build and run. The app is still named "CoHamster" and uses its existing settings and models.
-4. Complete onboarding if this is your first launch.
-5. Grant **Accessibility** and **Input Monitoring** to "CoHamster" when prompted, and optionally
-   **Screen Recording** for visual context. These map to the features in
-   [README.md](README.md#permissions).
-6. Pick Apple Intelligence if available, or use the Open Source engine with a downloaded GGUF
-   model.
-
-Keep the signing identity consistent with the CoHamster build you granted permissions to so
-macOS can recognize it across rebuilds. If a permission reads as enabled but the app behaves as if it is not (common after
-switching signing identity, or when an earlier unsigned build left a stale entry), reset it and
-grant again:
-
-```sh
-tccutil reset Accessibility org.mchamster.cotabby
-tccutil reset ListenEvent org.mchamster.cotabby
-```
-
-Then toggle the app back on in System Settings > Privacy & Security. Avoid ad-hoc "Sign to Run
-Locally" builds for real testing: macOS ties the Accessibility grant to the code signature, so an
-ad-hoc build changes identity on every rebuild and loses the grant each time.
+The app is named **Cotabby** and retains this fork's existing settings and models. Complete
+onboarding and grant Accessibility and Input Monitoring when prompted; Screen Recording remains
+optional. Quit any upstream Cotabby instance before testing the fork.
 
 If a suggestion does not appear or the overlay is misplaced, start with the focus and geometry
 sections in [ARCHITECTURE.md](ARCHITECTURE.md) before changing coordinator logic.
 
 ## Test
 
-Run the unit test suite:
+Run the deterministic suite, lint, project drift checks, and tooling tests:
 
 ```sh
-xcodebuild test \
-  -workspace build/cohamster-dependencies/CoHamster.xcworkspace \
-  -scheme CoHamster \
-  -destination 'platform=macOS' \
-  -derivedDataPath build/DerivedData \
-  CODE_SIGNING_ALLOWED=NO
+bundle exec fastlane mac verify
+# Contributor/CI validation without Apple signing credentials:
+bundle exec fastlane mac verify signed:false
 ```
 
-The CI test workflow uses the same macOS deployment target as the app, so tests should not require
-a macOS 26 runner unless a future change raises the app baseline again.
+Fastlane removes `build/DerivedData` on exit and retains diagnostics in `build/fastlane-logs/`.
 
 ### Local Autocomplete Evaluations
 
@@ -219,8 +185,8 @@ First compile the opt-in suites:
 
 ```sh
 xcodebuild build-for-testing \
-  -workspace build/cohamster-dependencies/CoHamster.xcworkspace \
-  -scheme CoHamster \
+  -workspace build/cotabby-dependencies/Cotabby.xcworkspace \
+  -scheme Cotabby \
   -configuration Release \
   -destination 'platform=macOS' \
   -derivedDataPath build/DerivedData \
@@ -229,7 +195,7 @@ xcodebuild build-for-testing \
   CODE_SIGNING_ALLOWED=NO
 ```
 
-By default the suites use the model available in CoHamster's normal runtime directory. To evaluate
+By default the suites use the model available in Cotabby's normal runtime directory. To evaluate
 a repo-local or other explicitly chosen model without changing app settings, set
 `COTABBY_EVAL_MODEL_PATH` in the generated **test process environment**. Exporting a shell variable
 before `xcodebuild` does not forward it into the app-hosted test runner. Find the generated run
@@ -239,7 +205,7 @@ file, then substitute its exact path and your model path below:
 rg --files build/DerivedData/Build/Products | rg '\.xctestrun$'
 
 # Replace the SDK/architecture filename with the one emitted by your build.
-eval_run_path='build/DerivedData/Build/Products/CoHamster_macosx27.0-arm64.xctestrun'
+eval_run_path='build/DerivedData/Build/Products/Cotabby_macosx27.0-arm64.xctestrun'
 eval_model_path='/absolute/path/to/model.gguf'
 /usr/libexec/PlistBuddy \
   -c "Add :CotabbyTests:EnvironmentVariables:COTABBY_EVAL_MODEL_PATH string $eval_model_path" \
@@ -268,12 +234,12 @@ as documented in [AGENTS.md](AGENTS.md). No new background writing-history colle
 
 ### Paired CotabbyInference Changes
 
-CoHamster currently uses the pinned CotabbyInference source plus
-`patches/cotabbyinference-mchamster.patch`. The plain remote package does not yet expose all the
+Cotabby currently uses the pinned CotabbyInference source plus
+`patches/cotabbyinference-upstream-pending.patch`. The plain remote package does not yet expose all the
 APIs used by this fork. Prepare the matching dependency and workspace before building:
 
 ```sh
-scripts/prepare_cohamster_workspace.sh
+scripts/prepare_cotabby_workspace.sh
 ```
 
 The build commands above use this workspace to resolve the patched package. `scripts/build_and_run.sh` and the
@@ -293,8 +259,7 @@ Run SwiftLint locally:
 swiftlint --reporter github-actions-logging
 ```
 
-The current CI lint gate is warnings-only. Treat warnings as cleanup work, but avoid bundling
-unrelated style rewrites into functional PRs.
+The CI lint gate is strict: warnings fail validation. Avoid unrelated style rewrites in functional PRs.
 
 ## Debugging
 
@@ -331,24 +296,23 @@ in the actual diff and validation output.
 
 ## CI Expectations
 
-PRs into `main` run:
-
-- Build: `xcodebuild` compile check
-- Tests: `xcodebuild test`
-- Lint: SwiftLint warnings surfaced as GitHub annotations
+PRs into `master` or `main` run Fastlane verification (build, tests, lint, and tooling), plus
+focused Lint and XcodeGen checks. No signing or publishing credentials are exposed to PR code.
 
 If CI fails because of your change, fix the root cause in the same PR. If the failure is unrelated
 infrastructure noise, note that clearly in the PR description.
 
 ### Product identity
 
-`CoHamster.xcodeproj` and its `CoHamster` scheme are generated from `project.yml`.
+`Cotabby.xcodeproj` and its `Cotabby` scheme are generated from `project.yml`.
 The Swift module and source directories remain `Cotabby` / `CotabbyTests` for source compatibility.
 Debug and Release retain `org.mchamster.cotabby`, the existing preference keys, and the
 `Cotabby McHamster` Application Support directory so installed fork users keep their settings,
-credentials, and models. `CoHamsterDataDirectory` in `Config/CoHamsterInfo.plist` separates storage
+credentials, and models. `CoHamsterDataDirectory` in `Config/CotabbyInfo.plist` separates storage
 identity from the name shown in macOS. Development uses that same identity and storage.
 
-The repository is `mc-hamster/CoHamster`. GitHub redirects links from its previous repository name.
-Brand artwork is generated from the original vector paths in `scripts/generate_brand_assets.swift`.
-Run `swift scripts/generate_brand_assets.swift` from the repo root to regenerate icon sizes.
+The repository remains `mc-hamster/CoHamster` while changes are prepared for upstream.
+Cotabby artwork comes from upstream commit `ec466b6`; the separate hamster asset generator and
+unused development icon were removed. Historical release notes and benchmark evidence retain
+the names used when those results were produced. Numbered Xcode project copies are ignored;
+`Cotabby.xcodeproj` is the only canonical project.

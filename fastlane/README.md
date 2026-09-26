@@ -1,4 +1,4 @@
-# CoHamster Fastlane pipeline
+# Cotabby Fastlane pipeline
 
 Fastlane is the maintainer entry point for local builds and GitHub distribution. `Fastfile`
 defines six commands. `lib/release_pipeline.rb` owns validation, artifact provenance, and GitHub
@@ -63,7 +63,7 @@ DMGs use the separate distribution signer and never receive test entitlements.
 
 Each build lane holds a checkout-local lock and deletes only `build/DerivedData` on exit, even
 after failure. Local apps survive in
-`~/Library/Application Support/CoHamster/Development/<checkout-id>/<configuration>/CoHamster.app`,
+`~/Library/Application Support/Cotabby/Development/<checkout-id>/<configuration>/Cotabby.app`,
 outside Documents/iCloud; the checkout ID is the first 12 characters of its path's SHA-256.
 Logs and test results survive in `build/fastlane-logs/<timestamp>-<pid>/`. Direct shell-script invocations do not
 take the Fastlane lock; don't run them concurrently with a lane in the same checkout.
@@ -96,7 +96,7 @@ the app, and the Applications shortcut. Release assets include:
 
 Artifacts are retained in `build/releases/<label>-<build>/`. A retry refuses an existing output
 directory; move the failed candidate aside explicitly. Packaging uses the existing
-`build/cohamster-release/` staging workspace and preserves its archive for diagnosis.
+`build/cotabby-release/` staging workspace and preserves its archive for diagnosis.
 
 Publication reserves the tag at the exact built commit, creates a draft, uploads every asset,
 and checks GitHub's asset names, sizes, and SHA-256 digests. Only then is the draft published.
@@ -127,8 +127,10 @@ stores the notarization profile there, and restores the prior search list/delete
 an `always()` cleanup step. Credentials are not included in uploaded artifacts.
 
 The separate **Fastlane** PR workflow exercises the publication guards without credentials.
-Existing Build, Tests, Lint, and XcodeGen workflows remain the app's PR gates. Creating this
+App builds and tests now run through Fastlane verify; focused Lint and XcodeGen checks remain. Creating this
 configuration does not create the GitHub environment/secrets or publish anything.
 
-CoHamster currently opens GitHub Releases for update checks. This pipeline does not configure an
-automatic updater or generate a Sparkle appcast.
+Cotabby currently opens this fork's GitHub Releases for update checks. No automatic updater is
+bundled. The repository, `cohamster-v` tags, historical notes, `COHAMSTER_*` environment variables,
+and signing credentials remain compatible with earlier fork releases. These are operational
+identifiers, separate from the Cotabby app name and artwork. Upstream migration and EOL are pending.

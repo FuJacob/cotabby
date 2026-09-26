@@ -8,4 +8,4 @@ script = ""
 [[actions]]
 name = "Run"
 icon = "run"
-command = "./scripts/build_and_run.sh"
+command = "bundle exec fastlane mac dev"

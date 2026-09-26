@@ -311,9 +311,9 @@ def build_input_snapshot(workspace=None):
     Only canonical package lock paths may change during explicit dependency resolution. A file
     merely named Package.resolved inside app/test fixtures is still an ordinary protected input.
     """
-    roots = [(ROOT, ["Cotabby", "CotabbyTests", "CoHamster.xcodeproj", "project.yml", "Config/CoHamsterInfo.plist", "Config"])]
+    roots = [(ROOT, ["Cotabby", "CotabbyTests", "Cotabby.xcodeproj", "project.yml", "Config/CotabbyInfo.plist", "Config"])]
     inputs = set((ROOT / "Config").glob("*.xcconfig"))
-    package_locks = {ROOT / "CoHamster.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"}
+    package_locks = {ROOT / "Cotabby.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"}
     if workspace:
         workspace = workspace.resolve()
         document = workspace / "contents.xcworkspacedata"
@@ -385,7 +385,7 @@ def prepare_build_inputs(workspace, project, output, *, skip_build):
     record_path.write_text(json.dumps(record, indent=2) + "\n")
     try:
         logged_command([
-            "xcodebuild", "-resolvePackageDependencies", *project, "-scheme", "CoHamster", "-configuration", "Release",
+            "xcodebuild", "-resolvePackageDependencies", *project, "-scheme", "Cotabby", "-configuration", "Release",
             "-destination", "platform=macOS", "-derivedDataPath", DERIVED, "-skipPackageUpdates",
         ], output / "resolution.log")
         # Resolving is not complete until its resulting inputs can be captured. A concurrent
@@ -412,14 +412,14 @@ def sign_test_hosts(products, output):
     temporary copy avoids both, needs no developer identity, and never changes the installed app
     or the binaries fingerprinted for build reuse. The context manager removes it even on failure.
     """
-    source = products / "Release/CoHamster.app"
+    source = products / "Release/Cotabby.app"
     if not source.is_dir():
         raise RuntimeError("No Release test host found for ad-hoc signing")
     entitlements = output / "test-host.entitlements"
     entitlements.write_bytes(plistlib.dumps({"com.apple.security.get-task-allow": True,
         "com.apple.security.cs.disable-library-validation": True}))
     with tempfile.TemporaryDirectory(prefix="cohamster-eval-", dir="/private/tmp") as staging:
-        host = pathlib.Path(staging) / "CoHamster.app"
+        host = pathlib.Path(staging) / "Cotabby.app"
         logged_command(["ditto", "--norsrc", "--noextattr", source, host], output / "sign-copy.log")
         logged_command(["xattr", "-cr", host], output / "sign-attributes.log")
         logged_command(["codesign", "--force", "--deep", "--sign", "-", "--timestamp=none",
@@ -430,8 +430,8 @@ def sign_test_hosts(products, output):
         finally:
             # XCTest launches through launchd, outside xcodebuild's process group. Interrupting
             # that group alone can leave a blocked host (and its model) alive. Match only this
-            # disposable executable, never the installed CoHamster app or another replay.
-            executable = host / "Contents/MacOS/CoHamster"
+            # disposable executable, never the installed Cotabby app or another replay.
+            executable = host / "Contents/MacOS/Cotabby"
             subprocess.run(["pkill", "-TERM", "-f", "^" + re.escape(str(executable)) + "( |$)"],
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
 
@@ -513,10 +513,10 @@ def run(args):
                       "perCategory": args.per_category, "limit": args.limit},
     }
     (output / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
-    patch_arguments = ("diff", "HEAD", "--", "Cotabby", "CotabbyTests", "CoHamster.xcodeproj", "Config/CoHamsterInfo.plist", "Config", "project.yml", "scripts")
+    patch_arguments = ("diff", "HEAD", "--", "Cotabby", "CotabbyTests", "Cotabby.xcodeproj", "Config/CotabbyInfo.plist", "Config", "project.yml", "scripts")
     (output / "working-tree.patch").write_text(git_output(*patch_arguments))
     print(f"Results: {output}", flush=True)
-    project = ["-workspace", args.workspace.resolve()] if args.workspace else ["-project", ROOT / "CoHamster.xcodeproj"]
+    project = ["-workspace", args.workspace.resolve()] if args.workspace else ["-project", ROOT / "Cotabby.xcodeproj"]
     build_marker = DERIVED / "phrase-eval-build.json"
     initial_git = {key: manifest[key] for key in ("gitCommit", "gitStatus")}
     prepared_inputs = prepare_build_inputs(args.workspace, project, output, skip_build=args.skip_build)
@@ -538,13 +538,13 @@ def run(args):
         raise RuntimeError("--skip-build requires a recorded successful build with unchanged source inputs; run once without it")
     if not args.skip_build:
         logged_command([
-            "xcodebuild", "build-for-testing", *project, "-scheme", "CoHamster", "-configuration", "Release",
+            "xcodebuild", "build-for-testing", *project, "-scheme", "Cotabby", "-configuration", "Release",
             "-destination", "platform=macOS", "-derivedDataPath", DERIVED,
             "CODE_SIGNING_ALLOWED=NO", "ENABLE_TESTABILITY=YES", "ONLY_ACTIVE_ARCH=YES",
             "SWIFT_ACTIVE_COMPILATION_CONDITIONS=$(inherited) RUN_LLAMA_EVAL", "-skipPackageUpdates",
         ], output / "build.log")
     products = DERIVED / "Build/Products"
-    candidates = [p for p in products.glob("CoHamster_*.xctestrun") if "phrase-eval-" not in p.name]
+    candidates = [p for p in products.glob("Cotabby_*.xctestrun") if "phrase-eval-" not in p.name]
     if not candidates:
         raise RuntimeError("Build produced no Cotabby xctestrun file")
     source = max(candidates, key=lambda p: p.stat().st_mtime_ns)
@@ -602,7 +602,7 @@ def run(args):
         if inject_environment(configuration, environment) != 1:
             raise RuntimeError("Expected exactly one CotabbyTests target in xctestrun")
         # __TESTROOT__ is relative to the plist, so keep the temporary copy beside the original.
-        prepared = products / f"CoHamster_phrase-eval-{uuid.uuid4().hex}.xctestrun"
+        prepared = products / f"Cotabby_phrase-eval-{uuid.uuid4().hex}.xctestrun"
         prepared.write_bytes(plistlib.dumps(configuration))
         try:
             logged_command([

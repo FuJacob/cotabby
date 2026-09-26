@@ -215,7 +215,7 @@ final class ModelDownloadManager: ObservableObject {
         }.sorted { $0.displayName < $1.displayName }
     }
 
-    /// The path shown in Settings and opened by "Open Folder". This is always CoHamster's own writable
+    /// The path shown in Settings and opened by "Open Folder". This is always Cotabby's own writable
     /// directory because that is where downloads and imports land; additive sources such as LM Studio
     /// are read-only and surfaced only through the model picker, not this control.
     var modelsDirectoryPath: String {
@@ -360,7 +360,7 @@ final class ModelDownloadManager: ObservableObject {
         panel.allowsMultipleSelection = true
         panel.allowedContentTypes = [UTType(filenameExtension: "gguf") ?? .data]
         panel.prompt = "Import"
-        panel.message = "Choose .gguf models to import into CoHamster"
+        panel.message = "Choose .gguf models to import into Cotabby"
 
         guard panel.runModal() == .OK else {
             return

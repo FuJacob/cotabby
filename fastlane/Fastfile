@@ -10,9 +10,9 @@ default_platform(:mac)
 skip_docs
 
 platform :mac do
-  desc "Build, verify signing compatibility, and launch CoHamster locally"
+  desc "Build, verify signing compatibility, and launch Cotabby locally"
   lane :dev do |options|
-    pipeline = CoHamster::ReleasePipeline.new
+    pipeline = Cotabby::ReleasePipeline.new
     pipeline.exclusive do
       pipeline.dev(configuration: options.fetch(:configuration, "Debug"), logs: options[:logs] == true)
     end
@@ -20,31 +20,31 @@ platform :mac do
 
   desc "Run lint, project consistency, pipeline tests, Python tests, and macOS unit tests"
   lane :verify do |options|
-    pipeline = CoHamster::ReleasePipeline.new
+    pipeline = Cotabby::ReleasePipeline.new
     pipeline.exclusive { pipeline.verify(signed: options.fetch(:signed, true) != false) }
   end
 
   desc "Create a signed, notarized DMG and matching source artifacts without publishing"
   lane :package do |options|
-    pipeline = CoHamster::ReleasePipeline.new
+    pipeline = Cotabby::ReleasePipeline.new
     pipeline.exclusive { pipeline.package(suffix: options[:suffix]) }
   end
 
   desc "Validate, package, and publish a GitHub pre-release (suffix:beta.1 or rc.1)"
   lane :prerelease do |options|
     UI.user_error!("Supply suffix:beta.1, alpha.1, or rc.1") if options[:suffix].to_s.empty?
-    pipeline = CoHamster::ReleasePipeline.new
+    pipeline = Cotabby::ReleasePipeline.new
     pipeline.exclusive { pipeline.publish(suffix: options[:suffix]) }
   end
 
   desc "Validate, package, and publish a stable GitHub release as Latest"
   lane :release do
-    pipeline = CoHamster::ReleasePipeline.new
+    pipeline = Cotabby::ReleasePipeline.new
     pipeline.exclusive { pipeline.publish }
   end
 
   desc "Check build tools, Developer ID signing, notarization, and GitHub access"
   lane :doctor do
-    CoHamster::ReleasePipeline.new.doctor
+    Cotabby::ReleasePipeline.new.doctor
   end
 end

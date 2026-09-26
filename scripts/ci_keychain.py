@@ -63,7 +63,7 @@ def main():
         run("security", "set-key-partition-list", "-S", "apple-tool:,apple:,codesign:",
             "-s", "-k", password, str(keychain))
         run("security", "list-keychains", "-d", "user", "-s", str(keychain), *original)
-        run("xcrun", "notarytool", "store-credentials", "CoHamster-CI", "--keychain", str(keychain),
+        run("xcrun", "notarytool", "store-credentials", "Cotabby-CI", "--keychain", str(keychain),
             "--apple-id", os.environ["APPLE_ID"], "--team-id", "8RN882MNR5",
             "--password", os.environ["APPLE_APP_SPECIFIC_PASSWORD"])
     finally:

@@ -22,7 +22,7 @@ def get_json(url):
     """Bound response size and retry transient Hub failures without consuming unlimited time."""
     for attempt in range(3):
         try:
-            request = urllib.request.Request(url, headers={"User-Agent": "CoHamster-model-eval/1", "Accept": "application/json"})
+            request = urllib.request.Request(url, headers={"User-Agent": "Cotabby-model-eval/1", "Accept": "application/json"})
             with urllib.request.urlopen(request, timeout=30) as response:
                 data = response.read(16 * 1024 * 1024 + 1)
             if len(data) > 16 * 1024 * 1024:

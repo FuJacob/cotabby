@@ -11,12 +11,9 @@ The diff already shows what; this section should explain why.
 What you actually ran and what you actually saw, not what you intended to run.
 Examples:
 
-  xcodebuild test -workspace build/cohamster-dependencies/CoHamster.xcworkspace -scheme CoHamster \
-    -destination 'platform=macOS' -derivedDataPath build/DerivedData CODE_SIGNING_ALLOWED=NO
-  # ** TEST SUCCEEDED **  N tests, 0 failures
+  bundle exec fastlane mac verify
+  # ** TEST SUCCEEDED **; lint, project, and tooling checks passed
 
-  swiftlint lint --config .swiftlint.yml --quiet
-  # exit 0
 
 For UI changes, attach a screenshot or short screen recording.
 For changes that can't be verified end-to-end yet, say so explicitly.

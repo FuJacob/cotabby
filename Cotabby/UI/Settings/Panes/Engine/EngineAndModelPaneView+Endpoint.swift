@@ -15,7 +15,7 @@ extension EngineAndModelPaneView {
             VStack(alignment: .leading, spacing: 10) {
                 SettingsRowLabel(
                     title: "Server URL",
-                    description: "The OpenAI-compatible server address. CoHamster adds /v1 when the " +
+                    description: "The OpenAI-compatible server address. Cotabby adds /v1 when the " +
                         "address has no path; Ollama uses http://127.0.0.1:11434 by default.",
                     systemImage: "network"
                 )

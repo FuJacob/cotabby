@@ -1,6 +1,6 @@
 ---
 name: Feature request
-about: Suggest an improvement to CoHamster
+about: Suggest an improvement to Cotabby
 title: "[Feature] "
 labels: enhancement
 assignees: ""

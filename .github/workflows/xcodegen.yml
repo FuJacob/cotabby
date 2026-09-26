@@ -1,7 +1,7 @@
 # XcodeGen drift gate.
 #
 # The .xcodeproj is generated from `project.yml` but committed to the repo so
-# contributors can `open CoHamster.xcodeproj` without installing XcodeGen first.
+# contributors can `open Cotabby.xcodeproj` without installing XcodeGen first.
 # That convenience only holds if the committed project stays byte-identical to
 # what `xcodegen generate` produces. This job regenerates on every PR and fails
 # if the result differs from what's checked in — catching the case where
@@ -24,7 +24,7 @@ concurrency:
 
 jobs:
   drift:
-    name: project.yml matches CoHamster.xcodeproj
+    name: project.yml matches Cotabby.xcodeproj
     runs-on: macos-latest
     timeout-minutes: 5
     steps:
@@ -45,8 +45,8 @@ jobs:
       # check to the project so unrelated working-tree noise can't fail it.
       - name: Verify no drift
         run: |
-          if ! git diff --exit-code -- CoHamster.xcodeproj; then
-            echo "::error::CoHamster.xcodeproj is out of sync with project.yml." \
+          if ! git diff --exit-code -- Cotabby.xcodeproj; then
+            echo "::error::Cotabby.xcodeproj is out of sync with project.yml." \
               "Run 'xcodegen generate' and commit the result." >&2
             exit 1
           fi

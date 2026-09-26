@@ -14,7 +14,7 @@ enum ShortcutAction: CaseIterable {
         switch self {
         case .acceptWord: return "Accept Word"
         case .acceptEntireSuggestion: return "Accept Entire Suggestion"
-        case .toggleTabby: return "Toggle CoHamster"
+        case .toggleTabby: return "Toggle Cotabby"
         }
     }
 }
@@ -987,7 +987,7 @@ final class SuggestionSettingsModel: ObservableObject {
     }
 
     /// Clears both disable mechanisms used by the menu-bar recovery action. This makes the single
-    /// "Enable CoHamster" button reliable whether a pause or the older global switch disabled it.
+    /// "Enable Cotabby" button reliable whether a pause or the older global switch disabled it.
     func enableCotabby() {
         clearPause()
         setGloballyEnabled(true)

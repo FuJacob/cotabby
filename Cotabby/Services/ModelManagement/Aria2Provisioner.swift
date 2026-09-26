@@ -9,11 +9,11 @@ nonisolated enum Aria2ProvisioningError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .homebrewUnavailable:
-            return "Homebrew is not available, so CoHamster will use its standard downloader."
+            return "Homebrew is not available, so Cotabby will use its standard downloader."
         case .installFailed:
-            return "Homebrew could not install aria2. CoHamster will use its standard downloader."
+            return "Homebrew could not install aria2. Cotabby will use its standard downloader."
         case .installTimedOut:
-            return "Installing aria2 timed out. CoHamster will use its standard downloader."
+            return "Installing aria2 timed out. Cotabby will use its standard downloader."
         }
     }
 }

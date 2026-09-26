@@ -64,7 +64,7 @@ struct MenuBarView: View {
     @ViewBuilder
     private var headerSection: some View {
         HStack(alignment: .center) {
-            Text(Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String ?? "CoHamster")
+            Text(Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String ?? "Cotabby")
                 .font(.headline)
 
             if let appShortVersion {
@@ -132,7 +132,7 @@ struct MenuBarView: View {
                     Button {
                         suggestionSettings.enableCotabby()
                     } label: {
-                        Label("Enable CoHamster", systemImage: "play.fill")
+                        Label("Enable Cotabby", systemImage: "play.fill")
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .buttonStyle(.borderless)
@@ -142,7 +142,7 @@ struct MenuBarView: View {
                             .font(.caption)
                             .foregroundStyle(.orange)
                     } else {
-                        Text("CoHamster is turned off")
+                        Text("Cotabby is turned off")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -154,7 +154,7 @@ struct MenuBarView: View {
                             }
                         }
                     } label: {
-                        Label("Pause CoHamster", systemImage: "pause.fill")
+                        Label("Pause Cotabby", systemImage: "pause.fill")
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .menuStyle(.borderlessButton)

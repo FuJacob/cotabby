@@ -6,7 +6,7 @@ require_relative "../lib/release_pipeline"
 # Exercise the publication boundary with in-memory GitHub responses. These tests
 # protect the irreversible step: validation/upload failures must leave a draft.
 class ReleasePipelineTest < Minitest::Test
-  Pipeline = CoHamster::ReleasePipeline
+  Pipeline = Cotabby::ReleasePipeline
 
   def test_version_and_suffix_validation
     assert_equal({ "version" => "0.7.0", "build_number" => "2026092601" },
@@ -155,7 +155,7 @@ class ReleasePipelineTest < Minitest::Test
         output.strip
       end
       app = File.join(root, "app")
-      native = File.join(app, "build/cohamster-release/CotabbyInference")
+      native = File.join(app, "build/cotabby-release/CotabbyInference")
       output = File.join(root, "artifacts")
       FileUtils.mkdir_p([File.join(app, "patches"), native, output])
       [app, native].each do |directory|
@@ -168,7 +168,7 @@ class ReleasePipelineTest < Minitest::Test
       git.call(native, "commit", "-qm", "native baseline")
       File.write(File.join(native, "native.txt"), "patched\n")
       patch = git.call(native, "diff", "HEAD") + "\n"
-      File.write(File.join(app, "patches/cotabbyinference-mchamster.patch"), patch)
+      File.write(File.join(app, "patches/cotabbyinference-upstream-pending.patch"), patch)
       File.write(File.join(app, "app.txt"), "committed source")
       File.write(File.join(app, ".gitignore"), "build/\n")
       git.call(app, "add", "app.txt", ".gitignore", "patches")
@@ -176,8 +176,8 @@ class ReleasePipelineTest < Minitest::Test
       File.write(File.join(app, "untracked-secret.txt"), "never distribute")
       pipeline = Pipeline.new(root: app)
       pipeline.send(:source_archive, output, "0.7.0", git.call(app, "rev-parse", "HEAD"), File.dirname(native))
-      system("tar", "-xzf", File.join(output, "CoHamster-0.7.0-source.tar.gz"), "-C", output, exception: true)
-      extracted = File.join(output, "CoHamster-0.7.0")
+      system("tar", "-xzf", File.join(output, "Cotabby-0.7.0-source.tar.gz"), "-C", output, exception: true)
+      extracted = File.join(output, "Cotabby-0.7.0")
       assert_equal "committed source", File.read(File.join(extracted, "app.txt"))
       assert_equal "patched\n", File.read(File.join(extracted, "vendor/CotabbyInference/native.txt"))
       assert File.file?(File.join(extracted, "BUILDING-SOURCE.txt"))

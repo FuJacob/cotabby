@@ -1,12 +1,12 @@
-# CoHamster Architecture
+# Cotabby Architecture
 
-This is the ten-minute maintainer map for CoHamster. It explains the product loop, ownership
+This is the ten-minute maintainer map for Cotabby. It explains the product loop, ownership
 boundaries, reliability rules, and the best files to read before changing behavior. It is intentionally
 a roadmap rather than an encyclopedia.
 
-## What CoHamster Is
+## What Cotabby Is
 
-CoHamster is a macOS menu bar agent that provides inline autocomplete in other applications:
+Cotabby is a macOS menu bar agent that provides inline autocomplete in other applications:
 
 1. Find the focused editable field through macOS Accessibility.
 2. Observe global keyboard input without taking focus.
@@ -33,7 +33,7 @@ These rules explain most of the structure:
   acquisition has a current secure-field caveat described under privacy below.
 - User text and optional context are bounded before generation.
 - On-device work stays local unless the user explicitly selects an endpoint engine.
-- Global input is observed in a fail-open way; CoHamster consumes only events it successfully handles.
+- Global input is observed in a fail-open way; Cotabby consumes only events it successfully handles.
 - MainActor owns UI, published state, AppKit, and most AX access. OCR, downloads, and generation do
   not block it.
 - Mutable native llama state is explicitly serialized and released before process teardown.
@@ -212,7 +212,7 @@ missing overlays, rejected sessions, and revoked permission fail open so the hos
 Word/phrase and full-tail acceptance have independent configurable key/modifier bindings.
 
 [InputSuppressionController.swift](Cotabby/Services/Input/InputSuppressionController.swift) marks and
-counts CoHamster-generated events so insertion does not re-enter the typing pipeline.
+counts Cotabby-generated events so insertion does not re-enter the typing pipeline.
 
 [SuggestionInserter.swift](Cotabby/Services/Suggestion/SuggestionInserter.swift) normally posts short
 Unicode key events without touching the clipboard. Active IME composition uses a clipboard paste
@@ -402,8 +402,8 @@ with category focus for field/geometry failures, suggestion for state/acceptance
 model failures, and app for permissions/lifecycle.
 
 [project.yml](project.yml) is the Xcode project source of truth. XcodeGen produces the committed
-[CoHamster.xcodeproj](CoHamster.xcodeproj); CI regenerates it and fails when the checked-in project differs.
-Debug and Release build the same CoHamster app identity, preference domain, icon, and model storage.
+[Cotabby.xcodeproj](Cotabby.xcodeproj); CI regenerates it and fails when the checked-in project differs.
+Debug and Release build the same Cotabby app identity, preference domain, icon, and model storage.
 The Debug configuration exposes General > Development > Show Development Debug Overlays (off by
 default); AppDelegate forwards that live preference to the presentation controller and polling
 diagnostics. The `-cotabby-debug` launch argument controls local diagnostic logging independently.
@@ -413,10 +413,10 @@ Swift default actor isolation is MainActor.
 Use the narrowest relevant tests first, then broaden. The standard build boundary is:
 
 ~~~bash
-xcodebuild -project CoHamster.xcodeproj -scheme CoHamster -destination 'platform=macOS' build \
+xcodebuild -project Cotabby.xcodeproj -scheme Cotabby -destination 'platform=macOS' build \
   -derivedDataPath build/DerivedData
 
-xcodebuild -project CoHamster.xcodeproj -scheme CoHamster -destination 'platform=macOS' build-for-testing \
+xcodebuild -project Cotabby.xcodeproj -scheme Cotabby -destination 'platform=macOS' build-for-testing \
   -derivedDataPath build/DerivedData
 ~~~
 

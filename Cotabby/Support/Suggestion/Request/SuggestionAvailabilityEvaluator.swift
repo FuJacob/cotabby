@@ -20,15 +20,15 @@ enum SuggestionAvailabilityEvaluator {
         checkCapability: Bool = true
     ) -> String? {
         guard globallyEnabled else {
-            return "CoHamster is turned off."
+            return "Cotabby is turned off."
         }
 
         guard !temporarilyPaused else {
-            return "CoHamster is temporarily paused."
+            return "Cotabby is temporarily paused."
         }
 
         if isLowPowerModeActive && isLowPowerModeAutoDisableEnabled {
-            return "CoHamster is paused because Low Power Mode is on."
+            return "Cotabby is paused because Low Power Mode is on."
         }
 
         if let reason = locationDisabledReason(
@@ -41,7 +41,7 @@ enum SuggestionAvailabilityEvaluator {
         }
 
         guard inputMonitoringGranted else {
-            return "Input Monitoring permission is required before CoHamster can react to typing."
+            return "Input Monitoring permission is required before Cotabby can react to typing."
         }
 
         guard checkCapability else {
@@ -150,23 +150,23 @@ enum SuggestionAvailabilityEvaluator {
     ) -> String? {
         if let bundleIdentifier = focusSnapshot.bundleIdentifier,
            disabledAppBundleIdentifiers.contains(bundleIdentifier) {
-            return "CoHamster is disabled in \(focusSnapshot.applicationName)."
+            return "Cotabby is disabled in \(focusSnapshot.applicationName)."
         }
 
         // Only focus snapshots with a resolved browser URL can match disabled domains.
         if let urlString = focusSnapshot.context?.focusedURLString,
            let host = BrowserDomain.host(fromURLString: urlString),
            BrowserDomain.isHostDisabled(host, disabledDomains: disabledDomains) {
-            return "CoHamster is disabled on \(host)."
+            return "Cotabby is disabled on \(host)."
         }
 
         if TerminalAppDetector.isTerminal(bundleIdentifier: focusSnapshot.bundleIdentifier) {
-            return "CoHamster is not available in terminal apps."
+            return "Cotabby is not available in terminal apps."
         }
 
         // Integrated terminals share the editor's bundle ID, so check their AX-derived flag.
         if !suggestInIntegratedTerminals, focusSnapshot.context?.isIntegratedTerminal == true {
-            return "CoHamster is not available in the integrated terminal."
+            return "Cotabby is not available in the integrated terminal."
         }
 
         return nil

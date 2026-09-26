@@ -2,7 +2,7 @@ import AppKit
 import Foundation
 
 /// File overview:
-/// Implements the draggable "CoHamster app row" that users drop into the macOS privacy list.
+/// Implements the draggable "Cotabby app row" that users drop into the macOS privacy list.
 ///
 /// This lives in AppKit instead of SwiftUI because the flow depends on `NSDraggingSession`,
 /// pasteboard item providers, and a view snapshot used as the drag image. Those APIs are far more

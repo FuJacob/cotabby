@@ -13,5 +13,5 @@
 
 DEVELOPMENT_TEAM = YOUR_TEAM_ID
 
-// Debug and Release use the same CoHamster bundle identity. Use a consistent signing identity
+// Debug and Release use the same Cotabby bundle identity. Use a consistent signing identity
 // across rebuilds to keep macOS permission grants valid.
