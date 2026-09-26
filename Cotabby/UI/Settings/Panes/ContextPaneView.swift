@@ -147,8 +147,8 @@ struct ContextPaneView: View {
                         "characters. Anything pasted beyond that is trimmed automatically."
                 )
                 bulletLine(
-                    "Stored locally on this Mac. Nothing is uploaded; this only feeds the " +
-                        "on-device model."
+                    "Stored locally on this Mac. Included in requests to your selected " +
+                        "engine, including a configured endpoint."
                 )
             }
             .font(.caption)

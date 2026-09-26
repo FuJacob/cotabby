@@ -17,7 +17,7 @@ import time
 ROOT = Path(__file__).resolve().parents[1]
 CATALOG = ROOT / 'Cotabby/Models/Runtime/LlamaRuntimeModels.swift'
 REGRESSIONS = ROOT / 'CotabbyTests/Fixtures/supported-model-regressions.json'
-DEFAULT_MODELS = Path.home() / 'Library/Application Support/Cotabby McHamster/LlamaRuntime'
+DEFAULT_MODELS = Path.home() / 'Library/Application Support/Cotabby/LlamaRuntime'
 
 
 def installed_models(directory):

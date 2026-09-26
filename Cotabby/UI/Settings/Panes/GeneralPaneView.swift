@@ -67,7 +67,8 @@ struct GeneralPaneView: View {
                 Toggle(isOn: surfaceContextEnabledBinding) {
                     SettingsRowLabel(
                         title: "Include App Context",
-                        description: "Let suggestions know which app and window you are typing in. Everything stays on this Mac.",
+                        description: "Include the app and window name in suggestions. " +
+                            "With an endpoint selected, this context is sent to that server.",
                         systemImage: "macwindow"
                     )
                 }
