@@ -109,21 +109,6 @@ struct MenuBarView: View {
     @ViewBuilder
     private var controlsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            VStack(alignment: .leading, spacing: 2) {
-                Toggle("Use screen context", isOn: screenContextUnavailable ? .constant(false) : screenContextEnabledBinding)
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
-                    .disabled(screenContextUnavailable)
-
-                if screenContextUnavailable {
-                    Text("Unavailable while Screen Recording is off")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            Divider()
-
             // Activation lives in its own band. While active, the menu offers bounded and manual
             // pauses. While paused or globally disabled, those choices are replaced by one recovery
             // action so the user cannot accidentally stack contradictory disable states.
@@ -175,6 +160,19 @@ struct MenuBarView: View {
             Toggle("Include Clipboard Context", isOn: clipboardContextEnabledBinding)
                 .toggleStyle(.switch)
                 .controlSize(.small)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Toggle("Use screen context", isOn: screenContextUnavailable ? .constant(false) : screenContextEnabledBinding)
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                    .disabled(screenContextUnavailable)
+
+                if screenContextUnavailable {
+                    Text("Unavailable while Screen Recording is off")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
 
             Divider()
 
