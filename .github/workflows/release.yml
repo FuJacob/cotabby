@@ -97,6 +97,8 @@ jobs:
         run: |
           xcodebuild \
             -workspace "${WORKSPACE_PATH}" \
+            -scheme "${SCHEME}" \
+            -derivedDataPath build/DerivedData \
             -resolvePackageDependencies
 
       - name: Install DMG packaging dependencies

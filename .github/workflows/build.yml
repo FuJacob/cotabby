@@ -55,6 +55,8 @@ jobs:
         run: |
           xcodebuild \
             -workspace build/cotabby-dependencies/Cotabby.xcworkspace \
+            -scheme Cotabby \
+            -derivedDataPath build/DerivedData \
             -resolvePackageDependencies
 
       - name: Verify Sparkle version pin
