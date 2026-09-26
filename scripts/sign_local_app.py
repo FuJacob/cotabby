@@ -3,8 +3,7 @@
 
 Xcode's compile output stays in repo-scoped DerivedData. A temporary metadata-free
 copy is the signing boundary because a file provider can restore FinderInfo while
-codesign is running. Fastlane verify and build_and_run.sh call this helper; release
-packaging keeps its own hardened, timestamped, notarized signing path.
+codesign is running. build_and_run.sh calls this helper before launching the app.
 """
 import argparse
 from pathlib import Path

@@ -1,4 +1,3 @@
-# Shared contributor validation. Personal Fastlane/signing setup is intentionally separate.
 name: Build
 
 on:

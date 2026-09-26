@@ -1,10 +1,9 @@
-# Releasing this Cotabby development fork
+# Release status
 
-The maintainer uses the personal [Fastlane release process](fastlane/README.md); contributors
-use the Xcode workflow in [CONTRIBUTING.md](CONTRIBUTING.md). The release lane builds the `Cotabby` scheme and packages
-`Cotabby.app`, retaining the installed fork's bundle ID and signing identity. Updates remain manual
-and open this fork's releases until an upstream migration has been tested.
+The CoHamster-specific distribution pipeline has been removed from this contribution.
+Build and test Cotabby using the Xcode workflow in [CONTRIBUTING.md](CONTRIBUTING.md).
+Upstream release automation is outside the scope of this integration.
 
-The existing repository, release tag prefix, notes filenames, and CI credential names are kept
-for compatibility with published fork releases. Historical artifacts are immutable. This cleanup
-does not publish a release, configure an upstream updater, or declare the fork end-of-life.
+Historical fork artifacts and release notes remain unchanged. Manual update checks still open
+this fork's releases until an upstream migration has been tested. This cleanup does not publish
+a release, configure an upstream updater, or declare the fork end-of-life.

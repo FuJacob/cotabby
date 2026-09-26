@@ -285,40 +285,19 @@ symptom → category map. Do not ask the user to re-explain symptoms before chec
 
 ## Builds And Validation
 
-Fastlane is the maintainer's personal workflow for this checkout, not a contributor prerequisite
-or a shared CI requirement. Use the existing lanes for the maintainer's signed local launches and
-distribution. Contributor builds and shared CI use Xcode directly as documented in
-[`CONTRIBUTING.md`](CONTRIBUTING.md); do not route them through personal signing credentials or
-require Ruby/Bundler. The evaluation commands may also use their documented Xcode workflow.
-
-When using the maintainer lanes, Fastlane owns dependency preparation, signing, process replacement,
-build locking, diagnostics, and cleanup. Do not run another build concurrently in the same checkout.
-
-For the maintainer lanes, use the Ruby version in `.ruby-version` and dependencies pinned by `Gemfile.lock`. The macOS
-system Ruby is too old; with Homebrew Ruby, prepend `$(brew --prefix ruby)/bin` to `PATH`. See
-[`fastlane/README.md`](fastlane/README.md) for setup, credentials, and lane options.
-
-```bash
-bundle exec fastlane mac dev                         # Signed Debug build and local launch
-bundle exec fastlane mac dev configuration:Release   # Optimized local build and launch
-bundle exec fastlane mac verify                      # Lint, project checks, and signed tests
-bundle exec fastlane mac package                     # Signed/notarized artifacts; no publication
-bundle exec fastlane mac prerelease suffix:beta.1    # Publish a GitHub pre-release when requested
-bundle exec fastlane mac release                     # Publish a stable GitHub release when requested
-bundle exec fastlane mac doctor                      # Check tools and credentials
-```
+Build, run, and test with Xcode as documented in
+[`CONTRIBUTING.md`](CONTRIBUTING.md). Prepare the pinned inference workspace with
+`scripts/prepare_cotabby_workspace.sh` first. Local launches use the developer's own signing
+team configured through `scripts/dev-setup.sh`; shared CI uses unsigned compile checks and
+app-hosted tests.
 
 Use the narrowest meaningful validation first, then broaden if the change touches shared behavior.
-Direct contributor/CI builds also keep DerivedData in `build/DerivedData` and clean it after validation.
-The maintainer build lanes keep DerivedData at `build/DerivedData` and remove it on exit, including after
-failure. Verify cleanup before reporting completion. The runnable dev app remains at
-`~/Library/Application Support/Cotabby/Development/<checkout-id>/<configuration>/Cotabby.app`,
-outside Documents/iCloud so Finder metadata cannot invalidate its signature. Logs and test results
-remain in `build/fastlane-logs/`.
+Keep DerivedData in `build/DerivedData`, avoid concurrent builds in the same checkout, and clean
+it after validation. Verify cleanup before reporting completion.
 Never move DerivedData to `~/Library/Developer/Xcode/DerivedData/Cotabby-*`.
 
-Run targeted tests for changed pure logic when available. If the verification lane fails, report
-the exact failure and distinguish any successful build-for-testing step from actual test execution.
+Run targeted tests for changed pure logic when available. If validation fails, report the exact
+failure and distinguish a successful build-for-testing step from actual test execution.
 
 ## Git And Worktree Safety
 

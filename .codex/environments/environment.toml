@@ -6,6 +6,6 @@ name = "Cotabby"
 script = ""
 
 [[actions]]
-name = "Run"
+name = "Open Xcode"
 icon = "run"
-command = 'PATH="$(brew --prefix ruby)/bin:$PATH" bundle exec fastlane mac dev'
+command = "scripts/prepare_cotabby_workspace.sh && open build/cotabby-dependencies/Cotabby.xcworkspace"

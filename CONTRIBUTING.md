@@ -42,8 +42,7 @@ Apple Silicon is strongly recommended for local model-runtime work.
 ## Local Setup
 
 Contributors build and run with Xcode. Prepare the pinned inference dependency before opening the
-workspace; it provides the native APIs used by this fork. Ruby, Bundler, and Fastlane are not
-required for contributor builds or shared CI.
+workspace; it provides the native APIs used by this fork.
 
 ```sh
 git clone https://github.com/mc-hamster/CoHamster.git Cotabby
@@ -258,8 +257,8 @@ APIs used by this fork. Prepare the matching dependency and workspace before bui
 scripts/prepare_cotabby_workspace.sh
 ```
 
-The build commands above use this workspace to resolve the patched package. `scripts/build_and_run.sh` and the
-release script do this preparation automatically. The helper verifies the existing checkout and
+The build commands above use this workspace to resolve the patched package.
+`scripts/build_and_run.sh` does this preparation automatically. The helper verifies the existing checkout and
 fails on drift instead of overwriting edits. For intentional native development, use
 `python3 scripts/create-inference-workspace.py /absolute/path/to/CotabbyInference` to create a
 separate local workspace. Keep generated workspaces and machine-specific paths out of commits.
