@@ -145,13 +145,6 @@ struct MenuBarView: View {
                     .menuStyle(.borderlessButton)
                     .fixedSize(horizontal: false, vertical: true)
                 }
-
-                if let application = focusModel.latestExternalApplication,
-                   !TerminalAppDetector.isTerminal(bundleIdentifier: application.bundleIdentifier) {
-                    Toggle("Enable in \(application.applicationName)", isOn: appEnabledBinding(for: application))
-                        .toggleStyle(.switch)
-                        .controlSize(.small)
-                }
             }
 
             Divider()
@@ -351,23 +344,6 @@ struct MenuBarView: View {
         Binding(
             get: { !suggestionSettings.isFastModeEnabled },
             set: { suggestionSettings.setFastModeEnabled(!$0) }
-        )
-    }
-
-    private func appEnabledBinding(for application: FocusedApplicationIdentity) -> Binding<Bool> {
-        Binding(
-            get: {
-                !suggestionSettings.isApplicationDisabled(
-                    bundleIdentifier: application.bundleIdentifier
-                )
-            },
-            set: { enabled in
-                suggestionSettings.setApplicationDisabled(
-                    bundleIdentifier: application.bundleIdentifier,
-                    displayName: application.applicationName,
-                    disabled: !enabled
-                )
-            }
         )
     }
 
