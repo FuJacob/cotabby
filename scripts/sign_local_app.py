@@ -27,7 +27,7 @@ def main():
     original = args.app.resolve()
     if original.suffix != ".app" or not (original / "Contents/Info.plist").is_file():
         parser.error("Expected a built .app bundle")
-    with tempfile.TemporaryDirectory(prefix="cohamster-local-sign-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="cotabby-local-sign-") as temporary:
         app = Path(temporary) / original.name
         run("ditto", "--norsrc", "--noextattr", str(original), str(app))
         run("xattr", "-cr", str(app))

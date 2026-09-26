@@ -47,14 +47,19 @@ struct AcknowledgementsView: View {
             name: "Cotabby",
             summary: "Cotabby was originally created by FuJacob "
                 + "and developed with jam-cai, akramj13, and other contributors. "
-                + "This development fork includes changes by McHamster and contributors, pending upstream contribution. "
+                + "Includes contributions by McHamster and other contributors. "
                 + "Distributed under AGPLv3, without warranty; redistribution is permitted under that license.",
             url: "https://github.com/FuJacob/cotabby"
         ),
         AcknowledgementEntry(
             name: "This build’s source & license",
             summary: "Source code, build instructions, and the GNU Affero General Public License v3.0.",
-            url: "https://github.com/mc-hamster/CoHamster"
+            url: "https://github.com/FuJacob/cotabby"
+        ),
+        AcknowledgementEntry(
+            name: "Sparkle",
+            summary: "Secure automatic updates for production builds of Cotabby.",
+            url: "https://github.com/sparkle-project/Sparkle"
         ),
         AcknowledgementEntry(
             name: "LaunchAtLogin",

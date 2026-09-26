@@ -33,7 +33,7 @@ struct CotabbyApp: App {
                 },
                 onReportFeedback: {
                     // Reports belong with this fork's source and releases.
-                    let feedbackURL = "https://github.com/mc-hamster/CoHamster/issues"
+                    let feedbackURL = "https://github.com/FuJacob/cotabby/issues"
                     guard let baseURL = URL(string: feedbackURL) else {
                         return
                     }

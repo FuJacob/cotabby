@@ -30,7 +30,7 @@ Yes. Cotabby is completely free and open source, released under the GNU Affero
 General Public License v3.0 (AGPL-3.0). There is no subscription, no account, and
 no paid tier. You are free to read, modify, and redistribute the source under the
 terms of that license. The code lives at
-[github.com/mc-hamster/CoHamster](https://github.com/mc-hamster/CoHamster).
+[github.com/FuJacob/cotabby](https://github.com/FuJacob/cotabby).
 
 The downloadable AI models are free too, and Apple Intelligence is built into
 macOS. If you configure a third-party OpenAI-compatible endpoint, that provider may charge for use.
@@ -69,15 +69,23 @@ those stay on your Mac and are never transmitted.
 
 ## 5. How do I install Cotabby?
 
-For upstream downloads, visit [Cotabby](https://github.com/FuJacob/cotabby).
-For this development fork, follow [CONTRIBUTING.md](CONTRIBUTING.md). Historical fork binaries
-remain in the [release archive](https://github.com/mc-hamster/CoHamster/releases) under their
-original names.
+There are three ways:
 
-This fork is preparing to contribute its changes upstream and eventually end maintenance.
-There is no EOL date or automatic migration yet. Existing settings, credentials, and models
-retain their storage identities. Quit other copies before launching a development build;
-Settings → About → Check for Updates still opens the fork's releases.
+- **Homebrew (recommended):**
+  ```sh
+  brew tap FuJacob/cotabby
+  brew install --cask cotabby
+  ```
+  Update later with `brew upgrade --cask cotabby`.
+- **Direct download:** get the latest release from
+  [cotabby.app](https://cotabby.app) (or the GitHub Releases page) and drag
+  Cotabby into your Applications folder.
+- **Build from source:** clone
+  [github.com/FuJacob/cotabby](https://github.com/FuJacob/cotabby) and open the
+  prepared workspace in Xcode (see [CONTRIBUTING.md](CONTRIBUTING.md)).
+
+After launching, Cotabby lives in your menu bar and walks you through a short
+setup. It checks for and installs updates automatically when new versions ship.
 
 ## 6. Why does Cotabby need Accessibility, Input Monitoring, and Screen Recording permissions?
 

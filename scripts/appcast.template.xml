@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0"
+     xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle"
+     xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel>
+    <title>Cotabby Updates</title>
+    <link>{{REPOSITORY_URL}}</link>
+    <description>Cotabby release feed</description>
+    <language>en</language>
+    <item>
+      <title>Version {{SHORT_VERSION}}</title>
+      <link>{{RELEASE_PAGE_URL}}</link>
+      <sparkle:version>{{BUILD_VERSION}}</sparkle:version>
+      <sparkle:shortVersionString>{{SHORT_VERSION}}</sparkle:shortVersionString>
+      <sparkle:releaseNotesLink>{{RELEASE_PAGE_URL}}</sparkle:releaseNotesLink>
+      <pubDate>{{PUB_DATE}}</pubDate>
+      <enclosure url="{{ARCHIVE_URL}}"
+                 sparkle:edSignature="{{ED_SIGNATURE}}"
+                 length="{{ARCHIVE_LENGTH}}"
+                 type="application/octet-stream" />
+    </item>
+  </channel>
+</rss>

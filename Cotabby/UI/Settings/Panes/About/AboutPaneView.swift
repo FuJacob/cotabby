@@ -57,13 +57,31 @@ struct AboutPaneView: View {
 
     @ViewBuilder
     private var supportRow: some View {
+        // Stack the support copy and the call-to-action vertically so the button sits below the
+        // paragraphs instead of competing with them on the right edge of the row. `LabeledContent`
+        // placed the value column next to the label, which made the wall of text visually compete
+        // with a small button — the natural reading order is paragraphs first, then action.
         VStack(alignment: .leading, spacing: 12) {
-            Text("Help improve Cotabby by reporting bugs, suggesting features, or contributing code.")
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-            if let url = URL(string: "https://github.com/mc-hamster/CoHamster/issues") {
-                Link("Contribute & Report Issues", destination: url)
-                    .buttonStyle(.borderedProminent)
+            VStack(alignment: .leading, spacing: 8) {
+                Text(
+                    "Cotabby started from a simple belief: AI should run on your device, "
+                    + "respect your privacy, and remain open to everyone."
+                )
+
+                Text(
+                    "We're building Cotabby in our spare time, one release at a time. "
+                    + "If Cotabby has helped you, your support helps us keep improving it."
+                )
+            }
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+
+            if let supportURL = URL(string: "https://ko-fi.com/cotabby") {
+                Link(destination: supportURL) {
+                    Label("Support Cotabby", systemImage: "heart.fill")
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.blue)
             }
         }
     }
@@ -72,16 +90,15 @@ struct AboutPaneView: View {
     /// search can scroll to and pulse individually.
     @ViewBuilder
     private var resourceRows: some View {
-        let repository = "https://github.com/mc-hamster/CoHamster"
-        if let repoURL = URL(string: repository) {
+        if let repoURL = URL(string: "https://github.com/FuJacob/Cotabby") {
             Link(destination: repoURL) {
                 Label("GitHub Repository", systemImage: "chevron.left.forwardslash.chevron.right")
             }
             .settingsItem(.githubRepository)
         }
-        if let wikiURL = URL(string: "https://github.com/mc-hamster/CoHamster/blob/master/CONTRIBUTING.md") {
+        if let wikiURL = URL(string: "https://github.com/FuJacob/Cotabby/wiki") {
             Link(destination: wikiURL) {
-                Label("Contributor Guide", systemImage: "book")
+                Label("Wiki & Contributor Guide", systemImage: "book")
             }
             .settingsItem(.wiki)
         }

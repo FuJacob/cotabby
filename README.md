@@ -1,16 +1,64 @@
-# Cotabby
 
-<img src="Cotabby/Assets.xcassets/CotabbyLogo.imageset/CotabbyLogo.png" alt="Cotabby cat icon" width="112" />
+<p align="center">
+  <a href="https://cotabby.app" target="_blank">
+    <img height="150" alt="Cotabby logo" src=".github/assets/readme/logo.png" />
+  </a>
+</p>
 
-Local-first AI autocomplete for macOS. Open source, with Apple Intelligence, local GGUF models,
-and an optional OpenAI-compatible endpoint you configure.
+<h1 align="center">Cotabby [beta]</h1>
 
-This repository is a development fork of [Cotabby](https://github.com/FuJacob/cotabby).
-We are retiring the CoHamster branding and intend to contribute our changes upstream before
-ending maintenance of the fork. That transition is in progress; this checkout still contains
-changes that upstream has not accepted. No end-of-life date has been set.
+<p align="center"><em>Open-source, local-first AI autocomplete for macOS.</em></p>
 
-**[Upstream Cotabby](https://github.com/FuJacob/cotabby)** · [Fork release archive](https://github.com/mc-hamster/CoHamster/releases) · [FAQ](FAQ.md) · [AGPLv3](LICENSE)
+<p align="center">
+  <a href="https://cotabby.app">
+  <img width="200" alt="landing-page" src="https://github.com/user-attachments/assets/c28fbb4b-6dfb-4403-a040-1df61daf4df2" /></a>
+
+
+<a href="https://github.com/FuJacob/cotabby/releases/latest/download/Cotabby.dmg">
+<img width="200" alt="download" src="https://github.com/user-attachments/assets/d5cb4454-d2ab-41d3-9d36-171d44ebfc52" /></a>
+
+
+<a href="https://ko-fi.com/cotabby" target="_blank">
+<img width="200" alt="support" src=".github/assets/readme/support-cotabby.png" />
+</a></p>
+
+<p align="center">
+  <a href="https://github.com/FuJacob/cotabby/actions/workflows/build.yml"><img alt="Build" src="https://img.shields.io/github/actions/workflow/status/FuJacob/cotabby/build.yml?branch=main" /></a>
+  <a href="LICENSE"><img alt="License: AGPL v3" src="https://img.shields.io/badge/license-AGPL--3.0-blue.svg" /></a>
+  <a href="https://github.com/FuJacob/cotabby/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/FuJacob/cotabby" /></a>
+  <a href="https://github.com/FuJacob/cotabby/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/FuJacob/cotabby/total" /></a>
+  <a href="https://github.com/FuJacob/cotabby/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/FuJacob/cotabby?style=flat" /></a>
+  <img alt="Swift" src="https://img.shields.io/badge/Swift-F05138?logo=swift&amp;logoColor=white" />
+  <img alt="Platform" src="https://img.shields.io/badge/platform-macOS%2014%2B-lightgrey" />
+</p>
+
+<p align="center">
+  <sub>Cotabby is free and open-source — maintained by two students. If it's useful to you, please consider supporting Cotabby's future.</sub>
+</p>
+
+---
+
+## What It Does
+
+Cotabby adds AI autocomplete to almost any text field on your Mac. As you type, a gray suggestion appears inline next to your cursor. Press `Tab` to accept it a word at a time, or keep typing to ignore it.
+
+The default Apple Intelligence and Open Source engines run on your Mac. No account or telemetry is
+required. An optional OpenAI-compatible engine can connect to a server you configure.
+
+## Demo
+
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=p3TIgxQFQGE"><strong>Watch on YouTube →</strong></a>
+</p>
+
+<div align="center">
+
+|  |  |
+|:---:|:---:|
+| <img src="gifs/slack.gif" alt="Cotabby emoji autocomplete demo" width="400" height="225" /> | <img src="gifs/imessage.gif" alt="Cotabby autocomplete demo" width="400" height="225" /> |
+| <img src="gifs/autocorrect.gif" alt="Cotabby autocorrect demo" width="400" height="225" /> | <img src="gifs/macros.gif" alt="Cotabby inline macros demo" width="400" height="225" /> |
+
+</div>
 
 ## Features
 
@@ -18,6 +66,8 @@ changes that upstream has not accepted. No end-of-life date has been set.
 - **Emoji autocomplete** — type `:rocket:` and accept it without leaving the field
 - **Inline macros** — type `/` for quick math, unit and currency conversion, dates, and random values
 - **One-key autocorrect** — fix a likely typo with a single keystroke
+- **Prediction controls** — choose whether to predict ahead, suggest within words, and show following words
+- **Optional screen context** — control visual context independently of the local prediction settings
 
 ## Privacy
 
@@ -44,10 +94,10 @@ If your Mac supports Apple Intelligence, that's the easiest place to start. Othe
 
 | Model          | Size    | Good for                          |
 | -------------- | ------- | --------------------------------- |
-| `Cotabby Nano` | ~0.8 GB | Older or low-memory Macs; fastest |
-| `Cotabby Mini` | ~1.4 GB | A solid everyday balance          |
-| `Cotabby Base` | ~4.5 GB | Higher-quality suggestions        |
-| `Cotabby Pro`  | ~5.0 GB | Best quality                      |
+| `tabby-2-nano` | ~0.8 GB | Older or low-memory Macs; fastest |
+| `tabby-2-mini` | ~1.4 GB | A solid everyday balance          |
+| `tabby-2-base` | ~4.5 GB | Higher-quality suggestions        |
+| `tabby-2-pro`  | ~5.0 GB | Best quality                      |
 
 Download any of them straight from Cotabby's menu bar.
 
@@ -60,10 +110,10 @@ Under the hood, the Open Source engine runs local GGUF *base* models in-process 
 
 | Model          | File                             | Size    | Source                                                                       |
 | -------------- | -------------------------------- | ------- | ---------------------------------------------------------------------------- |
-| `Cotabby Nano` | `Qwen3.5-0.8B-Base.i1-Q6_K.gguf` | ~0.8 GB | [Hugging Face](https://huggingface.co/mradermacher/Qwen3.5-0.8B-Base-i1-GGUF) |
-| `Cotabby Mini` | `Qwen3.5-2B-Base.i1-Q4_K_M.gguf` | ~1.4 GB | [Hugging Face](https://huggingface.co/mradermacher/Qwen3.5-2B-Base-i1-GGUF)   |
-| `Cotabby Base` | `gemma-4-E2B.i1-Q6_K.gguf`       | ~4.5 GB | [Hugging Face](https://huggingface.co/mradermacher/gemma-4-E2B-i1-GGUF)       |
-| `Cotabby Pro`  | `gemma-4-E4B.i1-Q4_K_M.gguf`     | ~5.0 GB | [Hugging Face](https://huggingface.co/mradermacher/gemma-4-E4B-i1-GGUF)       |
+| `tabby-2-nano` | `Qwen3.5-0.8B-Base.i1-Q6_K.gguf` | ~0.8 GB | [Hugging Face](https://huggingface.co/mradermacher/Qwen3.5-0.8B-Base-i1-GGUF) |
+| `tabby-2-mini` | `Qwen3.5-2B-Base.i1-Q4_K_M.gguf` | ~1.4 GB | [Hugging Face](https://huggingface.co/mradermacher/Qwen3.5-2B-Base-i1-GGUF)   |
+| `tabby-2-base` | `gemma-4-E2B.i1-Q6_K.gguf`       | ~4.5 GB | [Hugging Face](https://huggingface.co/mradermacher/gemma-4-E2B-i1-GGUF)       |
+| `tabby-2-pro`  | `gemma-4-E4B.i1-Q4_K_M.gguf`     | ~5.0 GB | [Hugging Face](https://huggingface.co/mradermacher/gemma-4-E4B-i1-GGUF)       |
 
 **Bring your own model.** Any GGUF small enough to run on-device works. Drop a `.gguf` file into Cotabby's models folder and refresh the model list from the menu bar. Browse the [unsloth GGUF collection](https://huggingface.co/unsloth) for more variants — smaller quants (`Q3_K_M`, `Q4_K_S`) trade quality for size; larger models give better completions at the cost of memory and per-token latency.
 
@@ -73,16 +123,30 @@ For the full suggestion pipeline, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Install
 
-**Compatibility:** macOS 14.0 or later. Apple Intelligence requires macOS 26 or later on a supported Mac.
+**Compatibility:** macOS 14.0 or later. The Apple Intelligence engine needs macOS 26 or later on a supported Mac; on older systems, use the Open Source engine.
 
-For upstream downloads, visit [Cotabby](https://github.com/FuJacob/cotabby).
-To run the changes in this development fork, follow [CONTRIBUTING.md](CONTRIBUTING.md).
-Previously published fork binaries remain in the [release archive](https://github.com/mc-hamster/CoHamster/releases)
-under their original names; this cleanup does not rename or replace those artifacts.
+### Homebrew
 
-This fork still uses manual update checks against its own releases. Its bundle ID, preferences,
-Keychain credentials, and model directory remain stable until an explicit upstream migration is ready.
-Quit other copies before launching a development build.
+```sh
+brew tap FuJacob/cotabby
+brew install --cask cotabby
+```
+
+Upgrade later with `brew upgrade --cask cotabby`. The tap lives at [FuJacob/homebrew-cotabby](https://github.com/FuJacob/homebrew-cotabby).
+
+### Manual download
+
+Grab the latest release from [cotabby.app](https://cotabby.app) and drag Cotabby into your Applications folder.
+
+## Using Cotabby
+
+Start typing in almost any text field. When a gray suggestion appears:
+
+- **`Tab`** — accept the next word. (Prefer whole phrases? Switch this in Settings → Acceptance Mode.)
+- **`` ` `` (backtick)** — accept the entire suggestion at once.
+- **`Esc`**, or just keep typing — dismiss it.
+
+Every shortcut is rebindable under Settings → Shortcuts.
 
 ## Permissions
 
@@ -98,15 +162,15 @@ Cotabby blocks generation, presentation, and insertion in password and other sec
 
 Requires Xcode and Command Line Tools. Apple Silicon is strongly recommended for local model performance. For setup, build, test, and contribution workflow details, start with [CONTRIBUTING.md](CONTRIBUTING.md).
 
-For autocomplete tuning, the [phrase prediction benchmark](PHRASE_EVAL.md) replays 1,337 writing scenarios with synthetic screen context, reports next-word accuracy per phrase, category, and suite, and measures the gain or regression from that context.
-
 ```bash
-git clone https://github.com/mc-hamster/CoHamster.git Cotabby
+git clone https://github.com/FuJacob/cotabby.git Cotabby
 cd Cotabby
-scripts/dev-setup.sh
 scripts/prepare_cotabby_workspace.sh
 open build/cotabby-dependencies/Cotabby.xcworkspace
 ```
+
+Use the **Cotabby Dev** scheme for local work. The workspace temporarily supplies the native
+APIs in our pending CotabbyInference patch; preparation is automatic in CI and release builds.
 
 If you want to understand the runtime and suggestion pipeline before contributing, read [ARCHITECTURE.md](ARCHITECTURE.md).
 
@@ -114,33 +178,17 @@ If you want to understand the runtime and suggestion pipeline before contributin
 
 Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, build, and PR guidelines, and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for community expectations. For a tour of the runtime and suggestion pipeline, read [ARCHITECTURE.md](ARCHITECTURE.md).
 
-### Contributing changes upstream
-
-Our intended destination is [Cotabby](https://github.com/FuJacob/cotabby). We plan to contribute
-fixes and features as focused, independently reviewable PRs, with tests and supporting benchmark
-results. The native changes in `patches/cotabbyinference-upstream-pending.patch` also need review
-in [CotabbyInference](https://github.com/FuJacob/cotabbyinference). Keep those changes and their
-reproducible build inputs until upstream provides the required APIs.
-
-Fork retirement will follow upstream review and a documented migration for existing users.
-This repository remains the source for its published binaries and pending changes.
-
 ## Acknowledgments
 
-- [llama.cpp](https://github.com/ggerganov/llama.cpp), [CotabbyInference](https://github.com/FuJacob/cotabbyinference), and [swift-log](https://github.com/apple/swift-log) for runtime and logging.
+- [llama.cpp](https://github.com/ggerganov/llama.cpp), [CotabbyInference](https://github.com/FuJacob/cotabbyinference), [Sparkle](https://github.com/sparkle-project/Sparkle), and [swift-log](https://github.com/apple/swift-log) for runtime, updates, and logging.
 - Apple's FoundationModels, Accessibility, SwiftUI, and AppKit for on-device generation and macOS integration.
 - [GitHub gemoji](https://github.com/github/gemoji) and Hugging Face for the emoji data and downloadable models.
 - [SymSpell](https://github.com/wolfgarbe/SymSpell) by Wolf Garbe (MIT) for multilingual autocorrect; frequency dictionaries derive from [Google Ngrams](https://books.google.com/ngrams) (CC BY 3.0) and licensed SCOWL/Hunspell word lists.
 - Everyone who filed issues, tested prereleases, and sent pull requests.
 
-## Attribution
+## Created by
 
-[Cotabby](https://github.com/FuJacob/cotabby) was originally created by
-[FuJacob](https://github.com/FuJacob) and developed with [jam-cai](https://github.com/jam-cai),
-[akramj13](https://github.com/akramj13), and other contributors. This development fork contains
-changes by [McHamster](https://github.com/mc-hamster) and contributors. Its former CoHamster
-branding and published versions remain recorded in [release notes](releases/). The app now uses
-the original Cotabby artwork from upstream.
+Originally created by <a href="https://github.com/FuJacob">@FuJacob</a>, now developed and maintained by <a href="https://github.com/FuJacob">@FuJacob</a>, <a href="https://github.com/jam-cai">@jam-cai</a>. and <a href="https://github.com/akramj13">@akramj13</a>
 
 ## License
 

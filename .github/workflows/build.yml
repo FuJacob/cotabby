@@ -1,14 +1,25 @@
+# PR-time build gate. If xcodebuild fails here, the PR can't merge.
+#
+# Runs on PRs into main AND on pushes to main. The push-to-main run exists
+# so a future README badge can reflect current main health — otherwise the
+# badge would only ever show whichever PR last ran.
+#
+# Why Debug config: the compile surface (every file type-checked) is the
+# same as Release, but Debug is faster and more deterministic. Release-only
+# behavior (dead-code stripping, optimization-dependent bugs) isn't what
+# we're guarding against at PR time.
+
 name: Build
 
 on:
   pull_request:
-    branches: [master, main]
+    branches: [main]
   push:
-    branches: [master, main]
+    branches: [main]
 
-permissions:
-  contents: read
-
+# Cancel older runs for the same ref when a new commit arrives. Without this,
+# force-pushes and rapid pushes leave a backlog of stale builds consuming
+# runner minutes for nothing.
 concurrency:
   group: build-${{ github.ref }}
   cancel-in-progress: true
@@ -16,27 +27,89 @@ concurrency:
 jobs:
   build:
     name: xcodebuild (macOS)
-    runs-on: macos-26
-    timeout-minutes: 30
+    runs-on: macos-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
+
+      # Pin Xcode explicitly. GitHub-hosted runner images drift their default
+      # Xcode without notice, which surfaces as false-red or false-green
+      # builds. Bump `xcode-version` deliberately when the project is known
+      # to support a newer one.
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
         with:
-          xcode-version: '26.6'
-      - name: Prepare pinned native dependency
+          xcode-version: latest-stable
+
+      - name: Prepare matching inference dependency
         run: scripts/prepare_cotabby_workspace.sh
-      - name: Resolve pinned packages
+
+      - name: Toolchain info
         run: |
-          xcodebuild -resolvePackageDependencies \
-            -workspace build/cotabby-dependencies/Cotabby.xcworkspace -scheme Cotabby \
-            -onlyUsePackageVersionsFromResolvedFile -derivedDataPath build/DerivedData
+          xcodebuild -version
+          swift --version
+
+      # Package.resolved is gitignored, so SwiftPM must materialize it before
+      # the Sparkle pin check can compare against it.
+      - name: Resolve Swift package dependencies
+        run: |
+          xcodebuild \
+            -workspace build/cotabby-dependencies/Cotabby.xcworkspace \
+            -resolvePackageDependencies
+
+      - name: Verify Sparkle version pin
+        run: |
+          set -euo pipefail
+
+          # Sparkle must use exactVersion pinning. upToNextMajorVersion lets
+          # Xcode silently upgrade the framework, which drifts the signing
+          # tools hash and breaks releases.
+          sparkle_block="$(sed -n '/XCRemoteSwiftPackageReference "Sparkle" \*\/ = {/,/};/p' Cotabby.xcodeproj/project.pbxproj)"
+
+          if ! echo "${sparkle_block}" | grep -q 'kind = exactVersion'; then
+            echo "Sparkle must use exactVersion pinning in project.pbxproj." >&2
+            exit 1
+          fi
+
+          # pbxproj and Package.resolved must agree on the version.
+          pbxproj_version="$(echo "${sparkle_block}" | grep -A1 'kind = exactVersion' | grep 'version' | sed 's/.*= //;s/;.*//' | tr -d '[:space:]')"
+          resolved_version="$(python3 -c "
+          import json, sys
+          resolved = json.load(open('build/cotabby-dependencies/Cotabby.xcworkspace/xcshareddata/swiftpm/Package.resolved'))
+          pins = {p['identity']: p for p in resolved['pins']}
+          if 'sparkle' not in pins:
+              print('sparkle not found in Package.resolved. Available: ' + ', '.join(sorted(pins.keys())), file=sys.stderr)
+              sys.exit(1)
+          print(pins['sparkle']['state']['version'])
+          ")"
+
+          if [[ -z "${pbxproj_version}" ]]; then
+            echo "Could not extract Sparkle version from pbxproj." >&2
+            exit 1
+          fi
+
+          if [[ "${pbxproj_version}" != "${resolved_version}" ]]; then
+            echo "Sparkle version mismatch: pbxproj=${pbxproj_version}, Package.resolved=${resolved_version}" >&2
+            exit 1
+          fi
+
+          echo "Sparkle pin verified: ${resolved_version}"
+
+      # CODE_SIGNING_ALLOWED=NO because CI runners don't have the dev cert.
+      # The project uses Automatic signing, so we can't simply strip the team
+      # identifier without pbxproj surgery — disabling signing for the build
+      # check keeps the check focused on compile correctness.
       - name: Build
         run: |
-          xcodebuild build \
+          xcodebuild \
             -workspace build/cotabby-dependencies/Cotabby.xcworkspace \
-            -scheme Cotabby -configuration Debug -destination 'platform=macOS' \
-            -onlyUsePackageVersionsFromResolvedFile -derivedDataPath build/DerivedData \
-            CODE_SIGNING_ALLOWED=NO
+            -scheme Cotabby \
+            -configuration Debug \
+            -destination 'platform=macOS' \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
       - name: Clean build cache
         if: always()
         run: rm -rf build/DerivedData

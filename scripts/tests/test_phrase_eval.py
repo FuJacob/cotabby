@@ -23,7 +23,7 @@ class PhraseEvalCLITests(unittest.TestCase):
         """A tiny app/native workspace with filesystem changes and a stubbed Git file listing."""
         with tempfile.TemporaryDirectory() as directory:
             root = pathlib.Path(directory)
-            paths = ['Cotabby/app.swift', 'CotabbyTests/test.swift', 'Config/Signing.local.xcconfig', 'Config/CotabbyInfo.plist',
+            paths = ['Cotabby/app.swift', 'CotabbyTests/test.swift', 'Config/Signing.local.xcconfig', 'CotabbyInfo.plist',
                      'native/Package.swift', 'native/source.cpp']
             for name in paths:
                 path = root / name
@@ -68,7 +68,7 @@ class PhraseEvalCLITests(unittest.TestCase):
 
     def test_resolution_rejects_app_test_native_and_config_changes(self):
         for name in ('Cotabby/app.swift', 'CotabbyTests/test.swift', 'native/source.cpp', 'native/Package.swift',
-                     'Config/Signing.local.xcconfig', 'Config/CotabbyInfo.plist', 'dev.xcworkspace/contents.xcworkspacedata'):
+                     'Config/Signing.local.xcconfig', 'CotabbyInfo.plist', 'dev.xcworkspace/contents.xcworkspacedata'):
             with self.subTest(name=name), self.resolution_fixture() as (root, workspace, output):
                 def resolve(command, log):
                     with (root / name).open('a') as stream:

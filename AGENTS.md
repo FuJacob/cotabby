@@ -288,7 +288,8 @@ symptom → category map. Do not ask the user to re-explain symptoms before chec
 Build, run, and test with Xcode as documented in
 [`CONTRIBUTING.md`](CONTRIBUTING.md). Prepare the pinned inference workspace with
 `scripts/prepare_cotabby_workspace.sh` first. Local launches use the developer's own signing
-team configured through `scripts/dev-setup.sh`; shared CI uses unsigned compile checks and
+team configured through `scripts/dev-setup.sh` and the isolated `Cotabby Dev` scheme; production
+uses `Cotabby`, its upstream bundle identity, and Sparkle updates. Shared CI uses unsigned compile checks and
 app-hosted tests.
 
 Use the narrowest meaningful validation first, then broaden if the change touches shared behavior.

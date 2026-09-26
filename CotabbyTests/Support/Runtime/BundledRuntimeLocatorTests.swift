@@ -279,15 +279,10 @@ final class BundledRuntimeLocatorTests: XCTestCase {
         )
     }
 
-    func test_userRuntimeDirectoryURL_preservesStorageAcrossProductRename() throws {
-        let bundle = try makeBundle(withInfo: [
-            "CFBundleName": "Cotabby",
-            "CoHamsterDataDirectory": "Cotabby McHamster"
-        ])
-
+    func test_userRuntimeDirectoryURL_keepsDevelopmentModelsSeparate() throws {
+        let bundle = try makeBundle(withInfo: ["CFBundleName": "Cotabby Dev"])
         let url = BundledRuntimeLocator.userRuntimeDirectoryURL(bundle: bundle)
-
-        XCTAssertEqual(url.deletingLastPathComponent().lastPathComponent, "Cotabby McHamster")
+        XCTAssertEqual(url.deletingLastPathComponent().lastPathComponent, "Cotabby Dev")
         XCTAssertEqual(url.lastPathComponent, "LlamaRuntime")
     }
 

@@ -13,5 +13,7 @@
 
 DEVELOPMENT_TEAM = YOUR_TEAM_ID
 
-// Debug and Release use the same Cotabby bundle identity. Use a consistent signing identity
-// across rebuilds to keep macOS permission grants valid.
+// Optional. Only needed if your personal team rejects the shared dev bundle id and Xcode reports
+// "Failed to register bundle identifier". This gives the "Cotabby Dev" build its own identity:
+//
+// COTABBY_DEV_BUNDLE_ID = com.yourname.tabby.dev

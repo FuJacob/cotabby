@@ -31,7 +31,7 @@ You need:
 - Xcode with Command Line Tools installed.
 - An Apple ID added to Xcode (Settings > Accounts) if you want to launch the app from the IDE. A
   free account is enough; the paid Apple Developer Program is not required for local development.
-  Contributors outside this fork's default development team run `scripts/dev-setup.sh` once to
+  Contributors outside Cotabby's default development team run `scripts/dev-setup.sh` once to
   configure a local override (see Local Setup).
 - SwiftLint for local lint checks. CI installs it with Homebrew when needed.
 - XcodeGen if you need to change the project structure (targets, build settings, dependencies,
@@ -41,18 +41,18 @@ Apple Silicon is strongly recommended for local model-runtime work.
 
 ## Local Setup
 
-Contributors build and run with Xcode. Prepare the pinned inference dependency before opening the
-workspace; it provides the native APIs used by this fork.
+Clone the repo and open the project. If your Apple ID is not on Cotabby's development team, run the
+one-time signing setup first:
 
 ```sh
-git clone https://github.com/mc-hamster/CoHamster.git Cotabby
+git clone https://github.com/FuJacob/Cotabby.git
 cd Cotabby
 scripts/dev-setup.sh
 scripts/prepare_cotabby_workspace.sh
 open build/cotabby-dependencies/Cotabby.xcworkspace
 ```
 
-The committed `Config/Signing.xcconfig` defaults to this fork's development team, which lets team
+The committed `Config/Signing.xcconfig` defaults to Cotabby's development team, which lets team
 members build immediately without Xcode modifying the generated project. `scripts/dev-setup.sh`
 writes a gitignored `Config/Signing.local.xcconfig` with a contributor's own Apple Development team
 id; that local value overrides the shared default and persists across pulls and project
@@ -64,15 +64,15 @@ Accounts (a free account is enough), then re-run the script. To set the team by 
 You do not need a paid Apple Developer account to build or run Cotabby locally; a free personal
 team can sign and launch it. The paid program is only needed to distribute notarized builds.
 
-For everyday local work, use the **Cotabby** scheme, whose Run action uses Debug. Development is
-one configuration of Cotabby: the app name, bundle identity, preferences, and model storage match
-Release. Debug overlays default off and can be enabled live under Settings > General > Development.
-The scheme enables diagnostic logging with `-cotabby-debug` independently. See [Run](#run).
+For everyday local work, use the **Cotabby Dev** scheme rather than `Cotabby`. It builds a separate
+app identity (`com.jacobfu.tabby.dev`, its own icon, auto-update disabled), so the permissions you
+grant your dev build never collide with a released copy of Cotabby you have installed, and your
+Accessibility grant survives rebuilds. See [Run](#run).
 
 ## The Xcode Project Is Generated
 
 `Cotabby.xcodeproj` is generated from `project.yml` by [XcodeGen](https://github.com/yonaskolb/XcodeGen).
-It is committed to the repo so contributors do not need XcodeGen for ordinary source changes,
+It is committed to the repo; the prepared workspace supplies the pending native APIs,
 but **`project.yml` is the source of truth**.
 
 Source files under `Cotabby/` and `CotabbyTests/` are auto-discovered by folder, so adding a new
@@ -116,55 +116,71 @@ That separation keeps behavior easier to test and reduces regressions in Accessi
 
 ## Build
 
-For an unsigned compile check after preparing the workspace:
+For a local compile check:
 
 ```sh
-xcodebuild build \
+xcodebuild \
   -workspace build/cotabby-dependencies/Cotabby.xcworkspace \
-  -scheme Cotabby -configuration Debug -destination 'platform=macOS' \
-  -onlyUsePackageVersionsFromResolvedFile -derivedDataPath build/DerivedData \
-  CODE_SIGNING_ALLOWED=NO
+  -scheme Cotabby \
+  -configuration Debug \
+  -destination 'platform=macOS' \
+  -derivedDataPath build/DerivedData \
+  CODE_SIGNING_ALLOWED=NO \
+  build
 ```
 
-Unsigned builds are for compile checks. For an interactive launch, use Xcode with your own
-Apple Development team configured in `Config/Signing.local.xcconfig`.
+`CODE_SIGNING_ALLOWED=NO` keeps the build command usable on machines that do not have the project
+owner's signing certificate. Use the shared team or your gitignored local override when you need to
+launch the app locally.
 
 ## Run
 
-Select the **Cotabby** scheme in the prepared workspace, choose your Mac, and use Product → Run.
-Xcode signs the app with your configured development team. Keep the signing identity consistent
-across builds so macOS can recognize your Accessibility and Input Monitoring grants.
+From Xcode:
 
-The app is named **Cotabby** and retains this fork's existing settings and models. Complete
-onboarding and grant Accessibility and Input Monitoring when prompted; Screen Recording remains
-optional. Quit any upstream Cotabby instance before testing the fork.
+1. Select the **Cotabby Dev** scheme (see [Local Setup](#local-setup) for why).
+2. Choose your Mac as the run destination.
+3. Build and run. The dev build is named "Cotabby Dev" and has its own menu bar icon.
+4. Complete onboarding.
+5. Grant **Accessibility** and **Input Monitoring** to "Cotabby Dev" when prompted, and optionally
+   **Screen Recording** for visual context. These map to the features in
+   [README.md](README.md#permissions).
+6. Pick Apple Intelligence if available, or use the Open Source engine with a downloaded GGUF
+   model.
+
+Because the dev build signs with your own stable team, macOS remembers these grants across
+rebuilds. If a permission reads as enabled but the app behaves as if it is not (common after
+switching signing identity, or when an earlier unsigned build left a stale entry), reset it and
+grant again:
+
+```sh
+tccutil reset Accessibility com.jacobfu.tabby.dev
+tccutil reset ListenEvent com.jacobfu.tabby.dev
+```
+
+Then toggle the app back on in System Settings > Privacy & Security. Avoid ad-hoc "Sign to Run
+Locally" builds for real testing: macOS ties the Accessibility grant to the code signature, so an
+ad-hoc build changes identity on every rebuild and loses the grant each time.
 
 If a suggestion does not appear or the overlay is misplaced, start with the focus and geometry
 sections in [ARCHITECTURE.md](ARCHITECTURE.md) before changing coordinator logic.
 
 ## Test
 
-Use Product → Test in Xcode, or run the same unsigned build/test split used by CI:
+Run the unit test suite:
 
 ```sh
-xcodebuild build-for-testing \
+xcodebuild test \
   -workspace build/cotabby-dependencies/Cotabby.xcworkspace \
-  -scheme Cotabby -configuration Debug -destination 'platform=macOS' \
-  -onlyUsePackageVersionsFromResolvedFile -derivedDataPath build/DerivedData \
+  -scheme Cotabby \
+  -destination 'platform=macOS' \
+  -derivedDataPath build/DerivedData \
   CODE_SIGNING_ALLOWED=NO
-xcodebuild test-without-building \
-  -workspace build/cotabby-dependencies/Cotabby.xcworkspace \
-  -scheme Cotabby -configuration Debug -destination 'platform=macOS' \
-  -onlyUsePackageVersionsFromResolvedFile -derivedDataPath build/DerivedData \
-  -skip-testing:CotabbyTests/FoundationModelDriftEvalTests
-python3 -m unittest discover -s scripts/tests
-swiftlint --strict
 ```
 
-The drift evaluation is excluded because it requires the real Apple Intelligence model and is
-not deterministic. A successful build-for-testing does not establish that tests executed;
-report launch/signing failures separately. Remove `build/DerivedData` after validation, and avoid
-concurrent builds sharing that directory.
+CI retains upstream’s macOS 15 test runner and latest-stable Xcode selection. Real Apple
+Intelligence drift evaluation remains opt-in and excluded from CI. Run Python tooling tests with
+`python3 -m unittest discover -s scripts/tests` and lint with `swiftlint --strict`. Clean
+`build/DerivedData` after validation; do not run concurrent builds in the same checkout.
 
 ### Local Autocomplete Evaluations
 
@@ -251,7 +267,7 @@ as documented in [AGENTS.md](AGENTS.md). No new background writing-history colle
 
 Cotabby currently uses the pinned CotabbyInference source plus
 `patches/cotabbyinference-upstream-pending.patch`. The plain remote package does not yet expose all the
-APIs used by this fork. Prepare the matching dependency and workspace before building:
+APIs used by the app. Prepare the matching dependency and workspace before building:
 
 ```sh
 scripts/prepare_cotabby_workspace.sh
@@ -266,6 +282,7 @@ separate local workspace. Keep generated workspaces and machine-specific paths o
 After validation, remove `build/DerivedData` when its build artifacts are no longer needed. Keep
 any evaluation reports or model downloads you still need separately under `build/`.
 
+
 ## Lint
 
 Run SwiftLint locally:
@@ -274,7 +291,8 @@ Run SwiftLint locally:
 swiftlint --reporter github-actions-logging
 ```
 
-The CI lint gate is strict: warnings fail validation. Avoid unrelated style rewrites in functional PRs.
+The current CI lint gate is warnings-only. Treat warnings as cleanup work, but avoid bundling
+unrelated style rewrites into functional PRs.
 
 ## Debugging
 
@@ -311,24 +329,11 @@ in the actual diff and validation output.
 
 ## CI Expectations
 
-PRs into `master` or `main` run Build, Tests (including Python tooling tests), Lint, and XcodeGen
-checks directly with Xcode and SwiftLint. No Ruby tooling, signing credentials, or publishing
-credentials are required by these checks.
+PRs into `main` run:
+
+- Build: `xcodebuild` compile check
+- Tests: `xcodebuild test`
+- Lint: SwiftLint warnings surfaced as GitHub annotations
 
 If CI fails because of your change, fix the root cause in the same PR. If the failure is unrelated
 infrastructure noise, note that clearly in the PR description.
-
-### Product identity
-
-`Cotabby.xcodeproj` and its `Cotabby` scheme are generated from `project.yml`.
-The Swift module and source directories remain `Cotabby` / `CotabbyTests` for source compatibility.
-Debug and Release retain `org.mchamster.cotabby`, the existing preference keys, and the
-`Cotabby McHamster` Application Support directory so installed fork users keep their settings,
-credentials, and models. `CoHamsterDataDirectory` in `Config/CotabbyInfo.plist` separates storage
-identity from the name shown in macOS. Development uses that same identity and storage.
-
-The repository remains `mc-hamster/CoHamster` while changes are prepared for upstream.
-Cotabby artwork comes from upstream commit `ec466b6`; the separate hamster asset generator and
-unused development icon were removed. Historical release notes and benchmark evidence retain
-the names used when those results were produced. Numbered Xcode project copies are ignored;
-`Cotabby.xcodeproj` is the only canonical project.

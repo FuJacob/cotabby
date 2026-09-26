@@ -1,6 +1,6 @@
 name: Cotabby
 options:
-  bundleIdPrefix: org.mchamster
+  bundleIdPrefix: com.jacobfu
   defaultConfig: Release
   deploymentTarget:
     macOS: "14.0"
@@ -8,6 +8,9 @@ options:
   groupSortPosition: top
   xcodeVersion: "2600"
 packages:
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    exactVersion: 2.9.1
   CotabbyInference:
     url: https://github.com/FuJacob/cotabbyinference.git
     branch: main
@@ -82,7 +85,7 @@ settings:
       MTL_ENABLE_DEBUG_INFO: NO
       SWIFT_COMPILATION_MODE: wholemodule
 # Signing lives in xcconfig files, not the generated project. `Config/Signing.xcconfig` (committed)
-# supplies the fork maintainer's team as the maintainer-friendly default and optionally includes the gitignored
+# supplies Cotabby's team as the maintainer-friendly default and optionally includes the gitignored
 # `Config/Signing.local.xcconfig` that `scripts/dev-setup.sh` writes for contributors on another
 # team. It sits in a subdirectory on purpose: a root-level config file makes XcodeGen name a group
 # after the checkout directory, which drifts between clones and CI. DEVELOPMENT_TEAM must also stay
@@ -91,13 +94,11 @@ settings:
 configFiles:
   Debug: Config/Signing.xcconfig
   Release: Config/Signing.xcconfig
-# Display branding follows Cotabby. Debug and Release retain the installed fork bundle ID
-# and data directory until a deliberate migration to upstream preserves user data and permissions.
+# Shared application target body. `Cotabby` (prod) and `Cotabby Dev` both build the same sources
+# from this template and differ only in identity-bearing settings below, so the dev build can hold
+# its own Accessibility/TCC grant without ever clobbering the released app's.
 targetTemplates:
   CotabbyApp:
-    configFiles:
-      Debug: Config/Version.xcconfig
-      Release: Config/Version.xcconfig
     type: application
     platform: macOS
     deploymentTarget: "14.0"
@@ -108,6 +109,8 @@ targetTemplates:
       - path: THIRD_PARTY_LICENSES.md
         buildPhase: resources
     dependencies:
+      - package: Sparkle
+        product: Sparkle
       - package: CotabbyInference
         product: CotabbyInference
       - package: swift-log
@@ -124,19 +127,24 @@ targetTemplates:
         CODE_SIGN_IDENTITY[sdk=macosx*]: Apple Development
         CODE_SIGN_STYLE: Automatic
         COMBINE_HIDPI_IMAGES: YES
+        CURRENT_PROJECT_VERSION: "1"
         ENABLE_APP_SANDBOX: NO
         ENABLE_HARDENED_RUNTIME: YES
         ENABLE_PREVIEWS: YES
         ENABLE_USER_SELECTED_FILES: readonly
         GENERATE_INFOPLIST_FILE: NO
-        INFOPLIST_FILE: Config/CotabbyInfo.plist
+        INFOPLIST_FILE: CotabbyInfo.plist
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
         LD_RUNPATH_SEARCH_PATHS:
           - $(inherited)
           - "@executable_path/../Frameworks"
+        MARKETING_VERSION: "1.0"
+        # PRODUCT_NAME follows the target name, so the prod target ships "Cotabby.app" while the dev
+        # target ships "Cotabby Dev.app" — two products that can coexist in /Applications, each with
+        # its own row in System Settings > Privacy. The per-target bundle identifier is set below.
         PRODUCT_NAME: $(TARGET_NAME)
-        PRODUCT_MODULE_NAME: Cotabby
         REGISTER_APP_GROUPS: YES
+        SPARKLE_PUBLIC_ED_KEY: efJeZNfUISOs6npbxI2MLLe7sBB5tT/sVnTk9t/qBSY=
         STRING_CATALOG_GENERATE_SYMBOLS: YES
         SWIFT_APPROACHABLE_CONCURRENCY: YES
         SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
@@ -150,10 +158,26 @@ targets:
       - CotabbyApp
     settings:
       base:
-        # Debug and Release are configurations of one app. Keep the bundle and storage identity
-        # stable so development uses the user's existing preferences, credentials, and models.
-        PRODUCT_BUNDLE_IDENTIFIER: org.mchamster.cotabby
-        COHAMSTER_DATA_DIRECTORY: Cotabby McHamster
+        PRODUCT_BUNDLE_IDENTIFIER: com.jacobfu.tabby
+  # Local development build. Distinct bundle identifier + product name means a separate, stable
+  # TCC identity (Accessibility, Input Monitoring, Screen Recording survive rebuilds), the dev app
+  # icon makes it visually distinct, and the COTABBY_DEV compilation condition disables Sparkle so
+  # the prod appcast never replaces it.
+  "Cotabby Dev":
+    templates:
+      - CotabbyApp
+    settings:
+      base:
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIconDev
+        # Overridable so a contributor whose personal team rejects the shared id can set their own
+        # COTABBY_DEV_BUNDLE_ID in Signing.local.xcconfig; defaults to the canonical dev identity.
+        PRODUCT_BUNDLE_IDENTIFIER: "$(COTABBY_DEV_BUNDLE_ID:default=com.jacobfu.tabby.dev)"
+        # Keep this under `base:` so COTABBY_DEV is defined in EVERY configuration, Release included.
+        # Do not scope it to `configs: Debug:`. A Release-config dev build (the scheme's Profile and
+        # Archive actions) must still compile Sparkle out; otherwise it could pull the prod appcast
+        # and replace itself with the released bundle, the exact identity collapse this target exists
+        # to prevent.
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: COTABBY_DEV $(inherited)
   CotabbyTests:
     type: bundle.unit-test
     platform: macOS
@@ -174,7 +198,7 @@ targets:
           - "@executable_path/../Frameworks"
           - "@loader_path/../Frameworks"
         MACOSX_DEPLOYMENT_TARGET: "14.0"
-        PRODUCT_BUNDLE_IDENTIFIER: org.mchamster.cohamster.tests
+        PRODUCT_BUNDLE_IDENTIFIER: com.jacobfu.tabby.CotabbyTests
         PRODUCT_MODULE_NAME: $(TARGET_NAME)
         PRODUCT_NAME: $(TARGET_NAME)
         SDKROOT: macosx
@@ -195,6 +219,26 @@ schemes:
       gatherCoverageData: false
       targets:
         - CotabbyTests
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release
+  # Daily-driver scheme. Builds the dev-identity target so running from Xcode never touches the
+  # released app's permissions. No test action here: CotabbyTests is bound to the prod `Cotabby`
+  # target (its TEST_HOST points at "Cotabby.app"), so tests continue to run from the Cotabby scheme.
+  "Cotabby Dev":
+    build:
+      targets:
+        "Cotabby Dev": all
+    run:
+      config: Debug
+      commandLineArguments:
+        -cotabby-debug: true
+    # Profile/Archive intentionally stay on Release for representative optimized timings. Versus a
+    # prod Release build the only difference is COTABBY_DEV (Sparkle compiled out), which is not on
+    # any hot path, so dev profiling stays representative while the artifact is never shippable.
     profile:
       config: Release
     analyze:

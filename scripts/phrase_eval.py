@@ -311,7 +311,7 @@ def build_input_snapshot(workspace=None):
     Only canonical package lock paths may change during explicit dependency resolution. A file
     merely named Package.resolved inside app/test fixtures is still an ordinary protected input.
     """
-    roots = [(ROOT, ["Cotabby", "CotabbyTests", "Cotabby.xcodeproj", "project.yml", "Config/CotabbyInfo.plist", "Config"])]
+    roots = [(ROOT, ["Cotabby", "CotabbyTests", "Cotabby.xcodeproj", "project.yml", "CotabbyInfo.plist", "Config"])]
     inputs = set((ROOT / "Config").glob("*.xcconfig"))
     package_locks = {ROOT / "Cotabby.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"}
     if workspace:
@@ -513,7 +513,7 @@ def run(args):
                       "perCategory": args.per_category, "limit": args.limit},
     }
     (output / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
-    patch_arguments = ("diff", "HEAD", "--", "Cotabby", "CotabbyTests", "Cotabby.xcodeproj", "Config/CotabbyInfo.plist", "Config", "project.yml", "scripts")
+    patch_arguments = ("diff", "HEAD", "--", "Cotabby", "CotabbyTests", "Cotabby.xcodeproj", "CotabbyInfo.plist", "Config", "project.yml", "scripts")
     (output / "working-tree.patch").write_text(git_output(*patch_arguments))
     print(f"Results: {output}", flush=True)
     project = ["-workspace", args.workspace.resolve()] if args.workspace else ["-project", ROOT / "Cotabby.xcodeproj"]

@@ -1,6 +1,6 @@
 #!/bin/bash
 # Prepares the reproducible app/native boundary shared by local builds, CI, and releases.
-# The checked-in patch supplies APIs used by this fork. A workspace overrides the remote package
+# The checked-in patch supplies APIs used by the app. A workspace overrides the remote package
 # without committing a machine-specific path or modifying the upstream dependency repository.
 set -euo pipefail
 cd "$(dirname "$0")/.."

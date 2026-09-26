@@ -45,11 +45,8 @@ struct BundledRuntimeLocator {
             ?? URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
             .appendingPathComponent("Library", isDirectory: true)
             .appendingPathComponent("Application Support", isDirectory: true)
-        // Storage identity is independent of display branding. The release plist preserves the
-        // existing fork directory so a rename cannot strand downloaded models or partial transfers.
         let appFolderName =
-            (bundle.object(forInfoDictionaryKey: "CoHamsterDataDirectory") as? String)
-            ?? (bundle.object(forInfoDictionaryKey: "CFBundleName") as? String)
+            (bundle.object(forInfoDictionaryKey: "CFBundleName") as? String)
             ?? "Cotabby"
         return
             appSupportRoot
