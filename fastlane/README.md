@@ -1,6 +1,7 @@
-# Cotabby Fastlane pipeline
+# Maintainer Fastlane workflow
 
-Fastlane is the maintainer entry point for local builds and GitHub distribution. `Fastfile`
+Fastlane is the maintainer’s personal entry point for local builds and GitHub distribution.
+Contributors and shared CI use Xcode directly; see [CONTRIBUTING.md](../CONTRIBUTING.md). `Fastfile`
 defines six commands. `lib/release_pipeline.rb` owns validation, artifact provenance, and GitHub
 publication; the shell scripts own macOS build/signing mechanics. No lane changes versions,
 commits source files, creates certificates, or uploads app prompts/model data.
@@ -18,7 +19,8 @@ gh auth login
 bundle exec fastlane mac doctor
 ```
 
-`Gemfile.lock` pins Fastlane and its dependencies. CI uses the same lockfile and Ruby version.
+`Gemfile.lock` pins Fastlane and its dependencies. The manually triggered maintainer workflows
+use the same lockfile and Ruby version. The app’s shared CI does not require Ruby or Fastlane.
 The signed lanes default to your existing Developer ID Application certificate for team
 `8RN882MNR5`; its private key must be in an unlocked Keychain. An explicitly selected replacement
 identity can be supplied as `COHAMSTER_SIGNING_IDENTITY`. Development also checks compatibility
@@ -126,9 +128,9 @@ deliberately. `scripts/ci_keychain.py` imports Apple credentials into a temporar
 stores the notarization profile there, and restores the prior search list/deletes the keychain in
 an `always()` cleanup step. Credentials are not included in uploaded artifacts.
 
-The separate **Fastlane** PR workflow exercises the publication guards without credentials.
-App builds and tests now run through Fastlane verify; focused Lint and XcodeGen checks remain. Creating this
-configuration does not create the GitHub environment/secrets or publish anything.
+The manually triggered **Maintainer Fastlane** workflow exercises the personal lane syntax and
+publication guards without credentials. Shared Build, Tests, Lint, and XcodeGen workflows run
+independently of Fastlane. Creating this configuration does not create GitHub secrets or publish anything.
 
 Cotabby currently opens this fork's GitHub Releases for update checks. No automatic updater is
 bundled. The repository, `cohamster-v` tags, historical notes, `COHAMSTER_*` environment variables,

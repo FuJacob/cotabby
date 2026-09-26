@@ -1,0 +1,43 @@
+# Shared contributor validation. Personal Fastlane/signing setup is intentionally separate.
+name: Build
+
+on:
+  pull_request:
+    branches: [master, main]
+  push:
+    branches: [master, main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: xcodebuild (macOS)
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
+        with:
+          xcode-version: '26.6'
+      - name: Prepare pinned native dependency
+        run: scripts/prepare_cotabby_workspace.sh
+      - name: Resolve pinned packages
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -workspace build/cotabby-dependencies/Cotabby.xcworkspace -scheme Cotabby \
+            -onlyUsePackageVersionsFromResolvedFile -derivedDataPath build/DerivedData
+      - name: Build
+        run: |
+          xcodebuild build \
+            -workspace build/cotabby-dependencies/Cotabby.xcworkspace \
+            -scheme Cotabby -configuration Debug -destination 'platform=macOS' \
+            -onlyUsePackageVersionsFromResolvedFile -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO
+      - name: Clean build cache
+        if: always()
+        run: rm -rf build/DerivedData

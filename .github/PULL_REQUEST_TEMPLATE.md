@@ -11,9 +11,10 @@ The diff already shows what; this section should explain why.
 What you actually ran and what you actually saw, not what you intended to run.
 Examples:
 
-  bundle exec fastlane mac verify
-  # ** TEST SUCCEEDED **; lint, project, and tooling checks passed
-
+  # Xcode build/test commands from CONTRIBUTING.md
+  # ** TEST EXECUTE SUCCEEDED **; N tests, zero failures
+  python3 -m unittest discover -s scripts/tests
+  swiftlint --strict
 
 For UI changes, attach a screenshot or short screen recording.
 For changes that can't be verified end-to-end yet, say so explicitly.

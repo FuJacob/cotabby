@@ -41,16 +41,16 @@ Apple Silicon is strongly recommended for local model-runtime work.
 
 ## Local Setup
 
-Use the [Fastlane pipeline](fastlane/README.md) for builds, local launches, tests, and packaging.
-It owns dependency preparation, signing, build locking, and cleanup. Its guide covers the pinned
-Ruby version and credentials. The workspace remains available for source browsing in Xcode.
+Contributors build and run with Xcode. Prepare the pinned inference dependency before opening the
+workspace; it provides the native APIs used by this fork. Ruby, Bundler, and Fastlane are not
+required for contributor builds or shared CI.
 
 ```sh
 git clone https://github.com/mc-hamster/CoHamster.git Cotabby
 cd Cotabby
-bundle install
 scripts/dev-setup.sh
-bundle exec fastlane mac dev
+scripts/prepare_cotabby_workspace.sh
+open build/cotabby-dependencies/Cotabby.xcworkspace
 ```
 
 The committed `Config/Signing.xcconfig` defaults to this fork's development team, which lets team
@@ -117,20 +117,24 @@ That separation keeps behavior easier to test and reduces regressions in Accessi
 
 ## Build
 
-Build and launch through Fastlane:
+For an unsigned compile check after preparing the workspace:
 
 ```sh
-bundle exec fastlane mac dev
-# For optimized local behavior:
-bundle exec fastlane mac dev configuration:Release
+xcodebuild build \
+  -workspace build/cotabby-dependencies/Cotabby.xcworkspace \
+  -scheme Cotabby -configuration Debug -destination 'platform=macOS' \
+  -onlyUsePackageVersionsFromResolvedFile -derivedDataPath build/DerivedData \
+  CODE_SIGNING_ALLOWED=NO
 ```
 
-The lane prepares the patched inference workspace, signs a clean app copy, checks compatibility
-with the installed fork, and replaces the running process only after verification succeeds.
-Use a consistent signing identity to retain macOS permissions. See the
-[Fastlane setup guide](fastlane/README.md) for contributor signing overrides.
+Unsigned builds are for compile checks. For an interactive launch, use Xcode with your own
+Apple Development team configured in `Config/Signing.local.xcconfig`.
 
 ## Run
+
+Select the **Cotabby** scheme in the prepared workspace, choose your Mac, and use Product → Run.
+Xcode signs the app with your configured development team. Keep the signing identity consistent
+across builds so macOS can recognize your Accessibility and Input Monitoring grants.
 
 The app is named **Cotabby** and retains this fork's existing settings and models. Complete
 onboarding and grant Accessibility and Input Monitoring when prompted; Screen Recording remains
@@ -141,15 +145,27 @@ sections in [ARCHITECTURE.md](ARCHITECTURE.md) before changing coordinator logic
 
 ## Test
 
-Run the deterministic suite, lint, project drift checks, and tooling tests:
+Use Product → Test in Xcode, or run the same unsigned build/test split used by CI:
 
 ```sh
-bundle exec fastlane mac verify
-# Contributor/CI validation without Apple signing credentials:
-bundle exec fastlane mac verify signed:false
+xcodebuild build-for-testing \
+  -workspace build/cotabby-dependencies/Cotabby.xcworkspace \
+  -scheme Cotabby -configuration Debug -destination 'platform=macOS' \
+  -onlyUsePackageVersionsFromResolvedFile -derivedDataPath build/DerivedData \
+  CODE_SIGNING_ALLOWED=NO
+xcodebuild test-without-building \
+  -workspace build/cotabby-dependencies/Cotabby.xcworkspace \
+  -scheme Cotabby -configuration Debug -destination 'platform=macOS' \
+  -onlyUsePackageVersionsFromResolvedFile -derivedDataPath build/DerivedData \
+  -skip-testing:CotabbyTests/FoundationModelDriftEvalTests
+python3 -m unittest discover -s scripts/tests
+swiftlint --strict
 ```
 
-Fastlane removes `build/DerivedData` on exit and retains diagnostics in `build/fastlane-logs/`.
+The drift evaluation is excluded because it requires the real Apple Intelligence model and is
+not deterministic. A successful build-for-testing does not establish that tests executed;
+report launch/signing failures separately. Remove `build/DerivedData` after validation, and avoid
+concurrent builds sharing that directory.
 
 ### Local Autocomplete Evaluations
 
@@ -296,8 +312,9 @@ in the actual diff and validation output.
 
 ## CI Expectations
 
-PRs into `master` or `main` run Fastlane verification (build, tests, lint, and tooling), plus
-focused Lint and XcodeGen checks. No signing or publishing credentials are exposed to PR code.
+PRs into `master` or `main` run Build, Tests (including Python tooling tests), Lint, and XcodeGen
+checks directly with Xcode and SwiftLint. No Ruby tooling, signing credentials, or publishing
+credentials are required by these checks.
 
 If CI fails because of your change, fix the root cause in the same PR. If the failure is unrelated
 infrastructure noise, note that clearly in the PR description.

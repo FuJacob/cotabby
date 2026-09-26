@@ -1,6 +1,7 @@
 # Releasing this Cotabby development fork
 
-Use the [Fastlane release process](fastlane/README.md). It builds the `Cotabby` scheme and packages
+The maintainer uses the personal [Fastlane release process](fastlane/README.md); contributors
+use the Xcode workflow in [CONTRIBUTING.md](CONTRIBUTING.md). The release lane builds the `Cotabby` scheme and packages
 `Cotabby.app`, retaining the installed fork's bundle ID and signing identity. Updates remain manual
 and open this fork's releases until an upstream migration has been tested.
 

@@ -103,8 +103,9 @@ For autocomplete tuning, the [phrase prediction benchmark](PHRASE_EVAL.md) repla
 ```bash
 git clone https://github.com/mc-hamster/CoHamster.git Cotabby
 cd Cotabby
-bundle install
-bundle exec fastlane mac dev
+scripts/dev-setup.sh
+scripts/prepare_cotabby_workspace.sh
+open build/cotabby-dependencies/Cotabby.xcworkspace
 ```
 
 If you want to understand the runtime and suggestion pipeline before contributing, read [ARCHITECTURE.md](ARCHITECTURE.md).

@@ -32,7 +32,16 @@ the required-status-check protection so the owner can merge directly.
 3. **Validate before pushing.** Run the narrowest useful checks, broaden if shared
    behavior changed:
    ```bash
-   bundle exec fastlane mac verify
+   scripts/prepare_cotabby_workspace.sh
+   xcodebuild build-for-testing -workspace build/cotabby-dependencies/Cotabby.xcworkspace \
+     -scheme Cotabby -configuration Debug -destination 'platform=macOS' \
+     -onlyUsePackageVersionsFromResolvedFile -derivedDataPath build/DerivedData CODE_SIGNING_ALLOWED=NO
+   xcodebuild test-without-building -workspace build/cotabby-dependencies/Cotabby.xcworkspace \
+     -scheme Cotabby -configuration Debug -destination 'platform=macOS' \
+     -onlyUsePackageVersionsFromResolvedFile -derivedDataPath build/DerivedData \
+     -skip-testing:CotabbyTests/FoundationModelDriftEvalTests
+   python3 -m unittest discover -s scripts/tests
+   swiftlint --strict
    ```
    Report a failed test launch as a failed verification, even if build-for-testing passed.
    - **XcodeGen:** `project.yml` is the source of truth and `Cotabby.xcodeproj` is

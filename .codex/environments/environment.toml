@@ -8,4 +8,4 @@ script = ""
 [[actions]]
 name = "Run"
 icon = "run"
-command = "bundle exec fastlane mac dev"
+command = 'PATH="$(brew --prefix ruby)/bin:$PATH" bundle exec fastlane mac dev'

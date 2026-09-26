@@ -1,0 +1,63 @@
+# Shared contributor validation. Personal Fastlane/signing setup is intentionally separate.
+name: Tests
+
+on:
+  pull_request:
+    branches: [master, main]
+  push:
+    branches: [master, main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: xcodebuild test (macOS)
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: maxim-lobanov/setup-xcode@ed7a3b1fda3918c0306d1b724322adc0b8cc0a90 # v1.7.0
+        with:
+          xcode-version: '26.6'
+      - name: Prepare pinned native dependency
+        run: scripts/prepare_cotabby_workspace.sh
+      - name: Resolve pinned packages
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -workspace build/cotabby-dependencies/Cotabby.xcworkspace -scheme Cotabby \
+            -onlyUsePackageVersionsFromResolvedFile -derivedDataPath build/DerivedData
+      - name: Test Python tooling
+        run: python3 -m unittest discover -s scripts/tests
+      - name: Build for testing
+        run: |
+          xcodebuild build-for-testing \
+            -workspace build/cotabby-dependencies/Cotabby.xcworkspace \
+            -scheme Cotabby -configuration Debug -destination 'platform=macOS' \
+            -onlyUsePackageVersionsFromResolvedFile -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO
+      # Real Apple Intelligence evaluation is opt-in; deterministic tests need no model or credentials.
+      - name: Run app-hosted tests
+        run: |
+          mkdir -p build/test-results
+          xcodebuild test-without-building \
+            -workspace build/cotabby-dependencies/Cotabby.xcworkspace \
+            -scheme Cotabby -configuration Debug -destination 'platform=macOS' \
+            -onlyUsePackageVersionsFromResolvedFile -derivedDataPath build/DerivedData \
+            -resultBundlePath build/test-results/Tests.xcresult \
+            -skip-testing:CotabbyTests/FoundationModelDriftEvalTests
+      - name: Retain test results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: tests-${{ github.run_id }}-${{ github.run_attempt }}
+          path: build/test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Clean build cache
+        if: always()
+        run: rm -rf build/DerivedData
