@@ -126,7 +126,7 @@ final class SettingsSearchRankerTests: XCTestCase {
         let titleHit = StubItem(title: "Ghost Text Size")
         XCTAssertEqual(
             SettingsSearchRanker.matches("ghost size", in: [splitHit, titleHit]).map(\.score),
-            [90 + 80 + 15, 90 + 70]
+            [90 + 80 + 15, 90 + 70] as [Double]
         )
 
         let longer = StubItem(title: "Accept Punctuation With Word")
@@ -148,7 +148,7 @@ final class SettingsSearchRankerTests: XCTestCase {
         let query = Array(repeating: "ghost", count: 8).joined(separator: " ") + " zzzz"
         XCTAssertEqual(
             SettingsSearchRanker.matches(query, in: [StubItem(title: "Ghost")]).map(\.score),
-            [8 * 100 + 15]
+            [8 * 100 + 15] as [Double]
         )
     }
 }
