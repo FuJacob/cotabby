@@ -14,11 +14,20 @@ if [[ ! -d "$native_dir/.git" ]]; then
     git -C "$native_dir" checkout --detach "$revision"
     git -C "$native_dir" apply "$PWD/patches/cotabbyinference-upstream-pending.patch"
 fi
-[[ "$(git -C "$native_dir" rev-parse HEAD)" == "$revision" ]]
+stale_checkout() {
+    echo "error: $native_dir $1." >&2
+    echo "It is never reset automatically. Remove that directory (after saving any local work) and rerun $0." >&2
+    exit 1
+}
+[[ "$(git -C "$native_dir" rev-parse HEAD)" == "$revision" ]] || stale_checkout "is not at the pinned revision $revision"
 # Include newly added patch files when comparing; never reset or overwrite a modified checkout.
 git -C "$native_dir" add -N Sources Tests
-git -C "$native_dir" diff HEAD -- README.md Sources Tests > "$workspace_root/native.patch"
-cmp patches/cotabbyinference-upstream-pending.patch "$workspace_root/native.patch"
+# Pin the diff format so personal settings (noprefix, mnemonicPrefix, external or colored diffs)
+# cannot make a pristine checkout look modified.
+git -C "$native_dir" diff --no-ext-diff --no-color --src-prefix=a/ --dst-prefix=b/ HEAD -- README.md Sources Tests \
+    > "$workspace_root/native.patch"
+cmp -s patches/cotabbyinference-upstream-pending.patch "$workspace_root/native.patch" \
+    || stale_checkout "does not match patches/cotabbyinference-upstream-pending.patch"
 workspace="$workspace_root/Cotabby.xcworkspace"
 python3 scripts/create-inference-workspace.py "$native_dir" --output "$workspace"
 mkdir -p "$workspace/xcshareddata/swiftpm"

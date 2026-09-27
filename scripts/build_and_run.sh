@@ -10,8 +10,11 @@ case "$CONFIGURATION" in Debug|Release) ;; *) echo 'Use Debug or Release' >&2; e
 APP_NAME="Cotabby Dev"
 BUNDLE_ID="com.jacobfu.tabby.dev"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-DERIVED_DATA="$ROOT_DIR/build/DerivedData"
 # The runnable app lives outside DerivedData; keep generated build products checkout-scoped.
+# This run owns a private DerivedData directory, so cleanup (including after an early failure)
+# never deletes build/DerivedData that tests, evals, or another build are still using.
+mkdir -p "$ROOT_DIR/build"
+DERIVED_DATA=$(mktemp -d "$ROOT_DIR/build/DerivedData.run.XXXXXX")
 staging_root=""
 trap 'rm -rf "$DERIVED_DATA"; if [[ -n "$staging_root" ]]; then rm -rf "$staging_root"; fi' EXIT
 BUILT_APP="$DERIVED_DATA/Build/Products/$CONFIGURATION/$APP_NAME.app"
@@ -19,7 +22,8 @@ BUILT_APP="$DERIVED_DATA/Build/Products/$CONFIGURATION/$APP_NAME.app"
 # provider can reattach FinderInfo after verification and invalidate nested code.
 # Scope by checkout so worktrees do not overwrite one another's runnable product.
 CHECKOUT_ID=$(printf '%s' "$ROOT_DIR" | shasum -a 256 | cut -c1-12)
-RUN_DIR="$HOME/Library/Application Support/Cotabby/Development/$CHECKOUT_ID/$CONFIGURATION"
+# Stage under the dev app's own support folder, never the production app's "Cotabby" folder.
+RUN_DIR="$HOME/Library/Application Support/$APP_NAME/Development/$CHECKOUT_ID/$CONFIGURATION"
 APP_BUNDLE="$RUN_DIR/$APP_NAME.app"
 APP_BINARY="$APP_BUNDLE/Contents/MacOS/$APP_NAME"
 
@@ -30,9 +34,15 @@ SIGNING_IDENTITY="${COTABBY_SIGNING_IDENTITY:-Apple Development}"
 INSTALLED_REQUIREMENT=""
 if [[ -d "$INSTALLED_APP" ]]; then
   SIGNING_DETAILS="$(codesign -d -r- --verbose=2 "$INSTALLED_APP" 2>&1)"
-  SIGNING_IDENTITY="$(sed -n 's/^Authority=//p' <<< "$SIGNING_DETAILS" | head -n 1)"
-  INSTALLED_REQUIREMENT="$(sed -n 's/^designated => //p' <<< "$SIGNING_DETAILS")"
-  if [[ -z "$SIGNING_IDENTITY" || -z "$INSTALLED_REQUIREMENT" ]]; then
+  if grep -q '^Signature=adhoc' <<< "$SIGNING_DETAILS"; then
+    # Without a certificate the app is ad-hoc signed ("-"). Its implicit requirement is a cdhash
+    # that every rebuild changes, so there is no stable identity to pin; keep signing ad hoc.
+    SIGNING_IDENTITY="-"
+  else
+    SIGNING_IDENTITY="$(sed -n 's/^Authority=//p' <<< "$SIGNING_DETAILS" | head -n 1)"
+    INSTALLED_REQUIREMENT="$(sed -n 's/^designated => //p' <<< "$SIGNING_DETAILS")"
+  fi
+  if [[ -z "$SIGNING_IDENTITY" || ( "$SIGNING_IDENTITY" != "-" && -z "$INSTALLED_REQUIREMENT" ) ]]; then
     echo "Cannot determine installed app signing identity; leaving it running." >&2
     exit 1
   fi
