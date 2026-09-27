@@ -57,17 +57,19 @@ nonisolated struct SuggestionContinuationPlan: Equatable, Sendable {
 
     /// Long fields expose only a fixed window of text before the caret, so an edit that changes
     /// length slides that window: a longer word pushes text out of its front, a shorter one pulls
-    /// earlier text in. Accept that shape without the exact signature, but only when one window
-    /// ends with the other, the live window is at least as long as the source window (nothing near
-    /// the caret was deleted), and everything after the caret is unchanged. The window location is
-    /// not compared because a host can report it relative to the window or to the whole document.
+    /// earlier text in. Accept that shape without the exact signature only when both the source
+    /// and the live window were cut to that fixed size, one ends with the other, and everything
+    /// after the caret is unchanged. Any other difference then lies before both windows, in text
+    /// the prepared request never saw. A field that fits in the window keeps the exact check, so
+    /// an earlier edit there still invalidates the plan. The location is not compared because a
+    /// host can report it relative to the window or to the whole document.
     private func matchesShiftedWindow(_ snapshot: FocusedInputSnapshot, expected: FocusedInputSnapshot) -> Bool {
         let live = snapshot.precedingText
-        return Self.sameFocusedField(snapshot, expected)
+        return snapshot.precedingTextMayBeTruncated && sourceSnapshot.precedingTextMayBeTruncated
+            && Self.sameFocusedField(snapshot, expected)
             && snapshot.selection.length == expected.selection.length
             && snapshot.isSecure == expected.isSecure
             && snapshot.trailingText == expected.trailingText
-            && live.utf16.count >= sourceSnapshot.precedingText.utf16.count
             && (expected.precedingText.hasSuffix(live) || live.hasSuffix(expected.precedingText))
     }
 

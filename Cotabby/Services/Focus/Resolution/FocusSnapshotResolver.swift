@@ -28,7 +28,7 @@ struct FocusSnapshotResolver {
     /// `nonisolated` because it is an immutable `Int`, safe from any context, and the pure
     /// `nonisolated` line-margin key helpers below read it; inheriting the resolver's main-actor
     /// isolation made that read an error in the Swift 6 language mode.
-    nonisolated static let focusedTextContextWindowUTF16 = 4096
+    nonisolated static let focusedTextContextWindowUTF16 = FocusedInputSnapshot.textWindowUTF16
 
     /// Carries deep-walk throttle state across the value-typed resolver's non-mutating polls.
     private let deepWalkThrottle = DeepGeometryWalkThrottle()

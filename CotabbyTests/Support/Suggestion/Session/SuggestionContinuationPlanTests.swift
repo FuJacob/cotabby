@@ -58,12 +58,12 @@ final class SuggestionContinuationPlanTests: XCTestCase {
 
     func testLongFieldWindowThatSlidesAfterTheEditStillMatchesItsTarget() throws {
         // Focus capture keeps a fixed number of UTF-16 units before the caret in long fields.
-        let windowLength = 64
+        let windowLength = FocusedInputSnapshot.textWindowUTF16
         func window(_ document: String) -> FocusedInputSnapshot {
             CotabbyTestFixtures.focusedInputSnapshot(precedingText: String(document.suffix(windowLength)),
                                                      trailingText: "Best,", selection: NSRange(location: 5_000, length: 0))
         }
-        let earlier = String(repeating: "lorem ipsum ", count: 20)
+        let earlier = String(repeating: "lorem ipsum ", count: 400)
 
         // A longer word pushes the window's first character out.
         let lengthening = try XCTUnwrap(correctionPlan(in: window(earlier + "One more wrd "), typo: "wrd", fix: "word"))
@@ -76,13 +76,24 @@ final class SuggestionContinuationPlanTests: XCTestCase {
         XCTAssertTrue(ending.matchesTarget(window(earlier + "Please schedule")))
         XCTAssertTrue(ending.matchesTargetWithJoiningSeparator(window(earlier + "Please schedule ")))
 
-        // Anything else near the caret, a truncated window, or changed text after it still fails.
+        // A different edit near the caret, an edit inside the window, or changed text after the
+        // caret still fails.
         XCTAssertFalse(lengthening.matchesTarget(window(earlier + "One more words ")))
-        XCTAssertFalse(lengthening.matchesTarget(CotabbyTestFixtures.focusedInputSnapshot(
-            precedingText: "word ", trailingText: "Best,", selection: NSRange(location: 5_000, length: 0))))
+        XCTAssertFalse(lengthening.matchesTarget(window(earlier + "Two more word ")))
         XCTAssertFalse(lengthening.matchesTarget(CotabbyTestFixtures.focusedInputSnapshot(
             precedingText: String((earlier + "One more word ").suffix(windowLength)), trailingText: "Regards,",
             selection: NSRange(location: 5_000, length: 0))))
+    }
+
+    func testEarlierEditsInAFieldThatFitsTheWindowInvalidateThePlan() throws {
+        // The whole field is visible here, so text the host adds or removes before the edit is a
+        // real change to what the prepared request was conditioned on.
+        let plan = try XCTUnwrap(correctionPlan(in: CotabbyTestFixtures.focusedInputSnapshot(
+            precedingText: "Hello, one more wrd "), typo: "wrd", fix: "word"))
+        XCTAssertTrue(plan.matchesTarget(CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello, one more word ")))
+        for edited in ["Hi! Hello, one more word ", "lo, one more word ", "one more word "] {
+            XCTAssertFalse(plan.matchesTarget(CotabbyTestFixtures.focusedInputSnapshot(precedingText: edited)), edited)
+        }
     }
 
     private func correctionPlan(in source: FocusedInputSnapshot, typo: String, fix: String) -> SuggestionContinuationPlan? {

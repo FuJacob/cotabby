@@ -367,6 +367,15 @@ nonisolated struct FocusedInputSnapshot: Equatable {
         )
     }
 
+    /// Focus capture keeps at most this many UTF-16 units on each side of the caret. Longer text
+    /// before the caret arrives as a window whose front slides with every edit.
+    nonisolated static let textWindowUTF16 = 4096
+
+    /// True when capture may have cut the start of `precedingText` to fit that window.
+    nonisolated var precedingTextMayBeTruncated: Bool {
+        precedingText.utf16.count >= Self.textWindowUTF16
+    }
+
     /// The signature lets later pipeline stages detect whether a completion result is stale.
     /// This is the same idea you would use in a React app with a derived cache key.
     /// Content-only fingerprint for staleness detection. Deliberately excludes `elementIdentifier`
