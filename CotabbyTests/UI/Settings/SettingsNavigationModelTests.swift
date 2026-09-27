@@ -7,8 +7,20 @@ import XCTest
 /// highlight is deliberately not waited on here; only the synchronous transitions are asserted.
 @MainActor
 final class SettingsNavigationModelTests: XCTestCase {
-    func test_startsOnHomeWithNothingPending() {
+    /// Models live as long as the test case instance rather than dying at the end of each test body:
+    /// freeing a `@MainActor` model inside the body crashes the CI test host (macOS 15 runtime) with
+    /// "pointer being freed was not allocated", the same reason other suites hold their subjects in
+    /// stored properties.
+    private var models: [SettingsNavigationModel] = []
+
+    private func makeModel() -> SettingsNavigationModel {
         let model = SettingsNavigationModel()
+        models.append(model)
+        return model
+    }
+
+    func test_startsOnHomeWithNothingPending() {
+        let model = makeModel()
 
         XCTAssertEqual(model.selection, .home)
         XCTAssertNil(model.highlightedItem)
@@ -16,7 +28,7 @@ final class SettingsNavigationModelTests: XCTestCase {
     }
 
     func test_revealSelectsTheItemsPaneAndHighlightsIt() {
-        let model = SettingsNavigationModel()
+        let model = makeModel()
 
         model.reveal(.batteryModel)
 
@@ -25,7 +37,7 @@ final class SettingsNavigationModelTests: XCTestCase {
     }
 
     func test_secondRevealReplacesTheHighlightAndPane() {
-        let model = SettingsNavigationModel()
+        let model = makeModel()
         model.reveal(.batteryModel)
 
         model.reveal(.ghostTextSize)
@@ -35,7 +47,7 @@ final class SettingsNavigationModelTests: XCTestCase {
     }
 
     func test_openingAPaneCancelsAnActiveHighlight() {
-        let model = SettingsNavigationModel()
+        let model = makeModel()
         model.reveal(.batteryModel)
 
         model.open(.about)
@@ -45,7 +57,7 @@ final class SettingsNavigationModelTests: XCTestCase {
     }
 
     func test_searchFocusRequestFromAnotherPaneGoesHomeAndClearsHighlight() {
-        let model = SettingsNavigationModel()
+        let model = makeModel()
         model.reveal(.batteryModel)
 
         model.requestSearchFocus()
@@ -56,7 +68,7 @@ final class SettingsNavigationModelTests: XCTestCase {
     }
 
     func test_searchFocusRequestIsOneShot() {
-        let model = SettingsNavigationModel()
+        let model = makeModel()
 
         model.requestSearchFocus()
         XCTAssertEqual(model.selection, .home)

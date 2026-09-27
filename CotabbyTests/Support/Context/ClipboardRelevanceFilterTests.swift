@@ -83,11 +83,17 @@ final class ClipboardRelevanceFilterTests: XCTestCase {
             ("SELECT * FROM users", "Dear hiring manager", nil),
             ("a b c", "a b c d e", nil)
         ]
+        // One filter for every case: each new change count is a fresh copy that restarts the clock,
+        // so the overlap rule is all that differs. Reassigning `filter` here instead would free a
+        // `@MainActor` object inside the test body, which crashes the CI host (macOS 15 runtime).
+        establishBaseline()
         for (offset, testCase) in cases.enumerated() {
-            filter = ClipboardRelevanceFilter(dateProvider: { [unowned self] in self.now })
-            establishBaseline()
             XCTAssertEqual(
-                filter.filter(clipboard: testCase.clipboard, pasteboardChangeCount: 2, precedingText: testCase.prefix),
+                filter.filter(
+                    clipboard: testCase.clipboard,
+                    pasteboardChangeCount: offset + 2,
+                    precedingText: testCase.prefix
+                ),
                 testCase.expected,
                 "case \(offset): \(testCase.clipboard)"
             )
