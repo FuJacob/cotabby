@@ -26,6 +26,13 @@ final class TokenHealingPlanTests: XCTestCase {
         XCTAssertEqual(buffer.append(tokenBytes: Array(" is".utf8)), " is")
     }
 
+    func testUnhealedPlanKeepsTheExactPromptSoMidWordMaskingApplies() {
+        let tokens: [Int32] = [0, 1, 2, 3]
+        let value = TokenHealingPlan.unhealed(tokens: tokens)
+        XCTAssertEqual(value.promptTokens, tokens)
+        XCTAssertTrue(value.replayBytes.isEmpty, "An empty replay leaves the native whitespace mask in force")
+    }
+
     func testTrailingSpaceDoesNotReconsiderThePreviousWord() {
         let value = plan("apple ", ["", "apple", " "])
         XCTAssertEqual(value.promptTokens, [0, 1])

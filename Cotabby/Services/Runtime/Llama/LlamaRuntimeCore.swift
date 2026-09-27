@@ -307,10 +307,13 @@ nonisolated final class LlamaRuntimeCore: @unchecked Sendable {
 
         // Reconsider the entire bounded word fragment, not just its last vocabulary token.
         // The pure plan protects byte identity; native sampling enforces the resulting prefix.
-        let healing = TokenHealingPlan(
-            prompt: prompt, tokens: allPromptTokens, singleLine: options.singleLine,
-            piece: { Array(engine.tokenPiece($0)) }
-        )
+        // A caret inside a word keeps the unhealed prompt so the whitespace mask stays in force.
+        let healing = options.forceWordContinuation
+            ? TokenHealingPlan.unhealed(tokens: allPromptTokens)
+            : TokenHealingPlan(
+                prompt: prompt, tokens: allPromptTokens, singleLine: options.singleLine,
+                piece: { Array(engine.tokenPiece($0)) }
+            )
         let tokens = healing.promptTokens
         let healingPrefix = healing.replayBytes
         // A byte-fallback vocabulary can replay at most one token per prefix byte. Reserve a

@@ -12,6 +12,19 @@ nonisolated struct TokenHealingPlan {
     let promptTokens: [Int32]
     let replayBytes: [UInt8]
 
+    /// The prompt exactly as tokenized, replaying nothing. Mid-word insertions use this so the
+    /// native whitespace mask still constrains their first sampled token: the engine lifts that
+    /// mask while it replays a healed prefix and nothing re-applies it afterwards, which let a
+    /// completion inside "the|me" begin with " meeting".
+    static func unhealed(tokens: [Int32]) -> TokenHealingPlan {
+        TokenHealingPlan(promptTokens: tokens, replayBytes: [])
+    }
+
+    private init(promptTokens: [Int32], replayBytes: [UInt8]) {
+        self.promptTokens = promptTokens
+        self.replayBytes = replayBytes
+    }
+
     init(prompt: String, tokens: [Int32], singleLine: Bool, piece: (Int32) -> [UInt8]) {
         let promptBytes = Array(prompt.utf8)
         let limit = TokenHealingBuffer.maximumHealedTokenBytes
