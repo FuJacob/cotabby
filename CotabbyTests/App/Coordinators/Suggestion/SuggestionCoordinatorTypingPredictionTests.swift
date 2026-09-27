@@ -212,6 +212,60 @@ final class SuggestionCoordinatorTypingPredictionTests: XCTestCase {
         XCTAssertEqual(engine.requests[1].prefixText, "I'll send you ")
     }
 
+    func testTypingAllButAPredictionsTrailingSpaceRequestsTheNextWords() async {
+        let engine = ControlledTypingEngine()
+        let rig = makeRig(engine)
+        defer { rig.coordinator.stop(); engine.finishAll() }
+        rig.coordinator.schedulePrediction()
+        await waitUntil { engine.requests.count == 1 }
+        engine.emit("you ")
+        type("you", in: rig)
+        publish("I'll send you", in: rig)
+        engine.finish("you ")
+        // Only the answer's trailing space is left. Presenting it would be an invisible "ready"
+        // suggestion with no request left to replace it until the next key.
+        await waitUntil { engine.requests.count == 2 }
+        XCTAssertEqual(engine.requests.map(\.prefixText), ["I'll send ", "I'll send you"])
+        XCTAssertNil(rig.interactionState.activeSession)
+        engine.finish(" the report", request: 1)
+        await waitUntil { rig.interactionState.activeSession != nil }
+        XCTAssertEqual(rig.interactionState.activeSession?.remainingText, " the report")
+    }
+
+    func testRebasedPredictionThatRepeatsTheTextAfterTheCaretRequestsAgain() async {
+        let engine = ControlledTypingEngine()
+        let rig = makeRig(engine, trailingText: "the report tomorrow")
+        defer { rig.coordinator.stop(); engine.finishAll() }
+        rig.coordinator.schedulePrediction()
+        await waitUntil { engine.requests.count == 1 }
+        engine.emit("you the report tomorrow")
+        type("you ", in: rig)
+        publish("I'll send you ", trailingText: "the report tomorrow", in: rig)
+        engine.finish("you the report tomorrow")
+        // The remaining words already follow the caret. A fresh request here would be filtered,
+        // so the rebased answer must not offer them either.
+        await waitUntil { engine.requests.count == 2 }
+        XCTAssertEqual(engine.requests.map(\.prefixText), ["I'll send ", "I'll send you "])
+        XCTAssertNil(rig.interactionState.activeSession)
+        XCTAssertTrue(rig.overlayController.shownTexts.isEmpty)
+    }
+
+    func testRebasedPredictionWaitsForAWordBoundaryWhenWithinWordSuggestionsAreOff() async {
+        let engine = ControlledTypingEngine()
+        let rig = makeRig(engine, suggestWithinWords: false)
+        defer { rig.coordinator.stop(); engine.finishAll() }
+        rig.coordinator.schedulePrediction()
+        await waitUntil { engine.requests.count == 1 }
+        engine.emit("you the report")
+        type("yo", in: rig)
+        publish("I'll send yo", in: rig)
+        engine.finish("you the report")
+        await waitUntil { rig.coordinator.typingPrediction == nil && rig.coordinator.state == .idle }
+        XCTAssertNil(rig.interactionState.activeSession, "A new offer must wait until the word is finished")
+        XCTAssertTrue(rig.overlayController.shownTexts.isEmpty)
+        XCTAssertEqual(engine.requests.count, 1, "The preference also declines a replacement request mid-word")
+    }
+
     func testDismissalAndEmojiCaptureCancelHiddenPrediction() async {
         for emojiCapture in [false, true] {
             let engine = ControlledTypingEngine()
@@ -285,19 +339,23 @@ final class SuggestionCoordinatorTypingPredictionTests: XCTestCase {
     }
 
     private func makeRig(_ engine: ControlledTypingEngine, streaming: Bool = false, predictAhead: Bool = true,
-                         engineKind: SuggestionEngineKind = .appleIntelligence) -> CoordinatorRig {
-        makeCoordinatorRig(snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "I'll send "),
+                         engineKind: SuggestionEngineKind = .appleIntelligence, trailingText: String = "",
+                         suggestWithinWords: Bool = true) -> CoordinatorRig {
+        makeCoordinatorRig(snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "I'll send ",
+                                                                            trailingText: trailingText),
             settingsSnapshot: CotabbyTestFixtures.settingsSnapshot(selectedEngine: engineKind,
-                debounceMilliseconds: 1, streamSuggestionsWhileGenerating: streaming,
-                predictAheadWhileTyping: predictAhead), generationEngine: engine)
+                debounceMilliseconds: 1, suggestWithinWords: suggestWithinWords,
+                streamSuggestionsWhileGenerating: streaming, predictAheadWhileTyping: predictAhead),
+            generationEngine: engine)
     }
 
     private func type(_ text: String, in rig: CoordinatorRig) {
         _ = rig.coordinator.handleInputEvent(CotabbyTestFixtures.inputEvent(kind: .textMutation, characters: text))
     }
 
-    private func publish(_ text: String, sequence: UInt64 = 1, in rig: CoordinatorRig) {
-        let raw = CotabbyTestFixtures.focusedInputSnapshot(precedingText: text, focusChangeSequence: sequence)
+    private func publish(_ text: String, trailingText: String = "", sequence: UInt64 = 1, in rig: CoordinatorRig) {
+        let raw = CotabbyTestFixtures.focusedInputSnapshot(precedingText: text, trailingText: trailingText,
+                                                           focusChangeSequence: sequence)
         let snapshot = FocusSnapshot(applicationName: raw.applicationName, bundleIdentifier: raw.bundleIdentifier,
                                      capability: .supported, context: raw)
         rig.focusProvider.snapshot = snapshot

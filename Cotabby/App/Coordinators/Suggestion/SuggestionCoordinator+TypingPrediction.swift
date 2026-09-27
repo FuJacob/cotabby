@@ -124,8 +124,8 @@ extension SuggestionCoordinator {
             let delay = presentationDelay(context: live)
             if delay == 0, let rebased = current.rebased(result, in: raw, generation: live.generation) {
                 let consumed = current.typedText.count
-                if consumed > 0, rebased.text.isEmpty {
-                    restartTypingPrediction(reason: "Typing exhausted the prepared answer; requesting the next words.")
+                if consumed > 0, let reason = restartReason(forRebased: rebased.text, raw: raw) {
+                    restartTypingPrediction(reason: reason)
                     return
                 }
                 // Delivery itself proved publication. Retire any scheduled validator so it
@@ -142,6 +142,24 @@ extension SuggestionCoordinator {
             }
             do { try await Task.sleep(nanoseconds: 20_000_000) } catch { return }
         }
+    }
+
+    /// A rebased answer becomes a new offer at a caret its request never saw, so it must pass the
+    /// checks a fresh request there would get; otherwise it is dropped in favor of that request.
+    /// Whitespace alone would become an invisible "ready" session with no work left to replace it.
+    /// Mid-word gating applies only to new offers: a suggestion already on screen follows typing.
+    func restartReason(forRebased text: String, raw: FocusedInputSnapshot) -> String? {
+        if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return "Typing exhausted the prepared answer; requesting the next words."
+        }
+        if TrailingDuplicationFilter.duplicatesTrailingText(text, trailingText: raw.trailingText) {
+            return "The rebased prediction repeats the text after the caret."
+        }
+        if interactionState.activeSession == nil, !SuggestionRequestFactory.shouldGenerateSuggestion(
+            for: raw.precedingText, suggestWithinWords: settingsSnapshot.suggestWithinWords) {
+            return "Waiting for a word boundary before offering a new suggestion."
+        }
+        return nil
     }
 
     /// A single replaceable timer bounds model catch-up and unpublished input. It never enqueues

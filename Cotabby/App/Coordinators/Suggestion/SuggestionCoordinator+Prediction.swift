@@ -453,7 +453,15 @@ extension SuggestionCoordinator {
         liveContext: FocusedInputContext
     ) -> SuggestionResult? {
         if let candidate = typingPrediction {
-            return candidate.rebased(partial, in: rawContext, generation: liveContext.generation)
+            guard let rebased = candidate.rebased(partial, in: rawContext, generation: liveContext.generation) else {
+                return nil
+            }
+            // Past typed letters, a partial faces the same new-offer checks as the final answer.
+            // It is only skipped here; the final delivery decides whether to request again.
+            if !candidate.typedText.isEmpty, restartReason(forRebased: rebased.text, raw: rawContext) != nil {
+                return nil
+            }
+            return rebased
         }
         return liveContext.generation == partial.generation ? partial : nil
     }
