@@ -30,12 +30,16 @@ from textwrap import dedent
 
 
 # Finder window dimensions use point-sized coordinates. The committed background art is a
-# 700x424 point illustration exported at 1x and @2x (assets/release/dmg_background*.png).
+# 700x424 point illustration plus 80pt of extra paper along the bottom, exported at 1x and
+# @2x (assets/release/dmg_background*.png). The padding exists because Finder may show a
+# tab bar and status/path bar regardless of the settings below, and those eat content
+# height: the window opens tall enough that the cat stays visible with that chrome, and
+# without it the extra rows just show more paper instead of Finder's default white.
 # The icon locations are the centers of the two "drop zone" cards drawn in that art, so
 # re-measure them whenever the illustration changes: the icon is centered a little above
 # each card's midpoint so that the icon plus its label sit visually centered together.
 WINDOW_WIDTH = 700
-WINDOW_HEIGHT = 424
+WINDOW_HEIGHT = 504
 # dmgbuild stores window_rect as Finder's full window frame, title bar included, while the
 # background is drawn in the content area below it. Without this padding the bottom 28pt of
 # the art (where the cat sleeps) is clipped until the user resizes the window.
