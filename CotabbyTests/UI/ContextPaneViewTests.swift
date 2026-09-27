@@ -16,6 +16,7 @@ final class ContextPaneViewTests: XCTestCase {
     func testEndpointDisclosesThatTypedTextIsSent() {
         let note = ContextPaneView.livePreviewPrivacyNote(for: .openAICompatible)
         XCTAssertTrue(note.contains("sent to your configured endpoint"), note)
+        XCTAssertTrue(note.contains("may keep it"), "Only Cotabby's own storage can be promised: \(note)")
         XCTAssertFalse(note.contains("on-device"), "A remote endpoint is not an on-device model: \(note)")
         XCTAssertFalse(note.contains("shared;"), "The endpoint note must not claim nothing is shared: \(note)")
     }
