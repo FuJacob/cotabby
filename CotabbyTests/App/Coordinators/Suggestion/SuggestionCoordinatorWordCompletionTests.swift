@@ -158,6 +158,34 @@ final class SuggestionCoordinatorWordCompletionTests: XCTestCase {
         XCTAssertEqual(rig.interactionState.activeSession?.remainingText, " package")
     }
 
+    func testTypingAfterAHeldTabKeepsItFromAcceptingTheNextSuggestion() async {
+        let rig = makeCoordinatorRig(snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Please recieve "),
+            settingsSnapshot: CotabbyTestFixtures.settingsSnapshot(debounceMilliseconds: 1,
+                suppressCompletionsOnTypo: true, offerTypoCorrections: true))
+        defer { rig.coordinator.stop() }
+        let context = rig.interactionState.materializeContext(from: rig.focusProvider.snapshot.context!)
+        _ = rig.interactionState.startSession(fullText: "receive", liveContext: context, latency: 0,
+            kind: .correction(typoWord: "recieve"))
+        rig.overlayController.showSuggestion("receive", geometry: CotabbyTestFixtures.overlayGeometry())
+        rig.engine.resultProvider = { request in
+            let text = request.prefixText.hasSuffix("I") ? " love the package" : "the package"
+            return .init(generation: request.generation, rawText: text, text: text, latency: 0.01)
+        }
+
+        XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
+        XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion(), "Rapid Tab is held while the continuation regenerates.")
+        XCTAssertTrue(rig.coordinator.postExhaustionAcceptanceState.hasQueuedAccept)
+
+        // The user starts the next word before anything new appears. The held Tab answered the
+        // earlier text, so the suggestion for this new text must wait for its own acceptance.
+        _ = rig.coordinator.handleInputEvent(CotabbyTestFixtures.inputEvent(kind: .textMutation, characters: "I"))
+        XCTAssertFalse(rig.coordinator.postExhaustionAcceptanceState.isArmed)
+        publishText("Please receive I", in: rig)
+        await waitUntil { rig.interactionState.activeSession != nil }
+        XCTAssertEqual(rig.interactionState.activeSession?.remainingText, " love the package")
+        XCTAssertTrue(rig.inserter.insertedChunks.isEmpty, "A suggestion the user never saw must not be accepted")
+    }
+
     func testFinalAcceptPredictsFromActualInsertedTrailingSpace() async {
         let rig = makeCoordinatorRig(settingsSnapshot: CotabbyTestFixtures.settingsSnapshot(
             suggestWithinWords: false, addSpaceAfterAccept: true))

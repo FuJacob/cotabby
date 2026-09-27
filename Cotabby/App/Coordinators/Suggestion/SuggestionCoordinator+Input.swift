@@ -248,6 +248,13 @@ extension SuggestionCoordinator {
             return false
         }
 
+        // A Tab held during post-acceptance regeneration answers the text as it was when pressed.
+        // Once the user edits, moves, or dismisses, it must not accept whatever appears next: with
+        // no overlay to hide, the usual `.hidden` release never runs on these idle paths.
+        if event.shouldClearSuggestion {
+            releasePostExhaustionAcceptanceWindow()
+        }
+
         if event.kind == .textMutation, let raw = focusModel.snapshot.context {
             let context = interactionState.materializeContext(from: raw)
             typingCadence.record(identityKey: context.focusedInputIdentityKey, characters: event.characters,
