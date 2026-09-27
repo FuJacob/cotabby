@@ -29,13 +29,17 @@ from pathlib import Path
 from textwrap import dedent
 
 
-# The committed background art is authored at 2x. Finder window dimensions use point-sized
-# coordinates so the mounted DMG opens compactly without scrollbars while preserving crisp art.
-WINDOW_WIDTH = 540
-WINDOW_HEIGHT = 760
-ICON_SIZE = 128
-APP_ICON_LOCATION = (270, 280)
-APPLICATIONS_ICON_LOCATION = (270, 635)
+# Finder window dimensions use point-sized coordinates. The committed background art is a
+# 700x424 point illustration exported at 1x and @2x (assets/release/dmg_background*.png).
+# The icon locations are the centers of the two "drop zone" cards drawn in that art, so
+# re-measure them whenever the illustration changes: the icon is centered a little above
+# each card's midpoint so that the icon plus its label sit visually centered together.
+WINDOW_WIDTH = 700
+WINDOW_HEIGHT = 424
+ICON_SIZE = 72
+TEXT_SIZE = 12
+APP_ICON_LOCATION = (226, 178)
+APPLICATIONS_ICON_LOCATION = (468, 178)
 
 
 def parse_args() -> argparse.Namespace:
@@ -217,7 +221,7 @@ def write_settings_file(
         include_icon_view_settings = True
         arrange_by = None
         icon_size = {ICON_SIZE}
-        text_size = 14
+        text_size = {TEXT_SIZE}
         label_pos = "bottom"
         icon_locations = {{
             app_name: {APP_ICON_LOCATION},
@@ -232,7 +236,7 @@ def write_settings_file(
         show_pathbar = False
         show_sidebar = False
         show_icon_preview = False
-        grid_spacing = 96
+        grid_spacing = 64
         """
     ).strip() + "\n"
 
