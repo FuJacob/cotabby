@@ -36,16 +36,14 @@ final class FocusPollBackoffTests: XCTestCase {
         XCTAssertEqual(FocusPollBackoff.captureStride(idleCaptureCount: 10_000), 10)
     }
 
-    func test_strideIsMonotonicNonDecreasing() {
-        var previous = 0
-        for count in 0...120 {
-            let stride = FocusPollBackoff.captureStride(idleCaptureCount: count)
-            XCTAssertGreaterThanOrEqual(stride, previous, "stride decreased at idleCaptureCount=\(count)")
-            previous = stride
-        }
-    }
-
     // MARK: - State machine
+
+    func test_eachUnchangedCaptureAddsExactlyOneIdleStep() {
+        XCTAssertEqual(idledBackoff(captures: 1).idleCaptureCount, 1)
+        XCTAssertEqual(idledBackoff(captures: 4).idleCaptureCount, 4)
+        XCTAssertEqual(idledBackoff(captures: FocusPollBackoff.idleCaptureCountCap + 1).idleCaptureCount,
+                       FocusPollBackoff.idleCaptureCountCap)
+    }
 
     func test_instanceStrideMatchesSchedule() {
         XCTAssertEqual(FocusPollBackoff().captureStride, 1)

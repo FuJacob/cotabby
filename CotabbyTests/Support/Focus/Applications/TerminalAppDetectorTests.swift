@@ -1,58 +1,37 @@
 import XCTest
 @testable import Cotabby
 
+/// Tests for terminal-emulator detection: the app-level bundle list, the xterm.js DOM-class check
+/// that catches terminals embedded inside editors, and the availability evaluator's terminal gate.
 final class TerminalAppDetectorTests: XCTestCase {
 
-    // MARK: - Known terminals
+    // MARK: - Bundle identifiers
 
-    func test_isTerminal_appleTerminal() {
-        XCTAssertTrue(TerminalAppDetector.isTerminal(bundleIdentifier: "com.apple.Terminal"))
+    func test_isTerminal_recognizesEveryKnownEmulator() {
+        let terminals = [
+            "com.apple.Terminal", "com.googlecode.iterm2", "net.kovidgoyal.kitty", "io.alacritty",
+            "co.zeit.hyper", "com.mitchellh.ghostty", "dev.warp.Warp-Stable", "com.github.wez.wezterm",
+            "io.rio.terminal"
+        ]
+        for bundleIdentifier in terminals {
+            XCTAssertTrue(TerminalAppDetector.isTerminal(bundleIdentifier: bundleIdentifier), bundleIdentifier)
+        }
     }
 
-    func test_isTerminal_iTerm2() {
-        XCTAssertTrue(TerminalAppDetector.isTerminal(bundleIdentifier: "com.googlecode.iterm2"))
-    }
-
-    func test_isTerminal_kitty() {
-        XCTAssertTrue(TerminalAppDetector.isTerminal(bundleIdentifier: "net.kovidgoyal.kitty"))
-    }
-
-    func test_isTerminal_alacritty() {
-        XCTAssertTrue(TerminalAppDetector.isTerminal(bundleIdentifier: "io.alacritty"))
-    }
-
-    func test_isTerminal_hyper() {
-        XCTAssertTrue(TerminalAppDetector.isTerminal(bundleIdentifier: "co.zeit.hyper"))
-    }
-
-    func test_isTerminal_ghostty() {
-        XCTAssertTrue(TerminalAppDetector.isTerminal(bundleIdentifier: "com.mitchellh.ghostty"))
-    }
-
-    func test_isTerminal_warp() {
-        XCTAssertTrue(TerminalAppDetector.isTerminal(bundleIdentifier: "dev.warp.Warp-Stable"))
-    }
-
-    func test_isTerminal_wezterm() {
-        XCTAssertTrue(TerminalAppDetector.isTerminal(bundleIdentifier: "com.github.wez.wezterm"))
-    }
-
-    func test_isTerminal_rio() {
-        XCTAssertTrue(TerminalAppDetector.isTerminal(bundleIdentifier: "io.rio.terminal"))
-    }
-
-    // MARK: - Non-terminals
-
-    func test_isTerminal_safari() {
-        XCTAssertFalse(TerminalAppDetector.isTerminal(bundleIdentifier: "com.apple.Safari"))
-    }
-
-    func test_isTerminal_vscode() {
-        XCTAssertFalse(TerminalAppDetector.isTerminal(bundleIdentifier: "com.microsoft.VSCode"))
-    }
-
-    func test_isTerminal_nil() {
+    func test_isTerminal_rejectsNonTerminalsAndNil() {
+        // VS Code hosts an integrated terminal, but the app as a whole is not one; that case is
+        // handled per-field by `isIntegratedTerminal`.
+        for bundleIdentifier in ["com.apple.Safari", "com.microsoft.VSCode"] {
+            XCTAssertFalse(TerminalAppDetector.isTerminal(bundleIdentifier: bundleIdentifier), bundleIdentifier)
+        }
         XCTAssertFalse(TerminalAppDetector.isTerminal(bundleIdentifier: nil))
+    }
+
+    func test_isTerminal_isAnExactCaseSensitiveMatch() {
+        // Unlike `BrowserAppDetector`, this list is matched exactly: no case folding and no prefix
+        // matching for channel suffixes.
+        XCTAssertFalse(TerminalAppDetector.isTerminal(bundleIdentifier: "com.apple.terminal"))
+        XCTAssertFalse(TerminalAppDetector.isTerminal(bundleIdentifier: "com.googlecode.iterm2.beta"))
     }
 
     // MARK: - Integrated terminal (xterm.js DOM class list)
@@ -83,69 +62,50 @@ final class TerminalAppDetectorTests: XCTestCase {
 
     // MARK: - Evaluator integration
 
-    func test_evaluator_blocksTerminalApp() {
-        let snapshot = FocusSnapshot(
-            applicationName: "Terminal",
-            bundleIdentifier: "com.apple.Terminal",
+    private func supportedSnapshot(applicationName: String, bundleIdentifier: String) -> FocusSnapshot {
+        FocusSnapshot(
+            applicationName: applicationName,
+            bundleIdentifier: bundleIdentifier,
             capability: .supported,
             context: nil
         )
+    }
 
+    func test_evaluator_blocksTerminalApp() {
         let reason = SuggestionAvailabilityEvaluator.disabledReason(
             globallyEnabled: true,
             inputMonitoringGranted: true,
-            focusSnapshot: snapshot
+            focusSnapshot: supportedSnapshot(applicationName: "Terminal", bundleIdentifier: "com.apple.Terminal")
         )
 
         XCTAssertEqual(reason, "Cotabby is not available in terminal apps.")
     }
 
     func test_evaluator_doesNotBlockNonTerminalApp() {
-        let snapshot = FocusSnapshot(
-            applicationName: "Safari",
-            bundleIdentifier: "com.apple.Safari",
-            capability: .supported,
-            context: nil
-        )
-
         let reason = SuggestionAvailabilityEvaluator.disabledReason(
             globallyEnabled: true,
             inputMonitoringGranted: true,
-            focusSnapshot: snapshot
+            focusSnapshot: supportedSnapshot(applicationName: "Safari", bundleIdentifier: "com.apple.Safari")
         )
 
         XCTAssertNil(reason)
     }
 
     func test_shouldSchedulePrediction_falseForTerminal() {
-        let snapshot = FocusSnapshot(
-            applicationName: "iTerm2",
-            bundleIdentifier: "com.googlecode.iterm2",
-            capability: .supported,
-            context: nil
-        )
-
         XCTAssertFalse(
             SuggestionAvailabilityEvaluator.shouldSchedulePrediction(
                 globallyEnabled: true,
                 inputMonitoringGranted: true,
-                focusSnapshot: snapshot
+                focusSnapshot: supportedSnapshot(applicationName: "iTerm2", bundleIdentifier: "com.googlecode.iterm2")
             )
         )
     }
 
     func test_globalDisabled_winsOverTerminalCheck() {
-        let snapshot = FocusSnapshot(
-            applicationName: "Terminal",
-            bundleIdentifier: "com.apple.Terminal",
-            capability: .supported,
-            context: nil
-        )
-
         let reason = SuggestionAvailabilityEvaluator.disabledReason(
             globallyEnabled: false,
             inputMonitoringGranted: true,
-            focusSnapshot: snapshot
+            focusSnapshot: supportedSnapshot(applicationName: "Terminal", bundleIdentifier: "com.apple.Terminal")
         )
 
         XCTAssertEqual(reason, "Cotabby is turned off.",

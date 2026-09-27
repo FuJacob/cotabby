@@ -1,7 +1,8 @@
 import XCTest
 @testable import Cotabby
 
-/// Focused coverage for one responsibility of `SuggestionSessionReconciler`.
+/// Overlay-facing acceptance rules: Tab is allowed only for the ghost text actually on screen (or
+/// while the overlay is briefly hidden), and hide reasons map input kinds to user-visible messages.
 final class SuggestionOverlayAcceptanceTests: XCTestCase {
     func test_overlayAllowsAcceptance_trueWhenOverlayHidden() {
         XCTAssertTrue(

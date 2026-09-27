@@ -1,465 +1,294 @@
-import Combine
-import CoreGraphics
 import XCTest
 @testable import Cotabby
 
-/// Tests for the gate every coordinator path runs through before starting a
-/// generation. The value of concentrating these checks in one function is
-/// precisely that UI copy and the gate logic can't drift; these tests lock
-/// that contract in.
+/// Tests for the gate every coordinator path runs through before starting a generation.
+///
+/// Concentrating these checks in one function means the menu-bar copy and the gate logic cannot
+/// drift apart, so most assertions pin the exact user-facing string. The first matching guard wins,
+/// which makes guard *ordering* part of the contract too: the user should see the most actionable
+/// reason, not an incidental one.
 final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
+    private static let turnedOff = "Cotabby is turned off."
+    private static let paused = "Cotabby is temporarily paused."
+    private static let lowPower = "Cotabby is paused because Low Power Mode is on."
+    private static let terminalApp = "Cotabby is not available in terminal apps."
+    private static let integratedTerminal = "Cotabby is not available in the integrated terminal."
+    private static let inputMonitoring =
+        "Input Monitoring permission is required before Cotabby can react to typing."
 
-    // Build a FocusSnapshot with only the capability varied. Leaving context nil keeps each test
-    // focused on the single gate axis under test.
+    /// A focus snapshot for one gate axis. Context is nil unless a test needs field-level facts
+    /// (URL, integrated-terminal flag, identity, preceding text).
     private func makeSnapshot(
         applicationName: String = "TestApp",
         bundleIdentifier: String? = "app.test",
-        capability: FocusCapability
+        capability: FocusCapability = .supported,
+        context: FocusedInputSnapshot? = nil
     ) -> FocusSnapshot {
         FocusSnapshot(
             applicationName: applicationName,
             bundleIdentifier: bundleIdentifier,
             capability: capability,
-            context: nil
-        )
-    }
-
-    private func makeSupportedSnapshotWithContext(
-        elementIdentifier: String = "field",
-        focusChangeSequence: UInt64 = 1,
-        precedingText: String = "hello",
-        focusedURLString: String? = nil
-    ) -> FocusSnapshot {
-        let context = FocusedInputSnapshot(
-            applicationName: "TestApp",
-            bundleIdentifier: "app.test",
-            processIdentifier: 123,
-            elementIdentifier: elementIdentifier,
-            role: "AXTextField",
-            subrole: nil,
-            caretRect: .zero,
-            inputFrameRect: nil,
-            caretSource: "test",
-            caretQuality: .exact,
-            observedCharWidth: nil,
-            precedingText: precedingText,
-            trailingText: "",
-            selection: NSRange(location: precedingText.count, length: 0),
-            isSecure: false,
-            focusChangeSequence: focusChangeSequence,
-            focusedURLString: focusedURLString
-        )
-
-        return FocusSnapshot(
-            applicationName: "TestApp",
-            bundleIdentifier: "app.test",
-            capability: .supported,
             context: context
         )
     }
 
-    /// A supported focus snapshot whose field is an xterm.js integrated terminal. Bundle id is a
-    /// non-terminal app (VS Code shares its bundle with the editor/chat), so only the surface-level
+    /// A supported snapshot whose field is currently displaying `focusedURLString` in a browser.
+    private func makeBrowserSnapshot(url: String) -> FocusSnapshot {
+        makeSnapshot(context: CotabbyTestFixtures.focusedInputSnapshot(focusedURLString: url))
+    }
+
+    /// A supported focus snapshot whose field is an xterm.js integrated terminal. The bundle id is a
+    /// non-terminal app (VS Code shares its bundle with the editor and chat), so only the AX-derived
     /// `isIntegratedTerminal` flag distinguishes it.
     private func makeIntegratedTerminalSnapshot() -> FocusSnapshot {
-        let context = CotabbyTestFixtures.focusedInputSnapshot(
+        makeSnapshot(
             applicationName: "Code",
             bundleIdentifier: "com.microsoft.VSCode",
-            role: "AXTextField",
-            isIntegratedTerminal: true
-        )
-        return FocusSnapshot(
-            applicationName: "Code",
-            bundleIdentifier: "com.microsoft.VSCode",
-            capability: .supported,
-            context: context
-        )
-    }
-
-    // MARK: - Integrated terminal gating
-
-    func test_disabledReason_integratedTerminal_suppressedByDefault() {
-        let reason = SuggestionAvailabilityEvaluator.disabledReason(
-            globallyEnabled: true,
-            inputMonitoringGranted: true,
-            focusSnapshot: makeIntegratedTerminalSnapshot()
-        )
-
-        XCTAssertEqual(reason, "Cotabby is not available in the integrated terminal.")
-    }
-
-    func test_disabledReason_integratedTerminal_allowedWhenOptedIn() {
-        let reason = SuggestionAvailabilityEvaluator.disabledReason(
-            globallyEnabled: true,
-            suggestInIntegratedTerminals: true,
-            inputMonitoringGranted: true,
-            focusSnapshot: makeIntegratedTerminalSnapshot()
-        )
-
-        XCTAssertNil(reason, "Opting in should let the integrated terminal suggest like any field")
-    }
-
-    func test_shouldSchedulePrediction_integratedTerminal_falseByDefault_trueWhenOptedIn() {
-        let snapshot = makeIntegratedTerminalSnapshot()
-
-        XCTAssertFalse(
-            SuggestionAvailabilityEvaluator.shouldSchedulePrediction(
-                globallyEnabled: true,
-                inputMonitoringGranted: true,
-                focusSnapshot: snapshot
-            )
-        )
-        XCTAssertTrue(
-            SuggestionAvailabilityEvaluator.shouldSchedulePrediction(
-                globallyEnabled: true,
-                suggestInIntegratedTerminals: true,
-                inputMonitoringGranted: true,
-                focusSnapshot: snapshot
+            context: CotabbyTestFixtures.focusedInputSnapshot(
+                applicationName: "Code",
+                bundleIdentifier: "com.microsoft.VSCode",
+                isIntegratedTerminal: true
             )
         )
     }
 
-    // MARK: - disabledReason: exact-string contracts
-
-    /// If this string ever changes, the menu-bar status copy will silently
-    /// change alongside it. Pin it so any copy edit is deliberate.
-    func test_disabledReason_whenGloballyDisabled_returnsFixedCopy() {
+    /// Asserts both the reason string and that `shouldSchedulePrediction` agrees with it.
+    ///
+    /// `shouldSchedulePrediction` re-forwards every parameter to `disabledReason`; checking both at
+    /// every call site catches a forwarding slip (for example, a dropped `disabledDomains`) that a
+    /// handful of dedicated wrapper tests would miss.
+    private func assertGate(
+        _ expectedReason: String?,
+        globallyEnabled: Bool = true,
+        temporarilyPaused: Bool = false,
+        isLowPowerModeActive: Bool = false,
+        isLowPowerModeAutoDisableEnabled: Bool = false,
+        disabledAppBundleIdentifiers: Set<String> = [],
+        disabledDomains: Set<String> = [],
+        suggestInIntegratedTerminals: Bool = false,
+        inputMonitoringGranted: Bool = true,
+        focusSnapshot: FocusSnapshot,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
         let reason = SuggestionAvailabilityEvaluator.disabledReason(
-            globallyEnabled: false,
-            inputMonitoringGranted: true,
-            focusSnapshot: makeSnapshot(capability: .supported)
+            globallyEnabled: globallyEnabled,
+            temporarilyPaused: temporarilyPaused,
+            isLowPowerModeActive: isLowPowerModeActive,
+            isLowPowerModeAutoDisableEnabled: isLowPowerModeAutoDisableEnabled,
+            disabledAppBundleIdentifiers: disabledAppBundleIdentifiers,
+            disabledDomains: disabledDomains,
+            suggestInIntegratedTerminals: suggestInIntegratedTerminals,
+            inputMonitoringGranted: inputMonitoringGranted,
+            focusSnapshot: focusSnapshot
+        )
+        let shouldSchedule = SuggestionAvailabilityEvaluator.shouldSchedulePrediction(
+            globallyEnabled: globallyEnabled,
+            temporarilyPaused: temporarilyPaused,
+            isLowPowerModeActive: isLowPowerModeActive,
+            isLowPowerModeAutoDisableEnabled: isLowPowerModeAutoDisableEnabled,
+            disabledAppBundleIdentifiers: disabledAppBundleIdentifiers,
+            disabledDomains: disabledDomains,
+            suggestInIntegratedTerminals: suggestInIntegratedTerminals,
+            inputMonitoringGranted: inputMonitoringGranted,
+            focusSnapshot: focusSnapshot
         )
 
-        XCTAssertEqual(reason, "Cotabby is turned off.")
+        XCTAssertEqual(reason, expectedReason, file: file, line: line)
+        XCTAssertEqual(shouldSchedule, expectedReason == nil, "wrapper disagrees with reason", file: file, line: line)
     }
 
-    func test_disabledReason_whenTemporarilyPaused_returnsPauseCopy() {
-        let reason = SuggestionAvailabilityEvaluator.disabledReason(
-            globallyEnabled: true,
-            temporarilyPaused: true,
-            inputMonitoringGranted: true,
-            focusSnapshot: makeSnapshot(capability: .supported)
-        )
+    // MARK: - Individual gates
 
-        XCTAssertEqual(reason, "Cotabby is temporarily paused.")
+    func test_everythingAllowed_hasNoReason() {
+        assertGate(nil, focusSnapshot: makeSnapshot())
     }
 
-    // MARK: - Low Power Mode gating
+    func test_globallyDisabled() {
+        assertGate(Self.turnedOff, globallyEnabled: false, focusSnapshot: makeSnapshot())
+    }
 
-    func test_disabledReason_whenLowPowerModeActiveAndAutoDisableEnabled_returnsLowPowerReason() {
-        let reason = SuggestionAvailabilityEvaluator.disabledReason(
-            globallyEnabled: true,
+    func test_temporarilyPaused() {
+        assertGate(Self.paused, temporarilyPaused: true, focusSnapshot: makeSnapshot())
+    }
+
+    /// Low Power Mode only pauses Cotabby when both the system state and the user's opt-in agree.
+    func test_lowPowerMode_requiresActiveStateAndAutoDisable() {
+        assertGate(
+            Self.lowPower,
             isLowPowerModeActive: true,
             isLowPowerModeAutoDisableEnabled: true,
-            inputMonitoringGranted: true,
-            focusSnapshot: makeSnapshot(capability: .supported)
+            focusSnapshot: makeSnapshot()
         )
-
-        XCTAssertEqual(reason, "Cotabby is paused because Low Power Mode is on.")
-    }
-
-    func test_disabledReason_whenLowPowerModeActiveButAutoDisableOptedOut_returnsNil() {
-        let reason = SuggestionAvailabilityEvaluator.disabledReason(
-            globallyEnabled: true,
+        assertGate(
+            nil,
             isLowPowerModeActive: true,
             isLowPowerModeAutoDisableEnabled: false,
-            inputMonitoringGranted: true,
-            focusSnapshot: makeSnapshot(capability: .supported)
+            focusSnapshot: makeSnapshot()
         )
-
-        XCTAssertNil(reason, "Opting out should let suggestions run in Low Power Mode")
-    }
-
-    func test_disabledReason_whenAutoDisableEnabledButLowPowerModeInactive_returnsNil() {
-        let reason = SuggestionAvailabilityEvaluator.disabledReason(
-            globallyEnabled: true,
+        assertGate(
+            nil,
             isLowPowerModeActive: false,
             isLowPowerModeAutoDisableEnabled: true,
-            inputMonitoringGranted: true,
-            focusSnapshot: makeSnapshot(capability: .supported)
+            focusSnapshot: makeSnapshot()
         )
-
-        XCTAssertNil(reason)
     }
 
-    func test_disabledReason_lowPowerModeTakesPrecedenceOverDisabledApp() {
-        let reason = SuggestionAvailabilityEvaluator.disabledReason(
-            globallyEnabled: true,
-            isLowPowerModeActive: true,
-            isLowPowerModeAutoDisableEnabled: true,
-            disabledAppBundleIdentifiers: ["app.test"],
-            inputMonitoringGranted: true,
-            focusSnapshot: makeSnapshot(capability: .supported)
-        )
-
-        XCTAssertEqual(reason, "Cotabby is paused because Low Power Mode is on.")
-    }
-
-    func test_shouldSchedulePrediction_falseWhenLowPowerModeActiveAndAutoDisableEnabled() {
-        let shouldSchedule = SuggestionAvailabilityEvaluator.shouldSchedulePrediction(
-            globallyEnabled: true,
-            isLowPowerModeActive: true,
-            isLowPowerModeAutoDisableEnabled: true,
-            inputMonitoringGranted: true,
-            focusSnapshot: makeSnapshot(capability: .supported)
-        )
-
-        XCTAssertFalse(shouldSchedule)
-    }
-
-    func test_shouldCaptureVisualContext_falseWhenLowPowerModeActiveAndAutoDisableEnabled() {
-        let shouldCapture = SuggestionAvailabilityEvaluator.shouldCaptureVisualContext(
-            globallyEnabled: true,
-            isLowPowerModeActive: true,
-            isLowPowerModeAutoDisableEnabled: true,
-            inputMonitoringGranted: true,
-            screenRecordingGranted: true,
-            focusSnapshot: makeSnapshot(capability: .supported),
-            isFastModeEnabled: false
-        )
-
-        XCTAssertFalse(shouldCapture)
-    }
-
-    func test_disabledReason_whenFocusedDomainIsDisabled_returnsSiteReason() {
-        let reason = SuggestionAvailabilityEvaluator.disabledReason(
-            globallyEnabled: true,
-            disabledDomains: ["bank.com"],
-            inputMonitoringGranted: true,
-            focusSnapshot: makeSupportedSnapshotWithContext(focusedURLString: "https://www.bank.com/account")
-        )
-
-        XCTAssertEqual(reason, "Cotabby is disabled on bank.com.")
-    }
-
-    func test_disabledReason_domainCheckIsInertByDefault() {
-        // A focused URL but no disabled-domains list: the per-site gate must never fire, so an
-        // otherwise healthy environment stays enabled exactly as before this gate existed.
-        let reason = SuggestionAvailabilityEvaluator.disabledReason(
-            globallyEnabled: true,
-            inputMonitoringGranted: true,
-            focusSnapshot: makeSupportedSnapshotWithContext(focusedURLString: "https://bank.com/account")
-        )
-
-        XCTAssertNil(reason, "a focused URL with no disabled-domains list must not suppress autocomplete")
-    }
-
-    func test_disabledReason_whenInputMonitoringDenied_mentionsPermission() {
-        let reason = SuggestionAvailabilityEvaluator.disabledReason(
-            globallyEnabled: true,
-            inputMonitoringGranted: false,
-            focusSnapshot: makeSnapshot(capability: .supported)
-        )
-
-        XCTAssertNotNil(reason)
-        XCTAssertTrue(reason?.contains("Input Monitoring") ?? false,
-                      "reason should point the user at the permission they need to grant")
-    }
-
-    // MARK: - disabledReason: guard ordering
-
-    /// Global-off takes precedence over permission-denied. Important because
-    /// the copy the user sees should be the thing they most need to know; if
-    /// Cotabby is off, the Input Monitoring message is a distraction.
-    func test_disabledReason_globalDisabled_winsOverInputMonitoringDenied() {
-        let reason = SuggestionAvailabilityEvaluator.disabledReason(
-            globallyEnabled: false,
-            inputMonitoringGranted: false,
-            focusSnapshot: makeSnapshot(capability: .supported)
-        )
-
-        XCTAssertEqual(reason, "Cotabby is turned off.")
-    }
-
-    func test_disabledReason_globalDisabled_winsOverAppDisabled() {
-        let reason = SuggestionAvailabilityEvaluator.disabledReason(
-            globallyEnabled: false,
-            disabledAppBundleIdentifiers: ["app.test"],
-            inputMonitoringGranted: true,
-            focusSnapshot: makeSnapshot(capability: .supported)
-        )
-
-        XCTAssertEqual(reason, "Cotabby is turned off.")
-    }
-
-    func test_disabledReason_whenAppDisabled_returnsAppSpecificCopy() {
-        let reason = SuggestionAvailabilityEvaluator.disabledReason(
-            globallyEnabled: true,
+    func test_disabledApp_namesTheApplication() {
+        assertGate(
+            "Cotabby is disabled in Safari.",
             disabledAppBundleIdentifiers: ["com.apple.Safari"],
-            inputMonitoringGranted: true,
-            focusSnapshot: makeSnapshot(
-                applicationName: "Safari",
-                bundleIdentifier: "com.apple.Safari",
-                capability: .supported
+            focusSnapshot: makeSnapshot(applicationName: "Safari", bundleIdentifier: "com.apple.Safari")
+        )
+    }
+
+    func test_disabledApp_onlyMatchesTheFocusedBundle() {
+        assertGate(nil, disabledAppBundleIdentifiers: ["app.other"], focusSnapshot: makeSnapshot())
+        // A snapshot without a bundle identifier can never match an app rule.
+        assertGate(nil, disabledAppBundleIdentifiers: ["app.test"], focusSnapshot: makeSnapshot(bundleIdentifier: nil))
+    }
+
+    /// The reason names the normalized host (lowercased, `www.` dropped), and subdomains of a listed
+    /// domain are covered.
+    func test_disabledDomain_matchesNormalizedHostAndSubdomains() {
+        assertGate(
+            "Cotabby is disabled on bank.com.",
+            disabledDomains: ["bank.com"],
+            focusSnapshot: makeBrowserSnapshot(url: "https://WWW.Bank.com/account")
+        )
+        assertGate(
+            "Cotabby is disabled on mail.bank.com.",
+            disabledDomains: ["bank.com"],
+            focusSnapshot: makeBrowserSnapshot(url: "https://mail.bank.com/inbox")
+        )
+    }
+
+    func test_disabledDomain_isInertWithoutAMatchingRuleOrURL() {
+        // A focused URL with no list, or with an unrelated entry, must not suppress autocomplete.
+        assertGate(nil, focusSnapshot: makeBrowserSnapshot(url: "https://bank.com/account"))
+        assertGate(nil, disabledDomains: ["bank.com"], focusSnapshot: makeBrowserSnapshot(url: "https://notbank.com"))
+        // Without a resolved URL the domain gate has nothing to compare against.
+        assertGate(nil, disabledDomains: ["bank.com"], focusSnapshot: makeSnapshot())
+    }
+
+    /// Standalone terminal emulators stay blocked even when integrated terminals are opted in:
+    /// that opt-in only covers editor-hosted xterm.js surfaces.
+    func test_terminalApp_isBlockedRegardlessOfIntegratedTerminalOptIn() {
+        let terminal = makeSnapshot(applicationName: "Terminal", bundleIdentifier: "com.apple.Terminal")
+
+        assertGate(Self.terminalApp, focusSnapshot: terminal)
+        assertGate(Self.terminalApp, suggestInIntegratedTerminals: true, focusSnapshot: terminal)
+    }
+
+    func test_integratedTerminal_isBlockedUntilOptedIn() {
+        assertGate(Self.integratedTerminal, focusSnapshot: makeIntegratedTerminalSnapshot())
+        assertGate(nil, suggestInIntegratedTerminals: true, focusSnapshot: makeIntegratedTerminalSnapshot())
+    }
+
+    func test_inputMonitoringDenied_pointsAtThePermission() {
+        assertGate(Self.inputMonitoring, inputMonitoringGranted: false, focusSnapshot: makeSnapshot())
+    }
+
+    /// `.blocked` and `.unsupported` both surface their own reason verbatim so the menu can explain
+    /// which field Cotabby is refusing to handle.
+    func test_capabilityReasonsPassThroughVerbatim() {
+        let blocked = "Secure field — Cotabby intentionally won't run here."
+        assertGate(blocked, focusSnapshot: makeSnapshot(capability: .blocked(blocked)))
+        assertGate("No focused text input", focusSnapshot: makeSnapshot(capability: .unsupported("No focused text input")))
+    }
+
+    func test_checkCapabilityFalse_ignoresFieldCapabilityButKeepsEnvironmentGates() {
+        let blocked = makeSnapshot(capability: .blocked("Text is selected."))
+
+        XCTAssertNil(
+            SuggestionAvailabilityEvaluator.disabledReason(
+                inputMonitoringGranted: true,
+                focusSnapshot: blocked,
+                checkCapability: false
             )
         )
-
-        XCTAssertEqual(reason, "Cotabby is disabled in Safari.")
-    }
-
-    // MARK: - disabledReason: capability passthrough
-
-    /// The .blocked and .unsupported cases both surface their own reason
-    /// string so the menu can explain which field Cotabby is refusing to
-    /// handle. Test that the evaluator passes these through verbatim.
-    func test_disabledReason_blockedCapability_returnsCapabilityReason() {
-        let blockReason = "Secure field — Cotabby intentionally won't run here."
-        let reason = SuggestionAvailabilityEvaluator.disabledReason(
-            globallyEnabled: true,
-            inputMonitoringGranted: true,
-            focusSnapshot: makeSnapshot(capability: .blocked(blockReason))
+        XCTAssertEqual(
+            SuggestionAvailabilityEvaluator.disabledReason(
+                inputMonitoringGranted: false,
+                focusSnapshot: blocked,
+                checkCapability: false
+            ),
+            Self.inputMonitoring
         )
-
-        XCTAssertEqual(reason, blockReason)
     }
 
-    func test_disabledReason_unsupportedCapability_returnsCapabilityReason() {
-        let unsupportedReason = "No focused text input"
-        let reason = SuggestionAvailabilityEvaluator.disabledReason(
-            globallyEnabled: true,
-            inputMonitoringGranted: true,
-            focusSnapshot: makeSnapshot(capability: .unsupported(unsupportedReason))
+    // MARK: - Guard ordering
+
+    /// Each pair enables two gates at once; the earlier guard's copy must win. The order is
+    /// global off > paused > Low Power > app > domain > terminal > Input Monitoring > capability.
+    func test_guardOrdering_earlierGateWins() {
+        let unsupported = makeSnapshot(capability: .unsupported("No focused text input"))
+
+        assertGate(Self.turnedOff, globallyEnabled: false, temporarilyPaused: true, focusSnapshot: makeSnapshot())
+        assertGate(Self.turnedOff, globallyEnabled: false, inputMonitoringGranted: false, focusSnapshot: makeSnapshot())
+        assertGate(
+            Self.paused,
+            temporarilyPaused: true,
+            isLowPowerModeActive: true,
+            isLowPowerModeAutoDisableEnabled: true,
+            focusSnapshot: makeSnapshot()
         )
-
-        XCTAssertEqual(reason, unsupportedReason)
-    }
-
-    // MARK: - disabledReason: happy path
-
-    func test_disabledReason_whenEverythingAllowed_returnsNil() {
-        let reason = SuggestionAvailabilityEvaluator.disabledReason(
-            globallyEnabled: true,
-            inputMonitoringGranted: true,
-            focusSnapshot: makeSnapshot(capability: .supported)
-        )
-
-        XCTAssertNil(reason)
-    }
-
-    // MARK: - shouldSchedulePrediction (boolean wrapper)
-
-    /// shouldSchedulePrediction is the bool collapse of disabledReason == nil.
-    /// Tests both sides of the nil boundary so a future refactor of one
-    /// function without the other would trip.
-    func test_shouldSchedulePrediction_trueWhenNoDisabledReason() {
-        let ok = SuggestionAvailabilityEvaluator.shouldSchedulePrediction(
-            globallyEnabled: true,
-            inputMonitoringGranted: true,
-            focusSnapshot: makeSnapshot(capability: .supported)
-        )
-
-        XCTAssertTrue(ok)
-    }
-
-    func test_shouldSchedulePrediction_falseWhenGloballyDisabled() {
-        let ok = SuggestionAvailabilityEvaluator.shouldSchedulePrediction(
-            globallyEnabled: false,
-            inputMonitoringGranted: true,
-            focusSnapshot: makeSnapshot(capability: .supported)
-        )
-
-        XCTAssertFalse(ok)
-    }
-
-    func test_shouldSchedulePrediction_falseWhenAppDisabled() {
-        let ok = SuggestionAvailabilityEvaluator.shouldSchedulePrediction(
-            globallyEnabled: true,
+        assertGate(
+            Self.lowPower,
+            isLowPowerModeActive: true,
+            isLowPowerModeAutoDisableEnabled: true,
             disabledAppBundleIdentifiers: ["app.test"],
-            inputMonitoringGranted: true,
-            focusSnapshot: makeSnapshot(capability: .supported)
+            focusSnapshot: makeSnapshot()
         )
-
-        XCTAssertFalse(ok)
+        assertGate(
+            "Cotabby is disabled in TestApp.",
+            disabledAppBundleIdentifiers: ["app.test"],
+            disabledDomains: ["bank.com"],
+            focusSnapshot: makeBrowserSnapshot(url: "https://bank.com")
+        )
+        assertGate(
+            "Cotabby is disabled in Terminal.",
+            disabledAppBundleIdentifiers: ["com.apple.Terminal"],
+            focusSnapshot: makeSnapshot(applicationName: "Terminal", bundleIdentifier: "com.apple.Terminal")
+        )
+        // Location rules beat the permission prompt: granting Input Monitoring would not help here.
+        assertGate(
+            "Cotabby is disabled in TestApp.",
+            disabledAppBundleIdentifiers: ["app.test"],
+            inputMonitoringGranted: false,
+            focusSnapshot: makeSnapshot()
+        )
+        assertGate(Self.inputMonitoring, inputMonitoringGranted: false, focusSnapshot: unsupported)
     }
 
-    func test_shouldSchedulePrediction_trueWhenDifferentAppDisabled() {
-        let ok = SuggestionAvailabilityEvaluator.shouldSchedulePrediction(
-            globallyEnabled: true,
-            disabledAppBundleIdentifiers: ["app.other"],
-            inputMonitoringGranted: true,
-            focusSnapshot: makeSnapshot(capability: .supported)
-        )
+    // MARK: - shouldCaptureVisualContext
 
-        XCTAssertTrue(ok)
-    }
-
-    func test_shouldSchedulePrediction_falseWhenCapabilityUnsupported() {
-        let ok = SuggestionAvailabilityEvaluator.shouldSchedulePrediction(
-            globallyEnabled: true,
-            inputMonitoringGranted: true,
-            focusSnapshot: makeSnapshot(capability: .unsupported("No focused text input"))
-        )
-
-        XCTAssertFalse(ok)
-    }
-
-    func test_visualContextReadyScheduling_trueWhenElementAndFocusSequenceMatch() {
-        let snapshot = makeSupportedSnapshotWithContext(
-            elementIdentifier: "field",
-            focusChangeSequence: 42
-        )
-
-        let ok = SuggestionAvailabilityEvaluator.shouldSchedulePredictionWhenVisualContextBecomesReady(
-            focusSnapshot: snapshot,
-            matching: FocusedInputIdentity(elementIdentifier: "field", focusChangeSequence: 42)
-        )
-
-        XCTAssertTrue(ok)
-    }
-
-    func test_visualContextReadyScheduling_falseWhenFocusSequenceDiffers() {
-        let snapshot = makeSupportedSnapshotWithContext(
-            elementIdentifier: "field",
-            focusChangeSequence: 42
-        )
-
-        let ok = SuggestionAvailabilityEvaluator.shouldSchedulePredictionWhenVisualContextBecomesReady(
-            focusSnapshot: snapshot,
-            matching: FocusedInputIdentity(elementIdentifier: "field", focusChangeSequence: 41)
-        )
-
-        XCTAssertFalse(ok)
-    }
-
-    // MARK: - shouldCaptureVisualContext + fast mode
-
-    /// Mirror of the fast-mode invariant for the now-optional Screen Recording permission: a missing
-    /// permission suppresses visual-context capture but leaves predictions running (text-only).
-    func test_noScreenRecording_suppressesVisualContextButNotPredictions() {
-        let snapshot = makeSnapshot(capability: .supported)
-
-        XCTAssertFalse(
+    func test_shouldCaptureVisualContext_trueWhenAllowed() {
+        XCTAssertTrue(
             SuggestionAvailabilityEvaluator.shouldCaptureVisualContext(
                 inputMonitoringGranted: true,
-                screenRecordingGranted: false,
-                focusSnapshot: snapshot,
-                isFastModeEnabled: false
+                screenRecordingGranted: true,
+                focusSnapshot: makeSnapshot()
             )
         )
+    }
+
+    /// Capture skips the capability check on purpose: OCR should warm up while the field is in a
+    /// transient state (text selected) so context is ready once the user starts typing.
+    func test_shouldCaptureVisualContext_ignoresTransientFieldCapability() {
         XCTAssertTrue(
-            SuggestionAvailabilityEvaluator.shouldSchedulePrediction(
+            SuggestionAvailabilityEvaluator.shouldCaptureVisualContext(
                 inputMonitoringGranted: true,
-                focusSnapshot: snapshot
+                screenRecordingGranted: true,
+                focusSnapshot: makeSnapshot(capability: .blocked("Text is selected."))
             )
         )
     }
 
-    func test_shouldCaptureVisualContext_trueWhenAllowedAndNotFastMode() {
-        let ok = SuggestionAvailabilityEvaluator.shouldCaptureVisualContext(
-            globallyEnabled: true,
-            inputMonitoringGranted: true,
-            screenRecordingGranted: true,
-            focusSnapshot: makeSnapshot(capability: .supported),
-            isFastModeEnabled: false
-        )
-
-        XCTAssertTrue(ok)
-    }
-
-    /// The core fast-mode invariant: it turns off the screenshot/OCR pipeline while leaving the
-    /// prediction gate untouched, so the user still gets (faster, context-free) completions.
-    func test_fastMode_suppressesVisualContextButNotPredictions() {
-        let snapshot = makeSnapshot(capability: .supported)
+    /// Fast mode and a missing Screen Recording permission suppress only the screenshot/OCR
+    /// pipeline; predictions keep running text-only.
+    func test_fastModeAndMissingScreenRecording_suppressCaptureButNotPredictions() {
+        let snapshot = makeSnapshot()
 
         XCTAssertFalse(
             SuggestionAvailabilityEvaluator.shouldCaptureVisualContext(
@@ -469,11 +298,90 @@ final class SuggestionAvailabilityEvaluatorTests: XCTestCase {
                 isFastModeEnabled: true
             )
         )
-        XCTAssertTrue(
-            SuggestionAvailabilityEvaluator.shouldSchedulePrediction(
+        XCTAssertFalse(
+            SuggestionAvailabilityEvaluator.shouldCaptureVisualContext(
                 inputMonitoringGranted: true,
+                screenRecordingGranted: false,
                 focusSnapshot: snapshot
             )
         )
+        assertGate(nil, focusSnapshot: snapshot)
+    }
+
+    /// Environment gates still apply to capture: no screenshots in a paused, disabled, or
+    /// permission-less state.
+    func test_shouldCaptureVisualContext_respectsEnvironmentGates() {
+        let snapshot = makeSnapshot()
+
+        XCTAssertFalse(
+            SuggestionAvailabilityEvaluator.shouldCaptureVisualContext(
+                isLowPowerModeActive: true,
+                isLowPowerModeAutoDisableEnabled: true,
+                inputMonitoringGranted: true,
+                screenRecordingGranted: true,
+                focusSnapshot: snapshot
+            )
+        )
+        XCTAssertFalse(
+            SuggestionAvailabilityEvaluator.shouldCaptureVisualContext(
+                disabledAppBundleIdentifiers: ["app.test"],
+                inputMonitoringGranted: true,
+                screenRecordingGranted: true,
+                focusSnapshot: snapshot
+            )
+        )
+        XCTAssertFalse(
+            SuggestionAvailabilityEvaluator.shouldCaptureVisualContext(
+                disabledDomains: ["bank.com"],
+                inputMonitoringGranted: true,
+                screenRecordingGranted: true,
+                focusSnapshot: makeBrowserSnapshot(url: "https://bank.com")
+            )
+        )
+        XCTAssertFalse(
+            SuggestionAvailabilityEvaluator.shouldCaptureVisualContext(
+                inputMonitoringGranted: false,
+                screenRecordingGranted: true,
+                focusSnapshot: snapshot
+            )
+        )
+    }
+
+    // MARK: - shouldSchedulePredictionWhenVisualContextBecomesReady
+
+    func test_visualContextReady_schedulesOnlyForTheSameSupportedFocusWithText() {
+        let identity = FocusedInputIdentity(elementIdentifier: "field", focusChangeSequence: 42)
+        func context(
+            elementIdentifier: String = "field",
+            focusChangeSequence: UInt64 = 42,
+            precedingText: String = "hello"
+        ) -> FocusedInputSnapshot {
+            CotabbyTestFixtures.focusedInputSnapshot(
+                elementIdentifier: elementIdentifier,
+                precedingText: precedingText,
+                focusChangeSequence: focusChangeSequence
+            )
+        }
+
+        let cases: [(name: String, snapshot: FocusSnapshot, expected: Bool)] = [
+            ("matching focus", makeSnapshot(context: context()), true),
+            ("focus sequence changed", makeSnapshot(context: context(focusChangeSequence: 41)), false),
+            // CFHash-derived element identifiers can differ for the same sequence after AX churn.
+            ("element changed", makeSnapshot(context: context(elementIdentifier: "other")), false),
+            ("no context", makeSnapshot(), false),
+            ("blocked capability", makeSnapshot(capability: .blocked("Secure field"), context: context()), false),
+            ("blank field", makeSnapshot(context: context(precedingText: " \n ")), false)
+        ]
+
+        for testCase in cases {
+            XCTAssertEqual(
+                SuggestionAvailabilityEvaluator.shouldSchedulePredictionWhenVisualContextBecomesReady(
+                    focusSnapshot: testCase.snapshot,
+                    matching: identity
+                ),
+                testCase.expected,
+                testCase.name
+            )
+        }
     }
 }

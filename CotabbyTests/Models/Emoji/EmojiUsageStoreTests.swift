@@ -82,6 +82,11 @@ final class EmojiUsageStoreTests: XCTestCase {
                 10,
                 "Trimming removes the rarest entries; heavy hitters keep their counts."
             )
+            // Recents are protected from trimming even though each was used once, so every alias
+            // the recents list can surface still carries its frequency.
+            for alias in snapshot.recentAliases {
+                XCTAssertNotNil(snapshot.frequency[alias], "\(alias) is recent and must survive the trim")
+            }
         }
     }
 
@@ -97,10 +102,21 @@ final class EmojiUsageStoreTests: XCTestCase {
         }
     }
 
+    func test_corruptPersistedBlobStartsEmpty() {
+        runOnMainActor {
+            let defaults = InMemoryDefaults()
+            defaults.set(Data("not json".utf8), forKey: "cotabbyEmojiUsage")
+
+            XCTAssertEqual(EmojiUsageStore(defaults: defaults).snapshot(), .empty)
+        }
+    }
+
     func test_statePersistsAcrossInstances() {
         runOnMainActor {
             let defaults = InMemoryDefaults()
             EmojiUsageStore(defaults: defaults).record(alias: "rocket")
+            // Mirrors the production storage key: a rename would orphan every user's history.
+            XCTAssertNotNil(defaults.data(forKey: "cotabbyEmojiUsage"))
 
             let reopened = EmojiUsageStore(defaults: defaults)   // new instance, same backing store
             XCTAssertEqual(reopened.snapshot().recentAliases, ["rocket"])
@@ -118,6 +134,10 @@ final class EmojiUsageStoreTests: XCTestCase {
 
         let usedOnce = EmojiUsageSnapshot(recentAliases: [], frequency: ["fire": 1])
         XCTAssertFalse(usedOnce.isFavorite("fire"))
+
+        // The matcher may pass the alias as typed; stored keys are lowercased by the store.
+        XCTAssertTrue(recentOnly.isFavorite("WAVE"))
+        XCTAssertTrue(frequentEnough.isFavorite("Fire"))
     }
 }
 

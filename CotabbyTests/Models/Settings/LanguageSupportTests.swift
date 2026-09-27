@@ -24,6 +24,21 @@ final class LanguageSupportTests: XCTestCase {
         XCTAssertEqual(LanguageCatalog.normalize(many).count, LanguageCatalog.maxLanguages)
     }
 
+    func test_commonLanguages_haveUniqueCodesAndNames() {
+        // Codes drive the legacy migration and names are what gets stored; a duplicate of either
+        // would make one palette chip shadow another.
+        let codes = LanguageCatalog.commonLanguages.map(\.code)
+        let names = LanguageCatalog.commonLanguages.map { $0.name.lowercased() }
+        XCTAssertEqual(Set(codes).count, codes.count)
+        XCTAssertEqual(Set(names).count, names.count)
+    }
+
+    func test_effectiveTokensPerWord_normalizesBeforeMatching() {
+        // Case/whitespace duplicates collapse to one language, which then wins its own factor
+        // instead of being treated as a multi-language set.
+        XCTAssertEqual(LanguageCatalog.effectiveTokensPerWord(for: [" german ", "German"]), 1.7)
+    }
+
     // MARK: - promptInstruction
 
     func test_promptInstruction_emptyReturnsNil() {
@@ -49,9 +64,12 @@ final class LanguageSupportTests: XCTestCase {
     }
 
     func test_promptInstruction_threeLanguagesUseOxfordComma() {
-        let hint = LanguageCatalog.promptInstruction(for: ["German", "English", "Spanish"])
-        XCTAssertTrue(hint?.contains("German, English, and Spanish") == true)
-        XCTAssertTrue(hint?.contains("German, English, or Spanish") == true)
+        XCTAssertEqual(
+            LanguageCatalog.promptInstruction(for: ["German", "English", "Spanish"]),
+            "The user usually writes in German, English, and Spanish. Match the language of the text "
+                + "before the caret. If that text is too short or ambiguous to tell, write in German, "
+                + "English, or Spanish."
+        )
     }
 
     // MARK: - migration
@@ -129,6 +147,7 @@ final class LanguageMigrationTests: XCTestCase {
         }
 
         userDefaults.removePersistentDomain(forName: suiteName)
+        addTeardownBlock { userDefaults.removePersistentDomain(forName: suiteName) }
         return userDefaults
     }
 }

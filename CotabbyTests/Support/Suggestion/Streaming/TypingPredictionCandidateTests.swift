@@ -48,6 +48,29 @@ final class TypingPredictionCandidateTests: XCTestCase {
         XCTAssertTrue(candidate.append("u", in: snapshot("I'll send yo"), at: 1.17))
     }
 
+    func testCoveredTypingWaitsOnlyForHostPublication() throws {
+        let source = snapshot("I'll send ")
+        var candidate = candidate(source)
+        XCTAssertTrue(candidate.receive(result("you the report"), final: false))
+        XCTAssertTrue(candidate.append("y", in: source, at: 1))
+
+        // The model already covers "y", so the only open question is whether AX publishes it.
+        let deadline = try XCTUnwrap(candidate.expiration(in: source))
+        XCTAssertEqual(deadline, 1 + TypingPredictionCandidate.publicationWindow, accuracy: 0.0001)
+        XCTAssertFalse(candidate.isPublished(in: source))
+        XCTAssertTrue(candidate.isPublished(in: snapshot("I'll send y")))
+        XCTAssertNil(candidate.expiration(in: snapshot("I'll send y")))
+    }
+
+    func testResultsFromAnotherGenerationAreNeitherStoredNorRebased() {
+        let source = snapshot("I'll send ")
+        var candidate = candidate(source)
+        let foreign = SuggestionResult(generation: 2, rawText: "you", text: "you", latency: 0.1)
+        XCTAssertFalse(candidate.receive(foreign, final: false))
+        XCTAssertNil(candidate.latestResult)
+        XCTAssertNil(candidate.rebased(foreign, in: source, generation: 3))
+    }
+
     func testDivergenceAndFinalOutputBehindTypingCannotBeReused() {
         let source = snapshot("I'll send ")
         var candidate = candidate(source)

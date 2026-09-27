@@ -12,6 +12,8 @@ final class BrowserAppDetectorTests: XCTestCase {
         XCTAssertTrue(BrowserAppDetector.isBrowser(bundleIdentifier: "org.mozilla.firefox"))
         XCTAssertTrue(BrowserAppDetector.isBrowser(bundleIdentifier: "com.brave.Browser"))
         XCTAssertTrue(BrowserAppDetector.isBrowser(bundleIdentifier: "company.thebrowser.Browser"))
+        XCTAssertTrue(BrowserAppDetector.isBrowser(bundleIdentifier: "com.microsoft.edgemac"))
+        XCTAssertTrue(BrowserAppDetector.isBrowser(bundleIdentifier: "com.apple.SafariTechnologyPreview"))
         XCTAssertFalse(BrowserAppDetector.isBrowser(bundleIdentifier: "com.apple.Terminal"))
         XCTAssertFalse(BrowserAppDetector.isBrowser(bundleIdentifier: nil))
     }
@@ -40,6 +42,13 @@ final class BrowserAppDetectorTests: XCTestCase {
         // Electron, but not a text-editing surface we cover: must stay out of the priming allowlist.
         XCTAssertFalse(BrowserAppDetector.isElectronEditor(bundleIdentifier: "com.hnc.Discord"))
         XCTAssertFalse(BrowserAppDetector.isElectronEditor(bundleIdentifier: nil))
+    }
+
+    func testElectronEditorAllowlistIsExactNotPrefix() {
+        // Unlike the browser families, helpers and sibling ids of an allowlisted editor must not be
+        // primed wholesale.
+        XCTAssertFalse(BrowserAppDetector.isElectronEditor(bundleIdentifier: "com.microsoft.VSCode.helper"))
+        XCTAssertFalse(BrowserAppDetector.isElectronEditor(bundleIdentifier: "com.clickup"))
     }
 
     func testChatGPTCodexUsesEditorRecoveryWithoutBrowserClassification() {

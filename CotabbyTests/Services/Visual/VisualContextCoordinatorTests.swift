@@ -64,9 +64,12 @@ final class VisualContextCoordinatorTests: XCTestCase {
         XCTAssertEqual(coordinator.status, .ready)
         XCTAssertEqual(coordinator.latestExcerpt, "Project agenda and deadline")
         coordinator.cancel(resetState: true)
+        let completedBeforeResume = generator.completedCount
         generator.pending?.resume()
         generator.pending = nil
-        try await Task.sleep(nanoseconds: 30_000_000)
+        // The stub counts completion in the same main-actor job that hands the result back, so
+        // once it is observed the coordinator has already had its chance to (wrongly) apply it.
+        try await waitUntil { generator.completedCount == completedBeforeResume + 1 }
         XCTAssertEqual(coordinator.status, .idle)
         XCTAssertNil(coordinator.latestExcerpt)
     }
@@ -157,7 +160,7 @@ final class VisualContextCoordinatorTests: XCTestCase {
         coordinator.startSessionIfNeeded(for: live, configuration: .default)
         generator.pending?.resume()
         generator.pending = nil
-        await Task.yield()
+        try await waitUntil { generator.completedCount >= 1 }
         XCTAssertNil(coordinator.latestExcerpt)
         generator.text = "New chat facts"
         try await waitUntil { coordinator.latestExcerpt == "New chat facts" }
@@ -167,9 +170,101 @@ final class VisualContextCoordinatorTests: XCTestCase {
         let generator = StubVisualContextGenerator()
         let coordinator = makeCoordinator(generator)
         coordinator.startSessionIfNeeded(for: CotabbyTestFixtures.focusedInputSnapshot(isSecure: true), configuration: .local)
+        // A negative result can only be observed by outlasting the 250 ms session-start settle delay.
         try await Task.sleep(nanoseconds: 300_000_000)
         XCTAssertTrue(generator.contexts.isEmpty)
         XCTAssertEqual(coordinator.status, .idle)
+    }
+
+    func test_repeatedStartsForTheSameFieldCoalesceIntoOneCapture() async throws {
+        let generator = StubVisualContextGenerator()
+        let coordinator = makeCoordinator(generator)
+        let snapshot = CotabbyTestFixtures.focusedInputSnapshot()
+        defer { coordinator.cancel(resetState: true) }
+
+        // Pending duplicate: ignored while the settle delay is still running.
+        coordinator.startSessionIfNeeded(for: snapshot, configuration: .local)
+        coordinator.startSessionIfNeeded(for: snapshot, configuration: .local)
+        try await waitUntil { coordinator.status == .ready }
+
+        // Active duplicate: ignored synchronously, so the ready excerpt is not torn down.
+        coordinator.startSessionIfNeeded(for: snapshot, configuration: .local)
+        XCTAssertEqual(coordinator.status, .ready)
+        XCTAssertEqual(coordinator.latestExcerpt, "Project agenda and deadline")
+        // Without a refresh provider there is no periodic recapture, so one start means one capture.
+        XCTAssertEqual(generator.contexts.count, 1)
+    }
+
+    func test_churningFocusOnlyCapturesTheSettledField() async throws {
+        let generator = StubVisualContextGenerator()
+        let coordinator = makeCoordinator(generator)
+        defer { coordinator.cancel(resetState: true) }
+
+        coordinator.startSessionIfNeeded(for: CotabbyTestFixtures.focusedInputSnapshot(focusChangeSequence: 1), configuration: .local)
+        coordinator.startSessionIfNeeded(for: CotabbyTestFixtures.focusedInputSnapshot(focusChangeSequence: 2), configuration: .local)
+        try await waitUntil { coordinator.status == .ready }
+
+        XCTAssertEqual(generator.contexts.map(\.focusChangeSequence), [2])
+    }
+
+    func test_missingPermissionParksSessionUntilPermissionIsGranted() async throws {
+        let generator = StubVisualContextGenerator()
+        var allowed = false
+        let coordinator = makeCoordinator(generator, permission: { allowed })
+        let snapshot = CotabbyTestFixtures.focusedInputSnapshot()
+        defer { coordinator.cancel(resetState: true) }
+
+        coordinator.startSessionIfNeeded(for: snapshot, configuration: .local)
+        let parked = VisualContextStatus.unavailable(
+            "Screen Recording permission is required for screenshot-derived prompt context."
+        )
+        try await waitUntil { coordinator.status == parked }
+        XCTAssertTrue(generator.contexts.isEmpty)
+
+        // The same field would normally be ignored as a duplicate; a granted permission restarts it.
+        allowed = true
+        coordinator.startSessionIfNeeded(for: snapshot, configuration: .local)
+        try await waitUntil { coordinator.status == .ready }
+        XCTAssertEqual(generator.contexts.count, 1)
+    }
+
+    func test_generatorErrorsBecomeSessionStatusWithoutAnExcerpt() async throws {
+        let cases: [(ScreenshotContextGenerationError, VisualContextStatus)] = [
+            (.unavailable("Too little text"), .unavailable("Too little text")),
+            (.failed("Capture broke"), .failed("Capture broke"))
+        ]
+        for (error, expectedStatus) in cases {
+            let generator = StubVisualContextGenerator()
+            generator.error = error
+            let coordinator = makeCoordinator(generator)
+            var published: [VisualContextStatus] = []
+            coordinator.onStateChange = { status, _ in published.append(status) }
+
+            coordinator.startSessionIfNeeded(for: CotabbyTestFixtures.focusedInputSnapshot(), configuration: .local)
+            try await waitUntil { coordinator.status == expectedStatus }
+
+            XCTAssertNil(coordinator.latestExcerpt)
+            XCTAssertEqual(published.last, expectedStatus)
+            coordinator.cancel(resetState: true)
+        }
+    }
+
+    func test_configurationChangeDropsTheReadyExcerptImmediately() async throws {
+        let generator = StubVisualContextGenerator()
+        let coordinator = makeCoordinator(generator)
+        let snapshot = CotabbyTestFixtures.focusedInputSnapshot()
+        defer { coordinator.cancel(resetState: true) }
+        coordinator.startSessionIfNeeded(for: snapshot, configuration: .local)
+        try await waitUntil { coordinator.status == .ready }
+
+        // Switching to the endpoint profile must not keep serving text captured with the wider
+        // on-device crop, even for the same field.
+        coordinator.startSessionIfNeeded(for: snapshot, configuration: .default)
+        XCTAssertNil(coordinator.latestExcerpt)
+        XCTAssertEqual(coordinator.status, .idle)
+
+        try await waitUntil { coordinator.status == .ready }
+        XCTAssertEqual(generator.configurations, [.local, .default])
     }
 
     private func makeCoordinator(
@@ -198,6 +293,9 @@ private final class StubVisualContextGenerator: ScreenshotContextGenerating {
     var text = "Project agenda and deadline"
     var suspendNext = false
     var pending: CheckedContinuation<Void, Never>?
+    var error: Error?
+    /// Incremented in the same main-actor job that returns the result to the coordinator.
+    private(set) var completedCount = 0
 
     func generateContext(
         for context: FocusedInputSnapshot,
@@ -210,6 +308,10 @@ private final class StubVisualContextGenerator: ScreenshotContextGenerating {
         if suspendNext {
             suspendNext = false
             await withCheckedContinuation { pending = $0 }
+        }
+        completedCount += 1
+        if let error {
+            throw error
         }
         return VisualContextExcerpt(text: text)
     }

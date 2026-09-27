@@ -28,9 +28,21 @@ final class EmojiQueryRunTests: XCTestCase {
         XCTAssertEqual(EmojiQueryRun.trailingRunUTF16Length(in: ":tada done :smile"), 6)
     }
 
+    func test_measuresBareDoubleColon() {
+        // `::` is the Mode B commit of an empty query; the run is both colons.
+        XCTAssertEqual(EmojiQueryRun.trailingRunUTF16Length(in: "a ::"), 2)
+    }
+
+    func test_unrelatedTextBeforeTheRunDoesNotAffectItsLength() {
+        // Only the run is measured, so astral characters earlier in the field cannot skew the count.
+        XCTAssertEqual(EmojiQueryRun.trailingRunUTF16Length(in: "hi 👋🏽 :wave"), 5)
+    }
+
     func test_returnsNilWhenNoTrailingRun() {
         XCTAssertNil(EmojiQueryRun.trailingRunUTF16Length(in: "hello world"))
         XCTAssertNil(EmojiQueryRun.trailingRunUTF16Length(in: ""))
         XCTAssertNil(EmojiQueryRun.trailingRunUTF16Length(in: ":smile not anymore"))
+        // A non-alias character between the colon and the caret breaks the run.
+        XCTAssertNil(EmojiQueryRun.trailingRunUTF16Length(in: ":smi.le"))
     }
 }

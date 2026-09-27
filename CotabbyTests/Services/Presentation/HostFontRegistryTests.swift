@@ -91,6 +91,46 @@ final class HostFontRegistryTests: XCTestCase {
         XCTAssertEqual(HostFontRegistry.familyRepresentative(among: faces)?.postScriptName, "Alpha-Regular")
     }
 
+    func test_emptyFamilyHasNoRepresentative() {
+        XCTAssertNil(HostFontRegistry.familyRepresentative(among: []))
+    }
+
+    // MARK: - Font availability gate
+
+    /// A name the process can already resolve never consults the host: system fonts render for
+    /// every app, trusted or not, without any signature check or bundle indexing.
+    func test_alreadyResolvableFontIsAvailableForAnyHost() async {
+        let registry = HostFontRegistry()
+
+        let available = await registry.ensureFontAvailable(
+            named: "Helvetica",
+            bundleIdentifier: "com.example.untrusted",
+            bundleURL: URL(fileURLWithPath: "/nonexistent/Untrusted.app")
+        )
+
+        XCTAssertTrue(available)
+    }
+
+    func test_unknownFontIsUnavailableUnlessTheHostIsTrustedAndSigned() async {
+        let registry = HostFontRegistry()
+        let missingFont = "CotabbyNoSuchFont-Regular"
+
+        let untrustedHost = await registry.ensureFontAvailable(
+            named: missingFont,
+            bundleIdentifier: "com.example.untrusted",
+            bundleURL: Bundle.main.bundleURL
+        )
+        // An allowlisted identifier is not enough: this test host is not Microsoft-signed.
+        let impersonatedHost = await registry.ensureFontAvailable(
+            named: missingFont,
+            bundleIdentifier: "com.microsoft.Word",
+            bundleURL: Bundle.main.bundleURL
+        )
+
+        XCTAssertFalse(untrustedHost)
+        XCTAssertFalse(impersonatedHost)
+    }
+
     // MARK: - Host trust
 
     func test_onlyTheAllowlistedOfficeHostsAreTrusted() {

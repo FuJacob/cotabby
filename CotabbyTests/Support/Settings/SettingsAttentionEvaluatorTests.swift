@@ -24,8 +24,7 @@ final class SettingsAttentionEvaluatorTests: XCTestCase {
     }
 
     func test_allHealthy_noAttention() {
-        let categories = SettingsAttentionEvaluator.categoriesNeedingAttention(makeInputs())
-        XCTAssertTrue(categories.isEmpty)
+        XCTAssertEqual(SettingsAttentionEvaluator.categoriesNeedingAttention(makeInputs()), [])
     }
 
     func test_missingPermissions_flagsPermissionsPane() {
@@ -47,15 +46,30 @@ final class SettingsAttentionEvaluatorTests: XCTestCase {
         XCTAssertEqual(categories, [.engineAndModel])
     }
 
-    /// The flag is engine-scoped: if the user is on Open Source, FM availability doesn't matter.
-    func test_appleIntelligenceUnavailable_butLlamaSelected_noEngineAttention() {
-        let categories = SettingsAttentionEvaluator.categoriesNeedingAttention(
-            makeInputs(
-                selectedEngine: .llamaOpenSource,
-                foundationModelAvailable: false
+    /// Engine attention is scoped to the selected engine: another engine's failure signal is
+    /// irrelevant to the backend the user is actually running.
+    func test_otherEnginesFailureSignals_doNotFlagSelectedEngine() {
+        let cases: [(engine: SuggestionEngineKind, inputs: SettingsAttentionEvaluator.Inputs)] = [
+            (.llamaOpenSource, makeInputs(
+                selectedEngine: .llamaOpenSource, foundationModelAvailable: false,
+                endpointConfigurationError: "Choose a model.", endpointConnectionFailedReason: "Refused."
+            )),
+            (.appleIntelligence, makeInputs(
+                selectedEngine: .appleIntelligence, llamaRuntimeFailedReason: "Model failed to load.",
+                endpointConfigurationError: "Choose a model."
+            )),
+            (.openAICompatible, makeInputs(
+                selectedEngine: .openAICompatible, foundationModelAvailable: false,
+                llamaRuntimeFailedReason: "Model failed to load."
+            ))
+        ]
+        for testCase in cases {
+            XCTAssertEqual(
+                SettingsAttentionEvaluator.categoriesNeedingAttention(testCase.inputs),
+                [],
+                "\(testCase.engine)"
             )
-        )
-        XCTAssertFalse(categories.contains(.engineAndModel))
+        }
     }
 
     func test_llamaRuntimeFailed_flagsEngineAndModel() {
@@ -74,5 +88,23 @@ final class SettingsAttentionEvaluatorTests: XCTestCase {
             endpointConfigurationError: "Choose a model."
         )
         XCTAssertEqual(SettingsAttentionEvaluator.categoriesNeedingAttention(inputs), [.engineAndModel])
+    }
+
+    func test_endpointConnectionFailure_flagsEngineAndModel() {
+        let inputs = makeInputs(
+            selectedEngine: .openAICompatible,
+            endpointConnectionFailedReason: "Connection refused."
+        )
+        XCTAssertEqual(SettingsAttentionEvaluator.categoriesNeedingAttention(inputs), [.engineAndModel])
+    }
+
+    /// Independent problems accumulate rather than one masking the other.
+    func test_missingPermissionsAndEngineFailure_flagBothPanes() {
+        let inputs = makeInputs(
+            permissionsGranted: false,
+            selectedEngine: .llamaOpenSource,
+            llamaRuntimeFailedReason: "Model failed to load."
+        )
+        XCTAssertEqual(SettingsAttentionEvaluator.categoriesNeedingAttention(inputs), [.permissions, .engineAndModel])
     }
 }

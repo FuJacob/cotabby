@@ -145,6 +145,32 @@ final class MacroTriggerStateMachineTests: XCTestCase {
         }
     }
 
+    func test_terminatorIsRememberedAsTheBoundaryForTheNextSlash() {
+        // A whitespace terminator leaves the machine at a boundary, so `/5 /` reopens immediately;
+        // a punctuation terminator does not, so `/5!/` stays closed like any mid-word slash.
+        var afterSpace = MacroTriggerStateMachine()
+        openCapture(&afterSpace)
+        _ = afterSpace.reduce(.character("5"), hasInsertableResult: false)
+        _ = afterSpace.reduce(.character(" "), hasInsertableResult: false)
+        XCTAssertEqual(afterSpace.reduce(.character("/"), hasInsertableResult: false).actions, [.open])
+
+        var afterPunctuation = MacroTriggerStateMachine()
+        openCapture(&afterPunctuation)
+        _ = afterPunctuation.reduce(.character("5"), hasInsertableResult: false)
+        XCTAssertEqual(afterPunctuation.reduce(.character("!"), hasInsertableResult: false).actions, [.cancel])
+        XCTAssertEqual(afterPunctuation.state, .idle(previousCharacter: "!"))
+        XCTAssertEqual(afterPunctuation.reduce(.character("/"), hasInsertableResult: false), .ignored)
+    }
+
+    func test_queryGrammar_acceptsOperatorsAndRejectsTerminators() {
+        for character in Array("aZ09+-*/^%(),.=>") {
+            XCTAssertTrue(MacroQueryGrammar.extends(character), "\(character) should extend the query")
+        }
+        for character in Array(" \t!?:;<'\"") {
+            XCTAssertFalse(MacroQueryGrammar.extends(character), "\(character) should end capture")
+        }
+    }
+
     func test_navigationAndFocusEventsWhileCapturing_cancelWithoutConsuming() {
         let inputs: [MacroTriggerInput] = [.navigate, .focusChanged, .dismissExternally]
         for input in inputs {

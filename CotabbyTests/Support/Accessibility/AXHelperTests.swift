@@ -253,15 +253,6 @@ final class AXHelperTests: XCTestCase {
     // MARK: - Editability heuristics (pure)
 
     func test_editabilityHeuristics_scoreRolesAndExplicitFlags() {
-        XCTAssertTrue(AXHelper.isKnownEditableRole(kAXTextFieldRole as String))
-        XCTAssertTrue(AXHelper.isKnownEditableRole(kAXTextAreaRole as String))
-        XCTAssertTrue(AXHelper.isKnownEditableRole("AXSearchField"))
-        XCTAssertFalse(AXHelper.isKnownEditableRole(kAXStaticTextRole as String))
-
-        XCTAssertTrue(AXHelper.isKnownReadOnlyRole(kAXStaticTextRole as String))
-        XCTAssertTrue(AXHelper.isKnownReadOnlyRole(kAXButtonRole as String))
-        XCTAssertFalse(AXHelper.isKnownReadOnlyRole(kAXTextFieldRole as String))
-
         XCTAssertEqual(AXHelper.editabilityHintScore(role: kAXTextFieldRole as String, explicitEditableFlag: true), 11)
         XCTAssertEqual(AXHelper.editabilityHintScore(role: kAXTextFieldRole as String, explicitEditableFlag: nil), 1)
         XCTAssertEqual(AXHelper.editabilityHintScore(role: "AXGroup", explicitEditableFlag: false), 0)
@@ -269,6 +260,25 @@ final class AXHelperTests: XCTestCase {
         XCTAssertTrue(AXHelper.hasStrongEditabilitySignal(role: "AXGroup", explicitEditableFlag: true))
         XCTAssertTrue(AXHelper.hasStrongEditabilitySignal(role: kAXComboBoxRole as String, explicitEditableFlag: nil))
         XCTAssertFalse(AXHelper.hasStrongEditabilitySignal(role: "AXGroup", explicitEditableFlag: nil))
+    }
+
+    func test_roleTables_coverEveryListedRole() {
+        let editable = [kAXTextFieldRole as String, kAXTextAreaRole as String, "AXSearchField", kAXComboBoxRole as String]
+        let readOnly = [
+            kAXStaticTextRole as String, kAXImageRole as String, kAXButtonRole as String, "AXLink",
+            kAXMenuItemRole as String
+        ]
+        for role in editable {
+            XCTAssertTrue(AXHelper.isKnownEditableRole(role), role)
+            XCTAssertFalse(AXHelper.isKnownReadOnlyRole(role), role)
+        }
+        for role in readOnly {
+            XCTAssertTrue(AXHelper.isKnownReadOnlyRole(role), role)
+            XCTAssertFalse(AXHelper.isKnownEditableRole(role), role)
+        }
+        // Container roles are neither: they need an explicit flag or a writable value to qualify.
+        XCTAssertFalse(AXHelper.isKnownEditableRole("AXGroup"))
+        XCTAssertFalse(AXHelper.isKnownReadOnlyRole("AXGroup"))
     }
 
     func test_webAreaEditability_requiresWritableValueWhenEditableFlagIsAbsent() {
@@ -435,6 +445,11 @@ final class AXHelperTests: XCTestCase {
     func testUsesFaceNameWhenNoFamilyIsReported() {
         // Legacy shape: nothing to cross-check against, so behavior is unchanged.
         XCTAssertEqual(AXHelper.faceName(fromAXFontDictionary: ["AXFontName": "Helvetica"]), "Helvetica")
+    }
+
+    func testFontFamilyTakesPrecedenceOverVisibleName() {
+        let fontInfo: [String: Any] = ["AXFontFamily": "Aptos", "AXVisibleName": "Aptos Display"]
+        XCTAssertEqual(AXHelper.faceName(fromAXFontDictionary: fontInfo), "Aptos")
     }
 
     func testIgnoresEmptyNamesAndReturnsNilWhenNothingUsable() {

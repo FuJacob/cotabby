@@ -66,6 +66,55 @@ final class SuggestionSettingsDomainTests: XCTestCase {
         XCTAssertEqual(data.globalToggleKeyLabel, "⌥G")
     }
 
+    /// The flat forwarding accessors are hand-written pairs, so a copy-paste slip (battery writing
+    /// the plugged-in slot, floor writing the ceiling) would compile. Distinct values for each
+    /// look-alike pair make any cross-wiring visible.
+    func test_flatAccessors_routeLookAlikeFieldsToTheirOwnDomainSlot() {
+        var data = SuggestionSettingsStore(userDefaults: defaults).load(configuration: .standard)
+
+        data.batteryEngine = .appleIntelligence
+        data.pluggedInEngine = .openAICompatible
+        data.batteryModelFilename = "battery.gguf"
+        data.pluggedInModelFilename = "plugged.gguf"
+        data.batteryEndpointModelName = "battery-endpoint"
+        data.pluggedInEndpointModelName = "plugged-endpoint"
+        data.ghostFontSizeFloor = 12
+        data.ghostFontSizeCeiling = 40
+        data.customWordCountLowWords = 3
+        data.customWordCountHighWords = 9
+        data.acceptanceKeyCode = 1
+        data.fullAcceptanceKeyCode = 2
+        data.globalToggleKeyCode = 3
+        data.acceptanceKeyModifiers = [.command]
+        data.fullAcceptanceKeyModifiers = [.shift]
+        data.globalToggleKeyModifiers = [.option]
+        data.suppressCompletionsOnTypo = true
+        data.offerTypoCorrections = false
+        data.isClipboardContextEnabled = true
+        data.isSurfaceContextEnabled = false
+
+        XCTAssertEqual(data.engine.batteryEngine, .appleIntelligence)
+        XCTAssertEqual(data.engine.pluggedInEngine, .openAICompatible)
+        XCTAssertEqual(data.engine.batteryModelFilename, "battery.gguf")
+        XCTAssertEqual(data.engine.pluggedInModelFilename, "plugged.gguf")
+        XCTAssertEqual(data.engine.batteryEndpointModelName, "battery-endpoint")
+        XCTAssertEqual(data.engine.pluggedInEndpointModelName, "plugged-endpoint")
+        XCTAssertEqual(data.presentation.ghostFontSizeFloor, 12)
+        XCTAssertEqual(data.presentation.ghostFontSizeCeiling, 40)
+        XCTAssertEqual(data.completion.customWordCountLowWords, 3)
+        XCTAssertEqual(data.completion.customWordCountHighWords, 9)
+        XCTAssertEqual(data.shortcuts.acceptance.keyCode, 1)
+        XCTAssertEqual(data.shortcuts.fullAcceptance.keyCode, 2)
+        XCTAssertEqual(data.shortcuts.globalToggle.keyCode, 3)
+        XCTAssertEqual(data.shortcuts.acceptance.modifiers, [.command])
+        XCTAssertEqual(data.shortcuts.fullAcceptance.modifiers, [.shift])
+        XCTAssertEqual(data.shortcuts.globalToggle.modifiers, [.option])
+        XCTAssertTrue(data.correction.suppressCompletionsOnTypo)
+        XCTAssertFalse(data.correction.offerTypoCorrections)
+        XCTAssertTrue(data.context.isClipboardContextEnabled)
+        XCTAssertFalse(data.context.isSurfaceContextEnabled)
+    }
+
     func test_modelDomainProjection_preservesFlatPropertiesAndGenerationSnapshot() {
         let model = SuggestionSettingsModel(configuration: .standard, userDefaults: defaults)
         model.selectEngine(.openAICompatible)

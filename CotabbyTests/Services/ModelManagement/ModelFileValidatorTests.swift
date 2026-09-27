@@ -26,21 +26,18 @@ final class ModelFileValidatorTests: XCTestCase {
         XCTAssertNoThrow(try ModelFileValidator.validateSize(of: url, expectedBytes: 100))
     }
 
-    func test_validateSize_throwsSizeMismatchWhenLargerThanExpected() throws {
-        let url = try makeFixture(contents: Data(repeating: 0xAB, count: 200))
-        XCTAssertThrowsError(try ModelFileValidator.validateSize(of: url, expectedBytes: 100)) { error in
-            guard case ModelFileValidator.ValidationError.sizeMismatch(let expected, let actual) = error else {
-                XCTFail("Expected sizeMismatch, got \(error)")
-                return
+    func test_validateSize_throwsSizeMismatchCarryingBothSizes() throws {
+        for actualSize in [200, 50] {
+            let url = try makeFixture(contents: Data(repeating: 0xAB, count: actualSize))
+            XCTAssertThrowsError(try ModelFileValidator.validateSize(of: url, expectedBytes: 100)) { error in
+                guard case ModelFileValidator.ValidationError.sizeMismatch(let expected, let actual) = error else {
+                    XCTFail("Expected sizeMismatch, got \(error)")
+                    return
+                }
+                XCTAssertEqual(expected, 100)
+                XCTAssertEqual(actual, Int64(actualSize))
             }
-            XCTAssertEqual(expected, 100)
-            XCTAssertEqual(actual, 200)
         }
-    }
-
-    func test_validateSize_throwsSizeMismatchWhenSmallerThanExpected() throws {
-        let url = try makeFixture(contents: Data(repeating: 0xAB, count: 50))
-        XCTAssertThrowsError(try ModelFileValidator.validateSize(of: url, expectedBytes: 100))
     }
 
     func test_validateSize_isNoOpWhenExpectedNil() throws {
@@ -147,6 +144,29 @@ final class ModelFileValidatorTests: XCTestCase {
                 return
             }
         }
+    }
+
+    // MARK: - errorDescription
+
+    /// The checksum message shows only a lowercase 16-character prefix of each digest so the UI
+    /// stays readable while still letting a user compare against the catalog value.
+    func test_errorDescriptions_areUserReadable() {
+        XCTAssertEqual(
+            ModelFileValidator.ValidationError.sizeMismatch(expected: 100, actual: 60).errorDescription,
+            "Downloaded file is 60 bytes; expected 100. The download may have been truncated."
+        )
+        XCTAssertEqual(
+            ModelFileValidator.ValidationError.checksumMismatch(
+                expected: "ABCDEF0123456789FFFF",
+                actual: "0123456789abcdef0000"
+            ).errorDescription,
+            "Downloaded file's checksum (0123456789abcdef…) doesn't match the expected (abcdef0123456789…). "
+                + "The file may be corrupt."
+        )
+        XCTAssertEqual(
+            ModelFileValidator.ValidationError.fileUnreadable(URL(fileURLWithPath: "/tmp/model.gguf")).errorDescription,
+            "Couldn't read model.gguf for validation."
+        )
     }
 
     // MARK: - Helpers

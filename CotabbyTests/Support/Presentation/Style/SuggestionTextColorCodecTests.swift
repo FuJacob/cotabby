@@ -49,6 +49,14 @@ final class SuggestionTextColorCodecConversionTests: XCTestCase {
         XCTAssertEqual(SuggestionTextColorCodec.hexString(from: color), "1A2B3C")
     }
 
+    func test_hexString_roundsComponentsToTheNearestByteAndDropsAlpha() {
+        // 0.5 * 255 = 127.5 -> 128 (0x80), 0.25 * 255 = 63.75 -> 64 (0x40), 0.75 * 255 = 191.25 ->
+        // 191 (0xBF). Alpha is not part of the persisted format, so translucency is discarded.
+        let color = NSColor(srgbRed: 0.5, green: 0.25, blue: 0.75, alpha: 0.3)
+
+        XCTAssertEqual(SuggestionTextColorCodec.hexString(from: color), "8040BF")
+    }
+
     func test_hexString_convertsOtherColorSpacesToSRGB() {
         // NSColor.white is calibrated grayscale; the codec must convert before reading components.
         XCTAssertEqual(SuggestionTextColorCodec.hexString(from: .white), "FFFFFF")

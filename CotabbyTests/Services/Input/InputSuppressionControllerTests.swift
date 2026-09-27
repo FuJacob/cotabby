@@ -29,6 +29,18 @@ final class InputSuppressionControllerTests: XCTestCase {
         XCTAssertFalse(controller.consumeIfNeeded())
     }
 
+    func test_consume_withNothingArmedLetsRealKeystrokesThrough() {
+        let controller = InputSuppressionController()
+        XCTAssertFalse(controller.consumeIfNeeded())
+
+        // A negative count is clamped to zero rather than cancelling tokens already outstanding.
+        controller.registerSyntheticInsertion(expectedKeyDownCount: 1)
+        controller.registerSyntheticInsertion(expectedKeyDownCount: -3)
+        XCTAssertTrue(controller.consumeIfNeeded())
+        XCTAssertFalse(controller.consumeIfNeeded())
+    }
+
+    /// Production reads `Date()` directly, so the one-second expiry can only be crossed by waiting.
     func test_consume_expiryDropsStaleTokens() {
         let controller = InputSuppressionController()
         controller.registerSyntheticInsertion(expectedKeyDownCount: 5)

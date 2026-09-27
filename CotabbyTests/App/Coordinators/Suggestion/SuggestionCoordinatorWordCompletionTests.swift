@@ -267,12 +267,6 @@ final class SuggestionCoordinatorWordCompletionTests: XCTestCase {
         }
     }
 
-    private func publishText(_ text: String, in rig: CoordinatorRig) {
-        let snapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: text)
-        rig.focusProvider.snapshot = FocusSnapshot(applicationName: snapshot.applicationName,
-            bundleIdentifier: snapshot.bundleIdentifier, capability: .supported, context: snapshot)
-    }
-
     func testCancellationDuringTypingPausePreventsLatePresentation() async {
         let rig = makeCoordinatorRig(snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Please schedu"))
         defer { rig.coordinator.stop() }
@@ -287,5 +281,11 @@ final class SuggestionCoordinatorWordCompletionTests: XCTestCase {
         await task.value
         XCTAssertTrue(rig.overlayController.shownTexts.isEmpty)
         XCTAssertNil(rig.interactionState.activeSession)
+    }
+
+    private func publishText(_ text: String, in rig: CoordinatorRig) {
+        let snapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: text)
+        rig.focusProvider.snapshot = FocusSnapshot(applicationName: snapshot.applicationName,
+            bundleIdentifier: snapshot.bundleIdentifier, capability: .supported, context: snapshot)
     }
 }

@@ -23,13 +23,27 @@ final class SecureFieldDetectorTests: XCTestCase {
             title: nil, descriptionLabel: "Password"))
     }
 
-    func test_isSecure_detectsNonPasswordSecretsByLabel() {
-        for label in ["CVV", "Security code", "Verification code", "One-time code", "Card number"] {
-            XCTAssertTrue(
-                SecureFieldDetector.isSecure(
-                    role: "AXTextField", subrole: nil, roleDescription: nil,
-                    title: label, descriptionLabel: nil),
-                "Expected \(label) to be treated as sensitive")
+    func test_isSecure_detectsNativeSecureTextFieldSubrole() {
+        XCTAssertTrue(SecureFieldDetector.isSecure(
+            role: "AXTextField", subrole: "AXSecureTextField", roleDescription: nil,
+            title: nil, descriptionLabel: nil))
+    }
+
+    func test_isSecure_everyMarkerTripsInAnyMarkerPosition() {
+        // Each marker is embedded mid-label to prove substring containment, and tried in every
+        // attribute slot because the resolver passes whatever it managed to read.
+        for marker in SecureFieldDetector.sensitiveMarkers {
+            let label = "Enter \(marker) here"
+            let slots: [(String, Bool)] = [
+                ("role", SecureFieldDetector.isSecure(role: label, subrole: nil, roleDescription: nil, title: nil, descriptionLabel: nil)),
+                ("subrole", SecureFieldDetector.isSecure(role: nil, subrole: label, roleDescription: nil, title: nil, descriptionLabel: nil)),
+                ("roleDescription", SecureFieldDetector.isSecure(role: nil, subrole: nil, roleDescription: label, title: nil, descriptionLabel: nil)),
+                ("title", SecureFieldDetector.isSecure(role: nil, subrole: nil, roleDescription: nil, title: label, descriptionLabel: nil)),
+                ("descriptionLabel", SecureFieldDetector.isSecure(role: nil, subrole: nil, roleDescription: nil, title: nil, descriptionLabel: label))
+            ]
+            for (slot, isSecure) in slots {
+                XCTAssertTrue(isSecure, "\(marker) in \(slot)")
+            }
         }
     }
 

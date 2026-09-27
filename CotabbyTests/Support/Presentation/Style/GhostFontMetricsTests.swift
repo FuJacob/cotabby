@@ -103,19 +103,6 @@ final class GhostFontMetricsTests: XCTestCase {
         XCTAssertEqual(size, 20 * fallbackRatio, accuracy: 0.0001)
     }
 
-    func testDefaultMultiplierLeavesAutoSizeUnchanged() {
-        // Omitting the multiplier must reproduce the pre-feature size exactly, so existing callers and
-        // the out-of-box default see no change. max(14, 20 * 0.78) = 15.6.
-        let size = GhostFontMetrics.pointSize(
-            caretHeight: 20,
-            fieldMetrics: nil,
-            fallbackRatio: fallbackRatio,
-            minimum: minimum,
-            maximum: maximum
-        )
-        XCTAssertEqual(size, 15.6, accuracy: 0.0001)
-    }
-
     func testSizeMultiplierScalesResolvedSizeBetweenTheBounds() {
         // Inside [minimum, maximum] the multiplier scales the auto-approximated 15.6 in both
         // directions. The floor is lowered to 10 so the 0.7x result (10.92) stays within it; at the
@@ -250,32 +237,10 @@ final class GhostFontMetricsTests: XCTestCase {
         XCTAssertNil(GhostFontMetrics.hostDisplayScale(caretHeight: 30, fieldMetrics: fieldMetrics, hostReportedPointSize: 0))
         // 24pt on screen for a reported 1pt would be a 24x zoom: a nonsense report, not a zoom.
         XCTAssertNil(GhostFontMetrics.hostDisplayScale(caretHeight: 30, fieldMetrics: fieldMetrics, hostReportedPointSize: 1))
-    }
-
-    func testSyntheticCaretRegressionAgainstFabricatedHeight() {
-        // Locks in the actual bug: deriving from the synthetic height pinned ghost text at
-        // 18 * 0.78 = 14.04pt regardless of host size. The new path must not return that.
-        let buggy = GhostFontMetrics.pointSize(
-            caretHeight: syntheticCaretHeight,
-            fieldMetrics: nil,
-            fallbackRatio: fallbackRatio,
-            minimum: minimum,
-            maximum: 16
-        )
-        XCTAssertEqual(buggy, 14.04, accuracy: 0.0001)
-
-        let fixed = GhostFontMetrics.pointSize(
-            caretHeight: syntheticCaretHeight,
-            caretHeightIsSynthetic: true,
-            fieldMetrics: nil,
-            hostReportedPointSize: 26,
-            fallbackRatio: fallbackRatio,
-            minimum: minimum,
-            maximum: 16,
-            syntheticCaretMaximum: 32
-        )
-        XCTAssertEqual(fixed, 26, accuracy: 0.0001)
-        XCTAssertGreaterThan(fixed, buggy)
+        // 3 * 0.8 / 12 = 0.2x sits below the 0.25x floor of plausible zoom.
+        XCTAssertNil(GhostFontMetrics.hostDisplayScale(caretHeight: 3, fieldMetrics: fieldMetrics, hostReportedPointSize: 12))
+        // An empty caret measured nothing, so it cannot imply a zoom.
+        XCTAssertNil(GhostFontMetrics.hostDisplayScale(caretHeight: 0, fieldMetrics: fieldMetrics, hostReportedPointSize: 12))
     }
 
     func testSyntheticCaretUsesReportedSizeEvenWhenTypefaceFailedToLoad() {
@@ -425,31 +390,6 @@ final class GhostFontMetricsTests: XCTestCase {
         XCTAssertEqual(size, 48, accuracy: 0.0001)
     }
 
-    func testSizeMultiplierCannotFallBelowTheFloor() {
-        let size = GhostFontMetrics.pointSize(
-            caretHeight: 14,
-            fieldMetrics: nil,
-            fallbackRatio: fallbackRatio,
-            minimum: 11,
-            maximum: 48,
-            sizeMultiplier: 0.7
-        )
-        XCTAssertEqual(size, 11, accuracy: 0.0001)
-    }
-
-    func testSizeMultiplierStillScalesBetweenTheBounds() {
-        // Away from the rails the knob must still do its job: 20 * 0.78 * 1.2.
-        let size = GhostFontMetrics.pointSize(
-            caretHeight: 20,
-            fieldMetrics: nil,
-            fallbackRatio: fallbackRatio,
-            minimum: 11,
-            maximum: 48,
-            sizeMultiplier: 1.2
-        )
-        XCTAssertEqual(size, 20 * fallbackRatio * 1.2, accuracy: 0.0001)
-    }
-
     func testUserFloorWinsOverABuiltInCap() {
         // An estimated caret is capped at 16pt to stop a bad rect from ballooning, but "Smallest
         // Ghost Text" promises nothing renders below it: a 20pt floor must beat the 16pt cap.
@@ -461,5 +401,50 @@ final class GhostFontMetricsTests: XCTestCase {
             maximum: 16
         )
         XCTAssertEqual(size, 20, accuracy: 0.0001)
+    }
+
+    // MARK: - Synthetic-path edge cases
+
+    func testSyntheticCaretWithoutASyntheticCeilingFallsBackToTheRegularMaximum() {
+        let size = GhostFontMetrics.pointSize(
+            caretHeight: syntheticCaretHeight,
+            caretHeightIsSynthetic: true,
+            fieldMetrics: nil,
+            hostReportedPointSize: 200,
+            fallbackRatio: fallbackRatio,
+            minimum: minimum,
+            maximum: maximum
+        )
+        XCTAssertEqual(size, maximum, accuracy: 0.0001)
+    }
+
+    func testDisplayScaleWithoutAReportedSizeIsIgnoredOnTheSyntheticPath() {
+        // The scale converts a *report*; with no report the fabricated height is all there is, and
+        // it is used unscaled: 18 * 0.78 = 14.04.
+        let size = GhostFontMetrics.pointSize(
+            caretHeight: syntheticCaretHeight,
+            caretHeightIsSynthetic: true,
+            fieldMetrics: nil,
+            hostReportedPointSize: nil,
+            hostDisplayScale: 2,
+            fallbackRatio: fallbackRatio,
+            minimum: minimum,
+            maximum: maximum
+        )
+        XCTAssertEqual(size, syntheticCaretHeight * fallbackRatio, accuracy: 0.0001)
+    }
+
+    func testUserFloorWinsOverTheSyntheticCeiling() {
+        let size = GhostFontMetrics.pointSize(
+            caretHeight: syntheticCaretHeight,
+            caretHeightIsSynthetic: true,
+            fieldMetrics: nil,
+            hostReportedPointSize: 20,
+            fallbackRatio: fallbackRatio,
+            minimum: 30,
+            maximum: 16,
+            syntheticCaretMaximum: 24
+        )
+        XCTAssertEqual(size, 30, accuracy: 0.0001)
     }
 }

@@ -35,6 +35,22 @@ final class CustomRulesTests: XCTestCase {
         XCTAssertEqual(CustomRulesCatalog.normalize(many).count, CustomRulesCatalog.maxRules)
     }
 
+    func test_normalize_truncatesBeforeDedupingSoLongVariantsCollapse() {
+        // Two rules that differ only past the length cap are the same stored rule.
+        let prefix = String(repeating: "a", count: CustomRulesCatalog.maxRuleLength)
+        XCTAssertEqual(CustomRulesCatalog.normalize([prefix + " one", prefix + " two"]), [prefix])
+    }
+
+    func test_suggestedPalette_entriesAreAlreadyNormalizedAndUnique() {
+        // Tapping a chip stores it through `normalize`; a palette entry that normalization would
+        // rewrite or truncate would store something different from the label the user tapped.
+        for entry in CustomRulesCatalog.suggestedPalette {
+            XCTAssertEqual(CustomRulesCatalog.normalize([entry]), [entry], entry)
+        }
+        let lowercased = CustomRulesCatalog.suggestedPalette.map { $0.lowercased() }
+        XCTAssertEqual(Set(lowercased).count, lowercased.count)
+    }
+
     // MARK: - foundation model rendering
 
     func test_foundationModelInstructions_includeRules() {

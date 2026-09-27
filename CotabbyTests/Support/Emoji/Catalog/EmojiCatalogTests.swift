@@ -30,8 +30,7 @@ final class EmojiCatalogTests: XCTestCase {
 
         let catalog = EmojiCatalog.bundled(in: bundle)
 
-        XCTAssertEqual(catalog.indexed.count, 2)
-        XCTAssertFalse(catalog.indexed.isEmpty)
+        XCTAssertEqual(catalog.indexed.map(\.entry.glyph), ["😀", "👍"])
         // The loaded catalog must resolve stored aliases case-insensitively, as recents/popularity
         // lookups rely on.
         XCTAssertEqual(catalog.entry(forAlias: "Grinning")?.glyph, "😀")
@@ -54,18 +53,35 @@ final class EmojiCatalogTests: XCTestCase {
         XCTAssertTrue(catalog.indexed.isEmpty, "An undecodable resource must disable the picker, not crash")
     }
 
-    func test_indexedEntriesReflectTheInputCatalog() {
-        let entries = [
-            EmojiEntry(
-                glyph: "🐱",
-                name: "cat face",
-                aliases: ["cat"],
-                keywords: ["pet"]
-            )
-        ]
+    func test_index_precomputesLowercasedSearchTokensInInputOrder() {
+        let catalog = EmojiCatalog(entries: [
+            EmojiEntry(glyph: "🐱", name: "Cat Face", aliases: ["Cat", "kitty"], keywords: ["Pet"])
+        ])
 
-        XCTAssertEqual(EmojiCatalog(entries: entries).indexed.count, 1)
-        XCTAssertEqual(EmojiCatalog(entries: []).indexed.count, 0)
+        XCTAssertEqual(
+            catalog.indexed,
+            [
+                EmojiCatalog.IndexedEntry(
+                    entry: EmojiEntry(glyph: "🐱", name: "Cat Face", aliases: ["Cat", "kitty"], keywords: ["Pet"]),
+                    lowerAliases: ["cat", "kitty"],
+                    lowerKeywords: ["pet"],
+                    lowerName: "cat face"
+                )
+            ]
+        )
+        XCTAssertEqual(catalog.aliasIndex, ["cat": 0, "kitty": 0])
+    }
+
+    func test_entryForAlias_firstOccurrenceWinsAndUnknownIsNil() {
+        let catalog = EmojiCatalog(entries: [
+            EmojiEntry(glyph: "😺", name: "smiley cat", aliases: ["cat"], keywords: []),
+            EmojiEntry(glyph: "🐱", name: "cat face", aliases: ["CAT", "kitty"], keywords: [])
+        ])
+
+        XCTAssertEqual(catalog.entry(forAlias: "Cat")?.glyph, "😺")
+        XCTAssertEqual(catalog.entry(forAlias: "kitty")?.glyph, "🐱")
+        XCTAssertNil(catalog.entry(forAlias: "dog"))
+        XCTAssertNil(EmojiCatalog(entries: []).entry(forAlias: "cat"))
     }
 
     /// Builds a flat directory bundle. Foundation treats a plain directory as an unbundled layout

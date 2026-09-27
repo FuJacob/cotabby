@@ -34,7 +34,30 @@ final class SurfaceContextComposerTests: XCTestCase {
         let generic = SurfaceContext(surfaceClass: .other, applicationName: "ChatGPT",
             windowTitle: "ChatGPT", domain: nil, fieldPlaceholder: "Message")
         XCTAssertEqual(SurfaceContextComposer.baseCompletionPrefaceLines(for: generic), ["Format: text."])
-        XCTAssertTrue(SurfaceContextComposer.prefaceLines(for: generic)[0].contains("App: ChatGPT"))
+        XCTAssertEqual(
+            SurfaceContextComposer.prefaceLines(for: generic),
+            ["Format: text; App: ChatGPT; Title: ChatGPT; Field: Message."]
+        )
+    }
+
+    /// The compact variant drops a title that merely repeats the app name and generic composer
+    /// placeholders (matched case-insensitively), keeps a browser domain, and renders nothing for
+    /// excluded classes.
+    func testBasePrefaceOmitsRedundantFactsAndKeepsBrowserDomain() {
+        let chat = SurfaceContext(surfaceClass: .chat, applicationName: "Slack",
+            windowTitle: "slack", domain: nil, fieldPlaceholder: "Type a Message")
+        XCTAssertEqual(SurfaceContextComposer.baseCompletionPrefaceLines(for: chat), ["Format: chat."])
+        let browser = SurfaceContext(surfaceClass: .browser, applicationName: "Safari",
+            windowTitle: "Docs", domain: "docs.example.com", fieldPlaceholder: "Add a comment")
+        XCTAssertEqual(
+            SurfaceContextComposer.baseCompletionPrefaceLines(for: browser),
+            ["Format: web text; Domain: docs.example.com; Title: Docs; Field: Add a comment."]
+        )
+        for surfaceClass in [AppSurfaceClass.codeEditor, .terminal] {
+            let excluded = SurfaceContext(surfaceClass: surfaceClass, applicationName: "Editor",
+                windowTitle: "Project", domain: nil, fieldPlaceholder: nil)
+            XCTAssertEqual(SurfaceContextComposer.baseCompletionPrefaceLines(for: excluded), [])
+        }
     }
 
     // MARK: - Class gating
@@ -51,6 +74,26 @@ final class SurfaceContextComposerTests: XCTestCase {
     func testAnonymousGenericAppIsOmitted() {
         // Unknown app, no title, no domain, no placeholder: nothing useful to say.
         XCTAssertNil(compose(applicationName: "SomeApp", bundleIdentifier: "com.example.someapp"))
+    }
+
+    /// An app name that collapses to nothing leaves no trustworthy surface to describe.
+    func testBlankApplicationNameIsOmitted() {
+        XCTAssertNil(compose(applicationName: "  \n ", windowTitle: "Re: Q3"))
+    }
+
+    /// Any one fact is enough to describe a generic app. A domain alone still yields a surface,
+    /// though only browsers render it.
+    func testGenericAppWithOnlyPlaceholderOrDomainIsIncluded() throws {
+        let placeholderOnly = try XCTUnwrap(compose(
+            applicationName: "Bear", bundleIdentifier: "net.shinyfrog.bear", fieldPlaceholder: "Write here"
+        ))
+        XCTAssertEqual(SurfaceContextComposer.prefaceLines(for: placeholderOnly), ["Format: text; App: Bear; Field: Write here."])
+
+        let domainOnly = try XCTUnwrap(compose(
+            applicationName: "Bear", bundleIdentifier: "net.shinyfrog.bear", focusedURLString: "https://bear.app/notes"
+        ))
+        XCTAssertEqual(domainOnly.domain, "bear.app")
+        XCTAssertEqual(SurfaceContextComposer.prefaceLines(for: domainOnly), ["Format: text; App: Bear."])
     }
 
     func testGenericAppWithTitleIsIncluded() throws {
@@ -124,16 +167,18 @@ final class SurfaceContextComposerTests: XCTestCase {
 
     func testNonBrowserSurfacesKeepOriginalDomainOmission() {
         // SurfaceContext is shared with the Foundation Models renderer and may carry a host for
-        // any app. Compact formatting must preserve the base preface's browser-only domain scope.
-        for surfaceClass in [AppSurfaceClass.email, .chat, .other] {
+        // any app. The base preface keeps its browser-only domain scope.
+        let cases: [(surfaceClass: AppSurfaceClass, format: String)] = [(.email, "email"), (.chat, "chat"), (.other, "text")]
+        for testCase in cases {
             let surface = SurfaceContext(
-                surfaceClass: surfaceClass, applicationName: "SomeApp", windowTitle: "Draft",
+                surfaceClass: testCase.surfaceClass, applicationName: "SomeApp", windowTitle: "Draft",
                 domain: "private.example.com", fieldPlaceholder: "Message"
             )
-            let preface = SurfaceContextComposer.prefaceLines(for: surface).joined(separator: " ")
-            XCTAssertFalse(preface.contains("Domain:"))
-            XCTAssertFalse(preface.contains("private.example.com"))
-            XCTAssertTrue(preface.contains("App: SomeApp; Title: Draft; Field: Message."))
+            XCTAssertEqual(
+                SurfaceContextComposer.prefaceLines(for: surface),
+                ["Format: \(testCase.format); App: SomeApp; Title: Draft; Field: Message."],
+                "\(testCase.surfaceClass)"
+            )
         }
     }
 
@@ -151,21 +196,32 @@ final class SurfaceContextComposerTests: XCTestCase {
 
     // MARK: - Sanitization
 
+    /// The trailing app-name suffix is removed once, case-insensitively, for hyphen, em dash, and
+    /// en dash separators; an app name elsewhere in the title is left alone.
     func testTitleAppNameSuffixIsStripped() {
-        XCTAssertEqual(
-            SurfaceContextComposer.sanitizedTitle("Inbox (3) - Google Chrome", applicationName: "Google Chrome"),
-            "Inbox (3)"
-        )
-        XCTAssertEqual(
-            SurfaceContextComposer.sanitizedTitle("Notes — Pages", applicationName: "Pages"),
-            "Notes"
-        )
+        let cases: [(title: String, app: String, expected: String)] = [
+            ("Inbox (3) - Google Chrome", "Google Chrome", "Inbox (3)"),
+            ("Notes — Pages", "Pages", "Notes"),
+            ("Draft – Pages", "Pages", "Draft"),
+            ("Inbox - google chrome", "Google Chrome", "Inbox"),
+            ("Pages - Notes - Pages", "Pages", "Pages - Notes"),
+            ("Pages - Notes", "Pages", "Pages - Notes")
+        ]
+        for testCase in cases {
+            XCTAssertEqual(
+                SurfaceContextComposer.sanitizedTitle(testCase.title, applicationName: testCase.app),
+                testCase.expected,
+                testCase.title
+            )
+        }
     }
 
     func testTitleIsCappedAndWhitespaceCollapsed() {
         let long = String(repeating: "title ", count: 40)
-        let sanitized = SurfaceContextComposer.sanitizedTitle(long, applicationName: "Mail")
-        XCTAssertLessThanOrEqual(sanitized?.count ?? 0, 80)
+        XCTAssertEqual(
+            SurfaceContextComposer.sanitizedTitle(long, applicationName: "Mail"),
+            String(repeating: "title ", count: 13) + "ti"
+        )
 
         XCTAssertEqual(
             SurfaceContextComposer.sanitizedTitle("  Re:\n  budget   review ", applicationName: "Mail"),
@@ -190,7 +246,18 @@ final class SurfaceContextComposerTests: XCTestCase {
             SurfaceContextComposer.registrableDomain(from: "https://www.mail.google.com/u/0/?compose=new"),
             "mail.google.com"
         )
-        XCTAssertNil(SurfaceContextComposer.registrableDomain(from: nil))
-        XCTAssertNil(SurfaceContextComposer.registrableDomain(from: "not a url"))
+        XCTAssertEqual(SurfaceContextComposer.registrableDomain(from: "https://Docs.Example.COM/x"), "docs.example.com")
+        for input in [nil, "", "not a url", "mailto:jane@example.com"] as [String?] {
+            XCTAssertNil(SurfaceContextComposer.registrableDomain(from: input), "input \(input ?? "nil")")
+        }
+    }
+
+    /// Placeholders get the same quote/control/whitespace cleanup as titles and a 60-character cap.
+    func testPlaceholderIsSanitizedAndCapped() throws {
+        let cleaned = try XCTUnwrap(compose(fieldPlaceholder: "  Write \"your\"\u{07}   reply  "))
+        XCTAssertEqual(cleaned.fieldPlaceholder, "Write your reply")
+
+        let long = try XCTUnwrap(compose(fieldPlaceholder: String(repeating: "p", count: 70)))
+        XCTAssertEqual(long.fieldPlaceholder, String(repeating: "p", count: 60))
     }
 }

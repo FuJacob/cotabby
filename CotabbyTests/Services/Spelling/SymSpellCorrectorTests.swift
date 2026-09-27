@@ -2,6 +2,8 @@ import AppKit
 import XCTest
 @testable import Cotabby
 
+/// Tests for the lazily loaded, LRU-bounded SymSpell index cache. Dictionaries are supplied through
+/// `loadForTesting` or an injected resource loader, so no bundled word list is read.
 final class SymSpellCorrectorTests: XCTestCase {
     private func makeLoadedCorrector() -> SymSpellCorrector {
         let corrector = SymSpellCorrector(preloadLanguage: nil)
@@ -74,6 +76,57 @@ final class SymSpellCorrectorTests: XCTestCase {
         XCTAssertEqual(corrector.cachedLanguagesForTesting, [.english, .spanish])
     }
 
+    func test_cacheLimitIsClampedToAtLeastOneLanguage() {
+        let corrector = SymSpellCorrector(cacheLimit: 0, preloadLanguage: nil)
+        corrector.loadForTesting(contents: "the 1000", language: .english)
+        corrector.loadForTesting(contents: "das 1000", language: .german)
+
+        XCTAssertEqual(corrector.cachedLanguagesForTesting, [.german])
+    }
+
+    func test_completionCandidatesAreEmptyWhileColdAndRankedOnceLoaded() {
+        let corrector = SymSpellCorrector(preloadLanguage: nil, resourceLoader: { _ in nil })
+        XCTAssertEqual(corrector.completionCandidates(for: "rec", language: .english), [])
+
+        corrector.loadForTesting(contents: "receive 8000\nrecent 9000\nrecipe 100\nseparate 4000")
+
+        // Highest frequency first, capped at two candidates.
+        XCTAssertEqual(
+            corrector.completionCandidates(for: "rec", language: .english).map(\.word),
+            ["recent", "receive"]
+        )
+    }
+
+    func test_preloadLanguageLoadsAtInit() {
+        let loaded = expectation(description: "preload requested")
+        _ = SymSpellCorrector(preloadLanguage: .german, resourceLoader: { language in
+            XCTAssertEqual(language, .german)
+            loaded.fulfill()
+            return nil
+        })
+
+        wait(for: [loaded], timeout: 5.0)
+    }
+
+    func test_coldLookupsShareOneBackgroundLoadThenServeCorrections() {
+        let calls = LockedCounter()
+        let release = DispatchSemaphore(value: 0)
+        let corrector = SymSpellCorrector(preloadLanguage: nil, resourceLoader: { _ in
+            calls.increment()
+            // Hold the load open so the second lookup definitely arrives while it is in flight.
+            release.wait()
+            return "bonjour 1000\nbonsoir 500"
+        })
+
+        XCTAssertNil(corrector.bestCorrection(for: "bonjoor", language: .french))
+        XCTAssertNil(corrector.bestCorrection(for: "bonjoor", language: .french))
+        release.signal()
+
+        XCTAssertTrue(waitUntil { corrector.cachedLanguagesForTesting == [.french] }, "load never published")
+        XCTAssertEqual(calls.value, 1)
+        XCTAssertEqual(corrector.bestCorrection(for: "bonjoor", language: .french), "bonjour")
+    }
+
     func test_missingDictionaryResourceFailsOpenAndCachesNothing() {
         let loaderConsulted = expectation(description: "resource loader consulted for the missing language")
         // The retry below may legitimately schedule a second load once the failed one has been
@@ -97,6 +150,34 @@ final class SymSpellCorrectorTests: XCTestCase {
         // so callers fall back to NSSpellChecker instead of crashing or blocking.
         XCTAssertNil(corrector.bestCorrection(for: "ciaoo", language: .italian))
         XCTAssertEqual(corrector.cachedLanguagesForTesting, [])
+    }
+
+    /// Polls a background-load condition; loads publish on a global queue with no completion hook.
+    private func waitUntil(timeout: TimeInterval = 5.0, _ condition: () -> Bool) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if condition() { return true }
+            Thread.sleep(forTimeInterval: 0.01)
+        }
+        return condition()
+    }
+}
+
+/// Thread-safe call counter for resource loaders, which run on a background queue.
+private final class LockedCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+
+    var value: Int {
+        lock.lock()
+        defer { lock.unlock() }
+        return count
+    }
+
+    func increment() {
+        lock.lock()
+        count += 1
+        lock.unlock()
     }
 }
 
@@ -125,11 +206,11 @@ final class CurrentWordSpellCheckerTests: XCTestCase {
         return checker
     }
 
-    func test_isTypo_emptyWordIsNeverATypo() async {
+    func test_isTypo_emptyWordIsNeverATypo() {
         XCTAssertFalse(makeChecker().isTypo(""))
     }
 
-    func test_isTypo_mirrorsSpellServerWholeWordRange() async {
+    func test_isTypo_mirrorsSpellServerWholeWordRange() {
         let checker = makeChecker()
         let probeTag = NSSpellChecker.uniqueSpellDocumentTag()
         for word in probeWords {
@@ -152,7 +233,7 @@ final class CurrentWordSpellCheckerTests: XCTestCase {
         }
     }
 
-    func test_nativeCorrections_passesRankedGuessesThroughNeverNil() async {
+    func test_nativeCorrections_passesRankedGuessesThroughNeverNil() {
         let checker = makeChecker()
         let probeTag = NSSpellChecker.uniqueSpellDocumentTag()
         for word in ["helo", "qqqqzzzzqq"] {
@@ -167,7 +248,7 @@ final class CurrentWordSpellCheckerTests: XCTestCase {
         }
     }
 
-    func test_bestCorrection_returnsNilOrADifferentSingleWord() async {
+    func test_bestCorrection_returnsNilOrADifferentSingleWord() {
         let checker = makeChecker()
         for word in probeWords {
             guard let correction = checker.bestCorrection(for: word) else { continue }
@@ -178,7 +259,7 @@ final class CurrentWordSpellCheckerTests: XCTestCase {
         }
     }
 
-    func test_bestCorrection_transfersLeadingCapitalFromTypo() async {
+    func test_bestCorrection_transfersLeadingCapitalFromTypo() {
         guard let correction = makeChecker().bestCorrection(for: "Teh") else {
             // This machine's dictionaries offered no usable guess; the case-transfer contract is
             // vacuous here rather than failed.

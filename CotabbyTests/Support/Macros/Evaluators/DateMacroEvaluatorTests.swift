@@ -16,8 +16,26 @@ final class DateMacroEvaluatorTests: XCTestCase {
         XCTAssertEqual(makeEvaluator().evaluate("today")?.insertionText, "Jun 4, 2026")
     }
 
-    func test_todayIsoArgument() {
-        XCTAssertEqual(makeEvaluator().evaluate("today(iso)")?.insertionText, "2026-06-04")
+    func test_dateStyleArguments() {
+        let sut = makeEvaluator()
+        XCTAssertEqual(sut.evaluate("today(iso)")?.insertionText, "2026-06-04")
+        XCTAssertEqual(sut.evaluate("today(long)")?.insertionText, "June 4, 2026")
+        XCTAssertEqual(sut.evaluate("today(short)")?.insertionText, "6/4/26")
+        // An unrecognized argument falls back to the medium style rather than rejecting the macro.
+        XCTAssertEqual(sut.evaluate("today(bogus)")?.insertionText, "Jun 4, 2026")
+    }
+
+    func test_styleArgumentAppliesToOffsetKeywords() {
+        let sut = makeEvaluator()
+        XCTAssertEqual(sut.evaluate("tomorrow(iso)")?.insertionText, "2026-06-05")
+        XCTAssertEqual(sut.evaluate("+1d(iso)")?.insertionText, "2026-06-05")
+    }
+
+    func test_keywordsAreCaseInsensitiveAndHaveWordAliases() {
+        let sut = makeEvaluator()
+        XCTAssertEqual(sut.evaluate("TODAY")?.insertionText, "Jun 4, 2026")
+        XCTAssertEqual(sut.evaluate("date")?.insertionText, "Jun 4, 2026")
+        XCTAssertEqual(sut.evaluate("time(24h)")?.insertionText, "12:00")
     }
 
     func test_tomorrowAndYesterday() {
@@ -38,11 +56,41 @@ final class DateMacroEvaluatorTests: XCTestCase {
         XCTAssertEqual(makeEvaluator().evaluate("last-fri")?.insertionText, "May 29, 2026")
     }
 
+    func test_weekdayMatchingToday_nextAndLastJumpAFullWeek() {
+        // The clock is a Thursday: `next` and `last` are strictly after/before today.
+        let sut = makeEvaluator()
+        XCTAssertEqual(sut.evaluate("next-thu")?.insertionText, "Jun 11, 2026")
+        XCTAssertEqual(sut.evaluate("last-thu")?.insertionText, "May 28, 2026")
+    }
+
+    func test_thisWeekday_looksForwardForEarlierWeekdays() {
+        // `this-wed` on a Thursday is the coming Wednesday, not yesterday.
+        XCTAssertEqual(makeEvaluator().evaluate("this-wed")?.insertionText, "Jun 10, 2026")
+    }
+
+    func test_fullWeekdayNames() {
+        XCTAssertEqual(makeEvaluator().evaluate("next friday")?.insertionText, "Jun 5, 2026")
+    }
+
+    func test_unknownWeekdayName_returnsNil() {
+        XCTAssertNil(makeEvaluator().evaluate("next-funday"))
+    }
+
     func test_relativeOffsets() {
         let sut = makeEvaluator()
         XCTAssertEqual(sut.evaluate("+3d")?.insertionText, "Jun 7, 2026")
         XCTAssertEqual(sut.evaluate("+1w")?.insertionText, "Jun 11, 2026")
         XCTAssertEqual(sut.evaluate("-5d")?.insertionText, "May 30, 2026")
+        XCTAssertEqual(sut.evaluate("+1mo")?.insertionText, "Jul 4, 2026")
+        XCTAssertEqual(sut.evaluate("-1mo")?.insertionText, "May 4, 2026")
+        XCTAssertEqual(sut.evaluate("+1y")?.insertionText, "Jun 4, 2027")
+    }
+
+    func test_malformedRelativeOffsets_returnNil() {
+        let sut = makeEvaluator()
+        for query in ["+d", "+3", "+3x", "3d"] {
+            XCTAssertNil(sut.evaluate(query), query)
+        }
     }
 
     func test_now24HourArgument() {
@@ -65,6 +113,7 @@ final class DateMacroEvaluatorTests: XCTestCase {
         let sut = makeEvaluator()
         XCTAssertEqual(sut.evaluate("next fri")?.insertionText, "Jun 5, 2026")
         XCTAssertEqual(sut.evaluate("nextfri")?.insertionText, "Jun 5, 2026")
+        XCTAssertEqual(sut.evaluate("next_fri")?.insertionText, "Jun 5, 2026")
     }
 
     func test_spelledOutRelativeUnits() {

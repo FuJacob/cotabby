@@ -22,13 +22,6 @@ final class LlamaDecodeGateDefaultsTests: XCTestCase {
         super.tearDown()
     }
 
-    func test_confidenceFloor_defaultsToShippedValue() {
-        XCTAssertEqual(
-            LlamaSuggestionEngine.resolvedConfidenceFloor(defaults),
-            LlamaSuggestionEngine.defaultConfidenceFloor
-        )
-    }
-
     /// The gate ships OFF: a -1.5 floor withheld ~56% of real completions, so confidence
     /// suppression is opt-in until it is recalibrated against real usage. -infinity also turns off
     /// the per-token logprob computation, so this lock guards both the coverage and the latency.

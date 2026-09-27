@@ -1,70 +1,50 @@
 import XCTest
 @testable import Cotabby
 
-/// Tests for the rule that decides whether a download error is "the user
-/// pressed Cancel" or "something went genuinely wrong."
+/// Tests for the rule that decides whether a download error is "the user pressed Cancel",
+/// "the user pressed Pause", or "something went genuinely wrong."
 ///
-/// This classification matters because the two cases produce different errors
-/// at runtime (CancellationError vs URLError.cancelled depending on whether
-/// the URLSession download had started yet) but both should restore the prior
-/// state, never surface as a user-visible failure.
+/// This classification matters because user cancellation surfaces as different errors at runtime
+/// (CancellationError vs URLError.cancelled depending on whether the URLSession download had started
+/// yet, or Aria2DownloadError.cancelled on the aria2 path) but all of them should restore the prior
+/// state, never surface as a user-visible failure. Conversely, a real failure misclassified as a
+/// cancellation would silently roll back to idle and the user would never see the problem.
 final class DownloadOutcomeClassifierTests: XCTestCase {
-
-    // MARK: - cancellation surfaces
-
-    func test_isUserCancellation_trueForCancellationError() {
-        XCTAssertTrue(DownloadOutcomeClassifier.isUserCancellation(CancellationError()))
-    }
-
-    func test_isUserCancellation_trueForURLErrorCancelled() {
-        XCTAssertTrue(DownloadOutcomeClassifier.isUserCancellation(URLError(.cancelled)))
-    }
-
-    func test_isUserCancellation_trueForAria2Cancelled() {
-        XCTAssertTrue(DownloadOutcomeClassifier.isUserCancellation(Aria2DownloadError.cancelled))
-    }
-
-    func test_isUserCancellation_falseForAria2Paused() {
-        XCTAssertFalse(DownloadOutcomeClassifier.isUserCancellation(Aria2DownloadError.paused))
-    }
-
-    func test_isUserPause_trueForAria2Paused() {
-        XCTAssertTrue(DownloadOutcomeClassifier.isUserPause(Aria2DownloadError.paused))
-    }
-
-    func test_isUserPause_falseForAria2Cancelled() {
-        XCTAssertFalse(DownloadOutcomeClassifier.isUserPause(Aria2DownloadError.cancelled))
-    }
-
-    func test_isUserPause_falseForURLErrorCancelled() {
-        XCTAssertFalse(DownloadOutcomeClassifier.isUserPause(URLError(.cancelled)))
-    }
-
-    // MARK: - real failures
-
-    func test_isUserCancellation_falseForURLErrorTimedOut() {
-        XCTAssertFalse(DownloadOutcomeClassifier.isUserCancellation(URLError(.timedOut)))
-    }
-
-    func test_isUserCancellation_falseForURLErrorNotConnected() {
-        XCTAssertFalse(DownloadOutcomeClassifier.isUserCancellation(URLError(.notConnectedToInternet)))
-    }
-
-    func test_isUserCancellation_falseForURLErrorBadServerResponse() {
-        XCTAssertFalse(DownloadOutcomeClassifier.isUserCancellation(URLError(.badServerResponse)))
-    }
-
-    func test_isUserCancellation_falseForGenericNSError() {
-        let error = NSError(domain: "TestDomain", code: 42, userInfo: nil)
-        XCTAssertFalse(DownloadOutcomeClassifier.isUserCancellation(error))
-    }
-
-    /// Important: a domain-level runtime error (model unavailable, etc.) must
-    /// NOT be misclassified as a cancellation. Otherwise a real failure would
-    /// silently roll back to .idle and the user would never see the problem.
-    func test_isUserCancellation_falseForLlamaRuntimeError() {
-        XCTAssertFalse(DownloadOutcomeClassifier.isUserCancellation(
-            LlamaRuntimeError.unavailable("Model download failed with status code 500.")
-        ))
+    func test_classification_table() {
+        let cases: [(name: String, error: Error, cancellation: Bool, pause: Bool)] = [
+            ("CancellationError", CancellationError(), true, false),
+            ("URLError.cancelled", URLError(.cancelled), true, false),
+            ("Aria2DownloadError.cancelled", Aria2DownloadError.cancelled, true, false),
+            ("Aria2DownloadError.paused", Aria2DownloadError.paused, false, true),
+            ("URLError.timedOut", URLError(.timedOut), false, false),
+            ("URLError.notConnectedToInternet", URLError(.notConnectedToInternet), false, false),
+            ("URLError.badServerResponse", URLError(.badServerResponse), false, false),
+            ("Aria2DownloadError.executableNotFound", Aria2DownloadError.executableNotFound, false, false),
+            (
+                "Aria2DownloadError.processFailed",
+                Aria2DownloadError.processFailed(exitCode: 7, message: "network"),
+                false,
+                false
+            ),
+            ("NSError", NSError(domain: "TestDomain", code: 42, userInfo: nil), false, false),
+            (
+                "LlamaRuntimeError.unavailable",
+                LlamaRuntimeError.unavailable("Model download failed with status code 500."),
+                false,
+                false
+            )
+        ]
+        for testCase in cases {
+            XCTAssertEqual(
+                DownloadOutcomeClassifier.isUserCancellation(testCase.error),
+                testCase.cancellation,
+                "isUserCancellation(\(testCase.name))"
+            )
+            XCTAssertEqual(
+                DownloadOutcomeClassifier.isUserPause(testCase.error),
+                testCase.pause,
+                "isUserPause(\(testCase.name))"
+            )
+        }
     }
 }

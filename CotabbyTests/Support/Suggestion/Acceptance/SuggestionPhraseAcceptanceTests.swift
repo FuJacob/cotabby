@@ -1,7 +1,8 @@
 import XCTest
 @testable import Cotabby
 
-/// Focused coverage for one responsibility of `SuggestionSessionReconciler`.
+/// Phrase-granularity Tab acceptance: where a multi-word accept stops (sentence terminators,
+/// newlines, CJK clause commas) and how closers, abbreviations, and CJK punctuation affect that.
 final class SuggestionPhraseAcceptanceTests: XCTestCase {
     func test_nextAcceptancePhrase_returnsEmptyForEmptyTail() {
         XCTAssertEqual(SuggestionSessionReconciler.nextAcceptancePhrase(from: ""), "")
@@ -14,48 +15,47 @@ final class SuggestionPhraseAcceptanceTests: XCTestCase {
         )
     }
 
-    func test_nextAcceptancePhrase_stopsAtFirstPeriod() {
-        XCTAssertEqual(
-            SuggestionSessionReconciler.nextAcceptancePhrase(from: "hello world. foo bar."),
-            "hello world."
-        )
+    func test_nextAcceptancePhrase_stopsAtFirstASCIISentenceTerminator() {
+        let cases: [(tail: String, expected: String)] = [
+            ("hello world. foo bar.", "hello world."),
+            ("how are you? fine.", "how are you?"),
+            ("stop! go back", "stop!")
+        ]
+        for (tail, expected) in cases {
+            XCTAssertEqual(SuggestionSessionReconciler.nextAcceptancePhrase(from: tail), expected, tail)
+        }
     }
 
-    func test_nextAcceptancePhrase_stopsAtFirstQuestionMark() {
-        XCTAssertEqual(
-            SuggestionSessionReconciler.nextAcceptancePhrase(from: "how are you? fine."),
-            "how are you?"
-        )
+    /// `nextAcceptanceChunk` returns leading whitespace (including newlines) with the next token, so
+    /// a newline would otherwise ride inside the following chunk; the in-chunk newline scan must cut
+    /// the phrase right after the first newline wherever it sits.
+    func test_nextAcceptancePhrase_stopsJustAfterTheFirstNewline() {
+        let cases: [(tail: String, expected: String)] = [
+            ("hello\nworld", "hello\n"),
+            ("\nworld", "\n"),
+            ("\n\nbody", "\n"),
+            ("  \n", "  \n"),
+            ("hello world\nmore", "hello world\n"),
+            // A terminator that closes the line ends the phrase first; the newline then leads the
+            // next Tab's phrase instead of being swallowed with this one.
+            ("done.\nNext", "done.")
+        ]
+        for (tail, expected) in cases {
+            XCTAssertEqual(SuggestionSessionReconciler.nextAcceptancePhrase(from: tail), expected, tail.debugDescription)
+        }
     }
 
-    func test_nextAcceptancePhrase_stopsAtFirstExclamation() {
-        XCTAssertEqual(
-            SuggestionSessionReconciler.nextAcceptancePhrase(from: "stop! go back"),
-            "stop!"
-        )
-    }
-
-    func test_nextAcceptancePhrase_stopsAtNewlineBetweenTokens() {
-        // Composition over the word chunker would otherwise carry the newline as leading whitespace
-        // into the next iteration's accumulated chunk; the in-chunk newline scan must catch it.
-        XCTAssertEqual(
-            SuggestionSessionReconciler.nextAcceptancePhrase(from: "hello\nworld"),
-            "hello\n"
-        )
-    }
-
-    func test_nextAcceptancePhrase_stopsAtLeadingNewline() {
-        XCTAssertEqual(
-            SuggestionSessionReconciler.nextAcceptancePhrase(from: "\nworld"),
-            "\n"
-        )
-    }
-
-    func test_nextAcceptancePhrase_stopsAtFirstOfMultipleNewlines() {
-        XCTAssertEqual(
-            SuggestionSessionReconciler.nextAcceptancePhrase(from: "\n\nbody"),
-            "\n"
-        )
+    /// Periods are disambiguated by `SentenceBoundaryClassifier`: list numbers, dotted initials, and
+    /// known abbreviations do not end a phrase, so a phrase accept walks on to the real sentence end.
+    func test_nextAcceptancePhrase_walksPastNonTerminalPeriods() {
+        let cases: [(tail: String, expected: String)] = [
+            ("Step 1. Open the app. Then", "Step 1. Open the app."),
+            ("e.g. this works. Next", "e.g. this works."),
+            ("Ask Dr. Smith today. Then", "Ask Dr. Smith today.")
+        ]
+        for (tail, expected) in cases {
+            XCTAssertEqual(SuggestionSessionReconciler.nextAcceptancePhrase(from: tail), expected, tail)
+        }
     }
 
     func test_nextAcceptancePhrase_includesLeadingWhitespaceUpToTerminator() {
@@ -223,15 +223,6 @@ final class SuggestionPhraseAcceptanceTests: XCTestCase {
         XCTAssertEqual(
             SuggestionSessionReconciler.nextAcceptancePhrase(from: tail, autoAcceptTrailingPunctuation: false),
             "you?"
-        )
-    }
-
-    func test_nextAcceptancePhrase_stopsAtNewlineEvenWhenPunctuationPrecedes() {
-        // The newline must win over a sentence-terminator on the same line so paragraph breaks are
-        // never accidentally skipped past.
-        XCTAssertEqual(
-            SuggestionSessionReconciler.nextAcceptancePhrase(from: "hello world\nmore"),
-            "hello world\n"
         )
     }
 

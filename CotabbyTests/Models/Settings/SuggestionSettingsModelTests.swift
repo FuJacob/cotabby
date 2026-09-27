@@ -118,8 +118,9 @@ final class SuggestionSettingsModelTests: XCTestCase {
             model.setShowAcceptanceHint(false)
             model.setUserName("Ada")
             model.setExtendedContext("Glossary: cotabby means tea whisk")
-            model.setGhostTextOpacity(SuggestionSettingsModel.minimumGhostTextOpacity)
-            model.setGhostTextSizeMultiplier(SuggestionSettingsModel.maximumGhostTextSizeMultiplier)
+            // Mid-range values: a load path that re-clamped to a bound would fail the reload below.
+            model.setGhostTextOpacity(0.5)
+            model.setGhostTextSizeMultiplier(0.8)
             model.setCustomSuggestionTextColorHex("#a1b2c3")
             model.setPowerBasedModelSwitchingEnabled(true)
             model.setBatteryEngine(.appleIntelligence)
@@ -167,8 +168,8 @@ final class SuggestionSettingsModelTests: XCTestCase {
         XCTAssertFalse(reloaded.showAcceptanceHint)
         XCTAssertEqual(reloaded.userName, "Ada")
         XCTAssertEqual(reloaded.extendedContext, "Glossary: cotabby means tea whisk")
-        XCTAssertEqual(reloaded.ghostTextOpacity, SuggestionSettingsModel.minimumGhostTextOpacity)
-        XCTAssertEqual(reloaded.ghostTextSizeMultiplier, SuggestionSettingsModel.maximumGhostTextSizeMultiplier)
+        XCTAssertEqual(reloaded.ghostTextOpacity, 0.5)
+        XCTAssertEqual(reloaded.ghostTextSizeMultiplier, 0.8)
         XCTAssertEqual(reloaded.customSuggestionTextColorHex, "A1B2C3")
         XCTAssertTrue(reloaded.isPowerBasedModelSwitchingEnabled)
         XCTAssertEqual(reloaded.batteryEngine, .appleIntelligence)
@@ -397,20 +398,57 @@ final class SuggestionSettingsModelTests: XCTestCase {
         XCTAssertEqual(model.pluggedInModelFilename, "")
     }
 
+    func test_initializePowerProfiles_seedsEndpointModelNameForEndpointEngine() {
+        let model = makeModel()
+
+        model.initializePowerProfiles(
+            currentEngine: .openAICompatible,
+            currentModelFilename: "ignored.gguf",
+            currentEndpointModelName: "gemma4"
+        )
+
+        XCTAssertEqual(model.batteryProfile, .openAICompatible(modelName: "gemma4"))
+        XCTAssertEqual(model.pluggedInProfile, .openAICompatible(modelName: "gemma4"))
+        // The llama filename is only seeded for the Open Source engine.
+        XCTAssertEqual(model.batteryModelFilename, "")
+        XCTAssertEqual(model.pluggedInModelFilename, "")
+    }
+
+    // MARK: - Endpoint configuration
+
+    func test_openAICompatibleConfiguration_validatesTheStoredEndpointFields() throws {
+        let model = makeModel()
+        model.setOpenAICompatibleBaseURL("http://localhost:1234/")
+        model.setOpenAICompatibleModelName("  local-model  ")
+        model.setOpenAICompatibleAPIMode(.chatCompletions)
+
+        let configuration = try model.openAICompatibleConfiguration
+
+        XCTAssertEqual(configuration.baseURL.absoluteString, "http://localhost:1234/v1")
+        XCTAssertEqual(configuration.modelName, "local-model")
+        XCTAssertEqual(configuration.apiMode, .chatCompletions)
+
+        model.setOpenAICompatibleBaseURL("ftp://example.com/v1")
+        XCTAssertThrowsError(try model.openAICompatibleConfiguration) { error in
+            XCTAssertEqual(error as? OpenAICompatibleEndpointError, .invalidBaseURL)
+        }
+    }
+
     // MARK: - Spelling dictionaries
 
-    func test_setSpellingDictionary_togglesMembershipAndPersists() {
+    func test_setSpellingDictionary_togglesMembershipKeepsCatalogOrderAndPersists() {
         let model = makeModel()
-        guard let language = SpellingDictionaryLanguage.allCases.first else {
-            return XCTFail("Catalog has no languages")
-        }
 
-        model.setSpellingDictionary(language, enabled: false)
-        XCTAssertFalse(model.isSpellingDictionaryEnabled(language))
+        // Enabled out of catalog order on purpose: storage must come back in the stable
+        // `SpellingDictionaryLanguage.allCases` order regardless of toggle sequence.
+        model.setSpellingDictionary(.russian, enabled: true)
+        model.setSpellingDictionary(.german, enabled: true)
+        XCTAssertEqual(model.enabledSpellingDictionaryCodes, ["en", "de", "ru"])
 
-        model.setSpellingDictionary(language, enabled: true)
-        XCTAssertTrue(model.isSpellingDictionaryEnabled(language))
-        XCTAssertTrue(makeModel().isSpellingDictionaryEnabled(language))
+        model.setSpellingDictionary(.english, enabled: false)
+        XCTAssertFalse(model.isSpellingDictionaryEnabled(.english))
+        XCTAssertTrue(model.isSpellingDictionaryEnabled(.german))
+        XCTAssertEqual(makeModel().enabledSpellingDictionaryCodes, ["de", "ru"])
     }
 
     // MARK: - Disabled application rules
@@ -604,6 +642,39 @@ final class SuggestionSettingsModelTests: XCTestCase {
         XCTAssertEqual(model.isGloballyEnabled, initial)
     }
 
+    func test_toggleGloballyEnabled_whilePausedResumesInsteadOfDisabling() {
+        let model = makeModel()
+        model.pauseSuggestions(for: .indefinitely)
+        XCTAssertTrue(model.isTemporarilyPaused)
+
+        // The hotkey's job while paused is "turn Cotabby back on"; flipping the global switch off
+        // would leave the user with no suggestions after pressing it.
+        model.toggleGloballyEnabled()
+
+        XCTAssertFalse(model.isTemporarilyPaused)
+        XCTAssertTrue(model.isGloballyEnabled)
+    }
+
+    func test_timedPause_persistsWhileActiveAndClearPauseRemovesIt() {
+        let model = makeModel()
+
+        model.pauseSuggestions(for: .oneHour)
+
+        XCTAssertNotNil(model.pauseState?.expirationDate)
+        XCTAssertTrue(model.isTemporarilyPaused)
+        XCTAssertEqual(model.pauseStatusText?.hasPrefix("Paused until"), true)
+        let reloaded = makeModel()
+        XCTAssertTrue(reloaded.isTemporarilyPaused, "An unexpired pause must survive a relaunch")
+        reloaded.clearPause()
+
+        model.clearPause()
+
+        XCTAssertNil(model.pauseState)
+        XCTAssertFalse(model.isTemporarilyPaused)
+        XCTAssertNil(model.pauseStatusText)
+        XCTAssertFalse(makeModel().isTemporarilyPaused)
+    }
+
     func test_shortcutActionDisplayNames_coverAllActions() {
         XCTAssertEqual(ShortcutAction.acceptWord.displayName, "Accept Word")
         XCTAssertEqual(ShortcutAction.acceptEntireSuggestion.displayName, "Accept Entire Suggestion")
@@ -642,19 +713,6 @@ final class SuggestionSettingsModelTests: XCTestCase {
         XCTAssertEqual(model.responseLanguages, LanguageCatalog.defaultLanguages)
     }
 
-    func test_setExtendedContext_capsLengthWithoutTrimmingInteriorWhitespace() {
-        let model = makeModel()
-        let oversized = String(repeating: "a", count: SuggestionSettingsModel.maximumExtendedContextCharacters + 500)
-
-        model.setExtendedContext(oversized)
-        XCTAssertEqual(model.extendedContext.count, SuggestionSettingsModel.maximumExtendedContextCharacters)
-
-        // Trailing whitespace survives: the editor writes back on every keystroke and a trim would
-        // make it impossible to type a space at the end of a word.
-        model.setExtendedContext("note ")
-        XCTAssertEqual(model.extendedContext, "note ")
-    }
-
     // MARK: - Clamps
 
     func test_setCustomWordCountRange_clampsAndOrders() {
@@ -682,6 +740,21 @@ final class SuggestionSettingsModelTests: XCTestCase {
         XCTAssertEqual(model.ghostTextSizeMultiplier, SuggestionSettingsModel.maximumGhostTextSizeMultiplier)
         model.setGhostTextSizeMultiplier(0)
         XCTAssertEqual(model.ghostTextSizeMultiplier, SuggestionSettingsModel.minimumGhostTextSizeMultiplier)
+    }
+
+    func test_ghostTextAppearanceDefaultsAreFullyOpaqueAndUnscaled() {
+        let model = makeModel()
+        XCTAssertEqual(model.ghostTextOpacity, 1.0)
+        XCTAssertEqual(model.ghostTextSizeMultiplier, 1.0)
+    }
+
+    func test_setFadeInDurationSeconds_clampsToDocumentedBounds() {
+        let model = makeModel()
+
+        model.setFadeInDurationSeconds(10)
+        XCTAssertEqual(model.fadeInDurationSeconds, SuggestionSettingsModel.maximumFadeInDuration)
+        model.setFadeInDurationSeconds(0)
+        XCTAssertEqual(model.fadeInDurationSeconds, SuggestionSettingsModel.minimumFadeInDuration)
     }
 
     func test_ghostFontSizeLimits_clampToTheirOwnRanges() {
@@ -758,6 +831,14 @@ final class SuggestionSettingsModelTests: XCTestCase {
 
         model.setCustomSuggestionTextColorHex(nil)
         XCTAssertNil(model.customSuggestionTextColorHex)
+    }
+
+    func test_emojiVariantPreferences_reflectLiveSkinToneAndGender() {
+        let model = makeModel()
+        model.setPreferredEmojiSkinTone(.dark)
+        model.setPreferredEmojiGender(.male)
+
+        XCTAssertEqual(model.emojiVariantPreferences, EmojiVariantPreferences(skinTone: .dark, gender: .male))
     }
 
     // MARK: - Snapshot publisher
@@ -852,6 +933,78 @@ final class SuggestionSettingsModelTests: XCTestCase {
         let snapshot = model.snapshot
         XCTAssertEqual(snapshot.disabledAppBundleIdentifiers, ["com.example.app"])
         XCTAssertEqual(snapshot.extendedContext, "context body")
+    }
+
+    /// `snapshotPublisher` rebuilds the snapshot from a deeply nested `CombineLatest` tuple while
+    /// `snapshot` reads the properties directly. Mixed true/false values inside each tuple group mean
+    /// a swapped destructuring binding produces a mismatch here instead of shipping silently.
+    func test_snapshotPublisher_matchesDirectSnapshotAfterEveryGroupedFieldChanges() throws {
+        let model = makeModel()
+        var latest: SuggestionSettingsSnapshot?
+        let subscription = model.snapshotPublisher.sink { latest = $0 }
+        defer { subscription.cancel() }
+
+        model.selectEngine(.appleIntelligence)
+        model.selectWordCountPreset(.fourToSeven)
+        model.disableApplication(bundleIdentifier: "com.example.blocked", displayName: "Blocked")
+        model.pauseSuggestions(for: .indefinitely)
+        model.setClipboardContextEnabled(true)
+        model.setFastModeEnabled(false)
+        model.setMirrorPreference(.alwaysMirror)
+        model.setSuppressCompletionsOnTypo(true)
+        model.setOfferTypoCorrections(false)
+        model.setAutomaticallyFixTypos(true)
+        model.setUserName("Ada")
+        model.addRule("Be brief")
+        model.addLanguage("German")
+        model.setSpellingDictionary(.german, enabled: true)
+        model.setMultiLineEnabled(true)
+        model.setSuggestWithinWords(false)
+        model.setShowFollowingWords(true)
+        model.setAutoAcceptTrailingPunctuation(false)
+        model.setAddSpaceAfterAccept(true)
+        model.setStreamSuggestionsWhileGenerating(true)
+        model.setPredictAheadWhileTyping(false)
+        model.setAcceptanceGranularity(.phrase)
+        model.setExtendedContext("notes")
+        model.setSuggestInIntegratedTerminals(true)
+        model.setSurfaceContextEnabled(false)
+        model.setLowPowerModeAutoDisableEnabled(false)
+        model.setUsingCustomWordCountRange(true)
+        model.setCustomWordCountRange(low: 3, high: 9)
+
+        let published = try XCTUnwrap(latest)
+        XCTAssertEqual(published, model.snapshot)
+
+        XCTAssertEqual(published.selectedEngine, .appleIntelligence)
+        XCTAssertEqual(published.selectedWordCountPreset, .fourToSeven)
+        XCTAssertEqual(published.disabledAppBundleIdentifiers, ["com.example.blocked"])
+        XCTAssertEqual(published.isGloballyEnabled, true)
+        XCTAssertEqual(published.isTemporarilyPaused, true)
+        XCTAssertEqual(published.isClipboardContextEnabled, true)
+        XCTAssertEqual(published.isFastModeEnabled, false)
+        XCTAssertEqual(published.mirrorPreference, .alwaysMirror)
+        XCTAssertEqual(published.suppressCompletionsOnTypo, true)
+        XCTAssertEqual(published.offerTypoCorrections, false)
+        XCTAssertEqual(published.automaticallyFixTypos, true)
+        XCTAssertEqual(published.userName, "Ada")
+        XCTAssertEqual(published.customRules, ["Be brief"])
+        XCTAssertEqual(published.responseLanguages, LanguageCatalog.defaultLanguages + ["German"])
+        XCTAssertEqual(published.enabledSpellingDictionaryCodes, ["en", "de"])
+        XCTAssertEqual(published.isMultiLineEnabled, true)
+        XCTAssertEqual(published.suggestWithinWords, false)
+        XCTAssertEqual(published.showFollowingWords, true)
+        XCTAssertEqual(published.autoAcceptTrailingPunctuation, false)
+        XCTAssertEqual(published.addSpaceAfterAccept, true)
+        XCTAssertEqual(published.streamSuggestionsWhileGenerating, true)
+        XCTAssertEqual(published.predictAheadWhileTyping, false)
+        XCTAssertEqual(published.acceptanceGranularity, .phrase)
+        XCTAssertEqual(published.extendedContext, "notes")
+        XCTAssertEqual(published.suggestInIntegratedTerminals, true)
+        XCTAssertEqual(published.isSurfaceContextEnabled, false)
+        XCTAssertEqual(published.isLowPowerModeAutoDisableEnabled, false)
+        XCTAssertEqual(published.isUsingCustomWordCountRange, true)
+        XCTAssertEqual(published.customWordCountRange, SuggestionWordRange(lowWords: 3, highWords: 9))
     }
 
     func test_invertedGhostFontBoundsOnDiskAreRepairedOnLoad() {

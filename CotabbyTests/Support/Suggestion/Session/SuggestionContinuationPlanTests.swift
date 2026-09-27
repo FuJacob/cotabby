@@ -32,6 +32,19 @@ final class SuggestionContinuationPlanTests: XCTestCase {
         XCTAssertEqual(plan.continuation(from: "the package"), "the package")
     }
 
+    func testTargetEndingInSpaceTrimsOnlyLeadingSpacesAndHasNoJoiningVariant() throws {
+        let source = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Please recieve ")
+        let plan = try XCTUnwrap(SuggestionContinuationPlan.correcting(
+            .init(deletingUTF16Count: 8, replacementText: "receive "), in: source
+        ))
+        XCTAssertEqual(plan.targetSnapshot.precedingText, "Please receive ")
+        XCTAssertEqual(plan.continuation(from: "   the"), "the")
+        XCTAssertEqual(plan.continuation(from: "\nNext"), "\nNext", "a model newline is structure, not a doubled space")
+        // With no virtual separator there is no second acceptable target shape.
+        XCTAssertFalse(plan.matchesTargetWithJoiningSeparator(plan.targetSnapshot))
+        XCTAssertTrue(plan.matchesTarget(plan.targetSnapshot))
+    }
+
     func testVirtualBoundaryPreservesMultilineAndRejectsEmptyContinuation() throws {
         let source = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Please schedu")
         let plan = try XCTUnwrap(SuggestionContinuationPlan.completing("le", in: source))

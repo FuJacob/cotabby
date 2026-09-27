@@ -1,6 +1,8 @@
 import XCTest
 @testable import Cotabby
 
+/// Locks the single-use download delegate's preflight state machine and its progress reporting.
+/// URLSession callbacks are invoked directly against a never-resumed task, so no network is used.
 final class ModelDownloadSessionDelegateTests: XCTestCase {
     func test_cancelBeforeDownloadPreventsTheRequestFromStarting() async {
         let delegate = ModelDownloadSessionDelegate { _ in }
@@ -50,5 +52,41 @@ final class ModelDownloadSessionDelegateTests: XCTestCase {
         } catch {
             XCTFail("Unexpected second-attempt error: \(error)")
         }
+    }
+
+    /// Progress is a fraction only when the server declared a length; an unknown length reports
+    /// nil so the UI shows an indeterminate bar instead of a bogus percentage.
+    func test_progressCallbacks_reportFractionsOnlyForKnownLengths() {
+        let recorder = ProgressRecorder()
+        let delegate = ModelDownloadSessionDelegate { recorder.append($0) }
+        let session = URLSession(configuration: .ephemeral)
+        defer { session.invalidateAndCancel() }
+        let task = session.downloadTask(with: URL(string: "https://example.invalid/model.gguf")!)
+
+        delegate.urlSession(session, downloadTask: task, didWriteData: 25, totalBytesWritten: 25, totalBytesExpectedToWrite: 100)
+        delegate.urlSession(
+            session,
+            downloadTask: task,
+            didWriteData: 10,
+            totalBytesWritten: 35,
+            totalBytesExpectedToWrite: NSURLSessionTransferSizeUnknown
+        )
+        delegate.urlSession(session, downloadTask: task, didResumeAtOffset: 50, expectedTotalBytes: 200)
+        delegate.urlSession(session, downloadTask: task, didResumeAtOffset: 50, expectedTotalBytes: 0)
+
+        XCTAssertEqual(recorder.values, [0.25, nil, 0.25, nil])
+    }
+}
+
+private final class ProgressRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage: [Double?] = []
+
+    var values: [Double?] {
+        lock.withLock { storage }
+    }
+
+    func append(_ value: Double?) {
+        lock.withLock { storage.append(value) }
     }
 }

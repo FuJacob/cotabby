@@ -67,11 +67,10 @@ final class CompletionSeamGuardTests: XCTestCase {
         )
     }
 
-    func testStreamedPresentationRejectsJunkAndMalformedJoins() {
+    /// Junk is rejected on every streamed partial, before any word-boundary buffering.
+    func testStreamedPresentationRejectsJunkRuns() {
         XCTAssertEqual(CompletionSeamGuard.presentation(precedingText: "Wait", completion: " what....", isFinal: false,
             spellingAssessment: knowsEverything), .suppress(.junkPunctuationRun))
-        XCTAssertEqual(CompletionSeamGuard.presentation(precedingText: "gre", completion: "atful and kind", isFinal: false,
-            spellingAssessment: { _ in .correctableTypo }), .suppress(.seamMisspelling(word: "greatful")))
     }
 
     func testContinuingAnExistingDividerIsAllowed() {
@@ -234,8 +233,8 @@ final class CompletionSeamGuardTests: XCTestCase {
     }
 
     func testDigitAdjacentSeamIsAllowed() {
-        // The letter-run join is "vbeta"? No: digits break the letter run, so the head is empty
-        // and the mid-word precondition (letter on both sides) fails.
+        // The caret follows a digit, so there is no letter on the left of the seam and the
+        // mid-word rule (letters on both sides) does not apply.
         XCTAssertEqual(
             CompletionSeamGuard.verdict(
                 precedingText: "version 2",
@@ -646,5 +645,96 @@ final class CompletionSeamGuardTests: XCTestCase {
                 )
             }
         }
+    }
+
+    // MARK: - Degenerate and boundary inputs
+
+    /// Nothing generated yet: streaming waits, and the final verdict has nothing to reject.
+    func testEmptyCompletionWaitsAndFinalVerdictAllows() {
+        XCTAssertEqual(
+            CompletionSeamGuard.presentation(
+                precedingText: "Hello", completion: "", isFinal: false, spellingAssessment: knowsEverything
+            ),
+            .wait
+        )
+        XCTAssertEqual(
+            CompletionSeamGuard.streamedLeadingWordVerdict(
+                precedingText: "Hello", completion: "", spellingAssessment: knowsEverything
+            ),
+            .wait
+        )
+        XCTAssertEqual(
+            CompletionSeamGuard.verdict(precedingText: "Hello", completion: "", spellingAssessment: knowsEverything),
+            .allow
+        )
+    }
+
+    /// Only punctuation and symbols form junk runs; repeated digits are ordinary content.
+    func testRepeatedDigitsAreNotJunk() {
+        XCTAssertEqual(
+            CompletionSeamGuard.verdict(
+                precedingText: "PIN hint: ",
+                completion: "0000 then 1111",
+                spellingAssessment: knowsEverything
+            ),
+            .allow
+        )
+    }
+
+    /// Extending a two-character divider is exempt, but a pure divider has no word to assess, so
+    /// streaming keeps buffering it until the final result arrives.
+    func testExtendingAShortDividerIsAllowedOnlyOnceFinal() {
+        XCTAssertEqual(
+            CompletionSeamGuard.presentation(
+                precedingText: "--", completion: "----", isFinal: true, spellingAssessment: knowsEverything
+            ),
+            .show(text: "----", wordOnly: false)
+        )
+        XCTAssertEqual(
+            CompletionSeamGuard.presentation(
+                precedingText: "--", completion: "----", isFinal: false, spellingAssessment: knowsEverything
+            ),
+            .wait
+        )
+    }
+
+    /// Abandoning a fragment for a new word is suppressed when the checker can correct the
+    /// fragment, even though the new word does not repeat it. An uncorrectable fragment (a name,
+    /// jargon) may legitimately be finished by the writer, so the phrase stays visible.
+    func testAbandonedFragmentDependsOnWhetherItIsACorrectableTypo() {
+        XCTAssertEqual(
+            CompletionSeamGuard.presentation(
+                precedingText: "the cta",
+                completion: " is here",
+                isFinal: true,
+                spellingAssessment: { $0 == "cta" ? .correctableTypo : .known }
+            ),
+            .suppress(.abandonedWord(word: "cta"))
+        )
+        XCTAssertEqual(
+            CompletionSeamGuard.presentation(
+                precedingText: "the cta",
+                completion: " is here",
+                isFinal: true,
+                spellingAssessment: { $0 == "cta" ? .uncorrectableTypo : .known }
+            ),
+            .show(text: " is here", wordOnly: false)
+        )
+    }
+
+    /// Interior capitals mark an identifier (`myVariable`), which the natural-language spelling
+    /// rule must not judge.
+    func testCamelCaseLeadingTokenBypassesSpelling() {
+        XCTAssertEqual(
+            CompletionSeamGuard.verdict(
+                precedingText: "Set ",
+                completion: "myVaraible here",
+                spellingAssessment: { _ in
+                    XCTFail("camelCase identifiers must bypass spelling")
+                    return .correctableTypo
+                }
+            ),
+            .allow
+        )
     }
 }

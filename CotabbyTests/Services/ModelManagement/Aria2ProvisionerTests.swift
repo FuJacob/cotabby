@@ -1,6 +1,9 @@
 import XCTest
 @testable import Cotabby
 
+/// Locks the aria2 provisioning contract: reuse an existing binary, install through Homebrew at
+/// most once for concurrent callers, and translate every failure into a URLSession fallback
+/// reason. Installers and Homebrew are injected or impersonated by shell scripts.
 final class Aria2ProvisionerTests: XCTestCase {
     func test_aria2ProvisioningError_errorDescription() {
         XCTAssertEqual(
@@ -59,22 +62,50 @@ final class Aria2ProvisionerTests: XCTestCase {
         XCTAssertEqual(url.path, "/opt/homebrew/bin/aria2c")
     }
 
-    func test_provisioner_reportsFailedInstallWhenExecutableIsStillMissing() async {
+    /// Both a non-zero Homebrew exit and a "successful" install that still leaves no aria2c on
+    /// disk must be reported as `installFailed`, never as a usable executable URL.
+    func test_provisioner_reportsFailedInstallForFailedOrIneffectiveInstaller() async {
         let brewURL = URL(fileURLWithPath: "/mock/bin/brew")
+        for installerSucceeded in [false, true] {
+            let provisioner = Aria2Provisioner(
+                fileManager: StubExecutableFileManager(),
+                brewLocator: { brewURL },
+                installer: { _ in installerSucceeded }
+            )
+
+            do {
+                _ = try await provisioner.provisionIfNeeded()
+                XCTFail("Expected install-failed error (installer returned \(installerSucceeded))")
+            } catch let error as Aria2ProvisioningError {
+                XCTAssertEqual(error, .installFailed)
+            } catch {
+                XCTFail("Unexpected error: \(error)")
+            }
+        }
+    }
+
+    func test_provisioner_propagatesInstallerErrorsAndPassesTheBrewURL() async {
+        struct InstallerBoom: Error {}
+        let brewURL = URL(fileURLWithPath: "/mock/bin/brew")
+        let receivedBrewPaths = LockedStrings()
         let provisioner = Aria2Provisioner(
             fileManager: StubExecutableFileManager(),
             brewLocator: { brewURL },
-            installer: { _ in true }
+            installer: { url in
+                receivedBrewPaths.append(url.path)
+                throw InstallerBoom()
+            }
         )
 
         do {
             _ = try await provisioner.provisionIfNeeded()
-            XCTFail("Expected install-failed error")
-        } catch let error as Aria2ProvisioningError {
-            XCTAssertEqual(error, .installFailed)
+            XCTFail("Expected the installer error")
+        } catch is InstallerBoom {
+            // Expected: the manager treats any provisioning error as "use URLSession".
         } catch {
             XCTFail("Unexpected error: \(error)")
         }
+        XCTAssertEqual(receivedBrewPaths.values, ["/mock/bin/brew"])
     }
 
     func test_provisioner_keepsSharedInstallAliveWhenOneCallerCancels() async throws {
@@ -228,5 +259,18 @@ private final class LockedCounter: @unchecked Sendable {
         lock.withLock {
             count += 1
         }
+    }
+}
+
+private final class LockedStrings: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage: [String] = []
+
+    var values: [String] {
+        lock.withLock { storage }
+    }
+
+    func append(_ value: String) {
+        lock.withLock { storage.append(value) }
     }
 }

@@ -17,8 +17,16 @@ final class PhrasePredictionScoringTests: XCTestCase {
         XCTAssertThrowsError(try PhrasePredictionReplayPlan.shards(phraseCount: 0, workers: 3))
         XCTAssertThrowsError(try PhrasePredictionReplayPlan.shards(phraseCount: 1337, workers: 0))
         XCTAssertThrowsError(try PhrasePredictionReplayPlan.shards(phraseCount: 1337, workers: 4))
+        XCTAssertEqual(try PhrasePredictionReplayPlan.shards(phraseCount: 5, workers: 2), [[0, 2, 4], [1, 3]])
+        XCTAssertEqual(try PhrasePredictionReplayPlan.shards(phraseCount: 2, workers: 3), [[0], [1]])
+    }
+
+    func testPairedConditionOrderAlternatesByGlobalPhraseIndex() {
+        XCTAssertEqual(PhrasePredictionReplayPlan.conditions(at: 0, mode: .paired), [.none, .screen])
         // Phrase 3 is the second item in worker 0's shard. Its global parity must stay odd.
         XCTAssertEqual(PhrasePredictionReplayPlan.conditions(at: 3, mode: .paired), [.screen, .none])
+        XCTAssertEqual(PhrasePredictionReplayPlan.conditions(at: 1, mode: .none), [.none])
+        XCTAssertEqual(PhrasePredictionReplayPlan.conditions(at: 1, mode: .screen), [.screen])
     }
 
     func testParallelCompletionOrderRestoresSerialIdentityInBothCheckpointModes() throws {
@@ -75,9 +83,39 @@ final class PhrasePredictionScoringTests: XCTestCase {
         }
     }
 
+    func testSmallWellFormedCorpusPassesNonCanonicalValidationOnly() {
+        let small = corpus(validPhrases())
+        XCTAssertNoThrow(try small.validate(canonical: false))
+        assertInvalid(small, canonical: true, "Expected exactly 1337 phrases")
+    }
+
     func testInvalidCorpusFailsInsteadOfChangingDenominators() {
-        let corpus = PhrasePredictionCorpus(version: 1, language: "en", provenance: "test", phrases: [phrase()])
-        XCTAssertThrowsError(try corpus.validate())
+        let valid = validPhrases()
+        assertInvalid(PhrasePredictionCorpus(version: 1, language: "en", provenance: "test", phrases: valid),
+                      "Unsupported corpus version or language")
+        assertInvalid(PhrasePredictionCorpus(version: 2, language: "fr", provenance: "test", phrases: valid),
+                      "Unsupported corpus version or language")
+        assertInvalid(PhrasePredictionCorpus(version: 2, language: "en", provenance: "", phrases: valid),
+                      "Corpus provenance is required")
+        assertInvalid(corpus([]), "Empty corpus")
+        assertInvalid(corpus([valid[0], scenePhrase(id: valid[0].id, text: "Another distinct sentence here.")]),
+                      "Duplicate phrase IDs")
+        // Text duplicates are detected after case folding and trimming.
+        assertInvalid(corpus([valid[0], scenePhrase(id: "work-2", text: "PLEASE SEND IT.")]), "Duplicate phrase text")
+        assertInvalid(corpus([scenePhrase(id: "sports-1", category: "sports", text: "Please send it.")]),
+                      "Unexpected categories")
+        let sharedScreen = scenePhrase(id: "work-2", text: "Another distinct sentence here.", screen: valid[0].scenario?.screenText ?? "")
+        assertInvalid(corpus([valid[0], sharedScreen]), "Each phrase needs its own screen context")
+        assertInvalid(corpus([scenePhrase(text: " Please send it.")]), "Untrimmed phrase")
+        assertInvalid(corpus([scenePhrase(text: "Send it.")]), "Phrase needs at least three words")
+        assertInvalid(corpus([scenePhrase(screen: "Too short to be a screen.")]), "Screen context outside fixture bounds")
+    }
+
+    func testCorpusRejectsAReferencePhraseVisibleOnScreen() {
+        // Leak detection compares folded words, so case and punctuation cannot hide the answer.
+        let leaked = scenePhrase(id: "work-1", text: "Please send it.",
+                                 screen: "Morgan wrote: PLEASE send it, thanks for all of your help today.")
+        assertInvalid(corpus([leaked]), "Complete reference phrase leaked into context: work-1")
     }
 
     func testWordReplayContainsOnlyPreviouslyTypedText() {
@@ -93,6 +131,17 @@ final class PhrasePredictionScoringTests: XCTestCase {
         XCTAssertEqual(checkpoints.map(\.prefix), ["A ", "A c", "A ca", "A cat ", "A cat n", "A cat na", "A cat nap"])
         XCTAssertEqual(checkpoints.map(\.typedWordPrefix), ["", "c", "ca", "", "n", "na", "nap"])
         XCTAssertEqual(checkpoints.filter { $0.typedCharacters == 0 }.count, 2)
+    }
+
+    func testCharacterReplayStepsByGraphemeNotScalar() {
+        let checkpoints = PhrasePredictionScorer.checkpoints(for: phrase("A cafe\u{301}"), mode: .character)
+        XCTAssertEqual(checkpoints.map(\.typedWordPrefix), ["", "c", "ca", "caf"])
+        XCTAssertEqual(checkpoints.map(\.expectedWord), Array(repeating: "cafe\u{301}", count: 4))
+    }
+
+    func testSingleWordPhraseHasNoScoredCheckpoints() {
+        XCTAssertTrue(PhrasePredictionScorer.checkpoints(for: phrase("Hello."), mode: .word).isEmpty)
+        XCTAssertTrue(PhrasePredictionScorer.checkpoints(for: phrase("Hello."), mode: .character).isEmpty)
     }
 
     func testExactFirstWordIgnoresCaseAndTerminalPunctuationButNotOtherWords() {
@@ -111,6 +160,21 @@ final class PhrasePredictionScoringTests: XCTestCase {
         for wrong in [" ule", "ul", "schedule", "ules", "ule's", "\nule", ".ule"] {
             XCTAssertFalse(PhrasePredictionScorer.isCorrect(shown: wrong, at: point), wrong)
         }
+    }
+
+    func testPredictedWordJoinsAtTheCaretAndPreservesCase() {
+        XCTAssertEqual(PhrasePredictionScorer.predictedWord(shown: "ule for", at: checkpoint(expected: "schedule", typed: "sched")), "schedule")
+        XCTAssertEqual(PhrasePredictionScorer.predictedWord(shown: " CAT, sleeping", at: checkpoint()), "CAT")
+        XCTAssertNil(PhrasePredictionScorer.predictedWord(shown: nil, at: checkpoint()))
+        XCTAssertNil(PhrasePredictionScorer.predictedWord(shown: " \n ", at: checkpoint()))
+        // A trailing curly apostrophe means the word continues past the shown text.
+        XCTAssertNil(PhrasePredictionScorer.predictedWord(shown: "cat\u{2019}", at: checkpoint()))
+    }
+
+    func testWordRangesSkipSymbolsAndKeepSpaceFreeScriptsTogether() {
+        let text = "hi 👋 there, state-of-the-art don\u{2019}t --dash 東京に行く"
+        let words = PhrasePredictionScorer.wordRanges(in: text).map { String(text[$0]) }
+        XCTAssertEqual(words, ["hi", "there", "state-of-the-art", "don\u{2019}t", "dash", "東京に行く"])
     }
 
     func testContractionsHyphensNumbersAndUnicodeRemainWholeWords() {
@@ -140,9 +204,29 @@ final class PhrasePredictionScoringTests: XCTestCase {
         XCTAssertNil(PhrasePredictionMetrics([observation(nil)]).precisionWhenShown)
     }
 
+    func testErroredObservationIsShownButNeverCorrect() {
+        let errored = observation("cat", error: "decode failed")
+        XCTAssertEqual(errored.predictedWord, "cat")
+        XCTAssertTrue(errored.wasShown)
+        XCTAssertFalse(errored.correct)
+        XCTAssertFalse(observation("  ").wasShown)
+    }
+
+    func testMetricLatencyUsesCeilingNearestRankAndSkipsErrors() {
+        let metrics = PhrasePredictionMetrics(
+            [400.0, 100, 300, 200].map { observation("cat", latency: $0) } + [observation(nil, latency: 999, error: "x")]
+        )
+        // Nearest rank: ceil(4 * 0.5) = 2nd sample, ceil(4 * 0.95) = 4th sample.
+        XCTAssertEqual(metrics.latencyP50Milliseconds, 200)
+        XCTAssertEqual(metrics.latencyP95Milliseconds, 400)
+        XCTAssertEqual(metrics.errors, 1)
+    }
+
     func testEmptyMetricsAndUnavailableLatenciesAreNotInventedZeros() {
         let empty = PhrasePredictionMetrics([])
         XCTAssertNil(empty.accuracy)
+        XCTAssertNil(empty.coverage)
+        XCTAssertNil(empty.precisionWhenShown)
         XCTAssertNil(empty.latencyP50Milliseconds)
         let gated = PhrasePredictionObservation(checkpoint: checkpoint(), raw: "", shown: nil,
                                               suppression: "pre-generation-gate", latencyMilliseconds: 0, error: nil)
@@ -172,6 +256,19 @@ final class PhrasePredictionScoringTests: XCTestCase {
         XCTAssertTrue(decoded.rendered().contains("25.00%"))
     }
 
+    func testEmptyReportRendersUnavailableScoresAsNA() {
+        let report = PhrasePredictionReport(metadata: metadata(), phrases: [])
+        XCTAssertEqual(report.primaryCondition, PhrasePredictionScorer.ContextCondition.none)
+        XCTAssertNil(report.meanCategoryNextWordAccuracy)
+        XCTAssertNil(report.contextLift)
+        XCTAssertEqual(report.errorCount, 0)
+        XCTAssertEqual(report.rendered().components(separatedBy: "\n"), [
+            "SUITE (none): 0 phrases, next-word n/a (0/0), coverage n/a, precision n/a",
+            "Equal-category next-word score: n/a",
+            "All character checkpoints: n/a (separate from next-word score)"
+        ])
+    }
+
     func testPairedContextScoresDoNotMixDenominatorsAndRetainRegressions() throws {
         let other = PhrasePredictionCorpus.Phrase(id: "b", category: "science", text: "The cat sleeps.")
         let results = [
@@ -192,6 +289,17 @@ final class PhrasePredictionScoringTests: XCTestCase {
         XCTAssertEqual(lift.improvedCheckpoints, 2)
         XCTAssertEqual(lift.regressedCheckpoints, 1)
         XCTAssertEqual(report.primaryCondition, .screen)
+        XCTAssertEqual(report.rendered().components(separatedBy: "\n"), [
+            "SUITE (screen): 2 phrases, next-word 66.67% (2/3), coverage 66.67%, precision 100.00%",
+            "Equal-category next-word score: 75.00%",
+            "conversation: 1 phrases, next-word 50.00% (1/2), coverage 50.00%, precision 100.00%",
+            "science: 1 phrases, next-word 100.00% (1/1), coverage 100.00%, precision 100.00%",
+            "All character checkpoints: 66.67% (separate from next-word score)",
+            "WITHOUT SCREEN: 2 phrases, next-word 33.33% (1/3), coverage 33.33%, precision 100.00%",
+            "Screen-context lift: +33.33 percentage points; helped 2, harmed 1 word checkpoints",
+            "  conversation lift +0.00 pp",
+            "  science lift +100.00 pp"
+        ])
     }
 
     func testUnpairedOrMismatchedCheckpointsHaveNoContextLift() {
@@ -203,6 +311,45 @@ final class PhrasePredictionScoringTests: XCTestCase {
 
     private func phrase(_ text: String = "The cat naps.") -> PhrasePredictionCorpus.Phrase {
         .init(id: "a", category: "conversation", text: text)
+    }
+
+    /// A phrase that satisfies every per-phrase validation rule unless a test overrides one field.
+    private func scenePhrase(
+        id: String = "work-1",
+        category: String = "work",
+        text: String = "Please send it.",
+        screen: String = "Morgan: the quarterly figures are finally ready for review."
+    ) -> PhrasePredictionCorpus.Phrase {
+        .init(id: id, category: category, text: text, scenario: .init(
+            kind: "chat", applicationName: "Messages", bundleIdentifier: "com.apple.MobileSMS",
+            windowTitle: "Morgan", fieldPlaceholder: "Message", documentPrefix: "", screenText: screen
+        ))
+    }
+
+    private func validPhrases() -> [PhrasePredictionCorpus.Phrase] {
+        [
+            scenePhrase(),
+            scenePhrase(id: "travel-1", category: "travel", text: "The train leaves early.",
+                        screen: "Itinerary: platform four, departure listed on the board.")
+        ]
+    }
+
+    private func corpus(_ phrases: [PhrasePredictionCorpus.Phrase]) -> PhrasePredictionCorpus {
+        .init(version: 2, language: "en", provenance: "unit test", phrases: phrases)
+    }
+
+    /// Asserts the specific rule that rejected the corpus, so a test cannot pass because an
+    /// earlier, unrelated check happened to throw first.
+    private func assertInvalid(
+        _ corpus: PhrasePredictionCorpus,
+        canonical: Bool = false,
+        _ expected: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        XCTAssertThrowsError(try corpus.validate(canonical: canonical), file: file, line: line) { error in
+            XCTAssertEqual((error as? LocalizedError)?.errorDescription, expected, file: file, line: line)
+        }
     }
 
     private func checkpoint(expected: String = "cat", typed: String = "") -> PhrasePredictionScorer.Checkpoint {

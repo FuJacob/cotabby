@@ -395,12 +395,8 @@ final class SuggestionCoordinatorTypingPredictionTests: XCTestCase {
     }
 
     private func publish(_ text: String, trailingText: String = "", sequence: UInt64 = 1, in rig: CoordinatorRig) {
-        let raw = CotabbyTestFixtures.focusedInputSnapshot(precedingText: text, trailingText: trailingText,
-                                                           focusChangeSequence: sequence)
-        let snapshot = FocusSnapshot(applicationName: raw.applicationName, bundleIdentifier: raw.bundleIdentifier,
-                                     capability: .supported, context: raw)
-        rig.focusProvider.snapshot = snapshot
-        rig.focusProvider.snapshotSubject.send(snapshot)
+        publish(CotabbyTestFixtures.focusedInputSnapshot(precedingText: text, trailingText: trailingText,
+                                                         focusChangeSequence: sequence), in: rig)
     }
 }
 

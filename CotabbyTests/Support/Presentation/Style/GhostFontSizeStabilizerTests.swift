@@ -2,6 +2,8 @@ import CoreGraphics
 import XCTest
 @testable import Cotabby
 
+/// Tests for the per-session caret-height floor: imprecise readings clamp to the session minimum,
+/// precise readings re-baseline immediately, and a new focus session starts over.
 final class GhostFontSizeStabilizerTests: XCTestCase {
 
     func test_firstReadingEstablishesBaseline() {
@@ -27,24 +29,29 @@ final class GhostFontSizeStabilizerTests: XCTestCase {
     func test_sessionChangeResetsBaseline() {
         var stabilizer = GhostFontSizeStabilizer()
         _ = stabilizer.stabilizedCaretHeight(16, isPreciseMeasurement: false, focusSessionKey: 1)
-        // Switching fields must not pin a tall field to the previous field's short line height.
+        // Switching fields (or leaving and re-entering one, which bumps the key) must not pin a tall
+        // field to the previous session's short line height, and the new reading becomes the floor.
         XCTAssertEqual(stabilizer.stabilizedCaretHeight(48, isPreciseMeasurement: false, focusSessionKey: 2), 48)
-    }
-
-    func test_reentryWithNewSessionKeyResetsEvenWhenLarger() {
-        var stabilizer = GhostFontSizeStabilizer()
-        _ = stabilizer.stabilizedCaretHeight(18, isPreciseMeasurement: false, focusSessionKey: 3)
-        _ = stabilizer.stabilizedCaretHeight(18, isPreciseMeasurement: false, focusSessionKey: 3)
-        // focusChangeSequence increments on focus loss + re-entry, so the larger reading is honored.
-        XCTAssertEqual(stabilizer.stabilizedCaretHeight(30, isPreciseMeasurement: false, focusSessionKey: 4), 30)
+        XCTAssertEqual(stabilizer.stabilizedCaretHeight(60, isPreciseMeasurement: false, focusSessionKey: 2), 48)
     }
 
     func test_nonPositiveHeightPassesThroughWithoutPoisoningCache() {
         var stabilizer = GhostFontSizeStabilizer()
         _ = stabilizer.stabilizedCaretHeight(20, isPreciseMeasurement: false, focusSessionKey: 5)
-        // A transient empty rect should not become the session minimum.
+        // A transient empty rect should not become the session minimum, whatever its sign or
+        // precision flag.
         XCTAssertEqual(stabilizer.stabilizedCaretHeight(0, isPreciseMeasurement: false, focusSessionKey: 5), 0)
-        XCTAssertEqual(stabilizer.stabilizedCaretHeight(20, isPreciseMeasurement: false, focusSessionKey: 5), 20)
+        XCTAssertEqual(stabilizer.stabilizedCaretHeight(-4, isPreciseMeasurement: true, focusSessionKey: 5), -4)
+        XCTAssertEqual(stabilizer.stabilizedCaretHeight(30, isPreciseMeasurement: false, focusSessionKey: 5), 20)
+    }
+
+    func test_nonPositiveHeightUnderANewKeyDoesNotStartANewSession() {
+        // The pass-through happens before the session check, so an empty reading carrying a new
+        // key leaves the old session (and its 20pt minimum) in place.
+        var stabilizer = GhostFontSizeStabilizer()
+        _ = stabilizer.stabilizedCaretHeight(20, isPreciseMeasurement: false, focusSessionKey: 1)
+        XCTAssertEqual(stabilizer.stabilizedCaretHeight(0, isPreciseMeasurement: false, focusSessionKey: 2), 0)
+        XCTAssertEqual(stabilizer.stabilizedCaretHeight(30, isPreciseMeasurement: false, focusSessionKey: 1), 20)
     }
 
     func test_genuinelyLargeFieldStaysLarge() {
@@ -75,11 +82,5 @@ final class GhostFontSizeStabilizerTests: XCTestCase {
         // A coarse AXFrame fallback afterwards is still clamped — but to the *current* truth (28),
         // not the stale 17, so the flicker protection survives without the ratchet.
         XCTAssertEqual(stabilizer.stabilizedCaretHeight(400, isPreciseMeasurement: false, focusSessionKey: 1), 28)
-    }
-
-    func test_impreciseReadingStillClampsToMinimum() {
-        var stabilizer = GhostFontSizeStabilizer()
-        _ = stabilizer.stabilizedCaretHeight(18, isPreciseMeasurement: false, focusSessionKey: 1)
-        XCTAssertEqual(stabilizer.stabilizedCaretHeight(846, isPreciseMeasurement: false, focusSessionKey: 1), 18)
     }
 }

@@ -1,7 +1,8 @@
 import XCTest
 @testable import Cotabby
 
-/// Focused coverage for one responsibility of `SuggestionSessionReconciler`.
+/// Optimistic type-through: a direct keystroke that matches the predicted tail advances the session
+/// before AX publishes it, while divergent, control, or correction input never does.
 final class SuggestionSessionTypingTests: XCTestCase {
     func test_advanceIfTypedCharactersMatch_advancesMatchingDirectText() {
         let session = CotabbyTestFixtures.activeSession(fullText: " world again")
@@ -35,6 +36,30 @@ final class SuggestionSessionTypingTests: XCTestCase {
         )
 
         XCTAssertNil(advanced)
+    }
+
+    func test_advanceIfTypedCharactersMatch_rejectsControlCharactersEvenWhenTheyMatchTheTail() {
+        // Tab and Return have editor-specific meanings (focus change, submit), so a matching control
+        // key still has to go through regeneration rather than optimistic advancement.
+        let session = CotabbyTestFixtures.activeSession(fullText: "\tindented")
+        XCTAssertNil(SuggestionSessionReconciler.advanceIfTypedCharactersMatch("\t", session: session))
+    }
+
+    func test_advanceIfTypedCharactersMatch_advancesByUserCharactersAndCanExhaust() throws {
+        let session = CotabbyTestFixtures.activeSession(fullText: " 🐈 cat")
+
+        let afterEmoji = try XCTUnwrap(SuggestionSessionReconciler.advanceIfTypedCharactersMatch(" 🐈", session: session))
+        XCTAssertEqual(afterEmoji.consumedCharacterCount, 2)
+        XCTAssertEqual(afterEmoji.remainingText, " cat")
+        XCTAssertFalse(afterEmoji.isExhausted)
+
+        let exhausted = try XCTUnwrap(SuggestionSessionReconciler.advanceIfTypedCharactersMatch(" cat", session: afterEmoji))
+        XCTAssertTrue(exhausted.isExhausted)
+        XCTAssertEqual(exhausted.remainingText, "")
+        XCTAssertNil(
+            SuggestionSessionReconciler.advanceIfTypedCharactersMatch("s", session: exhausted),
+            "typing past the prediction is divergence, not advancement"
+        )
     }
 
     func test_advanceIfTypedCharactersMatch_returnsNilForEmptyInput() {
@@ -89,6 +114,7 @@ final class SuggestionSessionTypingTests: XCTestCase {
         XCTAssertEqual(advanced.remainingText, "world")
         XCTAssertEqual(advanced.predictedRemainingText, "world again")
     }
+
     func testMailTrailingSpaceRewriteKeepsTypedSuggestionTailAlive() throws {
         let session = ActiveSuggestionSession(
             baseContext: CotabbyTestFixtures.focusedInputContext(precedingText: "Hello"),
@@ -114,5 +140,4 @@ final class SuggestionSessionTypingTests: XCTestCase {
             XCTAssertEqual(reconciled.remainingText, expectedTail)
         }
     }
-
 }

@@ -2,6 +2,9 @@ import XCTest
 @testable import Cotabby
 
 /// Replays two chats with the same composer, draft and caret through the real coordinator.
+/// Identical text is not identical context: every path that could carry a suggestion across a
+/// conversation switch (visible tail, anchor cache, late result, streamed partial, speculative
+/// exemption, screen context) must retire it on the navigation signal alone.
 @MainActor
 final class SuggestionConversationIsolationTests: XCTestCase {
     func test_navigationImmediatelyRetiresVisibleSuggestionAndCachedTail() async {
@@ -55,8 +58,9 @@ final class SuggestionConversationIsolationTests: XCTestCase {
         rig.coordinator.queueStreamedPartial(SuggestionResult(
             generation: source.generation, rawText: " world", text: " world", latency: 0.01
         ), workID: rig.coordinator.currentWorkID)
-        // Drain is posted to the main queue; a short suspension lets that actual callback run.
-        try? await Task.sleep(nanoseconds: 30_000_000)
+        // The partial was accepted into the coalescing queue; wait for its real main-queue drain.
+        XCTAssertTrue(rig.coordinator.suggestionStreamingState.isDrainScheduled)
+        await waitUntil { !rig.coordinator.suggestionStreamingState.isDrainScheduled }
         XCTAssertFalse(rig.coordinator.overlayState.isVisible)
         XCTAssertNil(rig.interactionState.activeSession)
     }

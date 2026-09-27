@@ -79,6 +79,30 @@ final class TokenHealingPlanTests: XCTestCase {
         XCTAssertTrue(value.replayBytes.isEmpty)
     }
 
+    func testLastTokenHealingGuards() {
+        // Each row isolates one guard on removing the final prompt token; the word-extension pass
+        // only runs after a successful removal whose prompt ends in a letter or digit.
+        let cases: [(name: String, prompt: String, pieces: [String], singleLine: Bool, kept: [Int32], replay: String)] = [
+            // 18 bytes exceeds `maximumHealedTokenBytes` (16): nothing is removed.
+            ("oversized token", "x abcdefghijklmnopq", ["", "x", " abcdefghijklmnopq"], false, [0, 1, 2], ""),
+            // An empty (special) piece cannot be replayed byte-for-byte.
+            ("empty piece", "ab", ["", "ab", ""], false, [0, 1, 2], ""),
+            // Single-line fields never replay a newline; multi-line fields may.
+            ("single-line newline", "a\n", ["", "a", "\n"], true, [0, 1, 2], ""),
+            ("single-line carriage return", "a\r", ["", "a", "\r"], true, [0, 1, 2], ""),
+            ("multi-line newline", "a\n", ["", "a", "\n"], false, [0, 1], "\n"),
+            // Punctuation at the caret heals only that token, not the word before it.
+            ("trailing punctuation", "hello,", ["", "hello", ","], false, [0, 1], ","),
+            // Exactly at the byte limit still heals.
+            ("token at limit", "x abcdefghijklmno", ["", "x", " abcdefghijklmno"], false, [0, 1], " abcdefghijklmno")
+        ]
+        for testCase in cases {
+            let value = plan(testCase.prompt, testCase.pieces, singleLine: testCase.singleLine)
+            XCTAssertEqual(value.promptTokens, testCase.kept, testCase.name)
+            XCTAssertEqual(value.replayBytes, Array(testCase.replay.utf8), testCase.name)
+        }
+    }
+
     func testAtLeastOneConditioningTokenSurvivesWithoutBOS() {
         let value = plan("intell", ["int", "ell"])
         XCTAssertEqual(value.promptTokens, [0])

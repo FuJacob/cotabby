@@ -34,6 +34,21 @@ final class PermissionOverlayTrackerTests: XCTestCase {
         )
     }
 
+    func test_firstAppearance_presentsEvenIfVisibilityStateIsStale() {
+        // `hasPresented` alone gates the fly-in; the visibility flag cannot suppress it.
+        XCTAssertEqual(
+            PermissionOverlayTracker.transition(settingsFrame: frameA, hasPresented: false, isVisible: true, lastFrame: frameA),
+            .present
+        )
+    }
+
+    func test_visibleWithNoRecordedFrame_repositions() {
+        XCTAssertEqual(
+            PermissionOverlayTracker.transition(settingsFrame: frameA, hasPresented: true, isVisible: true, lastFrame: nil),
+            .reposition
+        )
+    }
+
     func test_alreadyParkedAtSameFrame_isNoOp() {
         XCTAssertEqual(
             PermissionOverlayTracker.transition(settingsFrame: frameA, hasPresented: true, isVisible: true, lastFrame: frameA),

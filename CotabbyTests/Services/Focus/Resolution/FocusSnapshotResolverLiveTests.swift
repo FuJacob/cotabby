@@ -163,13 +163,13 @@ final class FocusSnapshotResolverLiveTests: XCTestCase {
             application: NSRunningApplication.current
         )
 
-        // Whichever editable the candidate walk happens to find (the window owns two), the result
-        // must be deterministic in shape: either a supported editable resolved from descendants,
-        // or a structured unsupported reason; never a crash or an empty-context "supported".
+        // Whichever editable the candidate walk happens to find (the window owns a text view and a
+        // secure field), the shape must match the resolver's contract: supported and blocked
+        // snapshots always carry context (blocked keeps it for diagnostics), unsupported never does.
         switch snapshot.capability {
-        case .supported:
+        case .supported, .blocked:
             XCTAssertNotNil(snapshot.context)
-        case .blocked, .unsupported:
+        case .unsupported:
             XCTAssertNil(snapshot.context)
         }
     }

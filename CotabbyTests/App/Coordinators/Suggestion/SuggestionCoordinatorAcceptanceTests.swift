@@ -1,4 +1,3 @@
-import Combine
 import Foundation
 import XCTest
 @testable import Cotabby
@@ -7,681 +6,431 @@ import XCTest
 ///
 /// `InputMonitor` owns the physical key event, but `SuggestionCoordinator` remains the final
 /// validator for whether visible ghost text can be committed. These tests keep that boundary
-/// explicit so future state-machine edits do not accidentally reintroduce `.ready` as a hard gate.
-final class SuggestionCoordinatorAcceptanceTests: XCTestCase {
-    private static var retainedCoordinators: [SuggestionCoordinator] = []
-
-    override func tearDown() {
-        runOnMainActor {
-            Self.retainedCoordinators.removeAll()
-        }
-        super.tearDown()
+/// explicit so future state-machine edits do not accidentally reintroduce `.ready` as a hard gate,
+/// and they pin every pass-through and failure path: a `false` return hands Tab back to the host,
+/// so each one must also leave no stale ghost text or session behind.
+final class SuggestionCoordinatorAcceptanceTests: SuggestionCoordinatorRigTestCase {
+    /// A field whose single-word suggestion is exhausted by one Tab.
+    private var finalChunkSnapshot: FocusedInputSnapshot {
+        CotabbyTestFixtures.focusedInputSnapshot(precedingText: "what's on your mind")
     }
 
+    // MARK: - Gating
+
     func test_acceptCurrentSuggestionAllowsVisibleSessionWhileDebugStateIsDebouncing() {
-        runOnMainActor {
-            let snapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello")
-            let context = FocusedInputContext(snapshot: snapshot, generation: 7)
-            let interactionState = SuggestionInteractionState()
-            let session = interactionState.startSession(
-                fullText: " world again",
-                liveContext: context,
-                latency: 0.1
-            )
-            let overlayState = OverlayState.visible(
-                text: session.remainingText,
-                geometry: CotabbyTestFixtures.overlayGeometry(caretRect: context.caretRect),
-                mode: .inline
-            )
-            let inputMonitor = StubSuggestionInputMonitor()
-            let inserter = StubSuggestionInserter()
-            let coordinator = makeCoordinator(
-                snapshot: snapshot,
-                overlayState: overlayState,
-                inputMonitor: inputMonitor,
-                inserter: inserter,
-                interactionState: interactionState
-            )
-            coordinator.state = .debouncing
+        let rig = retained(makeCoordinatorRig())
+        startVisibleSession(in: rig, fullText: " world again")
+        rig.coordinator.state = .debouncing
 
-            XCTAssertTrue(
-                inputMonitor.shouldConsumeAcceptKeyProvider(),
-                "Preflight should depend on visible overlay, not `.ready`."
-            )
-            XCTAssertTrue(coordinator.acceptCurrentSuggestion())
+        XCTAssertTrue(
+            rig.inputMonitor.shouldConsumeAcceptKeyProvider(),
+            "Preflight should depend on visible overlay, not `.ready`."
+        )
+        XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
 
-            XCTAssertEqual(inserter.insertedChunks, [" world"])
-            if case let .ready(remainingText, _) = coordinator.state {
-                XCTAssertEqual(remainingText, " again")
-            } else {
-                XCTFail("Partial acceptance should leave the remaining suggestion ready.")
-            }
-        }
+        XCTAssertEqual(rig.inserter.insertedChunks, [" world"])
+        XCTAssertEqual(rig.coordinator.state, .ready(text: " again", latency: 0.05))
     }
 
     func test_acceptCurrentSuggestionPassesThroughWhileTemporarilyPaused() {
-        runOnMainActor {
-            let snapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello")
-            let context = FocusedInputContext(snapshot: snapshot, generation: 7)
-            let interactionState = SuggestionInteractionState()
-            let session = interactionState.startSession(
-                fullText: " world",
-                liveContext: context,
-                latency: 0.1
-            )
-            let inserter = StubSuggestionInserter()
-            let coordinator = makeCoordinator(
-                snapshot: snapshot,
-                overlayState: .visible(
-                    text: session.remainingText,
-                    geometry: CotabbyTestFixtures.overlayGeometry(caretRect: context.caretRect),
-                    mode: .inline
-                ),
-                inputMonitor: StubSuggestionInputMonitor(),
-                inserter: inserter,
-                interactionState: interactionState,
-                settingsSnapshot: CotabbyTestFixtures.settingsSnapshot(isTemporarilyPaused: true)
-            )
+        let rig = retained(makeCoordinatorRig(
+            settingsSnapshot: CotabbyTestFixtures.settingsSnapshot(isTemporarilyPaused: true)
+        ))
+        startVisibleSession(in: rig)
 
-            XCTAssertFalse(coordinator.acceptCurrentSuggestion())
-            XCTAssertTrue(inserter.insertedChunks.isEmpty)
-        }
+        XCTAssertFalse(rig.coordinator.acceptCurrentSuggestion())
+        XCTAssertTrue(rig.inserter.insertedChunks.isEmpty)
+        XCTAssertNil(rig.interactionState.activeSession)
+        XCTAssertEqual(rig.overlayController.hideReasons.last, "Cotabby is temporarily paused.")
     }
 
-    func test_acceptCurrentSuggestion_withAddSpaceAfterAccept_insertsTrailingSpaceOnNonFinalWord() {
-        // Full coordinator path with the setting ON and a multi-word suggestion: accepting the first
-        // word must insert the word plus the suggestion's own following space (so the toggle fires
-        // per word, not only when the suggestion is exhausted), while the tail keeps the rest.
-        runOnMainActor {
-            let snapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello")
-            let context = FocusedInputContext(snapshot: snapshot, generation: 7)
-            let interactionState = SuggestionInteractionState()
-            let session = interactionState.startSession(
-                fullText: " world how",
-                liveContext: context,
-                latency: 0.1
-            )
-            let overlayState = OverlayState.visible(
-                text: session.remainingText,
-                geometry: CotabbyTestFixtures.overlayGeometry(caretRect: context.caretRect),
-                mode: .inline
-            )
-            let inserter = StubSuggestionInserter()
-            let coordinator = makeCoordinator(
-                snapshot: snapshot,
-                overlayState: overlayState,
-                inputMonitor: StubSuggestionInputMonitor(),
-                inserter: inserter,
-                interactionState: interactionState,
-                settingsSnapshot: CotabbyTestFixtures.settingsSnapshot(addSpaceAfterAccept: true)
-            )
-            coordinator.state = .debouncing
+    func test_acceptPassesThroughAndClearsTheSessionWhenInputMonitoringIsRevoked() {
+        let rig = retained(makeCoordinatorRig())
+        startVisibleSession(in: rig)
+        rig.permissionProvider.inputMonitoringGranted = false
 
-            XCTAssertTrue(coordinator.acceptCurrentSuggestion())
+        XCTAssertFalse(rig.coordinator.acceptCurrentSuggestion())
 
-            // " world" plus the model's own following space, consumed in one accept.
-            XCTAssertEqual(inserter.insertedChunks, [" world "])
-            if case let .ready(remainingText, _) = coordinator.state {
-                XCTAssertEqual(remainingText, "how", "The consumed following space should not lead the tail.")
-            } else {
-                XCTFail("Partial acceptance should leave the remaining suggestion ready.")
-            }
-            Self.retainedCoordinators.append(coordinator)
-        }
-    }
-
-    func test_acceptCurrentSuggestion_withoutAddSpaceAfterAccept_insertsWordWithoutTrailingSpace() {
-        // Same setup with the setting OFF: byte-for-byte the prior behavior (no trailing space, the
-        // following space leads the next chunk).
-        runOnMainActor {
-            let snapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello")
-            let context = FocusedInputContext(snapshot: snapshot, generation: 7)
-            let interactionState = SuggestionInteractionState()
-            let session = interactionState.startSession(
-                fullText: " world how",
-                liveContext: context,
-                latency: 0.1
-            )
-            let overlayState = OverlayState.visible(
-                text: session.remainingText,
-                geometry: CotabbyTestFixtures.overlayGeometry(caretRect: context.caretRect),
-                mode: .inline
-            )
-            let inserter = StubSuggestionInserter()
-            let coordinator = makeCoordinator(
-                snapshot: snapshot,
-                overlayState: overlayState,
-                inputMonitor: StubSuggestionInputMonitor(),
-                inserter: inserter,
-                interactionState: interactionState,
-                settingsSnapshot: CotabbyTestFixtures.settingsSnapshot(addSpaceAfterAccept: false)
-            )
-            coordinator.state = .debouncing
-
-            XCTAssertTrue(coordinator.acceptCurrentSuggestion())
-
-            XCTAssertEqual(inserter.insertedChunks, [" world"])
-            if case let .ready(remainingText, _) = coordinator.state {
-                XCTAssertEqual(remainingText, " how")
-            } else {
-                XCTFail("Partial acceptance should leave the remaining suggestion ready.")
-            }
-            Self.retainedCoordinators.append(coordinator)
-        }
+        XCTAssertTrue(rig.inserter.insertedChunks.isEmpty)
+        XCTAssertNil(rig.interactionState.activeSession)
+        XCTAssertFalse(rig.coordinator.overlayState.isVisible)
+        XCTAssertEqual(rig.coordinator.state, .idle)
+        XCTAssertEqual(
+            rig.overlayController.hideReasons.last,
+            "Input Monitoring permission is required before Cotabby can react to typing."
+        )
     }
 
     func test_acceptCurrentSuggestionCleansVisibleOverlayWhenSessionDisappears() {
-        runOnMainActor {
-            let snapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello")
-            let context = FocusedInputContext(snapshot: snapshot, generation: 7)
-            let overlayState = OverlayState.visible(
-                text: " stale",
-                geometry: CotabbyTestFixtures.overlayGeometry(caretRect: context.caretRect),
-                mode: .inline
-            )
-            let inputMonitor = StubSuggestionInputMonitor()
-            let inserter = StubSuggestionInserter()
-            let coordinator = makeCoordinator(
-                snapshot: snapshot,
-                overlayState: overlayState,
-                inputMonitor: inputMonitor,
-                inserter: inserter,
-                interactionState: SuggestionInteractionState()
-            )
-            coordinator.state = .debouncing
+        let rig = retained(makeCoordinatorRig(
+            overlayState: .visible(text: " stale", geometry: CotabbyTestFixtures.overlayGeometry(), mode: .inline)
+        ))
+        rig.coordinator.state = .debouncing
 
-            XCTAssertTrue(
-                inputMonitor.shouldConsumeAcceptKeyProvider(),
-                "A visible stale overlay should still route the accept key into the coordinator for cleanup."
-            )
-            XCTAssertFalse(coordinator.acceptCurrentSuggestion())
+        XCTAssertTrue(
+            rig.inputMonitor.shouldConsumeAcceptKeyProvider(),
+            "A visible stale overlay should still route the accept key into the coordinator for cleanup."
+        )
+        XCTAssertFalse(rig.coordinator.acceptCurrentSuggestion())
 
-            XCTAssertTrue(inserter.insertedChunks.isEmpty)
-            XCTAssertFalse(coordinator.overlayState.isVisible)
-            XCTAssertEqual(coordinator.state, .idle)
-        }
+        XCTAssertTrue(rig.inserter.insertedChunks.isEmpty)
+        XCTAssertFalse(rig.coordinator.overlayState.isVisible)
+        XCTAssertEqual(rig.coordinator.state, .idle)
+        XCTAssertEqual(
+            rig.overlayController.hideReasons.last,
+            "Key passed through because no valid suggestion was ready."
+        )
     }
 
+    func test_acceptPreflightDeclinesTheKeyWhenNothingIsVisibleOrArmed() {
+        let rig = retained(makeCoordinatorRig())
+
+        XCTAssertFalse(
+            rig.inputMonitor.shouldConsumeAcceptKeyProvider(),
+            "With no ghost text and no post-exhaustion window, Tab belongs to the host app"
+        )
+    }
+
+    // MARK: - Word acceptance and auto-space
+
+    func test_acceptCurrentSuggestion_withAddSpaceAfterAccept_insertsTrailingSpaceOnNonFinalWord() {
+        // With the setting ON and a multi-word suggestion, accepting the first word inserts the word
+        // plus the suggestion's own following space (so the toggle fires per word, not only when the
+        // suggestion is exhausted), while the tail keeps the rest.
+        let rig = retained(makeCoordinatorRig(
+            settingsSnapshot: CotabbyTestFixtures.settingsSnapshot(debounceMilliseconds: 1, addSpaceAfterAccept: true)
+        ))
+        startVisibleSession(in: rig, fullText: " world how")
+
+        XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
+
+        XCTAssertEqual(rig.inserter.insertedChunks, [" world "])
+        XCTAssertEqual(
+            rig.coordinator.state,
+            .ready(text: "how", latency: 0.05),
+            "The consumed following space should not lead the tail."
+        )
+    }
+
+    func test_acceptCurrentSuggestion_withoutAddSpaceAfterAccept_insertsWordWithoutTrailingSpace() {
+        let rig = retained(makeCoordinatorRig(
+            settingsSnapshot: CotabbyTestFixtures.settingsSnapshot(debounceMilliseconds: 1, addSpaceAfterAccept: false)
+        ))
+        startVisibleSession(in: rig, fullText: " world how")
+
+        XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
+
+        XCTAssertEqual(rig.inserter.insertedChunks, [" world"])
+        XCTAssertEqual(rig.coordinator.state, .ready(text: " how", latency: 0.05))
+    }
+
+    // MARK: - Insertion failures
+
+    func test_failedInsertionReturnsTheKeyAndTearsTheSessionDown() {
+        let rig = retained(makeCoordinatorRig())
+        startVisibleSession(in: rig, fullText: " world again")
+        rig.inserter.shouldInsert = false
+
+        XCTAssertFalse(rig.coordinator.acceptCurrentSuggestion(), "A failed insert must not swallow Tab")
+
+        XCTAssertEqual(rig.inserter.insertedChunks, [" world"], "The insert was attempted exactly once")
+        XCTAssertNil(rig.interactionState.activeSession)
+        XCTAssertFalse(rig.coordinator.overlayState.isVisible)
+        XCTAssertEqual(rig.coordinator.state, .idle)
+        XCTAssertEqual(rig.overlayController.hideReasons.last, "Overlay hidden because suggestion insertion failed.")
+        XCTAssertNil(rig.coordinator.lastAcceptanceAt, "A failed insert is not an acceptance")
+    }
+
+    // MARK: - Correction acceptance
+
+    func test_correctionPassesThroughWhenTheLiveWordNoLongerMatchesTheOffer() {
+        let rig = retained(makeCoordinatorRig(
+            snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Please recieve ")
+        ))
+        startCorrectionSession(in: rig)
+        // A keystroke slipped in between the offer and this Tab. Deleting the offered word's length
+        // now would eat the wrong characters, so the key must pass through untouched.
+        setFocusedInput(CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Please recieve i"), in: rig)
+
+        XCTAssertFalse(rig.coordinator.acceptCurrentSuggestion())
+
+        XCTAssertTrue(rig.inserter.replacements.isEmpty)
+        XCTAssertNil(rig.interactionState.activeSession)
+        XCTAssertEqual(
+            rig.overlayController.hideReasons.last,
+            "Key passed through because the word to correct changed."
+        )
+    }
+
+    func test_failedCorrectionReplacementReturnsTheKeyAndClearsTheOffer() {
+        let rig = retained(makeCoordinatorRig(
+            snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Please recieve ")
+        ))
+        startCorrectionSession(in: rig)
+        rig.inserter.shouldInsert = false
+
+        XCTAssertFalse(rig.coordinator.acceptCurrentSuggestion())
+
+        XCTAssertEqual(rig.inserter.replacements.count, 1, "The replacement was attempted exactly once")
+        XCTAssertNil(rig.interactionState.activeSession)
+        XCTAssertEqual(rig.coordinator.state, .idle)
+        XCTAssertFalse(rig.coordinator.postExhaustionAcceptanceState.isArmed, "A failed fix must not hold Tab")
+        XCTAssertEqual(rig.overlayController.hideReasons.last, "Overlay hidden because correction insertion failed.")
+    }
+
+    // MARK: - Final chunk and the post-exhaustion window
+
     func test_acceptingFinalChunkDefersRegenerationAndRecordsAcceptedTail() {
-        runOnMainActor {
-            let snapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "what's on your mind")
-            let context = FocusedInputContext(snapshot: snapshot, generation: 7)
-            let interactionState = SuggestionInteractionState()
-            let session = interactionState.startSession(
-                fullText: " today",
-                liveContext: context,
-                latency: 0.1
-            )
-            let overlayState = OverlayState.visible(
-                text: session.remainingText,
-                geometry: CotabbyTestFixtures.overlayGeometry(caretRect: context.caretRect),
-                mode: .inline
-            )
-            let inputMonitor = StubSuggestionInputMonitor()
-            let inserter = StubSuggestionInserter()
-            let coordinator = makeCoordinator(
-                snapshot: snapshot,
-                overlayState: overlayState,
-                inputMonitor: inputMonitor,
-                inserter: inserter,
-                interactionState: interactionState
-            )
+        let rig = retained(makeCoordinatorRig(snapshot: finalChunkSnapshot))
+        startVisibleSession(in: rig, fullText: " today")
 
-            XCTAssertTrue(coordinator.acceptCurrentSuggestion())
+        XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
 
-            XCTAssertEqual(inserter.insertedChunks, [" today"])
-            // The final-chunk accept starts the continuation immediately against the text the host
-            // is about to publish (speculative prefetch) instead of idling through the publish
-            // poll; the overlay still hides until that result lands and validates.
-            XCTAssertEqual(coordinator.state, .generating)
-            XCTAssertNotNil(coordinator.pendingSpeculativeContext)
-            XCTAssertFalse(coordinator.overlayState.isVisible)
-            // It records what it committed so `apply` can drop a stale echo of the same tail.
-            XCTAssertEqual(
-                coordinator.lastAcceptedTail,
-                AcceptedSuggestionTail(text: " today", precedingText: "what's on your mind")
-            )
-        }
+        XCTAssertEqual(rig.inserter.insertedChunks, [" today"])
+        // The final-chunk accept starts the continuation immediately against the text the host is
+        // about to publish (speculative prefetch) instead of idling through the publish poll; the
+        // overlay still hides until that result lands and validates.
+        XCTAssertEqual(rig.coordinator.state, .generating)
+        XCTAssertEqual(rig.coordinator.pendingSpeculativeContext?.precedingText, "what's on your mind today")
+        XCTAssertFalse(rig.coordinator.overlayState.isVisible)
+        // It records what it committed so `apply` can drop a stale echo of the same tail.
+        XCTAssertEqual(
+            rig.coordinator.lastAcceptedTail,
+            AcceptedSuggestionTail(text: " today", precedingText: "what's on your mind")
+        )
+    }
+
+    func test_speculativePrefetchKillSwitchLeavesFinalAcceptIdle() {
+        let rig = retained(makeCoordinatorRig(snapshot: finalChunkSnapshot))
+        rig.coordinator.userDefaults.set(true, forKey: SuggestionCoordinator.speculativePrefetchDisabledDefaultsKey)
+        startVisibleSession(in: rig, fullText: " today")
+
+        XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
+
+        XCTAssertEqual(rig.inserter.insertedChunks, [" today"])
+        XCTAssertNil(rig.coordinator.pendingSpeculativeContext, "The kill switch must skip the speculative request")
+        XCTAssertEqual(rig.coordinator.state, .idle, "Only the host-publish poll may regenerate now")
+        XCTAssertTrue(rig.coordinator.postExhaustionAcceptanceState.isArmed, "Tab ownership does not depend on speculation")
     }
 
     func test_rapidSecondAcceptDuringRegenerationIsConsumedNotPassedThrough() {
-        runOnMainActor {
-            let snapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "what's on your mind")
-            let context = FocusedInputContext(snapshot: snapshot, generation: 7)
-            let interactionState = SuggestionInteractionState()
-            _ = interactionState.startSession(
-                fullText: " today",
-                liveContext: context,
-                latency: 0.1
-            )
-            let overlayState = OverlayState.visible(
-                text: " today",
-                geometry: CotabbyTestFixtures.overlayGeometry(caretRect: context.caretRect),
-                mode: .inline
-            )
-            let inputMonitor = StubSuggestionInputMonitor()
-            let inserter = StubSuggestionInserter()
-            let coordinator = makeCoordinator(
-                snapshot: snapshot,
-                overlayState: overlayState,
-                inputMonitor: inputMonitor,
-                inserter: inserter,
-                interactionState: interactionState
-            )
+        let rig = retained(makeCoordinatorRig(snapshot: finalChunkSnapshot))
+        startVisibleSession(in: rig, fullText: " today")
 
-            // First Tab accepts the only remaining chunk, exhausts the session, and arms the window.
-            XCTAssertTrue(coordinator.acceptCurrentSuggestion())
-            XCTAssertEqual(inserter.insertedChunks, [" today"])
-            XCTAssertTrue(coordinator.postExhaustionAcceptanceState.isArmed)
-            XCTAssertFalse(coordinator.overlayState.isVisible)
-            // Ownership of Tab was re-asserted even though the overlay is now hidden.
-            XCTAssertEqual(inputMonitor.acceptInterceptionRequests.last, true)
-            XCTAssertTrue(
-                inputMonitor.shouldConsumeAcceptKeyProvider(),
-                "The accept tap must keep owning Tab while the continuation regenerates."
-            )
+        // First Tab accepts the only remaining chunk, exhausts the session, and arms the window.
+        XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
+        XCTAssertTrue(rig.coordinator.postExhaustionAcceptanceState.isArmed)
+        XCTAssertFalse(rig.coordinator.overlayState.isVisible)
+        // Ownership of Tab was re-asserted even though the overlay is now hidden.
+        XCTAssertEqual(rig.inputMonitor.acceptInterceptionRequests.last, true)
+        XCTAssertTrue(
+            rig.inputMonitor.shouldConsumeAcceptKeyProvider(),
+            "The accept tap must keep owning Tab while the continuation regenerates."
+        )
 
-            // The rapid second Tab lands before the continuation regenerates. It must be swallowed
-            // (consumed) and queued — never forwarded to the host as a real Tab that moves focus.
-            XCTAssertTrue(
-                coordinator.acceptCurrentSuggestion(),
-                "A fast follow-up Tab during regeneration must be consumed, not passed through to the host."
-            )
-            XCTAssertEqual(
-                inserter.insertedChunks,
-                [" today"],
-                "The second Tab has nothing to insert yet; it is queued, not inserted."
-            )
-            XCTAssertTrue(coordinator.postExhaustionAcceptanceState.hasQueuedAccept)
-        }
+        // The rapid second Tab lands before the continuation regenerates. It must be swallowed and
+        // queued, never forwarded to the host as a real Tab that moves focus.
+        XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
+        XCTAssertEqual(rig.inserter.insertedChunks, [" today"], "The second Tab is queued, not inserted.")
+        XCTAssertTrue(rig.coordinator.postExhaustionAcceptanceState.hasQueuedAccept)
     }
 
     func test_postExhaustionWindowReleasesAcceptKeyWhenOverlayHides() {
-        runOnMainActor {
-            let snapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "what's on your mind")
-            let context = FocusedInputContext(snapshot: snapshot, generation: 7)
-            let interactionState = SuggestionInteractionState()
-            _ = interactionState.startSession(
-                fullText: " today",
-                liveContext: context,
-                latency: 0.1
-            )
-            let overlayState = OverlayState.visible(
-                text: " today",
-                geometry: CotabbyTestFixtures.overlayGeometry(caretRect: context.caretRect),
-                mode: .inline
-            )
-            let inputMonitor = StubSuggestionInputMonitor()
-            let inserter = StubSuggestionInserter()
-            let coordinator = makeCoordinator(
-                snapshot: snapshot,
-                overlayState: overlayState,
-                inputMonitor: inputMonitor,
-                inserter: inserter,
-                interactionState: interactionState
-            )
+        let rig = retained(makeCoordinatorRig(snapshot: finalChunkSnapshot))
+        startVisibleSession(in: rig, fullText: " today")
+        XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
+        XCTAssertTrue(rig.coordinator.postExhaustionAcceptanceState.isArmed)
 
-            XCTAssertTrue(coordinator.acceptCurrentSuggestion())
-            XCTAssertTrue(coordinator.postExhaustionAcceptanceState.isArmed)
+        // Any teardown that hides the overlay (focus change, typing, dismissal, an empty
+        // regeneration) must end the window so the user can Tab out of the field normally again.
+        rig.coordinator.invalidateActiveSuggestion(reason: "Focus moved to another field.")
 
-            // Any teardown that hides the overlay (focus change, typing, dismissal, an empty
-            // regeneration) must end the window so the user can Tab out of the field normally again.
-            coordinator.invalidateActiveSuggestion(reason: "Focus moved to another field.")
+        XCTAssertFalse(rig.coordinator.postExhaustionAcceptanceState.isArmed)
+        XCTAssertFalse(rig.coordinator.postExhaustionAcceptanceState.hasQueuedAccept)
+        XCTAssertFalse(rig.inputMonitor.shouldConsumeAcceptKeyProvider())
+        XCTAssertFalse(
+            rig.coordinator.acceptCurrentSuggestion(),
+            "With the window released and no suggestion, Tab must pass through to the host."
+        )
+    }
 
-            XCTAssertFalse(coordinator.postExhaustionAcceptanceState.isArmed)
-            XCTAssertFalse(coordinator.postExhaustionAcceptanceState.hasQueuedAccept)
-            XCTAssertFalse(
-                inputMonitor.shouldConsumeAcceptKeyProvider(),
-                "Once the window is released the accept tap should stop owning Tab."
-            )
-            XCTAssertFalse(
-                coordinator.acceptCurrentSuggestion(),
-                "With the window released and no suggestion, Tab must pass through to the host."
-            )
+    func test_postExhaustionBackstopReleasesTabWhenNoContinuationArrives() async {
+        let rig = retained(makeCoordinatorRig())
+
+        rig.coordinator.armPostExhaustionAcceptance()
+        XCTAssertEqual(rig.inputMonitor.acceptInterceptionRequests, [true])
+        XCTAssertTrue(rig.inputMonitor.shouldConsumeAcceptKeyProvider())
+
+        // A stalled regeneration must never trap Tab in the field: the token-keyed timer ends the
+        // window on its own after `postExhaustionAcceptanceWindowSeconds`.
+        await waitUntil(timeout: SuggestionCoordinator.postExhaustionAcceptanceWindowSeconds + 2) {
+            !rig.coordinator.postExhaustionAcceptanceState.isArmed
         }
+        XCTAssertEqual(rig.inputMonitor.acceptInterceptionRequests, [true, false])
+        XCTAssertFalse(rig.inputMonitor.shouldConsumeAcceptKeyProvider())
+    }
+
+    func test_releasingTheWindowKeepsInterceptionWhileASuggestionIsVisible() {
+        let rig = retained(makeCoordinatorRig())
+        startVisibleSession(in: rig)
+        rig.coordinator.armPostExhaustionAcceptance()
+        XCTAssertEqual(rig.inputMonitor.acceptInterceptionRequests, [true, true])
+
+        rig.coordinator.releasePostExhaustionAcceptanceWindow()
+
+        XCTAssertFalse(rig.coordinator.postExhaustionAcceptanceState.isArmed)
+        XCTAssertEqual(
+            rig.inputMonitor.acceptInterceptionRequests,
+            [true, true],
+            "A visible suggestion still owns Tab through the normal overlay path"
+        )
     }
 
     func test_queuedPostExhaustionAcceptInsertsNextWordWhenContinuationArrives() {
-        runOnMainActor {
-            let snapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello")
-            let context = FocusedInputContext(snapshot: snapshot, generation: 7)
-            let interactionState = SuggestionInteractionState()
-            let session = interactionState.startSession(
-                fullText: " world again",
-                liveContext: context,
-                latency: 0.1
-            )
-            let overlayState = OverlayState.visible(
-                text: session.remainingText,
-                geometry: CotabbyTestFixtures.overlayGeometry(caretRect: context.caretRect),
-                mode: .inline
-            )
-            let inputMonitor = StubSuggestionInputMonitor()
-            let inserter = StubSuggestionInserter()
-            let coordinator = makeCoordinator(
-                snapshot: snapshot,
-                overlayState: overlayState,
-                inputMonitor: inputMonitor,
-                inserter: inserter,
-                interactionState: interactionState
-            )
-            // Simulate a Tab that was swallowed and queued while this continuation was still loading;
-            // `apply` calls `flushQueuedPostExhaustionAcceptIfNeeded` once the suggestion is on screen.
-            coordinator.postExhaustionAcceptanceState.arm()
-            coordinator.postExhaustionAcceptanceState.queueAcceptIfArmed()
+        let rig = retained(makeCoordinatorRig())
+        startVisibleSession(in: rig, fullText: " world again")
+        // Simulate a Tab that was swallowed and queued while this continuation was still loading;
+        // `apply` calls `flushQueuedPostExhaustionAcceptIfNeeded` once the suggestion is on screen.
+        rig.coordinator.postExhaustionAcceptanceState.arm()
+        rig.coordinator.postExhaustionAcceptanceState.queueAcceptIfArmed()
 
-            coordinator.flushQueuedPostExhaustionAcceptIfNeeded()
+        rig.coordinator.flushQueuedPostExhaustionAcceptIfNeeded()
 
-            XCTAssertEqual(
-                inserter.insertedChunks,
-                [" world"],
-                "The queued Tab should accept the continuation's first word."
-            )
-            XCTAssertFalse(coordinator.postExhaustionAcceptanceState.isArmed)
-            XCTAssertFalse(coordinator.postExhaustionAcceptanceState.hasQueuedAccept)
-        }
+        XCTAssertEqual(rig.inserter.insertedChunks, [" world"], "The queued Tab should accept the first word.")
+        XCTAssertFalse(rig.coordinator.postExhaustionAcceptanceState.isArmed)
+        XCTAssertFalse(rig.coordinator.postExhaustionAcceptanceState.hasQueuedAccept)
     }
 
+    func test_flushWithoutAQueuedPressInsertsNothing() {
+        let rig = retained(makeCoordinatorRig())
+        startVisibleSession(in: rig, fullText: " world again")
+        rig.coordinator.postExhaustionAcceptanceState.arm()
+
+        rig.coordinator.flushQueuedPostExhaustionAcceptIfNeeded()
+
+        XCTAssertTrue(rig.inserter.insertedChunks.isEmpty)
+        XCTAssertFalse(rig.coordinator.postExhaustionAcceptanceState.isArmed, "A fresh suggestion ends the window")
+        XCTAssertEqual(rig.interactionState.activeSession?.remainingText, " world again")
+    }
+
+    // MARK: - Bookkeeping
+
+    func test_acceptedWordsAreCountedAndPersistedAfterTheTapCallback() async {
+        let rig = retained(makeCoordinatorRig())
+        startVisibleSession(in: rig, fullText: " world again")
+
+        XCTAssertTrue(rig.coordinator.acceptEntireSuggestion())
+        XCTAssertEqual(
+            rig.coordinator.totalTabAcceptedWordCount,
+            0,
+            "Counter writes are deferred out of the synchronous accept-tap callback"
+        )
+
+        await waitUntil { rig.coordinator.totalTabAcceptedWordCount == 2 }
+        XCTAssertEqual(
+            rig.coordinator.userDefaults.integer(forKey: SuggestionCoordinator.totalTabAcceptedWordCountDefaultsKey),
+            2
+        )
+        XCTAssertEqual(rig.coordinator.qualityMetricsStore.counters.acceptedSuggestions, 1)
+    }
+
+    func test_walkingOneSuggestionWordByWordCountsASingleAcceptedSuggestion() async {
+        let rig = retained(makeCoordinatorRig())
+        startVisibleSession(in: rig, fullText: " world again")
+
+        XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
+        setFocusedInput(CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello world"), in: rig)
+        XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
+        XCTAssertEqual(rig.inserter.insertedChunks, [" world", " again"])
+
+        await waitUntil { rig.coordinator.totalTabAcceptedWordCount == 2 }
+        XCTAssertEqual(
+            rig.coordinator.qualityMetricsStore.counters.acceptedSuggestions,
+            1,
+            "Only the first chunk of a suggestion counts toward the acceptance rate"
+        )
+    }
+
+    // MARK: - Anchor cache and speculative results
+
     /// A cached suggestion consistent with the live text must re-show without any engine call.
-    /// The stub engine throws on every generation, so reaching `.ready` proves the restore path
-    /// satisfied the prediction cycle on its own.
-    @MainActor
     func test_anchorCacheRestoresSuggestionWithoutGenerating() async {
         let snapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello wo")
-        let interactionState = SuggestionInteractionState()
-        let coordinator = makeCoordinator(
-            snapshot: snapshot,
-            overlayState: .hidden(reason: "test"),
-            inputMonitor: StubSuggestionInputMonitor(),
-            inserter: StubSuggestionInserter(),
-            interactionState: interactionState
-        )
-        let identityKey = FocusedInputContext(snapshot: snapshot, generation: 1).suggestionSessionIdentityKey
-        // The suggestion was generated when the field held "Hello"; the user has since typed
-        // " wo", which is exactly the suggestion's first three characters.
-        coordinator.suggestionAnchorCache.record(
-            identityKey: identityKey,
-            precedingText: "Hello",
-            fullText: " world again"
-        )
+        let rig = retained(makeCoordinatorRig(snapshot: snapshot))
+        // The suggestion was generated when the field held "Hello"; the user has since typed " wo",
+        // which is exactly the suggestion's first three characters.
+        recordCachedSuggestion(" world again", after: "Hello", for: snapshot, in: rig)
 
-        await coordinator.generateFromCurrentFocus(workID: coordinator.currentWorkID)
+        await rig.coordinator.generateFromCurrentFocus(workID: rig.coordinator.currentWorkID)
 
-        guard case let .ready(text, latency) = coordinator.state else {
-            XCTFail("Expected a restored suggestion, got \(coordinator.state)")
-            return
-        }
-        XCTAssertEqual(text, "rld again")
-        XCTAssertEqual(latency, 0)
-        XCTAssertEqual(interactionState.activeSession?.fullText, "rld again")
+        XCTAssertEqual(rig.coordinator.state, .ready(text: "rld again", latency: 0))
+        XCTAssertEqual(rig.interactionState.activeSession?.fullText, "rld again")
+        XCTAssertTrue(rig.engine.requests.isEmpty)
+    }
+
+    func test_anchorReuseKillSwitchForcesAFreshGeneration() async {
+        let snapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello wo")
+        let rig = retained(makeCoordinatorRig(snapshot: snapshot))
+        rig.coordinator.userDefaults.set(true, forKey: SuggestionCoordinator.anchorReuseDisabledDefaultsKey)
+        recordCachedSuggestion(" world again", after: "Hello", for: snapshot, in: rig)
+
+        await rig.coordinator.generateFromCurrentFocus(workID: rig.coordinator.currentWorkID)
+
+        XCTAssertNotEqual(rig.coordinator.state, .ready(text: "rld again", latency: 0))
+        await waitUntil { rig.engine.requests.count == 1 }
+        XCTAssertEqual(rig.engine.requests.first?.prefixText, "Hello wo")
     }
 
     /// A speculative post-acceptance result carries a generation older than the live one by
     /// construction; it must still apply when the live content matches the signature it was
     /// built against, and must consume the exemption.
-    @MainActor
     func test_applyAcceptsSpeculativeResultWhenContentSignatureMatches() async {
         let snapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello world ")
-        let interactionState = SuggestionInteractionState()
-        let coordinator = makeCoordinator(
-            snapshot: snapshot,
-            overlayState: .hidden(reason: "test"),
-            inputMonitor: StubSuggestionInputMonitor(),
-            inserter: StubSuggestionInserter(),
-            interactionState: interactionState
-        )
-        coordinator.pendingSpeculativeContext =
-            FocusedInputContext(snapshot: snapshot, generation: 1)
-        let speculativeResult = SuggestionResult(
-            generation: 999,
-            rawText: "from here on",
-            text: "from here on",
-            latency: 0.1
-        )
+        let rig = retained(makeCoordinatorRig(snapshot: snapshot))
+        rig.coordinator.pendingSpeculativeContext = FocusedInputContext(snapshot: snapshot, generation: 1)
 
-        await coordinator.apply(result: speculativeResult, workID: coordinator.currentWorkID)
+        await rig.coordinator.apply(result: speculativeResult, workID: rig.coordinator.currentWorkID)
 
-        guard case let .ready(text, _) = coordinator.state else {
-            XCTFail("Expected the speculative result to apply, got \(coordinator.state)")
-            return
-        }
-        XCTAssertEqual(text, "from here on")
-        XCTAssertNil(coordinator.pendingSpeculativeContext, "the exemption is single-use")
+        XCTAssertEqual(rig.coordinator.state, .ready(text: "from here on", latency: 0.1))
+        XCTAssertNil(rig.coordinator.pendingSpeculativeContext, "the exemption is single-use")
     }
 
     /// Without the signature exemption, a stale-generation result must keep being dropped.
-    @MainActor
     func test_applyStillDropsStaleResultsWithoutSpeculativeSignature() async {
-        let snapshot = CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello world ")
-        let coordinator = makeCoordinator(
-            snapshot: snapshot,
-            overlayState: .hidden(reason: "test"),
-            inputMonitor: StubSuggestionInputMonitor(),
-            inserter: StubSuggestionInserter(),
-            interactionState: SuggestionInteractionState()
+        let rig = retained(makeCoordinatorRig(
+            snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "Hello world ")
+        ))
+
+        await rig.coordinator.apply(result: speculativeResult, workID: rig.coordinator.currentWorkID)
+
+        XCTAssertEqual(rig.coordinator.state, .idle)
+        XCTAssertNil(rig.interactionState.activeSession)
+        XCTAssertEqual(rig.overlayController.hideReasons.last, "Overlay hidden because a stale result was dropped.")
+    }
+
+    // MARK: - Helpers
+
+    private var speculativeResult: SuggestionResult {
+        SuggestionResult(generation: 999, rawText: "from here on", text: "from here on", latency: 0.1)
+    }
+
+    private func startCorrectionSession(in rig: CoordinatorRig) {
+        let context = rig.interactionState.materializeContext(from: rig.focusProvider.snapshot.context!)
+        _ = rig.interactionState.startSession(
+            fullText: "receive", liveContext: context, latency: 0, kind: .correction(typoWord: "recieve")
         )
-        let staleResult = SuggestionResult(
-            generation: 999,
-            rawText: "from here on",
-            text: "from here on",
-            latency: 0.1
+        rig.overlayController.showSuggestion("receive", geometry: CotabbyTestFixtures.overlayGeometry())
+    }
+
+    private func recordCachedSuggestion(
+        _ fullText: String,
+        after precedingText: String,
+        for snapshot: FocusedInputSnapshot,
+        in rig: CoordinatorRig
+    ) {
+        let identityKey = FocusedInputContext(snapshot: snapshot, generation: 1).suggestionSessionIdentityKey
+        rig.coordinator.suggestionAnchorCache.record(
+            identityKey: identityKey, precedingText: precedingText, fullText: fullText
         )
-
-        await coordinator.apply(result: staleResult, workID: coordinator.currentWorkID)
-
-        if case .ready = coordinator.state {
-            XCTFail("A stale result with no speculative exemption must not apply")
-        }
-    }
-
-    @MainActor
-    private func makeCoordinator(
-        snapshot: FocusedInputSnapshot,
-        overlayState: OverlayState,
-        inputMonitor: StubSuggestionInputMonitor,
-        inserter: StubSuggestionInserter,
-        interactionState: SuggestionInteractionState,
-        settingsSnapshot: SuggestionSettingsSnapshot = CotabbyTestFixtures.settingsSnapshot()
-    ) -> SuggestionCoordinator {
-        let focusSnapshot = FocusSnapshot(
-            applicationName: snapshot.applicationName,
-            bundleIdentifier: snapshot.bundleIdentifier,
-            capability: .supported,
-            context: snapshot
-        )
-        let settingsProvider = StubSuggestionSettingsProvider()
-        settingsProvider.snapshot = settingsSnapshot
-        let coordinator = SuggestionCoordinator(
-            permissionManager: StubSuggestionPermissionProvider(),
-            lowPowerModeProvider: StubSuggestionLowPowerModeProvider(),
-            focusModel: StubSuggestionFocusProvider(snapshot: focusSnapshot),
-            inputMonitor: inputMonitor,
-            overlayController: StubSuggestionOverlayController(state: overlayState),
-            suggestionInserter: inserter,
-            suggestionEngine: StubSuggestionEngine(),
-            suggestionSettings: settingsProvider,
-            clipboardContextProvider: StubClipboardContextProvider(),
-            clipboardRelevanceFilter: StubClipboardRelevanceFilter(),
-            visualContextCoordinator: StubVisualContextCoordinator(),
-            interactionState: interactionState,
-            workController: SuggestionWorkController(),
-            configuration: .standard,
-            spellChecker: CurrentWordSpellChecker(),
-            symSpellCorrector: SymSpellCorrector(preloadLanguage: nil),
-            qualityMetricsStore: SuggestionQualityMetricsStore(
-                userDefaults: UserDefaults(suiteName: "CotabbyTests.quality.\(UUID().uuidString)") ?? .standard
-            ),
-            userDefaults: UserDefaults(suiteName: "CotabbyTests.\(UUID().uuidString)") ?? .standard
-        )
-        Self.retainedCoordinators.append(coordinator)
-        return coordinator
-    }
-}
-
-@MainActor
-private final class StubSuggestionPermissionProvider: SuggestionPermissionProviding {
-    var inputMonitoringGranted = true
-    var screenRecordingGranted = true
-
-    private let inputSubject = PassthroughSubject<Bool, Never>()
-    private let screenSubject = PassthroughSubject<Bool, Never>()
-
-    var inputMonitoringGrantedPublisher: AnyPublisher<Bool, Never> {
-        inputSubject.eraseToAnyPublisher()
-    }
-
-    var screenRecordingGrantedPublisher: AnyPublisher<Bool, Never> {
-        screenSubject.eraseToAnyPublisher()
-    }
-}
-
-@MainActor
-private final class StubSuggestionLowPowerModeProvider: SuggestionLowPowerModeProviding {
-    var isLowPowerModeEnabled = false
-
-    private let subject = PassthroughSubject<Bool, Never>()
-
-    var lowPowerModeChanges: AnyPublisher<Bool, Never> {
-        subject.eraseToAnyPublisher()
-    }
-}
-
-@MainActor
-private final class StubSuggestionFocusProvider: SuggestionFocusProviding {
-    var snapshot: FocusSnapshot
-
-    private let snapshotSubject = PassthroughSubject<FocusSnapshot, Never>()
-
-    var snapshotPublisher: AnyPublisher<FocusSnapshot, Never> {
-        snapshotSubject.eraseToAnyPublisher()
-    }
-
-    init(snapshot: FocusSnapshot) {
-        self.snapshot = snapshot
-    }
-
-    func refreshNow() {}
-}
-
-@MainActor
-private final class StubSuggestionInputMonitor: SuggestionInputMonitoring {
-    var onEvent: ((CapturedInputEvent) -> Bool)?
-    var onSuppressedSyntheticInput: (() -> Void)?
-    var shouldConsumeAcceptKeyProvider: @MainActor @Sendable () -> Bool = { false }
-    private(set) var acceptInterceptionRequests: [Bool] = []
-
-    func setAcceptInterceptionActive(_ active: Bool) {
-        acceptInterceptionRequests.append(active)
-    }
-}
-
-@MainActor
-private final class StubSuggestionOverlayController: SuggestionOverlayControlling {
-    var state: OverlayState
-    var onStateChange: ((OverlayState) -> Void)?
-
-    init(state: OverlayState) {
-        self.state = state
-    }
-
-    func showSuggestion(_ text: String, geometry: SuggestionOverlayGeometry) {
-        state = .visible(text: text, geometry: geometry, mode: .inline)
-        onStateChange?(state)
-    }
-
-    func hide(reason: String) {
-        state = .hidden(reason: reason)
-        onStateChange?(state)
-    }
-}
-
-@MainActor
-private final class StubSuggestionInserter: SuggestionInserting {
-    var lastErrorMessage: String?
-    var insertedChunks: [String] = []
-    var replacements: [(deleteCount: Int, text: String)] = []
-    var shouldInsert = true
-
-    func insert(_ suggestion: String) -> Bool {
-        insertedChunks.append(suggestion)
-        return shouldInsert
-    }
-
-    func replace(deletingUTF16Count: Int, with text: String) -> Bool {
-        replacements.append((deletingUTF16Count, text))
-        return shouldInsert
-    }
-}
-
-private enum StubSuggestionEngineError: Error {
-    case unexpectedGeneration
-}
-
-@MainActor
-private final class StubSuggestionEngine: SuggestionGenerating {
-    func generateSuggestion(for request: SuggestionRequest) async throws -> SuggestionResult {
-        throw StubSuggestionEngineError.unexpectedGeneration
-    }
-
-    func resetCachedGenerationContext() async {}
-}
-
-@MainActor
-private final class StubSuggestionSettingsProvider: SuggestionSettingsProviding {
-    var snapshot = CotabbyTestFixtures.settingsSnapshot()
-
-    private let snapshotSubject = PassthroughSubject<SuggestionSettingsSnapshot, Never>()
-
-    var snapshotPublisher: AnyPublisher<SuggestionSettingsSnapshot, Never> {
-        snapshotSubject.eraseToAnyPublisher()
-    }
-}
-
-@MainActor
-private final class StubClipboardContextProvider: ClipboardContextProviding {
-    var currentChangeCount = 0
-
-    func currentContext() -> String? {
-        nil
-    }
-}
-
-@MainActor
-private final class StubClipboardRelevanceFilter: ClipboardRelevanceFiltering {
-    func filter(
-        clipboard: String?,
-        pasteboardChangeCount: Int,
-        precedingText: String
-    ) -> String? {
-        nil
-    }
-}
-
-@MainActor
-private final class StubVisualContextCoordinator: VisualContextCoordinating {
-    var status: VisualContextStatus = .idle
-    var latestExcerpt: String?
-    var onStateChange: ((VisualContextStatus, String?) -> Void)?
-    var onInjectedContextReady: ((FocusedInputIdentity) -> Void)?
-    var refreshContextProvider: (() -> FocusedInputSnapshot?)?
-
-    func startSessionIfNeeded(for snapshotContext: FocusedInputSnapshot, configuration: VisualContextConfiguration) {}
-
-    func cancel(resetState: Bool) {}
-
-    func excerpt(for context: FocusedInputContext) -> String? {
-        nil
-    }
-}
-
-private func runOnMainActor<Result>(
-    _ body: @MainActor () throws -> Result
-) rethrows -> Result {
-    if Thread.isMainThread {
-        return try MainActor.assumeIsolated(body)
-    }
-
-    return try DispatchQueue.main.sync {
-        try MainActor.assumeIsolated(body)
     }
 }
