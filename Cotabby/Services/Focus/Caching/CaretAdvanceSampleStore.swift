@@ -37,21 +37,27 @@ final class CaretAdvanceSampleStore {
             return
         }
         lastTraced = observation
-        CotabbyLogger.focus.debug(
-            "Caret advance observed",
-            metadata: [
-                "stage": .string("caret-advance"),
-                "doc": .stringConvertible(observation.documentCaret),
-                "x": .stringConvertible(Double(observation.caretX)),
-                "y": .stringConvertible(Double(observation.lineY)),
-                "tail": .string(String(observation.precedingText.suffix(8))),
-                "positioned": .stringConvertible(observation.isPositioned),
-                "pending": .stringConvertible(sampler.pendingCharacterCount),
-                "sample": .string(sample.map { String($0.text.suffix(24)) } ?? ""),
-                "sample_w": .stringConvertible(Double(sample?.width ?? 0)),
-                "sample_n": .stringConvertible(sample?.text.count ?? 0)
-            ]
-        )
+        // Typed pieces first: Xcode 26.3's type checker gave up on the mixed dictionary literal
+        // when the optional-chaining and `Double(...)` conversions were inlined into it.
+        let caretX = Double(observation.caretX)
+        let lineY = Double(observation.lineY)
+        let tail = String(observation.precedingText.suffix(8))
+        let sampleText: String = sample.map { String($0.text.suffix(24)) } ?? ""
+        let sampleWidth = Double(sample?.width ?? 0)
+        let sampleCount: Int = sample?.text.count ?? 0
+        let metadata: Logger.Metadata = [
+            "stage": .string("caret-advance"),
+            "doc": .stringConvertible(observation.documentCaret),
+            "x": .stringConvertible(caretX),
+            "y": .stringConvertible(lineY),
+            "tail": .string(tail),
+            "positioned": .stringConvertible(observation.isPositioned),
+            "pending": .stringConvertible(sampler.pendingCharacterCount),
+            "sample": .string(sampleText),
+            "sample_w": .stringConvertible(sampleWidth),
+            "sample_n": .stringConvertible(sampleCount)
+        ]
+        CotabbyLogger.focus.debug("Caret advance observed", metadata: metadata)
     }
 
     // Value-typed storage only; see `FieldStyleCache` for why the deinit is nonisolated.
