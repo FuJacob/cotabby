@@ -67,12 +67,24 @@ struct ContextPaneView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                Text("Nothing here is saved or shared; it only exercises the on-device model.")
+                Text(Self.livePreviewPrivacyNote(for: suggestionSettings.snapshot.selectedEngine))
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
             }
             .padding(.vertical, 6)
             .settingsItem(.contextLivePreview)
+        }
+    }
+
+    /// The preview drives the real pipeline, so its privacy note must follow the selected engine.
+    /// Apple Intelligence and Open Source keep the typed text on this Mac; a configured endpoint,
+    /// which may be on the LAN or the internet, receives it exactly as it would from any field.
+    static func livePreviewPrivacyNote(for engine: SuggestionEngineKind) -> String {
+        switch engine {
+        case .appleIntelligence, .llamaOpenSource:
+            return "Nothing here is saved or shared; it only exercises the on-device model."
+        case .openAICompatible:
+            return "Nothing here is saved. Like any other field, what you type is sent to your configured endpoint."
         }
     }
 
