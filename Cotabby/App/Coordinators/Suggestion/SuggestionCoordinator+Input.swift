@@ -144,7 +144,13 @@ extension SuggestionCoordinator {
         }
 
         if interactionState.hasFocusedElementChanged(comparedTo: focusedContext) {
-            let shouldRestartTypingPrediction = typingPrediction != nil
+            // Resume lookahead only when the writing itself continues (an identity fact such as a
+            // title changed around the same text). Another field or conversation is passive focus.
+            let shouldRestartTypingPrediction = typingPrediction.map { candidate in
+                focusedContext.trailingText == candidate.context.trailingText
+                    && [candidate.context.precedingText, candidate.context.precedingText + candidate.typedText]
+                        .contains(focusedContext.precedingText)
+            } ?? false
             cancelPredictionWork()
             resetCachedGenerationContext()
             clearSuggestion(clearDiagnostics: true)
@@ -425,7 +431,11 @@ extension SuggestionCoordinator {
                 SuggestionContinuationPlan.sameFocusedField($0, prepared.plan.sourceSnapshot)
             } == true
         } ?? false
-        if !awaitingPreparedTarget && (textChanged || elementChanged || (selectionChanged && !baseline.requiresTextChange)) {
+        // After a replacement only new text counts: Chromium can hand out a new AX wrapper while
+        // the old word is still visible, and re-running the typo gate there would replace it twice.
+        // A genuine field switch still cancels this poll through the focus-change path.
+        let hostMovedOn = textChanged || ((elementChanged || selectionChanged) && !baseline.requiresTextChange)
+        if !awaitingPreparedTarget && hostMovedOn {
             // The publish arrived. When it matches the snapshot a speculative post-acceptance
             // generation was built against, that generation is already in flight (or applied) for
             // exactly this content: scheduling another would only retire it and pay the full

@@ -266,6 +266,40 @@ final class SuggestionCoordinatorTypingPredictionTests: XCTestCase {
         XCTAssertEqual(engine.requests.count, 1, "The preference also declines a replacement request mid-word")
     }
 
+    func testSwitchingFieldsDuringGenerationDoesNotPredictInTheNewField() async {
+        let engine = ControlledTypingEngine()
+        let rig = makeCoordinatorRig(snapshot: CotabbyTestFixtures.focusedInputSnapshot(precedingText: "I'll send "),
+            settingsSnapshot: CotabbyTestFixtures.settingsSnapshot(selectedEngine: .appleIntelligence,
+                debounceMilliseconds: 1, suppressCompletionsOnTypo: true, automaticallyFixTypos: true),
+            generationEngine: engine)
+        rig.coordinator.symSpellCorrector.loadForTesting(contents: "receive 100\n")
+        defer { rig.coordinator.stop(); engine.finishAll() }
+        rig.coordinator.schedulePrediction()
+        await waitUntil { engine.requests.count == 1 }
+        XCTAssertNotNil(rig.coordinator.typingPrediction)
+
+        // Clicking into another field mid-generation is passive focus: its old typo was never
+        // typed in this session and must not be replaced, or even trigger a new request.
+        publish(CotabbyTestFixtures.focusedInputSnapshot(elementIdentifier: "other-field",
+            precedingText: "Please recieve ", focusChangeSequence: 2), in: rig)
+        try? await Task.sleep(nanoseconds: 150_000_000)
+        XCTAssertTrue(rig.inserter.replacements.isEmpty)
+        XCTAssertEqual(engine.requests.count, 1)
+    }
+
+    func testIdentityChangeAroundTheSameWritingStillResumesThePrediction() async {
+        let engine = ControlledTypingEngine()
+        let rig = makeRig(engine)
+        defer { rig.coordinator.stop(); engine.finishAll() }
+        rig.coordinator.schedulePrediction()
+        await waitUntil { engine.requests.count == 1 }
+        // A title update (an unread badge, say) changes the session identity, not the writing.
+        publish(CotabbyTestFixtures.focusedInputSnapshot(precedingText: "I'll send ", focusChangeSequence: 2,
+                                                         windowTitle: "Inbox (3)"), in: rig)
+        await waitUntil { engine.requests.count == 2 }
+        XCTAssertEqual(engine.requests.map(\.prefixText), ["I'll send ", "I'll send "])
+    }
+
     func testDismissalAndEmojiCaptureCancelHiddenPrediction() async {
         for emojiCapture in [false, true] {
             let engine = ControlledTypingEngine()
@@ -347,6 +381,13 @@ final class SuggestionCoordinatorTypingPredictionTests: XCTestCase {
                 debounceMilliseconds: 1, suggestWithinWords: suggestWithinWords,
                 streamSuggestionsWhileGenerating: streaming, predictAheadWhileTyping: predictAhead),
             generationEngine: engine)
+    }
+
+    private func publish(_ raw: FocusedInputSnapshot, in rig: CoordinatorRig) {
+        let snapshot = FocusSnapshot(applicationName: raw.applicationName, bundleIdentifier: raw.bundleIdentifier,
+                                     capability: .supported, context: raw)
+        rig.focusProvider.snapshot = snapshot
+        rig.focusProvider.snapshotSubject.send(snapshot)
     }
 
     private func type(_ text: String, in rig: CoordinatorRig) {
