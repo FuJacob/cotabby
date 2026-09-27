@@ -32,6 +32,19 @@ nonisolated struct FocusedInputPollingSignature: Equatable {
             fallbackElementIdentifier: context.elementIdentifier
         )
     }
+
+    /// True when this poll still observes the field `previous` described. Every identity fact must
+    /// match, but the frame may resize in place: a chat composer grows when a line wraps, keeping
+    /// its left edge, width, and either its top or bottom edge. Treating that as navigation would
+    /// start a new writing session and discard the visible suggestion on every wrap. Two distinct
+    /// fields stacked at the same x and width still differ at both edges.
+    func continuesField(of previous: FocusedInputPollingSignature) -> Bool {
+        guard bundleIdentifier == previous.bundleIdentifier, processIdentifier == previous.processIdentifier,
+              role == previous.role, subrole == previous.subrole, windowTitle == previous.windowTitle,
+              focusedURLString == previous.focusedURLString, fieldPlaceholder == previous.fieldPlaceholder
+        else { return false }
+        return fieldAnchor.continues(previous.fieldAnchor)
+    }
 }
 
 private extension FocusedInputPollingSignature {
@@ -42,6 +55,14 @@ private extension FocusedInputPollingSignature {
         init(inputFrame: CGRect?, fallbackElementIdentifier: String) {
             roundedInputFrame = inputFrame.map { RoundedRect(rect: $0) }
             self.fallbackElementIdentifier = roundedInputFrame == nil ? fallbackElementIdentifier : nil
+        }
+
+        func continues(_ previous: FieldAnchor) -> Bool {
+            guard let frame = roundedInputFrame, let previousFrame = previous.roundedInputFrame else {
+                return self == previous
+            }
+            return frame.minX == previousFrame.minX && frame.width == previousFrame.width
+                && (frame.minY == previousFrame.minY || frame.maxY == previousFrame.maxY)
         }
     }
 
@@ -57,5 +78,7 @@ private extension FocusedInputPollingSignature {
             width = Int(rect.width.rounded())
             height = Int(rect.height.rounded())
         }
+
+        var maxY: Int { minY + height }
     }
 }

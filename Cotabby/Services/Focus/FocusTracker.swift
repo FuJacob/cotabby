@@ -350,7 +350,10 @@ final class FocusTracker {
         }
 
         let nextSignature = FocusedInputPollingSignature(context: context)
-        guard nextSignature != lastFocusedInputSignature else {
+        if let lastFocusedInputSignature, nextSignature.continuesField(of: lastFocusedInputSignature) {
+            // Same field, possibly resized in place. Track its latest frame so later growth is
+            // compared with the current edges, without opening a new writing session.
+            self.lastFocusedInputSignature = nextSignature
             return FocusCaptureResult(snapshot: firstPassSnapshot, didChangeFocusedInput: false)
         }
 
