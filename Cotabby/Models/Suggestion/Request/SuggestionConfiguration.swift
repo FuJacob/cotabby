@@ -108,12 +108,6 @@ struct SuggestionConfiguration: Equatable, Sendable {
     let defaultUserName: String?
     let defaultWordCountPreset: SuggestionWordCountPreset
 
-    /// The full name of the macOS account running the app, or nil when the account has none set.
-    /// Read once; the user's own edit in Settings replaces it and persists.
-    static var accountFullName: String? {
-        let name = NSFullUserName().trimmingCharacters(in: .whitespacesAndNewlines)
-        return name.isEmpty ? nil : name
-    }
     let focusPollIntervalMilliseconds: Int
 
     /// Output ceiling reserved out of the llama context window when sizing the prompt budget:
@@ -167,10 +161,11 @@ struct SuggestionConfiguration: Equatable, Sendable {
         // Derived from the runtime constant so a context-window change can never silently
         // desynchronize the prompt budget from the KV capacity the model actually has.
         llamaPromptTokenBudget: SuggestionConfiguration.derivedLlamaPromptTokenBudget,
-        // Seed the profile settings with lightweight defaults on first launch. The name is the
-        // Mac account's full name: the prompt signs with it after a valediction (`SignOffCue`), so
-        // a placeholder would sign every user's mail with someone else's name.
-        defaultUserName: accountFullName,
+        // Seed the profile settings with lightweight defaults on first launch. No name until the
+        // user sets one: the prompt signs with it after a valediction (`SignOffCue`), and the
+        // endpoint backend can carry that prompt off the Mac, so a real name is an explicit opt-in
+        // and a placeholder would sign every user's mail with someone else's name.
+        defaultUserName: nil,
         defaultWordCountPreset: .twelveToTwenty,
         focusPollIntervalMilliseconds: 50
     )

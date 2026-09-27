@@ -650,16 +650,19 @@ final class InputMonitor {
         let capturedEvent = classify(keyEvent: keyEvent, recognizesAcceptance: recognizesAcceptance)
         // Trace-level so it is free at the default floor; under `-cotabby-debug` every observed key
         // lands in the JSONL stream, which is how a "why did the ghost vanish" report gets answered.
+        // Metadata only: this monitor sees every field, secure ones included, and the secure-field
+        // gate runs later in the coordinator, so neither the characters nor a printable key's code
+        // (which names the character just as well) may reach the on-disk log.
         if CotabbyLogger.app.logLevel <= .trace {
-            CotabbyLogger.app.trace(
-                "Observed key",
-                metadata: [
-                    "stage": .string("input-event"),
-                    "kind": .string(capturedEvent.kind.rawValue),
-                    "key_code": .stringConvertible(capturedEvent.keyCode),
-                    "chars": .string(capturedEvent.characters)
-                ]
-            )
+            var metadata: Logger.Metadata = [
+                "stage": .string("input-event"),
+                "kind": .string(capturedEvent.kind.rawValue),
+                "char_count": .stringConvertible(capturedEvent.characters.count)
+            ]
+            if capturedEvent.kind != .textMutation {
+                metadata["key_code"] = .stringConvertible(capturedEvent.keyCode)
+            }
+            CotabbyLogger.app.trace("Observed key", metadata: metadata)
         }
         guard !capturedEvent.kind.isAcceptance else {
             // Acceptance is handled by the active default tap, because only that callback can

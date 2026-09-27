@@ -481,7 +481,7 @@ struct SuggestionSettingsStore {
             userDefaults.object(forKey: Self.predictAheadWhileTypingDefaultsKey) as? Bool ?? true
         // Streaming is opt-in; prediction reuse works independently when a user hides partials.
         let resolvedStreamSuggestionsWhileGenerating =
-            userDefaults.object(forKey: Self.streamWhileGeneratingDefaultsKey) as? Bool ?? true
+            userDefaults.object(forKey: Self.streamWhileGeneratingDefaultsKey) as? Bool ?? false
         // Defaults to true: the gentle fade-in is the intended out-of-box feel. Users who prefer
         // ghost text to snap in instantly can turn it off, and the overlay suppresses it under
         // Reduce Motion regardless. Existing installs (no key) get the fade on the next launch.
