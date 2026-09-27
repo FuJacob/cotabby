@@ -13,6 +13,10 @@ extension SuggestionCoordinator {
         var text: String?
         var latency: TimeInterval = 0
         var awaitingCommit = false
+        /// Set once the exact target published while this request was still running. The
+        /// publication poll stands down at that point, so nothing else will request a prediction
+        /// for later edits: this request must fall back to one if it cannot show its own text.
+        var ownsNextPrediction = false
 
         func belongs(to session: ActiveSuggestionSession) -> Bool {
             sourceSession.baseContext == session.baseContext
@@ -114,7 +118,10 @@ extension SuggestionCoordinator {
             }
             return
         }
-        _ = usePreparedContinuationIfPossible()
+        // Without ownership the publication poll is still waiting for the target and decides.
+        if !usePreparedContinuationIfPossible(), preparedContinuation?.ownsNextPrediction == true {
+            schedulePredictionForPublishedEdit()
+        }
     }
 
     /// Returns true when published text is covered by a prepared request (ready or still running).
@@ -125,15 +132,25 @@ extension SuggestionCoordinator {
               let raw = focusModel.snapshot.context,
               currentDisabledReason(focusSnapshot: focusModel.snapshot) == nil,
               preparedTextAdjustment(prepared, for: raw) != nil else { return false }
-        guard let text = prepared.text else { return true }
+        guard let text = prepared.text else {
+            // The caller (usually the publication poll) stands down for the running request.
+            preparedContinuation?.ownsNextPrediction = true
+            return true
+        }
         // Exact publication has arrived. Retire the acceptance poll before consuming its plan;
         // otherwise a queued poll can see no plan and start a duplicate request while apply waits
         // for presentation. That older callback no longer owns this context transition.
         hostPublishPollGeneration &+= 1
         cancelPreparedContinuation()
         workController.replaceDebouncedWork(delayMilliseconds: 0) { [weak self] workID in
-            guard let self, let live = self.focusModel.snapshot.context,
-                  let trimsSpace = self.preparedTextAdjustment(prepared, for: live) else { return }
+            guard let self else { return }
+            // Only this queued work owns the transition now. Text-changing keys cancel it, so an
+            // edit seen here arrived without one (a host text service, a late AX publication).
+            guard let live = self.focusModel.snapshot.context,
+                  let trimsSpace = self.preparedTextAdjustment(prepared, for: live) else {
+                self.schedulePredictionForPublishedEdit()
+                return
+            }
             let adjustedText = trimsSpace ? String(text.drop(while: { $0 == " " })) : text
             let context = self.interactionState.materializeContext(from: live)
             await self.apply(result: SuggestionResult(generation: context.generation, rawText: adjustedText,
@@ -152,14 +169,32 @@ extension SuggestionCoordinator {
 
     private func finishUnavailableContinuation() {
         let shouldRefresh = preparedContinuation?.awaitingCommit == true
-        let targetPublished = preparedContinuation.flatMap { prepared in
-            focusModel.snapshot.context.flatMap { preparedTextAdjustment(prepared, for: $0) }
-        } != nil
+        // An owned request saw its target publish, so a different edit now is published text too;
+        // waiting for yet another change would end at the correction timeout with no prediction.
+        let targetPublished = preparedContinuation.map { prepared in
+            prepared.ownsNextPrediction
+                || focusModel.snapshot.context.flatMap { preparedTextAdjustment(prepared, for: $0) } != nil
+        } ?? false
         cancelPreparedContinuation()
         // A failed optional prefetch never replaces a useful visible word with an error state.
         // Once the source has been accepted, ordinary prediction remains the fallback.
-        if shouldRefresh {
-            if targetPublished { schedulePrediction() } else { schedulePredictionAfterHostPublishDelay(requiresTextChange: true) }
+        guard shouldRefresh else { return }
+        if targetPublished {
+            schedulePredictionForPublishedEdit()
+        } else {
+            schedulePredictionAfterHostPublishDelay(requiresTextChange: true)
+        }
+    }
+
+    /// Falls back to ordinary prediction after the host has already published the accepted edit,
+    /// so there is no publication left to wait for. A field that AX briefly stops reporting is
+    /// polled until it returns instead of disabling suggestions on that one transient read.
+    private func schedulePredictionForPublishedEdit() {
+        cancelPreparedContinuation()
+        if focusModel.snapshot.context == nil {
+            schedulePredictionAfterHostPublishDelay()
+        } else {
+            schedulePrediction()
         }
     }
 }

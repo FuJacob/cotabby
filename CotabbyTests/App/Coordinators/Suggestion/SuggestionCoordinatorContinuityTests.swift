@@ -299,6 +299,85 @@ final class SuggestionCoordinatorContinuityTests: XCTestCase {
         XCTAssertEqual(rig.inserter.replacements.count, 1)
     }
 
+    func testEditorChangeBeforeTheQueuedContinuationAppliesRequestsAFreshPrediction() async {
+        let rig = correctionRig()
+        defer { rig.coordinator.stop() }
+        rig.engine.resultProvider = { request in
+            SuggestionResult(generation: request.generation, rawText: "the package", text: "the package", latency: 0.01)
+        }
+        rig.coordinator.schedulePrediction()
+        await waitUntil { rig.coordinator.preparedContinuation?.text == "the package" }
+        XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
+
+        // Seeing the exact replacement retires the publication poll and the plan, then queues the
+        // prepared text for presentation. An edit that reaches AX without a key event (a host text
+        // service, auto-formatting, a late publication) lands before that queued work runs.
+        publishText("Please receive ", in: rig)
+        XCTAssertTrue(rig.coordinator.usePreparedContinuationIfPossible())
+        XCTAssertNil(rig.coordinator.preparedContinuation)
+        publishText("Please receive a ", in: rig)
+
+        await waitUntil { rig.engine.requests.count == 2 }
+        XCTAssertEqual(rig.engine.requests.last?.prefixText, "Please receive a ",
+                       "The queued apply owned the next prediction, so it must request one for the new text")
+        await waitUntil { rig.interactionState.activeSession?.remainingText == "the package" }
+        XCTAssertTrue(rig.inserter.insertedChunks.isEmpty)
+        XCTAssertEqual(rig.inserter.replacements.count, 1)
+    }
+
+    func testContinuationFinishingAfterTheEditorMovesOnRequestsAFreshPrediction() async {
+        let rig = correctionRig()
+        let gate = ResultGate()
+        defer { gate.resume(text: "the package"); rig.coordinator.stop() }
+        rig.engine.resultProvider = { request in
+            if request.prefixText == "Please receive " { return await gate.wait(for: request) }
+            return SuggestionResult(generation: request.generation, rawText: "the package", text: "the package", latency: 0.01)
+        }
+        rig.coordinator.schedulePrediction()
+        await waitUntil { gate.isWaiting && rig.interactionState.activeSession?.kind.isCorrection == true }
+        XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
+
+        // The replacement publishes while the continuation still runs: the publication poll stands
+        // down and hands the next prediction to that request.
+        let refreshCountBeforePublication = rig.focusProvider.refreshCount
+        publishText("Please receive ", in: rig)
+        await waitUntil { rig.focusProvider.refreshCount > refreshCountBeforePublication }
+        XCTAssertEqual(rig.coordinator.preparedContinuation?.awaitingCommit, true)
+        publishText("Please receive a ", in: rig)
+
+        gate.resume(text: "the package")
+        await waitUntil { rig.engine.requests.count == 2 }
+        XCTAssertEqual(rig.engine.requests.last?.prefixText, "Please receive a ")
+        XCTAssertNil(rig.coordinator.preparedContinuation, "A result for the old target must not stay buffered")
+        await waitUntil { rig.interactionState.activeSession?.remainingText == "the package" }
+        XCTAssertTrue(rig.inserter.insertedChunks.isEmpty)
+    }
+
+    func testUnusableContinuationAfterTheEditorMovesOnRequestsAFreshPrediction() async {
+        let rig = correctionRig()
+        let gate = ResultGate()
+        defer { gate.resume(text: ""); rig.coordinator.stop() }
+        rig.engine.resultProvider = { request in
+            if request.prefixText == "Please receive " { return await gate.wait(for: request) }
+            return SuggestionResult(generation: request.generation, rawText: "the package", text: "the package", latency: 0.01)
+        }
+        rig.coordinator.schedulePrediction()
+        await waitUntil { gate.isWaiting && rig.interactionState.activeSession?.kind.isCorrection == true }
+        XCTAssertTrue(rig.coordinator.acceptCurrentSuggestion())
+
+        let refreshCountBeforePublication = rig.focusProvider.refreshCount
+        publishText("Please receive ", in: rig)
+        await waitUntil { rig.focusProvider.refreshCount > refreshCountBeforePublication }
+        publishText("Please receive a ", in: rig)
+
+        // The target already published, so the empty result must not wait for yet another edit
+        // (and then abandon the field on timeout the way an unpublished replacement does).
+        gate.resume(text: "")
+        await waitUntil { rig.engine.requests.count == 2 }
+        XCTAssertEqual(rig.engine.requests.last?.prefixText, "Please receive a ")
+        XCTAssertNil(rig.coordinator.preparedContinuation)
+    }
+
     func testDismissalCancelsCorrectionLookaheadAndALateResultCannotResurrectIt() async {
         let rig = correctionRig()
         let gate = ResultGate()
