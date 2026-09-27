@@ -36,6 +36,10 @@ from textwrap import dedent
 # each card's midpoint so that the icon plus its label sit visually centered together.
 WINDOW_WIDTH = 700
 WINDOW_HEIGHT = 424
+# dmgbuild stores window_rect as Finder's full window frame, title bar included, while the
+# background is drawn in the content area below it. Without this padding the bottom 28pt of
+# the art (where the cat sleeps) is clipped until the user resizes the window.
+TITLE_BAR_HEIGHT = 28
 ICON_SIZE = 72
 TEXT_SIZE = 12
 APP_ICON_LOCATION = (226, 178)
@@ -229,7 +233,7 @@ def write_settings_file(
         }}
 
         background = {str(normalized_background_path)!r}
-        window_rect = ((120, 120), ({WINDOW_WIDTH}, {WINDOW_HEIGHT}))
+        window_rect = ((120, 120), ({WINDOW_WIDTH}, {WINDOW_HEIGHT + TITLE_BAR_HEIGHT}))
         show_status_bar = False
         show_tab_view = False
         show_toolbar = False
